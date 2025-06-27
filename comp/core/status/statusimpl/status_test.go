@@ -1148,3 +1148,84 @@ func TestGetStatusBySectionIncorrect(t *testing.T) {
 	assert.Nil(t, bytesResult)
 	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
 }
+
+func TestProviderGetterCaching(t *testing.T) {
+
+	// initialize a dynamic provider store
+	dynamicProviderStore := []status.Provider{}
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				name:    "bbb",
+				section: "bbb",
+				data: map[string]interface{}{
+					"foo_1": "bar_1",
+				},
+				text: "text from zoo_1\n",
+			}),
+			status.NewDynamicInformationProvider(func() []status.Provider {
+				return dynamicProviderStore
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	// Check that status sections length is 2 (header + provided sections), which is the dynamic provider
+	assert.Len(t, statusComponent.GetSections(), 2)
+
+	// Add a new provider to the dynamic store
+	// It should be added at the end of the providers list
+	dynamicProviderStore = append(dynamicProviderStore, mockProvider{
+		name:    "ccc",
+		section: "ccc",
+		data: map[string]interface{}{
+			"foo_1": "bar_1",
+		},
+		text: "text from zoo_1\n",
+	})
+
+	// Check that the status sections length is now 3 (header + provided sections), as we added a new provider
+	assert.Len(t, statusComponent.GetSections(), 3)
+
+	// Check that the static provier is still the first one after "header", as "bbb" < "ccc"
+	sections := statusComponent.GetSections()
+	assert.Equal(t, "bbb", sections[1])
+	assert.Equal(t, "ccc", sections[2])
+
+	// Adding "aaa" provider to the dynamic store
+	dynamicProviderStore = append(dynamicProviderStore, mockProvider{
+		name:    "aaa",
+		section: "aaa",
+		data: map[string]interface{}{
+			"foo_1": "bar_1",
+		},
+		text: "text from zoo_1\n",
+	})
+
+	// Check that the status sections length is now 4 (header + provided sections), as we added a new provider
+	assert.Len(t, statusComponent.GetSections(), 4)
+
+	// Check that the new dynamically added provider is at the beginning of the list after "header"
+	// as "aaa" < "bbb" < "ccc"
+	sections = statusComponent.GetSections()
+	assert.Equal(t, "aaa", sections[1])
+	assert.Equal(t, "bbb", sections[2])
+	assert.Equal(t, "ccc", sections[3])
+
+	// Check that the sectionManager is not recomputing the sections if no dynamic providers are added
+	statusImpl, ok := statusComponent.(*statusImplementation)
+	assert.True(t, ok)
+	sectionManager := statusImpl.providers
+	currentHash := sectionManager._lastDynamicProvidersHash
+	// Running every method of the sectionManager to check that the sections are not recomputed
+	sectionManager.SortedHeaderProviders()
+	sectionManager.SortedProvidersBySection()
+	sectionManager.SortedSectionNames()
+	assert.Equal(t, currentHash, sectionManager._lastDynamicProvidersHash)
+}

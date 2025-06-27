@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"sort"
 	"strings"
 	"unicode"
 
@@ -41,8 +40,10 @@ type dependencies struct {
 	Params status.Params
 	Log    log.Component
 
-	Providers       []status.Provider       `group:"status"`
-	HeaderProviders []status.HeaderProvider `group:"header_status"`
+	Providers              []status.Provider                `group:"status"`
+	HeaderProviders        []status.HeaderProvider          `group:"header_status"`
+	DynamicProviders       []func() []status.Provider       `group:"dyn_status"`
+	DynamicHeaderProviders []func() []status.HeaderProvider `group:"dyn_header_status"`
 }
 
 type provides struct {
@@ -56,10 +57,8 @@ type provides struct {
 }
 
 type statusImplementation struct {
-	sortedHeaderProviders    []status.HeaderProvider
-	sortedSectionNames       []string
-	sortedProvidersBySection map[string][]status.Provider
-	log                      log.Component
+	log       log.Component
+	providers statusProviderManager
 }
 
 // Module defines the fx options for this component.
@@ -69,67 +68,20 @@ func Module() fxutil.Module {
 	)
 }
 
-func sortByName(providers []status.Provider) []status.Provider {
-	sort.SliceStable(providers, func(i, j int) bool {
-		return providers[i].Name() < providers[j].Name()
-	})
-
-	return providers
-}
-
 func newStatus(deps dependencies) provides {
-	// Sections are sorted by name
-	// The exception is the collector section. We want that to be the first section to be displayed
-	// We manually insert the collector section in the first place after sorting them alphabetically
-	sortedSectionNames := []string{}
-	collectorSectionPresent := false
-
-	providers := fxutil.GetAndFilterGroup(deps.Providers)
-
-	for _, provider := range providers {
-		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
-			collectorSectionPresent = true
-		}
-
-		if !present(provider.Section(), sortedSectionNames) && provider.Section() != status.CollectorSection {
-			sortedSectionNames = append(sortedSectionNames, strings.ToLower(provider.Section()))
-		}
-	}
-
-	sort.Strings(sortedSectionNames)
-
-	if collectorSectionPresent {
-		sortedSectionNames = append([]string{status.CollectorSection}, sortedSectionNames...)
-	}
-
-	// Providers of each section are sort alphabetically by name
-	// Section names are stored lower case
-	sortedProvidersBySection := map[string][]status.Provider{}
-	for _, provider := range providers {
-		lowerSectionName := strings.ToLower(provider.Section())
-		providers := sortedProvidersBySection[lowerSectionName]
-		sortedProvidersBySection[lowerSectionName] = append(providers, provider)
-	}
-	for section, providers := range sortedProvidersBySection {
-		sortedProvidersBySection[section] = sortByName(providers)
-	}
-
-	// Header providers are sorted by index
-	// We manually insert the common header provider in the first place after sorting is done
-	sortedHeaderProviders := []status.HeaderProvider{}
-	sortedHeaderProviders = append(sortedHeaderProviders, fxutil.GetAndFilterGroup(deps.HeaderProviders)...)
-
-	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
-		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
-	})
-
-	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Params, deps.Config)}, sortedHeaderProviders...)
+	// Create a provider getter that will handle the static and dynamic providers
+	providers := newProviderGetter(
+		deps.Log,
+		newCommonHeaderProvider(deps.Params, deps.Config),
+		deps.HeaderProviders,
+		deps.Providers,
+		deps.DynamicHeaderProviders,
+		deps.DynamicProviders,
+	)
 
 	c := &statusImplementation{
-		sortedSectionNames:       sortedSectionNames,
-		sortedProvidersBySection: sortedProvidersBySection,
-		sortedHeaderProviders:    sortedHeaderProviders,
-		log:                      deps.Log,
+		providers: providers,
+		log:       deps.Log,
 	}
 
 	return provides{
@@ -159,7 +111,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
-		for _, sc := range s.sortedHeaderProviders {
+		for _, sc := range s.providers.SortedHeaderProviders() {
 			if present(sc.Name(), excludeSections) {
 				continue
 			}
@@ -169,7 +121,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 		}
 
-		for _, providers := range s.sortedProvidersBySection {
+		for _, providers := range s.providers.SortedProvidersBySection() {
 			for _, provider := range providers {
 				if present(provider.Section(), excludeSections) {
 					continue
@@ -192,7 +144,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	case "text":
 		b := new(bytes.Buffer)
 
-		for _, sc := range s.sortedHeaderProviders {
+		for _, sc := range s.providers.SortedHeaderProviders() {
 			name := sc.Name()
 			if present(name, excludeSections) {
 				continue
@@ -210,7 +162,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 		}
 
-		for _, section := range s.sortedSectionNames {
+		for _, section := range s.providers.SortedSectionNames() {
 			if present(section, excludeSections) {
 				continue
 			}
@@ -219,7 +171,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 				headerBuffer := new(bytes.Buffer)
 				sectionBuffer := new(bytes.Buffer)
 
-				for i, provider := range s.sortedProvidersBySection[section] {
+				for i, provider := range s.providers.SortedProvidersBySection()[section] {
 
 					if i == 0 {
 						printHeader(headerBuffer, provider.Section())
@@ -251,7 +203,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	case "html":
 		b := new(bytes.Buffer)
 
-		for _, sc := range s.sortedHeaderProviders {
+		for _, sc := range s.providers.SortedHeaderProviders() {
 			if present(sc.Name(), excludeSections) {
 				continue
 			}
@@ -262,12 +214,12 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 			}
 		}
 
-		for _, section := range s.sortedSectionNames {
+		for _, section := range s.providers.SortedSectionNames() {
 			if present(section, excludeSections) {
 				continue
 			}
 
-			for _, provider := range s.sortedProvidersBySection[section] {
+			for _, provider := range s.providers.SortedProvidersBySection()[section] {
 				err := provider.HTML(verbose, b)
 				if err != nil {
 					return b.Bytes(), err
@@ -284,7 +236,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	var errs []error
 
 	if len(sections) == 1 && sections[0] == "header" {
-		providers := s.sortedHeaderProviders
+		providers := s.providers.SortedHeaderProviders()
 		switch format {
 		case "json":
 			stats := make(map[string]interface{})
@@ -348,7 +300,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	// Get provider lists from one or more sections
 	var providers []status.Provider
 	for _, section := range sections {
-		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
+		providersForSection, ok := s.providers.SortedProvidersBySection()[strings.ToLower(section)]
 		if !ok {
 			res, _ := json.Marshal(s.GetSections())
 			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
@@ -415,7 +367,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 }
 
 func (s *statusImplementation) GetSections() []string {
-	return append([]string{"header"}, s.sortedSectionNames...)
+	return append([]string{"header"}, s.providers.SortedSectionNames()...)
 }
 
 // fillFlare add the status.log to flares.
