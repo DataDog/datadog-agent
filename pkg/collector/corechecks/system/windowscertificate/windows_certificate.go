@@ -529,6 +529,7 @@ func getCrlInfo(storeHandle windows.Handle) ([]crlInfoCopy, error) {
 	var crlInfo []crlInfoCopy
 	defer func() {
 		err = winutil.CertFreeCRLContext(crlContext)
+		log.Debugf("Freeing CRL context")
 		if err != nil {
 			log.Errorf("Error freeing CRL context: %v", err)
 		}
@@ -618,6 +619,7 @@ func getCrlIssuerTags(issuer string) []string {
 			issuerTags = append(issuerTags, component)
 		}
 	}
+	log.Debugf("CRL issuer tags: %v", issuerTags)
 
 	return issuerTags
 }
