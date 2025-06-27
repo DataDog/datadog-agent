@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -57,7 +57,7 @@ var listenerCandidateIntl = 30 * time.Second
 type dependencies struct {
 	fx.In
 	Lc         fx.Lifecycle
-	Config     configComponent.Component
+	Config     config.Component
 	Log        logComp.Component
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
@@ -121,25 +121,6 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
-
-	confSearchPaths := []string{
-		deps.Config.GetString("confd_path"),
-		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
-		"",
-	}
-
-	if deps.Config.GetString("fleet_policies_dir") != "" {
-		confSearchPaths = append(confSearchPaths, filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d"))
-	}
-
-	providers.InitConfigFilesReader(confSearchPaths)
-
-	c.AddConfigProvider(
-		providers.NewFileConfigProvider(c.GetTelemetryStore()),
-		deps.Config.GetBool("autoconf_config_files_poll"),
-		time.Duration(deps.Config.GetInt("autoconf_config_files_poll_interval"))*time.Second,
-	)
-
 	return provides{
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
@@ -191,7 +172,7 @@ func newAutoConfig(deps dependencies) *AutoConfig {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.Config)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -206,7 +187,7 @@ func newAutoConfig(deps dependencies) *AutoConfig {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, conf config.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -226,6 +207,25 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		logs:                     logs,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
+
+	confSearchPaths := []string{
+		conf.GetString("confd_path"),
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
+		"",
+	}
+
+	if conf.GetString("fleet_policies_dir") != "" {
+		confSearchPaths = append(confSearchPaths, filepath.Join(conf.GetString("fleet_policies_dir"), "conf.d"))
+	}
+
+	providers.InitConfigFilesReader(confSearchPaths)
+
+	ac.AddConfigProvider(
+		providers.NewFileConfigProvider(ac.GetTelemetryStore()),
+		conf.GetBool("autoconf_config_files_poll"),
+		time.Duration(conf.GetInt("autoconf_config_files_poll_interval"))*time.Second,
+	)
+
 	return ac
 }
 
