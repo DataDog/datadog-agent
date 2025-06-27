@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	filterfxmock "github.com/DataDog/datadog-agent/comp/core/filter/fx-mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -526,6 +527,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 
 func newKubeletListener(t *testing.T, tagger tagger.Component) (*KubeletListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
+	filterStore := filterfxmock.SetupMockFilter(t)
 
-	return &KubeletListener{workloadmetaListener: wlm, tagger: tagger}, wlm
+	return &KubeletListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
 }

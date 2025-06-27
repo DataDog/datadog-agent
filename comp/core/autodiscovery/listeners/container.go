@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -34,7 +35,8 @@ const (
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
-	tagger tagger.Component
+	filterStore filter.Component
+	tagger      tagger.Component
 }
 
 // NewContainerListener returns a new ContainerListener.
@@ -61,24 +63,19 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 
 func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	container := entity.(*workloadmeta.Container)
-	var annotations map[string]string
 	var pod *workloadmeta.KubernetesPod
 	if findKubernetesInLabels(container.Labels) {
 		kubePod, err := l.Store().GetKubernetesPodForContainer(container.ID)
 		if err == nil {
 			pod = kubePod
-			annotations = pod.Annotations
 		} else {
 			log.Debugf("container %q belongs to a pod but was not found: %s", container.ID, err)
 		}
 	}
 	containerImg := container.Image
-	if l.IsExcluded(
-		containers.GlobalFilter,
-		annotations,
-		container.Name,
-		containerImg.RawName,
-		"",
+	if l.filterStore.IsContainerExcluded(
+		filter.CreateContainer(container, filter.CreatePod(pod)),
+		filter.GetAutodiscoveryFilters(filter.GlobalFilter),
 	) {
 		log.Debugf("container %s filtered out: name %q image %q", container.ID, container.Name, containerImg.RawName)
 		return
@@ -131,19 +128,13 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.hosts = map[string]string{"pod": pod.IP}
 		svc.ready = pod.Ready
 
-		svc.metricsExcluded = l.IsExcluded(
-			containers.MetricsFilter,
-			pod.Annotations,
-			container.Name,
-			containerImg.RawName,
-			"",
+		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
+			filter.CreateContainer(container, filter.CreatePod(pod)),
+			filter.GetAutodiscoveryFilters(filter.MetricsFilter),
 		)
-		svc.logsExcluded = l.IsExcluded(
-			containers.LogsFilter,
-			pod.Annotations,
-			container.Name,
-			containerImg.RawName,
-			"",
+		svc.logsExcluded = l.filterStore.IsContainerExcluded(
+			filter.CreateContainer(container, filter.CreatePod(pod)),
+			filter.GetAutodiscoveryFilters(filter.LogsFilter),
 		)
 	} else {
 		checkNames, err := utils.ExtractCheckNamesFromContainerLabels(container.Labels)
@@ -168,19 +159,13 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		svc.ready = true
 		svc.hosts = hosts
 		svc.checkNames = checkNames
-		svc.metricsExcluded = l.IsExcluded(
-			containers.MetricsFilter,
-			nil,
-			container.Name,
-			containerImg.RawName,
-			"",
+		svc.metricsExcluded = l.filterStore.IsContainerExcluded(
+			filter.CreateContainer(container, nil),
+			filter.GetAutodiscoveryFilters(filter.MetricsFilter),
 		)
-		svc.logsExcluded = l.IsExcluded(
-			containers.LogsFilter,
-			nil,
-			container.Name,
-			containerImg.RawName,
-			"",
+		svc.logsExcluded = l.filterStore.IsContainerExcluded(
+			filter.CreateContainer(container, nil),
+			filter.GetAutodiscoveryFilters(filter.LogsFilter),
 		)
 	}
 
