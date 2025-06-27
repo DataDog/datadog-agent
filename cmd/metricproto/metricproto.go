@@ -51,93 +51,64 @@ type bucket struct {
 }
 
 func (b *bucket) read(payload string) {
-	for _, line := range strings.Split(payload, "\n") {
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "_sc|") || strings.HasPrefix(line, "_e|") {
-			continue
-		}
-		fields := strings.Split(line, "|")
-		values := strings.Split(fields[0], ":")
-		tags := ""
-		for i := 2; i < len(fields); i++ {
-			field := fields[i]
-			if ts, ok := strings.CutPrefix(field, "#"); ok {
-				list := strings.Split(ts, ",")
-				sort.UniqInPlace(list)
-				tags = strings.Join(list, ",")
-			}
-			if id, ok := strings.CutPrefix(field, "c:"); ok {
-				b.containerId = id
-			}
-		}
+}
 
-		numvalues := make([]float64, 0, len(values)-1)
-		for i := 1; i < len(values); i++ {
-			v, err := strconv.ParseFloat(values[i], 64)
-			if err != nil {
-				fmt.Printf("parse err: %q: %v", values[i], err)
-				continue
-			}
-			numvalues = append(numvalues, v)
+func (b *bucket) insert(ty, k1, k2 string, numvalues []float64) {
+	mode := Sketch
+	switch ty {
+	case "g":
+		if b.gauges == nil {
+			b.gauges = make(map[string]map[string]float64)
 		}
-
-		k1 := values[0] // name
-		k2 := tags
-		mode := Sketch
-
-		switch fields[1] {
-		case "g":
-			if b.gauges == nil {
-				b.gauges = make(map[string]map[string]float64)
-			}
-			l1, ok := b.gauges[k1]
-			if !ok {
-				l1 = make(map[string]float64)
-				b.gauges[k1] = l1
-			}
-			l1[k2] = numvalues[len(numvalues)-1]
-		case "c":
-			if b.counts == nil {
-				b.counts = make(map[string]map[string]float64)
-			}
-			l1, ok := b.counts[k1]
-			if !ok {
-				l1 = make(map[string]float64)
-				b.counts[k1] = l1
-			}
-			for _, v := range numvalues {
-				l1[k2] += v
-			}
-		case "ms":
-			mode = Timing
-			fallthrough
-		case "h":
-			mode = Histogram
-			fallthrough
-		case "d":
-			if b.sketches == nil {
-				b.sketches = make(map[string]map[string]sketch)
-			}
-			l1, ok := b.sketches[k1]
-			if !ok {
-				l1 = make(map[string]sketch)
-				b.sketches[k1] = l1
-			}
-			sk, ok := l1[k2]
-			if !ok {
-				sk = sketch{mode: mode, sk: &quantile.Agent{}}
-				l1[k2] = sk
-			}
-			for _, v := range numvalues {
-				sk.sk.Insert(v, 1.0)
-			}
+		l1, ok := b.gauges[k1]
+		if !ok {
+			l1 = make(map[string]float64)
+			b.gauges[k1] = l1
+		}
+		l1[k2] = numvalues[len(numvalues)-1]
+	case "c":
+		if b.counts == nil {
+			b.counts = make(map[string]map[string]float64)
+		}
+		l1, ok := b.counts[k1]
+		if !ok {
+			l1 = make(map[string]float64)
+			b.counts[k1] = l1
+		}
+		for _, v := range numvalues {
+			l1[k2] += v
+		}
+	case "ms":
+		mode = Timing
+		fallthrough
+	case "h":
+		mode = Histogram
+		fallthrough
+	case "d":
+		if b.sketches == nil {
+			b.sketches = make(map[string]map[string]sketch)
+		}
+		l1, ok := b.sketches[k1]
+		if !ok {
+			l1 = make(map[string]sketch)
+			b.sketches[k1] = l1
+		}
+		sk, ok := l1[k2]
+		if !ok {
+			sk = sketch{mode: mode, sk: &quantile.Agent{}}
+			l1[k2] = sk
+		}
+		for _, v := range numvalues {
+			sk.sk.Insert(v, 1.0)
 		}
 	}
 }
 
 func (b *bucket) printStats() {
+	if b == nil {
+		return
+	}
+	
 	mapStat("gauges", b.gauges)
 	mapStat("counts", b.counts)
 	mapStat("sketches", b.sketches)
@@ -145,6 +116,9 @@ func (b *bucket) printStats() {
 
 func mapStat[T any](what string, m map[string]map[string]T) {
 	total := 0
+	if m == nil {
+		return
+	}
 	for _, inner := range m {
 		total += len(inner)
 	}
@@ -1827,23 +1801,71 @@ type agg struct {
 	buckets map[int64]map[int]*bucket
 }
 
-func (a *agg) read(ts int64, pid int, line string) {
+func (a *agg) read(ts_ns int64, pid int, line string) {
 	if a.buckets == nil {
 		a.buckets = make(map[int64]map[int]*bucket)
 	}
 
-	ts = ts / 10_000_000_000
-	pm, ok := a.buckets[ts]
-	if !ok {
-		pm = make(map[int]*bucket)
-		a.buckets[ts] = pm
+	for _, line := range strings.Split(line, "\n") {
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "_sc|") || strings.HasPrefix(line, "_e|") {
+			continue
+		}
+		fields := strings.Split(line, "|")
+		values := strings.Split(fields[0], ":")
+		tags := ""
+		ts := ts_ns / 10_000_000_000
+		containerId := ""
+
+		for i := 2; i < len(fields); i++ {
+			field := fields[i]
+			if ts, ok := strings.CutPrefix(field, "#"); ok {
+				list := strings.Split(ts, ",")
+				sort.UniqInPlace(list)
+				tags = strings.Join(list, ",")
+			}
+			if id, ok := strings.CutPrefix(field, "c:"); ok {
+				containerId = id
+			}
+			if tsstr, ok := strings.CutPrefix(field, "T"); ok {
+				var err error
+				ts, err = strconv.ParseInt(tsstr, 10, 64)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+
+		if strings.Contains(tags, "dd.internal.entity_id:none") || strings.Contains(tags, "client:rust") {
+			continue
+		}
+
+		numvalues := make([]float64, 0, len(values)-1)
+		for i := 1; i < len(values); i++ {
+			v, err := strconv.ParseFloat(values[i], 64)
+			if err != nil {
+				fmt.Printf("parse err: %q: %v", values[i], err)
+				continue
+			}
+			numvalues = append(numvalues, v)
+		}
+
+		pm, ok := a.buckets[ts]
+		if !ok {
+			pm = make(map[int]*bucket)
+			a.buckets[ts] = pm
+		}
+		b, ok := pm[pid]
+		if !ok {
+			b = &bucket{}
+			pm[pid] = b
+		}
+
+		b.containerId = containerId
+		b.insert(fields[1], values[0], tags, numvalues)
 	}
-	b, ok := pm[pid]
-	if !ok {
-		b = &bucket{}
-		pm[pid] = b
-	}
-	b.read(line)
 }
 
 var flagTs = flag.Int64("t", 0, "timestamp to use as a benchmark")
