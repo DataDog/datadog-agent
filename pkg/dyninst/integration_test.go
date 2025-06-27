@@ -284,7 +284,7 @@ func (r *testReporter) ReportAttachingFailed(
 ) {
 	defer close(r.attached)
 	r.t.Fatalf(
-		"attaching failed for program %d to process %d: %v",
+		"attaching failed for program %d to process %v: %v",
 		programID, processID, err,
 	)
 }
