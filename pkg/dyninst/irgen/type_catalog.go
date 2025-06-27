@@ -223,6 +223,9 @@ func (c *typeCatalog) buildType(
 		if entry.Children {
 			return nil, fmt.Errorf("unexpected children for pointer type")
 		}
+		if common.ByteSize == 0 {
+			common.ByteSize = uint32(c.ptrSize)
+		}
 		pointeeOffset, hasPointee, err := maybeGetAttr[dwarf.Offset](
 			entry, dwarf.AttrType,
 		)
@@ -235,15 +238,17 @@ func (c *typeCatalog) buildType(
 			if err != nil {
 				return nil, err
 			}
+			return &ir.PointerType{
+				TypeCommon:       common,
+				GoTypeAttributes: goAttrs,
+				Pointee:          pointee,
+			}, nil
 		}
-		if common.ByteSize == 0 {
-			common.ByteSize = uint32(c.ptrSize)
-		}
-		return &ir.PointerType{
+		return &ir.BaseType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Pointee:          pointee,
 		}, nil
+
 	case dwarf.TagStructType:
 		if !entry.Children {
 			return nil, fmt.Errorf("structure type has no children")
@@ -287,6 +292,7 @@ func (c *typeCatalog) buildType(
 					underlyingType,
 				)
 			}
+			common.ByteSize = underlyingStructure.GetByteSize()
 			switch name := underlyingStructure.GetName(); name {
 			case "runtime.eface":
 				return &ir.GoEmptyInterfaceType{

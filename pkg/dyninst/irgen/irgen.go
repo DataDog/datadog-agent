@@ -20,12 +20,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/dwarf/loclist"
 	"github.com/pkg/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 )
 
 // TODO: Validate the probes in the config and report things that are
@@ -485,7 +484,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 					Offset: uint32(0),
 					Expression: ir.Expression{
 						Type: variable.Type,
-						Operations: []ir.Op{
+						Operations: []ir.ExpressionOp{
 							&ir.LocationOp{
 								Variable: variable,
 								Offset:   0,
@@ -536,7 +535,7 @@ type rootVisitor struct {
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
 	probes             []*ir.Probe
 	typeCatalog        *typeCatalog
-	loclistReader      *object.LoclistReader
+	loclistReader      *loclist.Reader
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
@@ -1041,21 +1040,7 @@ func (v *rootVisitor) computeLocations(
 	typ ir.Type,
 	locField *dwarf.Field,
 ) ([]ir.Location, error) {
-	totalSize := int64(typ.GetByteSize())
-	pointerSize := int(v.object.PointerSize())
-	fixLoclist := func(pieces []locexpr.LocationPiece) []locexpr.LocationPiece {
-		// Workaround for delve not returning sizes.
-		if len(pieces) == 1 {
-			pieces[0].Size = totalSize
-		}
-		// Workaround for net/dwarfutils/locexpr doing incorrect pointer-side adjustment
-		for i := range pieces {
-			if !pieces[i].InReg {
-				pieces[i].StackOffset -= int64(pointerSize)
-			}
-		}
-		return pieces
-	}
+	totalSize := typ.GetByteSize()
 	var locations []ir.Location
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
@@ -1065,44 +1050,32 @@ func (v *rootVisitor) computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		if err := v.loclistReader.Seek(unit, offset); err != nil {
+		loclist, err := v.loclistReader.Read(unit, offset, totalSize)
+		if err != nil {
 			return nil, err
 		}
-		var entry loclist.Entry
-		for v.loclistReader.Next(&entry) {
-			locationPieces, err := locexpr.Exec(
-				entry.Instr, totalSize, pointerSize,
-			)
-			if err != nil {
-				return nil, err
-			}
-			locationPieces = fixLoclist(locationPieces)
-			locations = append(locations, ir.Location{
-				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
-				Pieces: locationPieces,
-			})
+		if len(loclist.Default) > 0 {
+			return nil, fmt.Errorf("unexpected default location pieces")
 		}
+		locations = loclist.Locations
 
 	case dwarf.ClassExprLoc:
-		locationExpression, ok := locField.Val.([]byte)
+		instr, ok := locField.Val.([]byte)
 		if !ok {
 			return nil, fmt.Errorf(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		locationPieces, err := locexpr.Exec(
-			locationExpression, totalSize, pointerSize,
-		)
+		pieces, err := loclist.ParseInstructions(instr, v.object.PointerSize(), totalSize)
 		if err != nil {
 			return nil, err
 		}
-		locationPieces = fixLoclist(locationPieces)
 		// BUG: This should take into consideration the ranges of the current
 		// block, not necessarily the ranges of the subprogram.
 		for _, r := range subprogramRanges {
 			locations = append(locations, ir.Location{
 				Range:  r,
-				Pieces: locationPieces,
+				Pieces: pieces,
 			})
 		}
 	default:
@@ -1111,6 +1084,7 @@ func (v *rootVisitor) computeLocations(
 			locField.Attr, locField.Class,
 		)
 	}
+
 	return locations, nil
 }
 

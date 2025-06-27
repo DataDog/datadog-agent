@@ -112,11 +112,6 @@ CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
 LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-@task
-def create_stack(ctx, stack=None):
-    stacks.create_stack(ctx, stack)
-
-
 @task(
     help={
         "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
@@ -138,7 +133,7 @@ def gen_config(
     stack: str | None = None,
     vms: str = "",
     sets: str = "",
-    init_stack=False,
+    init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
     new=False,
@@ -397,9 +392,12 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
 
-    info("[+] Kernel matrix testing system initialized successfully")
     if not skip_ssh_setup:
         config_ssh_key(ctx)
+
+    info(
+        "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
+    )
 
 
 @task

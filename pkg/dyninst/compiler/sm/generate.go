@@ -328,6 +328,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.GoChannelType:
 		// TODO: support Go channels
 
+	case *ir.GoSubroutineType:
+		// TODO: support Go subroutines
+
 	// Map containers
 	case *ir.GoHMapHeaderType:
 	case *ir.GoHMapBucketType:
@@ -471,27 +474,33 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Variable has loclist entry for relevant PC range, but it is still unavailable.
 			break
 		}
-		for _, locPiece := range loclist.Pieces {
+		for _, piece := range loclist.Pieces {
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
-			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(locPiece.Size) {
+			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
 				nextLayoutIdx++
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
 			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				if locPiece.InReg {
+				switch p := piece.Op.(type) {
+				case ir.Register:
+					if piece.Size > 8 {
+						return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
+					}
 					ops = append(ops, ExprReadRegisterOp{
-						Register:     uint8(locPiece.Register),
-						Size:         uint8(locPiece.Size),
+						Register:     p.RegNo,
+						Size:         uint8(piece.Size),
 						OutputOffset: paddedOffset - op.Offset,
 					})
-				} else {
+				case ir.Cfa:
 					ops = append(ops, ExprDereferenceCfaOp{
-						Offset:       uint32(locPiece.StackOffset),
-						Len:          uint32(locPiece.Size),
+						Offset:       p.CfaOffset,
+						Len:          piece.Size,
 						OutputOffset: paddedOffset - op.Offset,
 					})
+				case ir.Addr:
+					return nil, fmt.Errorf("unsupported addr location op")
 				}
 			}
 		}
