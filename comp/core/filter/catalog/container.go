@@ -7,6 +7,8 @@
 package catalog
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/comp/core/filter/program"
@@ -71,9 +73,17 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 	}
 }
 
-// ContainerADAnnotationsProgram creates a program for filtering container annotations
-func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	excludeFilter := `("ad.datadoghq.com/" + container.name + ".exclude") in container.pod.annotations && container.pod.annotations["ad.datadoghq.com/" + container.name + ".exclude"] == "true"`
+// createContainerADAnnotationsProgram creates a program for filtering
+// container annotations based on the annotation key.
+func createContainerADAnnotationsProgram(programName, annotationKey string, logger log.Component) program.CELProgram {
+	// Use 'in' operator to safely check if annotation exists before accessing it
+	excludeFilter := fmt.Sprintf(`
+		(("ad.datadoghq.com/" + container.name + ".%s") in container.pod.annotations && 
+		 container.pod.annotations["ad.datadoghq.com/" + container.name + ".%s"] == "true") ||
+		(("ad.datadoghq.com/%s") in container.pod.annotations && 
+		 container.pod.annotations["ad.datadoghq.com/%s"] == "true")
+	`, annotationKey, annotationKey, annotationKey, annotationKey)
+
 	excludeProgram, err := createCELProgram(excludeFilter, filter.ContainerType)
 
 	if err != nil {
@@ -81,9 +91,24 @@ func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) pro
 	}
 
 	return program.CELProgram{
-		Name:    "ContainerADAnnotationsProgram",
+		Name:    programName,
 		Exclude: excludeProgram,
 	}
+}
+
+// ContainerADAnnotationsProgram creates a program for filtering container annotations
+func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
+	return createContainerADAnnotationsProgram("ContainerADAnnotationsProgram", "exclude", logger)
+}
+
+// ContainerADAnnotationsMetricsProgram creates a program for filtering container annotations for metrics
+func ContainerADAnnotationsMetricsProgram(_ config.Component, logger log.Component) program.CELProgram {
+	return createContainerADAnnotationsProgram("ContainerADAnnotationsMetricsProgram", "metrics_exclude", logger)
+}
+
+// ContainerADAnnotationsLogsProgram creates a program for filtering container annotations for logs
+func ContainerADAnnotationsLogsProgram(_ config.Component, logger log.Component) program.CELProgram {
+	return createContainerADAnnotationsProgram("ContainerADAnnotationsLogsProgram", "logs_exclude", logger)
 }
 
 // ContainerPausedProgram creates a program for filtering paused containers

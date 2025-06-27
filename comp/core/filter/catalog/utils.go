@@ -19,14 +19,14 @@ import (
 )
 
 // createProgramFromOldFilters handles the conversion of old filters to new filters and creates a CEL program.
-func createProgramFromOldFilters(oldFilters []string, key filter.ResourceType, logger log.Component) cel.Program {
-	filterString, err := convertOldToNewFilter(oldFilters)
+func createProgramFromOldFilters(oldFilters []string, objectType filter.ResourceType, logger log.Component) cel.Program {
+	filterString, err := convertOldToNewFilter(oldFilters, objectType)
 	if err != nil {
 		logger.Warnf("Error converting filters: %v", err)
 		return nil
 	}
 
-	program, progErr := createCELProgram(filterString, key)
+	program, progErr := createCELProgram(filterString, objectType)
 	if progErr != nil {
 		logger.Warnf("Error creating CEL filtering program: %v", progErr)
 		return nil
@@ -35,40 +35,47 @@ func createProgramFromOldFilters(oldFilters []string, key filter.ResourceType, l
 	return program
 }
 
-func createCELProgram(rules string, key filter.ResourceType) (cel.Program, error) {
+func createCELProgram(rules string, objectType filter.ResourceType) (cel.Program, error) {
 	if rules == "" {
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
 		cel.Types(&filter.Container{}, &filter.Pod{}),
-		cel.Variable(string(key), cel.ObjectType(convertTypeToProtoType(key))),
+		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
 		return nil, err
 	}
-	ast, issues := env.Compile(rules)
+	abstractSyntaxTree, issues := env.Compile(rules)
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
 	}
-	prg, err := env.Program(ast, cel.EvalOptions(cel.OptOptimize))
+	prg, err := env.Program(abstractSyntaxTree, cel.EvalOptions(cel.OptOptimize))
 	if err != nil {
 		return nil, err
 	}
 	return prg, nil
 }
 
-// Map to associate old filter prefixes with new filter fields
-var containerFieldMapping = map[string]string{
-	"id":             fmt.Sprintf("%s.id.matches", filter.ContainerType),
-	"name":           fmt.Sprintf("%s.name.matches", filter.ContainerType),
-	"image":          fmt.Sprintf("%s.image.matches", filter.ContainerType),
-	"kube_namespace": fmt.Sprintf("%s.%s.namespace.matches", filter.ContainerType, filter.PodType),
+// getFieldMapping creates a map to associate old filter prefixes with new filter fields
+func getFieldMapping(objectType filter.ResourceType) map[string]string {
+	return map[string]string{
+		"id":    fmt.Sprintf("%s.id.matches", objectType),
+		"name":  fmt.Sprintf("%s.name.matches", objectType),
+		"image": fmt.Sprintf("%s.image.matches", objectType),
+		"kube_namespace": func() string {
+			if objectType == filter.PodType {
+				return fmt.Sprintf("%s.namespace.matches", objectType)
+			}
+			return fmt.Sprintf("%s.%s.namespace.matches", objectType, filter.PodType)
+		}(),
+	}
 }
 
 // getValidKeys returns a slice of valid keys for legacy container filters.
-func getValidKeys() []string {
-	keys := make([]string, 0, len(containerFieldMapping))
-	for key := range containerFieldMapping {
+func getValidKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
 		keys = append(keys, key)
 	}
 	return keys
@@ -78,18 +85,29 @@ func getValidKeys() []string {
 //
 // Old Format: []string{"image:nginx.*", "name:xyz-.*"},
 // New Format: "container.name.matches('xyz-.*') || container.image.matches('nginx.*')"
-func convertOldToNewFilter(old []string) (string, error) {
-	var newFilters []string
-	for _, filter := range old {
+func convertOldToNewFilter(oldFilters []string, objectType filter.ResourceType) (string, error) {
+	if oldFilters == nil {
+		return "", nil
+	}
 
-		if filter == "" {
+	legacyFieldMapping := getFieldMapping(objectType)
+
+	var newFilters []string
+	for _, oldFilter := range oldFilters {
+
+		if oldFilter == "" {
 			continue
 		}
 
 		// Split the filter into key and value using the first colon
-		key, value, ok := strings.Cut(filter, ":")
+		key, value, ok := strings.Cut(oldFilter, ":")
 		if !ok {
-			return "", fmt.Errorf("invalid filter format: %s", filter)
+			return "", fmt.Errorf("invalid filter format: %s", oldFilter)
+		}
+
+		// Check if the key is in the excluded
+		if objectType != filter.ContainerType && key == "image" {
+			continue
 		}
 
 		// Legacy support for image filtering
@@ -97,10 +115,10 @@ func convertOldToNewFilter(old []string) (string, error) {
 			value = legacyFilter.PreprocessImageFilter(value)
 		}
 
-		if newField, ok := containerFieldMapping[key]; ok {
+		if newField, ok := legacyFieldMapping[key]; ok {
 			newFilters = append(newFilters, fmt.Sprintf(`%s(%s)`, newField, strconv.Quote(value)))
 		} else {
-			return "", fmt.Errorf("unsupported filter key '%s' must be in %v", key, getValidKeys())
+			return "", fmt.Errorf("unsupported filter key '%s' must be in %v", key, getValidKeys(legacyFieldMapping))
 		}
 	}
 	return strings.Join(newFilters, " || "), nil
@@ -113,6 +131,10 @@ func convertTypeToProtoType(key filter.ResourceType) string {
 		return "datadog.filter.FilterContainer"
 	case filter.PodType:
 		return "datadog.filter.FilterPod"
+	case filter.ServiceType:
+		return "datadog.filter.FilterKubeService"
+	case filter.EndpointType:
+		return "datadog.filter.FilterKubeEndpoint"
 	default:
 		return ""
 	}
