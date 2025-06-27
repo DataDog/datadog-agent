@@ -20,6 +20,10 @@
 #undef noinline
 #endif
 
+// Note that this cannot just be uintptr_t because the BPF target has 32-bit
+// pointers.
+typedef uint64_t target_ptr_t;
+
 typedef uint64_t buf_offset_t;
 
 #define RINGBUF_CAPACITY ((uint64_t)1 << 23)

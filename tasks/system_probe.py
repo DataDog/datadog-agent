@@ -572,6 +572,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/dyninst/output/framing.go": [
                 "pkg/dyninst/ebpf/framing.h",
             ],
+            "pkg/dyninst/loader/types.go": [
+                "pkg/dyninst/ebpf/types.h",
+            ],
         }
         # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
         # It is only generating cgo type definitions and changes are reviewed, so risk is low

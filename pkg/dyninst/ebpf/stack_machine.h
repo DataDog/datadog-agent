@@ -10,20 +10,22 @@
 #include "types.h"
 #include "queue.h"
 
-extern const uint8_t stack_machine_code[];
-extern const uint64_t stack_machine_code_len;
-extern const uint32_t stack_machine_code_max_op;
+DEFINE_BINARY_SEARCH(
+  lookup_type_info,
+  type_t,
+  type_id,
+  type_ids,
+  num_types
+);
 
-// extern const target_ptr_t VARIABLE_runtime_dot_firstmoduledata;
-// extern const uint64_t OFFSET_runtime_dot_moduledata__types;
-// extern const uint64_t OFFSET_runtime_dot_eface___type;
-// extern const uint64_t OFFSET_runtime_dot_eface__data;
-// extern const uint64_t OFFSET_runtime_dot_iface__data;
-// extern const uint64_t OFFSET_runtime_dot_iface__tab;
-// extern const uint64_t OFFSET_runtime_dot_itab___type;
-
-extern const uint32_t chase_pointers_entrypoint;
-// extern const uint32_t unresolved_go_subroutine_type;
+static bool get_type_info(type_t t, const type_info_t** info_out) {
+  uint32_t idx = lookup_type_info_by_type_id(t);
+  if (idx >= num_types || type_ids[idx] != t) {
+    return false;
+  }
+  *info_out = &type_info[idx];
+  return true;
+}
 
 __attribute__((noinline)) bool chased_pointer_contains(chased_pointers_t* chased, target_ptr_t ptr, type_t type) {
   if (!chased) {
