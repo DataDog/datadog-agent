@@ -26,13 +26,18 @@ __attribute__((always_inline)) unsigned int get_protocol_from_sock(struct sock *
     unsigned int protocol = 0;
     if (sock_sk_protocol_offset > 0) {
     if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset < sizeof(struct sock)) {
+        //DEBUG
+        bpf_printk("sock_sk_protocol_offset: %llu, sk: %p\n", sock_sk_protocol_offset, sk);
+
         bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);    }
     return protocol;
     }
     // Fallback offset: based on known layout (txhash + 4) = start of bitfield group
-    else if (sock_sk_protocol_offset == 0) {
+    else {
         LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
         sock_sk_protocol_offset += 4;  // bitfield container (unsigned int) is at offset +4 from txhash
+        //DEBUG
+        bpf_printk("sock_sk_protocol_offset_in_tx: %llu, sk: %p\n", sock_sk_protocol_offset, sk);
     
 
     unsigned int flags = 0;

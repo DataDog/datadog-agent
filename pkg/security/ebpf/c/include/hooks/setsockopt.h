@@ -40,7 +40,7 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     if (!event) {
     return 0;  
 }
-    
+    bpf_printk("Protcol is : %d ", syscall->setsockopt.socket_protocol);
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->socket_type = syscall->setsockopt.socket_type;
