@@ -12,8 +12,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,29 +24,19 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 //go:embed testdata/decoded/*.yaml
 var testdataFS embed.FS
 
-var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
-
-func skipIfKernelNotSupported(t *testing.T) {
-	curKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if curKernelVersion < MinimumKernelVersion {
-		t.Skipf("Kernel version %v is not supported", curKernelVersion)
-	}
-}
-
 func TestDyninst(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
 	for _, svc := range programs {
@@ -72,6 +60,7 @@ func TestDyninst(t *testing.T) {
 				for i := range probes {
 					// Run each probe individually
 					t.Run(probes[i].GetID(), func(t *testing.T) {
+						t.Parallel()
 						testDyninst(t, svc, bin, probes[i:i+1], expectedOutput)
 					})
 				}
@@ -95,7 +84,7 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, irDump.Close()) }()
 
-	codeDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.c"))
+	codeDump, err := os.Create(filepath.Join(tempDir, "probe.sm.txt"))
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, codeDump.Close()) }()
 
@@ -105,25 +94,18 @@ func testDyninst(
 
 	var sink testMessageSink
 	reporter := makeTestReporter(t)
+	loader, err := loader.NewLoader(
+		// Add following to help debug this test.
+		// loader.WithDebugLevel(100),
+		loader.WithAdditionalSerializer(&codegen.DebugSerializer{
+			Out: codeDump,
+		}),
+	)
+	require.NoError(t, err)
 	a, err := actuator.NewActuator(
 		actuator.WithMessageSink(&sink),
 		actuator.WithReporter(reporter),
-		actuator.WithCodegenWriter(func(p *ir.Program) io.Writer {
-			yaml, err := irprinter.PrintYAML(p)
-			assert.NoError(t, err)
-			_, err = io.Copy(irDump, bytes.NewReader(yaml))
-			assert.NoError(t, err)
-			return codeDump
-		}),
-		actuator.WithCompiledCallback(func(
-			program *actuator.CompiledProgram,
-		) {
-			// Use a SectionReader to avoid messing with the offset
-			// of the underlying io.Reader.
-			r := io.NewSectionReader(program.CompiledBPF.Obj, 0, math.MaxInt64)
-			_, err = io.Copy(objectFile, r)
-			assert.NoError(t, err)
-		}),
+		actuator.WithLoader(loader),
 	)
 	require.NoError(t, err)
 
@@ -191,9 +173,7 @@ func testDyninst(
 	require.NoError(t, a.Shutdown())
 
 	t.Logf("processing output")
-	bpfOutDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.out"))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, bpfOutDump.Close()) }()
+	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
 
 	decoder, err := decode.NewDecoder(sink.irp)
 	require.NoError(t, err)
@@ -272,14 +252,6 @@ func (r *testReporter) ReportAttachingFailed(
 		"attaching failed for program %d to process %v: %v",
 		program.ID, processID, err,
 	)
-}
-
-// ReportCompilationFailed implements actuator.Reporter.
-func (r *testReporter) ReportCompilationFailed(
-	programID ir.ProgramID, err error, _ []ir.ProbeDefinition,
-) {
-	defer close(r.attached)
-	r.t.Fatalf("compilation failed for program %d: %v", programID, err)
 }
 
 // ReportLoadingFailed implements actuator.Reporter.
