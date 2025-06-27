@@ -53,7 +53,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 			},
 		},
 		{
-			name: "with job, run ids",
+			name: "with job, run ids but not job cluster",
 			env: map[string]string{
 				"DB_CLUSTER_NAME": "job-123-run-456",
 			},
@@ -64,6 +64,23 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"jobid:123",
 				"runid:456",
 				"dd.internal.resource:databricks_job:123",
+			},
+		},
+		{
+			name: "with job, run ids and is job cluster",
+			env: map[string]string{
+				"DB_CLUSTER_NAME":   "job-123-run-456",
+				"DB_IS_JOB_CLUSTER": "TRUE",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-123-run-456",
+				"databricks_is_job_cluster:TRUE",
+				"cluster_name:job-123-run-456",
+				"jobid:123",
+				"runid:456",
+				"dd.internal.resource:databricks_job:123",
+				"dd.internal.resource:databricks_cluster:123",
 			},
 		},
 		{
@@ -126,7 +143,27 @@ func TestSetupCommonHostTags(t *testing.T) {
 			},
 		},
 		{
-			name: "internal resource tags with cluster ID from env",
+			name: "job cluster with cluster ID and DB_IS_JOB_CLUSTER=TRUE",
+			env: map[string]string{
+				"DB_CLUSTER_ID":     "cluster-67890",
+				"DB_CLUSTER_NAME":   "job-999-run-888",
+				"DB_IS_JOB_CLUSTER": "TRUE",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-999-run-888",
+				"databricks_cluster_id:cluster-67890",
+				"databricks_is_job_cluster:TRUE",
+				"cluster_id:cluster-67890",
+				"cluster_name:job-999-run-888",
+				"jobid:999",
+				"runid:888",
+				"dd.internal.resource:databricks_job:999",
+				"dd.internal.resource:databricks_cluster:999",
+			},
+		},
+		{
+			name: "job pattern but not a job cluster (DB_IS_JOB_CLUSTER not TRUE)",
 			env: map[string]string{
 				"DB_CLUSTER_ID":   "cluster-67890",
 				"DB_CLUSTER_NAME": "job-999-run-888",
@@ -153,6 +190,23 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"databricks_cluster_id:cluster-only-12345",
 				"cluster_id:cluster-only-12345",
 				"dd.internal.resource:databricks_cluster:cluster-only-12345",
+			},
+		},
+		{
+			name: "DB_IS_JOB_CLUSTER=TRUE but no job pattern in cluster name",
+			env: map[string]string{
+				"DB_CLUSTER_ID":     "regular-cluster",
+				"DB_CLUSTER_NAME":   "my-regular-cluster",
+				"DB_IS_JOB_CLUSTER": "TRUE",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:my-regular-cluster",
+				"databricks_cluster_id:regular-cluster",
+				"databricks_is_job_cluster:TRUE",
+				"cluster_id:regular-cluster",
+				"cluster_name:my-regular-cluster",
+				"dd.internal.resource:databricks_cluster:regular-cluster",
 			},
 		},
 	}

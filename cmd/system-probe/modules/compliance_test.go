@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,7 +56,7 @@ func TestComplianceCheckModuleWithProcess(t *testing.T) {
 	if err := json.Unmarshal(respBody, &resource); err != nil {
 		t.Fatal(err)
 	}
-	require.Equal(t, "db_postgresql", resource.Type)
+	require.Equal(t, types.ResourceTypeDbPostgresql, resource.Type)
 	require.Equal(t, "postgres", resource.Config.ProcessName)
 	require.NotEmpty(t, resource.Config.ProcessUser)
 	require.Equal(t, filepath.Join(tmp, "postgresql.conf"), resource.Config.ConfigFilePath)

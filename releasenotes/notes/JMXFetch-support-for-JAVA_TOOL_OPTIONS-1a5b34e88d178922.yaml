@@ -1,0 +1,5 @@
+features:
+  - |
+    You can now set the ``JAVA_TOOL_OPTIONS`` that JMXFetch uses by setting the 
+    ``jmx_java_tool_options`` configuration option in the ``datadog.yaml`` config file.
+    This allows you to pass additional JVM options to JMXFetch, such as memory settings or system properties.
