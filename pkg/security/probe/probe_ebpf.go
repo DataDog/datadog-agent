@@ -1079,18 +1079,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	switch eventType {
 
-	case model.FileFsmountEventType:
-		if _, err = event.Fsmount.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		if err := p.handleNewMount(event, event.Fsmount.ToMount()); err != nil {
-			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
-			return
-		}
-
-	case model.FileMountEventType, model.DetachedMountEventType:
+	case model.FileMountEventType, model.FileFsmountEventType, model.FileOpenTreeEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -1100,7 +1089,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
-		
+
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
