@@ -12,10 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"testing"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,43 +37,6 @@ func setupRoutes() *mux.Router {
 	)
 
 	return router
-}
-
-// setupTestInstallInfoFile creates a temporary install_info file for testing
-func setupTestInstallInfoFile(t *testing.T) (string, func()) {
-	tempDir, err := os.MkdirTemp("", "datadog_test_*")
-	require.NoError(t, err)
-
-	installInfoPath := filepath.Join(tempDir, "install_info")
-	installInfoContent := `install_method:
-  tool: "test-tool"
-  tool_version: "1.0.0"
-  installer_version: "test-installer-1.0"`
-
-	err = os.WriteFile(installInfoPath, []byte(installInfoContent), 0644)
-	require.NoError(t, err)
-
-	// Store original config values
-	originalConfDir := pkgconfigsetup.Datadog().GetString("conf_dir")
-	originalConfigFile := pkgconfigsetup.Datadog().GetString("config_file")
-
-	// We need to set the config_file to point to the temp directory so that
-	// configUtils.ConfFileDirectory() returns the correct path
-	tempConfigFile := filepath.Join(tempDir, "datadog.yaml")
-	err = os.WriteFile(tempConfigFile, []byte("# test config"), 0644)
-	require.NoError(t, err)
-
-	pkgconfigsetup.Datadog().SetWithoutSource("conf_dir", tempDir)
-	pkgconfigsetup.Datadog().SetWithoutSource("config_file", tempConfigFile)
-
-	// Return cleanup function
-	cleanup := func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("conf_dir", originalConfDir)
-		pkgconfigsetup.Datadog().SetWithoutSource("config_file", originalConfigFile)
-		os.RemoveAll(tempDir)
-	}
-
-	return tempDir, cleanup
 }
 
 func TestSetupHandlers(t *testing.T) {
