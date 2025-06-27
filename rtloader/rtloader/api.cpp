@@ -188,7 +188,8 @@ void *load_shared_library(const char *lib_name, const char **error)
 {
     // resolve the library full name
     char lib_full_name[256];
-    snprintf(lib_full_name, strlen(lib_name) + strlen(LIB_EXTENSION) + 1, "%s%s", lib_name, LIB_EXTENSION);
+    strcpy(lib_full_name, lib_name);
+    strcat(lib_full_name, LIB_EXTENSION);
 
     // load the library
     void *shared_library = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
@@ -230,7 +231,7 @@ void run_shared_library(char *checkID, void *handle, const char **error)
     char **tags = new char *[2];
     tags[0] = strdupe("");
 
-    submit_metric(checkID, DATADOG_AGENT_RTLOADER_GAUGE, strdupe("so.metric"), 2.85, tags, strdupe(""), false);
+    submit_metric(checkID, DATADOG_AGENT_RTLOADER_GAUGE, strdupe("so.metric"), 2.15, tags, strdupe(""), false);
 }
 
 void destroy(rtloader_t *rtloader)

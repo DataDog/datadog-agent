@@ -14,11 +14,13 @@ package sharedlibrary
 import "C"
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	python "github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -46,6 +48,5 @@ func init() {
 
 // InitSharedLibrary initializes the shared library rtloader environment.
 func InitSharedLibrary() {
-	// get rtloader shared library object pointer
-	//rtloader = C.init_shared_library() // can't implement this now, see api.cpp to understand why
+	python.InitPython(common.GetPythonPaths()...) // need to initialize Python first for RTLoader
 }
