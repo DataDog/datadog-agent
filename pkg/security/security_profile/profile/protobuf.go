@@ -256,3 +256,74 @@ func (p *Profile) DecodeSecurityProfileProtobuf(reader io.Reader) error {
 
 	return nil
 }
+
+// profileToSecurityProfileProtoByVersion creates a protobuf SecurityProfile object from the given Profile with version filtering
+// It creates separate profiles for each version by checking if nodes have that version in their baseNode.Seen map
+func profileToSecurityProfileProtoByVersion(p *Profile) (map[string]*adprotov1.SecurityProfile, error) {
+	if p == nil {
+		return nil, errors.New("input == nil")
+	}
+
+	if !p.selector.IsReady() {
+		return nil, errors.New("can't get profile selector, tags shouldn't be resolved yet")
+	}
+
+	// Create separate profiles for each version
+	profiles := make(map[string]*adprotov1.SecurityProfile)
+
+	for imageTag, versionCtx := range p.versionContexts {
+		// Create a new profile for this version
+		output := adprotov1.SecurityProfile{
+			Metadata:        mtdt.ToProto(&p.Metadata),
+			ProfileContexts: make(map[string]*adprotov1.ProfileContext),
+			Tree:            activity_tree.ToProtoWithVersionFilter(p.ActivityTree, imageTag),
+			Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
+		}
+
+		// Add only this version's context
+		outCtx := &adprotov1.ProfileContext{
+			FirstSeen:      versionCtx.FirstSeenNano,
+			LastSeen:       versionCtx.LastSeenNano,
+			EventTypeState: make(map[uint32]*adprotov1.EventTypeState),
+			Syscalls:       make([]uint32, len(versionCtx.Syscalls)),
+			Tags:           make([]string, len(versionCtx.Tags)),
+		}
+		
+		for evtType, evtState := range versionCtx.EventTypeState {
+			outCtx.EventTypeState[uint32(evtType)] = &adprotov1.EventTypeState{
+				LastAnomalyNano:   evtState.LastAnomalyNano,
+				EventProfileState: eventFilteringProfileStateToProto(evtState.State),
+			}
+		}
+		copy(outCtx.Syscalls, versionCtx.Syscalls)
+		copy(outCtx.Tags, versionCtx.Tags)
+		output.ProfileContexts[imageTag] = outCtx
+
+		profiles[imageTag] = &output
+	}
+
+	return profiles, nil
+}
+
+// EncodeSecurityProfileProtobufByVersion encodes a Profile to its SecurityProfile protobuf binary representation with version filtering
+// Returns separate profiles for each version
+func (p *Profile) EncodeSecurityProfileProtobufByVersion() (map[string]*bytes.Buffer, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	profilesProto, err := profileToSecurityProfileProtoByVersion(p)
+	if err != nil {
+		return nil, fmt.Errorf("Error while encoding security dump with filtering: %v", err)
+	}
+
+	result := make(map[string]*bytes.Buffer)
+	for imageTag, profileProto := range profilesProto {
+		raw, err := profileProto.MarshalVT()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't encode dump to `%s` format for version %s: %v", config.Profile, imageTag, err)
+		}
+		result[imageTag] = bytes.NewBuffer(raw)
+	}
+
+	return result, nil
+}
