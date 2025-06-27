@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	filterfxmock "github.com/DataDog/datadog-agent/comp/core/filter/fx-mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -386,6 +387,7 @@ func TestComputeContainerServiceIDs(t *testing.T) {
 
 func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
+	filterStore := filterfxmock.SetupMockFilter(t)
 
-	return &ContainerListener{workloadmetaListener: wlm, tagger: tagger}, wlm
+	return &ContainerListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
 }

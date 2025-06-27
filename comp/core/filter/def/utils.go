@@ -74,9 +74,9 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 			low = append(low, LegacyContainerACExclude)
 		}
 	case MetricsFilter:
-		low = append(low, LegacyContainerMetrics)
+		low = append(low, LegacyContainerMetrics, ContainerADAnnotationsMetrics)
 	case LogsFilter:
-		low = append(low, LegacyContainerLogs)
+		low = append(low, LegacyContainerLogs, ContainerADAnnotationsLogs)
 	}
 
 	flist[lowPrecedence] = low

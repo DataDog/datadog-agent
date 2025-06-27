@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -32,6 +33,7 @@ type mockdependencies struct {
 	Params     MockParams
 	TaggerComp mockTagger.Mock
 	LogsComp   log.Component
+	FilterComp filter.Component
 	Telemetry  telemetry.Component
 	Secrets    secrets.Component
 }
@@ -43,7 +45,7 @@ type mockprovides struct {
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
-	ac := createNewAutoConfig(deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+	ac := createNewAutoConfig(deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 	return mockprovides{
 		Comp: ac,
 	}

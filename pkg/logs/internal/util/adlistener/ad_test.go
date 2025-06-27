@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	filterfxmock "github.com/DataDog/datadog-agent/comp/core/filter/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -33,6 +34,7 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
 		taggerfxmock.MockModule(),
+		filterfxmock.MockModule(),
 	)
 
 	got1 := make(chan struct{}, 1)

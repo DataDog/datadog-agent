@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
+	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -150,6 +151,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				settingsimpl.Module(),
 				localTaggerfx.Module(),
+				filterfx.Module(),
 				autodiscoveryimpl.Module(),
 				fx.Supply(option.None[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),

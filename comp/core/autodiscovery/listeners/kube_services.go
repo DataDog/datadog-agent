@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,7 +44,7 @@ type KubeServiceListener struct {
 	delService        chan<- Service
 	targetAllServices bool
 	m                 sync.RWMutex
-	containerFilters  *containerFilters
+	filterStore       filter.Component
 	telemetryStore    *telemetry.Store
 }
 
@@ -92,15 +93,13 @@ func NewKubeServiceListener(options ServiceListernerDeps) (ServiceListener, erro
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	containerFilters := newContainerFilters()
-
 	return &KubeServiceListener{
 		services:          make(map[k8stypes.UID]Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
 		targetAllServices: options.Config.IsProviderEnabled(names.KubeServicesFileRegisterName),
-		containerFilters:  containerFilters,
 		telemetryStore:    options.Telemetry,
+		filterStore:       options.Filter,
 	}, nil
 }
 
@@ -238,20 +237,14 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 
 	svc := processService(ksvc)
 
-	svc.metricsExcluded = l.containerFilters.IsExcluded(
-		containers.MetricsFilter,
-		ksvc.GetAnnotations(),
-		ksvc.Name,
-		"",
-		ksvc.Namespace,
+	svc.metricsExcluded = l.filterStore.IsServiceExcluded(
+		filter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		nil,
 	)
 
-	svc.globalExcluded = l.containerFilters.IsExcluded(
-		containers.GlobalFilter,
-		ksvc.GetAnnotations(),
-		ksvc.Name,
-		"",
-		ksvc.Namespace,
+	svc.globalExcluded = l.filterStore.IsServiceExcluded(
+		filter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		nil,
 	)
 
 	l.m.Lock()

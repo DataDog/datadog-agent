@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
+	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
@@ -113,6 +114,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Supply(option.None[collector.Component]()),
 				dualTaggerfx.Module(common.DualTaggerParams()),
+				filterfx.Module(),
 				autodiscoveryimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 				haagentfx.Module(),

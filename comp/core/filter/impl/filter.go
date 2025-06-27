@@ -89,7 +89,17 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram(config, logger))
 
 	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerADAnnotations), catalog.ContainerADAnnotationsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerADAnnotationsMetrics), catalog.ContainerADAnnotationsMetricsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerADAnnotationsLogs), catalog.ContainerADAnnotationsLogsProgram(config, logger))
 	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerPaused), catalog.ContainerPausedProgram(config, logger))
+
+	// Service Filters
+	filter.registerProgram(filterdef.ServiceType, int(filterdef.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram(config, logger))
+	filter.registerProgram(filterdef.ServiceType, int(filterdef.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram(config, logger))
+
+	// Endpoints Filters
+	filter.registerProgram(filterdef.EndpointType, int(filterdef.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
+	filter.registerProgram(filterdef.EndpointType, int(filterdef.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram(config, logger))
 
 	// WIP: Pod Filters
 
@@ -104,6 +114,14 @@ func (f *filter) IsContainerExcluded(container *filterdef.Container, containerFi
 // IsPodExcluded checks if a pod is excluded based on the provided filters.
 func (f *filter) IsPodExcluded(pod *filterdef.Pod, podFilters [][]filterdef.PodFilter) bool {
 	return evaluateResource(f, pod, podFilters) == filterdef.Excluded
+}
+
+func (f *filter) IsServiceExcluded(service *filterdef.Service, serviceFilters [][]filterdef.ServiceFilter) bool {
+	return evaluateResource(f, service, serviceFilters) == filterdef.Excluded
+}
+
+func (f *filter) IsEndpointExcluded(endpoint *filterdef.Endpoint, endpointFilters [][]filterdef.EndpointFilter) bool {
+	return evaluateResource(f, endpoint, endpointFilters) == filterdef.Excluded
 }
 
 // evaluateResource checks if a resource is excluded based on the provided filters.

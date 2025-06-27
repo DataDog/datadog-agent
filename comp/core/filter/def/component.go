@@ -16,4 +16,6 @@ package filter
 type Component interface {
 	IsContainerExcluded(container *Container, containerFilters [][]ContainerFilter) bool
 	IsPodExcluded(pod *Pod, podFilters [][]PodFilter) bool
+	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
+	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
 }

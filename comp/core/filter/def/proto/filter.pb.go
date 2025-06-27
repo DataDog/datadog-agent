@@ -198,7 +198,7 @@ func (x *FilterPod) GetAnnotations() map[string]string {
 type FilterECSTask struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Arn           string                 `protobuf:"bytes,2,opt,name=arn,proto3" json:"arn,omitempty"` // Add other ECS task fields here
+	Arn           string                 `protobuf:"bytes,2,opt,name=arn,proto3" json:"arn,omitempty"` // TODO: Explore task fields to add
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -247,6 +247,126 @@ func (x *FilterECSTask) GetArn() string {
 	return ""
 }
 
+type FilterKubeService struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Namespace     string                 `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Annotations   map[string]string      `protobuf:"bytes,3,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilterKubeService) Reset() {
+	*x = FilterKubeService{}
+	mi := &file_comp_core_filter_def_proto_filter_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterKubeService) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterKubeService) ProtoMessage() {}
+
+func (x *FilterKubeService) ProtoReflect() protoreflect.Message {
+	mi := &file_comp_core_filter_def_proto_filter_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterKubeService.ProtoReflect.Descriptor instead.
+func (*FilterKubeService) Descriptor() ([]byte, []int) {
+	return file_comp_core_filter_def_proto_filter_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *FilterKubeService) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FilterKubeService) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *FilterKubeService) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
+type FilterKubeEndpoint struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Namespace     string                 `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	Annotations   map[string]string      `protobuf:"bytes,3,rep,name=annotations,proto3" json:"annotations,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilterKubeEndpoint) Reset() {
+	*x = FilterKubeEndpoint{}
+	mi := &file_comp_core_filter_def_proto_filter_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterKubeEndpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterKubeEndpoint) ProtoMessage() {}
+
+func (x *FilterKubeEndpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_comp_core_filter_def_proto_filter_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterKubeEndpoint.ProtoReflect.Descriptor instead.
+func (*FilterKubeEndpoint) Descriptor() ([]byte, []int) {
+	return file_comp_core_filter_def_proto_filter_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FilterKubeEndpoint) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FilterKubeEndpoint) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
+}
+
+func (x *FilterKubeEndpoint) GetAnnotations() map[string]string {
+	if x != nil {
+		return x.Annotations
+	}
+	return nil
+}
+
 var File_comp_core_filter_def_proto_filter_proto protoreflect.FileDescriptor
 
 const file_comp_core_filter_def_proto_filter_proto_rawDesc = "" +
@@ -269,7 +389,21 @@ const file_comp_core_filter_def_proto_filter_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"1\n" +
 	"\rFilterECSTask\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x10\n" +
-	"\x03arn\x18\x02 \x01(\tR\x03arnB\x1cZ\x1acomp/core/filter/def/protob\x06proto3"
+	"\x03arn\x18\x02 \x01(\tR\x03arn\"\xdb\x01\n" +
+	"\x11FilterKubeService\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12T\n" +
+	"\vannotations\x18\x03 \x03(\v22.datadog.filter.FilterKubeService.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdd\x01\n" +
+	"\x12FilterKubeEndpoint\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12U\n" +
+	"\vannotations\x18\x03 \x03(\v23.datadog.filter.FilterKubeEndpoint.AnnotationsEntryR\vannotations\x1a>\n" +
+	"\x10AnnotationsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x1cZ\x1acomp/core/filter/def/protob\x06proto3"
 
 var (
 	file_comp_core_filter_def_proto_filter_proto_rawDescOnce sync.Once
@@ -283,22 +417,28 @@ func file_comp_core_filter_def_proto_filter_proto_rawDescGZIP() []byte {
 	return file_comp_core_filter_def_proto_filter_proto_rawDescData
 }
 
-var file_comp_core_filter_def_proto_filter_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_comp_core_filter_def_proto_filter_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_comp_core_filter_def_proto_filter_proto_goTypes = []any{
-	(*FilterContainer)(nil), // 0: datadog.filter.FilterContainer
-	(*FilterPod)(nil),       // 1: datadog.filter.FilterPod
-	(*FilterECSTask)(nil),   // 2: datadog.filter.FilterECSTask
-	nil,                     // 3: datadog.filter.FilterPod.AnnotationsEntry
+	(*FilterContainer)(nil),    // 0: datadog.filter.FilterContainer
+	(*FilterPod)(nil),          // 1: datadog.filter.FilterPod
+	(*FilterECSTask)(nil),      // 2: datadog.filter.FilterECSTask
+	(*FilterKubeService)(nil),  // 3: datadog.filter.FilterKubeService
+	(*FilterKubeEndpoint)(nil), // 4: datadog.filter.FilterKubeEndpoint
+	nil,                        // 5: datadog.filter.FilterPod.AnnotationsEntry
+	nil,                        // 6: datadog.filter.FilterKubeService.AnnotationsEntry
+	nil,                        // 7: datadog.filter.FilterKubeEndpoint.AnnotationsEntry
 }
 var file_comp_core_filter_def_proto_filter_proto_depIdxs = []int32{
 	1, // 0: datadog.filter.FilterContainer.pod:type_name -> datadog.filter.FilterPod
 	2, // 1: datadog.filter.FilterContainer.ecs_task:type_name -> datadog.filter.FilterECSTask
-	3, // 2: datadog.filter.FilterPod.annotations:type_name -> datadog.filter.FilterPod.AnnotationsEntry
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	5, // 2: datadog.filter.FilterPod.annotations:type_name -> datadog.filter.FilterPod.AnnotationsEntry
+	6, // 3: datadog.filter.FilterKubeService.annotations:type_name -> datadog.filter.FilterKubeService.AnnotationsEntry
+	7, // 4: datadog.filter.FilterKubeEndpoint.annotations:type_name -> datadog.filter.FilterKubeEndpoint.AnnotationsEntry
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_comp_core_filter_def_proto_filter_proto_init() }
@@ -316,7 +456,7 @@ func file_comp_core_filter_def_proto_filter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_comp_core_filter_def_proto_filter_proto_rawDesc), len(file_comp_core_filter_def_proto_filter_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

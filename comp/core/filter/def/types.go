@@ -35,6 +35,8 @@ type ResourceType string
 const (
 	ContainerType ResourceType = "container"
 	PodType       ResourceType = "pod"
+	ServiceType   ResourceType = "service"
+	EndpointType  ResourceType = "endpoint"
 )
 
 //
@@ -48,25 +50,58 @@ type Container struct {
 }
 
 // CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
-func CreateContainer(container workloadmeta.Container, owner Filterable) *Container {
+func CreateContainer(container *workloadmeta.Container, owner Filterable) *Container {
+	if container == nil {
+		return nil
+	}
+
 	c := &typedef.FilterContainer{
 		Id:    container.ID,
 		Name:  container.Name,
 		Image: container.Image.RawName,
 	}
 
-	if owner != nil {
-		switch o := owner.(type) {
-		case *Pod:
-			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.FilterPod,
-			}
-		}
-	}
+	setContainerOwner(c, owner)
 
 	return &Container{
 		FilterContainer: c,
 		Owner:           owner,
+	}
+}
+
+// CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
+func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owner Filterable) *Container {
+	if container == nil {
+		return nil
+	}
+
+	c := &typedef.FilterContainer{
+		Id:    container.ID,
+		Name:  container.Name,
+		Image: container.Image.RawName,
+	}
+
+	setContainerOwner(c, owner)
+
+	return &Container{
+		FilterContainer: c,
+		Owner:           owner,
+	}
+}
+
+// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
+func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
+	if owner == nil {
+		return
+	}
+
+	switch o := owner.(type) {
+	case *Pod:
+		if o != nil && o.FilterPod != nil {
+			c.Owner = &typedef.FilterContainer_Pod{
+				Pod: o.FilterPod,
+			}
+		}
 	}
 }
 
@@ -85,7 +120,7 @@ func (c *Container) Type() ResourceType {
 // ContainerFilter defines the type of container filter.
 type ContainerFilter int
 
-// Defined Container filter Kinds
+// Defined Container filter kinds
 const (
 	LegacyContainerMetrics ContainerFilter = iota
 	LegacyContainerLogs
@@ -93,6 +128,8 @@ const (
 	LegacyContainerACInclude
 	LegacyContainerACExclude
 	LegacyContainerSBOM
+	ContainerADAnnotationsMetrics
+	ContainerADAnnotationsLogs
 	ContainerADAnnotations
 	ContainerPaused
 )
@@ -107,7 +144,11 @@ type Pod struct {
 }
 
 // CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.
-func CreatePod(pod workloadmeta.KubernetesPod) *Pod {
+func CreatePod(pod *workloadmeta.KubernetesPod) *Pod {
+	if pod == nil {
+		return nil
+	}
+
 	return &Pod{
 		FilterPod: &typedef.FilterPod{
 			Id:          pod.ID,
@@ -133,9 +174,91 @@ func (p *Pod) Type() ResourceType {
 // PodFilter defines the type of pod filter.
 type PodFilter int
 
-// Defined Pod filter Kinds
+// Defined Pod filter kinds
 const (
 	PodMetrics PodFilter = iota
 	PodLogs
 	PodGlobal
+)
+
+//
+// Service Definition
+//
+
+// Service represents a filterable service object.
+type Service struct {
+	*typedef.FilterKubeService
+}
+
+// CreateService creates a Filterable Service object
+func CreateService(name, namespace string, annotations map[string]string) *Service {
+	return &Service{
+		FilterKubeService: &typedef.FilterKubeService{
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
+}
+
+var _ Filterable = &Service{}
+
+// Serialize converts the Service object to a filterable object.
+func (s *Service) Serialize() any {
+	return s.FilterKubeService
+}
+
+// Type returns the resource type of the service.
+func (s *Service) Type() ResourceType {
+	return ServiceType
+}
+
+// ServiceFilter defines the type of service filter.
+type ServiceFilter int
+
+// Defined Service filter kinds
+const (
+	LegacyServiceMetrics ServiceFilter = iota
+	LegacyServiceGlobal
+)
+
+//
+// Endpoint Definition
+//
+
+// Endpoint represents a filterable endpoint object.
+type Endpoint struct {
+	*typedef.FilterKubeEndpoint
+}
+
+// CreateEndpoint creates a Filterable Endpoint object
+func CreateEndpoint(name, namespace string, annotations map[string]string) *Endpoint {
+	return &Endpoint{
+		FilterKubeEndpoint: &typedef.FilterKubeEndpoint{
+			Name:        name,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+	}
+}
+
+var _ Filterable = &Endpoint{}
+
+// Serialize converts the Endpoint object to a filterable object.
+func (e *Endpoint) Serialize() any {
+	return e.FilterKubeEndpoint
+}
+
+// Type returns the resource type of the endpoint.
+func (e *Endpoint) Type() ResourceType {
+	return EndpointType
+}
+
+// EndpointFilter defines the type of endpoint filter.
+type EndpointFilter int
+
+// Defined Endpoint filter kinds
+const (
+	LegacyEndpointMetrics EndpointFilter = iota
+	LegacyEndpointGlobal
 )
