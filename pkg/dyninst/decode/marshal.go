@@ -94,7 +94,9 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	for _, expr := range ad.rootType.Expressions {
 		parameterType := expr.Expression.Type
 		parameterData := ad.rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
-		writeTokens(enc, jsontext.String(expr.Name))
+		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
+			return err
+		}
 		err = ad.decoder.encodeValue(enc,
 			ad.decoder.addressReferenceCount,
 			currentlyEncoding,
