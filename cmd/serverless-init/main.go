@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -70,6 +71,7 @@ func main() {
 
 	err := fxutil.OneShot(
 		run,
+		filterfx.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{

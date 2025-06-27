@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -69,6 +70,7 @@ type ServiceListernerDeps struct {
 	Config    Config
 	Telemetry *telemetry.Store
 	Tagger    tagger.Component
+	Filter    filter.Component
 	Wmeta     option.Option[workloadmeta.Component]
 }
 

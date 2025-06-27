@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -134,6 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			grpcNonefx.Module(),
 			fx.Supply(option.None[collector.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
+			filterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
