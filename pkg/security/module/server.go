@@ -65,7 +65,7 @@ type pendingMsg struct {
 	tags            []string
 	actionReports   []model.ActionReport
 	service         string
-	extTagsCb       func() []string
+	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
 }
@@ -290,8 +290,13 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
+					tags, retryable := msg.extTagsCb()
+					if len(tags) == 0 && retryable && msg.retry < maxRetry {
+						return false
+					}
+
 					// dedup
-					for _, tag := range msg.extTagsCb() {
+					for _, tag := range tags {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
 						}
@@ -348,7 +353,7 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
