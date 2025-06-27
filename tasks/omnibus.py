@@ -172,6 +172,7 @@ def get_omnibus_env(
         'GOROOT',
         'GOPATH',
         'RUST_VERSION',
+        'RUSTUP_VERSION',
         'PIP_INDEX_URL',
         'PIP_EXTRA_INDEX_URL',
     ]
