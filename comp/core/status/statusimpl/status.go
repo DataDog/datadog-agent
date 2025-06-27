@@ -73,10 +73,10 @@ func newStatus(deps dependencies) provides {
 	providers := newProviderGetter(
 		deps.Log,
 		newCommonHeaderProvider(deps.Params, deps.Config),
-		deps.HeaderProviders,
-		deps.Providers,
-		deps.DynamicHeaderProviders,
-		deps.DynamicProviders,
+		fxutil.GetAndFilterGroup(deps.HeaderProviders),
+		fxutil.GetAndFilterGroup(deps.Providers),
+		fxutil.GetAndFilterGroup(deps.DynamicHeaderProviders),
+		fxutil.GetAndFilterGroup(deps.DynamicProviders),
 	)
 
 	c := &statusImplementation{

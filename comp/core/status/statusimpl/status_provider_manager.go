@@ -13,7 +13,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // statusProviderManager is a manager for status providers.
@@ -87,16 +86,25 @@ func (p *statusProviderManager) sortProviders(forceResort bool) {
 	// by iteratevely computing fnv hash of the provider names and sections
 	hasher := fnv.New64a()
 
+	computedHeaderProviders := [][]status.HeaderProvider{}
+	computedProviders := [][]status.Provider{}
+
 	for _, getter := range p.headerProvidersGetters {
+		currentHeaderProviders := []status.HeaderProvider{}
 		for _, provider := range getter() {
 			hasher.Write([]byte{byte(provider.Index())})
 			hasher.Write([]byte(provider.Name()))
+			currentHeaderProviders = append(currentHeaderProviders, provider)
 		}
+		computedHeaderProviders = append(computedHeaderProviders, currentHeaderProviders)
 	}
 	for _, getter := range p.providersGetters {
+		currentProvider := []status.Provider{}
 		for _, provider := range getter() {
 			hasher.Write([]byte(provider.Name()))
+			currentProvider = append(currentProvider, provider)
 		}
+		computedProviders = append(computedProviders, currentProvider)
 	}
 
 	// compare the hash of the current providers with the last one
@@ -117,9 +125,9 @@ func (p *statusProviderManager) sortProviders(forceResort bool) {
 	collectorSectionPresent := false
 
 	// Get all providers from the static and dynamic providers
-	providers := fxutil.GetAndFilterGroup(p.statusProviders)
-	for _, getter := range p.providersGetters {
-		providers = append(providers, fxutil.GetAndFilterGroup(getter())...)
+	providers := p.statusProviders
+	for _, provider := range computedProviders {
+		providers = append(providers, provider...)
 	}
 
 	for _, provider := range providers {
@@ -152,9 +160,9 @@ func (p *statusProviderManager) sortProviders(forceResort bool) {
 
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
-	sortedHeaderProviders := fxutil.GetAndFilterGroup(p.headerProviders)
-	for _, getter := range p.headerProvidersGetters {
-		sortedHeaderProviders = append(sortedHeaderProviders, fxutil.GetAndFilterGroup(getter())...)
+	sortedHeaderProviders := p.headerProviders
+	for _, headerProvider := range computedHeaderProviders {
+		sortedHeaderProviders = append(sortedHeaderProviders, headerProvider...)
 	}
 
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
