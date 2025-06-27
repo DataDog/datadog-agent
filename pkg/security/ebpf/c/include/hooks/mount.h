@@ -540,6 +540,8 @@ HOOK_SYSCALL_EXIT(fsmount) {
 
         // populate the device of the new mount
         event.mountfields.device = get_mount_dev(syscall->mount.newmnt);
+        event.params.detached = true;
+        event.params.visible = false;
     }
 
     send_event(ctx, EVENT_FSMOUNT, event);
