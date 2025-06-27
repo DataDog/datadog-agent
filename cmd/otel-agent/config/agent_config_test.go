@@ -463,6 +463,18 @@ func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
 	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
+func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
+	t := suite.T()
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_with_settings.yaml", []string{"testdata/config_proxy.yaml"})
+	require.NoError(t, err)
+
+	// ProxyURL from OTLP config should override proxy.http and proxy.https from datadog config
+	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
+	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
+	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
+}
+
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))

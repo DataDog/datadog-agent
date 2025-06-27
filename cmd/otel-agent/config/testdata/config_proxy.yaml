@@ -1,16 +1,21 @@
-service:
-  telemetry:
-    logs:
-      level: info
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
 exporters:
   datadog:
     proxy_url: "http://proxyurl.example.com:3128"
     api:
-      key: test-key
-      site: datadoghq.com
-    metrics:
-      endpoint: https://api.datadoghq.com
-    logs:
-      endpoint: https://agent-http-intake.logs.datadoghq.com
+      key: KEY
+      site: "us3.datadoghq.com"
+processors:
+  batch:
+    timeout: 10s
+service:
+  pipelines:
     traces:
-      endpoint: https://trace.agent.datadoghq.com
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
+
