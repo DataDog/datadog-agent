@@ -3765,6 +3765,11 @@
       "experimental": true,
       "properties": [
         {
+          "name": "mount.detached",
+          "definition": "Mount is detached from the VFS",
+          "property_doc_link": "mount-detached-doc"
+        },
+        {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
           "property_doc_link": "mount-fs_type-doc"
@@ -3803,6 +3808,11 @@
           "name": "mount.syscall.source.path",
           "definition": "Source path argument of the syscall",
           "property_doc_link": "mount-syscall-source-path-doc"
+        },
+        {
+          "name": "mount.visible",
+          "definition": "Mount is not visible in the VFS",
+          "property_doc_link": "mount-visible-doc"
         }
       ]
     },
@@ -12490,6 +12500,18 @@
       "examples": []
     },
     {
+      "name": "mount.detached",
+      "link": "mount-detached-doc",
+      "type": "bool",
+      "definition": "Mount is detached from the VFS",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mount.fs_type",
       "link": "mount-fs_type-doc",
       "type": "string",
@@ -12566,6 +12588,18 @@
       "link": "mount-syscall-source-path-doc",
       "type": "string",
       "definition": "Source path argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.visible",
+      "link": "mount-visible-doc",
+      "type": "bool",
+      "definition": "Mount is not visible in the VFS",
       "prefixes": [
         "mount"
       ],

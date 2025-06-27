@@ -2579,6 +2579,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 			out.MountRootPathResolutionError = string(in.String())
 		case "source.path_error":
 			out.MountSourcePathResolutionError = string(in.String())
+		case "detached":
+			out.Detached = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -2658,6 +2660,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		const prefix string = ",\"source.path_error\":"
 		out.RawString(prefix)
 		out.String(string(in.MountSourcePathResolutionError))
+	}
+	if in.Detached {
+		const prefix string = ",\"detached\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.Detached))
 	}
 	out.RawByte('}')
 }

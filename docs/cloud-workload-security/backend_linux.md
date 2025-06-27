@@ -1042,6 +1042,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "source.path_error": {
                     "type": "string",
                     "description": "Mount source path error"
+                },
+                "detached": {
+                    "type": "boolean",
+                    "description": "Mount is not attached to the VFS tree"
                 }
             },
             "additionalProperties": false,
@@ -3730,6 +3734,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "source.path_error": {
             "type": "string",
             "description": "Mount source path error"
+        },
+        "detached": {
+            "type": "boolean",
+            "description": "Mount is not attached to the VFS tree"
         }
     },
     "additionalProperties": false,
@@ -3758,6 +3766,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source.path` | Mount source path |
 | `mountpoint.path_error` | Mount point path error |
 | `source.path_error` | Mount source path error |
+| `detached` | Mount is not attached to the VFS tree |
 
 | References |
 | ---------- |
