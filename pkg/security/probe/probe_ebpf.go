@@ -1098,26 +1098,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-	case model.DetachedMountEventType:
-		fmt.Printf("MNTP Detached Mount: %+v\n", data[offset:])
+	case model.FileMountEventType, model.DetachedMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		fmt.Printf("Detached mount unmarshalled to %+v\n", event.Mount)
-		fmt.Printf("Visible: %t\n", event.Mount.Visible)
-		fmt.Printf("Detached: %t\n", event.Mount.Detached)
 
-	case model.FileMountEventType:
-		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
 		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
-
+		
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
@@ -2049,13 +2040,15 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// fsmount mounts a detached mountpoint, therefore there's no mount point and the root is always "/"
 	if m.Origin != model.MountOriginFsmount {
 		// Resolve mount point
-		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-			return fmt.Errorf("failed to set mount point: %w", err)
-		}
+		if !m.Detached {
+			if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
+				return fmt.Errorf("failed to set mount point: %w", err)
+			}
 
-		// Resolve root
-		if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
-			return fmt.Errorf("failed to set mount root: %w", err)
+			// Resolve root
+			if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
+				return fmt.Errorf("failed to set mount root: %w", err)
+			}
 		}
 	}
 
