@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
-//go:embed testdata/decoded/*.yaml
+//go:embed testdata/decoded/*/*.yaml
 var testdataFS embed.FS
 
 func TestDyninst(t *testing.T) {
@@ -383,7 +383,7 @@ func makeTestReporter(t *testing.T) *testReporter {
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
 func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
 	expectedOutput := make(map[string]string)
-	filename := "testdata/decoded/" + name + ".yaml"
+	filename := "testdata/decoded/" + runtime.GOARCH + "/" + name + ".yaml"
 
 	yamlData, err := testdataFS.ReadFile(filename)
 	if err != nil {
@@ -402,14 +402,15 @@ func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]stri
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
 // Note: This function now saves to the current working directory since embedded files are read-only.
 func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
-	// Create testdata/decoded directory if it doesn't exist
-	err := os.MkdirAll("testdata/decoded", 0755)
+	// Create testdata/decoded/{arch} directory if it doesn't exist
+	archDir := filepath.Join("testdata", "decoded", runtime.GOARCH)
+	err := os.MkdirAll(archDir, 0755)
 	if err != nil {
 		t.Logf("error creating testdata directory: %s", err)
 		return
 	}
 
-	filename := filepath.Join("testdata", "decoded", name+".yaml")
+	filename := filepath.Join(archDir, name+".yaml")
 	actualOutputYAML, err := yaml.Marshal(savedState)
 	if err != nil {
 		t.Logf("error marshaling actual output to YAML: %s", err)
