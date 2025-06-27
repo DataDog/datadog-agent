@@ -515,7 +515,7 @@ type Mount struct {
 	Path           string  `field:"-"`
 	Origin         uint32  `field:"-"`
 	Detached       bool    `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool    `field:"visible"`  // SECLDoc[detached] Definition:`Mount is not visible in the VFS`
+	Visible        bool    `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
 }
 
 // MountEvent represents a mount event

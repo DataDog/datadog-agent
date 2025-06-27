@@ -1031,6 +1031,10 @@
         "source.path_error": {
           "type": "string",
           "description": "Mount source path error"
+        },
+        "detached": {
+          "type": "boolean",
+          "description": "Mount is not attached to the VFS tree"
         }
       },
       "additionalProperties": false,
