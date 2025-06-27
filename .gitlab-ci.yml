@@ -36,6 +36,7 @@ include:
   - .gitlab/trigger_distribution/conditions.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
+  - .gitlab/scan/windows.yml
 
 default:
   retry:
@@ -75,6 +76,7 @@ stages:
   - pkg_metrics
   - container_build
   - container_scan
+  - scan
   - check_deploy
   - dev_container_deploy
   - deploy_packages
@@ -241,6 +243,7 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
+  VIRUS_TOTAL: virus-total  # windows-agent
   # End vault variables
 
   DD_PKG_VERSION: "latest"
