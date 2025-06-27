@@ -16,7 +16,7 @@ OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
 def _get_output_path():
     output_path = os.path.join(os.getcwd(), "omnibus", "pkg")
     if 'CI_PIPELINE_ID' in os.environ:
-        output_path = os.path.join(output_path, f'pipeline-{os.getenv("CI_PIPELINE_ID")}')
+        output_path = os.path.join(output_path, f'pipeline-{os.environ["CI_PIPELINE_ID"]}')
     return output_path
 
 
