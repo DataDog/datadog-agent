@@ -12,10 +12,8 @@ import (
 	"time"
 )
 
-var (
-	pingFrequency = 15 * time.Second
-	bufferSize    = 2
-)
+var pingFrequency = 15 * time.Second
+var bufferSize = 2
 
 // Handle holds the token and the channel for components to use
 type Handle struct {
