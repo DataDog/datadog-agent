@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import threading
 from collections import defaultdict
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -219,6 +220,7 @@ def build_binaries(
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
+        "max_retries": "Maximum number of retries for failed tests, default 3",
     },
 )
 def run(
@@ -253,6 +255,7 @@ def run(
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
     use_prebuilt_binaries=False,
+    max_retries=0,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -349,8 +352,8 @@ def run(
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
-        "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
+        "run": ('-test.run ' + _create_test_selection_regex(clean_run)) if run else "",
+        "skip": ('-test.skip ' + _create_test_selection_regex(clean_skip)) if skip else "",
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else "",
         "platform": f"-platform {platform}" if platform else "",
@@ -366,18 +369,109 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    test_res = test_flavor(
-        ctx,
-        flavor=AgentFlavor.base,
-        build_tags=tags,
-        modules=[e2e_module],
-        args=args,
-        cmd=cmd,
-        env=env_vars,
-        junit_tar=junit_tar,
-        result_json=result_json,
-        test_profiler=None,
-    )
+    to_teardown: set[tuple[str, str]] = set()
+    result_jsons: list[str] = []
+    for attempt in range(max_retries + 1):
+        remaining_tries = max_retries - attempt
+        if remaining_tries > 0:
+            # If any tries are left, avoid destroying infra on failure
+            env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
+        else:
+            env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
+
+        partial_result_json = f"{result_json}.{attempt}.part"
+        result_jsons.append(partial_result_json)
+
+        test_res = test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar=junit_tar,
+            result_json=partial_result_json,
+            test_profiler=None,
+        )
+
+        washer = TestWasher(test_output_json_file=partial_result_json)
+
+        if remaining_tries > 0:
+            failed_tests = filter_only_leaf_tests(
+                (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
+            )
+
+            # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
+            # By using an `intersection` we ensure that we only get tests that have actually failed.
+            known_flaky_failures = failed_tests.intersection(
+                {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
+            )
+
+            # Retry any failed tests that are not known to be flaky
+            to_retry = failed_tests - known_flaky_failures
+
+            if known_flaky_failures:
+                print(
+                    color_message(
+                        f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
+                        "yellow",
+                    )
+                )
+                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
+                to_teardown.update(known_flaky_failures)
+
+            if to_retry:
+                print(
+                    color_message(
+                        f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                        "yellow",
+                    )
+                )
+
+                # Retry the failed tests only
+                affected_packages = {
+                    os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/")
+                    for package, _ in to_retry
+                }
+                e2e_module.test_targets = list(affected_packages)
+                args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
+            else:
+                break
+
+    # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
+    # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
+    if to_teardown:
+        print(
+            color_message(
+                f"Tearing down {len(to_teardown)} leftover test infras",
+                "yellow",
+            )
+        )
+        affected_packages = {
+            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
+        }
+        e2e_module.test_targets = list(affected_packages)
+        args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_teardown])
+        env_vars["E2E_TEARDOWN_ONLY"] = "true"
+        test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar=junit_tar,
+            result_json="/dev/null",  # No need to store results for teardown-only runs
+            test_profiler=None,
+        )
+
+    # Merge all the partial result JSON files into the final result JSON
+    with open(result_json, "w") as merged_file:
+        for partial_file in result_jsons:
+            with open(partial_file) as f:
+                merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
@@ -596,6 +690,60 @@ def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
         sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
         with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
             f.write("".join(logs))
+
+
+def _create_test_selection_regex(test_names: list[str]) -> str:
+    """
+    Create a regex to exact-match the tests in the targets list.
+    Ex: ["TestFoo", "TestBar"] -> "^(?:TestFoo|TestBar)$"
+    """
+    if not test_names:
+        return ""
+
+    # Remove any whitespace and eventual ^$ surrounding the test names
+    processed_names = [name.strip().strip("^$") for name in test_names]
+
+    # Join them with a pipe to create an OR regex
+    regex_body = "|".join(processed_names)
+    if len(processed_names) > 1:
+        # If we have more than one test, we need to group them with a non-capturing group
+        regex_body = f"(?:{regex_body})"
+
+    return f'"^{regex_body}$"'
+
+
+def filter_only_leaf_tests(tests: Iterable[tuple[str, str]]) -> set[tuple[str, str]]:
+    """
+    Given some (package, test_name) tuples, return only the leaf tests.
+    A test is a leaf if it is not a parent of any other test in the list (within the same package).
+    """
+    # Sort tests by descending depth (number of '/' in test name)
+    tests_sorted = sorted(tests, key=lambda t: len(t[1].split('/')))
+    leaf_tests: set[tuple[str, str]] = set()
+    for candidate_test in tests_sorted:
+        # If none of the known leaf tests is a child of the candidate test, then the candidate test is a leaf
+        is_leaf = all(not is_child(candidate_test, known_leaf_test) for known_leaf_test in leaf_tests)
+        if is_leaf:
+            leaf_tests.add(candidate_test)
+    return leaf_tests
+
+
+def is_child(test1: tuple[str, str], test2: tuple[str, str]) -> bool:
+    """
+    Returns True if test1 is a child of test2.
+    Example: is_child(("pkg", "TestAgent/TestFeatureA"), ("pkg", "TestAgent")) == True
+    """
+    if test1[0] != test2[0]:
+        return False
+    splitted_test1 = test1[1].split('/')
+    splitted_test2 = test2[1].split('/')
+    if len(splitted_test2) > len(splitted_test1):
+        return False
+
+    for part1, part2 in zip(splitted_test1, splitted_test2, strict=False):
+        if part1 != part2:
+            return False
+    return True
 
 
 class TooManyLogsError(Exception):
