@@ -173,6 +173,13 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 		}
 	}
 
+	thp, err := os.ReadFile("/sys/kernel/mm/transparent_hugepage/enabled")
+	if err != nil {
+		log.Errorf("cannot read transparent huge pages status: %s", err)
+	} else {
+		log.Errorf("transparent huge pages status: %s", string(thp))
+	}
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
