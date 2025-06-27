@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -119,12 +121,31 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
+
+	confSearchPaths := []string{
+		deps.Config.GetString("confd_path"),
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
+		"",
+	}
+
+	if deps.Config.GetString("fleet_policies_dir") != "" {
+		confSearchPaths = append(confSearchPaths, filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d"))
+	}
+
+	providers.InitConfigFilesReader(confSearchPaths)
+
+	c.AddConfigProvider(
+		providers.NewFileConfigProvider(c.GetTelemetryStore()),
+		deps.Config.GetBool("autoconf_config_files_poll"),
+		time.Duration(deps.Config.GetInt("autoconf_config_files_poll_interval"))*time.Second,
+	)
+
 	return provides{
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
-		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
-		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
+		Endpoint:      api.NewAgentEndpointProvider(c.writeConfigCheck, "/config-check", "GET"),
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
 	}
 }
 
@@ -140,7 +161,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 }
 
 // newAutoConfig creates an AutoConfig instance and starts it.
-func newAutoConfig(deps dependencies) autodiscovery.Component {
+func newAutoConfig(deps dependencies) *AutoConfig {
 	schController := scheduler.NewController()
 	// Non-blocking start of the scheduler controller
 	go func() {
