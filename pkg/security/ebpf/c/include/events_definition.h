@@ -306,15 +306,6 @@ struct mount_event_t {
     } params;
 };
 
-struct detached_mount_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct container_context_t container;
-    struct syscall_t syscall;
-    struct detached_mount_fields_t mountfields;
-};
-
 struct unshare_mntns_event_t {
     struct kevent_t event;
     struct mount_fields_t mountfields;

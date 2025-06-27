@@ -56,7 +56,6 @@ func TestFsmount(t *testing.T) {
 	defer test.Close()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
-		var fsfd int
 		err = test.GetProbeEvent(func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
@@ -77,10 +76,7 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
-			assert.NotEqual(t, event.Fsmount.MountID, uint32(0), "Mount id is zero")
-			assert.NotEqual(t, event.Fsmount.Flags, unix.FSOPEN_CLOEXEC, "Mount flags")
-			assert.NotEqual(t, event.Fsmount.Fd, fsfd, "Wrong file descriptor")
-			assert.NotEqual(t, event.Fsmount.MountAttrs, unix.FSMOUNT_CLOEXEC, "Wrong mount attributes")
+			assert.NotEqual(t, event.Mount.MountID, uint32(0), "Mount id is zero")
 			return true
 		}, 3*time.Second, model.FileFsmountEventType)
 	})

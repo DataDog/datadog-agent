@@ -130,14 +130,11 @@ func TestCopyTree(t *testing.T) {
 
 		seen := 0
 		err = test.GetProbeEvent(func() error {
-			// Perform the recursive subtree clone which should generate
-			// two detached_mount events (root + first child) and one subsequent
-			// mount event (second child attached inside the detached tree).
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			return nil
 		}, func(event *model.Event) bool {
 			typeStr := event.GetType()
-			if typeStr != "detached_mount" && typeStr != "mount" {
+			if typeStr != "mount" {
 				return false
 			}
 
@@ -146,7 +143,7 @@ func TestCopyTree(t *testing.T) {
 			assert.Equal(t, mountIdsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
 			seen++
 			return seen == 3
-		}, 5*time.Second, model.FileMountEventType, model.DetachedMountEventType)
+		}, 5*time.Second, model.FileMountEventType)
 
 	})
 
