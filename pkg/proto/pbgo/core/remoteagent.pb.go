@@ -7,6 +7,7 @@
 package core
 
 import (
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -20,50 +21,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-type StatusSection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Fields        map[string]string      `protobuf:"bytes,1,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *StatusSection) Reset() {
-	*x = StatusSection{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *StatusSection) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*StatusSection) ProtoMessage() {}
-
-func (x *StatusSection) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StatusSection.ProtoReflect.Descriptor instead.
-func (*StatusSection) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *StatusSection) GetFields() map[string]string {
-	if x != nil {
-		return x.Fields
-	}
-	return nil
-}
 
 type RegisterRemoteAgentRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -95,7 +52,7 @@ type RegisterRemoteAgentRequest struct {
 
 func (x *RegisterRemoteAgentRequest) Reset() {
 	*x = RegisterRemoteAgentRequest{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[1]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -107,7 +64,7 @@ func (x *RegisterRemoteAgentRequest) String() string {
 func (*RegisterRemoteAgentRequest) ProtoMessage() {}
 
 func (x *RegisterRemoteAgentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[1]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -120,7 +77,7 @@ func (x *RegisterRemoteAgentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRemoteAgentRequest.ProtoReflect.Descriptor instead.
 func (*RegisterRemoteAgentRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{1}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegisterRemoteAgentRequest) GetId() string {
@@ -166,7 +123,7 @@ type RegisterRemoteAgentResponse struct {
 
 func (x *RegisterRemoteAgentResponse) Reset() {
 	*x = RegisterRemoteAgentResponse{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[2]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -178,7 +135,7 @@ func (x *RegisterRemoteAgentResponse) String() string {
 func (*RegisterRemoteAgentResponse) ProtoMessage() {}
 
 func (x *RegisterRemoteAgentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[2]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -191,7 +148,7 @@ func (x *RegisterRemoteAgentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterRemoteAgentResponse.ProtoReflect.Descriptor instead.
 func (*RegisterRemoteAgentResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{2}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterRemoteAgentResponse) GetRecommendedRefreshIntervalSecs() uint32 {
@@ -209,7 +166,7 @@ type GetStatusDetailsRequest struct {
 
 func (x *GetStatusDetailsRequest) Reset() {
 	*x = GetStatusDetailsRequest{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[3]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -221,7 +178,7 @@ func (x *GetStatusDetailsRequest) String() string {
 func (*GetStatusDetailsRequest) ProtoMessage() {}
 
 func (x *GetStatusDetailsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[3]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -234,37 +191,80 @@ func (x *GetStatusDetailsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusDetailsRequest.ProtoReflect.Descriptor instead.
 func (*GetStatusDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{3}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{2}
 }
 
-type GetStatusDetailsResponse struct {
+type GetJsonStatusDetailsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Main status detail section.
 	//
 	// Generally reserved for high-level details such as version, uptime, configuration flags, etc.
-	MainSection *StatusSection `protobuf:"bytes,1,opt,name=main_section,json=mainSection,proto3" json:"main_section,omitempty"`
-	// Named status detail sections.
-	//
-	// Generally reserved for specific (sub)component details, such as the status of a specific feature or integration, etc.
-	NamedSections map[string]*StatusSection `protobuf:"bytes,2,rep,name=named_sections,json=namedSections,proto3" json:"named_sections,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Value         *_struct.Struct `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetStatusDetailsResponse) Reset() {
-	*x = GetStatusDetailsResponse{}
+func (x *GetJsonStatusDetailsResponse) Reset() {
+	*x = GetJsonStatusDetailsResponse{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetJsonStatusDetailsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetJsonStatusDetailsResponse) ProtoMessage() {}
+
+func (x *GetJsonStatusDetailsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetJsonStatusDetailsResponse.ProtoReflect.Descriptor instead.
+func (*GetJsonStatusDetailsResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetJsonStatusDetailsResponse) GetValue() *_struct.Struct {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+type GetTextStatusDetailsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Main status detail section.
+	//
+	// Generally reserved for high-level details such as version, uptime, configuration flags, etc.
+	Value         []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTextStatusDetailsResponse) Reset() {
+	*x = GetTextStatusDetailsResponse{}
 	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetStatusDetailsResponse) String() string {
+func (x *GetTextStatusDetailsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetStatusDetailsResponse) ProtoMessage() {}
+func (*GetTextStatusDetailsResponse) ProtoMessage() {}
 
-func (x *GetStatusDetailsResponse) ProtoReflect() protoreflect.Message {
+func (x *GetTextStatusDetailsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -276,21 +276,61 @@ func (x *GetStatusDetailsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetStatusDetailsResponse.ProtoReflect.Descriptor instead.
-func (*GetStatusDetailsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetTextStatusDetailsResponse.ProtoReflect.Descriptor instead.
+func (*GetTextStatusDetailsResponse) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GetStatusDetailsResponse) GetMainSection() *StatusSection {
+func (x *GetTextStatusDetailsResponse) GetValue() []byte {
 	if x != nil {
-		return x.MainSection
+		return x.Value
 	}
 	return nil
 }
 
-func (x *GetStatusDetailsResponse) GetNamedSections() map[string]*StatusSection {
+type GetHtmlStatusDetailsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Main status detail section.
+	//
+	// Generally reserved for high-level details such as version, uptime, configuration flags, etc.
+	Value         []byte `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHtmlStatusDetailsResponse) Reset() {
+	*x = GetHtmlStatusDetailsResponse{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHtmlStatusDetailsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHtmlStatusDetailsResponse) ProtoMessage() {}
+
+func (x *GetHtmlStatusDetailsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[5]
 	if x != nil {
-		return x.NamedSections
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHtmlStatusDetailsResponse.ProtoReflect.Descriptor instead.
+func (*GetHtmlStatusDetailsResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetHtmlStatusDetailsResponse) GetValue() []byte {
+	if x != nil {
+		return x.Value
 	}
 	return nil
 }
@@ -303,7 +343,7 @@ type GetFlareFilesRequest struct {
 
 func (x *GetFlareFilesRequest) Reset() {
 	*x = GetFlareFilesRequest{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[5]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -315,7 +355,7 @@ func (x *GetFlareFilesRequest) String() string {
 func (*GetFlareFilesRequest) ProtoMessage() {}
 
 func (x *GetFlareFilesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[5]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -328,7 +368,7 @@ func (x *GetFlareFilesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFlareFilesRequest.ProtoReflect.Descriptor instead.
 func (*GetFlareFilesRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{5}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{6}
 }
 
 type GetFlareFilesResponse struct {
@@ -347,7 +387,7 @@ type GetFlareFilesResponse struct {
 
 func (x *GetFlareFilesResponse) Reset() {
 	*x = GetFlareFilesResponse{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -359,7 +399,7 @@ func (x *GetFlareFilesResponse) String() string {
 func (*GetFlareFilesResponse) ProtoMessage() {}
 
 func (x *GetFlareFilesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -372,7 +412,7 @@ func (x *GetFlareFilesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFlareFilesResponse.ProtoReflect.Descriptor instead.
 func (*GetFlareFilesResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{6}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetFlareFilesResponse) GetFiles() map[string][]byte {
@@ -390,7 +430,7 @@ type GetTelemetryRequest struct {
 
 func (x *GetTelemetryRequest) Reset() {
 	*x = GetTelemetryRequest{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +442,7 @@ func (x *GetTelemetryRequest) String() string {
 func (*GetTelemetryRequest) ProtoMessage() {}
 
 func (x *GetTelemetryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +455,7 @@ func (x *GetTelemetryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTelemetryRequest.ProtoReflect.Descriptor instead.
 func (*GetTelemetryRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{7}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{8}
 }
 
 type GetTelemetryResponse struct {
@@ -432,7 +472,7 @@ type GetTelemetryResponse struct {
 
 func (x *GetTelemetryResponse) Reset() {
 	*x = GetTelemetryResponse{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[8]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -444,7 +484,7 @@ func (x *GetTelemetryResponse) String() string {
 func (*GetTelemetryResponse) ProtoMessage() {}
 
 func (x *GetTelemetryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[8]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -457,7 +497,7 @@ func (x *GetTelemetryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTelemetryResponse.ProtoReflect.Descriptor instead.
 func (*GetTelemetryResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{8}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetTelemetryResponse) GetPayload() isGetTelemetryResponse_Payload {
@@ -493,12 +533,7 @@ var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\n" +
-	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\"\x92\x01\n" +
-	"\rStatusSection\x12F\n" +
-	"\x06fields\x18\x01 \x03(\v2..datadog.remoteagent.StatusSection.FieldsEntryR\x06fields\x1a9\n" +
-	"\vFieldsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x91\x01\n" +
+	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\x1a\x1cgoogle/protobuf/struct.proto\"\x91\x01\n" +
 	"\x1aRegisterRemoteAgentRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12!\n" +
@@ -507,13 +542,13 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"auth_token\x18\x04 \x01(\tR\tauthToken\"h\n" +
 	"\x1bRegisterRemoteAgentResponse\x12I\n" +
 	"!recommended_refresh_interval_secs\x18\x01 \x01(\rR\x1erecommendedRefreshIntervalSecs\"\x19\n" +
-	"\x17GetStatusDetailsRequest\"\xb0\x02\n" +
-	"\x18GetStatusDetailsResponse\x12E\n" +
-	"\fmain_section\x18\x01 \x01(\v2\".datadog.remoteagent.StatusSectionR\vmainSection\x12g\n" +
-	"\x0enamed_sections\x18\x02 \x03(\v2@.datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntryR\rnamedSections\x1ad\n" +
-	"\x12NamedSectionsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".datadog.remoteagent.StatusSectionR\x05value:\x028\x01\"\x16\n" +
+	"\x17GetStatusDetailsRequest\"M\n" +
+	"\x1cGetJsonStatusDetailsResponse\x12-\n" +
+	"\x05value\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x05value\"4\n" +
+	"\x1cGetTextStatusDetailsResponse\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\fR\x05value\"4\n" +
+	"\x1cGetHtmlStatusDetailsResponse\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\fR\x05value\"\x16\n" +
 	"\x14GetFlareFilesRequest\"\x9e\x01\n" +
 	"\x15GetFlareFilesResponse\x12K\n" +
 	"\x05files\x18\x01 \x03(\v25.datadog.remoteagent.GetFlareFilesResponse.FilesEntryR\x05files\x1a8\n" +
@@ -538,32 +573,29 @@ func file_datadog_remoteagent_remoteagent_proto_rawDescGZIP() []byte {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescData
 }
 
-var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
-	(*StatusSection)(nil),               // 0: datadog.remoteagent.StatusSection
-	(*RegisterRemoteAgentRequest)(nil),  // 1: datadog.remoteagent.RegisterRemoteAgentRequest
-	(*RegisterRemoteAgentResponse)(nil), // 2: datadog.remoteagent.RegisterRemoteAgentResponse
-	(*GetStatusDetailsRequest)(nil),     // 3: datadog.remoteagent.GetStatusDetailsRequest
-	(*GetStatusDetailsResponse)(nil),    // 4: datadog.remoteagent.GetStatusDetailsResponse
-	(*GetFlareFilesRequest)(nil),        // 5: datadog.remoteagent.GetFlareFilesRequest
-	(*GetFlareFilesResponse)(nil),       // 6: datadog.remoteagent.GetFlareFilesResponse
-	(*GetTelemetryRequest)(nil),         // 7: datadog.remoteagent.GetTelemetryRequest
-	(*GetTelemetryResponse)(nil),        // 8: datadog.remoteagent.GetTelemetryResponse
-	nil,                                 // 9: datadog.remoteagent.StatusSection.FieldsEntry
-	nil,                                 // 10: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
-	nil,                                 // 11: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	(*RegisterRemoteAgentRequest)(nil),   // 0: datadog.remoteagent.RegisterRemoteAgentRequest
+	(*RegisterRemoteAgentResponse)(nil),  // 1: datadog.remoteagent.RegisterRemoteAgentResponse
+	(*GetStatusDetailsRequest)(nil),      // 2: datadog.remoteagent.GetStatusDetailsRequest
+	(*GetJsonStatusDetailsResponse)(nil), // 3: datadog.remoteagent.GetJsonStatusDetailsResponse
+	(*GetTextStatusDetailsResponse)(nil), // 4: datadog.remoteagent.GetTextStatusDetailsResponse
+	(*GetHtmlStatusDetailsResponse)(nil), // 5: datadog.remoteagent.GetHtmlStatusDetailsResponse
+	(*GetFlareFilesRequest)(nil),         // 6: datadog.remoteagent.GetFlareFilesRequest
+	(*GetFlareFilesResponse)(nil),        // 7: datadog.remoteagent.GetFlareFilesResponse
+	(*GetTelemetryRequest)(nil),          // 8: datadog.remoteagent.GetTelemetryRequest
+	(*GetTelemetryResponse)(nil),         // 9: datadog.remoteagent.GetTelemetryResponse
+	nil,                                  // 10: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	(*_struct.Struct)(nil),               // 11: google.protobuf.Struct
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
-	9,  // 0: datadog.remoteagent.StatusSection.fields:type_name -> datadog.remoteagent.StatusSection.FieldsEntry
-	0,  // 1: datadog.remoteagent.GetStatusDetailsResponse.main_section:type_name -> datadog.remoteagent.StatusSection
-	10, // 2: datadog.remoteagent.GetStatusDetailsResponse.named_sections:type_name -> datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
-	11, // 3: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
-	0,  // 4: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
-	5,  // [5:5] is the sub-list for method output_type
-	5,  // [5:5] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	11, // 0: datadog.remoteagent.GetJsonStatusDetailsResponse.value:type_name -> google.protobuf.Struct
+	10, // 1: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	2,  // [2:2] is the sub-list for method output_type
+	2,  // [2:2] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_remoteagent_proto_init() }
@@ -571,7 +603,7 @@ func file_datadog_remoteagent_remoteagent_proto_init() {
 	if File_datadog_remoteagent_remoteagent_proto != nil {
 		return
 	}
-	file_datadog_remoteagent_remoteagent_proto_msgTypes[8].OneofWrappers = []any{
+	file_datadog_remoteagent_remoteagent_proto_msgTypes[9].OneofWrappers = []any{
 		(*GetTelemetryResponse_PromText)(nil),
 	}
 	type x struct{}
@@ -580,7 +612,7 @@ func file_datadog_remoteagent_remoteagent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteagent_remoteagent_proto_rawDesc), len(file_datadog_remoteagent_remoteagent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
