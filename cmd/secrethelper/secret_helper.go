@@ -47,6 +47,7 @@ const (
 	providerPrefixSeparator = "@"
 	filePrefix              = "file"
 	k8sSecretPrefix         = "k8s_secret"
+	awsSecretsManagerPrefix = "aws_secretsmanager"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -171,6 +172,8 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 			res[secretID] = providers.ReadSecretFile(id)
 		case k8sSecretPrefix:
 			res[secretID] = providers.ReadKubernetesSecret(kubeSecretGetter, id)
+		case awsSecretsManagerPrefix:
+			res[secretID] = providers.ReadAwsSecretsManagerSecret(id)
 		default:
 			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
 		}
