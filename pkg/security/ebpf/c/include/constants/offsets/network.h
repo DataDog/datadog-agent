@@ -20,7 +20,7 @@ __attribute__((always_inline)) u16 get_skc_num_from_sock_common(struct sock_comm
     bpf_probe_read(&skc_num, sizeof(skc_num), (void *)sk + sock_common_skc_num_offset);
     return htons(skc_num);
 }
-__attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
+__attribute__((always_inline)) unsigned int get_protocol_from_sock(struct sock *sk) {
     u64 sock_sk_protocol_offset;
     LOAD_CONSTANT("sock_sk_protocol_offset", sock_sk_protocol_offset);
     unsigned int protocol = 0;
