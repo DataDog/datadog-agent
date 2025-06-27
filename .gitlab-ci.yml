@@ -221,7 +221,6 @@ variables:
   RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID} # agent-delivery
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat # windows-agent
-  VT_API_KEY: ci.datadog-agent.vtapikey  # windows-agent
   # End aws ssm variables
 
   # Start vault variables
@@ -244,6 +243,7 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
+  VIRUS_TOTAL: virus-total  # windows-agent
   # End vault variables
 
   DD_PKG_VERSION: "latest"

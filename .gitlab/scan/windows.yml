@@ -26,7 +26,7 @@
         echo "No MSI file found for pattern $SCAN_ARTIFACT_PATTERN and pipeline ID $CI_PIPELINE_ID"
         exit 1
       fi
-    - VT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $VT_API_KEY) || exit $?; export VT_API_KEY
+    - VT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $VIRUS_TOTAL api-key) || exit $?; export VT_API_KEY
     - echo "Scanning $MSI_FILE"
     - |
       SHA256=$(sha256sum < "$MSI_FILE" | awk '{print $1}')
@@ -94,7 +94,7 @@
 
 scan_packages_windows-x64:
   rules:
-    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.on_deploy]
     - !reference [.on_main]
     - !reference [.except_mergequeue]
     - when: on_success
@@ -106,7 +106,7 @@ scan_packages_windows-x64:
 
 scan_packages_windows-fips-x64:
   rules:
-    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.on_deploy]
     - !reference [.on_main]
     - !reference [.except_mergequeue]
     - when: on_success
