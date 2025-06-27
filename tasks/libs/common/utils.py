@@ -510,7 +510,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name}",
                 flush=True,
             )
         elif echo:
