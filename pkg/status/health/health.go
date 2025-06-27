@@ -10,18 +10,9 @@ import (
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	agentState = telemetry.NewGauge(
-		"runtime",
-		"state",
-		[]string{"status"},
-		"Establish if the state of the agent, either started or running",
-	)
-
 	pingFrequency = 15 * time.Second
 	bufferSize    = 2
 )
@@ -51,7 +42,6 @@ type catalog struct {
 }
 
 func newCatalog() *catalog {
-	agentState.Set(1, "started")
 	return &catalog{
 		components: make(map[*Handle]*component),
 		latestRun:  time.Now(), // Start healthy
@@ -102,7 +92,6 @@ func (c *catalog) run() {
 		if empty {
 			break
 		}
-		agentState.Set(1, "running")
 	}
 	pingTicker.Stop()
 }
