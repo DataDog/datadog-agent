@@ -404,13 +404,6 @@ probes:
   where:
     methodName: main.testMultipleSimpleParams
   captureSnapshot: true
-- id: testMapStringToInt
-  type: LOG_PROBE
-  tags:
-    - "foo:bar"
-  where:
-    methodName: main.testMapStringToInt
-  captureSnapshot: true
 - id: testInterface
   type: LOG_PROBE
   tags:
@@ -480,4 +473,18 @@ probes:
     - "foo:bar"
   where:
     methodName: main.testEsotericHeap
+  captureSnapshot: true
+- id: testSmallMap
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSmallMap
+  captureSnapshot: true
+- id: testMapIntToInt
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapIntToInt
   captureSnapshot: true

@@ -74,6 +74,7 @@ func TestDyninst(t *testing.T) {
 	// Leave the option to disable this behavior for debugging purposes.
 	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
 	if !dontClear {
+		t.Logf("clearing trace_pipe!")
 		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 		require.NoError(t, err)
 		t.Cleanup(func() {
@@ -86,6 +87,7 @@ func TestDyninst(t *testing.T) {
 					break
 				}
 			}
+			t.Logf("closing trace_pipe!")
 			require.NoError(t, tp.Close())
 		})
 	}
@@ -294,13 +296,14 @@ func testDyninst(
 			t.Logf("Output: %s", decodeOut.String())
 		}
 		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
+		sorted := sortJSON(t, redacted, defaultSorters)
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
 		expIdx := len(probeRet)
-		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
+		retMap[probeID] = append(retMap[probeID], json.RawMessage(sorted))
 		if expIdx < len(expOut[probeID]) {
 			outputToCompare := expOut[probeID][expIdx]
-			assert.JSONEq(t, string(outputToCompare), string(redacted))
+			assert.JSONEq(t, string(outputToCompare), string(sorted))
 		}
 		if !rewriteEnabled {
 			expOut, ok := expOut[probeID]
@@ -310,7 +313,7 @@ func testDyninst(
 				"expected at least %d events for probe %s, got %d",
 				expIdx+1, probeID, len(expOut),
 			)
-			assert.Equal(t, string(expOut[expIdx]), string(redacted))
+			assert.Equal(t, string(expOut[expIdx]), string(sorted))
 		}
 	}
 	return retMap
