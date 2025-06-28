@@ -646,6 +646,10 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 }
 
 func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+	if conntrackPath == "" {
+		return
+	}
+
 	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
 	cmd := []string{conntrackPath, "-S"}
 	if useSudoConntrack {
@@ -704,45 +708,44 @@ func runCommand(cmd []string, env []string) (string, error) {
 }
 
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	if conntrackPath != "None" {
-		addConntrackStatsMetrics(sender, conntrackPath, useSudo)
-		conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
-		var availableFiles []string
-		fs := filesystem
-		files, err := afero.ReadDir(fs, conntrackFilesLocation)
-		if err != nil {
-			log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
-		} else {
-			for _, file := range files {
-				if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
-					availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
-				}
-			}
-		}
+	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
 
-		// By default, only max and count are reported. However if the blacklist is set,
-		// the whitelist is losing its default value
-		for _, metricName := range availableFiles {
-			if len(blacklistConntrackMetrics) > 0 {
-				if slices.Contains(blacklistConntrackMetrics, metricName) {
-					continue
-				}
-			} else if len(whitelistConntrackMetrics) > 0 {
-				if !slices.Contains(whitelistConntrackMetrics, metricName) {
-					continue
-				}
-			} else {
-				if !slices.Contains([]string{"max", "count"}, metricName) {
-					continue
-				}
+	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
+	var availableFiles []string
+	fs := filesystem
+	files, err := afero.ReadDir(fs, conntrackFilesLocation)
+	if err != nil {
+		log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
+	} else {
+		for _, file := range files {
+			if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
+				availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
 			}
-			metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
-			value, err := readIntFile(metricFileLocation, fs)
-			if err != nil {
-				log.Debugf("Error reading %s: %v", metricFileLocation, err)
-			}
-			sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 		}
+	}
+
+	// By default, only max and count are reported. However if the blacklist is set,
+	// the whitelist is losing its default value
+	for _, metricName := range availableFiles {
+		if len(blacklistConntrackMetrics) > 0 {
+			if slices.Contains(blacklistConntrackMetrics, metricName) {
+				continue
+			}
+		} else if len(whitelistConntrackMetrics) > 0 {
+			if !slices.Contains(whitelistConntrackMetrics, metricName) {
+				continue
+			}
+		} else {
+			if !slices.Contains([]string{"max", "count"}, metricName) {
+				continue
+			}
+		}
+		metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
+		value, err := readIntFile(metricFileLocation, fs)
+		if err != nil {
+			log.Debugf("Error reading %s: %v", metricFileLocation, err)
+		}
+		sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 	}
 }
 
@@ -792,6 +795,7 @@ func newCheck(cfg config.Component) check.Check {
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
+				ConntrackPath:             "",
 				WhitelistConntrackMetrics: []string{"max", "count"},
 				UseSudoConntrack:          true,
 			},

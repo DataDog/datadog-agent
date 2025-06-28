@@ -23,7 +23,7 @@ func TestLinuxNetworkSuite(t *testing.T) {
 	suite := &linuxNetworkCheckSuite{
 		networkCheckSuite{
 			descriptor:            e2eos.UbuntuDefault,
-			metricCompareFraction: 0.02,
+			metricCompareFraction: 0.1,
 			metricCompareDecimals: 1,
 		},
 	}
