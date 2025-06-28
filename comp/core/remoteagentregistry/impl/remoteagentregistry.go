@@ -325,15 +325,82 @@ func (ra *remoteAgentRegistry) GetRegisteredAgents() []*remoteagentregistry.Regi
 	return agents
 }
 
+func (ra *remoteAgentRegistry) GetRegisteredJsonAgentStatuses() []*remoteagentregistry.StatusData[map[string]interface{}] {
+
+	jsonStatusGetter := func(ctx context.Context, client pb.RemoteAgentClient) (*remoteagentregistry.StatusData[map[string]interface{}], error) {
+		resp, err := client.GetJsonStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+		if err != nil {
+			return nil, err
+		}
+
+		namedSections := make(map[string]map[string]interface{}, len(resp.NamedSections))
+		for name, section := range resp.NamedSections {
+			// Convert the JSON section to a map[string]interface{} for easier handling.
+			namedSections[name] = section.AsMap()
+		}
+
+		return &remoteagentregistry.StatusData[map[string]interface{}]{
+			MainSection:   resp.MainSection.AsMap(),
+			NamedSections: namedSections,
+		}, nil
+	}
+
+	return GetRegisteredAgentStatuses[map[string]interface{}](ra, jsonStatusGetter)
+}
+
+func (ra *remoteAgentRegistry) GetRegisteredTextAgentStatuses() []*remoteagentregistry.StatusData[string] {
+	textStatusGetter := func(ctx context.Context, client pb.RemoteAgentClient) (*remoteagentregistry.StatusData[string], error) {
+		resp, err := client.GetTextStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+		if err != nil {
+			return nil, err
+		}
+
+		namedSections := make(map[string]string, len(resp.NamedSections))
+		for name, section := range resp.NamedSections {
+			// Convert the section to a string for easier handling.
+			namedSections[name] = section
+		}
+
+		return &remoteagentregistry.StatusData[string]{
+			MainSection:   resp.MainSection,
+			NamedSections: namedSections,
+		}, nil
+	}
+
+	return GetRegisteredAgentStatuses[string](ra, textStatusGetter)
+}
+
+func (ra *remoteAgentRegistry) GetRegisteredHtmlAgentStatuses() []*remoteagentregistry.StatusData[string] {
+	htmlStatusGetter := func(ctx context.Context, client pb.RemoteAgentClient) (*remoteagentregistry.StatusData[string], error) {
+		resp, err := client.GetHtmlStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+		if err != nil {
+			return nil, err
+		}
+
+		namedSections := make(map[string]string, len(resp.NamedSections))
+		for name, section := range resp.NamedSections {
+			// Convert the section to a string for easier handling.
+			namedSections[name] = section
+		}
+
+		return &remoteagentregistry.StatusData[string]{
+			MainSection:   resp.MainSection,
+			NamedSections: namedSections,
+		}, nil
+	}
+
+	return GetRegisteredAgentStatuses[string](ra, htmlStatusGetter)
+}
+
 // GetRegisteredAgentStatuses returns the status of all registered remote agents.
-func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregistry.StatusData {
+func GetRegisteredAgentStatuses[T any](ra *remoteAgentRegistry, statusGetter func(context.Context, pb.RemoteAgentClient) (*remoteagentregistry.StatusData[T], error)) []*remoteagentregistry.StatusData[T] {
 	queryTimeout := ra.getQueryTimeout()
 
 	ra.agentMapMu.Lock()
 
 	agentsLen := len(ra.agentMap)
-	statusMap := make(map[string]*remoteagentregistry.StatusData, agentsLen)
-	agentStatuses := make([]*remoteagentregistry.StatusData, 0, agentsLen)
+	statusMap := make(map[string]*remoteagentregistry.StatusData[T], agentsLen)
+	agentStatuses := make([]*remoteagentregistry.StatusData[T], 0, agentsLen)
 
 	// Return early if we have no registered remote agents.
 	if agentsLen == 0 {
@@ -344,14 +411,14 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 	// We preload the status map with a response that indicates timeout, since we want to ensure there's an entry for
 	// every registered remote agent even if we don't get a response back (whether good or bad) from them.
 	for agentID, details := range ra.agentMap {
-		statusMap[agentID] = &remoteagentregistry.StatusData{
+		statusMap[agentID] = &remoteagentregistry.StatusData[T]{
 			AgentID:       agentID,
 			DisplayName:   details.displayName,
 			FailureReason: fmt.Sprintf("Timed out after waiting %s for response.", queryTimeout),
 		}
 	}
 
-	data := make(chan *remoteagentregistry.StatusData, agentsLen)
+	data := make(chan *remoteagentregistry.StatusData[T], agentsLen)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -361,9 +428,9 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 
 		go func() {
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
-			resp, err := details.client.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+			resp, err := statusGetter(ctx, details.client)
 			if err != nil {
-				data <- &remoteagentregistry.StatusData{
+				data <- &remoteagentregistry.StatusData[T]{
 					AgentID:       agentID,
 					DisplayName:   displayName,
 					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
@@ -371,7 +438,10 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 				return
 			}
 
-			data <- raproto.ProtobufToStatusData(agentID, displayName, resp)
+			resp.AgentID = agentID
+			resp.DisplayName = displayName
+
+			data <- resp
 		}()
 	}
 
@@ -445,6 +515,11 @@ collect:
 	for {
 		select {
 		case flareData := <-data:
+			if flareData == nil {
+				// If we got a nil flareData, it means we had an error querying the remote agent, so we skip it.
+				responsesRemaining--
+				continue
+			}
 			flareMap[flareData.AgentID] = flareData
 			responsesRemaining--
 		case <-timeout:

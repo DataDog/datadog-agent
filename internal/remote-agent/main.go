@@ -24,6 +24,7 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -35,18 +36,21 @@ type remoteAgentServer struct {
 	pbcore.UnimplementedRemoteAgentServer
 }
 
-func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+func (s *remoteAgentServer) GetJsonStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetJsonStatusDetailsResponse, error) {
 	log.Printf("Got request for status details: %v", req)
 
-	fields := make(map[string]string)
+	fields := make(map[string]interface{})
 	fields["Started"] = s.started.Format(time.RFC3339)
 	fields["Version"] = "1.0.0"
 
-	return &pbcore.GetStatusDetailsResponse{
-		MainSection: &pbcore.StatusSection{
-			Fields: fields,
-		},
-		NamedSections: make(map[string]*pbcore.StatusSection),
+	pbStruct, err := structpb.NewStruct(fields)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create struct for status details: %v", err)
+	}
+
+	return &pbcore.GetJsonStatusDetailsResponse{
+		MainSection:   pbStruct,
+		NamedSections: make(map[string]*structpb.Struct),
 	}, nil
 
 }

@@ -19,18 +19,14 @@ No remote agents registered
 {{ if .FailureReason }}
 {{ .FailureReason }}
 {{ end }}
-{{- if .MainSection }}
-{{ range $key, $value := .MainSection -}}
-{{ $key }}: {{ $value }}
-{{ end }}
+{{- if and .MainSection (gt (len .MainSection) 0) }}
+{{ .MainSection }}
 {{- end }}
 {{- if .NamedSections }}
 {{- range $sectionName, $section := .NamedSections }}
   {{ $sectionName }}
   {{ printDashes $sectionName "-" }}
-{{- range $key, $value := $section }}
-  {{ $key }}: {{ $value }}
-{{- end }}
+  {{ $section }}
 {{ end }}
 {{- end }}
 {{- end }}

@@ -1363,24 +1363,44 @@ func (mr *MockRemoteAgentClientMockRecorder) GetFlareFiles(ctx, in interface{}, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlareFiles", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetFlareFiles), varargs...)
 }
 
-// GetStatusDetails mocks base method.
-func (m *MockRemoteAgentClient) GetStatusDetails(ctx context.Context, in *core.GetStatusDetailsRequest, opts ...grpc.CallOption) (*core.GetStatusDetailsResponse, error) {
+// GetHtmlStatusDetails mocks base method.
+func (m *MockRemoteAgentClient) GetHtmlStatusDetails(ctx context.Context, in *core.GetStatusDetailsRequest, opts ...grpc.CallOption) (*core.GetHtmlStatusDetailsResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "GetStatusDetails", varargs...)
-	ret0, _ := ret[0].(*core.GetStatusDetailsResponse)
+	ret := m.ctrl.Call(m, "GetHtmlStatusDetails", varargs...)
+	ret0, _ := ret[0].(*core.GetHtmlStatusDetailsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetStatusDetails indicates an expected call of GetStatusDetails.
-func (mr *MockRemoteAgentClientMockRecorder) GetStatusDetails(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+// GetHtmlStatusDetails indicates an expected call of GetHtmlStatusDetails.
+func (mr *MockRemoteAgentClientMockRecorder) GetHtmlStatusDetails(ctx, in interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetStatusDetails), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHtmlStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetHtmlStatusDetails), varargs...)
+}
+
+// GetJsonStatusDetails mocks base method.
+func (m *MockRemoteAgentClient) GetJsonStatusDetails(ctx context.Context, in *core.GetStatusDetailsRequest, opts ...grpc.CallOption) (*core.GetJsonStatusDetailsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetJsonStatusDetails", varargs...)
+	ret0, _ := ret[0].(*core.GetJsonStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJsonStatusDetails indicates an expected call of GetJsonStatusDetails.
+func (mr *MockRemoteAgentClientMockRecorder) GetJsonStatusDetails(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJsonStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetJsonStatusDetails), varargs...)
 }
 
 // GetTelemetry mocks base method.
@@ -1401,6 +1421,26 @@ func (mr *MockRemoteAgentClientMockRecorder) GetTelemetry(ctx, in interface{}, o
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetry", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetTelemetry), varargs...)
+}
+
+// GetTextStatusDetails mocks base method.
+func (m *MockRemoteAgentClient) GetTextStatusDetails(ctx context.Context, in *core.GetStatusDetailsRequest, opts ...grpc.CallOption) (*core.GetTextStatusDetailsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetTextStatusDetails", varargs...)
+	ret0, _ := ret[0].(*core.GetTextStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTextStatusDetails indicates an expected call of GetTextStatusDetails.
+func (mr *MockRemoteAgentClientMockRecorder) GetTextStatusDetails(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTextStatusDetails", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetTextStatusDetails), varargs...)
 }
 
 // MockRemoteAgentServer is a mock of RemoteAgentServer interface.
@@ -1441,19 +1481,34 @@ func (mr *MockRemoteAgentServerMockRecorder) GetFlareFiles(arg0, arg1 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFlareFiles", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetFlareFiles), arg0, arg1)
 }
 
-// GetStatusDetails mocks base method.
-func (m *MockRemoteAgentServer) GetStatusDetails(arg0 context.Context, arg1 *core.GetStatusDetailsRequest) (*core.GetStatusDetailsResponse, error) {
+// GetHtmlStatusDetails mocks base method.
+func (m *MockRemoteAgentServer) GetHtmlStatusDetails(arg0 context.Context, arg1 *core.GetStatusDetailsRequest) (*core.GetHtmlStatusDetailsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStatusDetails", arg0, arg1)
-	ret0, _ := ret[0].(*core.GetStatusDetailsResponse)
+	ret := m.ctrl.Call(m, "GetHtmlStatusDetails", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetHtmlStatusDetailsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetStatusDetails indicates an expected call of GetStatusDetails.
-func (mr *MockRemoteAgentServerMockRecorder) GetStatusDetails(arg0, arg1 interface{}) *gomock.Call {
+// GetHtmlStatusDetails indicates an expected call of GetHtmlStatusDetails.
+func (mr *MockRemoteAgentServerMockRecorder) GetHtmlStatusDetails(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetStatusDetails), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHtmlStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetHtmlStatusDetails), arg0, arg1)
+}
+
+// GetJsonStatusDetails mocks base method.
+func (m *MockRemoteAgentServer) GetJsonStatusDetails(arg0 context.Context, arg1 *core.GetStatusDetailsRequest) (*core.GetJsonStatusDetailsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetJsonStatusDetails", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetJsonStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetJsonStatusDetails indicates an expected call of GetJsonStatusDetails.
+func (mr *MockRemoteAgentServerMockRecorder) GetJsonStatusDetails(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetJsonStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetJsonStatusDetails), arg0, arg1)
 }
 
 // GetTelemetry mocks base method.
@@ -1469,4 +1524,19 @@ func (m *MockRemoteAgentServer) GetTelemetry(arg0 context.Context, arg1 *core.Ge
 func (mr *MockRemoteAgentServerMockRecorder) GetTelemetry(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetry", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetTelemetry), arg0, arg1)
+}
+
+// GetTextStatusDetails mocks base method.
+func (m *MockRemoteAgentServer) GetTextStatusDetails(arg0 context.Context, arg1 *core.GetStatusDetailsRequest) (*core.GetTextStatusDetailsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTextStatusDetails", arg0, arg1)
+	ret0, _ := ret[0].(*core.GetTextStatusDetailsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTextStatusDetails indicates an expected call of GetTextStatusDetails.
+func (mr *MockRemoteAgentServerMockRecorder) GetTextStatusDetails(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTextStatusDetails", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetTextStatusDetails), arg0, arg1)
 }
