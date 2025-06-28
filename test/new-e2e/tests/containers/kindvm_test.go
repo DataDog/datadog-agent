@@ -34,6 +34,20 @@ clusterAgent:
 		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
+		awskubernetes.WithOperator(),
+		awskubernetes.WithAgentOptions(
+			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(helmValues),
+		),
+	)))
+
+	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
+		awskubernetes.WithEC2VMOptions(
+			ec2.WithInstanceType("t3.xlarge"),
+		),
+		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
+		awskubernetes.WithDeployDogstatsd(),
+		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
 			kubernetesagentparams.WithHelmValues(helmValues),
