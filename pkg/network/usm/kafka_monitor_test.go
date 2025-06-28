@@ -243,7 +243,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				})
 				require.NoError(t, err)
 				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
+				createdTopic, err := client.CreateTopic(topicName)
+				require.NoError(t, err)
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -252,7 +253,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 				req := kmsg.NewFetchRequest()
 				topic := kmsg.NewFetchRequestTopic()
-				topic.Topic = topicName
+				topic.Topic = createdTopic.Topic
+				topic.TopicID = createdTopic.ID
 				partition := kmsg.NewFetchRequestTopicPartition()
 				partition.PartitionMaxBytes = 1024
 				topic.Partitions = append(topic.Partitions, partition)
@@ -292,7 +294,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				})
 				require.NoError(t, err)
 				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
+				_, err = client.CreateTopic(topicName)
+				require.NoError(t, err)
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -330,7 +333,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				})
 				require.NoError(t, err)
 				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
+				_, err = client.CreateTopic(topicName)
+				require.NoError(t, err)
 
 				numberOfIterations := 1000
 				for i := 1; i <= numberOfIterations; i++ {
@@ -371,7 +375,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				})
 				require.NoError(t, err)
 				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
+				createdTopic, err := client.CreateTopic(topicName)
+				require.NoError(t, err)
 
 				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
@@ -381,7 +386,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 				req := kmsg.NewFetchRequest()
 				topic := kmsg.NewFetchRequestTopic()
-				topic.Topic = topicName
+				topic.Topic = createdTopic.Topic
+				topic.TopicID = createdTopic.ID
 				partition := kmsg.NewFetchRequestTopicPartition()
 				partition.PartitionMaxBytes = 1024
 				topic.Partitions = append(topic.Partitions, partition)
@@ -421,7 +427,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				})
 				require.NoError(t, err)
 				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
+				createdTopic, err := client.CreateTopic(topicName)
+				require.NoError(t, err)
 
 				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
@@ -443,7 +450,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 				req := kmsg.NewFetchRequest()
 				topic := kmsg.NewFetchRequestTopic()
-				topic.Topic = topicName
+				topic.Topic = createdTopic.Topic
+				topic.TopicID = createdTopic.ID
 				partition := kmsg.NewFetchRequestTopicPartition()
 				partition.PartitionMaxBytes = 1024 * 1024
 				partition1 := kmsg.NewFetchRequestTopicPartition()
@@ -509,7 +517,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						})
 						require.NoError(t, err)
 						ctx.clients = append(ctx.clients, client)
-						require.NoError(t, client.CreateTopic(tt.topicName))
+						_, err = client.CreateTopic(tt.topicName)
+						require.NoError(t, err)
 
 						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
 						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -566,7 +575,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 				require.NoError(t, err)
 				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
+				_, err = client.CreateTopic(topicName)
+				require.NoError(t, err)
 
 				// Send produce request we expect to be tracked
 				// This should also trigger a fetch request

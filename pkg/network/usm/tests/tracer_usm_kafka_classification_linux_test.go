@@ -43,7 +43,8 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 			})
 			require.NoError(t, err)
 			ctx.extras["produce_client"] = produceClient
-			require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
+			_, err = produceClient.CreateTopic(ctx.extras["topic_name"].(string))
+			require.NoError(t, err)
 		},
 		postTracerSetup: func(t *testing.T, ctx testContext) {
 			produceClient := ctx.extras["produce_client"].(*kafka.Client)
@@ -75,7 +76,8 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 			})
 			require.NoError(t, err)
 			defer produceClient.Client.Close()
-			require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
+			_, err = produceClient.CreateTopic(ctx.extras["topic_name"].(string))
+			require.NoError(t, err)
 
 			record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -97,6 +99,27 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 			records := fetches.Records()
 			require.Len(t, records, 1)
 			require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
+		},
+		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
+	}
+}
+
+func buildAPIVersionsVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+	return protocolClassificationAttributes{
+		name: name,
+		context: testContext{
+			serverPort:    kafkaPort,
+			targetAddress: targetAddress,
+			serverAddress: serverAddress,
+		},
+		postTracerSetup: func(t *testing.T, ctx testContext) {
+			kafkaClient, err := kafka.NewClient(kafka.Options{
+				ServerAddress: ctx.targetAddress,
+				DialFn:        dialer.DialContext,
+				CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
+			})
+			require.NoError(t, err)
+			defer kafkaClient.Client.Close()
 		},
 		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
 	}
@@ -180,7 +203,8 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				_, err := client.CreateTopic(ctx.extras["topic_name"].(string))
+				require.NoError(t, err, "failed to create topic")
 			},
 			validation: validateProtocolConnection(&protocols.Stack{}),
 			teardown:   kafkaTeardown,
@@ -203,7 +227,8 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				_, err = client.CreateTopic(ctx.extras["topic_name"].(string))
+				require.NoError(t, err, "failed to create topic")
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
@@ -234,8 +259,10 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name1"].(string)))
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name2"].(string)))
+				_, err = client.CreateTopic(ctx.extras["topic_name1"].(string))
+				require.NoError(t, err)
+				_, err = client.CreateTopic(ctx.extras["topic_name2"].(string))
+				require.NoError(t, err)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
@@ -305,6 +332,24 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			getTopicName(),
 			defaultDialer,
 			expectedProtocol,
+		)
+		currentTest.teardown = kafkaTeardown
+		tests = append(tests, currentTest)
+	}
+
+	// Generate tests for all supported APIVersions request versions
+	for apiversionsVersion := kafka.ClassificationMinSupportedAPIVersionsRequestApiVersion; apiversionsVersion <= kafka.ClassificationMaxSupportedAPIVersionsRequestApiVersion; apiversionsVersion++ {
+		version := kversion.V4_0_0()
+		require.LessOrEqual(t, int16(apiversionsVersion), lo.Must(version.LookupMaxKeyVersion(apiVersionsAPIKey)), "apiversions version unsupported by kafka lib")
+		version.SetMaxKeyVersion(apiVersionsAPIKey, int16(apiversionsVersion))
+
+		currentTest := buildAPIVersionsVersionTest(
+			fmt.Sprintf("apiversions v%d", apiversionsVersion),
+			version,
+			net.JoinHostPort(targetHost, kafkaPort),
+			net.JoinHostPort(serverHost, kafkaPort),
+			defaultDialer,
+			protocols.Kafka,
 		)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)

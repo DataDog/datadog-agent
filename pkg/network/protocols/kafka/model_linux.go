@@ -9,7 +9,6 @@ package kafka
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )

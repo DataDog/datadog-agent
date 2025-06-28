@@ -38,9 +38,9 @@ func NewTelemetry() *Telemetry {
 // Count increments the total hits counter
 func (t *Telemetry) Count(tx *KafkaTransaction) {
 	switch tx.Request_api_key {
-	case 0:
+	case ProduceAPIKey:
 		t.produceHits.Add(tx)
-	case 1:
+	case FetchAPIKey:
 		t.fetchHits.Add(tx)
 	default:
 		log.Errorf("unsupported request api key: %d", tx.Request_api_key)

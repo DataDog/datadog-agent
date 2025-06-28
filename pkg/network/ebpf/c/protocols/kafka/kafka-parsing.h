@@ -510,10 +510,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    extra_debug("Parsing fetch response");
+    extra_debug("Parsing fetch response v%d", api_version);
     u32 orig_offset = offset;
     bool flexible = api_version >= 12;
     enum parse_result ret;
+
 
     extra_debug("carry_over_offset %d", response->carry_over_offset);
 
@@ -618,8 +619,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START;
             // fallthrough
 
-         case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
-         {
+        case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
+        {
             // Error codes range from -1 to 119 as per the Kafka protocol specification.
             // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
             s16 error_code = 0;
@@ -646,7 +647,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS;
             // fallthrough
-            }
+        }
 
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (api_version >= 4) {
@@ -754,7 +755,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             break;
 
         default:
-
             extra_debug("invalid state %d in partition parser", response->state);
             return RET_ERR;
             break;
@@ -778,7 +778,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    extra_debug("Parsing produce response");
+    extra_debug("Parsing produce response v%d", api_version);
     u32 orig_offset = offset;
     bool flexible = api_version >= 9;
     enum parse_result ret;
@@ -926,7 +926,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         extra_debug("record batches state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
-                extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
+            extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
                 response->partition_error_code,
                 response->transaction.records_count);
             // If the next record batch has an error code that the ones we've
@@ -1413,7 +1413,6 @@ int socket__kafka_produce_response_partition_parser_v9(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 9, KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION, KAFKA_PRODUCE);
 }
 
-
 static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *ctx, enum parser_level level, u32 min_api_version, u32 max_api_version, u32 target_api_key) {
     const __u32 zero = 0;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
@@ -1620,28 +1619,33 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
+    extra_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
     }
 
-    // Check if the api key and version are supported
-    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
-        return false;
-    }
-
     // Report api version hits telemetry & check if the api version is supported
     // *classification has different supported versions for various API keys.
+    if(is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
+        switch (kafka_header.api_key) {
+            case KAFKA_PRODUCE:
+                update_classified_produce_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
+                break;
+            case KAFKA_FETCH:
+                update_classified_fetch_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
+                break;
+        }
+    }
+
+    // Check if the api key and version are supported
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
-            update_classified_produce_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
             if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
                 return false;
             }
             break;
         case KAFKA_FETCH:
-            update_classified_fetch_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
             if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
                 return false;
             }
@@ -1698,6 +1702,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += sizeof(s32);
     }
 
+    // Parsing the topic name
     s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
@@ -1705,14 +1710,13 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     extra_debug("topic_name_size: %u", topic_name_size);
     update_topic_name_size_telemetry(kafka_tel, topic_name_size);
-    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
-    offset += topic_name_size;
     kafka_transaction->topic_name_size = topic_name_size;
 
-    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
+    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+    pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
 
-    log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
+    offset += topic_name_size;
+    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
