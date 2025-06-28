@@ -61,6 +61,41 @@ function Exit-RepoRoot() {
 
 <#
 .SYNOPSIS
+Ensures mandatory enviroment variables are set or set default value
+
+.DESCRIPTION
+This function ensures the required environment variables are set when running on the CI
+On developers machines, it will set them to a default value
+
+.PARAMETER BuildOutOfSource
+True when building on the CI, false otherwise
+
+.PARAMETER buildroot
+The build root. Only used to assign default values when running out of the CI
+
+#>
+function Check-Environment() {
+    param(
+        [bool] $BuildOutOfSource = $false,
+        [string] $buildroot = "c:\buildroot"
+    )
+    if ($BuildOutOfSource) {
+        if (-not $env:OMNIBUS_PACKAGE_DIR -or -not $env:OMNIBUS_PACKAGE_SUBDIR) {
+            Write-Error "Missing required OMNIBUS_PACKAGE_DIR / OMNIBUS_PACKAGE_SUBDIR env variable(s)"
+            exit 1
+        }
+    } else {
+        if (-not $env:OMNIBUS_PACKAGE_SUBDIR) {
+            $env:OMNIBUS_PACKAGE_SUBDIR = "omnibus\pkg"
+        }
+        if (-not $env:OMNIBUS_PACKAGE_DIR) {
+            $env:OMNIBUS_PACKAGE_DIR = "$buildroot\$env:OMNIBUS_PACKAGE_SUBDIR"
+        }
+    }
+}
+
+<#
+.SYNOPSIS
 Expands the Go module cache from an archive file.
 
 .DESCRIPTION
@@ -303,6 +338,7 @@ function Invoke-BuildScript {
             Enter-RepoRoot
         }
 
+        Check-Environment -BuildOutOfSource $BuildOutOfSource -buildroot $buildroot
         Enable-DevEnv
 
         # Expand modcache
