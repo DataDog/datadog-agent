@@ -5319,6 +5319,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "mount.detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Mount.Mount.Detached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "mount.fs_type":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5405,6 +5416,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mount.visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Mount.Mount.Visible
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "mprotect.req_protection":
@@ -27929,6 +27951,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.flags",
 		"mmap.protection",
 		"mmap.retval",
+		"mount.detached",
 		"mount.fs_type",
 		"mount.mountpoint.path",
 		"mount.retval",
@@ -27937,6 +27960,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mount.syscall.fs_type",
 		"mount.syscall.mountpoint.path",
 		"mount.syscall.source.path",
+		"mount.visible",
 		"mprotect.req_protection",
 		"mprotect.retval",
 		"mprotect.vm_protection",
@@ -30138,6 +30162,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mmap", reflect.Int, "int", nil
 	case "mmap.retval":
 		return "mmap", reflect.Int, "int", nil
+	case "mount.detached":
+		return "mount", reflect.Bool, "bool", nil
 	case "mount.fs_type":
 		return "mount", reflect.String, "string", nil
 	case "mount.mountpoint.path":
@@ -30154,6 +30180,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mount", reflect.String, "string", nil
 	case "mount.syscall.source.path":
 		return "mount", reflect.String, "string", nil
+	case "mount.visible":
+		return "mount", reflect.Bool, "bool", nil
 	case "mprotect.req_protection":
 		return "mprotect", reflect.Int, "int", nil
 	case "mprotect.retval":
@@ -36626,6 +36654,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.MMap.SyscallEvent.Retval = int64(rv)
 		return nil
+	case "mount.detached":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mount.detached"}
+		}
+		ev.Mount.Mount.Detached = rv
+		return nil
 	case "mount.fs_type":
 		rv, ok := value.(string)
 		if !ok {
@@ -36681,6 +36716,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "mount.syscall.source.path"}
 		}
 		ev.Mount.SyscallContext.StrArg1 = rv
+		return nil
+	case "mount.visible":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "mount.visible"}
+		}
+		ev.Mount.Mount.Visible = rv
 		return nil
 	case "mprotect.req_protection":
 		rv, ok := value.(int)
