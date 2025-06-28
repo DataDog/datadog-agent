@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"unsafe"
 
@@ -216,6 +217,10 @@ func (d *Decoder) encodeValue(
 	}
 
 	return nil
+}
+
+type decodeType interface {
+	marshalToJson(enc *jsontext.Encoder, dataItems map[typeAndAddr]output.DataItem, currentlyEncoding map[typeAndAddr]struct{}, data []byte, valueType string) error
 }
 
 func (d *Decoder) encodeValueFields(
@@ -486,9 +491,46 @@ func (d *Decoder) encodeValueFields(
 		}
 		return nil
 	case *ir.GoMapType:
-		return writeTokens(enc,
-			jsontext.String("notCapturedReason"),
-			jsontext.String("unimplemented"),
+		if len(data) < int(v.GetByteSize()) {
+			return errors.New("passed data not long enough for pointer")
+		}
+		addr := binary.NativeEndian.Uint64(data)
+		key := typeAndAddr{
+			irType: uint32(v.HeaderType.GetID()),
+			addr:   addr,
+		}
+		if key.addr == 0 {
+			if err := writeTokens(enc,
+				jsontext.String("isNull"),
+				jsontext.Bool(true),
+			); err != nil {
+				return err
+			}
+			return nil
+		}
+		var address uint64
+		pointedValue, dataItemExists := dataItems[key]
+		if !dataItemExists {
+			return writeTokens(enc,
+				jsontext.String("notCapturedReason"),
+				jsontext.String("depth"), //TODO: can we distinguish if it's depth or ran out of buffer space?
+			)
+		}
+		address = pointedValue.Header().Address
+		headerDataItem := dataItems[typeAndAddr{
+			irType: uint32(v.HeaderType.GetID()),
+			addr:   address,
+		}]
+		headerType, ok := d.program.Types[ir.TypeID(headerDataItem.Header().Type)]
+		if !ok {
+			return fmt.Errorf("no type for header type (ID: %d)", headerDataItem.Header().Type)
+		}
+		return d.encodeValueFields(enc,
+			dataItems,
+			currentlyEncoding,
+			headerType,
+			headerDataItem.Data(),
+			headerType.GetName(),
 		)
 	case *ir.GoHMapHeaderType:
 		return writeTokens(enc,
@@ -501,10 +543,99 @@ func (d *Decoder) encodeValueFields(
 			jsontext.String("unimplemented"),
 		)
 	case *ir.GoSwissMapHeaderType:
-		return writeTokens(enc,
-			jsontext.String("notCapturedReason"),
-			jsontext.String("unimplemented"),
+		var (
+			dirLen int64
+			dirPtr uint64
 		)
+		for _, f := range v.Fields {
+			switch f.Name {
+			case "dirLen":
+				dirLen = int64(binary.NativeEndian.Uint64(data[f.Offset : f.Offset+f.Type.GetByteSize()]))
+			case "dirPtr":
+				dirPtr = binary.NativeEndian.Uint64(data[f.Offset : f.Offset+f.Type.GetByteSize()])
+			}
+		}
+
+		slotsField := v.GroupType.Fields[1]
+		slotsFieldType, ok := d.program.Types[slotsField.Type.GetID()]
+		if !ok {
+			return errors.New("type map slot field not found in types: " + v.GroupType.Name)
+		}
+		entryArray, ok := slotsFieldType.(*ir.ArrayType)
+		if !ok {
+			return errors.New("type map slot field is not an array type: " + slotsFieldType.GetName())
+		}
+		noalgstructType, ok := entryArray.Element.(*ir.StructureType)
+		if !ok {
+			return errors.New("type map entry array element is not a structure type: " + entryArray.Element.GetName())
+		}
+
+		keyField := noalgstructType.Fields[0]
+		keyType := d.program.Types[keyField.Type.GetID()]
+
+		valueField := noalgstructType.Fields[1]
+		valueType := d.program.Types[valueField.Type.GetID()]
+
+		if err := writeTokens(enc,
+			jsontext.String("entries"),
+			jsontext.BeginArray); err != nil {
+			return err
+		}
+		if dirLen == 0 {
+			// This is a 'small' swiss map where there's only one group.
+			// We can collect the data item for the group directly.
+			groupDataItem := dataItems[typeAndAddr{
+				irType: uint32(v.GroupType.GetID()),
+				addr:   dirPtr,
+			}]
+
+			err := d.collectSwissMapGroup(
+				enc,
+				dataItems,
+				currentlyEncoding,
+				v,
+				groupDataItem.Data(),
+				keyType,
+				valueType,
+			)
+			if err != nil {
+				return err
+			}
+		} else {
+			// This is a 'large' swiss map where there are multiple groups of data/control words
+			// We need to collect the data items for the table pointers first.
+			tablePtrSliceDataItemPtr, ok := dataItems[typeAndAddr{
+				irType: uint32(v.TablePtrSliceType.GetID()),
+				addr:   dirPtr,
+			}]
+			if !ok {
+				return fmt.Errorf("table ptr slice data item pointer not found for addr %x", dirPtr)
+			}
+			tablePtrSliceDataItem, ok := dataItems[typeAndAddr{
+				irType: tablePtrSliceDataItemPtr.Header().Type,
+				addr:   tablePtrSliceDataItemPtr.Header().Address,
+			}]
+			if !ok {
+				return fmt.Errorf("table ptr slice data item not found for addr %x", tablePtrSliceDataItemPtr.Header().Address)
+			}
+			err := d.collectSwissMapTables(
+				enc,
+				dataItems,
+				currentlyEncoding,
+				v,
+				tablePtrSliceDataItem,
+				keyType,
+				valueType,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		if err := writeTokens(enc,
+			jsontext.EndArray); err != nil {
+			return err
+		}
+		return nil
 	case *ir.GoSwissMapGroupsType:
 		return writeTokens(enc,
 			jsontext.String("notCapturedReason"),
@@ -634,6 +765,152 @@ func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
 	for i := range tokens {
 		err = enc.WriteToken(tokens[i])
 		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// collectSwissMapTables collects the data items for the swiss map tables.
+// It is called for each table pointer in the table pointer slice.
+func (d *Decoder) collectSwissMapTables(
+	enc *jsontext.Encoder,
+	dataItems map[typeAndAddr]output.DataItem,
+	currentlyEncoding map[typeAndAddr]struct{},
+	v *ir.GoSwissMapHeaderType,
+	tablePtrSliceDataItem output.DataItem,
+	keyType ir.Type,
+	valueType ir.Type,
+) error {
+	tablePointers := tablePtrSliceDataItem.Data()
+	addrs := []uint64{}
+
+	for i := range tablePtrSliceDataItem.Header().Length / 8 {
+		addrs = append(addrs, binary.NativeEndian.Uint64(tablePointers[i*8:i*8+8]))
+	}
+	// Deduplicate addrs by sorting and then removing duplicates.
+	// Go swiss maps may have multiple table pointers for the same group.
+	slices.Sort(addrs)
+	dedupedAddrs := addrs[:0]
+	for i, addr := range addrs {
+		if i == 0 || addr != addrs[i-1] {
+			dedupedAddrs = append(dedupedAddrs, addr)
+		}
+	}
+	addrs = dedupedAddrs
+	tableType, ok := v.TablePtrSliceType.Element.(*ir.PointerType)
+	if !ok {
+		return fmt.Errorf("table ptr slice type element is not a pointer type: %s", v.TablePtrSliceType.Element.GetName())
+	}
+	for _, addr := range addrs {
+		tableDataItem, ok := dataItems[typeAndAddr{
+			irType: uint32(tableType.Pointee.GetID()),
+			addr:   addr,
+		}]
+		if !ok {
+			return fmt.Errorf("table data item not found for addr %x", addr)
+		}
+
+		tableStructType, ok := tableType.Pointee.(*ir.StructureType)
+		if !ok {
+			return fmt.Errorf("table type pointee is not a structure type: %s", tableType.Pointee.GetName())
+		}
+
+		var (
+			groupField ir.Field
+		)
+		for _, field := range tableStructType.Fields {
+			if field.Name == "groups" {
+				groupField = field
+			}
+		}
+
+		groupData := tableDataItem.Data()[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
+		groupType, ok := groupField.Type.(*ir.GoSwissMapGroupsType)
+		if !ok {
+			return fmt.Errorf("group field type is not a swiss map groups type: %s", groupField.Type.GetName())
+		}
+		var dataField ir.Field
+		for i := range groupType.Fields {
+			if groupType.Fields[i].Name == "data" {
+				dataField = groupType.Fields[i]
+			}
+		}
+		groupAddress := groupData[dataField.Offset : dataField.Offset+dataField.Type.GetByteSize()]
+		groupDataItem, ok := dataItems[typeAndAddr{
+			irType: uint32(groupType.GroupSliceType.GetID()),
+			addr:   binary.NativeEndian.Uint64(groupAddress),
+		}]
+		if !ok {
+			return fmt.Errorf("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
+		}
+
+		elementType := groupType.GroupSliceType.Element
+		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
+		for i := range numberOfGroups {
+			singleGroupData := groupDataItem.Data()[groupType.GroupSliceType.Element.GetByteSize()*i : groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
+			err := d.collectSwissMapGroup(enc, dataItems, currentlyEncoding, v, singleGroupData, keyType, valueType)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (d *Decoder) collectSwissMapGroup(
+	enc *jsontext.Encoder,
+	dataItems map[typeAndAddr]output.DataItem,
+	currentlyEncoding map[typeAndAddr]struct{},
+	v *ir.GoSwissMapHeaderType,
+	groupData []byte,
+	keyType ir.Type,
+	valueType ir.Type,
+) error {
+	keySize := keyType.GetByteSize()
+	valueSize := valueType.GetByteSize()
+	var (
+		controlWord uint64
+		slotsData   []byte
+	)
+	for _, groupField := range v.GroupType.Fields {
+		switch groupField.Name {
+		case "slots":
+			slotsData = groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
+		case "ctrl":
+			controlWord = binary.LittleEndian.Uint64(groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()])
+		}
+	}
+	entrySize := keySize + valueSize
+	for i := range 8 {
+		if controlWord&(1<<(7+(8*i))) != 0 {
+			// slot is empty or deleted
+			continue
+		}
+		offset := entrySize * uint32(i)
+		entryData := slotsData[offset : offset+entrySize]
+		keyData := entryData[0:keySize]
+		valueData := entryData[keySize : keySize+valueSize]
+		if err := writeTokens(enc,
+			jsontext.BeginArray,
+		); err != nil {
+			return err
+		}
+		err := d.encodeValue(enc, dataItems, currentlyEncoding,
+			keyType, keyData, keyType.GetName(),
+		)
+		if err != nil {
+			return err
+		}
+		err = d.encodeValue(enc, dataItems, currentlyEncoding,
+			valueType, valueData, valueType.GetName(),
+		)
+		if err != nil {
+			return err
+		}
+		if err := writeTokens(enc,
+			jsontext.EndArray,
+		); err != nil {
 			return err
 		}
 	}

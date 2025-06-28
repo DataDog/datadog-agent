@@ -274,10 +274,12 @@ func (GoHMapBucketType) irType() {}
 // GoSwissMapHeaderType is the type of the header of a SwissMap.
 type GoSwissMapHeaderType struct {
 	*StructureType
-	// TablePtrSliceType is the slide data type stored conditionally under
-	// `dirPtr`.
+
+	// TablePtrSliceType is the slice data type stored conditionally under
+	// `dirPtr` in the case when dirlen > 0.
 	TablePtrSliceType *GoSliceDataType
-	// GroupType is the slice type stored conditionally under `dirPtr`.
+	// GroupType is the type stored conditionally under `dirPtr` in the case
+	// where dirlen == 0.
 	GroupType *StructureType
 }
 

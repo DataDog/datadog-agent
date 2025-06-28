@@ -329,8 +329,15 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// TODO: support Go interfaces
 
 	case *ir.GoMapType:
-		// TODO: support Go maps
-
+		g.typeQueue = append(g.typeQueue, t.HeaderType)
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessPointerOp{
+				Pointee: t.HeaderType,
+			},
+			ReturnOp{},
+		}
 	case *ir.GoChannelType:
 		// TODO: support Go channels
 
@@ -341,9 +348,47 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.GoHMapHeaderType:
 	case *ir.GoHMapBucketType:
 	case *ir.GoSwissMapGroupsType:
+		dataOffset, err := offsetOf(t.Fields, "data")
+		if err != nil {
+			return nil, false, err
+		}
+		lengthMaskOffset, err := offsetOf(t.Fields, "lengthMask")
+		if err != nil {
+			return nil, false, err
+		}
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoSwissMapGroupsOp{
+				DataOffset:       uint8(dataOffset), //TODO: check if dataOffset fits in a uint8
+				LengthMaskOffset: uint8(lengthMaskOffset),
+				GroupSlice:       t.GroupSliceType,
+				Group:            t.GroupType,
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(g.typeQueue, t.GroupSliceType, t.GroupType)
 	case *ir.GoSwissMapHeaderType:
-		// TODO: support Go maps
-
+		directoryPtrOffset, err := offsetOf(t.Fields, "dirPtr")
+		if err != nil {
+			return nil, false, err
+		}
+		directoryLenOffset, err := offsetOf(t.Fields, "dirLen")
+		if err != nil {
+			return nil, false, err
+		}
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoSwissMapOp{
+				TablePtrSlice: t.TablePtrSliceType,
+				Group:         t.GroupType,
+				DirPtrOffset:  uint8(directoryPtrOffset),
+				DirLenOffset:  uint8(directoryLenOffset),
+			},
+			ReturnOp{},
+		}
+		g.typeQueue = append(g.typeQueue, t.TablePtrSliceType, t.GroupType)
 	case *ir.EventRootType:
 		// EventRootType is handled by event and expression processing functions
 		// family.
@@ -454,6 +499,15 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		return nil, err
 	}
 	return pieces, nil
+}
+
+func offsetOf(fields []ir.Field, name string) (uint32, error) {
+	for _, field := range fields {
+		if field.Name == name {
+			return field.Offset, nil
+		}
+	}
+	return 0, errors.Errorf("internal: field `%s` not found", name)
 }
 
 // `ops` is used as an output buffer for the encoded instructions.

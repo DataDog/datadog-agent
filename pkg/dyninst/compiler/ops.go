@@ -131,13 +131,18 @@ type ProcessGoHmapOp struct {
 
 type ProcessGoSwissMapOp struct {
 	baseOp
-	TablePtrSlice ir.GoSliceHeaderType
+	TablePtrSlice *ir.GoSliceDataType
 	Group         ir.Type
+	DirPtrOffset  uint8
+	DirLenOffset  uint8
 }
 
 type ProcessGoSwissMapGroupsOp struct {
 	baseOp
-	Group ir.Type
+	DataOffset       uint8
+	LengthMaskOffset uint8
+	GroupSlice       *ir.GoSliceDataType
+	Group            ir.Type
 }
 
 // Top level ops.
