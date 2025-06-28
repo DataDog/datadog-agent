@@ -36,7 +36,18 @@ const (
 	baseConfigPath = "C:/ProgramData/Datadog/Installer"
 
 	// PipelineOCIRegistry is the OCI registry that pipelines submit packages to
+	// Use special domain instead of cloudfront to avoid NAT gateway costs
+	// Can't use s3 domain directly because bucket name contains a dot
 	PipelineOCIRegistry = "installtesting.datad0g.com.internal.dda-testing.com"
+
+	// BetaS3OCIRegistry is the OCI registry that rc/beta packages are submitted to
+	// Use special domain instead of cloudfront to avoid NAT gateway costs
+	// Can't use s3 domain directly because bucket name contains a dot
+	BetaS3OCIRegistry = "install.datad0g.com.internal.dda-testing.com"
+
+	// StableS3OCIRegistry is the OCI registry that stable packages are submitted to
+	// Use s3 domain instead of cloudfront to avoid NAT gateway costs
+	StableS3OCIRegistry = "dd-agent.s3.amazonaws.com"
 )
 
 var (
