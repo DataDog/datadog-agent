@@ -40,6 +40,7 @@ var stateTelemetry = struct {
 	postgresStatsDropped   *telemetry.StatCounterWrapper
 	redisStatsDropped      *telemetry.StatCounterWrapper
 	dnsPidCollisions       *telemetry.StatCounterWrapper
+	closedConnCapacityPct  telemetry.Gauge
 	incomingDirectionFixes telemetry.Counter
 	outgoingDirectionFixes telemetry.Counter
 }{
@@ -55,6 +56,7 @@ var stateTelemetry = struct {
 	telemetry.NewStatCounterWrapper(stateModuleName, "postgres_stats_dropped", []string{}, "Counter measuring the number of postgres stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "redis_stats_dropped", []string{}, "Counter measuring the number of redis stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewGauge(stateModuleName, "closed_conn_capacity_pct", []string{}, "Gauge measuring the current capacity percentage of closed connections"),
 	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
@@ -71,6 +73,10 @@ const (
 	stateModuleName = "network_tracer__state"
 
 	shortLivedConnectionThreshold = 2 * time.Minute
+
+	// ClosedConnectionsCapacityThreshold is the percentage threshold (0-100) at which we consider
+	// the closed connections buffer to be "near capacity"
+	ClosedConnectionsCapacityThreshold = 50.0
 )
 
 // State takes care of handling the logic for:
@@ -113,6 +119,9 @@ type State interface {
 
 	// DumpState returns a map with the current network state for a client ID
 	DumpState(clientID string) map[string]interface{}
+
+	// IsClosedConnectionsNearCapacity returns true if the closed connections buffer for the given client is close to capacity.
+	IsClosedConnectionsNearCapacity(clientID string) bool
 }
 
 // Delta represents a delta of network data compared to the last call to State.
@@ -228,6 +237,7 @@ type client struct {
 	lastFetch time.Time
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
+
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	usmDelta        USMProtocolsData
@@ -283,8 +293,8 @@ func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClo
 		maxPostgresStats:            maxPostgresStats,
 		maxRedisStats:               maxRedisStats,
 		enableConnectionRollup:      enableConnectionRollup,
-		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 		processEventConsumerEnabled: processEventConsumerEnabled,
+		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 	}
 
 	if ns.enableConnectionRollup && !processEventConsumerEnabled {
@@ -1289,5 +1299,20 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
 	a.TLSTags.MergeWith(b.TLSTags)
 
+	return false
+}
+
+// IsClosedConnectionsNearCapacity checks the atomic flag for a specific client.
+func (ns *networkState) IsClosedConnectionsNearCapacity(clientID string) bool {
+	ns.Lock()
+	defer ns.Unlock()
+	if client, ok := ns.clients[clientID]; ok {
+		// Compute capacity percentage on-demand for telemetry
+		percentage := (float64(len(client.closed.conns)) / float64(ns.maxClosedConns)) * 100.0
+		stateTelemetry.closedConnCapacityPct.Set(percentage)
+
+		return percentage > ClosedConnectionsCapacityThreshold
+	}
+	log.Warnf("IsClosedConnectionsNearCapacity called for non-existent client ID: %s", clientID)
 	return false
 }
