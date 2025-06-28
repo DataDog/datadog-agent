@@ -110,7 +110,7 @@ func (e Event) DataItems() iter.Seq2[DataItem, error] {
 			if idx == len(e) {
 				return
 			}
-			if idx+dataItemHeaderSize >= len(e) {
+			if idx+dataItemHeaderSize > len(e) {
 				yield(DataItem{}, fmt.Errorf(
 					"not enough bytes to read data item header: %d > %d",
 					idx+dataItemHeaderSize, len(e),
