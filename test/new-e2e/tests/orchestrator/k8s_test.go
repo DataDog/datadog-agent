@@ -103,3 +103,31 @@ func (suite *k8sSuite) TestCRManif() {
 		timeout: defaultTimeout,
 	}.Assert(suite)
 }
+
+func (suite *k8sSuite) TestAgentVersion() {
+	expectAtLeastOneManifest{
+		test: func(payload *aggregator.OrchestratorManifestPayload, _ manifest) bool {
+			return payload.Type == agentmodel.TypeCollectorManifest && payload.ManifestParentCollector.AgentVersion != nil
+		},
+		message: "find agent version in manifest payload",
+		timeout: defaultTimeout,
+	}.Assert(suite)
+
+	expectAtLeastOneResource{
+		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorNode},
+		test: func(payload *aggregator.OrchestratorPayload) bool {
+			return payload.NodeParentCollector.AgentVersion != nil
+		},
+		message: "find agent version in node payload",
+		timeout: defaultTimeout,
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
+
+	expectAtLeastOneResource{
+		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorPod},
+		test: func(payload *aggregator.OrchestratorPayload) bool {
+			return payload.PodParentCollector.AgentVersion != nil
+		},
+		message: "find agent version in pod payload",
+		timeout: defaultTimeout,
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
+}
