@@ -23,7 +23,7 @@ from tasks.libs.common.utils import is_installed
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog_agent_devcontainer"
-DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
+DEVCONTAINER_IMAGE = "datadog/agent-dev-env-linux"
 
 
 class SkaffoldProfile(Enum):
@@ -83,6 +83,7 @@ def setup(
         }
         if devcontainer.get("image"):
             del devcontainer["image"]
+    devcontainer["overrideCommand"] = False
     devcontainer["runArgs"] = [
         "--cap-add=SYS_PTRACE",
         "--security-opt",
@@ -92,11 +93,18 @@ def setup(
         "--name",
         "datadog_agent_devcontainer",
     ]
+    if sys.platform != "win32":
+        # Save the current user's UID and GID to a local `.env` file
+        with open(os.path.join(DEVCONTAINER_DIR, ".env"), "w") as f:
+            f.write(f"UID={os.getuid()}\n")
+            f.write(f"GID={os.getgid()}\n")
+        devcontainer["runArgs"].append("--env-file=.env")
+
     devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+        "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
     ]
     devcontainer["customizations"] = {
         "vscode": {
@@ -130,6 +138,9 @@ def setup(
 
     devcontainer["containerEnv"] = {
         "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
+        "RUNNING_IN_DEVCONTAINER": "true",
+        "HOST_UID": "${localEnv:UID}",
+        "HOST_GID": "${localEnv:GID}",
     }
 
     configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
