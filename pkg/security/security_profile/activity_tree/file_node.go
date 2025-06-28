@@ -16,12 +16,14 @@ import (
 	"strings"
 	"time"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
+	processlist.NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	ImageTags      []string
@@ -55,6 +57,8 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
 	}
+	fan.NodeBase = processlist.NewNodeBase()
+	
 	if imageTag != "" {
 		fan.ImageTags = []string{imageTag}
 	}
@@ -64,6 +68,12 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
+	
+	if event != nil {
+		eventTime := event.ResolveEventTime()
+		fan.Record(imageTag, eventTime)
+	}
+	
 	fan.enrichFromEvent(event)
 	return fan
 }
@@ -110,9 +120,11 @@ func (fn *FileNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
 	}
+	eventTime := event.ResolveEventTime()
 	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = event.ResolveEventTime()
+		fn.FirstSeen = eventTime
 	}
+	fn.Record(event.ContainerContext.Tags[0], eventTime)
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)
 
@@ -212,4 +224,9 @@ func (fn *FileNode) evictImageTag(imageTag string) bool {
 		}
 	}
 	return false
+}
+
+func (fn *FileNode) updateTimes(event *model.Event) {
+	eventTime := event.ResolveEventTime()
+	fn.Record(event.ContainerContext.Tags[0], eventTime)
 }

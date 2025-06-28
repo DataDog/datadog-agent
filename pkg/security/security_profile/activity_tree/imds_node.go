@@ -9,25 +9,30 @@
 package activitytree
 
 import (
+	"time"
+
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // IMDSNode is used to store a IMDS node
 type IMDSNode struct {
+	processlist.NodeBase
 	MatchedRules   []*model.MatchedRule
 	ImageTags      []string
 	GenerationType NodeGenerationType
-
-	Event model.IMDSEvent
+	Event          model.IMDSEvent
 }
 
-// NewIMDSNode returns a new IMDSNode instance
 func NewIMDSNode(event *model.IMDSEvent, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *IMDSNode {
+	now := time.Now()
 	node := &IMDSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Event:          *event,
 	}
+	node.NodeBase = processlist.NewNodeBase()
+	node.Record(imageTag, now)
 	if imageTag != "" {
 		node.ImageTags = []string{imageTag}
 	}
@@ -48,3 +53,11 @@ func (imds *IMDSNode) evictImageTag(imageTag string) bool {
 	}
 	return false
 }
+
+func (imds *IMDSNode) updateTimes(event *model.Event) {
+	eventTime := event.ResolveEventTime()
+	imds.Record(event.ContainerContext.Tags[0], eventTime)
+}
+
+	
+
