@@ -58,6 +58,11 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
+	rt, ok := c.resourceTags[task.Arn]
+	if ok {
+		return rt, nil
+	}
+
 	var metaURI string
 	for _, taskContainer := range task.Containers {
 		containerID := taskContainer.DockerID
@@ -91,6 +96,13 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		}
 		return v1TaskToV4Task(task), err
 	}
+	// Add tags to the cache
+	rt = resourceTags{
+		tags:                  taskWithTags.TaskTags,
+		containerInstanceTags: taskWithTags.ContainerInstanceTags,
+	}
+
+	c.resourceTags[task.Arn] = rt
 
 	return *taskWithTags, nil
 }
