@@ -10,7 +10,9 @@ package activitytree
 
 import (
 	"slices"
+	"time"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -27,6 +29,7 @@ type BindNode struct {
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
+	processlist.NodeBase
 	Family         string
 	GenerationType NodeGenerationType
 	Bind           []*BindNode
@@ -86,6 +89,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				sn.updateTimes(imageTag)
 			}
 			if imageTag == "" || slices.Contains(n.ImageTags, imageTag) {
 				return false
@@ -108,14 +112,24 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 			node.ImageTags = []string{imageTag}
 		}
 		sn.Bind = append(sn.Bind, node)
+		sn.updateTimes(imageTag)
 	}
 	return true
 }
 
 // NewSocketNode returns a new SocketNode instance
 func NewSocketNode(family string, generationType NodeGenerationType) *SocketNode {
-	return &SocketNode{
+	now := time.Now()
+	node := &SocketNode{
 		Family:         family,
 		GenerationType: generationType,
 	}
+	node.NodeBase = processlist.NewNodeBase()
+	node.Record("", now)
+	return node
+}
+
+func (sn *SocketNode) updateTimes(imageTag string) {
+	now := time.Now()
+	sn.Record(imageTag, now)
 }
