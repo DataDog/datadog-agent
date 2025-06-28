@@ -23,6 +23,9 @@ func TestConcurrentMapWritesReproduction(t *testing.T) {
 
 	// Create a metric group that will be accessed concurrently
 	metricGroup := telemetry.NewMetricGroup("test.concurrent")
+	if metricGroup == nil {
+		t.Fatal("Failed to create metric group")
+	}
 
 	// This simulates what happens in the worker pool - multiple goroutines
 	// executing callback functions that access telemetry metrics
@@ -34,7 +37,7 @@ func TestConcurrentMapWritesReproduction(t *testing.T) {
 
 	// Start workers (similar to the worker pool goroutines)
 	for i := 0; i < numWorkers; i++ {
-		go func(workerID int) {
+		go func(_workerID int) {
 			defer wg.Done()
 			for job := range jobs {
 				job()
@@ -58,6 +61,8 @@ func TestConcurrentMapWritesReproduction(t *testing.T) {
 
 	close(jobs)
 	wg.Wait()
+
+	t.Logf("Successfully completed %d operations with %d workers", numOperations, numWorkers)
 }
 
 // TestConcurrentMetricCreation specifically tests concurrent metric creation
@@ -75,6 +80,10 @@ func TestConcurrentMetricCreation(t *testing.T) {
 			defer wg.Done()
 
 			metricGroup := telemetry.NewMetricGroup("test.concurrent.creation")
+			if metricGroup == nil {
+				t.Errorf("Failed to create metric group in routine %d", routineID)
+				return
+			}
 
 			for j := 0; j < numMetrics; j++ {
 				// Try to create metrics with the same names from multiple goroutines
@@ -89,6 +98,7 @@ func TestConcurrentMetricCreation(t *testing.T) {
 	}
 
 	wg.Wait()
+	t.Logf("Successfully completed concurrent metric creation with %d goroutines", numGoroutines)
 }
 
 // TestWorkerPoolRaceCondition simulates the exact worker pool scenario from the stack trace
@@ -126,4 +136,5 @@ func TestWorkerPoolRaceCondition(t *testing.T) {
 	}
 
 	wg.Wait()
+	t.Logf("Successfully completed %d jobs with worker pool", numJobs)
 }
