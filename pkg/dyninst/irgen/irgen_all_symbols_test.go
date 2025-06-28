@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
@@ -42,7 +43,7 @@ func testAllProbes(t *testing.T, sampleServicePath string) {
 	symbols, err := binary.Symbols()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
-	var probes []irgen.ProbeDefinition
+	var probes []ir.ProbeDefinition
 	for i, s := range symbols {
 		// These automatically generated symbols cause problems.
 		if strings.HasPrefix(s.Name, "type:.") {
@@ -53,18 +54,15 @@ func testAllProbes(t *testing.T, sampleServicePath string) {
 		}
 
 		// Speed things up by skipping some symbols.
-		rcProbe := &rcjson.LogProbe{
-			ID: fmt.Sprintf("probe_%d", i),
-			Where: &rcjson.Where{
-				MethodName: s.Name,
+		probes = append(probes, &rcjson.SnapshotProbe{
+			LogProbeCommon: rcjson.LogProbeCommon{
+				ProbeCommon: rcjson.ProbeCommon{
+					ID:    fmt.Sprintf("probe_%d", i),
+					Where: &rcjson.Where{MethodName: s.Name},
+				},
+				CaptureSnapshot: true,
 			},
-			CaptureSnapshot: true,
-		}
-		probeDef, err := irgen.ProbeDefinitionFromRemoteConfig(rcProbe)
-		if err != nil {
-			panic(err)
-		}
-		probes = append(probes, probeDef)
+		})
 	}
 
 	obj, err := object.NewElfObject(binary)

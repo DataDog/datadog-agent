@@ -3,16 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-
-package irgen
-
-import (
-	"math"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
-)
+package ir
 
 // ProbeDefinition abstracts the configuration of a probe.
 type ProbeDefinition interface {
@@ -23,7 +14,7 @@ type ProbeDefinition interface {
 	// GetTags returns the tags of the probe.
 	GetTags() []string
 	// GetKind returns the kind of the probe.
-	GetKind() ir.ProbeKind
+	GetKind() ProbeKind
 	// GetWhere returns the where clause of the probe.
 	GetWhere() Where
 	// GetCaptureConfig returns the capture configuration of the probe.
@@ -34,7 +25,7 @@ type ProbeDefinition interface {
 
 // Where is a where clause of a probe.
 type Where interface {
-	where() // marker method
+	Where() // marker method
 }
 
 // FunctionWhere is a where clause of a probe that is a function.
@@ -55,47 +46,3 @@ type ThrottleConfig interface {
 	GetThrottlePeriodMs() uint32
 	GetThrottleBudget() int64
 }
-
-type captureConfig rcjson.Capture
-
-var _ CaptureConfig = (*captureConfig)(nil)
-
-func (c *captureConfig) GetMaxReferenceDepth() uint32 {
-	if c == nil {
-		return math.MaxUint32
-	}
-	if c.MaxReferenceDepth < 0 {
-		return 0
-	}
-	return uint32(c.MaxReferenceDepth)
-}
-
-func (c *captureConfig) GetMaxFieldCount() uint32 {
-	if c == nil {
-		return math.MaxUint32
-	}
-	if c.MaxFieldCount < 0 {
-		return 0
-	}
-	return uint32(c.MaxFieldCount)
-}
-
-func (c *captureConfig) GetMaxCollectionSize() uint32 {
-	if c == nil {
-		return 0
-	}
-	if c.MaxCollectionSize < 0 {
-		return 0
-	}
-	return uint32(c.MaxCollectionSize)
-}
-
-type functionWhere rcjson.Where
-
-var _ Where = (*functionWhere)(nil)
-
-func (m *functionWhere) Location() string {
-	return m.MethodName
-}
-
-func (m *functionWhere) where() {}

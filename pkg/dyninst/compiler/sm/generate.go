@@ -10,6 +10,7 @@ package sm
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -75,7 +76,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
-					probe.PointerChasingLimit,
+					probe.GetCaptureConfig().GetMaxReferenceDepth(),
 					event.Type,
 				)
 				if err != nil {
@@ -83,9 +84,12 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				}
 			}
 			// We throttle each event individually, across all its injection points.
+			throttleConfig := probe.GetThrottleConfig()
+			periodMs := throttleConfig.GetThrottlePeriodMs()
+			periodNs := uint64(periodMs) * uint64(time.Millisecond)
 			throttlers = append(throttlers, Throttler{
-				PeriodNs: uint64(probe.ThrottlePeriodMs) * 1000 * 1000,
-				Budget:   probe.ThrottleBudget,
+				PeriodNs: periodNs,
+				Budget:   throttleConfig.GetThrottleBudget(),
 			})
 		}
 	}

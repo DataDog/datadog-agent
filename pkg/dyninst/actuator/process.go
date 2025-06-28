@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // ProcessesUpdate is a set of updates to the actuator's state.
@@ -36,7 +36,7 @@ type ProcessUpdate struct {
 	//
 	// If a previous update contained a different set of probes, they
 	// will be wholly replaced by the new set.
-	Probes []irgen.ProbeDefinition
+	Probes []ir.ProbeDefinition
 }
 
 // Executable is a reference to an executable file that a process is running.
