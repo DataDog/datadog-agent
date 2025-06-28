@@ -9,9 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
-	"time"
 
 	"go.uber.org/atomic"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
@@ -42,21 +40,7 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
-	if pkgconfigsetup.Datadog().GetString("fleet_policies_dir") != "" {
-		confSearchPaths = append(confSearchPaths, filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d"))
-	}
-
-	providers.InitConfigFilesReader(confSearchPaths)
-
-	acTelemetryStore := ac.GetTelemetryStore()
-
-	ac.AddConfigProvider(
-		providers.NewFileConfigProvider(acTelemetryStore),
-		pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll"),
-		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
-	)
-
+func setupAutoDiscovery(wmeta workloadmeta.Component, ac autodiscovery.Component) {
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 
@@ -113,6 +97,8 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	} else {
 		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}
+
+	acTelemetryStore := ac.GetTelemetryStore()
 
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
