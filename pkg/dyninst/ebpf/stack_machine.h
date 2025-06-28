@@ -980,53 +980,53 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   //   }
   // } break;
 
-  // case SM_OP_ENQUEUE_GO_SWISS_MAP: {
-  //   type_t table_ptr_slice_type = (type_t)sm_read_program_uint32(sm);
-  //   type_t group_type = (type_t)sm_read_program_uint32(sm);
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   sm->buf_offset_1 = sm->offset + sm_read_program_uint8(sm);
+  case SM_OP_ENQUEUE_GO_SWISS_MAP: {
+    type_t table_ptr_slice_type = (type_t)sm_read_program_uint32(sm);
+    type_t group_type = (type_t)sm_read_program_uint32(sm);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    sm->buf_offset_1 = sm->offset + sm_read_program_uint8(sm);
 
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   target_ptr_t dir_ptr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_1, sizeof(int64_t))) {
-  //     return 1;
-  //   }
-  //   int64_t dir_len = *(int64_t*)&((*buf)[sm->buf_offset_1]);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t dir_ptr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_1, sizeof(int64_t))) {
+      return 1;
+    }
+    int64_t dir_len = *(int64_t*)&((*buf)[sm->buf_offset_1]);
 
-  //   if (dir_len > 0) {
-  //     if (!sm_record_pointer(ctx, table_ptr_slice_type, dir_ptr, 8 * dir_len)) {
-  //       LOG(3, "enqueue: failed swiss map record (full)");
-  //     }
-  //   } else {
-  //     if (!sm_record_pointer(ctx, group_type, dir_ptr, ENQUEUE_LEN_SENTINEL)) {
-  //       LOG(3, "enqueue: failed swiss map record (inline)");
-  //     }
-  //   }
-  // } break;
+    if (dir_len > 0) {
+      if (!sm_record_pointer(ctx, table_ptr_slice_type, dir_ptr, 8 * dir_len)) {
+        LOG(3, "enqueue: failed swiss map record (full)");
+      }
+    } else {
+      if (!sm_record_pointer(ctx, group_type, dir_ptr, ENQUEUE_LEN_SENTINEL)) {
+        LOG(3, "enqueue: failed swiss map record (inline)");
+      }
+    }
+  } break;
 
-  // case SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS: {
-  //   type_t group_slice_type = (type_t)sm_read_program_uint32(sm);
-  //   uint32_t group_byte_len = sm_read_program_uint32(sm);
+  case SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS: {
+    type_t group_slice_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t group_byte_len = sm_read_program_uint32(sm);
 
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-  //     return 1;
-  //   }
-  //   target_ptr_t data = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t data = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
 
-  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(int64_t))) {
-  //     return 1;
-  //   }
-  //   uint64_t length_mask = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
+    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(int64_t))) {
+      return 1;
+    }
+    uint64_t length_mask = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
 
-  //   if (!sm_record_pointer(ctx, group_slice_type, data,
-  //                          group_byte_len * (length_mask + 1))) {
-  //     LOG(3, "enqueue: failed swiss map groups record");
-  //   }
-  // } break;
+    if (!sm_record_pointer(ctx, group_slice_type, data,
+                           group_byte_len * (length_mask + 1))) {
+      LOG(3, "enqueue: failed swiss map groups record");
+    }
+  } break;
 
   // case SM_OP_ENQUEUE_GO_SUBROUTINE: {
   //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
