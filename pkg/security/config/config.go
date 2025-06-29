@@ -624,6 +624,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),
 	}
 
+	if rsConfig.SendEventFromSystemProbe {
+		seclog.Infof("Direct send from system-probe for runtime security is enabled")
+	} else {
+		seclog.Infof("Direct send from system-probe for runtime security is disabled")
+	}
+
 	compilationFlags := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.kernel_compilation_flags")
 	if len(compilationFlags) == 0 {
 		compilationFlags = defaultKernelCompilationFlags
