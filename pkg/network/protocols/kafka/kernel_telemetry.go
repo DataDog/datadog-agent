@@ -23,12 +23,6 @@ type kernelTelemetry struct {
 	// produceNoRequiredAcks is the number of produce requests that did not require any acks.
 	produceNoRequiredAcks *libtelemetry.Counter
 
-	// classifiedFetchAPIVersionHits and classifiedProduceAPIVersionHits are the number of classified fetch and produce requests
-	// broken by API version (the index)
-	// Make them have MAX_SUPPORTED + 1 length because we want to support api version 0.
-	classifiedFetchAPIVersionHits   [ClassificationMaxSupportedFetchRequestApiVersion + 1]*libtelemetry.Counter
-	classifiedProduceAPIVersionHits [ClassificationMaxSupportedProduceRequestApiVersion + 1]*libtelemetry.Counter
-
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
 }
@@ -44,13 +38,6 @@ func newKernelTelemetry() *kernelTelemetry {
 	}
 
 	kafkaKernelTel.produceNoRequiredAcks = metricGroup.NewCounter("produce_no_required_acks")
-
-	for bucketIndex := range kafkaKernelTel.classifiedFetchAPIVersionHits {
-		kafkaKernelTel.classifiedFetchAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:fetch", "protocol_version:"+strconv.Itoa(bucketIndex))
-	}
-	for bucketIndex := range kafkaKernelTel.classifiedProduceAPIVersionHits {
-		kafkaKernelTel.classifiedProduceAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:produce", "protocol_version:"+strconv.Itoa(bucketIndex))
-	}
 
 	return kafkaKernelTel
 }
@@ -81,26 +68,6 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 
 	for i := 0; i < TopicNameBuckets; i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
-	}
-
-	return result
-}
-
-func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64) [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64 {
-	var result [len(bucket)]uint64
-
-	for i := 0; i < len(result); i++ {
-		result[i] = bucket[i] - otherBucket[i]
-	}
-
-	return result
-}
-
-func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64) [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64 {
-	var result [len(bucket)]uint64
-
-	for i := 0; i < len(result); i++ {
-		result[i] = bucket[i] - otherBucket[i]
 	}
 
 	return result
