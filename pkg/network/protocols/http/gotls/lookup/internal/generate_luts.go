@@ -29,6 +29,7 @@ import (
 var (
 	outFlag            = flag.String("out", "", "output Go source file path")
 	minGoVersionFlag   = flag.String("min-go", "", "min Go version")
+	maxGoVersionFlag   = flag.String("max-go", "", "Max Go version. The latest released version will be used if not specified.")
 	testProgramFlag    = flag.String("test-program", "", "path to test program to compile")
 	archFlag           = flag.String("arch", "", "list of Go architectures")
 	packageFlag        = flag.String("package", "", "package to use when generating source")
@@ -76,6 +77,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("unable to parse min Go version %q", *minGoVersionFlag)
 	}
+	var maxGoVersion goversion.GoVersion
+	if *maxGoVersionFlag != "" {
+		maxGoVersion, err = goversion.NewGoVersion(*maxGoVersionFlag)
+		if err != nil {
+			log.Fatalf("unable to parse max Go version %q", *maxGoVersionFlag)
+		}
+	}
 
 	goArches := strings.Split(*archFlag, ",")
 
@@ -97,7 +105,7 @@ func main() {
 		}
 	}()
 
-	err = run(ctx, outputFile, minGoVersion, goArches, *packageFlag, *testProgramFlag, *sharedBuildDirFlag)
+	err = run(ctx, outputFile, minGoVersion, maxGoVersion, goArches, *packageFlag, *testProgramFlag, *sharedBuildDirFlag)
 	if err != nil {
 		log.Fatalf("error generating lookup table: %s", err)
 	}
@@ -109,6 +117,7 @@ func run(
 	ctx context.Context,
 	outputFile string,
 	minGoVersion goversion.GoVersion,
+	maxGoVersion goversion.GoVersion,
 	goArches []string,
 	pkg string,
 	testProgramPath string,
@@ -134,6 +143,7 @@ func run(
 	generator := &lutgen.LookupTableGenerator{
 		Package:                pkg,
 		MinGoVersion:           minGoVersion,
+		MaxGoVersion:           maxGoVersion,
 		Architectures:          goArches,
 		CompilationParallelism: 1,
 		LookupFunctions: []lutgen.LookupFunction{
