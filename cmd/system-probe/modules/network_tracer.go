@@ -86,6 +86,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		defer cleanup()
+
+		if log.ShouldLog(log.TraceLvl) {
+			traceLogConnections(id, cs)
+		}
+
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
@@ -270,4 +275,58 @@ func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWrite
 		log.Errorf("unable to dump conntrack: %s", err)
 		w.WriteHeader(500)
 	}
+}
+
+// traceLogConnections logs detailed connection information to help investigate NPM/USM
+// customer issues by providing visibility into network connections and their metadata.
+func traceLogConnections(id string, cs *network.Connections) {
+	traceLog("Connections for client %s - Total connections: %d", id, len(cs.Conns))
+
+	// Log HTTP data from connections if available
+	if len(cs.HTTP) > 0 {
+		traceLog("Found %d HTTP entries in connections", len(cs.HTTP))
+		for key, requestStats := range cs.HTTP {
+			traceLog("  HTTP Key: %+v", key)
+			traceLog("  HTTP RequestStats: %+v", requestStats)
+
+			// Print detailed HTTP stats by status code
+			traceLog("  Status codes tracked: %d", len(requestStats.Data))
+			for statusCode, stat := range requestStats.Data {
+				traceLog("    Status Code: %d", statusCode)
+				traceLog("    Count: %d", stat.Count)
+				if stat.StaticTags != 0 {
+					traceLog("    Static Tags: %d", stat.StaticTags)
+				}
+				if len(stat.DynamicTags) > 0 {
+					traceLog("    Dynamic Tags: %v", stat.DynamicTags)
+				}
+			}
+		}
+	} else {
+		traceLog("No HTTP data found in connections")
+	}
+
+	// Log all connections for debugging
+	traceLog("Found %d total connections", len(cs.Conns))
+	for i, conn := range cs.Conns {
+		traceLog("Connection %d:", i)
+		traceLog("  Source: %s:%d", conn.Source.String(), conn.SPort)
+		traceLog("  Destination: %s:%d", conn.Dest.String(), conn.DPort)
+		traceLog("  Protocol Stack: %+v", conn.ProtocolStack)
+		if conn.IPTranslation != nil {
+			traceLog("  IP Translation:")
+			traceLog("    ReplSrcIP: %s, ReplSrcPort: %d", conn.IPTranslation.ReplSrcIP.String(), conn.IPTranslation.ReplSrcPort)
+			traceLog("    ReplDstIP: %s, ReplDstPort: %d", conn.IPTranslation.ReplDstIP.String(), conn.IPTranslation.ReplDstPort)
+		} else {
+			traceLog("  No IP Translation")
+		}
+		traceLog("  Direction: %s", conn.Direction)
+		traceLog("  Type: %s", conn.Type)
+		traceLog("  PID: %d", conn.Pid)
+	}
+}
+
+// traceLog is a helper function that adds the NETTRACER_TRACE prefix to trace logs
+func traceLog(format string, args ...interface{}) {
+	log.Tracef("NETTRACER_TRACE: "+format, args...)
 }
