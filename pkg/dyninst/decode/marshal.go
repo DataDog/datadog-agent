@@ -337,7 +337,7 @@ func (d *Decoder) encodeValueFields(
 				currentlyEncoding,
 				v.Element,
 				elementData,
-				"",
+				elementType.GetName(),
 			); err != nil {
 				return err
 			}
