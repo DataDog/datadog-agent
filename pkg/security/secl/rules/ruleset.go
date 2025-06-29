@@ -294,7 +294,7 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*Policy
 func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 	var report DiscardersReport
 
-	event := rs.NewFakeEvent()
+	event := rs.newFakeEvent()
 	ctx := eval.NewContext(event)
 
 	errFieldNotFound := &eval.ErrFieldNotFound{}
@@ -725,7 +725,7 @@ func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps Fie
 	}
 
 	// all the rules needs to be of the same type
-	return getApprovers(bucket.rules, rs.NewFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -1100,8 +1100,8 @@ func (rs *RuleSet) SetFakeEventCtor(fakeEventCtor func() eval.Event) {
 	rs.fakeEventCtor = fakeEventCtor
 }
 
-// NewFakeEvent returns a new event using the embedded constructor for fake events
-func (rs *RuleSet) NewFakeEvent() eval.Event {
+// newFakeEvent returns a new event using the embedded constructor for fake events
+func (rs *RuleSet) newFakeEvent() eval.Event {
 	if rs.fakeEventCtor != nil {
 		return rs.fakeEventCtor()
 	}
