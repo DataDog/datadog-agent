@@ -50,11 +50,11 @@ func testClient(server *httptest.Server) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := NewClient(host, "https://10.0.0.1:8443", "testuser", "testpass", true)
+	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		return nil, err
 	}
-	port, err := strconv.Atoi(portStr)
+	client, err := NewClient(host, port, "https://10.0.0.1:8443", "testuser", "testpass", true, false)
 	if err != nil {
 		return nil, err
 	}
