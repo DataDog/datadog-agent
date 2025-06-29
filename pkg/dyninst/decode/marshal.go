@@ -321,15 +321,17 @@ func (d *Decoder) encodeValueFields(
 		return nil
 	case *ir.ArrayType:
 		var err error
+		elementType := v.Element
+		elementSize := int(elementType.GetByteSize())
+		numElements := int(v.Count)
 		if err = writeTokens(enc,
+			jsontext.String("size"),
+			jsontext.String(strconv.Itoa(numElements)),
 			jsontext.String("elements"),
 			jsontext.BeginArray); err != nil {
 			return err
 		}
 
-		elementType := v.Element
-		elementSize := int(elementType.GetByteSize())
-		numElements := int(v.Count)
 		for i := range numElements {
 			elementData := data[i*elementSize : (i+1)*elementSize]
 			if err := d.encodeValue(enc,
@@ -411,6 +413,12 @@ func (d *Decoder) encodeValueFields(
 		}
 		if err = writeTokens(enc, jsontext.EndArray); err != nil {
 			return err
+		}
+		if length > uint64(sliceLength) {
+			return writeTokens(enc,
+				jsontext.String("notCapturedReason"),
+				jsontext.String("collectionSize"),
+			)
 		}
 		return nil
 	case *ir.GoChannelType:
