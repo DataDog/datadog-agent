@@ -7,8 +7,9 @@ package collectors
 
 import (
 	"context"
-	"github.com/gobwas/glob"
 	"strings"
+
+	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -91,8 +92,7 @@ func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags
 
 // Run runs the continuous event watching loop and sends new tags to the
 // tagger based on the events sent by the workloadmeta.
-func (c *WorkloadMetaCollector) Run(ctx context.Context, datadogConfig config.Component) {
-	c.collectStaticGlobalTags(ctx, datadogConfig)
+func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 	c.stream(ctx)
 }
 
@@ -196,6 +196,11 @@ func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store wor
 	// kubernetes resources metadata as tags
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
+
+	// Global static tags
+	if p != nil {
+		c.collectStaticGlobalTags(context.TODO(), cfg)
+	}
 
 	return c
 }
