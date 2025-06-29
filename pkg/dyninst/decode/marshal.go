@@ -85,7 +85,8 @@ type argumentsData struct {
 // bytes, and presence bits in the bitset correspond with index of
 // the expression in the root ir.
 func expressionIsPresent(bitset []byte, expressionIndex int) bool {
-	return (bitset[expressionIndex/8] & (1 << byte(expressionIndex%8))) != 0
+	idx, bit := expressionIndex/8, expressionIndex%8
+	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
 }
 
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
@@ -109,7 +110,7 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			jsontext.String(expr.Name)); err != nil {
 			return err
 		}
-		if !expressionIsPresent(presenceBitSet, i) {
+		if !expressionIsPresent(presenceBitSet, i) && parameterType.GetByteSize() != 0 {
 			// Set not capture reason
 			if err = writeTokens(enc,
 				jsontext.BeginObject,

@@ -95,10 +95,6 @@ func TestDyninst(t *testing.T) {
 			continue
 		}
 		for _, cfg := range cfgs {
-			if cfg.GOARCH != runtime.GOARCH {
-				t.Logf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
-				continue
-			}
 			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
 				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
 			})
@@ -296,6 +292,9 @@ func testDyninst(
 		var decodeOut bytes.Buffer
 		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Output: %s", decodeOut.String())
+		}
 		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
@@ -328,6 +327,10 @@ func runIntegrationTestSuite(
 	rewrite bool,
 	sem semaphore,
 ) {
+	if cfg.GOARCH != runtime.GOARCH {
+		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
+		return
+	}
 	var outputs = struct {
 		sync.Mutex
 		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
@@ -351,9 +354,6 @@ func runIntegrationTestSuite(
 	}
 	bin := testprogs.MustGetBinary(t, service, cfg)
 	for _, debug := range []bool{false, true} {
-		if testing.Short() && debug {
-			t.Skip("skipping debug mode in short mode")
-		}
 		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
 			t.Parallel()
 			actual := testDyninst(
