@@ -78,7 +78,7 @@ func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 	defer s.stopIISApp()
 	s.startIISApp(webConfigFile, aspxFile)
 
-	// Check that the expected version of the library is loadedi
+	// Check that the expected version of the library is loaded
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, initialVersion[:len(initialVersion)-2])
 

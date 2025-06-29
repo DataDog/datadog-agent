@@ -8,9 +8,11 @@ package packages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,11 +60,7 @@ func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
@@ -80,11 +78,7 @@ func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "experiment")
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
@@ -102,11 +96,7 @@ func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
-	if err != nil {
-		return err
-	}
-	return nil
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
 }
 
 // preRemoveAPMLibraryDotnet uninstalls the .NET APM library
@@ -114,8 +104,7 @@ func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_apm_library_dotnet")
 	defer func() { span.Finish(err) }()
-	var installDir string
-	installDir, err = filepath.EvalSymlinks(getTargetPath("stable"))
+	_, err = filepath.EvalSymlinks(getTargetPath("stable"))
 	if err != nil {
 		// If the remove is being retried after a failed first attempt, the stable symlink may have been removed
 		// so we do not consider this an error
@@ -125,12 +114,7 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		}
 		return err
 	}
-	dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
-	_, err = dotnetExec.RemoveIISInstrumentation(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
+	return uninstrumentDotnetLibraryIfNeeded(ctx.Context, "stable")
 }
 
 // asyncPreRemoveHookAPMLibraryDotnet runs before the garbage collector deletes the package files for a version.
@@ -146,4 +130,113 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 		return shouldDelete, err
 	}
 	return true, nil
+}
+
+func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
+	// TODO What if it's a reinstall and the injection method config was not properly cleaned up by the previous installation?
+	// Check if a an injection method was set during a previous installation
+	var currentMethod string
+	currentMethod, err = getAPMInjectionMethod()
+	if err != nil {
+		return fmt.Errorf("could not get current injection method: %w", err)
+	}
+
+	// Check if a different injection method is configured for this installation we should first uninstrument the current method
+	envInst := env.FromEnv()
+	newMethod := envInst.InstallScript.APMInstrumentationEnabled
+
+	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
+
+	if currentMethod == env.APMInstrumentationNotSet {
+		if newMethod == env.APMInstrumentationNotSet {
+			return nil
+		}
+		err = instrumentDotnetLibrary(ctx, newMethod, target)
+		if err != nil {
+			return fmt.Errorf("could not instrument dotnet library: %w", err)
+		}
+		return setAPMInjectionMethod(newMethod)
+	}
+
+	if newMethod != env.APMInstrumentationNotSet && newMethod != currentMethod {
+		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
+		if err != nil {
+			log.Errorf("Error changing instrumentation method for dotnet library, could not uninstrument the current method (%s): %v", currentMethod, err)
+		}
+	} else {
+		newMethod = currentMethod
+	}
+
+	err = instrumentDotnetLibrary(ctx, newMethod, target)
+	if err != nil {
+		return fmt.Errorf("could not instrument dotnet library: %w", err)
+	}
+	return setAPMInjectionMethod(newMethod)
+}
+
+func instrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
+	switch method {
+	case env.APMInstrumentationEnabledIIS:
+		var installDir string
+		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+		if err != nil {
+			return err
+		}
+		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+		_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
+		return err
+	case env.APMInstrumentationEnabledDotnet:
+		var installDir string
+		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+		if err != nil {
+			return err
+		}
+		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+		_, err = dotnetExec.EnableGlobalInstrumentation(ctx, getLibraryPath(installDir))
+		return err
+	default:
+		return fmt.Errorf("unsupported injection method: %s", method)
+	}
+}
+
+func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
+	var method string
+	method, err = getAPMInjectionMethod()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("uninstrumenting dotnet library with method: %s\n", method)
+	if method == env.APMInstrumentationNotSet {
+		return nil
+	}
+	err = uninstrumentDotnetLibrary(ctx, method, target)
+	if err != nil {
+		return fmt.Errorf("could not uninstrument dotnet library: %w", err)
+	}
+	return unsetAPMInjectionMethod()
+}
+
+func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
+	switch method {
+	case env.APMInstrumentationEnabledIIS:
+		var installDir string
+		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+		if err != nil {
+			return err
+		}
+		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+		_, err := dotnetExec.RemoveIISInstrumentation(ctx)
+		return err
+	case env.APMInstrumentationEnabledDotnet:
+		var installDir string
+		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+		if err != nil {
+			return err
+		}
+		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+		_, err = dotnetExec.RemoveGlobalInstrumentation(ctx)
+		return err
+	default:
+		return fmt.Errorf("unsupported injection method: %s", method)
+	}
 }
