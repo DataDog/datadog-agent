@@ -79,6 +79,15 @@ type argumentsData struct {
 	decoder  *Decoder
 }
 
+// In the root data item, before the expressions, there is a bitset
+// which conveys if expression values are present in the data.
+// The rootType.PresenceBitsetSize conveys the size of the bitset in
+// bytes, and presence bits in the bitset correspond with index of
+// the expression in the root ir.
+func expressionIsPresent(bitset []byte, expressionIndex int) bool {
+	return (bitset[expressionIndex/8] & (1 << byte(expressionIndex%8))) != 0
+}
+
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	var err error
 	currentlyEncoding := map[typeAndAddr]struct{}{}
@@ -89,13 +98,30 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		return err
 	}
 
+	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
-	for _, expr := range ad.rootType.Expressions {
+	for i, expr := range ad.rootType.Expressions {
 		parameterType := expr.Expression.Type
 		parameterData := ad.rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
-		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
+
+		if err = writeTokens(enc,
+			jsontext.String(expr.Name)); err != nil {
 			return err
+		}
+		if !expressionIsPresent(presenceBitSet, i) {
+			// Set not capture reason
+			if err = writeTokens(enc,
+				jsontext.BeginObject,
+				jsontext.String("type"),
+				jsontext.String(parameterType.GetName()),
+				jsontext.String("notCapturedReason"),
+				jsontext.String("unavailable"),
+				jsontext.EndObject,
+			); err != nil {
+				return err
+			}
+			continue
 		}
 		err = ad.decoder.encodeValue(enc,
 			ad.decoder.addressReferenceCount,
