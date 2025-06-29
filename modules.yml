@@ -120,6 +120,8 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
+  golinkinterceptor: ignored
+  golinkinterceptor/test: ignored
   internal/tools:
     independent: false
     should_tag: false
