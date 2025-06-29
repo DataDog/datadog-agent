@@ -64,13 +64,6 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 	}
 	t.produceNoRequiredAcks.Add(int64(telemetryDelta.Produce_no_required_acks))
 
-	for bucketIndex := range t.classifiedFetchAPIVersionHits {
-		t.classifiedFetchAPIVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_fetch_api_version_hits[bucketIndex]))
-	}
-	for bucketIndex := range t.classifiedProduceAPIVersionHits {
-		t.classifiedProduceAPIVersionHits[bucketIndex].Add(int64(telemetryDelta.Classified_produce_api_version_hits[bucketIndex]))
-	}
-
 	// Create a deep copy of the 'tel' parameter to prevent changes from the outer scope affecting the last state
 	t.telemetryLastState = *tel
 }
@@ -78,10 +71,8 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 // Sub generates a new RawKernelTelemetry object by subtracting the values of this RawKernelTelemetry object from the other
 func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
 	return &RawKernelTelemetry{
-		Topic_name_size_buckets:             computePathSizeBucketDifferences(t.Topic_name_size_buckets, other.Topic_name_size_buckets),
-		Produce_no_required_acks:            t.Produce_no_required_acks - other.Produce_no_required_acks,
-		Classified_produce_api_version_hits: computeProduceAPIVersionHitsBucketDifferences(t.Classified_produce_api_version_hits, other.Classified_produce_api_version_hits),
-		Classified_fetch_api_version_hits:   computeFetchAPIVersionHitsBucketDifferences(t.Classified_fetch_api_version_hits, other.Classified_fetch_api_version_hits),
+		Topic_name_size_buckets:  computePathSizeBucketDifferences(t.Topic_name_size_buckets, other.Topic_name_size_buckets),
+		Produce_no_required_acks: t.Produce_no_required_acks - other.Produce_no_required_acks,
 	}
 }
 
