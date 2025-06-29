@@ -874,7 +874,7 @@ var (
 )
 
 // initializeEventConsumerSingleton is used to initialize the event consumer singleton
-func initializeEventConsumerSingleton(t testing.TB) *consumers.ProcessConsumer {
+func initializeEventConsumerSingleton(t *testing.T) *consumers.ProcessConsumer {
 	eventConsumerMutex.Lock()
 	defer eventConsumerMutex.Unlock()
 
@@ -885,7 +885,7 @@ func initializeEventConsumerSingleton(t testing.TB) *consumers.ProcessConsumer {
 }
 
 // reinitializeEventConsumer is used to reinitialize the event consumer instance
-func reinitializeEventConsumer(t testing.TB) {
+func reinitializeEventConsumer(t *testing.T) {
 	eventConsumerMutex.Lock()
 	defer eventConsumerMutex.Unlock()
 
@@ -899,7 +899,7 @@ const (
 	useExistingConsumer = false
 )
 
-func setupUSMTLSMonitor(t testing.TB, cfg *config.Config, reinit bool) *Monitor {
+func setupUSMTLSMonitor(t *testing.T, cfg *config.Config, reinit bool) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())

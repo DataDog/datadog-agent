@@ -752,134 +752,36 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 	return nil
 }
 
-// deleteDeadPidsInSSLCtxMap finds a map by name and deletes dead processes.
+// deleteDeadPidsInSSLCtxMap cleans up three related SSL maps in sequence:
+// 1. ssl_ctx_by_pid_tgid: Maps PIDs to SSL contexts
+// 2. ssl_sock_by_ctx: Maps SSL contexts to socket info
+// 3. ssl_ctx_by_tuple: Maps connection tuples to SSL contexts
 func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) error {
-	sockKeysToDelete := make(map[uint64]struct{})
+	// Track SSL contexts that need to be cleaned up
+	// These are contexts belonging to dead PIDs
+	sslCtxToClean := make(map[uint64]struct{})
 
-	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, nil, func(_ int64, key uint64, value uint64) bool {
-		pid := uint32(key >> 32)
-		_, exists := alivePIDs[pid]
-		if !exists {
-			sockKeysToDelete[value] = struct{}{}
+	// First pass: Clean ssl_ctx_by_pid_tgid map and collect dead SSL contexts
+	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, sslCtx uint64) bool {
+		pid := uint32(pidTgid >> 32)
+		if _, isAlive := alivePIDs[pid]; !isAlive {
+			sslCtxToClean[sslCtx] = struct{}{}
+			return true // Clean this entry
 		}
-		return !exists
+		return false // Keep this entry
 	})
 
-	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key uint64, _ http.SslSock) bool {
-		_, exists := sockKeysToDelete[key]
-		return exists
+	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
+	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
+		_, shouldClean := sslCtxToClean[sslCtx]
+		return shouldClean
 	})
 
-	o.sslCtxByTupleMapCleaner.Clean(nil, nil, func(_ int64, _ http.ConnTuple, value uint64) bool {
-		if _, exists := sockKeysToDelete[value]; exists {
-			return true
-		}
-		return false
+	// Third pass: Clean ssl_ctx_by_tuple map using collected SSL contexts
+	o.sslCtxByTupleMapCleaner.Clean(nil, nil, func(_ int64, _ http.ConnTuple, sslCtx uint64) bool {
+		_, shouldClean := sslCtxToClean[sslCtx]
+		return shouldClean
 	})
-
-	return nil
-}
-
-// deleteDeadPidsInSSLCtxMap finds a map by name and deletes dead processes.
-func (o *sslProgram) deleteDeadPidsInSSLCtxMap2(alivePIDs map[uint32]struct{}) error {
-	sockKeysToDelete := make(map[uint64]struct{})
-	sockKeysToDelete2 := make([]uint64, 0)
-
-	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, func() {
-		o.sslSockByCtxMapObj.BatchDelete(sockKeysToDelete2, nil)
-	}, func(_ int64, key uint64, value uint64) bool {
-		pid := uint32(key >> 32)
-		_, exists := alivePIDs[pid]
-		if !exists {
-			sockKeysToDelete[value] = struct{}{}
-			sockKeysToDelete2 = append(sockKeysToDelete2, value)
-		}
-		return !exists
-	})
-	//
-	//o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key uint64, _ http.SslSock) bool {
-	//	_, exists := sockKeysToDelete[key]
-	//	return exists
-	//})
-
-	o.sslCtxByTupleMapCleaner.Clean(nil, nil, func(_ int64, _ http.ConnTuple, value uint64) bool {
-		if _, exists := sockKeysToDelete[value]; exists {
-			return true
-		}
-		return false
-	})
-
-	return nil
-}
-
-// deleteDeadPidsInSSLCtxMap finds a map by name and deletes dead processes.
-func (o *sslProgram) deleteDeadPidsInSSLCtxMap3(alivePIDs map[uint32]struct{}) error {
-	sockKeysToDelete := make(map[uint64]struct{})
-	sockKeysToDelete2 := make([]uint64, 0)
-
-	var connKey http.SslSock
-	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, func() {
-		o.sslSockByCtxMapObj.BatchDelete(sockKeysToDelete2, nil)
-	}, func(_ int64, key uint64, value uint64) bool {
-		pid := uint32(key >> 32)
-		_, exists := alivePIDs[pid]
-		if !exists {
-			sockKeysToDelete[value] = struct{}{}
-			sockKeysToDelete2 = append(sockKeysToDelete2, value)
-
-			if err := o.sslSockByCtxMapObj.Lookup(unsafe.Pointer(&value), unsafe.Pointer(&connKey)); err == nil {
-				o.sslCtxByTupleMap.Delete(unsafe.Pointer(&connKey.Tup))
-			}
-
-		}
-		return !exists
-	})
-	//
-	//o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key uint64, _ http.SslSock) bool {
-	//	_, exists := sockKeysToDelete[key]
-	//	return exists
-	//})
-
-	return nil
-}
-
-// deleteDeadPidsInSSLCtxMap finds a map by name and deletes dead processes.
-func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]struct{}, sslCtxByPIDTGIDMapObj, sslSockByCtxMapObj, sslCtxByTupleMapObj *ebpf.Map) error {
-	var pidKeysToDelete []uint64
-	var sockKeysToDelete []uintptr
-	var tupleKeysToDelete []http.ConnTuple
-
-	var key uint64
-	var value uintptr
-	iter := sslCtxByPIDTGIDMapObj.Iterate()
-
-	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-		pid := uint32(key >> 32)
-		if _, exists := alivePIDs[pid]; !exists {
-			pidKeysToDelete = append(pidKeysToDelete, key)
-
-			sslCtxKey := value
-			sockKeysToDelete = append(sockKeysToDelete, sslCtxKey)
-
-			var sock http.SslSock
-			if err := sslSockByCtxMapObj.Lookup(unsafe.Pointer(&sslCtxKey), unsafe.Pointer(&sock)); err == nil {
-				tupleKeysToDelete = append(tupleKeysToDelete, sock.Tup)
-			}
-		}
-	}
-
-	for _, k := range tupleKeysToDelete {
-		keyToDelete := k
-		_ = sslCtxByTupleMapObj.Delete(unsafe.Pointer(&keyToDelete))
-	}
-	for _, k := range sockKeysToDelete {
-		keyToDelete := k
-		_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&keyToDelete))
-	}
-	for _, k := range pidKeysToDelete {
-		keyToDelete := k
-		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&keyToDelete))
-	}
 
 	return nil
 }
