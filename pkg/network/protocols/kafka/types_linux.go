@@ -11,9 +11,11 @@ const (
 	DecodingMaxSupportedProduceRequestApiVersion           = 0xc
 	ClassificationMaxSupportedFetchRequestApiVersion       = 0x11
 	ClassificationMinSupportedFetchRequestApiVersion       = 0x0
-	DecodingMaxSupportedFetchRequestApiVersion             = 0xc
+	DecodingMaxSupportedFetchRequestApiVersion             = 0x11
 	ClassificationMinSupportedAPIVersionsRequestApiVersion = 0x3
 	ClassificationMaxSupportedAPIVersionsRequestApiVersion = 0x4
+	DecodingMinSupportedMetadataRequestApiVersion          = 0xa
+	DecodingMaxSupportedMetadataRequestApiVersion          = 0xd
 )
 
 type ConnTuple struct {
@@ -73,4 +75,8 @@ type KafkaResponseContext struct {
 type RawKernelTelemetry struct {
 	Topic_name_size_buckets  [10]uint64
 	Produce_no_required_acks uint64
+}
+
+type KafkaTopicIDToNameKey struct {
+	Id [16]uint8
 }
