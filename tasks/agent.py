@@ -21,6 +21,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -214,28 +215,27 @@ def build(
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
     if include_sds:
         build_tags.append("sds")
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": agent_bin,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
-    }
+    flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
+    entrypoint = f"{REPO_PATH}/cmd/{flavor_cmd}"
     with gitlab_section("Build agent", collapsed=True):
-        ctx.run(cmd.format(**args), env=env)
+        go_build(
+            ctx,
+            entrypoint,
+            mod=go_mod,
+            env=env,
+            bin_path=agent_bin,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+        )
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -874,5 +874,4 @@ def build_remote_agent(ctx, env=None):
     """
     Builds the remote-agent example client.
     """
-    cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
-    return ctx.run(cmd, env=env or {})
+    return go_build(ctx, "./internal/remote-agent", verbose=True, bin_path="bin/remote-agent", env=env or {})

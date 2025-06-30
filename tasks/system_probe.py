@@ -25,6 +25,7 @@ from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -828,21 +829,17 @@ def build_sysprobe_binary(
     if os.path.exists(binary):
         os.remove(binary)
 
-    cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
-
-    args = {
-        "go_mod": go_mod,
-        "race_opt": " -race" if race else "",
-        "build_type": " -a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": binary,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
-
-    ctx.run(cmd.format(**args), env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/system-probe",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        build_tags=build_tags,
+        bin_path=binary,
+        gcflags=gcflags,
+        ldflags=ldflags,
+    )
 
 
 def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
@@ -1134,7 +1131,9 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
-                    ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
+                    go_build(
+                        ctx, f"{gobin}.go", build_tags=["test"], ldflags="-extldflags '-static'", bin_path=binary_path
+                    )
 
         for cbin in TEST_HELPER_CBINS:
             source = Path(pkg) / "testdata" / f"{cbin}.c"
@@ -1154,7 +1153,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
-    ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
+    go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json")
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
@@ -1999,17 +1998,17 @@ def build_usm_debugger(
 
     arch_obj = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch_obj)
-
-    cmd = 'go build -tags="linux_bpf,usm_debugger" -o bin/usm-debugger -ldflags="{ldflags}" ./pkg/network/usm/debugger/cmd/'
-
     if strip_binary:
         ldflags += ' -s -w'
 
-    args = {
-        "ldflags": ldflags,
-    }
-
-    ctx.run(cmd.format(**args), env=env)
+    go_build(
+        ctx,
+        "./pkg/network/usm/debugger/cmd/usm-debugger",
+        build_tags=["linux_bpf", "usm_debugger"],
+        ldflags=ldflags,
+        bin_path="bin/usm-debugger",
+        env=env,
+    )
 
 
 @task
