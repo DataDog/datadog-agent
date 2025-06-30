@@ -1235,18 +1235,18 @@ type Service struct {
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
-	Pid          int32
-	NsPid        int32
-	Ppid         int32
-	Name         string
-	Cwd          string
-	Exe          string
-	Comm         string
-	Cmdline      []string
-	Uids         []int32
-	Gids         []int32
+	Pid          int32    // Process ID -- /proc/[pid]
+	NsPid        int32    // Namespace PID -- /proc/[pid]/status
+	Ppid         int32    // Parent Process ID -- /proc/[pid]/stat
+	Name         string   // Name -- /proc/[pid]/status
+	Cwd          string   // Current Working Directory -- /proc/[pid]/cwd
+	Exe          string   // Exceutable Path -- /proc[pid]/exe
+	Comm         string   // Short Command Name -- /proc/[]id]/comm
+	Cmdline      []string // Command Line -- /proc/[pid]/cmdline
+	Uids         []int32  // User IDs -- /proc/[pid]/status
+	Gids         []int32  // Group IDs -- /proc/[pid]/status
 	ContainerID  string
-	CreationTime time.Time
+	CreationTime time.Time // Process Start Time -- /proc/[pid]/stat
 	Language     *languagemodels.Language
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field

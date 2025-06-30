@@ -569,8 +569,8 @@ func processToWorkloadMetaProcess(process *procutil.Process) *workloadmeta.Proce
 		NsPid:        process.NsPid,
 		Ppid:         process.Ppid,
 		Name:         process.Name,
-		Cwd:          process.Cwd,
-		Exe:          process.Exe,
+		Cwd:          process.Cwd, // requires permission check
+		Exe:          process.Exe, // requires permission check
 		Comm:         process.Comm,
 		Cmdline:      process.Cmdline,
 		Uids:         process.Uids,
