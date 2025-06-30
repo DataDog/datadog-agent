@@ -643,13 +643,8 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
-		if entry.ContainerID == workload.ContainerID {
-			return true
-		}
-		// Check if the cgroup IDs match when the workload has a cgroup context and no container ID
-		if entry.ContainerID == "" && workload.ContainerID == "" &&
-			entry.CGroup.CGroupID != "" && workload.CGroupContext.CGroupID != "" &&
-			entry.CGroup.CGroupID == workload.CGroupContext.CGroupID {
+		// Check if the workload IDs match
+		if entry.GetWorkloadID() != nil && workload.GetWorkloadID() != nil && entry.GetWorkloadID() == workload.GetWorkloadID() {
 			return true
 		}
 	}

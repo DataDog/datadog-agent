@@ -29,6 +29,26 @@ type Workload struct {
 	retries  int
 }
 
+// GetWorkloadID returns the workload ID for a workload
+func (w *Workload) GetWorkloadID() interface{} {
+	if w.ContainerID != "" {
+		return w.ContainerID
+	} else if w.CGroupID != "" {
+		return w.CGroupID
+	}
+	return nil
+}
+
+// Type returns the type of the workload
+func (w *Workload) Type() string {
+	if w.ContainerID != "" {
+		return "container"
+	} else if w.CGroupID != "" {
+		return "cgroup"
+	}
+	return "unknown"
+}
+
 // LinuxResolver represents a default resolver based directly on the underlying tagger
 type LinuxResolver struct {
 	*DefaultResolver
@@ -94,7 +114,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 func needsTagsResolution(workload *Workload) bool {
 	// Container or cgroup workloads need tags resolution if they don't have a ready selector
-	if (len(workload.ContainerID) != 0 || len(workload.CGroupID) != 0) && !workload.Selector.IsReady() {
+	if (len(workload.ContainerID) != 0 || (len(workload.CGroupID) != 0 && workload.CGroupFlags.IsSystemd())) && !workload.Selector.IsReady() {
 		return true
 	}
 	return false
@@ -113,11 +133,11 @@ func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 				select {
 				case t.workloadsWithoutTags <- pendingWorkload:
 				default:
-					workloadID := t.getWorkloadID(workload)
+					workloadID := workload.GetWorkloadID()
 					seclog.Warnf("Failed to requeue workload %v for tags retrieval", workloadID)
 				}
 			} else {
-				workloadID := t.getWorkloadID(workload)
+				workloadID := workload.GetWorkloadID()
 				seclog.Debugf("Failed to resolve tags for workload %v", workloadID)
 			}
 			return
@@ -127,17 +147,9 @@ func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 	}
 }
 
-// getWorkloadID returns the workload ID for a workload
-func (t *LinuxResolver) getWorkloadID(workload *Workload) interface{} {
-	if len(workload.ContainerID) != 0 {
-		return workload.ContainerID
-	}
-	return workload.CGroupID
-}
-
 // fetchTags fetches tags for the provided workload
 func (t *LinuxResolver) fetchTags(workload *Workload) error {
-	workloadID := t.getWorkloadID(workload)
+	workloadID := workload.GetWorkloadID()
 	newTags, err := t.ResolveWithErr(workloadID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %v: %w", workloadID, err)
@@ -146,13 +158,13 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 	workload.Tags = newTags
 
 	// For container workloads, try to extract image information
-	if len(workload.ContainerID) != 0 {
+	if workload.Type() == "container" {
 		workload.Selector.Image = utils.GetTagValue("image_name", newTags)
 		workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
 		if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
 			workload.Selector.Tag = "latest"
 		}
-	} else {
+	} else if workload.Type() == "cgroup" {
 		// For cgroup workloads, set service information as the selector
 		serviceName := utils.GetTagValue("service", newTags)
 		if len(serviceName) != 0 {

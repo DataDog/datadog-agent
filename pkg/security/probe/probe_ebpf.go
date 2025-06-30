@@ -747,8 +747,25 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		p.profileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
+		var workloadID interface{}
+		var imageTag string
+		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+			workloadID = containerID
+			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+			workloadID = cgroupID
+			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(cgroupID)
+			if err != nil {
+				seclog.Errorf("failed to resolve tags for cgroup %s: %v", cgroupID, err)
+				return
+			}
+			imageTag = utils.GetTagValue("version", tags)
+		}
+
+		if workloadID != nil {
+			p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+		}
+
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}

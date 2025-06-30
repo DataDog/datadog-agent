@@ -11,12 +11,10 @@ package securityprofile
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -58,17 +56,19 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 
 	var profile *profile.Profile
 	var imageTag string
+	var tags []string
 
 	// First try container-based lookup
 	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
 	if len(event.ContainerContext.Tags) > 0 {
-		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), "*")
+		tags = event.ContainerContext.Tags
+		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", tags), "*")
 		if err == nil {
 			// lookup profile
 			m.profilesLock.Lock()
 			profile = m.profiles[selector]
 			m.profilesLock.Unlock()
-			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+			imageTag = utils.GetTagValue("image_tag", tags)
 			if imageTag == "" {
 				imageTag = "latest"
 			}
@@ -76,28 +76,21 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// If no profile found and there's a cgroup ID, try cgroup-based lookup
-	event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext)
-	event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
-	event.FieldHandlers.ResolveCGroupVersion(event, event.CGroupContext)
 	if profile == nil && event.CGroupContext.CGroupID != "" {
-		// For cgroups, we look for profiles using the service name derived from the cgroup ID
-		// This is a simplified approach - in production you may need more sophisticated mapping
-		serviceName := string(event.CGroupContext.CGroupID)
-		// Extract service name from cgroup ID
-		if parts := strings.Split(serviceName, "/"); len(parts) > 0 {
-			serviceName = parts[len(parts)-1]
+		tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.CGroupContext.CGroupID)
+		if err != nil {
+			seclog.Errorf("failed to resolve tags for cgroup %s: %v", event.CGroupContext.CGroupID, err)
+			return
 		}
-
-		selector, err := cgroupModel.NewWorkloadSelector(serviceName, "*")
+		selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("service", tags), "*")
 		if err == nil {
 			// lookup profile
 			m.profilesLock.Lock()
 			profile = m.profiles[selector]
 			m.profilesLock.Unlock()
-			imageTag = "latest" // Default version for cgroups
+			imageTag = utils.GetTagValue("version", tags)
 		}
 	}
-
 	if profile == nil {
 		m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
 		return
@@ -114,7 +107,8 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	if found {
 		ctx.LastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 	} else {
-		evictedVersions := profile.PrepareNewVersion(imageTag, event.ContainerContext.Tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
+		fmt.Printf(" %s %v %v\n", imageTag, tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags)
+		evictedVersions := profile.PrepareNewVersion(imageTag, tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags, uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())))
 		for _, evictedVersion := range evictedVersions {
 			m.countEvictedVersion(imageTag, evictedVersion)
 		}
@@ -263,8 +257,7 @@ func fillProfileContextFromProfile(ctx *model.SecurityProfileContext, p *profile
 	}
 }
 
-// FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
-func (m *Manager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext, imageTag string) {
+func (m *Manager) FillProfileContextFromWorkloadID(id interface{}, ctx *model.SecurityProfileContext, imageTag string) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return
 	}
@@ -276,33 +269,7 @@ func (m *Manager) FillProfileContextFromContainerID(id string, ctx *model.Securi
 		profile.InstancesLock.Lock()
 		for _, instance := range profile.Instances {
 			instance.Lock()
-			if instance.ContainerID == containerutils.ContainerID(id) {
-				ctx.Name = profile.Metadata.Name
-				profileContext, ok := profile.GetVersionContext(imageTag)
-				if ok { // should always be the case
-					ctx.Tags = profileContext.Tags
-				}
-			}
-			instance.Unlock()
-		}
-		profile.InstancesLock.Unlock()
-	}
-}
-
-// FillProfileContextFromCGroupID populates a SecurityProfileContext for the given cgroup ID
-func (m *Manager) FillProfileContextFromCGroupID(id string, ctx *model.SecurityProfileContext, imageTag string) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
-		return
-	}
-
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
-
-	for _, profile := range m.profiles {
-		profile.InstancesLock.Lock()
-		for _, instance := range profile.Instances {
-			instance.Lock()
-			if instance.ContainerID == "" && string(instance.CGroupContext.CGroupID) == id {
+			if instance.GetWorkloadID() == id {
 				ctx.Name = profile.Metadata.Name
 				profileContext, ok := profile.GetVersionContext(imageTag)
 				if ok { // should always be the case
@@ -345,19 +312,12 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if workload.ContainerID != "" {
-		if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.GetProfileCookie()); err != nil {
-			seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
-			return
-		}
-		seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
-	} else if workload.CGroupContext.CGroupID != "" {
-		if err := m.securityProfileMap.Put([]byte(workload.CGroupContext.CGroupID), profile.GetProfileCookie()); err != nil {
-			seclog.Errorf("couldn't link cgroup %s (selector: %s) with profile %s (check map size limit ?): %v", workload.CGroupContext.CGroupID, workload.Selector.String(), profile.Metadata.Name, err)
-			return
-		}
-		seclog.Infof("cgroup %s (selector: %s) successfully linked to profile %s", workload.CGroupContext.CGroupID, workload.Selector.String(), profile.Metadata.Name)
+	if err := m.securityProfileMap.Put(workload.GetWorkloadID(), profile.GetProfileCookie()); err != nil {
+		seclog.Errorf("couldn't link %s %s (selector: %s) with profile %s (check map size limit ?): %v", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name, err)
+		return
 	}
+	seclog.Infof("%s %s (selector: %s) successfully linked to profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
+
 }
 
 // linkProfile applies a profile to the provided workload
@@ -367,8 +327,7 @@ func (m *Manager) linkProfile(profile *profile.Profile, workload *tags.Workload)
 
 	// check if this instance of this workload is already tracked
 	for _, w := range profile.Instances {
-		if w.ContainerID == workload.ContainerID ||
-			(w.ContainerID == "" && workload.ContainerID == "" && w.CGroupContext.CGroupID == workload.CGroupContext.CGroupID) {
+		if w.GetWorkloadID() == workload.GetWorkloadID() {
 			// nothing to do, leave
 			return
 		}
@@ -389,16 +348,11 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 		return
 	}
 
-	if workload.ContainerID != "" {
-		if err := m.securityProfileMap.Delete([]byte(workload.ContainerID)); err != nil {
-			seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
+	if id := workload.GetWorkloadID(); id != nil {
+		if err := m.securityProfileMap.Delete(id); err != nil {
+			seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), id, workload.Selector.String(), profile.Metadata.Name, err)
 		}
-		seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name)
-	} else if workload.CGroupContext.CGroupID != "" {
-		if err := m.securityProfileMap.Delete([]byte(workload.CGroupContext.CGroupID)); err != nil {
-			seclog.Errorf("couldn't unlink cgroup %s (selector: %s) with profile %s: %v", workload.CGroupContext.CGroupID, workload.Selector.String(), profile.Metadata.Name, err)
-		}
-		seclog.Infof("cgroup %s (selector: %s) successfully unlinked from profile %s", workload.CGroupContext.CGroupID, workload.Selector.String(), profile.Metadata.Name)
+		seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), id, workload.Selector.String(), profile.Metadata.Name)
 	}
 }
 
@@ -409,8 +363,7 @@ func (m *Manager) unlinkProfile(profile *profile.Profile, workload *tags.Workloa
 
 	// remove the workload from the list of instances of the Security Profile
 	for key, val := range profile.Instances {
-		if workload.ContainerID == val.ContainerID ||
-			(workload.ContainerID == "" && workload.CGroupContext.CGroupID != "" && workload.CGroupContext.CGroupID == val.CGroupContext.CGroupID) {
+		if workload.GetWorkloadID() == val.GetWorkloadID() {
 			profile.Instances = append(profile.Instances[0:key], profile.Instances[key+1:]...)
 			break
 		}
