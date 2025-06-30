@@ -537,45 +537,34 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 }
 
 // initMapCleaner creates and assigns a MapCleaner for the given eBPF map.
-func (o *sslProgram) initMapCleaner(mapName string) error {
-	mapObj, _, err := o.ebpfManager.GetMap(mapName)
+func initMapCleaner[K, V interface{}](mgr *manager.Manager, mapName string) (*ddebpf.MapCleaner[K, V], error) {
+	mapObj, _, err := mgr.GetMap(mapName)
 	if err != nil {
-		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", mapName, err)
+		return nil, fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", mapName, err)
 	}
 
-	switch mapName {
-	case sslCtxByPIDTGIDMap:
-		cleaner, err := ddebpf.NewMapCleaner[uint64, uint64](mapObj, protocols.DefaultMapCleanerBatchSize, mapName, UsmTLSAttacherName)
-		if err != nil {
-			return fmt.Errorf("failed to create %s cleaner: %w", mapName, err)
-		}
-		o.sslCtxByPIDTGIDMapCleaner = cleaner
-	case sslSockByCtxMap:
-		cleaner, err := ddebpf.NewMapCleaner[uint64, http.SslSock](mapObj, protocols.DefaultMapCleanerBatchSize, mapName, UsmTLSAttacherName)
-		if err != nil {
-			return fmt.Errorf("failed to create %s cleaner: %w", mapName, err)
-		}
-		o.sslSockByCtxMapCleaner = cleaner
-	case sslCtxByTupleMap:
-		cleaner, err := ddebpf.NewMapCleaner[http.ConnTuple, uint64](mapObj, protocols.DefaultMapCleanerBatchSize, mapName, UsmTLSAttacherName)
-		if err != nil {
-			return fmt.Errorf("failed to create %s cleaner: %w", mapName, err)
-		}
-		o.sslCtxByTupleMapCleaner = cleaner
+	cleaner, err := ddebpf.NewMapCleaner[K, V](mapObj, protocols.DefaultMapCleanerBatchSize, mapName, UsmTLSAttacherName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s cleaner: %w", mapName, err)
 	}
-	return nil
+	return cleaner, nil
 }
 
 func (o *sslProgram) initAllMapCleaners() error {
-	if err := o.initMapCleaner(sslCtxByPIDTGIDMap); err != nil {
+	var err error
+
+	o.sslCtxByPIDTGIDMapCleaner, err = initMapCleaner[uint64, uint64](o.ebpfManager, sslCtxByPIDTGIDMap)
+	if err != nil {
 		return err
 	}
 
-	if err := o.initMapCleaner(sslSockByCtxMap); err != nil {
+	o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap)
+	if err != nil {
 		return err
 	}
 
-	if err := o.initMapCleaner(sslCtxByTupleMap); err != nil {
+	o.sslCtxByTupleMapCleaner, err = initMapCleaner[http.ConnTuple, uint64](o.ebpfManager, sslCtxByTupleMap)
+	if err != nil {
 		return err
 	}
 	return nil
