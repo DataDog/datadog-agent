@@ -36,6 +36,7 @@ var validProducts = map[string]struct{}{
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
+	ProductBTFDD:                        {},
 }
 
 const (
@@ -99,4 +100,6 @@ const (
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
+	// ProductBTFDD accesses a BTF catalog used when the kernel is newer than the system-probe has bundled support for
+	ProductBTFDD = "BTF_DD"
 )
