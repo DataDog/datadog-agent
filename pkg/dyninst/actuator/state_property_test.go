@@ -10,6 +10,7 @@ package actuator
 import (
 	"bytes"
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -21,8 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // TestStateMachineProperties tests the state machine properties using
@@ -211,18 +213,26 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			processID := ProcessID{PID: int32(pts.processIDCounter)}
 
 			numProbes := pts.rng.Intn(3) + 1 // 1-3 probes
-			var probes []config.Probe
+			var probes []irgen.ProbeDefinition
 			for j := 0; j < numProbes; j++ {
-				probes = append(probes, &config.LogProbe{
+				rcProbe := &rcjson.LogProbe{
 					ID: fmt.Sprintf(
 						"probe_%d_%d", pts.processIDCounter, j,
 					),
 					Version:  pts.rng.Intn(5) + 1,
-					Where:    &config.Where{MethodName: "main"},
+					Where:    &rcjson.Where{MethodName: "main"},
 					Tags:     []string{"test"},
 					Language: "go",
 					Template: "test log message",
-				})
+					Segments: []json.RawMessage{
+						json.RawMessage("test log message"),
+					},
+				}
+				probe, err := irgen.ProbeDefinitionFromRemoteConfig(rcProbe)
+				if err != nil {
+					panic(err)
+				}
+				probes = append(probes, probe)
 			}
 
 			updates = append(updates, ProcessUpdate{
@@ -243,18 +253,23 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 				// Generate different probes (different count and/or different
 				// versions/IDs).
 				numProbes := pts.rng.Intn(4) // 0-3 probes, 0 means removal
-				var probes []config.Probe
+				var probes []irgen.ProbeDefinition
 				for j := 0; j < numProbes; j++ {
-					probes = append(probes, &config.LogProbe{
+					rcProbe := &rcjson.LogProbe{
 						ID: fmt.Sprintf(
 							"probe_%d_%d_updated", processID.PID, j,
 						),
-						Version:  pts.rng.Intn(5) + 1,
-						Where:    &config.Where{MethodName: "main"},
-						Tags:     []string{"test", "updated"},
-						Language: "go",
-						Template: "updated test log message",
-					})
+						Version:         pts.rng.Intn(5) + 1,
+						Where:           &rcjson.Where{MethodName: "main"},
+						Tags:            []string{"test", "updated"},
+						Language:        "go",
+						CaptureSnapshot: true,
+					}
+					probe, err := irgen.ProbeDefinitionFromRemoteConfig(rcProbe)
+					if err != nil {
+						panic(err)
+					}
+					probes = append(probes, probe)
 				}
 
 				updates = append(updates, ProcessUpdate{

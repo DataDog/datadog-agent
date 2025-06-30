@@ -15,8 +15,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
@@ -175,18 +176,21 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		// Convert updated processes
 		var updated []ProcessUpdate
 		for _, proc := range eventData.Updated {
-			var probes []config.Probe
+			var probes []irgen.ProbeDefinition
 			for _, p := range proc.Probes {
-				// Convert string type to config.Type
 				probeJSON, err := json.Marshal(p)
 				if err != nil {
 					return fmt.Errorf("failed to marshal probe: %w", err)
 				}
-				probe, err := config.UnmarshalProbe(probeJSON)
+				rcProbe, err := rcjson.UnmarshalProbe(probeJSON)
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal probe: %w", err)
 				}
-				probes = append(probes, probe)
+				probeDef, err := irgen.ProbeDefinitionFromRemoteConfig(rcProbe)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal probe: %w", err)
+				}
+				probes = append(probes, probeDef)
 			}
 
 			updated = append(updated, ProcessUpdate{

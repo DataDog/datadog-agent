@@ -71,9 +71,9 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	throttlers := make([]Throttler, 0, len(program.Probes))
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
-			for _, injectionPC := range event.InjectionPCs {
+			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
-					injectionPC,
+					injectionPoint,
 					len(throttlers),
 					probe.PointerChasingLimit,
 					event.Type,
@@ -112,15 +112,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
 func (g *generator) addEventHandler(
-	injectionPC uint64,
+	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
 	pointerChasingLimit uint32,
 	rootType *ir.EventRootType,
 ) error {
 	id := ProcessEvent{
-		InjectionPC:         injectionPC,
+		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
 		PointerChasingLimit: pointerChasingLimit,
+		Frameless:           injectionPoint.Frameless,
 		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
@@ -128,7 +129,7 @@ func (g *generator) addEventHandler(
 		EventRootType: rootType,
 	})
 	for i := range rootType.Expressions {
-		exprFunctionID, err := g.addExpressionHandler(injectionPC, rootType, uint32(i))
+		exprFunctionID, err := g.addExpressionHandler(injectionPoint.PC, rootType, uint32(i))
 		if err != nil {
 			return err
 		}
@@ -327,6 +328,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.GoChannelType:
 		// TODO: support Go channels
 
+	case *ir.GoSubroutineType:
+		// TODO: support Go subroutines
+
 	// Map containers
 	case *ir.GoHMapHeaderType:
 	case *ir.GoHMapBucketType:
@@ -470,27 +474,33 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Variable has loclist entry for relevant PC range, but it is still unavailable.
 			break
 		}
-		for _, locPiece := range loclist.Pieces {
+		for _, piece := range loclist.Pieces {
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
-			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(locPiece.Size) {
+			for nextLayoutIdx < len(layoutPieces) && layoutPieces[nextLayoutIdx].PaddedOffset-paddedOffset < uint32(piece.Size) {
 				nextLayoutIdx++
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
 			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				if locPiece.InReg {
+				switch p := piece.Op.(type) {
+				case ir.Register:
+					if piece.Size > 8 {
+						return nil, fmt.Errorf("unsupported register size: %d", piece.Size)
+					}
 					ops = append(ops, ExprReadRegisterOp{
-						Register:     uint8(locPiece.Register),
-						Size:         uint8(locPiece.Size),
+						Register:     p.RegNo,
+						Size:         uint8(piece.Size),
 						OutputOffset: paddedOffset - op.Offset,
 					})
-				} else {
+				case ir.Cfa:
 					ops = append(ops, ExprDereferenceCfaOp{
-						Offset:       uint32(locPiece.StackOffset),
-						Len:          uint32(locPiece.Size),
+						Offset:       p.CfaOffset,
+						Len:          piece.Size,
 						OutputOffset: paddedOffset - op.Offset,
 					})
+				case ir.Addr:
+					return nil, fmt.Errorf("unsupported addr location op")
 				}
 			}
 		}

@@ -498,8 +498,8 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
-## @param collect_gpu_tags - boolean - optional - default: false
-## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: false
+## @param collect_gpu_tags - boolean - optional - default: true
+## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
 ## Collect GPU related host tags
 #
 # collect_gpu_tags: false
@@ -597,7 +597,6 @@ api_key:
 
 
 ## @param fips - custom object - optional
-## [BETA] Enter specific configurations for using the FIPS proxy.
 ## Uncomment this parameter and the one below to enable them.
 #
 # fips:
@@ -1064,6 +1063,12 @@ api_key:
   ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
+
+  ## @param close_timeout - integer - optional - default: 60
+  ## @env DD_LOGS_CONFIG_CLOSE_TIMEOUT - integer - optional - default: 60
+  ## The maximum number of seconds the Agent spends reading from a file after it has been rotated.
+  #
+  # close_timeout: 60
 
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
@@ -2595,6 +2600,13 @@ api_key:
 ## Specifies whether additional JMXFetch telemetry is enabled.
 #
 # jmx_telemetry_enabled: false
+
+## @param jmx_java_tool_options - string - optional
+## @env DD_JMX_JAVA_TOOL_OPTIONS - string - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
+#
+# jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
 
 {{ end -}}
 {{- if .Logging }}
@@ -4783,10 +4795,10 @@ api_key:
 ##
 ## Settings can be configured via environment variables or the application_monitoring.yaml file.
 ## Configuration precedence (highest to lowest priority):
-##   1. Fleet-managed config file 
+##   1. Fleet-managed config file
 ##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
 ##   2. Environment variables
-##   3. Local config file 
+##   3. Local config file
 ##      (etc/datadog-agent/application_monitoring.yaml)
 # apm_configuration_rules:
 

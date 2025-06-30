@@ -306,7 +306,9 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 		fmt.Sprintf("pid:%d", key.PID),
 	}
 
-	tags = append(tags, c.getContainerTags(key.ContainerID)...)
+	if key.ContainerID != "" {
+		tags = append(tags, c.getContainerTags(key.ContainerID)...)
+	}
 
 	return tags
 }
