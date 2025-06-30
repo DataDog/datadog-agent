@@ -26,7 +26,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -62,12 +61,15 @@ func TestDyninst(t *testing.T) {
 		for _, cfg := range cfgs {
 			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
 				if cfg.GOARCH != runtime.GOARCH {
-					t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
+					t.Skipf(
+						"cross-execution is not supported, running on %s",
+						runtime.GOARCH,
+					)
 				}
 				bin := testprogs.MustGetBinary(t, svc, cfg)
 
 				expectedOutput := getExpectedDecodedOutputOfProbes(t, svc)
-				probes := testprogs.MustGetProbeCfgs(t, svc)
+				probes := testprogs.MustGetProbeDefinitions(t, svc)
 				for i := range probes {
 					// Run each probe individually
 					t.Run(probes[i].GetID(), func(t *testing.T) {
@@ -79,7 +81,13 @@ func TestDyninst(t *testing.T) {
 	}
 }
 
-func testDyninst(t *testing.T, service string, sampleServicePath string, probes []config.Probe, expOut map[string]expectedOutput) {
+func testDyninst(
+	t *testing.T,
+	service string,
+	sampleServicePath string,
+	probes []ir.ProbeDefinition,
+	expOut map[string]string,
+) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
 	)
@@ -198,12 +206,6 @@ func testDyninst(t *testing.T, service string, sampleServicePath string, probes 
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
-		exp := expOut[probes[0].GetID()]
-		if exp.ExpectedToFail {
-			t.Skipf("expected output for probe %s to fail", probes[0].GetID())
-			break
-		}
-
 		event := msg.Event()
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
@@ -233,13 +235,11 @@ func testDyninst(t *testing.T, service string, sampleServicePath string, probes 
 		purged, err := json.Marshal(tmpMap)
 		assert.NoError(t, err)
 
-		outputToCompare := expOut[probes[0].GetID()].OutputJSON
+		outputToCompare := expOut[probes[0].GetID()]
 		assert.JSONEq(t, outputToCompare, string(purged))
 
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expOut[probes[0].GetID()] = expectedOutput{
-				OutputJSON: string(purged),
-			}
+			expOut[probes[0].GetID()] = string(purged)
 			saveActualOutputOfProbes(t, service, expOut)
 		}
 	}
@@ -271,27 +271,27 @@ type testReporter struct {
 
 // ReportAttachingFailed implements actuator.Reporter.
 func (r *testReporter) ReportAttachingFailed(
-	programID ir.ProgramID, processID actuator.ProcessID, err error,
+	processID actuator.ProcessID, program *ir.Program, err error,
 ) {
 	defer close(r.attached)
 	r.t.Fatalf(
-		"attaching failed for program %d to process %d: %v",
-		programID, processID, err,
+		"attaching failed for program %d to process %v: %v",
+		program.ID, processID, err,
 	)
 }
 
 // ReportCompilationFailed implements actuator.Reporter.
 func (r *testReporter) ReportCompilationFailed(
-	programID ir.ProgramID, err error,
+	programID ir.ProgramID, err error, _ []ir.ProbeDefinition,
 ) {
 	defer close(r.attached)
 	r.t.Fatalf("compilation failed for program %d: %v", programID, err)
 }
 
 // ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(programID ir.ProgramID, err error) {
+func (r *testReporter) ReportLoadingFailed(program *ir.Program, err error) {
 	defer close(r.attached)
-	r.t.Fatalf("loading failed for program %d: %v", programID, err)
+	r.t.Fatalf("loading failed for program %d: %v", program.ID, err)
 }
 
 func makeTestReporter(t *testing.T) *testReporter {
@@ -301,19 +301,14 @@ func makeTestReporter(t *testing.T) *testReporter {
 	}
 }
 
-func (r *testReporter) ReportAttached(actuator.ProcessID, []config.Probe) {
+func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
 	select {
 	case r.attached <- struct{}{}:
 	default:
 	}
 }
 
-func (r *testReporter) ReportDetached(actuator.ProcessID, []config.Probe) {}
-
-type expectedOutput struct {
-	OutputJSON     string `yaml:"OutputJSON"`
-	ExpectedToFail bool   `yaml:"ExpectedToFail"`
-}
+func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
 
 // clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
 func clearAddressFields(data map[string]any) {
@@ -341,8 +336,8 @@ func clearAddressFieldsRecursive(v any) {
 }
 
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
-func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expectedOutput {
-	expectedOutput := make(map[string]expectedOutput)
+func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
+	expectedOutput := make(map[string]string)
 	filename := "testdata/decoded/" + name + ".yaml"
 
 	yamlData, err := testdataFS.ReadFile(filename)
@@ -361,7 +356,7 @@ func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expe
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
 // Note: This function now saves to the current working directory since embedded files are read-only.
-func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]expectedOutput) {
+func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
 	// Create testdata/decoded directory if it doesn't exist
 	err := os.MkdirAll("testdata/decoded", 0755)
 	if err != nil {

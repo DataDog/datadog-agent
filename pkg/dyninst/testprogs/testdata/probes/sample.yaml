@@ -3,252 +3,315 @@ probes:
 - id: testSingleByte
   type: LOG_PROBE
   where:
-    method_name: main.testSingleByte
+    methodName: main.testSingleByte
+  captureSnapshot: true
 - id: testSingleRune
   type: LOG_PROBE
   where:
-    method_name: main.testSingleRune
+    methodName: main.testSingleRune
+  captureSnapshot: true
 - id: testSingleBool
   type: LOG_PROBE
   where:
-    method_name: main.testSingleBool
+    methodName: main.testSingleBool
+  captureSnapshot: true
 - id: testSingleInt
   type: LOG_PROBE
   where:
-    method_name: main.testSingleInt
+    methodName: main.testSingleInt
+  captureSnapshot: true
 - id: testSingleInt8
   type: LOG_PROBE
   where:
-    method_name: main.testSingleInt8
+    methodName: main.testSingleInt8
+  captureSnapshot: true
 - id: testSingleInt16
   type: LOG_PROBE
   where:
-    method_name: main.testSingleInt16
+    methodName: main.testSingleInt16
+  captureSnapshot: true
 - id: testSingleInt32
   type: LOG_PROBE
   where:
-    method_name: main.testSingleInt32
+    methodName: main.testSingleInt32
+  captureSnapshot: true
 - id: testSingleInt64
   type: LOG_PROBE
   where:
-    method_name: main.testSingleInt64
+    methodName: main.testSingleInt64
+  captureSnapshot: true
 - id: testSingleUint
   type: LOG_PROBE
   where:
-    method_name: main.testSingleUint
+    methodName: main.testSingleUint
+  captureSnapshot: true
 - id: testSingleUint8
   type: LOG_PROBE
   where:
-    method_name: main.testSingleUint8
+    methodName: main.testSingleUint8
+  captureSnapshot: true
 - id: testSingleUint16
   type: LOG_PROBE
   where:
-    method_name: main.testSingleUint16
+    methodName: main.testSingleUint16
+  captureSnapshot: true
 - id: testSingleUint32
   type: LOG_PROBE
   where:
-    method_name: main.testSingleUint32
+    methodName: main.testSingleUint32
+  captureSnapshot: true
 - id: testSingleUint64
   type: LOG_PROBE
   where:
-    method_name: main.testSingleUint64
+    methodName: main.testSingleUint64
+  captureSnapshot: true
 - id: testSingleFloat32
   type: LOG_PROBE
   where:
-    method_name: main.testSingleFloat32
+    methodName: main.testSingleFloat32
+  captureSnapshot: true
 - id: testSingleFloat64
   type: LOG_PROBE
   where:
-    method_name: main.testSingleFloat64
+    methodName: main.testSingleFloat64
+  captureSnapshot: true
 - id: testTypeAlias
   type: LOG_PROBE
   where:
-    method_name: main.testTypeAlias
+    methodName: main.testTypeAlias
+  captureSnapshot: true
 - id: testSingleString
   type: LOG_PROBE
   where:
-    method_name: main.testSingleString
+    methodName: main.testSingleString
+  captureSnapshot: true
 - id: testThreeStrings
   type: LOG_PROBE
   where:
-    method_name: main.testThreeStrings
+    methodName: main.testThreeStrings
+  captureSnapshot: true
 - id: testThreeStringsInStruct
   type: LOG_PROBE
   where:
-    method_name: main.testThreeStringsInStruct
+    methodName: main.testThreeStringsInStruct
+  captureSnapshot: true
 - id: testThreeStringsInStructPointer
   type: LOG_PROBE
   where:
-    method_name: main.testThreeStringsInStructPointer
+    methodName: main.testThreeStringsInStructPointer
+  captureSnapshot: true
 - id: testOneStringInStructPointer
   type: LOG_PROBE
   where:
-    method_name: main.testOneStringInStructPointer
+    methodName: main.testOneStringInStructPointer
+  captureSnapshot: true
 - id: testByteArray
   type: LOG_PROBE
   where:
-    method_name: main.testByteArray
+    methodName: main.testByteArray
+  captureSnapshot: true
 - id: testRuneArray
   type: LOG_PROBE
   where:
-    method_name: main.testRuneArray
+    methodName: main.testRuneArray
+  captureSnapshot: true
 - id: testStringArray
   type: LOG_PROBE
   where:
-    method_name: main.testStringArray
+    methodName: main.testStringArray
+  captureSnapshot: true
 - id: testBoolArray
   type: LOG_PROBE
   where:
-    method_name: main.testBoolArray
+    methodName: main.testBoolArray
+  captureSnapshot: true
 - id: testIntArray
   type: LOG_PROBE
   where:
-    method_name: main.testIntArray
+    methodName: main.testIntArray
+  captureSnapshot: true
 - id: testInt8Array
   type: LOG_PROBE
   where:
-    method_name: main.testInt8Array
+    methodName: main.testInt8Array
+  captureSnapshot: true
 - id: testInt16Array
   type: LOG_PROBE
   where:
-    method_name: main.testInt16Array
+    methodName: main.testInt16Array
+  captureSnapshot: true
 - id: testInt32Array
   type: LOG_PROBE
   where:
-    method_name: main.testInt32Array
+    methodName: main.testInt32Array
+  captureSnapshot: true
 - id: testInt64Array
   type: LOG_PROBE
   where:
-    method_name: main.testInt64Array
+    methodName: main.testInt64Array
+  captureSnapshot: true
 - id: testUintArray
   type: LOG_PROBE
   where:
-    method_name: main.testUintArray
+    methodName: main.testUintArray
+  captureSnapshot: true
 - id: testUint8Array
   type: LOG_PROBE
   where:
-    method_name: main.testUint8Array
+    methodName: main.testUint8Array
+  captureSnapshot: true
 - id: testUint16Array
   type: LOG_PROBE
   where:
-    method_name: main.testUint16Array
+    methodName: main.testUint16Array
+  captureSnapshot: true
 - id: testUint32Array
   type: LOG_PROBE
   where:
-    method_name: main.testUint32Array
+    methodName: main.testUint32Array
+  captureSnapshot: true
 - id: testUint64Array
   type: LOG_PROBE
   where:
-    method_name: main.testUint64Array
+    methodName: main.testUint64Array
+  captureSnapshot: true
 - id: testArrayOfArrays
   type: LOG_PROBE
   where:
-    method_name: main.testArrayOfArrays
+    methodName: main.testArrayOfArrays
+  captureSnapshot: true
 - id: testArrayOfStrings
   type: LOG_PROBE
   where:
-    method_name: main.testArrayOfStrings
+    methodName: main.testArrayOfStrings
+  captureSnapshot: true
 - id: testArrayOfArraysOfArrays
   type: LOG_PROBE
   where:
-    method_name: main.testArrayOfArraysOfArrays
-- id: testArrayOfStructs
-  type: LOG_PROBE
-  where:
-    method_name: main.testArrayOfStructs
+     methodName: main.testArrayOfArraysOfArrays
+  captureSnapshot: true
+# - id: testArrayOfStructs
+#   type: LOG_PROBE
+#   where:
+#     methodName: main.testArrayOfStructs
+#   captureSnapshot: true
 - id: testUintSlice
   type: LOG_PROBE
   where:
-    method_name: main.testUintSlice
+    methodName: main.testUintSlice
+  captureSnapshot: true
 - id: testEmptySlice
   type: LOG_PROBE
   where:
-    method_name: main.testEmptySlice
+    methodName: main.testEmptySlice
+  captureSnapshot: true
 - id: testSliceOfSlices
   type: LOG_PROBE
   where:
-    method_name: main.testSliceOfSlices
+    methodName: main.testSliceOfSlices
+  captureSnapshot: true
 - id: testStructSlice
   type: LOG_PROBE
   where:
-    method_name: main.testStructSlice
+    methodName: main.testStructSlice
+  captureSnapshot: true
 - id: testEmptySliceOfStructs
   type: LOG_PROBE
   where:
-    method_name: main.testEmptySliceOfStructs
+    methodName: main.testEmptySliceOfStructs
+  captureSnapshot: true
 - id: testNilSliceOfStructs
   type: LOG_PROBE
   where:
-    method_name: main.testNilSliceOfStructs
+    methodName: main.testNilSliceOfStructs
+  captureSnapshot: true
 - id: testStringSlice
   type: LOG_PROBE
   where:
-    method_name: main.testStringSlice
+    methodName: main.testStringSlice
+  captureSnapshot: true
 - id: testNilSliceWithOtherParams
   type: LOG_PROBE
   where:
-    method_name: main.testNilSliceWithOtherParams
+    methodName: main.testNilSliceWithOtherParams
+  captureSnapshot: true
 - id: testNilSlice
   type: LOG_PROBE
   where:
-    method_name: main.testNilSlice
+    methodName: main.testNilSlice
+  captureSnapshot: true
 - id: testStruct
   type: LOG_PROBE
   where:
-    method_name: main.testStruct
+    methodName: main.testStruct
+  captureSnapshot: true
 - id: testEmptyStruct
   type: LOG_PROBE
   where:
-    method_name: main.testEmptyStruct
+    methodName: main.testEmptyStruct
+  captureSnapshot: true
 - id: testUintPointer
   type: LOG_PROBE
   where:
-    method_name: main.testUintPointer
+    methodName: main.testUintPointer
+  captureSnapshot: true
 - id: testStringPointer
   type: LOG_PROBE
   where:
-    method_name: main.testStringPointer
+    methodName: main.testStringPointer
+  captureSnapshot: true
 - id: testNilPointer
   type: LOG_PROBE
   where:
-    method_name: main.testNilPointer
+    methodName: main.testNilPointer
+  captureSnapshot: true
 - id: testCombinedByte
   type: LOG_PROBE
   where:
-    method_name: main.testCombinedByte
+    methodName: main.testCombinedByte
+  captureSnapshot: true
 - id: testMultipleSimpleParams
   type: LOG_PROBE
   where:
-    method_name: main.testMultipleSimpleParams
+    methodName: main.testMultipleSimpleParams
+  captureSnapshot: true
 - id: testMapStringToInt
   type: LOG_PROBE
   where:
-    method_name: main.testMapStringToInt
+    methodName: main.testMapStringToInt
+  captureSnapshot: true
 - id: testInterface
   type: LOG_PROBE
   where:
-    method_name: main.testInterface
+    methodName: main.testInterface
+  captureSnapshot: true
 - id: testError
   type: LOG_PROBE
   where:
-    method_name: main.testError
+    methodName: main.testError
+  captureSnapshot: true
 - id: testBigStruct
   type: LOG_PROBE
   where:
-    method_name: main.testBigStruct
+    methodName: main.testBigStruct
+  captureSnapshot: true
 - id: stackC
   type: LOG_PROBE
   where:
-    method_name: main.stackC
+    methodName: main.stackC
+  captureSnapshot: true
 - id: testChannel
   type: LOG_PROBE
   where:
-    method_name: main.testChannel
+    methodName: main.testChannel
+  captureSnapshot: true
 - id: testLinkedList
   type: LOG_PROBE
   where:
-    method_name: main.testLinkedList
+    methodName: main.testLinkedList
+  captureSnapshot: true
 - id: testPointerLoop
   type: LOG_PROBE
   where:
-    method_name: main.testPointerLoop
+    methodName: main.testPointerLoop
+  captureSnapshot: true

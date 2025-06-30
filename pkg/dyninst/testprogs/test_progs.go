@@ -80,7 +80,7 @@ func GetPrograms() ([]string, error) {
 }
 
 // GetBinary returns the path to the binary for the given name and
-// configuration.  If the binary is not found, it will be compiled if the source
+// configuration. If the binary is not found, it will be compiled if the source
 // code is available.
 func GetBinary(name string, cfg Config) (string, error) {
 	state, err := getState()

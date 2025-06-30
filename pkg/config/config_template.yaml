@@ -597,7 +597,6 @@ api_key:
 
 
 ## @param fips - custom object - optional
-## [BETA] Enter specific configurations for using the FIPS proxy.
 ## Uncomment this parameter and the one below to enable them.
 #
 # fips:
@@ -2601,6 +2600,13 @@ api_key:
 ## Specifies whether additional JMXFetch telemetry is enabled.
 #
 # jmx_telemetry_enabled: false
+
+## @param jmx_java_tool_options - string - optional
+## @env DD_JMX_JAVA_TOOL_OPTIONS - string - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
+#
+# jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
 
 {{ end -}}
 {{- if .Logging }}
