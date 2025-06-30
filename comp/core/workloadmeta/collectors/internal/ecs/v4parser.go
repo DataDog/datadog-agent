@@ -85,10 +85,11 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 	}
 
 	var taskWithTags *v3or4.Task
+	var err error
 	if len(rt.tags) > 0 || len(rt.containerInstanceTags) > 0 {
 		// Found task in the cache
 		// use the cached tags
-		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTask(ctx)
+		taskWithTags, err = c.metaV3or4(metaURI, "v4").GetTask(ctx)
 		if err != nil {
 			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -102,7 +103,7 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
 	} else {
 		// No tags in the cache, fetch from metadata v4 API
-		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
+		taskWithTags, err = c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
 		if err != nil {
 			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
 			if errors.Is(err, context.DeadlineExceeded) {
