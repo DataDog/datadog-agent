@@ -27,11 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
-	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
-	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -135,32 +131,8 @@ func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) erro
 	return nil
 }
 
-func getVPCSubnetsForHost() ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	subnets, err := network.GetVPCSubnetsForHost(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var buffer bytes.Buffer
-	for _, subnet := range subnets {
-		buffer.WriteString(subnet.String() + "\n")
-	}
-	return buffer.Bytes(), nil
-}
-
 func provideSystemProbe(fb flaretypes.FlareBuilder) error {
-	addSystemProbePlatformSpecificEntries(fb)
-
-	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		_ = fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
-		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry)
-		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", getSystemProbeConfig)
-		_ = fb.AddFileFromFunc(filepath.Join("system-probe", "vpc_subnets.log"), getVPCSubnetsForHost)
-	} else {
-		// If system probe is disabled, we still want to include the system probe config file
+	if !pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
 		_ = fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.SystemProbe().AllSettings()) })
 	}
 	return nil
@@ -190,30 +162,6 @@ func getVersionHistory(fb flaretypes.FlareBuilder) error {
 func getRegistryJSON(fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("logs_config.run_path"), "registry.json")) //nolint:errcheck
 	return nil
-}
-
-func getSystemProbeStats() ([]byte, error) {
-	// TODO: (components) - Temporary until we can use the status component to extract the system probe status from it.
-	stats := map[string]interface{}{}
-	systemprobeStatus.GetStatus(stats, priviledged.GetSystemProbeSocketPath())
-	sysProbeBuf, err := yaml.Marshal(stats["systemProbeStats"])
-	if err != nil {
-		return nil, err
-	}
-
-	return sysProbeBuf, nil
-}
-
-func getSystemProbeTelemetry() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.URL("/telemetry")
-	return getHTTPData(sysProbeClient, url)
-}
-
-func getSystemProbeConfig() ([]byte, error) {
-	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.URL("/config")
-	return getHTTPData(sysProbeClient, url)
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
@@ -391,27 +339,4 @@ func functionOutputToBytes(fct func(writer io.Writer) error) []byte {
 	writer.Flush()
 
 	return buffer.Bytes()
-}
-
-func getHTTPData(client *http.Client, url string) ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("non-ok status code: url: %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(data))
-	}
-	return data, nil
 }

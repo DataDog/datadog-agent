@@ -7,16 +7,21 @@
 package run
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
+	"path/filepath"
 	"syscall"
 	"time"
+
+	"gopkg.in/yaml.v2"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -38,6 +43,8 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -62,9 +69,12 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -150,6 +160,49 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				remotehostnameimpl.Module(),
+				remoteagentfx.Module(remoteagent.Params{
+					ID:          "system-probe",
+					DisplayName: "System Probe",
+					AuthToken:   "hello-world",
+					FlareCallback: func() map[string][]byte {
+						// TODO:  not supported
+						// systemProbeConfigBPFDir := pkgconfigsetup.SystemProbe().GetString("system_probe_config.bpf_dir")
+						// if systemProbeConfigBPFDir != "" {
+						// 	fb.RegisterDirPerm(systemProbeConfigBPFDir)
+						// }
+
+						// sysprobeSocketLocation := priviledged.GetSystemProbeSocketPath()
+						// if sysprobeSocketLocation != "" {
+						// 	fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
+						// }
+
+						flareFiles := map[string][]byte{
+							filepath.Join("expvar", "system-probe"):                     bytesOrError(getSystemProbeStats()),
+							filepath.Join("system-probe", "system_probe_telemetry.log"): bytesOrError(getSystemProbeTelemetry()),
+							"system_probe_runtime_config_dump.yaml":                     bytesOrError(getSystemProbeConfig()),
+							filepath.Join("system-probe", "vpc_subnets.log"):            bytesOrError(getVPCSubnetsForHost()),
+							filepath.Join("system-probe", "conntrack_cached.log"):       bytesOrError(getSystemProbeConntrackCached()),
+							filepath.Join("system-probe", "conntrack_host.log"):         bytesOrError(getSystemProbeConntrackHost()),
+							filepath.Join("system-probe", "ebpf_btf_loader.log"):        bytesOrError(getSystemProbeBTFLoaderInfo()),
+							filepath.Join("system-probe", "dmesg.log"):                  bytesOrError(GetLinuxDmesg()),
+							filepath.Join("system-probe", "selinux_sestatus.log"):       bytesOrError(getSystemProbeSelinuxSestatus()),
+							filepath.Join("system-probe", "selinux_semodule_list.log"):  bytesOrError(getSystemProbeSelinuxSemoduleList()),
+						}
+
+						if pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
+							flareFiles[filepath.Join("system-probe", "discovery.log")] = bytesOrError(getSystemProbeDiscoveryState())
+						}
+
+						return flareFiles
+					},
+					StatusCallback: func() map[string]string {
+						// TODO
+						return map[string]string{}
+					},
+					TelemetryCallback: func() string {
+						return ""
+					},
+				}),
 			)
 		},
 	}
@@ -455,4 +508,116 @@ func logUserAndGroupID(log log.Component) {
 	} else {
 		log.Warnf("unable to resolve group: %s", err)
 	}
+}
+
+func bytesOrError(data []byte, err error) []byte {
+	if err != nil {
+		return []byte(fmt.Sprintf("error: %v", err))
+	}
+	return data
+}
+
+func getSystemProbeStats() ([]byte, error) {
+	// TODO: (components) - Temporary until we can use the status component to extract the system probe status from it.
+	stats := map[string]interface{}{}
+	systemprobeStatus.GetStatus(stats, pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	sysProbeBuf, err := yaml.Marshal(stats["systemProbeStats"])
+	if err != nil {
+		return nil, err
+	}
+
+	return sysProbeBuf, nil
+}
+
+func getSystemProbeTelemetry() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.URL("/telemetry")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeConfig() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.URL("/config")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getHTTPData(client *http.Client, url string) ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("non-ok status code: url: %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(data))
+	}
+	return data, nil
+}
+
+func getVPCSubnetsForHost() ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	subnets, err := network.GetVPCSubnetsForHost(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	for _, subnet := range subnets {
+		buffer.WriteString(subnet.String() + "\n")
+	}
+	return buffer.Bytes(), nil
+}
+
+func getSystemProbeConntrackCached() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.ModuleURL(systemprobeconfig.NetworkTracerModule, "/debug/conntrack/cached")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeConntrackHost() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.ModuleURL(systemprobeconfig.NetworkTracerModule, "/debug/conntrack/host")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeBTFLoaderInfo() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.DebugURL("/ebpf_btf_loader_info")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeSelinuxSestatus() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.DebugURL("/selinux_sestatus")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeSelinuxSemoduleList() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.DebugURL("/selinux_semodule_list")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func getSystemProbeDiscoveryState() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.ModuleURL(systemprobeconfig.DiscoveryModule, "/state")
+	return getHTTPData(sysProbeClient, url)
+}
+
+func GetLinuxDmesg() ([]byte, error) {
+	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	url := sysprobeclient.DebugURL("/dmesg")
+	return getHTTPData(sysProbeClient, url)
 }
