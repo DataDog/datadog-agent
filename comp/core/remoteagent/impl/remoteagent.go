@@ -45,6 +45,7 @@ type remoteAgent struct {
 	params remoteagent.Params
 	client pbcore.AgentSecureClient
 	ipc    ipc.Component
+	config config.Component
 }
 
 func newRemoteAgent(params remoteagent.Params, config config.Component, ipc ipc.Component) (*remoteAgent, error) {
@@ -68,6 +69,7 @@ func newRemoteAgent(params remoteagent.Params, config config.Component, ipc ipc.
 		params: params,
 		client: pbcore.NewAgentSecureClient(conn),
 		ipc:    ipc,
+		config: config,
 	}, nil
 }
 
@@ -109,11 +111,15 @@ func newRemoteAgentServer(params remoteagent.Params) *remoteAgentServer {
 	}
 }
 
-func (r *remoteAgent) buildAndSpawnGrpcServer(server pbcore.RemoteAgentServer) {
-	// Make sure we can listen on the intended address.
-	listener, err := net.Listen("tcp", r.params.Endpoint)
+func (r *remoteAgent) buildAndSpawnGrpcServer(server pbcore.RemoteAgentServer) (string, error) {
+	address, err := pkgconfigsetup.GetIPCAddress(r.config)
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		return "", err
+	}
+	// Binding to a random port
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", address))
+	if err != nil {
+		return "", err
 	}
 
 	serverOpts := []grpc.ServerOption{
@@ -125,15 +131,15 @@ func (r *remoteAgent) buildAndSpawnGrpcServer(server pbcore.RemoteAgentServer) {
 	pbcore.RegisterRemoteAgentServer(grpcServer, server)
 
 	go func() {
-		log.Printf("Starting remote agent gRPC server on %s", r.params.Endpoint)
+		log.Printf("Starting remote agent gRPC server on %s", listener.Addr().String())
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 	}()
+	return listener.Addr().String(), nil
 }
 
-func (r *remoteAgent) start(ctx context.Context) {
-	r.buildAndSpawnGrpcServer(newRemoteAgentServer(r.params))
+func (r *remoteAgent) start(ctx context.Context, addr string) {
 	// TODO find a better initial time
 	ticker := time.NewTicker(5 * time.Second)
 	for {
@@ -148,7 +154,7 @@ func (r *remoteAgent) start(ctx context.Context) {
 			registerReq := &pbcore.RegisterRemoteAgentRequest{
 				Id:          r.params.ID,
 				DisplayName: r.params.DisplayName,
-				ApiEndpoint: r.params.Endpoint,
+				ApiEndpoint: addr,
 				AuthToken:   r.params.AuthToken,
 			}
 
@@ -177,7 +183,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(ctx context.Context) error {
-			remoteAgent.start(ctx)
+			addr, err := remoteAgent.buildAndSpawnGrpcServer(newRemoteAgentServer(remoteAgent.params))
+			if err != nil {
+				return err
+			}
+
+			go remoteAgent.start(ctx, addr)
+
 			return nil
 		},
 

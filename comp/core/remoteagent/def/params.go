@@ -12,7 +12,6 @@ package remoteagent
 type Params struct {
 	ID                string
 	DisplayName       string
-	Endpoint          string
 	AuthToken         string
 	StatusCallback    func() map[string]string
 	FlareCallback     func() map[string][]byte
