@@ -22,6 +22,7 @@ def update(
     Update local files to use a new version of dedicated images from agent-buildimages
     Use --no-test to commit without the _test_only suffixes
     Use --list-images to list all available images
+    Use --windows to update windows images
     """
     generate_windows_images = 'win' in images.casefold() or windows
     if list_images:
