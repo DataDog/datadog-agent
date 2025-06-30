@@ -30,7 +30,6 @@ except ImportError:
     msilib = None
 
 # constants
-OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
 AGENT_TAG = "datadog/agent:master"
 SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentInstaller")
 BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
@@ -335,13 +334,17 @@ def build(
             'AgentCustomActions.CA.dll',
         )
 
+    output_path = os.path.join(os.getcwd(), "omnibus", "pkg")
+    if 'CI_PIPELINE_ID' in os.environ:
+        output_path = os.path.join(output_path, f'pipeline-{os.environ["CI_PIPELINE_ID"]}')
+
     # Run WiX to turn the WXS into an MSI
     with timed("Building MSI"):
         msi_name = _msi_output_name(env)
         _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
 
         # And copy it to the final output path as a build artifact
-        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
+        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), output_path)
 
     # Build the optional upgrade test helper
     if build_upgrade:
@@ -361,7 +364,7 @@ def build(
         print(os.path.join(build_outdir, msi_name + ".wxs"))
         with timed("Building optional MSI"):
             _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
-            shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
+            shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), output_path)
 
 
 @task
@@ -400,7 +403,10 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
         _build_msi(ctx, env, build_outdir, msi_name, DATADOG_INSTALLER_MSI_ALLOW_LIST)
 
         # And copy it to the final output path as a build artifact
-        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
+        output_path = os.path.join(os.getcwd(), "omnibus", "pkg")
+        if 'CI_PIPELINE_ID' in os.environ:
+            output_path = os.path.join(output_path, f'pipeline-{os.environ["CI_PIPELINE_ID"]}')
+        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), output_path)
 
 
 @task
