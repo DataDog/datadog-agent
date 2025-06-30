@@ -9,10 +9,15 @@ from tasks.msi import build as build_agent_msi
 from tasks.msi import build_installer as build_installer_msi
 from tasks.omnibus import build as omnibus_build
 
-# Output directory for package files
-OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
 # Omnibus stores files here, e.g. C:\opt\datadog-agent, C:\opt\dataog-installer
 OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
+
+
+def _get_output_path():
+    output_path = os.path.join(os.getcwd(), "omnibus", "pkg")
+    if 'CI_PIPELINE_ID' in os.environ:
+        output_path = os.path.join(output_path, f'pipeline-{os.environ["CI_PIPELINE_ID"]}')
+    return output_path
 
 
 @task
@@ -40,8 +45,11 @@ def agent_package(
     build_agent_msi(ctx, build_upgrade=build_upgrade)
 
     # Package MSI into OCI
+    output_path = _get_output_path()
     if AgentFlavor[flavor] == AgentFlavor.base:
-        ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent"')
+        ctx.run(
+            f'powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-agent -omnibusOutput {output_path}"'
+        )
 
 
 @task
@@ -59,8 +67,12 @@ def installer_package(
     # Package Insaller into MSI
     build_installer_msi(ctx)
 
+    output_path = _get_output_path()
+
     # Package MSI into OCI
-    ctx.run('powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-installer"')
+    ctx.run(
+        f'powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 -package datadog-installer -omnibusOutput {output_path}"'
+    )
 
     # Copy installer.exe to the output dir so it can be deployed as the bootstrapper
     agent_version = get_version(
@@ -71,5 +83,5 @@ def installer_package(
     )
     shutil.copy2(
         os.path.join(OPT_SOURCE_DIR, "datadog-installer\\datadog-installer.exe"),
-        os.path.join(OUTPUT_PATH, f"datadog-installer-{agent_version}-1-x86_64.exe"),
+        os.path.join(output_path, f"datadog-installer-{agent_version}-1-x86_64.exe"),
     )

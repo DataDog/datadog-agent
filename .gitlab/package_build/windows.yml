@@ -41,14 +41,14 @@
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - get-childitem omnibus\pkg
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
   after_script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
 
 .windows_main_agent_base:
   extends: .windows_msi_base
@@ -117,9 +117,9 @@ windows_zip_agent_binaries_x64-a7:
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - get-childitem omnibus\pkg
+    - get-childitem omnibus\pkg\pipeline-$CI_PIPELINE_ID
     - !reference [.upload_sbom_artifacts_windows]
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
