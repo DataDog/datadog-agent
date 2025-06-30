@@ -15,5 +15,6 @@ BPF_HASH_MAP(open_at_args, __u64, lib_path_t, 10240)
  */
 BPF_PERF_EVENT_ARRAY_MAP(crypto_shared_libraries, __u32)
 BPF_PERF_EVENT_ARRAY_MAP(gpu_shared_libraries, __u32)
+BPF_PERF_EVENT_ARRAY_MAP(libc_shared_libraries, __u32)
 
 #endif
