@@ -331,7 +331,7 @@ dda inv -e kmt.init --remote-setup-only
 
 The `--images` parameter is required unless `--remote-setup-only` or `--all-images` is specified, or you explicitly confirm the interactive prompt. Use `kmt.ls` to see available images.
 
-This command will also guide you through the [default SSH key configuration](#kmtconfig-ssh-key). You can use the `--skip-ssh-setup` flag to bypass this interactive wizard. If you skip it, you will need to provide an SSH key manually using the `--ssh-key` flag for commands that interact with remote VMs.
+This command will also guide you through the [default SSH key configuration](#kmtconfig-ssh-key). You can use the `--skip-ssh-setup` flag to bypass this interactive wizard. If you skip it, the preferred approach is to use the `kmt.config-ssh-key` task to set up the default SSH key later. Alternatively, you can use the `--ssh-key` flag to provide an SSH key manually for commands that interact with remote VMs.
 
 ### `kmt.update-resources`
 
