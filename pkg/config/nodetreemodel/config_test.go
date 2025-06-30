@@ -17,9 +17,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Test that a setting with a map value is seen as a leaf by the nodetreemodel config
@@ -917,7 +918,7 @@ func TestOnUpdate(t *testing.T) {
 
 	gotSetting := ""
 	var gotOldValue, gotNewValue interface{}
-	cfg.OnUpdate(func(setting string, oldValue, newValue any) {
+	cfg.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
 		gotSetting = setting
 		gotOldValue = oldValue
 		gotNewValue = newValue

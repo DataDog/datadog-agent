@@ -41,6 +41,7 @@ type safeConfig struct {
 	envKeyReplacer *strings.Replacer
 
 	notificationReceivers []model.NotificationReceiver
+	sequenceIDs           map[string]uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -82,7 +83,6 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []model.NotificationReceiver
 	c.Lock()
-
 	oldValue := c.Viper.Get(key)
 
 	// First we check if the layer changed
@@ -107,12 +107,14 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
 	}
+	// Increment the sequence ID for the key
+	c.sequenceIDs[key]++
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, oldValue, latestValue)
+		receiver(key, oldValue, latestValue, c.sequenceIDs[key])
 	}
 }
 
@@ -146,7 +148,7 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
+		receiver(key, previousValue, newValue, c.sequenceIDs[key])
 	}
 }
 
@@ -798,6 +800,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 	config := safeConfig{
 		Viper:         viper.New(),
 		configSources: map[model.Source]*viper.Viper{},
+		sequenceIDs:   map[string]uint64{},
 		configEnvVars: map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
 	}
