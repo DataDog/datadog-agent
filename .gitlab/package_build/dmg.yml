@@ -25,7 +25,7 @@
 
 .agent_dmg:
   stage: package_build
-  needs: ["go_mod_tidy_check"]
+  needs: ["go_deps"]
   rules:
      - !reference [.on_macos_gui_change]
      - !reference [.on_packaging_change]

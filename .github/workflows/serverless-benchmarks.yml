@@ -2,6 +2,8 @@ name: "Serverless Benchmarks"
 
 on:
   pull_request:
+    branches-ignore:
+      - '*'
     paths:
       - 'cmd/serverless/**'
       - 'pkg/serverless/**'
