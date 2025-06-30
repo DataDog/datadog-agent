@@ -52,8 +52,8 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 				jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadata{
 					"init_config":     string(initConfigYaml),
 					"instance":        string(instanceYaml),
-					"config_provider": "file",
-					"config_hash":     configHash,
+					"config.provider": "file",
+					"config.hash":     configHash,
 				})
 			}
 		}
