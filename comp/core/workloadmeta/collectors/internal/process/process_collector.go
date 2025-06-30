@@ -487,25 +487,24 @@ func cleanPidMaps[T any](alivePids core.PidSet, maps ...map[int32]T) {
 	}
 }
 
-// findDeletedProcesses finds processes that exist in the store but are no longer alive.
-// Only performs cleanup when process collection is disabled (service-only mode).
-func (c *collector) findDeletedProcesses(alivePids core.PidSet) []*workloadmeta.Process {
-	storedProcesses := c.store.ListProcesses()
-	var deletedProcesses []*workloadmeta.Process
+// findDeletedProcesses finds deleted processes by comparing current processes with the last collected cache.
+// Returns workloadmeta entities for deleted processes.
+// Used by both collectProcesses and collectServicesNoCache for consistency.
+func (c *collector) findDeletedProcesses(currentProcs map[int32]*procutil.Process) []*workloadmeta.Process {
+	c.mux.RLock()
+	lastProcs := c.lastCollectedProcesses
+	c.mux.RUnlock()
 
-	for _, storedProcess := range storedProcesses {
-		pid := storedProcess.Pid
-		if !alivePids.Has(pid) {
-			deletedProcesses = append(deletedProcesses, &workloadmeta.Process{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindProcess,
-					ID:   strconv.Itoa(int(pid)),
-				},
-			})
-		}
-	}
+	deletedProcs := processCacheDifference(lastProcs, currentProcs)
+	return deletedProcessesToWorkloadmetaProcesses(deletedProcs)
+}
 
-	return deletedProcesses
+// cleanDiscoveryMaps cleans up stale PID mappings for service discovery.
+// Used by both service collection methods to maintain clean state.
+func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
+	cleanPidMaps(alivePids, c.ignoredPids)
+	cleanPidMaps(alivePids, c.serviceRetries)
+	cleanPidMaps(alivePids, c.pidHeartbeats)
 }
 
 // getDiscoveryURL builds the URL for the discovery endpoint
@@ -555,8 +554,7 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 			languages := c.detectLanguages(createdProcs)
 			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
 
-			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			wlmDeletedProcs := deletedProcessesToWorkloadmetaProcesses(deletedProcs)
+			wlmDeletedProcs := c.findDeletedProcesses(procs)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
@@ -593,7 +591,7 @@ func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker
 			}
 
 			wlmServiceEntities := c.updateServicesNoCache(alivePids, procs)
-			deletedProcesses := c.findDeletedProcesses(alivePids)
+			deletedProcesses := c.findDeletedProcesses(procs)
 
 			if len(wlmServiceEntities) > 0 || len(deletedProcesses) > 0 {
 				c.processEventsCh <- &Event{
@@ -603,9 +601,11 @@ func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker
 				}
 			}
 
-			cleanPidMaps(alivePids, c.ignoredPids)
-			cleanPidMaps(alivePids, c.serviceRetries)
-			cleanPidMaps(alivePids, c.pidHeartbeats)
+			c.mux.Lock()
+			c.lastCollectedProcesses = procs
+			c.mux.Unlock()
+
+			c.cleanDiscoveryMaps(alivePids)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
@@ -639,9 +639,7 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				}
 			}
 
-			cleanPidMaps(alivePids, c.ignoredPids)
-			cleanPidMaps(alivePids, c.serviceRetries)
-			cleanPidMaps(alivePids, c.pidHeartbeats)
+			c.cleanDiscoveryMaps(alivePids)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
