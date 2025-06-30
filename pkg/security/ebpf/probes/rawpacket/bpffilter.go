@@ -10,6 +10,7 @@ package rawpacket
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 type TCAct int
@@ -66,7 +67,9 @@ func (p *Policy) Parse(str string) {
 
 // Filter defines a raw packet filter
 type Filter struct {
-	RuleID    eval.RuleID
-	BPFFilter string
-	Policy    Policy
+	RuleID        eval.RuleID
+	BPFFilter     string
+	Policy        Policy
+	Pid           uint32
+	CGroupPathKey model.PathKey
 }
