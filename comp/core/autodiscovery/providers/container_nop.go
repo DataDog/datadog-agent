@@ -11,4 +11,4 @@ import "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-var NewContainerConfigProvider types.ConfigProvider
+var NewContainerConfigProvider types.ConfigProviderFactory
