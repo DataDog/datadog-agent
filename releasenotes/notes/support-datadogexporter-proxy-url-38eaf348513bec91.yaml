@@ -1,3 +1,3 @@
 features:
   - |
-    Added support for the `datadogexporter.proxy_url` configuration option. This allows users to route traffic from the OpenTelemetry Collector's Datadog exporter through a proxy server.
+    Added support in DDOT for the `datadogexporter.proxy_url` configuration option. This allows users to specify proxy settings for DDOT with the collector configuration.
