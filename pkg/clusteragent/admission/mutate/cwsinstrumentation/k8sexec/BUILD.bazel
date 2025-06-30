@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/cws-instrumentation/subcommands/healthcmd",
+        "//pkg/clusteragent/admission/metrics",
         "//pkg/util/kubernetes/apiserver",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/runtime/schema",

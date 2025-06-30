@@ -79,7 +79,7 @@ func (s *BaseSuite) SetInstaller(impl DatadogInstallerRunner) {
 // so that it could be shared by multiple suites, but for now it exists only
 // on the Windows Datadog installer `BaseSuite` object.
 func (s *BaseSuite) Require() *suiteasserts.SuiteAssertions {
-	return suiteasserts.New(s.BaseSuite.Require(), s)
+	return suiteasserts.New(s, s.BaseSuite.Require())
 }
 
 // CurrentAgentVersion the version of the Agent in the current pipeline

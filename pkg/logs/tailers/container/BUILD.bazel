@@ -54,6 +54,7 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/tagger/types",
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/internal/framer",
         "//pkg/logs/internal/parsers/dockerstream",
@@ -76,6 +77,7 @@ go_test(
     embed = [":container"],
     deps = [
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/internal/tag",
         "//pkg/logs/message",

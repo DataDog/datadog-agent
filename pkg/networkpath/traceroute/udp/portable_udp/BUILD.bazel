@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "portable_udp_lib",
+    srcs = ["portable_udp.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/portable_udp",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/networkpath/traceroute/udp",
+        "//pkg/util/log/setup",
+    ],
+)
+
+go_binary(
+    name = "portable_udp",
+    embed = [":portable_udp_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//comp/logs/auditor/def",
             "//pkg/logs/internal/decoder",
             "//pkg/logs/message",
             "//pkg/logs/processor",
@@ -32,6 +33,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/logs/message",
             "//pkg/logs/sources",
             "//pkg/util/log",

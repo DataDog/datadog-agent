@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_test(
+    name = "check_disk_test",
+    srcs = [
+        "disk_common_test.go",
+        "disk_nix_test.go",
+        "disk_win_test.go",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/testcommon/check",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_library(
+    name = "disk",
+    srcs = ["common.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/disk",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/provisioners/aws/host",
+        "//test/new-e2e/pkg/testcommon/check",
+        "//test/new-e2e/tests/agent-runtimes/checks/common",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "disk_test",
+    srcs = [
+        "disk_nix_test.go",
+        "disk_win_test.go",
+    ],
+    embed = [":disk"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "@com_github_datadog_test_infra_definitions//components/os",
+    ],
+)

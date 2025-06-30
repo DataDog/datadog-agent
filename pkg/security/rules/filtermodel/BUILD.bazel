@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/ipc/def",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/utils/hostnameutils",
     ] + select({

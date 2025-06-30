@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "portable_icmp_lib",
+    srcs = ["portable_icmp.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp/portable_icmp",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/networkpath/traceroute/common",
+        "//pkg/networkpath/traceroute/icmp",
+        "//pkg/util/log/setup",
+    ],
+)
+
+go_binary(
+    name = "portable_icmp",
+    embed = [":portable_icmp_lib"],
+    visibility = ["//visibility:public"],
+)

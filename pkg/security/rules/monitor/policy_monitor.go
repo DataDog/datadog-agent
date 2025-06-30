@@ -36,13 +36,6 @@ const (
 	policyMetricRate = 30 * time.Second
 )
 
-// policy describes policy related information
-type policy struct {
-	name    string
-	source  string
-	version string
-}
-
 // ruleStatus defines status of rules
 type ruleStatus = map[eval.RuleID]string
 
@@ -51,7 +44,7 @@ type PolicyMonitor struct {
 	sync.RWMutex
 
 	statsdClient         statsd.ClientInterface
-	policies             []*policy
+	policies             []*PolicyState
 	rules                ruleStatus
 	perRuleMetricEnabled bool
 }
@@ -61,24 +54,20 @@ func (pm *PolicyMonitor) SetPolicies(policies []*PolicyState) {
 	pm.Lock()
 	defer pm.Unlock()
 
-	pm.policies = make([]*policy, 0, len(policies))
 	if pm.perRuleMetricEnabled {
 		pm.rules = make(ruleStatus)
 	}
 
 	for _, p := range policies {
-		pm.policies = append(pm.policies, &policy{
-			name:    p.Name,
-			source:  p.Source,
-			version: p.Version,
-		})
-
 		if pm.perRuleMetricEnabled {
 			for _, rule := range p.Rules {
 				pm.rules[eval.RuleID(rule.ID)] = rule.Status
 			}
 		}
+		p.Rules = nil // Clear rules to avoid sending them in heartbeat events
 	}
+
+	pm.policies = policies
 }
 
 // ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
@@ -107,9 +96,9 @@ func (pm *PolicyMonitor) Start(ctx context.Context) {
 				pm.RLock()
 				for _, p := range pm.policies {
 					tags := []string{
-						"policy_name:" + p.name,
-						"policy_source:" + p.source,
-						"policy_version:" + p.version,
+						"policy_name:" + p.Name,
+						"policy_source:" + p.Source,
+						"policy_version:" + p.Version,
 						"agent_version:" + version.AgentVersion,
 					}
 
@@ -152,14 +141,22 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) {
-	rule, event := newRuleSetLoadedEvent(acc, rs, policies, filterReport)
-
+func ReportRuleSetLoaded(bundle RulesetLoadedEventBundle, sender events.EventSender, statsdClient statsd.ClientInterface) {
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
-	sender.SendEvent(rule, event, nil, "")
+	sender.SendEvent(bundle.Rule, bundle.Event, nil, "")
+}
+
+// PolicyMetadata contains the basic information about a policy
+type PolicyMetadata struct {
+	// Name is the name of the policy
+	Name string `json:"name"`
+	// Version is the version of the policy
+	Version string `json:"version,omitempty"`
+	// Source is the source of the policy
+	Source string `json:"source"`
 }
 
 // RuleState defines a loaded rule
@@ -173,16 +170,28 @@ type RuleState struct {
 	Tags        map[string]string `json:"tags,omitempty"`
 	ProductTags []string          `json:"product_tags,omitempty"`
 	Actions     []RuleAction      `json:"actions,omitempty"`
-	ModifiedBy  []*PolicyState    `json:"modified_by,omitempty"`
+	ModifiedBy  []*PolicyMetadata `json:"modified_by,omitempty"`
 }
+
+// PolicyStatus defines the status of a policy
+type PolicyStatus string
+
+const (
+	// PolicyStatusLoaded indicates that the policy was loaded successfully
+	PolicyStatusLoaded PolicyStatus = "loaded"
+	// PolicyStatusPartiallyLoaded indicates that the policy was loaded with some errors
+	PolicyStatusPartiallyLoaded PolicyStatus = "partially_loaded"
+	// PolicyStatusError indicates that the policy was not loaded due to an error
+	PolicyStatusError PolicyStatus = "error"
+)
 
 // PolicyState is used to report policy was loaded
 // easyjson:json
 type PolicyState struct {
-	Name    string       `json:"name"`
-	Version string       `json:"version"`
-	Source  string       `json:"source"`
-	Rules   []*RuleState `json:"rules"`
+	PolicyMetadata
+	Status  PolicyStatus `json:"status"`
+	Message string       `json:"message,omitempty"`
+	Rules   []*RuleState `json:"rules,omitempty"`
 }
 
 // RuleAction is used to report policy was loaded
@@ -267,12 +276,21 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
-// PolicyStateFromPolicyInfo returns a policy state based on the policy info
-func PolicyStateFromPolicyInfo(policyInfo *rules.PolicyInfo) *PolicyState {
+// NewPolicyMetadata returns a new policy metadata object
+func NewPolicyMetadata(name, source, version string) *PolicyMetadata {
+	return &PolicyMetadata{
+		Name:    name,
+		Version: version,
+		Source:  source,
+	}
+}
+
+// NewPolicyState returns a policy state based on the policy info
+func NewPolicyState(name, source, version string, status PolicyStatus, message string) *PolicyState {
 	return &PolicyState{
-		Name:    policyInfo.Name,
-		Version: policyInfo.Version,
-		Source:  policyInfo.Source,
+		PolicyMetadata: *NewPolicyMetadata(name, source, version),
+		Status:         status,
+		Message:        message,
 	}
 }
 
@@ -338,7 +356,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 		if policy.Equals(&pInfo) {
 			continue
 		}
-		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromPolicyInfo(&pInfo))
+		ruleState.ModifiedBy = append(ruleState.ModifiedBy, NewPolicyMetadata(pInfo.Name, pInfo.Source, pInfo.Version))
 	}
 
 	return ruleState
@@ -358,7 +376,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 			}
 
 			if policyState, exists = mp[pInfo.Name]; !exists {
-				policyState = PolicyStateFromPolicyInfo(&pInfo)
+				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusLoaded, "")
 				mp[pInfo.Name] = policyState
 			}
 			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, &pInfo, "loaded", ""))
@@ -374,13 +392,23 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 				}
 				policyName := rerr.Rule.Policy.Name
 
-				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromPolicyInfo(&rerr.Rule.Policy)
+				if policyState, exists = mp[policyName]; !exists {
+					policyState = NewPolicyState(rerr.Rule.Policy.Name, rerr.Rule.Policy.Source, rerr.Rule.Policy.Version, PolicyStatusPartiallyLoaded, "")
 					mp[policyName] = policyState
 				} else {
-					policyState = mp[policyName]
+					policyState.Status = PolicyStatusPartiallyLoaded // set the policy status as partially loaded to indicate that some rules could not be loaded
 				}
 				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &rerr.Rule.Policy, string(rerr.Type()), rerr.Err.Error()))
+			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
+				policyName := pErr.Name
+				if policyState, exists = mp[policyName]; !exists {
+					mp[policyName] = NewPolicyState(pErr.Name, pErr.Source, pErr.Version, PolicyStatusError, pErr.Err.Error())
+				} else { // this case shouldn't happen, but just in case it does let's update the policy status
+					policyState.Status = PolicyStatusError
+					if policyState.Message == "" {
+						policyState.Message = pErr.Err.Error()
+					}
+				}
 			}
 		}
 	}
@@ -393,8 +421,14 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	return policies
 }
 
-// newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
+// RulesetLoadedEventBundle is used to report a ruleset loaded event
+type RulesetLoadedEventBundle struct {
+	Rule  *rules.Rule
+	Event *events.CustomEvent
+}
+
+// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) RulesetLoadedEventBundle {
 	evt := RulesetLoadedEvent{
 		Policies:       policies,
 		Filters:        filterReport,
@@ -402,24 +436,19 @@ func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet,
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
-		events.NewCustomEvent(model.CustomEventType, evt)
+	return RulesetLoadedEventBundle{
+		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
+		Event: events.NewCustomEvent(model.CustomEventType, evt),
+	}
 }
 
 // newHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
-func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (*rules.Rule, []*events.CustomEvent) {
+func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*PolicyState) (*rules.Rule, []*events.CustomEvent) {
 	var evts []*events.CustomEvent
 
 	for _, policy := range policies {
-		var policyState = PolicyState{
-			Name:    policy.name,
-			Version: policy.version,
-			Source:  policy.source,
-			Rules:   nil, // The rules that have been loaded at startup are not reported in the heartbeat event
-		}
-
 		evt := HeartbeatEvent{
-			Policy: &policyState,
+			Policy: policy,
 		}
 		evt.FillCustomEventCommonFields(acc)
 		evts = append(evts, events.NewCustomEvent(model.CustomEventType, evt))
@@ -476,8 +505,7 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 
 // isPositivelyUsed checks if a field value is used positively
 func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
-
-	fakeEvent := rs.NewEvent()
+	fakeEvent := rs.NewFakeEvent()
 	ctx := eval.NewContext(fakeEvent)
 
 	// Test with the actual value

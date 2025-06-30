@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface",
+        "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/def",

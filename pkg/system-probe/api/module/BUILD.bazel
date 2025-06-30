@@ -15,6 +15,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname",
+        "//comp/core/ipc/def",
         "//comp/core/tagger/def",
         "//comp/core/telemetry",
         "//comp/core/workloadmeta/def",

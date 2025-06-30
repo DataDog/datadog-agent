@@ -7,9 +7,7 @@ go_library(
         "levels.go",
         "log.go",
         "log_limit.go",
-        "log_not_serverless.go",
         "log_podman_util.go",
-        "log_serverless.go",
         "log_test_init.go",
         "logger.go",
         "wrapper.go",
@@ -27,12 +25,13 @@ go_library(
 go_test(
     name = "log_test",
     srcs = [
+        "klog_redirect_test.go",
         "log_bench_test.go",
         "log_limit_test.go",
-        "log_not_serverless_test.go",
         "log_podman_util_test.go",
         "log_serverless_test.go",
         "log_test.go",
+        "wrapper_test.go",
     ],
     embed = [":log"],
     deps = [

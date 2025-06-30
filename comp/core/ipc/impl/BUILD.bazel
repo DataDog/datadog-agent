@@ -10,7 +10,8 @@ go_library(
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
-        "//pkg/api/util",
+        "//pkg/api/security",
+        "//pkg/api/security/cert",
     ],
 )
 
@@ -20,8 +21,8 @@ go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/log/mock",
-        "//pkg/api/util",
         "//pkg/config/mock",
+        "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

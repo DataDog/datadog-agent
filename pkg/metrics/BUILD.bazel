@@ -32,7 +32,6 @@ go_library(
     deps = [
         "//pkg/aggregator/ckey",
         "//pkg/config/model",
-        "//pkg/config/structure",
         "//pkg/tagger/types",
         "//pkg/tagset",
         "//pkg/telemetry",

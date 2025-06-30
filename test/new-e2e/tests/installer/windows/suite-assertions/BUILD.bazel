@@ -7,8 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/utils/common",
         "//test/new-e2e/tests/installer/windows/remote-host-assertions",
         "@com_github_stretchr_testify//require",
-        "@com_github_stretchr_testify//suite",
     ],
 )

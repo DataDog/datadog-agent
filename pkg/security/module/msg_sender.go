@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -75,7 +76,7 @@ func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Secur
 }
 
 // NewDirectMsgSender returns a new direct sender
-func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component) (*DirectMsgSender, error) {
+func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -87,7 +88,7 @@ func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Compo
 		log.Info(status)
 	}
 
-	hostname, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
+	hostname, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}

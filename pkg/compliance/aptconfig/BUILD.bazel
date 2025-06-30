@@ -5,7 +5,10 @@ go_library(
     srcs = ["aptconfig.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/aptconfig",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/log"],
+    deps = [
+        "//pkg/compliance/types",
+        "//pkg/util/log",
+    ],
 )
 
 go_test(

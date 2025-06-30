@@ -24,6 +24,7 @@ go_library(
         "//comp/core/autodiscovery/autodiscoveryimpl",
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
+        "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/secrets",

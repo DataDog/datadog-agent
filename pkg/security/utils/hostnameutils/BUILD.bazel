@@ -10,7 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/api/util",
+        "//comp/core/ipc/def",
         "//pkg/config/setup",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",

@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "catalog",
+    srcs = [
+        "container.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/filter/catalog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/filter/def",
+        "//comp/core/filter/program",
+        "//comp/core/log/def",
+        "//pkg/util/containers",
+        "@com_github_google_cel_go//cel",
+    ],
+)
+
+go_test(
+    name = "catalog_test",
+    srcs = ["utils_test.go"],
+    embed = [":catalog"],
+    deps = [
+        "//comp/core/filter/def",
+        "//comp/core/log/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

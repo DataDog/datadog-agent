@@ -53,7 +53,6 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/util/log",
-        "@io_k8s_klog//:klog",
         "@io_k8s_klog_v2//:klog",
     ] + select({
         "@rules_go//go/platform:aix": [

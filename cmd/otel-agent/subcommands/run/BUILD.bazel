@@ -71,5 +71,6 @@ go_test(
     deps = [
         "//cmd/otel-agent/subcommands",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
     ],
 )

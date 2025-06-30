@@ -6,7 +6,6 @@ go_library(
         "api.go",
         "api_mock.go",
         "listener.go",
-        "security.go",
         "server.go",
         "server_cmd.go",
         "server_ipc.go",
@@ -15,7 +14,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/apiimpl/internal/agent",
-        "//comp/api/api/apiimpl/internal/check",
         "//comp/api/api/apiimpl/internal/config",
         "//comp/api/api/apiimpl/observability",
         "//comp/api/api/def",
@@ -24,7 +22,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/telemetry",
-        "//pkg/api/util",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "//pkg/util/log",

@@ -14,6 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",
+        "//comp/logs/auditor/def",
         "//pkg/config/setup",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/internal/tag",
@@ -84,6 +85,7 @@ go_test(
     embed = [":file"],
     deps = [
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "//pkg/logs/internal/decoder",

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "remote-host-assertions",
     srcs = [
+        "remote_windows_agent_asserts.go",
         "remote_windows_binary_asserts.go",
         "remote_windows_host_asserts.go",
         "remote_windows_installer_asserts.go",
@@ -16,11 +17,14 @@ go_library(
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/runner",
         "//test/new-e2e/pkg/runner/parameters",
+        "//test/new-e2e/pkg/utils/common",
         "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
         "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
         "@com_github_stretchr_testify//require",
-        "@com_github_stretchr_testify//suite",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

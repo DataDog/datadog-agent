@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/compliance/types",
         "//pkg/compliance/utils",
         "@com_github_shirou_gopsutil_v4//process",
         "@in_gopkg_yaml_v3//:yaml_v3",

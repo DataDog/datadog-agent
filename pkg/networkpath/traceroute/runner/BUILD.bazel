@@ -19,6 +19,7 @@ go_library(
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/common",
         "//pkg/networkpath/traceroute/config",
+        "//pkg/networkpath/traceroute/icmp",
         "//pkg/networkpath/traceroute/sack",
         "//pkg/networkpath/traceroute/tcp",
         "//pkg/process/util",

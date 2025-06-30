@@ -20,6 +20,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:android": [
+            "//comp/core/ipc/def",
             "//pkg/eventmonitor/config",
             "//pkg/security/config",
             "//pkg/security/secl/model",
@@ -60,6 +61,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/ipc/def",
             "//pkg/eventmonitor/config",
             "//pkg/security/config",
             "//pkg/security/secl/model",
@@ -100,6 +102,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/ipc/def",
             "//pkg/eventmonitor/config",
             "//pkg/security/config",
             "//pkg/security/secl/model",

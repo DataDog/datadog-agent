@@ -24,7 +24,7 @@ jobs:
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
           private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
-      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
@@ -65,5 +65,5 @@ jobs:
 
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
-          reviewers: DataDog/agent-runtimes
+          team-reviewers: agent-runtimes
           labels: team/agent-runtimes,qa/done,changelog/no-changelog,ask-review

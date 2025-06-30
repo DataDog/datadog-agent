@@ -15,7 +15,6 @@ go_library(
         "//comp/core/settings",
         "//comp/core/status",
         "//comp/core/workloadmeta/def",
-        "//pkg/api/util",
         "//pkg/config/setup",
         "//pkg/util/log",
         "//pkg/util/log/setup",

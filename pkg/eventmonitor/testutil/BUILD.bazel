@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/ipc/mock",
             "//pkg/eventmonitor",
             "//pkg/eventmonitor/config",
             "//pkg/security/config",
@@ -14,6 +15,7 @@ go_library(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/ipc/mock",
             "//pkg/eventmonitor",
             "//pkg/eventmonitor/config",
             "//pkg/security/config",

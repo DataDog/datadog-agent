@@ -46,7 +46,10 @@ go_test(
     embed = [":check"],
     deps = [
         "//cmd/process-agent/command",
-        "//comp/core/ipc/mock",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
     ],

@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rules",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/ipc/def",
         "//comp/dogstatsd/constants",
         "//pkg/eventmonitor",
         "//pkg/security/config",
@@ -40,6 +41,7 @@ go_test(
     srcs = ["engine_test.go"],
     embed = [":rules"],
     deps = [
+        "//comp/core/ipc/mock",
         "//pkg/security/config",
         "//pkg/security/secl/rules",
         "@com_github_stretchr_testify//assert",

@@ -18,6 +18,7 @@ go_library(
         "//pkg/collector/python",
         "//pkg/config/model",
         "//pkg/config/utils",
+        "//pkg/fips",
         "//pkg/logs/status",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders",

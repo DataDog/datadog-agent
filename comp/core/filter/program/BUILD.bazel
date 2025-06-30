@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "program",
+    srcs = [
+        "cel_program.go",
+        "common.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/filter/program",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/filter/def",
+        "@com_github_google_cel_go//cel",
+    ],
+)
+
+go_test(
+    name = "program_test",
+    srcs = ["cel_program_test.go"],
+    embed = [":program"],
+    deps = [
+        "//comp/core/filter/def",
+        "@com_github_google_cel_go//cel",
+        "@com_github_stretchr_testify//require",
+    ],
+)

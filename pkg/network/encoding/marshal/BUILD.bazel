@@ -25,6 +25,7 @@ go_library(
         "//pkg/network/dns",
         "//pkg/network/protocols",
         "//pkg/network/protocols/telemetry",
+        "//pkg/network/protocols/tls",
         "//pkg/network/types",
         "//pkg/process/util",
         "//pkg/util/log",
@@ -71,5 +72,13 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_go4_intern//:intern",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/tls",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/tls",
+        ],
+        "//conditions:default": [],
+    }),
 )

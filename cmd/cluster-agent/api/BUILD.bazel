@@ -44,6 +44,7 @@ go_test(
     srcs = ["server_test.go"],
     embed = [":api"],
     deps = [
+        "//comp/core/ipc/mock",
         "//pkg/api/util",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

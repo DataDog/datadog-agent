@@ -9,13 +9,16 @@ package testprogs
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 type probeYaml struct {
@@ -23,32 +26,55 @@ type probeYaml struct {
 	Probes []map[string]any `yaml:"probes"`
 }
 
-// GetProbeCfgs returns the probe configurations for binary of a given name.
-func GetProbeCfgs(t *testing.T, name string) []config.Probe {
+// MustGetProbeDefinitions calls GetProbeDefinitions and checks for an error.
+func MustGetProbeDefinitions(t *testing.T, name string) []irgen.ProbeDefinition {
+	probes, err := GetProbeDefinitions(name)
+	require.NoError(t, err)
+	return probes
+}
+
+// GetProbeDefinitions returns the probe definitions for binary of a given name.
+func GetProbeDefinitions(name string) ([]irgen.ProbeDefinition, error) {
+	probes, err := getProbeDefinitions(name)
+	if err != nil {
+		return nil, fmt.Errorf("get probe definitions for %s: %w", name, err)
+	}
+	return probes, nil
+}
+
+func getProbeDefinitions(name string) ([]irgen.ProbeDefinition, error) {
 	state, err := getState()
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	yamlData, err := os.ReadFile(path.Join(state.probesCfgsDir, name+".yaml"))
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	var probeYaml probeYaml
 	err = yaml.Unmarshal(yamlData, &probeYaml)
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
-	var probesCfgs []config.Probe
+	var probesCfgs []rcjson.Probe
 	for _, probe := range probeYaml.Probes {
 		probeBytes, err := json.Marshal(probe)
 		if err != nil {
-			t.Fatalf("testprogs: %v", err)
+			return nil, err
 		}
-		probeCfg, err := config.UnmarshalProbe(probeBytes)
+		probeCfg, err := rcjson.UnmarshalProbe(probeBytes)
 		if err != nil {
-			t.Fatalf("testprogs: %v", err)
+			return nil, err
 		}
 		probesCfgs = append(probesCfgs, probeCfg)
 	}
-	return probesCfgs
+	probeDefinitions := make([]irgen.ProbeDefinition, 0, len(probesCfgs))
+	for _, probe := range probesCfgs {
+		def, err := irgen.ProbeDefinitionFromRemoteConfig(probe)
+		if err != nil {
+			return nil, err
+		}
+		probeDefinitions = append(probeDefinitions, def)
+	}
+	return probeDefinitions, nil
 }

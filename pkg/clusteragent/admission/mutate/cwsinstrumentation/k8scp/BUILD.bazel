@@ -9,6 +9,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/clusteragent/admission/metrics",
         "//pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec",
         "//pkg/util/kubernetes/apiserver",
         "@io_k8s_api//core/v1:core",

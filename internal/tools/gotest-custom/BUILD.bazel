@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "gotest-custom_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/gotest-custom",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_google_shlex//:shlex"],
+)
+
+go_binary(
+    name = "gotest-custom",
+    embed = [":gotest-custom_lib"],
+    visibility = ["//:__subpackages__"],
+)

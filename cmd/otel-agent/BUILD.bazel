@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "otel-agent_lib",
@@ -17,11 +17,4 @@ go_binary(
     name = "otel-agent",
     embed = [":otel-agent_lib"],
     visibility = ["//visibility:public"],
-)
-
-go_test(
-    name = "otel-agent_test",
-    srcs = ["main_test.go"],
-    embed = [":otel-agent_lib"],
-    deps = ["@com_github_stretchr_testify//require"],
 )

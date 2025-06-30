@@ -59,6 +59,7 @@ go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
         "//pkg/config/mock",
         "//pkg/logs/internal/util/containersorpods",
         "//pkg/logs/launchers/container/tailerfactory/tailers",

@@ -16,6 +16,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//pkg/discovery/tracermetadata",
         "//pkg/languagedetection/languagemodels",
         "//pkg/util/containers/image",
         "//pkg/util/scrubber",

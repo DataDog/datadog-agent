@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/ipc/def",
             "//pkg/config/setup",
             "//pkg/config/utils",
             "//pkg/security/config",
@@ -50,6 +51,7 @@ go_library(
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/ipc/def",
             "//pkg/config/setup",
             "//pkg/config/utils",
             "//pkg/security/config",

@@ -20,6 +20,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/module",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/ipc/def",
         "//comp/core/tagger/types",
         "//comp/core/workloadmeta/def",
         "//comp/serializer/logscompression/def",

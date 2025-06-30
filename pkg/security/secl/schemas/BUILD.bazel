@@ -54,6 +54,7 @@ go_library(
         "user_session_context.schema.json",
         "usr.schema.json",
         "sysctl.schema.json",
+        "setrlimit.schema.json",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/schemas",
     visibility = ["//visibility:public"],

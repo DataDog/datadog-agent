@@ -21,7 +21,10 @@ go_test(
     deps = [
         "//cmd/agent/command",
         "//cmd/process-agent/subcommands/check",
-        "//comp/core/ipc/mock",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
     ],

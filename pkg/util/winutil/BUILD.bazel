@@ -19,6 +19,7 @@ go_library(
         "winsec.go",
         "winstrings.go",
         "winver.go",
+        "wnet.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil",
     visibility = ["//visibility:public"],

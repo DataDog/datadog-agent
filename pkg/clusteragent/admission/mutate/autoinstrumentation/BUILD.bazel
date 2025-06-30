@@ -16,6 +16,7 @@ go_library(
         "mutator.go",
         "mutators.go",
         "namespace_mutator.go",
+        "pod_meta_as_tags.go",
         "service_name.go",
         "target_mutator.go",
         "version.go",
@@ -25,12 +26,14 @@ go_library(
     deps = [
         "//cmd/cluster-agent/admission",
         "//comp/core/config",
+        "//comp/core/tagger/tags",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/metrics",
         "//pkg/clusteragent/admission/mutate/common",
         "//pkg/config/structure",
+        "//pkg/config/utils",
         "//pkg/util/kubernetes",
         "//pkg/util/log",
         "//pkg/util/pointer",
@@ -41,6 +44,7 @@ go_library(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/labels",
         "@io_k8s_client_go//dynamic",
+        "@io_k8s_utils//ptr",
     ],
 )
 

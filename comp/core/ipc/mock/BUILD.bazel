@@ -12,7 +12,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/ipc/httphelpers",
-        "//pkg/api/util",
+        "//pkg/api/security/cert",
         "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_stretchr_testify//require",

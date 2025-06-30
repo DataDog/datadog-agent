@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = ["utils.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/testcommon/check",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_google_go_cmp//cmp/cmpopts",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

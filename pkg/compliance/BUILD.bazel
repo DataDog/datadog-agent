@@ -23,6 +23,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameimpl",
+        "//comp/core/ipc/def",
         "//comp/core/status",
         "//comp/core/workloadmeta/def",
         "//comp/logs/agent/config",
@@ -31,6 +32,7 @@ go_library(
         "//pkg/compliance/dbconfig",
         "//pkg/compliance/k8sconfig",
         "//pkg/compliance/metrics",
+        "//pkg/compliance/types",
         "//pkg/compliance/utils",
         "//pkg/config/env",
         "//pkg/config/setup",

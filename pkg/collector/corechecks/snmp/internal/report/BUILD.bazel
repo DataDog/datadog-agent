@@ -11,6 +11,7 @@ go_library(
         "report_metrics.go",
         "report_testing.go",
         "report_utils.go",
+        "vpn_tunnels.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report",
     visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
@@ -43,6 +44,7 @@ go_test(
         "report_memory_usage_test.go",
         "report_metrics_test.go",
         "report_utils_test.go",
+        "vpn_tunnels_test.go",
     ],
     embed = [":report"],
     deps = [

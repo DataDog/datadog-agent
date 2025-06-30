@@ -126,6 +126,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/compliance/dbconfig",
+            "//pkg/compliance/types",
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/networkpath/traceroute/config",
@@ -145,6 +146,7 @@ go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/compliance/dbconfig",
+            "//pkg/compliance/types",
             "//pkg/languagedetection/languagemodels",
             "//pkg/languagedetection/privileged",
             "//pkg/networkpath/traceroute/config",

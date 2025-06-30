@@ -209,6 +209,7 @@ go_test(
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
         "//comp/process/gpusubscriber/fx-mock",
+        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/setup",

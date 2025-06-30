@@ -10,7 +10,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/status",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/telemetry",
         "//pkg/template/html",
         "//pkg/template/text",
         "@com_github_dustin_go_humanize//:go-humanize",

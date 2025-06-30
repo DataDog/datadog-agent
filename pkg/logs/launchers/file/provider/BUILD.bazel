@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
         "//pkg/logs/sources",
         "//pkg/logs/status",
         "//pkg/logs/tailers/file",
@@ -21,6 +22,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -31,6 +33,7 @@ go_test(
         ],
         "@rules_go//go/platform:android": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -41,6 +44,7 @@ go_test(
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -51,6 +55,7 @@ go_test(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -61,6 +66,7 @@ go_test(
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -71,6 +77,7 @@ go_test(
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -81,6 +88,7 @@ go_test(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -91,6 +99,7 @@ go_test(
         ],
         "@rules_go//go/platform:js": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -101,6 +110,7 @@ go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -111,6 +121,7 @@ go_test(
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -121,6 +132,7 @@ go_test(
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -131,6 +143,7 @@ go_test(
         ],
         "@rules_go//go/platform:osx": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -141,6 +154,7 @@ go_test(
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -151,6 +165,7 @@ go_test(
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",
@@ -161,6 +176,7 @@ go_test(
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/logs/agent/config",
+            "//comp/logs/auditor/mock",
             "//pkg/config/mock",
             "//pkg/logs/internal/util",
             "//pkg/logs/sources",

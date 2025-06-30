@@ -27,8 +27,6 @@ go_library(
         "route_cache.go",
         "state.go",
         "tags.go",
-        "tags_linux.go",
-        "tags_nolinux.go",
         "time_converter_windows.go",
         "usm_common.go",
         "usm_connection_keys.go",
@@ -58,7 +56,6 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/config/setup",
             "//pkg/network/config/sysctl",
-            "//pkg/network/protocols/http",
             "//pkg/network/types",
             "//pkg/util/ec2",
             "//pkg/util/fargate",
@@ -90,7 +87,6 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//pkg/config/setup",
             "//pkg/network/config/sysctl",
-            "//pkg/network/protocols/http",
             "//pkg/network/types",
             "//pkg/util/ec2",
             "//pkg/util/fargate",

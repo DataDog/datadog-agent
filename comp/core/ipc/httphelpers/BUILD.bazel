@@ -23,7 +23,7 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
-        "//pkg/api/util",
+        "//pkg/api/security/cert",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

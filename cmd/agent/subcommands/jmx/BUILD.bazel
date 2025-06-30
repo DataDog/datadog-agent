@@ -26,6 +26,7 @@ go_library(
         "//comp/core/autodiscovery/autodiscoveryimpl",
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
+        "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/secrets",
@@ -59,6 +60,9 @@ go_test(
     deps = [
         "//cmd/agent/command",
         "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
         "//comp/core/secrets",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",

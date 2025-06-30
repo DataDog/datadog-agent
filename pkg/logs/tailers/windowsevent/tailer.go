@@ -17,6 +17,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
@@ -53,10 +54,11 @@ type Tailer struct {
 	sub                 evtsubscribe.PullSubscription
 	bookmark            evtbookmark.Bookmark
 	systemRenderContext evtapi.EventRenderContextHandle
+	registry            auditor.Registry
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
+func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry) *Tailer {
 	if evtapi == nil {
 		evtapi = winevtapi.New()
 	}
@@ -71,6 +73,7 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		config:     config,
 		decoder:    decoder.NewNoopDecoder(),
 		outputChan: outputChan,
+		registry:   registry,
 	}
 }
 
@@ -95,6 +98,7 @@ func (t *Tailer) Start(bookmark string) {
 	t.done = make(chan struct{})
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.cancelTail = ctxCancel
+	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.tail(ctx, bookmark)
@@ -103,6 +107,7 @@ func (t *Tailer) Start(bookmark string) {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
+	t.registry.SetTailed(t.Identifier(), false)
 	t.cancelTail()
 	<-t.doneTail
 

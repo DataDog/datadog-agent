@@ -15,6 +15,7 @@ go_library(
         "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
         "//pkg/logs/internal/decoder",
         "//pkg/logs/internal/tag",
         "//pkg/logs/message",
@@ -37,6 +38,7 @@ go_test(
     deps = [
         "//comp/core/tagger/fx-mock",
         "//comp/logs/agent/config",
+        "//comp/logs/auditor/mock",
         "//pkg/config/mock",
         "//pkg/logs/message",
         "//pkg/logs/sources",

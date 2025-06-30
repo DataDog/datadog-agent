@@ -12,7 +12,6 @@ go_library(
         "config/dockercompose_httpbin.yaml",
         "config/npm.yaml",
         "config/npm-helm-values.yaml",
-        "config/npm-helm-cilium-lb-values.yaml",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/npm",
     visibility = ["//visibility:public"],

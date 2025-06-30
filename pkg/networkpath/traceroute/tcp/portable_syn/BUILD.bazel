@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "portable_syn_lib",
+    srcs = ["portable_syn.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp/portable_syn",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/networkpath/traceroute/tcp",
+        "//pkg/util/log/setup",
+    ],
+)
+
+go_binary(
+    name = "portable_syn",
+    embed = [":portable_syn_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -46,6 +46,7 @@ go_test(
         "//comp/core/log/mock",
         "//comp/serializer/logscompression/fx-mock",
         "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/config/mock",
         "//pkg/metrics",
         "//pkg/proto/pbgo/trace",
         "//pkg/serverless/logs",
