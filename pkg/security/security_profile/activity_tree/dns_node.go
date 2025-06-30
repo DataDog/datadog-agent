@@ -12,16 +12,14 @@ import (
 	"strings"
 	"time"
 
-	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	processlist.NodeBase
+	NodeBase
 	MatchedRules   []*model.MatchedRule
-	ImageTags      []string
 	GenerationType NodeGenerationType
 	Requests       []model.DNSEvent
 }
@@ -34,11 +32,8 @@ func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationTyp
 		GenerationType: generationType,
 		Requests:       []model.DNSEvent{*event},
 	}
-	node.NodeBase = processlist.NewNodeBase()
+	node.NodeBase = NewNodeBase()
 	node.Record(imageTag, now)
-	if imageTag != "" {
-		node.ImageTags = []string{imageTag}
-	}
 	return node
 }
 
@@ -58,26 +53,18 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 }
 
 func (dn *DNSNode) appendImageTag(imageTag string) {
-	dn.ImageTags, _ = AppendIfNotPresent(dn.ImageTags, imageTag)
+	dn.Record(imageTag, time.Now())
 }
 
 func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
-	imageTags, removed := removeImageTagFromList(dn.ImageTags, imageTag)
-	if removed {
-		if len(imageTags) == 0 {
-			return true
-		}
-		dn.ImageTags = imageTags
+	dn.EvictImageTag(imageTag)
+	if dn.IsEmpty() {
+		return true
 	}
 	// reconstruct the list of all DNS requests
 	if len(dn.Requests) > 0 {
 		DNSNames.Insert(dn.Requests[0].Question.Name)
 	}
 	return false
-}
-
-func (dn *DNSNode) updateTimes(event *model.Event) {
-	eventTime := event.ResolveEventTime()
-	dn.Record(event.ContainerContext.Tags[0], eventTime)
 }
 

@@ -381,10 +381,6 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, errors.New("a process node couldn't be found or created for this event")
 	}
 
-	if !dryRun {
-		node.UpdateLastSeen(imageTag)
-	}
-
 	// resolve fields
 	event.ResolveFieldsForAD()
 
