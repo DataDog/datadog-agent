@@ -60,7 +60,7 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName stri
 	}
 	sendProgFD := vm.AddProgram(&sendProgSpec)
 
-	_, err = routerMap.Update(probes.TCRawPacketParserSenderKey, sendProgFD, baloum.BPF_ANY)
+	_, err = routerMap.Update(probes.TCRawPacketSenderKey, sendProgFD, baloum.BPF_ANY)
 	assert.Nil(t, err, "map update error")
 
 	code, err := vm.RunProgram(&ctx, progName, ebpf.SchedCLS)

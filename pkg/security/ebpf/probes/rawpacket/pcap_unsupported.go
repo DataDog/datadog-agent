@@ -30,12 +30,22 @@ func DefaultProgOpts() ProgOpts {
 	return ProgOpts{}
 }
 
-// BPFFilterToInsts compile a bpf filter expression
-func BPFFilterToInsts(_ int, _ string, _ ProgOpts) (asm.Instructions, error) {
+// WithAction sets the action to take when a filter matches
+func (opts *ProgOpts) WithProgPrefix(prefix string) *ProgOpts {
+	return opts
+}
+
+// FilterToInsts compile a bpf filter expression
+func FilterToInsts(_ int, _ Filter, _ ProgOpts) (asm.Instructions, error) {
 	return asm.Instructions{}, errors.New("not supported")
 }
 
 // FiltersToProgramSpecs returns list of program spec from raw packet filters definitions
 func FiltersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
+	return nil, errors.New("not supported")
+}
+
+// ShootersToProgramSpecs returns list of program spec from raw packet filters definitions
+func ShootersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	return nil, errors.New("not supported")
 }

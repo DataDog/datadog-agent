@@ -108,6 +108,8 @@ const (
 	HashAction ActionName = "hash"
 	// LogAction name of the log action
 	LogAction ActionName = "log"
+	// NetworkFilterAction name of the network filter action
+	NetworkFilterAction ActionName = "network_filter"
 )
 
 // ActionDefinitionInterface is an interface that describes a rule action section
@@ -139,15 +141,14 @@ func (a *ActionDefinition) Name() ActionName {
 		return HashAction
 	case a.Log != nil:
 		return LogAction
+	case a.NetworkFilter != nil:
+		return NetworkFilterAction
 	default:
 		return ""
 	}
 }
 
-<<<<<<< HEAD
 // Check returns an error if the action is invalid
-=======
->>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 	var (
 		candidateActions = []ActionDefinitionInterface{
@@ -156,6 +157,7 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 			a.Hash,
 			a.CoreDump,
 			a.Log,
+			a.NetworkFilter,
 		}
 
 		names = []string{
@@ -164,12 +166,15 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 			CoreDumpAction,
 			HashAction,
 			LogAction,
+			NetworkFilterAction,
 		}
 		actions = 0
 	)
 
 	for _, action := range candidateActions {
 		if !reflect.ValueOf(action).IsNil() {
+			fmt.Printf("action: %+v\n", action)
+
 			if err := action.Check(opts); err != nil {
 				return err
 			}
@@ -208,11 +213,7 @@ type SetDefinition struct {
 }
 
 // Check returns an error if the set action is invalid
-<<<<<<< HEAD
 func (s *SetDefinition) Check(_ PolicyLoaderOpts) error {
-=======
-func (s *SetDefinition) Check(opts PolicyLoaderOpts) error {
->>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 	if s.Name == "" {
 		return errors.New("variable name is empty")
 	}
@@ -279,11 +280,7 @@ type CoreDumpDefinition struct {
 }
 
 // Check returns an error if the core dump action is invalid
-<<<<<<< HEAD
 func (c *CoreDumpDefinition) Check(_ PolicyLoaderOpts) error {
-=======
-func (c *CoreDumpDefinition) Check(opts PolicyLoaderOpts) error {
->>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 	return nil
 }
 
@@ -291,11 +288,7 @@ func (c *CoreDumpDefinition) Check(opts PolicyLoaderOpts) error {
 type HashDefinition struct{}
 
 // Check returns an error if the hash action is invalid
-<<<<<<< HEAD
 func (h *HashDefinition) Check(_ PolicyLoaderOpts) error {
-=======
-func (h *HashDefinition) Check(opts PolicyLoaderOpts) error {
->>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 	return nil
 }
 
@@ -318,12 +311,18 @@ func (l *LogDefinition) Check(_ PolicyLoaderOpts) error {
 type NetworkFilterDefinition struct {
 	BPFFilter string `yaml:"filter" json:"filter,omitempty"`
 	Policy    string `yaml:"policy" json:"policy,omitempty"`
+	Scope     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
 }
 
 // Check returns an error if the network filter action is invalid
 func (n *NetworkFilterDefinition) Check(opts PolicyLoaderOpts) error {
 	if n.BPFFilter == "" {
 		return errors.New("a valid BPF filter must be specified to the 'network_filter' action")
+	}
+
+	// default scope to process
+	if n.Scope != "" && n.Scope != "process" && n.Scope != "container" {
+		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 
 	return nil
