@@ -499,12 +499,6 @@ int rethook_open_detached_copy(ctx_t *ctx) {
     return 0;
 }
 
-//TODO: Remove this hook?
-HOOK_SYSCALL_ENTRY3(open_tree, int, dfd, const char *, filename, unsigned int, flags)
-{
-    return 0;
-}
-
 HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr_flags)
 {
     struct syscall_cache_t syscall = {

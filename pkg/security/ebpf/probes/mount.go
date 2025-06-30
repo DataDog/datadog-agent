@@ -105,12 +105,5 @@ func getMountProbes(fentry bool) []*manager.Probe {
 		SyscallFuncName: "fsmount",
 	}, fentry, EntryAndExit)...)
 
-	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "open_tree",
-	}, fentry, Entry)...)
-
 	return mountProbes
 }
