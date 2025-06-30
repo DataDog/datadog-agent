@@ -15,6 +15,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
+// CudaVisibleDevicesEnvVar is the name of the environment variable that controls the visible GPUs for CUDA applications
 const CudaVisibleDevicesEnvVar = "CUDA_VISIBLE_DEVICES"
 
 // ParseVisibleDevices modifies the list of GPU devices according to the
