@@ -20,14 +20,16 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd"
 )
 
 const (
@@ -222,6 +224,7 @@ func newSenderImpl(
 	}
 
 	agentVersion, _ := version.Agent()
+	hostname, _ := hostname.Get(context.Background())
 
 	return &senderImpl{
 		cfgComp: cfgComp,
@@ -241,7 +244,7 @@ func newSenderImpl(
 		},
 		metadataPayloadTemplate: AgentMetadataPayload{
 			HostID:   info.HostID,
-			Hostname: info.Hostname,
+			Hostname: hostname,
 			OS:       info.OS,
 			OSVer:    info.PlatformVersion,
 		},
