@@ -362,6 +362,7 @@ func TestRuleMatches(t *testing.T) {
 
 func TestAttachRuleValidatesLibsets(t *testing.T) {
 	attachCfg := AttacherConfig{SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto}}
+
 	t.Run("ValidLibset", func(tt *testing.T) {
 		rule := AttachRule{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
@@ -384,6 +385,32 @@ func TestAttachRuleValidatesLibsets(t *testing.T) {
 			Targets:          AttachToSharedLibraries,
 		}
 		require.Error(tt, rule.Validate(&attachCfg))
+	})
+
+}
+
+func TestAttachRuleValidatesMultipleLibsets(t *testing.T) {
+	attachCfgWithMultipleLibsets := AttacherConfig{SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU}}
+
+	t.Run("ValidRules", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.NoError(tt, rule.Validate(&attachCfgWithMultipleLibsets))
+		rule = AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libcudart.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.NoError(tt, rule.Validate(&attachCfgWithMultipleLibsets))
+	})
+
+	t.Run("InvalidRule", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`somethingelse.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.Error(tt, rule.Validate(&attachCfgWithMultipleLibsets))
 	})
 }
 
