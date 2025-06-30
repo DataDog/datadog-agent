@@ -112,11 +112,6 @@ CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
 LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-@task
-def create_stack(ctx, stack=None):
-    stacks.create_stack(ctx, stack)
-
-
 @task(
     help={
         "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
@@ -138,7 +133,7 @@ def gen_config(
     stack: str | None = None,
     vms: str = "",
     sets: str = "",
-    init_stack=False,
+    init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
     new=False,
@@ -373,9 +368,10 @@ def ls(_, distro=True, custom=False):
         "remote-setup-only": "If set, then KMT will only allow remote VMs.",
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
         "all-images": "Download all available VM images for the current architecture.",
+        "skip-ssh-setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
     }
 )
-def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False):
+def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False, skip_ssh_setup=False):
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(
@@ -396,8 +392,12 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
 
-    info("[+] Kernel matrix testing system initialized successfully")
-    config_ssh_key(ctx)
+    if not skip_ssh_setup:
+        config_ssh_key(ctx)
+
+    info(
+        "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
+    )
 
 
 @task
@@ -1178,6 +1178,9 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
 
 
 def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[LibvirtDomain]:
+    cm = ConfigManager()
+    can_target_remote_vms = ssh_key is not None or cm.config.get("ssh") is not None
+
     def _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms):
         if alien_vms:
             alien_vms_path = Path(alien_vms)
@@ -1185,7 +1188,10 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[Li
                 raise Exit(f"No alien VMs profile found @ {alien_vms_path}")
             return build_alien_infrastructure(alien_vms_path)
 
-        ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+        ssh_key_obj = None
+        if can_target_remote_vms:
+            ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+
         return build_infrastructure(stack, ssh_key_obj)
 
     if vms is None and alien_vms is None:
@@ -1200,6 +1206,17 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[Li
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             raise Exit("[-] Aborting due to version mismatch")
+
+    # check that user is not targetting remote VMs
+    if not can_target_remote_vms:
+        for d in domains:
+            if d.arch == "local":
+                continue
+
+            raise Exit("""
+You cannot target remote VMs. We recommend that you use `dda inv kmt.config-ssh-key` to setup SSH keys to target remote VMs.
+Alternatively you can provide the name of the SSH key file to use via the `--ssh-key` parameter.
+            """)
 
     return domains
 
@@ -2331,6 +2348,9 @@ def download_complexity_data(
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
     deps: list[JobDependency] = []
+
+    # Ensure the destination path exists
+    dest_path.mkdir(parents=True, exist_ok=True)
 
     if not download_all_jobs:
         print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")

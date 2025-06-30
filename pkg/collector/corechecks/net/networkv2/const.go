@@ -5,7 +5,7 @@
 
 //go:build !darwin && !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 var (

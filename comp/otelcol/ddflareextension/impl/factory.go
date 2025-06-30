@@ -15,7 +15,9 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -28,6 +30,7 @@ type ddExtensionFactory struct {
 	factories              *otelcol.Factories
 	configProviderSettings otelcol.ConfigProviderSettings
 	byoc                   bool
+	ipcComp                option.Option[ipc.Component]
 }
 
 // isOCB returns true if extension was built with OCB
@@ -41,11 +44,12 @@ func NewFactory() extension.Factory {
 }
 
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
-func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, byoc bool) extension.Factory {
+func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, ipcComp option.Option[ipc.Component], byoc bool) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
 		byoc:                   byoc,
+		ipcComp:                ipcComp,
 	}
 }
 
@@ -56,7 +60,7 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, !f.isOCB(), f.byoc)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, !f.isOCB(), f.byoc)
 }
 
 // Create creates a new instance of the Datadog Flare Extension, as of v0.112.0 or later
@@ -66,7 +70,7 @@ func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, !f.isOCB(), f.byoc)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, !f.isOCB(), f.byoc)
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {

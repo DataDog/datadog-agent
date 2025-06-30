@@ -80,7 +80,7 @@ func GetPrograms() ([]string, error) {
 }
 
 // GetBinary returns the path to the binary for the given name and
-// configuration.  If the binary is not found, it will be compiled if the source
+// configuration. If the binary is not found, it will be compiled if the source
 // code is available.
 func GetBinary(name string, cfg Config) (string, error) {
 	state, err := getState()
@@ -94,6 +94,7 @@ func GetBinary(name string, cfg Config) (string, error) {
 	return bin, nil
 }
 
+// state is the state of the testprogs package.
 type state struct {
 	// A list of common configurations that are available for testing.
 	commonConfigs []Config
@@ -116,6 +117,7 @@ var (
 	globalStateOnce sync.Once
 )
 
+// getState returns the global state of the testprogs package.
 func getState() (*state, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
@@ -228,7 +230,7 @@ found:
 	}, nil
 }
 
-// GetBinary returns the path to the binary for the given name and metadata.
+// getBinary returns the path to the binary for the given name and metadata.
 func getBinary(
 	state *state,
 	name string,

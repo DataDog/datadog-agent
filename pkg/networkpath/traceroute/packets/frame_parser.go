@@ -40,7 +40,6 @@ const expectedLayerCount = 2
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.parserv4 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
-	// TODO: IPv6 is not actually implemented yet
 	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.TCP, &p.ICMP6, &p.Payload)
 
 	return p
@@ -52,10 +51,7 @@ func (p *FrameParser) Parse(buffer []byte) error {
 	if err != nil {
 		return err
 	}
-	// TODO: currently we don't support ipv6
-	if parser == p.parserv6 {
-		return ignoredLayerErr
-	}
+
 	err = parser.DecodeLayers(buffer, &p.Layers)
 	var unsupportedErr gopacket.UnsupportedLayerType
 	if errors.As(err, &unsupportedErr) {
@@ -91,9 +87,8 @@ func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
 	return p.Layers[1]
 }
 
-// TODO IPv6
-var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4}
-var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4}
+var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4, layers.LayerTypeIPv6}
+var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4, layers.LayerTypeICMPv6}
 
 // checkLayers sanity checks the layers of the parse.
 func (p *FrameParser) checkLayers() error {
@@ -132,13 +127,26 @@ func getIPv4Pair(ip4 *layers.IPv4) IPPair {
 	return IPPair{SrcAddr: srcAddr, DstAddr: dstAddr}
 }
 
+func getIPv6Pair(ip6 *layers.IPv6) IPPair {
+	srcAddr, ok := netip.AddrFromSlice(ip6.SrcIP)
+	if !ok {
+		return IPPair{}
+	}
+	dstAddr, ok := netip.AddrFromSlice(ip6.DstIP)
+	if !ok {
+		return IPPair{}
+	}
+	return IPPair{srcAddr, dstAddr}
+}
+
 // GetIPPair gets the IPPair of the IP layer
 func (p *FrameParser) GetIPPair() (IPPair, error) {
 	switch p.GetIPLayer() {
 	case layers.LayerTypeIPv4:
 		return getIPv4Pair(&p.IP4), nil
+	case layers.LayerTypeIPv6:
+		return getIPv6Pair(&p.IP6), nil
 	default:
-		// TODO IPv6
 		return IPPair{}, fmt.Errorf("GetIPPair: unexpected IP layer type %s", p.Layers[0])
 	}
 }
@@ -174,6 +182,7 @@ func SerializeTCPFirstBytes(tcp TCPInfo) []byte {
 
 // UDPInfo is the info we get back from ICMP exceeded payload in a UDP probe.
 type UDPInfo struct {
+	ID       uint16
 	SrcPort  uint16
 	DstPort  uint16
 	Length   uint16
@@ -191,7 +200,34 @@ func ParseUDPFirstBytes(buffer []byte) (UDPInfo, error) {
 		Length:   binary.BigEndian.Uint16(buffer[4:6]),
 		Checksum: binary.BigEndian.Uint16(buffer[6:8]),
 	}
+	// Check for minimum payload length for NSMNC + 2-byte ID
+	if len(buffer) >= 16 && string(buffer[8:13]) == "NSMNC" {
+		idHigh := buffer[14]
+		idLow := buffer[15]
+		udp.ID = (uint16(idHigh) << 8) | uint16(idLow)
+	}
+
 	return udp, nil
+}
+
+// WriteUDPFirstBytes writes the first 8 bytes of a UDP packet and optional "NSMNC" payload with ID.
+func WriteUDPFirstBytes(udp UDPInfo) []byte {
+	buffer := make([]byte, 8)
+
+	binary.BigEndian.PutUint16(buffer[0:2], udp.SrcPort)
+	binary.BigEndian.PutUint16(buffer[2:4], udp.DstPort)
+	binary.BigEndian.PutUint16(buffer[4:6], udp.Length)
+	binary.BigEndian.PutUint16(buffer[6:8], udp.Checksum)
+
+	// If ID is set, append "NSMNC" and the ID as 2 bytes
+	if udp.ID != 0 {
+		payload := []byte("NSMNC\x00")             // pad to 6 bytes first
+		payload = append(payload, byte(udp.ID>>8)) // high byte
+		payload = append(payload, byte(udp.ID))    // low byte
+		buffer = append(buffer, payload...)
+	}
+
+	return buffer
 }
 
 // ICMPInfo encodes the information relevant to traceroutes from an ICMP response
@@ -251,9 +287,36 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 			Payload:         slices.Clone(innerPkt.Payload),
 		}
 		return icmpInfo, nil
+	case layers.LayerTypeICMPv6:
+		embedded, err := extractEmbeddedIPv6(p.ICMP6.Payload)
+		if err != nil {
+			return ICMPInfo{}, fmt.Errorf("GetICMPInfo failed to decode inner packet: %w", err)
+		}
+		var innerPkt layers.IPv6
+		err = (&innerPkt).DecodeFromBytes(embedded, gopacket.NilDecodeFeedback)
+		if err != nil {
+			return ICMPInfo{}, fmt.Errorf("GetICMPInfo failed to decode inner packet: %w", err)
+		}
+		icmpInfo := ICMPInfo{
+			IPPair:   ipPair,
+			ICMPPair: getIPv6Pair(&innerPkt),
+			Payload:  slices.Clone(innerPkt.Payload),
+		}
+		return icmpInfo, nil
 	default:
-		// TODO IPv6
 		return ICMPInfo{}, fmt.Errorf("GetICMPInfo: unexpected layer type %s", p.Layers[1])
+	}
+}
+
+func extractEmbeddedIPv6(payload []byte) ([]byte, error) {
+	switch {
+	// skip 4-byte prefix if IPv6 follows
+	// trim off the first 4 bytes always in a Time Exceeded response
+	// https://en.wikipedia.org/wiki/ICMPv6#Format
+	case len(payload) >= 5 && payload[4]>>4 == 6:
+		return payload[4:], nil
+	default:
+		return nil, fmt.Errorf("cannot locate IPv6 header in payload")
 	}
 }
 

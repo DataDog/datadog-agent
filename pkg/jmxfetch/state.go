@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -96,9 +97,9 @@ func StopJmxfetch() {
 	}
 }
 
-// InitRunner inits the runner and injects the dogstatsd server component
-func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component) {
-	state.runner.initRunner(server, logger)
+// InitRunner inits the runner and injects the dogstatsd server component and the IPC component (used to get the auth token for the jmxfetch process).
+func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component, ipc ipc.Component) {
+	state.runner.initRunner(server, logger, ipc)
 }
 
 // GetIntegrations returns the JMXFetch integrations' instances as a map[string]interface{}.
