@@ -1044,6 +1044,64 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 	suite.Equal(initialTailerCount-1, afterScanCount, "No new tailer should be created for undersized file after rotation")
 }
 
+func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
+	// Write initial content
+	_, err := suite.testFile.WriteString("hello world\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.scan()
+
+	// Read message to confirm tailer is working
+	msg := <-suite.outputChan
+	suite.Equal("hello world", string(msg.GetContent()))
+
+	// Get initial tailer and verify rotation detection works
+	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(found, "tailer should be found")
+	initialTailerCount := s.tailers.Count()
+
+	// Simulate file rotation: move current file to .1 and create a new empty file
+	rotatedPath := suite.testPath + ".1"
+	err = os.Rename(suite.testPath, rotatedPath)
+	suite.Nil(err)
+
+	// Create a new file that is undersized (empty, which results in fingerprint = 0)
+	newFile, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	newFile.Close()
+
+	// Verify rotation is detected
+	didRotate, err := tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
+
+	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
+	s.scan()
+
+	// Verify no new tailer was created for the undersized file
+	// The old tailer should be removed but no new one should be created
+	afterScanCount := s.tailers.Count() + len(s.rotatedTailers)
+	suite.Equal(initialTailerCount, afterScanCount, "No new tailer should be created for undersized file after rotation")
+
+	// Clean up the rotated file
+	os.Remove(rotatedPath)
+}
+
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
 }
