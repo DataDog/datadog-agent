@@ -41,7 +41,7 @@ func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string) {
 
 func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
 	for key, flow := range netdevice.FlowNodes {
-		if flow.evictImageTag(imageTag){
+		if flow.evictImageTag(imageTag) {
 			delete(netdevice.FlowNodes, key)
 		}
 	}
