@@ -124,6 +124,9 @@ go_e2e_test_binaries:
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
+    - pushd test/new-e2e
+    - go install github.com/DataDog/orchestrion@v1.4.0
+    - popd
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - tar czf test-binaries.tar.gz test-binaries
   artifacts:
