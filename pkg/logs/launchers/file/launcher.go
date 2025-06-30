@@ -479,11 +479,13 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
 
-	regexAndRegistry := &oldTailerInfo{
-		InfoRegistry: oldInfoRegistry,
-		Pattern:      oldRegexPattern,
-	}
-	if oldRegexPattern != nil || oldInfoRegistry != nil {
+	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
+	checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+	if checkSumEnabled == "checksum" && (oldRegexPattern != nil || oldInfoRegistry != nil) {
+		regexAndRegistry := &oldTailerInfo{
+			InfoRegistry: oldInfoRegistry,
+			Pattern:      oldRegexPattern,
+		}
 		s.oldInfoMap[file.Path] = regexAndRegistry
 	}
 
