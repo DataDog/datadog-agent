@@ -140,7 +140,7 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue != nil && previousValue != newValue {
+	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceIDs[key]++
