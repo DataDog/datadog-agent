@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
@@ -66,6 +67,11 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	}
 
 	return ev.ProcessCacheEntry, true
+}
+
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
+	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, true, nil)
 }
 
 // ResolveFilePath resolves the inode to a full path
@@ -215,7 +221,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.C
 
 // getContainerRuntime returns the container runtime managing the cgroup
 func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch containerutils.CGroupManager(flags & containerutils.CGroupManagerMask) {
+	switch flags.GetCGroupManager() {
 	case containerutils.CGroupManagerCRI:
 		return string(workloadmeta.ContainerRuntimeContainerd)
 	case containerutils.CGroupManagerCRIO:
@@ -531,7 +537,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 // ResolveCGroupManager resolves the manager of the cgroup
 func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
 	if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-		if manager := containerutils.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
+		if manager := entry.CGroup.CGroupFlags.GetCGroupManager(); manager != 0 {
 			return manager.String()
 		}
 	}
@@ -602,6 +608,99 @@ func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSession
 			*evtCtx = *ctx
 		}
 	}
+}
+
+// ResolveFileMetadata resolves file metadata
+func (fh *EBPFFieldHandlers) ResolveFileMetadata(event *model.Event) *model.FileMetadata {
+	if !fh.resolvers.FileMetadataResolver.Enabled {
+		return nil
+	}
+	if event.Type == uint32(model.ExecEventType) {
+		if event.Exec.FileMetadata.Resolved {
+			return &event.Exec.FileMetadata
+		}
+		metadata, err := fh.resolvers.FileMetadataResolver.ResolveFileMetadata(event, &event.Exec.Process.FileEvent)
+		if err != nil || metadata == nil {
+			seclog.Errorf("failed to resolve exec binary metadata: %s", err)
+			return nil
+		}
+		event.Exec.FileMetadata = *metadata
+		event.Exec.FileMetadata.Resolved = true
+		return metadata
+	}
+	return nil
+}
+
+// ResolveFileMetadataSize resolves file metadata size
+func (fh *EBPFFieldHandlers) ResolveFileMetadataSize(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Size)
+	}
+	return 0
+}
+
+// ResolveFileMetadataType resolves file metadata type
+func (fh *EBPFFieldHandlers) ResolveFileMetadataType(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Type)
+	}
+	return 0
+}
+
+// ResolveFileMetadataIsExecutable resolves file metadata is_executable
+func (fh *EBPFFieldHandlers) ResolveFileMetadataIsExecutable(event *model.Event, _ *model.FileMetadata) bool {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return fm.IsExecutable
+	}
+	return false
+}
+
+// ResolveFileMetadataArchitecture resolves file metadata architecture
+func (fh *EBPFFieldHandlers) ResolveFileMetadataArchitecture(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Architecture)
+	}
+	return 0
+}
+
+// ResolveFileMetadataABI resolves file metadata ABI
+func (fh *EBPFFieldHandlers) ResolveFileMetadataABI(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.ABI)
+	}
+	return 0
+}
+
+// ResolveFileMetadataIsUPXPacked resolves file metadata is_upx_packed
+func (fh *EBPFFieldHandlers) ResolveFileMetadataIsUPXPacked(event *model.Event, _ *model.FileMetadata) bool {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return fm.IsUPXPacked
+	}
+	return false
+}
+
+// ResolveFileMetadataCompression resolves file metadata compression
+func (fh *EBPFFieldHandlers) ResolveFileMetadataCompression(event *model.Event, _ *model.FileMetadata) int {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return int(fm.Compression)
+	}
+	return 0
+}
+
+// ResolveFileMetadataIsGarbleObfuscated resolves file metadata is_garble_obfuscated
+func (fh *EBPFFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(event *model.Event, _ *model.FileMetadata) bool {
+	fm := fh.ResolveFileMetadata(event)
+	if fm != nil {
+		return fm.IsGarbleObfuscated
+	}
+	return false
 }
 
 // ResolveK8SUsername resolves the k8s username of the event

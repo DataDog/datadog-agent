@@ -132,6 +132,12 @@ Package configsync implements synchronizing the configuration using the core age
 
 Package diagnose provides the diagnose suite for the agent.
 
+### [comp/core/filter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/filter)
+
+*Datadog Team*: container-platform
+
+Package filter provides the interface for the filter component
+
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
 *Datadog Team*: agent-configuration
@@ -646,6 +652,12 @@ Package status implements the core status component information provider interfa
 
 Package updater implements the updater component.
 
+### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
+
+*Datadog Team*: fleet
+
+Package daemonchecker retrieves the running status of the installer daemon
+
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
 Package localapi is the updater local api component.
@@ -653,6 +665,13 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
+
+*Datadog Team*: fleet
+
+Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+add it to the inventoryagent payload.
 
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 
@@ -673,6 +692,12 @@ Package datadogclient provides a client to query the datadog API
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
+
+*Datadog Team*: fleet
+
+Package fleetstatus implements the core status component information provider interface
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
 

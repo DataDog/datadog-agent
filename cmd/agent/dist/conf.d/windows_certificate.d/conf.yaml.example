@@ -32,15 +32,30 @@ instances:
     #   - <SUBJECT_1>
     #   - <SUBJECT_2>
 
+    ## @param server - string - optional
+    ## The server with which to connect, defaulting to the local machine.
+    #
+    # server: <SERVER>
+
+    ## @param username - string - optional
+    ## The username used to connect to the `server`.
+    #
+    # username: <USERNAME>
+
+    ## @param password - string - optional
+    ## The password of `username`.
+    #
+    # password: <PASSWORD>
+
     ## @param days_warning - integer - optional - default: 14
     ## Number of days before certificate expiration from which the service check
-    ## `tls.cert_expiration` begins emitting WARNING.
+    ## `windows_certificate.cert_expiration` begins emitting WARNING.
     #
     # days_warning: 14
 
     ## @param days_critical - integer - optional - default: 7
     ## Number of days before certificate expiration from which the service check
-    ## `tls.cert_expiration` begins emitting CRITICAL.
+    ## `windows_certificate.cert_expiration` begins emitting CRITICAL.
     #
     # days_critical: 7
 

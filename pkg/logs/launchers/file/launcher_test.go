@@ -457,6 +457,8 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	// test at scan
 	launcher.scan()
 	assert.Equal(t, 2, launcher.tailers.Count())
+	// Confirm that all of the files have been keepalive'd even if they are not tailed
+	assert.Equal(t, 3, len(launcher.registry.(*auditorMock.Registry).KeepAlives))
 
 	path = fmt.Sprintf("%s/2.log", testDir)
 	err = os.Remove(path)

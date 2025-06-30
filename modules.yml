@@ -124,6 +124,10 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  internal/tools/gotest-custom:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   internal/tools/independent-lint:
     independent: false
     should_tag: false
@@ -185,8 +189,6 @@ modules:
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
-  pkg/logs/auditor:
-    used_by_otel: true
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:

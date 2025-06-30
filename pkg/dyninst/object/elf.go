@@ -9,16 +9,27 @@ package object
 
 import (
 	"debug/dwarf"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
 
 	dlvdwarf "github.com/go-delve/delve/pkg/dwarf"
-	"github.com/go-delve/delve/pkg/dwarf/loclist"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
+
+// FindTextSectionHeader finds the text section header in an elf file.
+func FindTextSectionHeader(f *safeelf.File) (*safeelf.SectionHeader, error) {
+	for _, s := range f.Sections {
+		if s.Name == ".text" {
+			return &s.SectionHeader, nil
+		}
+	}
+	return nil, fmt.Errorf("text section not found")
+}
 
 // ElfFile is a struct that contains the data for an ELF file.
 //
@@ -52,23 +63,22 @@ func (e *ElfFile) DwarfSections() *DebugSections {
 }
 
 // LoclistReader implements File.
-func (e *ElfFile) LoclistReader() (*LoclistReader, error) {
-	if e.dwarfSections.Loc == nil {
-		return nil, fmt.Errorf("no loclist section found")
+func (e *ElfFile) LoclistReader() (*loclist.Reader, error) {
+	// Loclists replace Loc in DWARF 5. Here we do not need to recognize the version,
+	// just pick the section that exists.
+	var data []byte
+	if e.dwarfSections.LocLists != nil {
+		data = e.dwarfSections.LocLists
+	} else if e.dwarfSections.Loc != nil {
+		data = e.dwarfSections.Loc
+	} else {
+		return nil, fmt.Errorf("no loc/loclist section found")
 	}
 
-	reader2 := loclist.NewDwarf2Reader(
-		e.dwarfSections.Loc,
-		int(e.architecture.PointerSize()),
-	)
-	return &LoclistReader{
-		reader2:   reader2,
-		maxOffset: len(e.dwarfSections.Loc) - 1,
-		unitVersionGetter: func(unit *dwarf.Entry) (uint8, bool) {
-			unitVersion, ok := e.unitVersions[unit.Offset]
-			return unitVersion, ok
-		},
-	}, nil
+	return loclist.NewReader(data, e.dwarfSections.Addr, uint8(e.architecture.PointerSize()), func(unit *dwarf.Entry) (uint8, bool) {
+		unitVersion, ok := e.unitVersions[unit.Offset]
+		return unitVersion, ok
+	}), nil
 }
 
 var _ File = (*ElfFile)(nil)
@@ -120,7 +130,21 @@ func NewElfObject(elfFile *safeelf.File) (_ *ElfFile, retErr error) {
 	if err != nil {
 		return nil, err
 	}
+	_, _, dwarfVersion, byteOrder := dlvdwarf.ReadDwarfLengthVersion(ds.Info)
+	if byteOrder != binary.LittleEndian {
+		return nil, fmt.Errorf("unexpected DWARF byte order: %v", byteOrder)
+	}
 	unitVersions := dlvdwarf.ReadUnitVersions(ds.Info)
+	if dwarfVersion >= 5 {
+		// Delve unit offset calculations are 1 byte off.
+		// If tests fail, and following code now handles DWARF5, just remove this adjustment:
+		// https://github.com/go-delve/delve/blob/946e4885b69396512958b2774402e86acd530bbe/pkg/dwarf/parseutil.go#L126-L142
+		uv := make(map[dwarf.Offset]uint8, len(unitVersions))
+		for k, v := range unitVersions {
+			uv[k-1] = v
+		}
+		unitVersions = uv
+	}
 	return &ElfFile{
 		File:          elfFile,
 		dwarfSections: ds,
