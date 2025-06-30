@@ -51,7 +51,7 @@ type (
 
 	// MatcherFunc defines functions for matching a packet from the wire to
 	// a traceroute based on the source/destination addresses and an identifier
-	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
+	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32, uint16) (net.IP, error)
 )
 
 // Error implements the error interface for
@@ -73,7 +73,7 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	// this is a quick way to get the local address for connecting to the host
 	// using UDP as the network type to avoid actually creating a connection to
 	// the host, just get the OS to give us a local IP and local ephemeral port
-	conn, err := net.Dial("udp4", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
+	conn, err := net.Dial("udp", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
 	if err != nil {
 		return nil, nil, err
 	}

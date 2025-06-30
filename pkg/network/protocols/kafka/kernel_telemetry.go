@@ -25,9 +25,9 @@ type kernelTelemetry struct {
 
 	// classifiedFetchAPIVersionHits and classifiedProduceAPIVersionHits are the number of classified fetch and produce requests
 	// broken by API version (the index)
-	// Make them have +1 length because we want to support api version 0.
-	classifiedFetchAPIVersionHits   [TelemetryMaxAPIVersion + 1]*libtelemetry.Counter
-	classifiedProduceAPIVersionHits [TelemetryMaxAPIVersion + 1]*libtelemetry.Counter
+	// Make them have MAX_SUPPORTED + 1 length because we want to support api version 0.
+	classifiedFetchAPIVersionHits   [ClassificationMaxSupportedFetchRequestApiVersion + 1]*libtelemetry.Counter
+	classifiedProduceAPIVersionHits [ClassificationMaxSupportedProduceRequestApiVersion + 1]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
@@ -46,7 +46,7 @@ func newKernelTelemetry() *kernelTelemetry {
 	kafkaKernelTel.produceNoRequiredAcks = metricGroup.NewCounter("produce_no_required_acks")
 
 	for bucketIndex := range kafkaKernelTel.classifiedFetchAPIVersionHits {
-		kafkaKernelTel.classifiedFetchAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:fetch", "protocol_version:"+strconv.Itoa(bucketIndex))
+		kafkaKernelTel.classifiedFetchAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:consume", "protocol_version:"+strconv.Itoa(bucketIndex))
 	}
 	for bucketIndex := range kafkaKernelTel.classifiedProduceAPIVersionHits {
 		kafkaKernelTel.classifiedProduceAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:produce", "protocol_version:"+strconv.Itoa(bucketIndex))
@@ -95,7 +95,7 @@ func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [Topic
 	return result
 }
 
-func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [TelemetryMaxAPIVersion + 1]uint64) [TelemetryMaxAPIVersion + 1]uint64 {
+func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64) [ClassificationMaxSupportedProduceRequestApiVersion + 1]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {
@@ -105,7 +105,7 @@ func computeProduceAPIVersionHitsBucketDifferences(bucket, otherBucket [Telemetr
 	return result
 }
 
-func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [TelemetryMaxAPIVersion + 1]uint64) [TelemetryMaxAPIVersion + 1]uint64 {
+func computeFetchAPIVersionHitsBucketDifferences(bucket, otherBucket [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64) [ClassificationMaxSupportedFetchRequestApiVersion + 1]uint64 {
 	var result [len(bucket)]uint64
 
 	for i := 0; i < len(result); i++ {

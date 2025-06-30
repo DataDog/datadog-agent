@@ -10,6 +10,7 @@ package ebpf
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -114,6 +115,29 @@ func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
 	})
 }
 
+// AddNameMappingsForMap adds the full name mappings for the provided ebpf map
+func AddNameMappingsForMap(m *ebpf.Map, name, module string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	registerMap(m, func(mapid uint32) {
+		mapNameMapping[mapid] = name
+		mapModuleMapping[mapid] = module
+	})
+}
+
+// AddNameMappingsForProgram adds the full name mappings for the provided ebpf program
+func AddNameMappingsForProgram(p *ebpf.Program, name, module string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	registerProgram(p, func(progid uint32) {
+		progNameMapping[progid] = name
+		progModuleMapping[progid] = module
+
+	})
+}
+
 func getMappingFromID(id uint32, m map[uint32]string) (string, error) {
 	mappingLock.RLock()
 	defer mappingLock.RUnlock()
@@ -210,23 +234,35 @@ func RemoveNameMappingsCollection(coll *ebpf.Collection) {
 	})
 }
 
+func registerMap(m *ebpf.Map, mapFn func(mapid uint32)) {
+	if info, err := m.Info(); err == nil {
+		if mapid, ok := info.ID(); ok {
+			mapFn(uint32(mapid))
+		}
+	}
+}
+
 func iterateMaps(maps map[string]*ebpf.Map, mapFn func(mapid uint32, name string)) {
 	for name, m := range maps {
-		if info, err := m.Info(); err == nil {
-			if mapid, ok := info.ID(); ok {
-				mapFn(uint32(mapid), name)
-			}
+		registerMap(m, func(progid uint32) {
+			mapFn(progid, name)
+		})
+	}
+}
+
+func registerProgram(p *ebpf.Program, mapFn func(progid uint32)) {
+	if info, err := p.Info(); err == nil {
+		if progid, ok := info.ID(); ok {
+			mapFn(uint32(progid))
 		}
 	}
 }
 
 func iterateProgs(progs map[string]*ebpf.Program, mapFn func(progid uint32, name string)) {
 	for name, p := range progs {
-		if info, err := p.Info(); err == nil {
-			if progid, ok := info.ID(); ok {
-				mapFn(uint32(progid), name)
-			}
-		}
+		registerProgram(p, func(progid uint32) {
+			mapFn(progid, name)
+		})
 	}
 }
 
@@ -261,7 +297,7 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 	defer mappingLock.Unlock()
 
 	for _, p := range mgr.Probes {
-		if !p.IsRunning() {
+		if p == nil || !p.IsRunning() {
 			continue
 		}
 
@@ -273,10 +309,31 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 		if specs[0].Type != ebpf.Kprobe {
 			continue
 		}
+		progType, _, _ := strings.Cut(specs[0].SectionName, "/")
+		switch progType {
+		case "uprobe", "uretprobe":
+			continue
+		}
 
 		fd, err := p.PerfEventFD()
 		if err == nil {
 			probeIDToFDMappings[ebpf.ProgramID(p.ID())] = fd
 		}
 	}
+}
+
+func resetMapping[K comparable, V any](m map[K]V) {
+	for key := range m {
+		delete(m, key)
+	}
+}
+
+// ResetAllMappings removes all mappings. This is useful in tests to reset state
+func ResetAllMappings() {
+	resetMapping(mapNameMapping)
+	resetMapping(mapModuleMapping)
+	resetMapping(progNameMapping)
+	resetMapping(progModuleMapping)
+	resetMapping(probeIDToFDMappings)
+	resetMapping(progIgnoredIDs)
 }

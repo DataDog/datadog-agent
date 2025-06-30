@@ -588,8 +588,6 @@ func (s *SNMPService) IsReady() bool {
 }
 
 // HasFilter returns false on SNMP
-//
-//nolint:revive // TODO(NDM) Fix revive linter
 func (s *SNMPService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
@@ -631,6 +629,8 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		return strconv.FormatBool(s.config.CollectDeviceMetadata), nil
 	case "collect_topology":
 		return strconv.FormatBool(s.config.CollectTopology), nil
+	case "collect_vpn":
+		return strconv.FormatBool(s.config.CollectVPN), nil
 	case "use_device_id_as_hostname":
 		return strconv.FormatBool(s.config.UseDeviceIDAsHostname), nil
 	case "tags":
@@ -642,12 +642,11 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		if len(ifConfigs) == 0 {
 			return "", nil
 		}
-		//nolint:revive // TODO(NDM) Fix revive linter
-		ifConfigsJson, err := json.Marshal(ifConfigs)
+		ifConfigsJSON, err := json.Marshal(ifConfigs)
 		if err != nil {
 			return "", fmt.Errorf("error marshalling interface_configs: %s", err)
 		}
-		return string(ifConfigsJson), nil
+		return string(ifConfigsJSON), nil
 	case "ping":
 		pingConfig := s.config.PingConfig
 
@@ -662,8 +661,6 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-//
-//nolint:revive // TODO(NDM) Fix revive linter
 func (s *SNMPService) FilterTemplates(_ map[string]integration.Config) {
 }
 

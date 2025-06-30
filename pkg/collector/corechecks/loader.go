@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -88,7 +89,11 @@ func (gl *GoCheckLoader) String() string {
 func init() {
 	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
 		loader, err := NewGoCheckLoader()
-		return loader, 30, err
+		priority := 30
+		if pkgconfigsetup.Datadog().GetBool("prioritize_go_check_loader") {
+			priority = 10
+		}
+		return loader, priority, err
 	}
 
 	loaders.RegisterLoader(factory)

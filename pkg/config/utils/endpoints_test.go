@@ -471,6 +471,16 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			"app.myproxy.com",
 			false,
 		},
+		{ // MRF
+			"https://app.mrf.datadoghq.com",
+			".mrf.datadoghq.com",
+			true,
+		},
+		{ // Trailing dot
+			"https://app.datadoghq.com.",
+			".datadoghq.com.",
+			true,
+		},
 	}
 
 	for _, testCase := range versionURLTests {

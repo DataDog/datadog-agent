@@ -77,6 +77,7 @@ func (r *RequestStat) close() {
 	if r.Latencies != nil {
 		r.Latencies.Clear()
 		protocols.SketchesPool.Put(r.Latencies)
+		r.Latencies = nil
 	}
 }
 
@@ -103,21 +104,31 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		// The other bucket (newStats) has a DDSketch object
 		// We first ensure that the bucket we're merging to have a DDSketch object
 		if stats.Latencies == nil {
-			stats.Latencies = newRequests.Latencies.Copy()
+			var err error
+			stats.Latencies, err = protocols.NewSketch()
+			if err != nil {
+				log.Warnf("could not create new ddsketch for kafka request stats: %v", err)
+				// If we can't create a new sketch, we just skip this bucket
+				continue
+			}
+			// If the record was already present, we need to add the FirstLatencySample
+			if exists {
+				if stats.FirstLatencySample == 0 || stats.Count != 1 {
+					log.Warnf("unexpected state for kafka request stats: FirstLatencySample=%f, Count=%d", stats.FirstLatencySample, stats.Count)
+					continue
+				}
 
-			// If we have a latency sample in this bucket we now add it to the DDSketch
-			if stats.FirstLatencySample != 0 {
-				err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(stats.Count))
-				if err != nil {
-					log.Debugf("could not add kafka request latency to ddsketch: %v", err)
+				if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
+					log.Warnf("could not add kafka request latency to ddsketch: %v", err)
+					continue
 				}
 			}
-		} else {
-			err := stats.Latencies.MergeWith(newRequests.Latencies)
-			if err != nil {
-				log.Debugf("error merging kafka transactions: %v", err)
-			}
 		}
+
+		if err := stats.Latencies.MergeWith(newRequests.Latencies); err != nil {
+			log.Debugf("error merging kafka transactions: %v", err)
+		}
+		stats.StaticTags |= newRequests.StaticTags
 		stats.Count += newRequests.Count
 	}
 }
@@ -136,7 +147,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 	stats.Count += count
 	stats.StaticTags |= staticTags
 
-	if stats.FirstLatencySample == 0 {
+	if stats.Count == 1 {
 		stats.FirstLatencySample = latency
 		return
 	}
@@ -147,9 +158,14 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 			return
 		}
 
-		// Add the deferred latency sample
-		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(originalCount)); err != nil {
-			log.Debugf("could not add request latency to ddsketch: %v", err)
+		// The kafka kernel decoder can capture multiple requests in a single packet, so
+		// in case of a new event with multiple requests, we might not have a FirstLatencySample
+		// In such a case, we need to skip adding the latency sample to the sketch
+		if originalCount == 1 {
+			// Add the deferred latency sample
+			if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
+				log.Debugf("could not add request latency to ddsketch: %v", err)
+			}
 		}
 	}
 	if err := stats.Latencies.AddWithCount(latency, float64(count)); err != nil {
@@ -168,4 +184,5 @@ func (r *RequestStats) Close() {
 			stats.close()
 		}
 	}
+	r.ErrorCodeToStat = nil
 }

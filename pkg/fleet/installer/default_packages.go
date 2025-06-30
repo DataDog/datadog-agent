@@ -51,7 +51,7 @@ var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-ruby":   "2",
 	"datadog-apm-library-js":     "5",
 	"datadog-apm-library-dotnet": "3",
-	"datadog-apm-library-python": "2",
+	"datadog-apm-library-python": "3",
 	"datadog-apm-library-php":    "1",
 }
 

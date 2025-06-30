@@ -24,8 +24,6 @@ end
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
-dependency 'datadog-agent-integrations-py3-dependencies'
-
 dependency "systemd" if linux_target?
 
 dependency 'libpcap' if linux_target? and !heroku_target? # system-probe dependency
@@ -33,7 +31,10 @@ dependency 'libpcap' if linux_target? and !heroku_target? # system-probe depende
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
-dependency 'secret-generic-connector'
+dependency 'secret-generic-connector' unless heroku_target?
+
+dependency 'datadog-agent-integrations-py3'
+
 
 # Additional software
 if windows_target?

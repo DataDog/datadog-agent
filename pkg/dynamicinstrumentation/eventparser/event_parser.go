@@ -254,6 +254,10 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 			// case we want the field for the underlying type just for
 			// displaying context to user, but we're not expecting to
 			// populate it with parsed values.
+
+			if top.Size > uint16(ditypes.SliceMaxLength) {
+				top.Size = uint16(ditypes.SliceMaxLength)
+			}
 			if len(top.Fields) > 0 {
 				top.Type = fmt.Sprintf("[]%s", top.Fields[0].Type)
 			}

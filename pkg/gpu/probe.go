@@ -35,6 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+var logLimitProbe = log.NewLogLimit(20, 10*time.Minute)
+
 const (
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -402,7 +405,7 @@ func (p *Probe) setupMapCleaner() error {
 		return fmt.Errorf("error creating map cleaner: %w", err)
 	}
 
-	p.mapCleanerEvents.Clean(defaultMapCleanerInterval, nil, nil, func(now int64, _ gpuebpf.CudaEventKey, val gpuebpf.CudaEventValue) bool {
+	p.mapCleanerEvents.Start(defaultMapCleanerInterval, nil, nil, func(now int64, _ gpuebpf.CudaEventKey, val gpuebpf.CudaEventValue) bool {
 		return (now - int64(val.Access_ktime_ns)) > defaultEventTTL.Nanoseconds()
 	})
 

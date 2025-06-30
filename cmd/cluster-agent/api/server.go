@@ -64,7 +64,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp, ipc)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)
@@ -77,7 +77,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	series.InstallNodeMetricsEndpoints(ctx, v2ApiRouter, cfg)
 
 	// Validate token for every request
-	router.Use(validateToken)
+	router.Use(validateToken(ipc))
 
 	// get the transport we're going to use under HTTP
 	var err error
@@ -162,22 +162,28 @@ func StopServer() {
 
 // We only want to maintain 1 API and expose an external route to serve the cluster level metadata.
 // As we have 2 different tokens for the validation, we need to validate accordingly.
-func validateToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.String()
-		var isValid bool
-		if !isExternalPath(path) {
-			if err := util.Validate(w, r); err == nil {
-				isValid = true
+func validateToken(ipc ipc.Component) mux.MiddlewareFunc {
+	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
+	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.String()
+			var isValid bool
+			// If communication is intra-pod
+			if !isExternalPath(path) {
+				if err := localTokenGetter(w, r); err == nil {
+					isValid = true
+				}
 			}
-		}
-		if !isValid {
-			if err := util.ValidateDCARequest(w, r); err != nil {
-				return
+			if !isValid {
+				if err := dcaTokenValidator(w, r); err != nil {
+					return
+				}
 			}
-		}
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // isExternal returns whether the path is an endpoint used by Node Agents.

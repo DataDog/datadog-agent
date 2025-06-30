@@ -71,7 +71,7 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
 				}
 				aggregationBuilder.SetTruncated(key.Truncated)
-				aggregationBuilder.SetKeyName(key.KeyName)
+				aggregationBuilder.SetKeyName(key.KeyName.Get())
 
 				for isErr, stats := range errorToStats.ErrorToStats {
 					if stats.Count == 0 {

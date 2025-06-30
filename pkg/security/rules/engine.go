@@ -8,7 +8,6 @@ package rules
 
 import (
 	"context"
-	json "encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -68,6 +68,7 @@ type RuleEngine struct {
 	AutoSuppression  autosuppression.AutoSuppression
 	pid              uint32
 	wg               sync.WaitGroup
+	ipc              ipc.Component
 }
 
 // APIServer defines the API server
@@ -78,7 +79,7 @@ type APIServer interface {
 }
 
 // NewRuleEngine returns a new rule engine
-func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:            probe,
 		config:           config,
@@ -92,6 +93,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
 		pid:              utils.Getpid(),
+		ipc:              ipc,
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
@@ -140,7 +142,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.ipc)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -356,13 +358,18 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	report, err := e.probe.ApplyRuleSet(rs)
+	filterReport, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
+	seclog.Debugf("Filter Report: %s", filterReport)
+
+	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
+
+	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
 	e.currentRuleSet.Store(rs)
-	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
@@ -371,20 +378,16 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// reset the probe process killer state once the new ruleset is loaded
 	e.probe.OnNewRuleSetLoaded(rs)
 
-	content, _ := json.Marshal(report)
-	seclog.Debugf("Policy report: %s", content)
-
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
 	// update the stats of auto-suppression rules
 	e.AutoSuppression.Apply(rs)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies)
+		monitor.ReportRuleSetLoaded(rulesetLoadedEvent, e.eventSender, e.statsdClient)
 		e.policyMonitor.SetPolicies(policies)
 	}
 
@@ -448,7 +451,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback, e.ipc)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -643,15 +646,30 @@ func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 
 func logLoadingErrors(msg string, m *multierror.Error) {
 	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
-				seclog.Errorf(msg, rErr.Error())
+		// Handle policy load errors
+		if policyErr, ok := err.(*rules.ErrPolicyLoad); ok {
+			// Empty policies are expected in some cases
+			if errors.Is(policyErr.Err, rules.ErrPolicyIsEmpty) {
+				seclog.Warnf(msg, policyErr.Error())
 			} else {
-				seclog.Warnf(msg, rErr.Error())
+				seclog.Errorf(msg, policyErr.Error())
 			}
-		} else {
-			seclog.Errorf(msg, err.Error())
+			continue
 		}
+
+		// Handle rule load errors
+		if ruleErr, ok := err.(*rules.ErrRuleLoad); ok {
+			// Some rule errors are accepted and should only generate warnings
+			if errors.Is(ruleErr.Err, rules.ErrEventTypeNotEnabled) || errors.Is(ruleErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Warnf(msg, ruleErr.Error())
+			} else {
+				seclog.Errorf(msg, ruleErr.Error())
+			}
+			continue
+		}
+
+		// Handle all other errors
+		seclog.Errorf(msg, err.Error())
 	}
 }
 

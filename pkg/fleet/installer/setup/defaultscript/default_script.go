@@ -19,17 +19,18 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.35.0-1"
+	defaultInjectorVersion = "0.40.0-1"
 )
 
 var (
+	// We use major version tagging
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
-		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
-		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
+		common.DatadogAPMLibraryJavaPackage:   "1",
+		common.DatadogAPMLibraryRubyPackage:   "2",
+		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryDotNetPackage: "3",
+		common.DatadogAPMLibraryPythonPackage: "3",
+		common.DatadogAPMLibraryPHPPackage:    "1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
@@ -88,9 +89,14 @@ func SetupDefaultScript(s *common.Setup) error {
 		s.Config.DatadogYAML.DDURL = url
 	}
 
-	// Install packages
+	// Install agent package
 	installAgentPackage(s)
-	installAPMPackages(s)
+
+	// Optionally setup SSI
+	err := SetupAPMSSIScript(s)
+	if err != nil {
+		return fmt.Errorf("failed to setup APM SSI script: %w", err)
+	}
 
 	return nil
 }

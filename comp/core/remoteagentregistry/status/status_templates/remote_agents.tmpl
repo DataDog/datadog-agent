@@ -20,7 +20,7 @@ No remote agents registered
 {{ .FailureReason }}
 {{ end }}
 {{- if .MainSection }}
-{{- range $key, $value := .MainSection }}
+{{ range $key, $value := .MainSection -}}
 {{ $key }}: {{ $value }}
 {{ end }}
 {{- end }}

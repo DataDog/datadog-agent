@@ -26,7 +26,7 @@ import (
 
 func TestSendAndReceive(t *testing.T) {
 	dstIP := net.ParseIP("5.6.7.8")
-	tcpv4 := NewTCPv4(dstIP, 443, 1, 1, 30, 0, 0)
+	tcpv4 := NewTCPv4(dstIP, 443, 1, 1, 30, 0, 0, false)
 	tcpv4.srcIP = net.ParseIP("1.2.3.4")
 	tcpv4.srcPort = 12345
 	tts := []struct {
@@ -85,9 +85,9 @@ func TestSendAndReceive(t *testing.T) {
 			mockRawConn := winconn.NewMockRawConnWrapper(controller)
 			mockRawConn.EXPECT().SendRawPacket(gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockSendError)
 			if test.mockSendError == nil { // only expect ListenPackets call if SendRawPacket is successful
-				mockRawConn.EXPECT().ListenPackets(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockListenError)
+				mockRawConn.EXPECT().ListenPackets(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(test.mockHopIP, test.mockEnd, test.mockListenError)
 			}
-			actual, err := tcpv4.sendAndReceive(mockRawConn, 1, 418, 1*time.Second)
+			actual, err := tcpv4.sendAndReceive(mockRawConn, 1, 418, 1234, 1*time.Second)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg), "error mismatch: excpected %q, got %q", test.errMsg, err.Error())
@@ -106,7 +106,7 @@ func TestSendAndReceive(t *testing.T) {
 
 func TestSendAndReceiveSocket(t *testing.T) {
 	dstIP := net.ParseIP("5.6.7.8")
-	tcpv4 := NewTCPv4(dstIP, 443, 1, 1, 30, 0, 0)
+	tcpv4 := NewTCPv4(dstIP, 443, 1, 1, 30, 0, 0, false)
 	tcpv4.srcIP = net.ParseIP("1.2.3.4")
 	tcpv4.srcPort = 12345
 	tts := []struct {

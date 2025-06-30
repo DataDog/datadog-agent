@@ -65,3 +65,44 @@ func TestPeerTagsAggregation(t *testing.T) {
 		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
 	})
 }
+
+func TestMRFFailoverAPM(t *testing.T) {
+	t.Run("undefined", func(t *testing.T) {
+		cfg := New()
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("default-true", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("default-false", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = false
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("rc-true", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = false
+		val := true
+		cfg.MRFFailoverAPMRC = &val
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("rc-false", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		val := false
+		cfg.MRFFailoverAPMRC = &val
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	// Test that RC overrides can be removed (set to nil)
+	t.Run("rc-unset", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		val := false
+		cfg.MRFFailoverAPMRC = &val
+		assert.False(t, cfg.MRFFailoverAPM())
+		cfg.MRFFailoverAPMRC = nil
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+}

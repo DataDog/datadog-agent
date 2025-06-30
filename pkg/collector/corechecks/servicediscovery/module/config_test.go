@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -60,13 +61,13 @@ func TestConfigIgnoredComms(t *testing.T) {
 			discovery := newDiscovery(t, nil)
 			require.NotEmpty(t, discovery)
 
-			require.Equal(t, len(discovery.config.ignoreComms), len(test.comms))
+			require.Equal(t, len(discovery.config.IgnoreComms), len(test.comms))
 
 			for _, cmd := range test.comms {
-				if len(cmd) > maxCommLen {
-					cmd = cmd[:maxCommLen]
+				if len(cmd) > core.MaxCommLen {
+					cmd = cmd[:core.MaxCommLen]
 				}
-				_, found := discovery.config.ignoreComms[cmd]
+				_, found := discovery.config.IgnoreComms[cmd]
 				assert.True(t, found)
 			}
 		})
@@ -77,7 +78,7 @@ func TestConfigIgnoredComms(t *testing.T) {
 		discovery := newDiscovery(t, nil)
 		require.NotEmpty(t, discovery)
 
-		assert.Equal(t, len(discovery.config.ignoreComms), 10)
+		assert.Equal(t, len(discovery.config.IgnoreComms), 10)
 	})
 
 	t.Run("check command names in env variable", func(t *testing.T) {
@@ -87,9 +88,9 @@ func TestConfigIgnoredComms(t *testing.T) {
 		discovery := newDiscovery(t, nil)
 		require.NotEmpty(t, discovery)
 
-		_, found := discovery.config.ignoreComms["dummy1"]
+		_, found := discovery.config.IgnoreComms["dummy1"]
 		assert.True(t, found)
-		_, found = discovery.config.ignoreComms["dummy2"]
+		_, found = discovery.config.IgnoreComms["dummy2"]
 		assert.True(t, found)
 	})
 }
@@ -123,10 +124,10 @@ func TestConfigIgnoredServices(t *testing.T) {
 			discovery := newDiscovery(t, nil)
 			require.NotEmpty(t, discovery)
 
-			require.Equal(t, len(discovery.config.ignoreServices), len(test.services))
+			require.Equal(t, len(discovery.config.IgnoreServices), len(test.services))
 
 			for _, service := range test.services {
-				_, found := discovery.config.ignoreServices[service]
+				_, found := discovery.config.IgnoreServices[service]
 				assert.True(t, found)
 			}
 		})
@@ -137,7 +138,7 @@ func TestConfigIgnoredServices(t *testing.T) {
 		discovery := newDiscovery(t, nil)
 		require.NotEmpty(t, discovery)
 
-		assert.Equal(t, len(discovery.config.ignoreServices), 6)
+		assert.Equal(t, len(discovery.config.IgnoreServices), 6)
 	})
 
 	t.Run("check services in env variable", func(t *testing.T) {
@@ -147,9 +148,9 @@ func TestConfigIgnoredServices(t *testing.T) {
 		discovery := newDiscovery(t, nil)
 		require.NotEmpty(t, discovery)
 
-		_, found := discovery.config.ignoreServices["service1"]
+		_, found := discovery.config.IgnoreServices["service1"]
 		assert.True(t, found)
-		_, found = discovery.config.ignoreServices["service2"]
+		_, found = discovery.config.IgnoreServices["service2"]
 		assert.True(t, found)
 	})
 }

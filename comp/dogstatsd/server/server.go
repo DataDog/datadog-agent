@@ -19,6 +19,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -38,10 +39,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
@@ -81,6 +82,7 @@ type dependencies struct {
 	Params    Params
 	WMeta     option.Option[workloadmeta.Component]
 	Telemetry telemetry.Component
+	Hostname  hostnameinterface.Component
 }
 
 type provides struct {
@@ -192,7 +194,7 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
@@ -213,7 +215,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -510,11 +512,55 @@ func (s *server) SetExtraTags(tags []string) {
 // SetBlocklist updates the metric names blocklist on all running worker.
 func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 	s.log.Debugf("SetBlocklist with %d metrics", len(metricNames))
-	// each worker receives its own copy
+
+	// we will use two different blocklists:
+	// - one with all the metrics names, with all values from `metricNames`
+	// - one with only the metric names ending with histogram aggregates suffixes
+
+	// only histogram metric names (including their aggregates suffixes)
+	histoMetricNames := s.createHistogramsBlocklist(metricNames)
+
+	// send the complete blocklist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		blocklist := newBlocklist(metricNames, matchPrefix)
+		blocklist := utilstrings.NewBlocklist(metricNames, matchPrefix)
 		worker.BlocklistUpdate <- blocklist
 	}
+
+	// send the histogram blocklist used right before flushing to the serializer
+	histoBlocklist := utilstrings.NewBlocklist(histoMetricNames, matchPrefix)
+	s.demultiplexer.SetTimeSamplersBlocklist(&histoBlocklist)
+}
+
+// create a list based on all `metricNames` but only containing metric names
+// with histogram aggregates suffixes.
+// TODO(remy): should we consider moving this in the metrics package instead?
+func (s *server) createHistogramsBlocklist(metricNames []string) []string {
+	aggrs := s.config.GetStringSlice("histogram_aggregates")
+
+	percentiles := metrics.ParsePercentiles(s.config.GetStringSlice("histogram_percentiles"))
+	percentileAggrs := make([]string, len(percentiles))
+	for i, percentile := range percentiles {
+		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
+	}
+
+	histoMetricNames := []string{}
+	for _, metricName := range metricNames {
+		// metric names ending with a histogram aggregates
+		for _, aggr := range aggrs {
+			if strings.HasSuffix(metricName, "."+aggr) {
+				histoMetricNames = append(histoMetricNames, metricName)
+			}
+		}
+		// metric names ending with a percentile
+		for _, percentileAggr := range percentileAggrs {
+			if strings.HasSuffix(metricName, "."+percentileAggr) {
+				histoMetricNames = append(histoMetricNames, metricName)
+			}
+		}
+	}
+
+	s.log.Debugf("SetBlocklist created a histograms subsets of %d metric names", len(histoMetricNames))
+	return histoMetricNames
 }
 
 func (s *server) handleMessages() {
@@ -664,7 +710,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, blocklist *blocklist) metrics.MetricSampleBatch {
+func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, blocklist *utilstrings.Blocklist) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -775,7 +821,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, processID uint32, listenerID string, originTelemetry bool, blocklist *blocklist) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
+	processID uint32, listenerID string, originTelemetry bool, blocklist *utilstrings.Blocklist) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {

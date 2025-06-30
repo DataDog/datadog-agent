@@ -17,11 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -60,6 +61,7 @@ type dependencies struct {
 
 	Config config.Component
 	Log    log.Component
+	Client ipc.HTTPClient
 }
 
 // Commands returns a slice of subcommands for the `status` command in the Process Agent
@@ -83,6 +85,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				),
 				core.Bundle(),
 				process.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -109,9 +112,8 @@ func writeError(log log.Component, w io.Writer, e error) {
 	}
 }
 
-func fetchStatus(statusURL string) ([]byte, error) {
-	httpClient := apiutil.GetClient()
-	body, err := apiutil.DoGet(httpClient, statusURL, apiutil.LeaveConnectionOpen)
+func fetchStatus(c ipc.HTTPClient, statusURL string) ([]byte, error) {
+	body, err := c.Get(statusURL, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, status.NewConnectionError(err)
 	}
@@ -120,8 +122,8 @@ func fetchStatus(statusURL string) ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
-	body, err := fetchStatus(statusURL)
+func getAndWriteStatus(log log.Component, c ipc.HTTPClient, statusURL string, w io.Writer) {
+	body, err := fetchStatus(c, statusURL)
 	if err != nil {
 		writeNotRunning(log, w)
 		return
@@ -148,11 +150,6 @@ func runStatus(deps dependencies) error {
 		return err
 	}
 
-	err = util.SetAuthToken(deps.Config)
-	if err != nil {
-		return err
-	}
-
-	getAndWriteStatus(deps.Log, statusURL, os.Stdout)
+	getAndWriteStatus(deps.Log, deps.Client, statusURL, os.Stdout)
 	return nil
 }

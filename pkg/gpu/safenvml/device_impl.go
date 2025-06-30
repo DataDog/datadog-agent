@@ -275,3 +275,11 @@ func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
 	utilization, ret := d.nvmlDevice.GetUtilizationRates()
 	return utilization, NewNvmlAPIErrorOrNil("GetUtilizationRates", ret)
 }
+
+func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
+	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
+		return false, err
+	}
+	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
+	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
+}

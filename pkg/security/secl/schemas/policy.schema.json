@@ -386,6 +386,9 @@
             "cgroup"
           ]
         },
+        "scope_field": {
+          "type": "string"
+        },
         "size": {
           "type": "integer"
         },
@@ -401,6 +404,12 @@
               "description": "Duration in nanoseconds"
             }
           ]
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "inherited": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
