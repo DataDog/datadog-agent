@@ -38,7 +38,7 @@ type systemContext struct {
 
 	// updatedVisibleDevicesEnvVars maps each process ID to the latest visible
 	// devices environment variable that was set by the process. This is used to
-	// keep track of updates during process runtime, whic aren't visible in
+	// keep track of updates during process runtime, which aren't visible in
 	// /proc/pid/environ.
 	updatedVisibleDevicesEnvVars map[int]string
 
