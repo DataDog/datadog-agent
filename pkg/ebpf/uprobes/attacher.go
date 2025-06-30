@@ -220,7 +220,8 @@ type AttacherConfig struct {
 	// This is useful for debugging purposes, do not enable in production.
 	EnableDetailedLogging bool
 
-	// If shared libraries tracing is enabled, this is the name of the library set used to filter the events
+	// If shared libraries tracing is enabled, this is the list of library sets to use to filter the events
+	// from the shared libraries program.
 	SharedLibsLibsets []sharedlibraries.Libset
 
 	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
