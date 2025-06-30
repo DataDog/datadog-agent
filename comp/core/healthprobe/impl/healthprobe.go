@@ -33,9 +33,6 @@ var (
 		[]string{"status"},
 		"Establish if the state of the agent, either started or running",
 	)
-
-	pingFrequency = 15 * time.Second
-	bufferSize    = 2
 )
 
 // Requires defines the dependencies for the healthprobe component
