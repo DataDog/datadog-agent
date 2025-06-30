@@ -58,10 +58,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
-	rt, ok := c.resourceTags[task.Arn]
-	if ok {
-		return rt, nil
-	}
+	rt := c.resourceTags[task.Arn]
 
 	var metaURI string
 	for _, taskContainer := range task.Containers {
@@ -86,24 +83,44 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		return v1TaskToV4Task(task), errors.New(err)
 	}
 
-	taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
-	if err != nil {
-		// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
-		if errors.Is(err, context.DeadlineExceeded) {
-			log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
-		} else {
-			log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+	var taskWithTags *v3or4.Task
+	if len(rt.tags) > 0 || len(rt.containerInstanceTags) > 0 {
+		// Found task in the cache
+		// use the cached tags
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTask(ctx)
+		if err != nil {
+			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
+			} else {
+				log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+			}
+			return v1TaskToV4Task(task), err
 		}
-		return v1TaskToV4Task(task), err
-	}
-	// Add tags to the cache
-	rt = resourceTags{
-		tags:                  taskWithTags.TaskTags,
-		containerInstanceTags: taskWithTags.ContainerInstanceTags,
-	}
+		taskWithTags.TaskTags = rt.tags
+		taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
+	} else {
+		// No tags in the cache, fetch from metadata v4 API
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
+		if err != nil {
+			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
+			} else {
+				log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+			}
+			return v1TaskToV4Task(task), err
+		}
 
-	c.resourceTags[task.Arn] = rt
+		// Add tags to the cache
+		rt = resourceTags{
+			tags:                  taskWithTags.TaskTags,
+			containerInstanceTags: taskWithTags.ContainerInstanceTags,
+		}
 
+		c.resourceTags[task.Arn] = rt
+
+	}
 	return *taskWithTags, nil
 }
 
