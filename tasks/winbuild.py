@@ -9,6 +9,8 @@ from tasks.msi import build as build_agent_msi
 from tasks.msi import build_installer as build_installer_msi
 from tasks.omnibus import build as omnibus_build
 
+# Output directory for package files
+OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
 # Omnibus stores files here, e.g. C:\opt\datadog-agent, C:\opt\dataog-installer
 OPT_SOURCE_DIR = os.path.join('C:\\', 'opt')
 
@@ -67,10 +69,7 @@ def installer_package(
         url_safe=True,
         include_pipeline_id=True,
     )
-    output_path = os.path.join(os.getcwd(), "omnibus", "pkg")
-    if 'CI_PIPELINE_ID' in os.environ:
-        output_path = os.path.join(output_path, f'pipeline-{os.getenv("CI_PIPELINE_ID")}')
     shutil.copy2(
         os.path.join(OPT_SOURCE_DIR, "datadog-installer\\datadog-installer.exe"),
-        os.path.join(output_path, f"datadog-installer-{agent_version}-1-x86_64.exe"),
+        os.path.join(OUTPUT_PATH, f"datadog-installer-{agent_version}-1-x86_64.exe"),
     )
