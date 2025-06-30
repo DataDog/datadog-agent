@@ -24,7 +24,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -97,7 +97,7 @@ func testDyninst(
 	loader, err := loader.NewLoader(
 		// Add following to help debug this test.
 		// loader.WithDebugLevel(100),
-		loader.WithAdditionalSerializer(&codegen.DebugSerializer{
+		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
 	)

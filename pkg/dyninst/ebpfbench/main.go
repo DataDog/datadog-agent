@@ -20,7 +20,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -89,7 +89,7 @@ func runBenchmark() error {
 	}
 
 	fmt.Printf("compiling sm")
-	smProgram, err := sm.GenerateProgram(irp)
+	smProgram, err := compiler.GenerateProgram(irp)
 	if err != nil {
 		return err
 	}

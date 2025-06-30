@@ -19,7 +19,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
@@ -52,7 +52,7 @@ func WithDebugLevel(level int) option {
 }
 
 // WithAdditionalSerializer sets an additional serializer for the ebpf program.
-func WithAdditionalSerializer(serializer sm.CodeSerializer) option {
+func WithAdditionalSerializer(serializer compiler.CodeSerializer) option {
 	return additionalSerializerOption{serializer}
 }
 
@@ -68,7 +68,7 @@ func NewLoader(opts ...option) (*Loader, error) {
 }
 
 // Load loads the program.
-func (l *Loader) Load(program sm.Program) (*Program, error) {
+func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	serialized, err := serializeProgram(program, l.additionalSerializer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize program: %w", err)
@@ -164,7 +164,7 @@ type config struct {
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
 
-	additionalSerializer sm.CodeSerializer
+	additionalSerializer compiler.CodeSerializer
 }
 
 type option interface {
@@ -191,7 +191,7 @@ func (o debugLevelOption) apply(c *config) {
 }
 
 type additionalSerializerOption struct {
-	sm.CodeSerializer
+	compiler.CodeSerializer
 }
 
 func (o additionalSerializerOption) apply(c *config) {

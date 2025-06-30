@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package sm
+package compiler
 
 import (
 	"encoding/binary"

@@ -10,7 +10,7 @@ package actuator
 import (
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
@@ -122,7 +122,7 @@ func (noopReporter) ReportDetached(ProcessID, *ir.Program)               {}
 
 // Loader is an interface that abstracts ebpf program loader.
 type Loader interface {
-	Load(program sm.Program) (*loader.Program, error)
+	Load(program compiler.Program) (*loader.Program, error)
 	OutputReader() *ringbuf.Reader
 	Close() error
 }

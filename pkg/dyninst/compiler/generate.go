@@ -5,8 +5,7 @@
 
 //go:build linux_bpf
 
-// Package sm implements the eBPF program stack machine representation and generation.
-package sm
+package compiler
 
 import (
 	"fmt"
