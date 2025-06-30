@@ -1334,15 +1334,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 			event.DNS = model.DNSEvent{
 				ID: dnsLayer.ID,
-				Question: model.DNSQuestion{
+				Response: &model.DNSResponse{
+					ResponseCode: uint8(dnsLayer.ResponseCode),
+				},
+			}
+			if len(dnsLayer.Questions) != 0 {
+				event.DNS.Question = model.DNSQuestion{
 					Name:  string(dnsLayer.Questions[0].Name),
 					Class: uint16(dnsLayer.Questions[0].Class),
 					Type:  uint16(dnsLayer.Questions[0].Type),
 					Size:  uint16(len(data[offset:])),
-				},
-				Response: &model.DNSResponse{
-					ResponseCode: uint8(dnsLayer.ResponseCode),
-				},
+				}
 			}
 		}
 
