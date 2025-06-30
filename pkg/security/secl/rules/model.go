@@ -110,6 +110,8 @@ const (
 	HashAction ActionName = "hash"
 	// LogAction name of the log action
 	LogAction ActionName = "log"
+	// NetworkFilterAction name of the network filter action
+	NetworkFilterAction ActionName = "network_filter"
 )
 
 // ActionDefinitionInterface is an interface that describes a rule action section
@@ -142,6 +144,8 @@ func (a *ActionDefinition) Name() ActionName {
 		return HashAction
 	case a.Log != nil:
 		return LogAction
+	case a.NetworkFilter != nil:
+		return NetworkFilterAction
 	default:
 		return ""
 	}
@@ -149,11 +153,12 @@ func (a *ActionDefinition) Name() ActionName {
 
 func (a *ActionDefinition) getCandidateActions() map[string]ActionDefinitionInterface {
 	return map[string]ActionDefinitionInterface{
-		SetAction:      a.Set,
-		KillAction:     a.Kill,
-		HashAction:     a.Hash,
-		CoreDumpAction: a.CoreDump,
-		LogAction:      a.Log,
+		SetAction:           a.Set,
+		KillAction:          a.Kill,
+		HashAction:          a.Hash,
+		CoreDumpAction:      a.CoreDump,
+		LogAction:           a.Log,
+		NetworkFilterAction: a.NetworkFilter,
 	}
 }
 
@@ -358,14 +363,21 @@ func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 
 // NetworkFilterDefinition describes the 'network_filter' section of a rule action
 type NetworkFilterDefinition struct {
+	DefaultActionDefinition
 	BPFFilter string `yaml:"filter" json:"filter,omitempty"`
 	Policy    string `yaml:"policy" json:"policy,omitempty"`
+	Scope     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
 }
 
-// Check returns an error if the network filter action is invalid
-func (n *NetworkFilterDefinition) Check(opts PolicyLoaderOpts) error {
+// PreCheck returns an error if the network filter action is invalid
+func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if n.BPFFilter == "" {
 		return errors.New("a valid BPF filter must be specified to the 'network_filter' action")
+	}
+
+	// default scope to process
+	if n.Scope != "" && n.Scope != "process" && n.Scope != "container" {
+		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 
 	return nil

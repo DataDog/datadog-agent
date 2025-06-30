@@ -45,7 +45,16 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
 
     send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, len);
 
+    // tail call to the shooters
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_SHOOTER);
+
     return TC_ACT_UNSPEC;
+}
+
+TAIL_CALL_CLASSIFIER_FNC(raw_packet_shot, struct __sk_buff *skb) {
+    bpf_printk("raw_packet_shot");
+
+    return ACT_OK;
 }
 
 #endif

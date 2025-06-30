@@ -65,9 +65,13 @@ enum TC_TAIL_CALL_KEYS {
     DNS_RESPONSE
 };
 
+// see probes/rawpacket/pcap.go
+#define RAW_PACKET_FILTER_MAX_TAIL_CALL 5
+
 enum TC_RAWPACKET_KEYS {
     RAW_PACKET_FILTER,
     // reserved keys for raw packet filter tail calls
+    RAW_PACKET_SHOOTER = RAW_PACKET_FILTER + RAW_PACKET_FILTER_MAX_TAIL_CALL,
 };
 
 #define DNS_MAX_LENGTH 256

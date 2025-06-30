@@ -53,6 +53,9 @@
         },
         "log": {
           "$ref": "#/$defs/LogDefinition"
+        },
+        "network_filter": {
+          "$ref": "#/$defs/NetworkFilterDefinition"
         }
       },
       "additionalProperties": false,
@@ -212,6 +215,26 @@
         "id"
       ],
       "description": "MacroDefinition holds the definition of a macro"
+    },
+    "NetworkFilterDefinition": {
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "policy": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "process",
+            "container"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NetworkFilterDefinition describes the 'network_filter' section of a rule action"
     },
     "OverrideOptions": {
       "properties": {
