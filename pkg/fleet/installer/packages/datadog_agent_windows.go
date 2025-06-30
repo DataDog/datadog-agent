@@ -73,7 +73,7 @@ func postInstallDatadogAgent(ctx HookContext) error {
 
 	// remove the Agent if it is installed
 	// if nothing is installed this will return without an error
-	err = removeAgentIfInstalled(ctx)
+	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
 	if err != nil {
 		// failed to remove the Agent
 		return fmt.Errorf("failed to remove Agent: %w", err)
@@ -90,7 +90,7 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// returning an error here will prevent the package from being removed
 	// from the local repository.
 	if !ctx.Upgrade {
-		return removeAgentIfInstalled(ctx)
+		return removeAgentIfInstalledAndRestartOnFailure(ctx)
 	}
 	return nil
 }
@@ -132,7 +132,7 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 
 	// remove the Agent if it is installed
 	// if nothing is installed this will return without an error
-	err := removeAgentIfInstalled(ctx)
+	err := removeAgentIfInstalledAndRestartOnFailure(ctx)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	env := getenv()
 
 	// remove the Agent
-	err = removeAgentIfInstalled(ctx)
+	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
 	if err != nil {
 		// we failed to remove the Agent
 		// we can't do much here
@@ -381,7 +381,6 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 		log.Debugf("%s not installed", product)
 	}
 	return nil
-
 }
 
 func removeAgentIfInstalled(ctx context.Context) (err error) {
@@ -393,6 +392,21 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to stop all Agent services: %w", err)
 	}
 	return removeProductIfInstalled(ctx, "Datadog Agent")
+}
+
+func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context) (err error) {
+	err = removeAgentIfInstalled(ctx)
+	if err != nil {
+		// failed to remove existing Agent, try to restart it if we can.
+		// If MSI failed it should rollback to a working state.
+		serviceManager := windowssvc.NewWinServiceManager()
+		startErr := serviceManager.StartAgentServices(ctx)
+		if startErr != nil {
+			err = fmt.Errorf("%w, %w", err, startErr)
+		}
+		return err
+	}
+	return nil
 }
 
 func removeInstallerIfInstalled(ctx context.Context) (err error) {
