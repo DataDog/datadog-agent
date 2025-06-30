@@ -17,7 +17,6 @@ namespace Datadog.CustomActions
                 session.Log("SKIP_INSTALL_INFO flag is set, skipping install_info file creation");
                 return ActionResult.Success;
             }
-            
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             var installMethod = session.Property("OVERRIDE_INSTALLATION_METHOD");
             var installInfo = Path.Combine(configFolder, "install_info");
