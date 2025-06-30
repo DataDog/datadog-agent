@@ -11,14 +11,12 @@ package activitytree
 import (
 	"time"
 
-	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // FlowNode is used to store a flow node
 type FlowNode struct {
-	processlist.NodeBase
-	ImageTags      []string
+	NodeBase
 	GenerationType NodeGenerationType
 	Flow           model.Flow
 }
@@ -30,40 +28,31 @@ func NewFlowNode(flow model.Flow, generationType NodeGenerationType, imageTag st
 		GenerationType: generationType,
 		Flow:           flow,
 	}
-	node.NodeBase = processlist.NewNodeBase()
+	node.NodeBase = NewNodeBase()
 	node.Record(imageTag, now)
 	node.appendImageTag(imageTag)
 	return node
 }
 
 func (node *FlowNode) appendImageTag(imageTag string) {
-	node.ImageTags, _ = AppendIfNotPresent(node.ImageTags, imageTag)
+	node.Record(imageTag, time.Now())
 }
 
 func (node *FlowNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(node.ImageTags, imageTag)
-	if removed {
-		if len(imageTags) == 0 {
-			return true
-		}
-		node.ImageTags = imageTags
+	node.EvictImageTag(imageTag)
+	if node.IsEmpty() {
+		return true
 	}
 	return false
 }
 
 func (node *FlowNode) addFlow(flow model.Flow, imageTag string) {
 	if imageTag != "" {
-		node.appendImageTag(imageTag)
+		node.Record(imageTag, time.Now())
 	}
 
 	// add metrics
 	node.Flow.Egress.Add(flow.Egress)
 	node.Flow.Ingress.Add(flow.Ingress)
-	// update timestamps
-	node.updateTimes(imageTag)
-}
 
-func (node *FlowNode) updateTimes(imageTag string) {
-	now := time.Now()
-	node.Record(imageTag, now)
 }

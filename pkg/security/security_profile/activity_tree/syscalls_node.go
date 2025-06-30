@@ -10,53 +10,38 @@ package activitytree
 
 import (
 	"time"
-
-	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // SyscallNode is used to store a syscall node
 type SyscallNode struct {
-	processlist.NodeBase
-	ImageTags      []string
+	NodeBase
 	GenerationType NodeGenerationType
 	Syscall        int
 }
 
 func (sn *SyscallNode) appendImageTag(imageTag string) {
-	sn.ImageTags, _ = AppendIfNotPresent(sn.ImageTags, imageTag)
+	sn.Record(imageTag, time.Now())
 }
 
 func (sn *SyscallNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(sn.ImageTags, imageTag)
-	if !removed {
-		return false
-	}
-	if len(imageTags) == 0 {
+	sn.EvictImageTag(imageTag)
+	if sn.IsEmpty() {
 		return true
 	}
-	sn.ImageTags = imageTags
 	return false
-}
-
-func (sn *SyscallNode) updateTimes(event *model.Event) {
-	eventTime := event.ResolveEventTime()
-	sn.Record(event.ContainerContext.Tags[0], eventTime)
 }
 
 // NewSyscallNode returns a new SyscallNode instance
 func NewSyscallNode(syscall int, imageTag string, generationType NodeGenerationType) *SyscallNode {
-	var imageTags []string
+	
 	now := time.Now()
-	if len(imageTag) != 0 {
-		imageTags = append(imageTags, imageTag)
-	}
 	node := &SyscallNode{
 		Syscall:        syscall,
 		GenerationType: generationType,
-		ImageTags:      imageTags,
 	}
-	node.NodeBase = processlist.NewNodeBase()
-	node.Record(imageTag, now)
+	node.NodeBase = NewNodeBase()
+	if len(imageTag) != 0 {
+		node.Record(imageTag, now)
+	}
 	return node
 }

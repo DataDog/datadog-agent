@@ -9,15 +9,11 @@
 package activitytree
 
 import (
-	"time"
-
-	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NetworkDeviceNode is used to store a Network Device node
 type NetworkDeviceNode struct {
-	processlist.NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
 	Context        model.NetworkDeviceContext
@@ -27,14 +23,11 @@ type NetworkDeviceNode struct {
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
 func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGenerationType) *NetworkDeviceNode {
-	now := time.Now()
 	node := &NetworkDeviceNode{
 		GenerationType: generationType,
 		Context:        *ctx,
 		FlowNodes:      make(map[model.FiveTuple]*FlowNode),
 	}
-	node.NodeBase = processlist.NewNodeBase()
-	node.Record("", now)
 	return node
 }
 
@@ -59,10 +52,6 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 		netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
 	}
 
-	if !dryRun {
-		netdevice.updateTimes(imageTag)
-	}
-
 	var newFlow bool
 	for _, flow := range event.Flows {
 		existingNode, ok := netdevice.FlowNodes[flow.GetFiveTuple()]
@@ -83,9 +72,4 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 	}
 
 	return newFlow
-}
-
-func (netdevice *NetworkDeviceNode) updateTimes(imageTag string) {
-	now := time.Now()
-	netdevice.Record(imageTag, now)
 }

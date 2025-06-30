@@ -16,21 +16,19 @@ import (
 	"strings"
 	"time"
 
-	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
-	processlist.NodeBase
+	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
-	ImageTags      []string
 	IsPattern      bool
 	File           *model.FileEvent
 	GenerationType NodeGenerationType
-	FirstSeen      time.Time
+	FirstSeen      time.Time // I'm leaving this field here for now, but it should be removed (redundant)
 
 	Open *OpenNode
 
@@ -57,21 +55,17 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
 	}
-	fan.NodeBase = processlist.NewNodeBase()
-	
+
+	fan.NodeBase = NewNodeBase()
+
 	if imageTag != "" {
-		fan.ImageTags = []string{imageTag}
+		fan.Record(imageTag, time.Now())
 	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
-	}
-	
-	if event != nil {
-		eventTime := event.ResolveEventTime()
-		fan.Record(imageTag, eventTime)
 	}
 	
 	fan.enrichFromEvent(event)
@@ -120,11 +114,6 @@ func (fn *FileNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
 	}
-	eventTime := event.ResolveEventTime()
-	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = eventTime
-	}
-	fn.Record(event.ContainerContext.Tags[0], eventTime)
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)
 
@@ -180,7 +169,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.ImageTags, _ = AppendIfNotPresent(currentFn.ImageTags, imageTag)
+			currentFn.Record(imageTag, time.Now())
 			continue
 		}
 
@@ -203,21 +192,17 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 }
 
 func (fn *FileNode) tagAllNodes(imageTag string) {
-	fn.ImageTags, _ = AppendIfNotPresent(fn.ImageTags, imageTag)
+	fn.Record(imageTag, time.Now())
 	for _, child := range fn.Children {
 		child.tagAllNodes(imageTag)
 	}
 }
 
 func (fn *FileNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(fn.ImageTags, imageTag)
-	if !removed {
-		return false
-	}
-	if len(imageTags) == 0 {
+	fn.EvictImageTag(imageTag)
+	if fn.IsEmpty() {
 		return true
 	}
-	fn.ImageTags = imageTags
 	for filename, child := range fn.Children {
 		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
 			delete(fn.Children, filename)
@@ -226,7 +211,3 @@ func (fn *FileNode) evictImageTag(imageTag string) bool {
 	return false
 }
 
-func (fn *FileNode) updateTimes(event *model.Event) {
-	eventTime := event.ResolveEventTime()
-	fn.Record(event.ContainerContext.Tags[0], eventTime)
-}
