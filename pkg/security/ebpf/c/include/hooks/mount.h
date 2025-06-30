@@ -291,7 +291,7 @@ TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_two_callback, struct tracepoint_syscalls
 
 HOOK_ENTRY("attach_mnt")
 int hook_attach_mnt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall_with(mount_or_open_tree);
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree);
     if (!syscall) {
         return 0;
     }
