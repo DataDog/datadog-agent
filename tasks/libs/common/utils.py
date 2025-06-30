@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from subprocess import CalledProcessError, check_output
+from subprocess import check_output
 from types import SimpleNamespace
 
 import requests
@@ -426,35 +426,6 @@ def get_root():
     Get the root of the Go project
     """
     return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
-
-
-def get_git_branch_name():
-    """
-    Return the name of the current git branch
-    """
-    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode('utf-8').strip()
-
-
-def get_git_pretty_ref():
-    """
-    Return the name of the current Git branch or the tag if in a detached state
-    """
-    # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
-    if running_in_gitlab_ci():
-        return os.environ["CI_COMMIT_REF_NAME"]
-
-    # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
-    if running_in_github_actions():
-        return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
-
-    current_branch = get_git_branch_name()
-    if current_branch != "HEAD":
-        return current_branch
-
-    try:
-        return check_output(["git", "describe", "--tags", "--exact-match"]).decode('utf-8').strip()
-    except CalledProcessError:
-        return current_branch
 
 
 @contextmanager

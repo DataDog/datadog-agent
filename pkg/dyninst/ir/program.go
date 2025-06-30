@@ -7,8 +7,6 @@
 
 package ir
 
-import "github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
-
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
 // buffer.
@@ -85,14 +83,6 @@ type Variable struct {
 	IsReturn bool
 }
 
-// Location is the location of a parameter or variable in the subprogram.
-type Location struct {
-	// PCRange is the range of PC values that will be probed.
-	Range PCRange
-	// The locations of the pieces of the parameter or variable.
-	Pieces []locexpr.LocationPiece
-}
-
 // PCRange is the range of PC values that will be probed.
 type PCRange = [2]uint64
 
@@ -130,7 +120,15 @@ type Event struct {
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected.
-	InjectionPCs []uint64
+	InjectionPoints []InjectionPoint
 	// The condition that must be met for the event to be injected.
 	Condition *Expression
+}
+
+// InjectionPoint is a point at which an event should be injected.
+type InjectionPoint struct {
+	// The PC value at which the event should be injected.
+	PC uint64
+	// Whether the function at that PC is frameless.
+	Frameless bool
 }
