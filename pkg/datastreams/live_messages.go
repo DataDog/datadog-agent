@@ -103,6 +103,8 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) prov
 		rcclient:      rcclient,
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
+	// Send an empty config change to ensure that config_poller starts correctly
+	c.configChanges <- integration.ConfigChanges{}
 	go c.manageSubscriptionToRC()
 	return c
 }
@@ -113,6 +115,9 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 		<-ctx.Done()
 		c.closeMutex.Lock()
 		defer c.closeMutex.Unlock()
+		if c.closed {
+			return
+		}
 		c.closed = true
 		close(c.configChanges)
 	}()
