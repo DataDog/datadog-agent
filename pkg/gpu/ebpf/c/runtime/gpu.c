@@ -389,7 +389,7 @@ int BPF_UPROBE(uprobe__setenv, const char *name, const char *value, int overwrit
     // so we need to do a manual comparison
 #pragma unroll
     for (int i = 0; i < sizeof(cuda_visible_devices); i++) {
-        if (name[i] != cuda_visible_devices[i]) {
+        if (name_buf[i] != cuda_visible_devices[i]) {
             return 0;
         }
     }
