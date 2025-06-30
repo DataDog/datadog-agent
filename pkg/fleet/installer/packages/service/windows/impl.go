@@ -112,6 +112,7 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 	log.Infof("Stopping all Datadog Agent services")
 
 	// First, try to stop the main datadogagent service
+	// In the normal case, this will stop all other services as well
 	err = w.api.StopService("datadogagent")
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
 		log.Infof("Service datadogagent does not exist, skipping stop action")
@@ -121,8 +122,18 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 	}
 
 	// Terminate any remaining running services
+	err = w.terminateServiceProcesses(ctx, allAgentServices)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("All Datadog Agent services have been stopped successfully")
+	return nil
+}
+
+func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, serviceNames []string) (err error) {
 	var failedServices []error
-	for _, serviceName := range allAgentServices {
+	for _, serviceName := range serviceNames {
 		log.Debugf("Ensuring service %s is stopped", serviceName)
 
 		running, err := w.api.IsServiceRunning(serviceName)
@@ -160,7 +171,6 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 		return fmt.Errorf("failed to stop services: %w", errors.Join(failedServices...))
 	}
 
-	log.Infof("All Datadog Agent services have been stopped successfully")
 	return nil
 }
 
