@@ -79,7 +79,7 @@ func TestCopyTree(t *testing.T) {
 		// This is using the new mount api, but could have been accomplished with the mount() syscall too
 		// because this isn't the part that we're testing
 		var tounmount []string
-		mountIdsToPath := make(map[uint32]string)
+		mountIDsToPath := make(map[uint32]string)
 
 		dir := t.TempDir()
 		tounmount = append(tounmount, dir)
@@ -92,7 +92,7 @@ func TestCopyTree(t *testing.T) {
 		if id, err := getMountID(dir); err != nil {
 			t.Fatal(err)
 		} else {
-			mountIdsToPath[id] = "/"
+			mountIDsToPath[id] = "/"
 		}
 
 		mountSubDir := func(subdir string) {
@@ -112,7 +112,7 @@ func TestCopyTree(t *testing.T) {
 			if id, err := getMountID(fullpath); err != nil {
 				t.Fatal(err)
 			} else {
-				mountIdsToPath[id] = "/" + subdir
+				mountIDsToPath[id] = "/" + subdir
 			}
 		}
 
@@ -140,7 +140,7 @@ func TestCopyTree(t *testing.T) {
 
 			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
 			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
-			assert.Equal(t, mountIdsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
+			assert.Equal(t, mountIDsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
 			seen++
 			return seen == 3
 		}, 5*time.Second, model.FileMountEventType)
