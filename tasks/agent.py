@@ -222,11 +222,10 @@ def build(
         build_tags.append("sds")
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
-    entrypoint = f"{REPO_PATH}/cmd/{flavor_cmd}"
     with gitlab_section("Build agent", collapsed=True):
         go_build(
             ctx,
-            entrypoint,
+            f"{REPO_PATH}/cmd/{flavor_cmd}",
             mod=go_mod,
             env=env,
             bin_path=agent_bin,

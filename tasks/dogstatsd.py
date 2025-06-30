@@ -60,7 +60,6 @@ def build(
     if static:
         bin_path = STATIC_BIN_PATH
 
-    binary_path = os.path.join(bin_path, bin_name("dogstatsd"))
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/dogstatsd",
@@ -70,7 +69,7 @@ def build(
         gcflags=gcflags,
         ldflags=ldflags,
         build_tags=build_tags,
-        bin_path=binary_path,
+        bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
         env=env,
     )
 

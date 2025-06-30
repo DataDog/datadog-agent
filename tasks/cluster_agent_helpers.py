@@ -35,7 +35,6 @@ def build_common(
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False, major_version=major_version)
 
-    binary_path = os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}"))
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/cluster-agent{bin_suffix}",
@@ -45,7 +44,7 @@ def build_common(
         gcflags=gcflags,
         ldflags=ldflags,
         build_tags=build_tags,
-        bin_path=binary_path,
+        bin_path=os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}")),
         env=env,
     )
 

@@ -50,14 +50,13 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, major_vers
         subsystem = 'windows'
     ldflags += f"-X {REPO_PATH}/cmd/systray/command/command.subsystem={subsystem} "
     ldflags += f"-linkmode external -extldflags '-Wl,--subsystem,{subsystem}' "
-    bin_path = os.path.join(BIN_PATH, bin_name("ddtray"))
     go_build(
         ctx,
         f"{REPO_PATH}/cmd/systray",
         mod=go_mod,
         race=race,
         rebuild=rebuild,
-        bin_path=bin_path,
+        bin_path=os.path.join(BIN_PATH, bin_name("ddtray")),
         ldflags=ldflags,
         env=env,
     )
