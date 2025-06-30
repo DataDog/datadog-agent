@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:embed testdata/decoded/*.yaml
@@ -88,11 +87,6 @@ func testDyninst(
 	probes []ir.ProbeDefinition,
 	expOut map[string]string,
 ) {
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
-		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
-	)
-	require.NoError(t, err)
-	log.SetupLogger(logger, "debug")
 	t.Logf("Testing with actuator")
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
