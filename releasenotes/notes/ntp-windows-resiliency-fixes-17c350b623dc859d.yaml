@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+
+fixes:
+  - |
+    The NTP check on Windows is now more resilient. If a machine is configured to use an Active Directory domain controller for time (`NT5DS`) but cannot reach it, the check will now automatically fall back to using the NTP servers listed in the Windows registry instead of failing completely.
+  - |
+    The check is now smarter about detecting changes to the NTP server list. It will no longer create a log entry if the discovered servers are the same but in a different order, reducing log noise.
+  - |
+    When discovering a domain controller for time synchronization, the check will now avoid using the machine itself if it is also a domain controller.
+  - |
+    Fixed a misleading log message that occurred when NTP domain controller discovery failed on Windows. The log will no longer include ``(The operation completed successfully.)`` alongside the error code.
+  - |
+    The NTP check will no longer fail to start if the initial discovery of local NTP servers fails. It will instead log a warning and retry on the next run.
+

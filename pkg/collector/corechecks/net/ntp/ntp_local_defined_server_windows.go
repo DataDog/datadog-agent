@@ -7,6 +7,7 @@
 
 package ntp
 
+//revive:disable:var-naming  All names in this file match Windows API identifiers
 import (
 	"errors"
 	"fmt"
@@ -21,8 +22,9 @@ import (
 )
 
 var (
-	netapi32             = windows.NewLazySystemDLL("netapi32.dll")
-	procDsGetDcName      = netapi32.NewProc("DsGetDcNameW")
+	netapi32        = windows.NewLazySystemDLL("netapi32.dll")
+	procDsGetDcName = netapi32.NewProc("DsGetDcNameW")
+	// Name is intended to match the Windows API name see MSDN: https://learn.microsoft.com/en-us/windows/win32/api/lmapibuf/nf-lmapibuf-netapibufferfree
 	procNetApiBufferFree = netapi32.NewProc("NetApiBufferFree")
 	// These variables set up:
 	// Lazy loading of Windows DLL functions from netapi32.dll
@@ -34,6 +36,7 @@ var (
 )
 
 // Constants for DsGetDcName
+// Name is intended to match the Windows API name see MSDN: https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/nf-dsgetdc-dsgetdcnamew
 const (
 	DS_PDC_REQUIRED    = 0x00000080
 	DS_RETURN_DNS_NAME = 0x40000000
@@ -41,6 +44,7 @@ const (
 )
 
 // DOMAIN_CONTROLLER_INFO structure
+// Name is intended to match the Windows API name see MSDN: https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/ns-dsgetdc-domain_controller_infoa
 type DOMAIN_CONTROLLER_INFO struct {
 	DomainControllerName        *uint16
 	DomainControllerAddress     *uint16
@@ -121,8 +125,8 @@ func discoverPDC() ([]string, error) {
 		return nil, fmt.Errorf("DsGetDcName failed with error code: %d (%v)", ret, err)
 	}
 
-	// Ensure we free the buffer when done
-	defer procNetApiBufferFree.Call(uintptr(unsafe.Pointer(dcInfo)))
+	// Ensure we free the buffer when done, error is ignored as it is not critical
+	defer procNetApiBufferFree.Call(uintptr(unsafe.Pointer(dcInfo))) //nolint:errcheck
 
 	// Convert the PDC name to a Go string
 	if dcInfo.DomainControllerName != nil {
