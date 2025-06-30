@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 )
 
@@ -51,7 +50,6 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 	}
 
 	span.SetTag("pid", fmt.Sprintf("%d", processID))
-	log.Infof("Waiting for service %s process %d to exit", serviceName, processID)
 
 	// Open the process with termination rights
 	handle, err := w.api.OpenProcess(windows.SYNCHRONIZE|windows.PROCESS_TERMINATE|windows.PROCESS_QUERY_LIMITED_INFORMATION, false, processID)
@@ -91,7 +89,6 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 		return fmt.Errorf("timeout waiting for process %d for service %s to exit", processID, serviceName)
 	}
 
-	log.Infof("Service %s process %d terminated successfully", serviceName, processID)
 	return nil
 }
 
@@ -109,17 +106,14 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 	span, _ := telemetry.StartSpanFromContext(ctx, "stop_all_agent_services")
 	defer func() { span.Finish(err) }()
 	span.SetTag("agent-services", allAgentServices)
-	log.Infof("Stopping all Datadog Agent services")
 
 	// First, try to stop the main datadogagent service
 	// In the normal case, this will stop all other services as well
 	err = w.api.StopService("datadogagent")
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		log.Infof("Service datadogagent does not exist, skipping stop action")
 		return nil
-	} else if err != nil {
-		log.Warnf("Failed to stop main datadogagent service: %v", err)
 	}
+	// ignore error (if any) and continue to force stop any remaining services
 
 	// Terminate any remaining running services
 	err = w.terminateServiceProcesses(ctx, allAgentServices)
@@ -127,24 +121,19 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 		return err
 	}
 
-	log.Infof("All Datadog Agent services have been stopped successfully")
 	return nil
 }
 
 func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, serviceNames []string) (err error) {
 	var failedServices []error
 	for _, serviceName := range serviceNames {
-		log.Debugf("Ensuring service %s is stopped", serviceName)
 
 		running, err := w.api.IsServiceRunning(serviceName)
 		if err != nil {
 			if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-				log.Debugf("Service %s does not exist, skipping", serviceName)
 				continue
 			}
-			log.Warnf("Could not check if service %s is running: %v", serviceName, err)
 		} else if !running {
-			log.Debugf("Service %s is already stopped", serviceName)
 			continue
 		}
 
@@ -154,16 +143,10 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 			// Check if service is actually stopped despite the termination error
 			running, runningErr := w.api.IsServiceRunning(serviceName)
 			if runningErr != nil {
-				log.Errorf("Termination failed for service %s (%v) and could not verify service state (%v)", serviceName, err, runningErr)
 				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, runningErr))
 			} else if running {
-				log.Errorf("Termination failed for service %s (%v) and service is still running", serviceName, err)
 				failedServices = append(failedServices, fmt.Errorf("%s: termination failed and service still running: %w", serviceName, err))
-			} else {
-				log.Infof("Service %s is stopped", serviceName)
 			}
-		} else {
-			log.Infof("Successfully terminated service %s", serviceName)
 		}
 	}
 
@@ -178,14 +161,12 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 func (w *WinServiceManager) StartAgentServices(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "start_agent_service")
 	defer func() { span.Finish(err) }()
-	log.Infof("Starting datadogagent service")
 
 	err = w.api.StartService("datadogagent")
 	if err != nil {
 		return fmt.Errorf("failed to start datadogagent service: %w", err)
 	}
 
-	log.Infof("Successfully started agent services")
 	return nil
 }
 
@@ -195,17 +176,15 @@ func (w *WinServiceManager) RestartAgentServices(ctx context.Context) (err error
 	defer func() { span.Finish(err) }()
 
 	// Attempt to stop all agent services first
-	err = w.StopAllAgentServices(ctx)
-	if err != nil {
-		log.Warnf("Failed to stop agent services: %v. Continuing with start attempt to ensure daemon stays running", err)
-	}
+	_ = w.StopAllAgentServices(ctx)
+	// ignore stop error, we always want to try to start the services again.
+	// a stop error is unlikely since StopAllAgentServices force stops processes, too.
 
-	// Always attempt to restart the services
+	// Always attempt to restart the services.
 	err = w.StartAgentServices(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start agent services: %w", err)
 	}
 
-	log.Infof("Successfully restarted agent services")
 	return nil
 }
