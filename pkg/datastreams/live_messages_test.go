@@ -8,6 +8,7 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"testing"
 	"time"
 
@@ -21,6 +22,13 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+type mockedRcClient struct{}
+
+func (m *mockedRcClient) SubscribeAgentTask() {}
+
+func (m *mockedRcClient) Subscribe(_ data.Product, _ func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+}
 
 type mockedAutodiscovery struct {
 }
@@ -101,7 +109,7 @@ func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
 }
 
 func TestController(t *testing.T) {
-	c := NewController(&mockedAutodiscovery{})
+	c := NewController(&mockedAutodiscovery{}, &mockedRcClient{})
 	config := liveMessagesConfig{
 		ID: "config_2_id",
 		Kafka: kafkaConfig{
@@ -126,7 +134,7 @@ func TestController(t *testing.T) {
 	callback := func(path string, status state.ApplyStatus) {
 		updateStatus[path] = status
 	}
-	c.Update(rcUpdate, callback)
+	c.update(rcUpdate, callback)
 	assert.Equal(t, map[string]state.ApplyStatus{
 		"config_1": {State: state.ApplyStateError, Error: "invalid character 'i' looking for beginning of value"},
 		"config_2": {State: state.ApplyStateAcknowledged},

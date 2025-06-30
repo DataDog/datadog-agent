@@ -9,6 +9,8 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"sync"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 
 const (
 	kafkaConsumerIntegrationName = "kafka_consumer"
+	logsConfig                   = "[{\"type\":\"integration\",\"service\":\"kafka_consumer\",\"source\":\"kafka_consumer\"}]"
 )
 
 type kafkaConfig struct {
@@ -47,6 +50,7 @@ type liveMessagesConfig struct {
 // and configures the kafka_consumer integration to fetch messages from Kafka.
 type Controller struct {
 	ac            autodiscovery.Component
+	rcclient      rcclient.Component
 	configChanges chan integration.ConfigChanges
 	closeMutex    sync.RWMutex
 	closed        bool
@@ -65,8 +69,8 @@ func (c *Controller) GetConfigErrors() map[string]providers.ErrorMsgSet {
 	return nil
 }
 
-// ManageSubscriptionToRC subscribes to remote configuration updates if the agent is running the kafka_consumer integration.
-func (c *Controller) ManageSubscriptionToRC(subscribe func()) {
+// manageSubscriptionToRC subscribes to remote configuration updates if the agent is running the kafka_consumer integration.
+func (c *Controller) manageSubscriptionToRC() {
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -77,7 +81,7 @@ func (c *Controller) ManageSubscriptionToRC(subscribe func()) {
 		}
 		c.closeMutex.RUnlock()
 		if isConnectedToKafka(c.ac) {
-			subscribe()
+			c.rcclient.Subscribe(data.ProductDataStreamsLiveMessages, c.update)
 			return
 		}
 	}
@@ -93,11 +97,14 @@ func isConnectedToKafka(ac autodiscovery.Component) bool {
 }
 
 // NewController creates a new Controller instance
-func NewController(ac autodiscovery.Component) *Controller {
-	return &Controller{
+func NewController(ac autodiscovery.Component, rcclient rcclient.Component) *Controller {
+	c := &Controller{
 		ac:            ac,
+		rcclient:      rcclient,
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
+	go c.manageSubscriptionToRC()
+	return c
 }
 
 // Stream starts sending configuration updates for the kafka_consumer integration to the output channel.
@@ -112,8 +119,8 @@ func (c *Controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 	return c.configChanges
 }
 
-// Update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
-func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+// update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
+func (c *Controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
 	if len(remoteConfigs) == 0 {
 		return
@@ -128,14 +135,14 @@ func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallba
 		updatedConfig := integrationConfig
 		updatedConfig.Instances = make([]integration.Data, 0, len(updatedConfig.Instances))
 		if updatedConfig.LogsConfig == nil {
-			updatedConfig.LogsConfig = integration.Data("[{\"type\":\"integration\",\"service\":\"kafka_consumer\",\"source\":\"kafka_consumer\"}]")
+			updatedConfig.LogsConfig = integration.Data(logsConfig)
 		}
 		for _, instance := range integrationConfig.Instances {
 			updatedInstance := instance
 			p := &updatedInstance
 			err := p.SetField("live_messages_configs", remoteConfigs)
 			if err != nil {
-				log.Error("Error setting field")
+				log.Error("Live messages update: Error setting field")
 			}
 			updatedConfig.Instances = append(updatedConfig.Instances, updatedInstance)
 		}
