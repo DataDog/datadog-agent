@@ -6,6 +6,7 @@
 typedef enum {
     KAFKA_PRODUCE = 0,
     KAFKA_FETCH,
+    KAFKA_METADATA = 3,
     KAFKA_API_VERSIONS = 18
 } __attribute__ ((packed)) kafka_operation_t;
 
@@ -44,10 +45,19 @@ typedef struct kafka_transaction_key_t {
     __s32 correlation_id;
 } kafka_transaction_key_t;
 
+typedef struct kafka_topic_id_to_name_key_t {
+    __u8 topic_id[16];
+} kafka_topic_id_to_name_key_t;
+
+typedef struct kafka_topic_id_to_name_value_t {
+    char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
+    __u32 topic_name_size; // must be aligned to 4 bytes
+} kafka_topic_id_to_name_value_t;
+
 typedef enum {
     KAFKA_FETCH_RESPONSE_START = 0,
     KAFKA_FETCH_RESPONSE_NUM_TOPICS,
-    KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE,
+    KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID,
     KAFKA_FETCH_RESPONSE_NUM_PARTITIONS,
     KAFKA_FETCH_RESPONSE_PARTITION_START,
     KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START,
@@ -68,6 +78,13 @@ typedef enum {
     KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS,
     KAFKA_PRODUCE_RESPONSE_PARTITION_START,
     KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START,
+
+    KAFKA_METADATA_RESPONSE_START,
+    KAFKA_METADATA_RESPONSE_NUM_BROKERS,
+    KAFKA_METADATA_RESPONSE_BROKERS_LOOP,
+    KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS,
+    KAFKA_METADATA_RESPONSE_NUM_TOPICS,
+    KAFKA_METADATA_RESPONSE_TOPICS_LOOP
 } __attribute__ ((packed)) kafka_response_state;
 
 typedef struct kafka_fetch_response_record_batches_array_t {

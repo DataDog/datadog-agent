@@ -31,3 +31,7 @@ func TestCgoAlignment_KafkaResponseContext(t *testing.T) {
 func TestCgoAlignment_RawKernelTelemetry(t *testing.T) {
 	ebpftest.TestCgoAlignment[RawKernelTelemetry](t)
 }
+
+func TestCgoAlignment_KafkaTopicIDToNameKey(t *testing.T) {
+	ebpftest.TestCgoAlignment[KafkaTopicIDToNameKey](t)
+}
