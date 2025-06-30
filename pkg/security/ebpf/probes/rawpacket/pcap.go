@@ -29,14 +29,6 @@ const (
 
 	// packetCaptureSize see kernel definition
 	packetCaptureSize = 256
-
-	// state of tc action
-	// TCActOk will terminate the packet processing pipeline and allows the packet to proceed
-	TCActOk = 0
-	// TCActShot will terminate the packet processing pipeline and drop the packet
-	TCActShot = 2
-	// TCActUnspec will continue packet processing
-	TCActUnspec = -1
 )
 
 // ProgOpts defines options
@@ -130,7 +122,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
-		asm.Mov.Imm(asm.R0, TCActUnspec),
+		asm.Mov.Imm(asm.R0, probes.TCActUnspec),
 		asm.Return(),
 	}, senderInsts...)
 
@@ -217,6 +209,7 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 		asm.LoadMapPtr(asm.R1, rawPacketEventMapFd),
 		asm.FnMapLookupElem.Call(),
 		asm.JNE.Imm(asm.R0, 0, "raw-packet-event-not-null"),
+		asm.Mov.Imm(asm.R0, probes.TCActUnspec),
 		asm.Return(),
 		// place in result in the start register and end register
 		asm.Mov.Reg(opts.PacketStart, asm.R0).WithSymbol("raw-packet-event-not-null"),
@@ -230,7 +223,7 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketParserSenderKey)),
 		asm.FnTailCall.Call(),
-		asm.Mov.Imm(asm.R0, 0),
+		asm.Mov.Imm(asm.R0, probes.TCActUnspec),
 		asm.Return(),
 	}
 

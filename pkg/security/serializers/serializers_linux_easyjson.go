@@ -3157,7 +3157,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 		}
 		out.Uint32(uint32(*in.MountID))
 	}
-	{
+	if in.Filesystem != "" {
 		const prefix string = ",\"filesystem\":"
 		if first {
 			first = false
@@ -3169,7 +3169,12 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 	}
 	{
 		const prefix string = ",\"uid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int64(int64(in.UID))
 	}
 	{
@@ -3743,7 +3748,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 		}
 		out.Uint32(uint32(*in.MountID))
 	}
-	{
+	if in.Filesystem != "" {
 		const prefix string = ",\"filesystem\":"
 		if first {
 			first = false
@@ -3755,7 +3760,12 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 	}
 	{
 		const prefix string = ",\"uid\":"
-		out.RawString(prefix)
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		out.Int64(int64(in.UID))
 	}
 	{

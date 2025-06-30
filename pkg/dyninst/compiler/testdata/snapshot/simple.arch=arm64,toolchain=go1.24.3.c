@@ -364,16 +364,16 @@ const uint32_t type_ids[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 
 const uint32_t num_types = 63;
 
 const throttler_params_t throttler_params[] = {
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
-	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 2},
+	{.period_ns = 1000000000, .budget = 1},
 };
 #define NUM_THROTTLERS 11

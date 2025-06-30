@@ -13,7 +13,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -28,7 +27,7 @@ type effect interface {
 type effectSpawnEBPFCompilation struct {
 	programID  ir.ProgramID
 	executable Executable
-	probes     []config.Probe
+	probes     []ir.ProbeDefinition
 }
 
 func (e effectSpawnEBPFCompilation) yamlTag() string {
@@ -154,7 +153,7 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 func (er *effectRecorder) compileProgram(
 	programID ir.ProgramID,
 	executable Executable,
-	probes []config.Probe,
+	probes []ir.ProbeDefinition,
 ) {
 	er.recordEffect(effectSpawnEBPFCompilation{
 		programID:  programID,
@@ -175,7 +174,7 @@ func (er *effectRecorder) attachToProcess(
 	processID ProcessID,
 ) {
 	er.recordEffect(effectAttachToProcess{
-		programID:  loaded.id,
+		programID:  loaded.program.ID,
 		processID:  processID,
 		executable: executable,
 	})
@@ -183,7 +182,7 @@ func (er *effectRecorder) attachToProcess(
 
 func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	er.recordEffect(effectDetachFromProcess{
-		programID: attached.progID,
+		programID: attached.program.ID,
 		processID: attached.procID,
 	})
 }
