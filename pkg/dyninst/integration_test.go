@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -86,7 +85,7 @@ func testDyninst(
 	t *testing.T,
 	service string,
 	sampleServicePath string,
-	probes []irgen.ProbeDefinition,
+	probes []ir.ProbeDefinition,
 	expOut map[string]string,
 ) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
@@ -272,27 +271,27 @@ type testReporter struct {
 
 // ReportAttachingFailed implements actuator.Reporter.
 func (r *testReporter) ReportAttachingFailed(
-	programID ir.ProgramID, processID actuator.ProcessID, err error,
+	processID actuator.ProcessID, program *ir.Program, err error,
 ) {
 	defer close(r.attached)
 	r.t.Fatalf(
 		"attaching failed for program %d to process %v: %v",
-		programID, processID, err,
+		program.ID, processID, err,
 	)
 }
 
 // ReportCompilationFailed implements actuator.Reporter.
 func (r *testReporter) ReportCompilationFailed(
-	programID ir.ProgramID, err error,
+	programID ir.ProgramID, err error, _ []ir.ProbeDefinition,
 ) {
 	defer close(r.attached)
 	r.t.Fatalf("compilation failed for program %d: %v", programID, err)
 }
 
 // ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(programID ir.ProgramID, err error) {
+func (r *testReporter) ReportLoadingFailed(program *ir.Program, err error) {
 	defer close(r.attached)
-	r.t.Fatalf("loading failed for program %d: %v", programID, err)
+	r.t.Fatalf("loading failed for program %d: %v", program.ID, err)
 }
 
 func makeTestReporter(t *testing.T) *testReporter {
@@ -302,14 +301,14 @@ func makeTestReporter(t *testing.T) *testReporter {
 	}
 }
 
-func (r *testReporter) ReportAttached(actuator.ProcessID, []irgen.ProbeDefinition) {
+func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
 	select {
 	case r.attached <- struct{}{}:
 	default:
 	}
 }
 
-func (r *testReporter) ReportDetached(actuator.ProcessID, []irgen.ProbeDefinition) {}
+func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
 
 // clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
 func clearAddressFields(data map[string]any) {
