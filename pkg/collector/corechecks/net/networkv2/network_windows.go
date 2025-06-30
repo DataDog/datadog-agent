@@ -258,12 +258,12 @@ func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefi
 	sType := s.Type()
 	for i := 0; i < s.NumField(); i++ {
 		tag := sType.Field(i).Tag
-		metric_name := tag.Get("metric_name")
-		if metric_name == "" {
+		metricNameTag := tag.Get("metric_name")
+		if metricNameTag == "" {
 			continue
 		}
 
-		metricName := metricPrefix + metric_name
+		metricName := metricPrefix + metricNameTag
 		metricValue := s.Field(i).Uint()
 		if tag.Get("metric_type") == "gauge" {
 			sender.Gauge(metricName, float64(metricValue), "", nil)
