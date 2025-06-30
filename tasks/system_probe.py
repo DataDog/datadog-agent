@@ -10,7 +10,6 @@ import re
 import shutil
 import string
 import sys
-import tarfile
 import tempfile
 from pathlib import Path
 from subprocess import check_output
@@ -1863,52 +1862,6 @@ def generate_event_monitor_proto(ctx):
         replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
         with open(path, "w") as f:
             f.write(replaced_content)
-
-
-@task
-def print_failed_tests(_, output_dir):
-    fail_count = 0
-    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
-        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
-        test_results = {}
-
-        if os.path.isdir(testjson_tgz):
-            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
-
-        with tempfile.TemporaryDirectory() as unpack_dir:
-            with tarfile.open(testjson_tgz) as tgz:
-                tgz.extractall(path=unpack_dir)
-
-            for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                with open(test_json) as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        if 'Test' in json_test:
-                            name = json_test['Test']
-                            package = json_test['Package']
-                            action = json_test["Action"]
-
-                            if action == "pass" or action == "fail" or action == "skip":
-                                test_key = f"{package}.{name}"
-                                res = test_results.get(test_key)
-                                if res is None:
-                                    test_results[test_key] = action
-                                    continue
-
-                                if res == "fail":
-                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
-                                if (action == "pass" or action == "skip") and res == "fail":
-                                    test_results[test_key] = action
-
-        for key, res in test_results.items():
-            if res == "fail":
-                package, name = key.split(".", maxsplit=1)
-                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
-                fail_count += 1
-
-    if fail_count > 0:
-        raise Exit(code=1)
 
 
 @task

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import fnmatch
 import glob
-import json
 import operator
 import os
 import re
@@ -37,6 +36,7 @@ from tasks.libs.common.utils import (
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
@@ -617,22 +617,15 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
 
 
 def parse_test_log(log_file):
-    failed_tests = []
-    n_test_executed = 0
-    with open(log_file) as f:
-        for line in f:
-            json_line = json.loads(line)
-            if (
-                json_line["Action"] == "fail"
-                and "Test" in json_line
-                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
-            ):
-                n_test_executed += 1
-                failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
-            if json_line["Action"] == "pass" and "Test" in json_line:
-                n_test_executed += 1
-                if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
-                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
+    obj: ResultJson = ResultJson.from_file(log_file)
+    failed_tests = [
+        f"{package}/{test_name}"
+        for package, tests in obj.failing_tests.items()
+        for test_name in tests
+        if test_name != "_"  # Exclude package-level failures
+    ]
+
+    n_test_executed = len([line for line in obj.lines if line.action in (ActionType.PASS, ActionType.FAIL)])
     return failed_tests, n_test_executed
 
 
