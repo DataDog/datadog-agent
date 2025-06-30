@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -134,9 +133,7 @@ func TestCopyTree(t *testing.T) {
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			return nil
 		}, func(event *model.Event) bool {
-			typeStr := event.GetType()
-			fmt.Println("type", typeStr, event.Mount)
-			if typeStr != "open_tree" {
+			if event.GetType() != "open_tree" {
 				return false
 			}
 
