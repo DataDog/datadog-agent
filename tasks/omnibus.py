@@ -178,6 +178,9 @@ def get_omnibus_env(
         'HOME',
         'PYTHONUTF8',
         'CONDAPATH',
+        'GOPROXY',
+        'GEM_PATH',
+        'GEM_HOME',
     ]
     for key in env_to_forward:
         if key in os.environ:
