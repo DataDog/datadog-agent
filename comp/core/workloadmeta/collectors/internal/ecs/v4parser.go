@@ -58,6 +58,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
+	// TODO: Do we update task instantly in case a failed call?
 	rt := c.resourceTags[task.Arn]
 
 	var metaURI string

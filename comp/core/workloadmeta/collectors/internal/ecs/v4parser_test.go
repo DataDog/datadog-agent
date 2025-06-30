@@ -39,6 +39,7 @@ func TestPullWithTaskCollectionEnabledWithV4Parser(t *testing.T) {
 	collector := collector{
 		store:                 store,
 		taskCollectionEnabled: true,
+		resourceTags:          make(map[string]resourceTags),
 		metaV1:                v1.NewClient(ts.URL),
 		metaV3or4: func(metaURI, metaVersion string) v3or4.Client {
 			return v3or4.NewClient(metaURI, metaVersion)
