@@ -80,7 +80,7 @@ func (s *testAgentInstallSuite) verifySetupScriptInstallInfo() {
 
 	// Assert
 	s.Require().NoError(err, "should be able to read install_info file")
-	s.Require().Contains(string(installInfoContent), "tool: install-script-default",
+	s.Require().Contains(string(installInfoContent), "tool: installer",
 		"install_info should contain the setup script installation method")
 }
 
