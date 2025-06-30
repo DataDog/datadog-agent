@@ -143,7 +143,6 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -398,7 +397,6 @@ func getSharedFxOption() fx.Option {
 			},
 		),
 		otelagentStatusfx.Module(),
-		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),

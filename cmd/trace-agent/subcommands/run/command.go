@@ -8,10 +8,12 @@ package run
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -39,6 +41,7 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -116,7 +119,6 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		remoteagentfx.Module(remoteagent.Params{
 			ID:          "trace-agent",
 			DisplayName: "Trace Agent",
-			Endpoint:    "localhost:3459",
 			AuthToken:   "hello-world",
 			FlareCallback: func() map[string][]byte {
 				return map[string][]byte{}
@@ -125,7 +127,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				port := pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")
 
 				url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-				httpClient := ipchttp.NewClient("", &tls.Config{}, pkgconfigsetup.Datadog())
+				httpClient := ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), pkgconfigsetup.Datadog())
 				resp, err := httpClient.Get(url, ipchttp.WithCloseConnection)
 				if err != nil {
 					return map[string]string{
@@ -133,7 +135,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 						"error":  err.Error(),
 					}
 				}
-				status := make(map[string]string)
+				status := make(map[string]any)
 				if err := json.Unmarshal(resp, &status); err != nil {
 					return map[string]string{
 						"status": "running",
@@ -141,7 +143,13 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 					}
 				}
 
-				return status
+				// Convert the status map to a string map
+				statusStr := make(map[string]string, len(status))
+				for k, v := range status {
+					statusStr[k] = interfaceToString(v)
+				}
+
+				return statusStr
 			},
 			TelemetryCallback: func() string {
 				return ""
@@ -154,4 +162,66 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		return nil
 	}
 	return err
+}
+
+func interfaceToString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+
+	switch val := v.(type) {
+	case string:
+		return val
+	case bool:
+		return strconv.FormatBool(val)
+	case int:
+		return strconv.Itoa(val)
+	case int8:
+		return strconv.FormatInt(int64(val), 10)
+	case int16:
+		return strconv.FormatInt(int64(val), 10)
+	case int32:
+		return strconv.FormatInt(int64(val), 10)
+	case int64:
+		return strconv.FormatInt(val, 10)
+	case uint:
+		return strconv.FormatUint(uint64(val), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(val), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(val), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(val), 10)
+	case uint64:
+		return strconv.FormatUint(val, 10)
+	case float32:
+		return strconv.FormatFloat(float64(val), 'f', -1, 32)
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case complex64:
+		return fmt.Sprintf("%g", val)
+	case complex128:
+		return fmt.Sprintf("%g", val)
+	case time.Time:
+		return val.Format(time.RFC3339)
+	case fmt.Stringer:
+		return val.String()
+	default:
+		rv := reflect.ValueOf(v)
+		switch rv.Kind() {
+		case reflect.Slice, reflect.Array:
+			return fmt.Sprintf("%v", v)
+		case reflect.Map:
+			return fmt.Sprintf("%v", v)
+		case reflect.Struct:
+			return fmt.Sprintf("%+v", v)
+		case reflect.Ptr:
+			if rv.IsNil() {
+				return ""
+			}
+			return interfaceToString(rv.Elem().Interface())
+		default:
+			return fmt.Sprintf("%v", v)
+		}
+	}
 }
