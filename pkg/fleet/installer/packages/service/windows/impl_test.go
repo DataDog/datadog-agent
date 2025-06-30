@@ -204,12 +204,13 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					api.On("IsServiceRunning", serviceName).Return(true, nil).Once()
 
 					// Successful termination process
+					p := &mockProcessHandle{}
 					api.On("GetServiceProcessID", serviceName).Return(uint32(1234), nil).Once() // First call
-					api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(&mockProcessHandle{}, nil)
-					api.On("CloseHandle", &mockProcessHandle{}).Return(nil)
+					api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(p, nil)
+					api.On("CloseHandle", p).Return(nil)
 					api.On("GetServiceProcessID", serviceName).Return(uint32(1234), nil).Once() // Verification call
-					api.On("TerminateProcess", &mockProcessHandle{}, uint32(1)).Return(nil)
-					api.On("WaitForSingleObject", &mockProcessHandle{}, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
+					api.On("TerminateProcess", p, uint32(1)).Return(nil)
+					api.On("WaitForSingleObject", p, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
 				}
 
 				// Other services are not running
