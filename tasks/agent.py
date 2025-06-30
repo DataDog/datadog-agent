@@ -113,6 +113,12 @@ CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_ver
 CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
+@task
+def test_section(ctx):
+    with gitlab_section("Test Section", collapsed=True):
+        print("This should be collapsed")
+    
+    print("This should not be collapsed")
 
 @task(iterable=['bundle'])
 @run_on_devcontainer
