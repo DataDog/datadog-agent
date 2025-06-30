@@ -263,7 +263,6 @@ int uprobe__http_process(struct pt_regs *ctx) {
     bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
     read_into_user_buffer_http(event.http.request_fragment, args->buffer_ptr);
     http_process(&event, NULL, args->tags);
-    http_batch_flush(ctx);
 
     return 0;
 }
@@ -282,7 +281,6 @@ int uprobe__http_termination(struct pt_regs *ctx) {
     skb_info_t skb_info = {0};
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(&event, &skb_info, NO_TAGS);
-    http_batch_flush(ctx);
 
     return 0;
 }
