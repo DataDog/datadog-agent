@@ -6,6 +6,7 @@
 package connectivity
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -383,13 +386,13 @@ func TestCheckGet(t *testing.T) {
 	client := &http.Client{}
 
 	// Test successful GET request
-	result, err := endpoint.checkGet(client)
+	result, err := endpoint.checkGet(context.Background(), client)
 	assert.NoError(t, err)
 	assert.Equal(t, "Success", result)
 
 	// Test with wrong API key
 	endpoint.apiKey = "wrong-api-key"
-	_, err = endpoint.checkGet(client)
+	_, err = endpoint.checkGet(context.Background(), client)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status code: 401")
 }
@@ -409,7 +412,7 @@ func TestCheckGetConnectionFailure(t *testing.T) {
 	}
 
 	// Test connection failure
-	result, err := endpoint.checkGet(client)
+	result, err := endpoint.checkGet(context.Background(), client)
 	assert.Error(t, err)
 	assert.Contains(t, result, "Failed to connect")
 	assert.Contains(t, err.Error(), "Unable to resolve the address")
@@ -437,7 +440,64 @@ func TestCheckHeadWithRedirectLimit(t *testing.T) {
 	}
 
 	client := &http.Client{}
-	result, err := endpoint.checkHead(client)
+	result, err := endpoint.checkHead(context.Background(), client)
 	assert.NoError(t, err)
 	assert.Equal(t, "Success", result)
+}
+
+func TestRun(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("api_key", "test-api-key")
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			if r.Header.Get("DD-API-KEY") == "test-api-key" {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("OK"))
+			} else {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte("Unauthorized"))
+			}
+		}
+	}))
+	defer ts.Close()
+
+	testEndpoints := []resolvedEndpoint{
+		{
+			url:    ts.URL,
+			base:   ts.URL,
+			method: head,
+		},
+		{
+			url:    ts.URL,
+			base:   ts.URL,
+			method: get,
+			apiKey: "test-api-key",
+		},
+		{
+			url:    ts.URL,
+			base:   ts.URL,
+			method: get,
+			apiKey: "wrong-api-key",
+		},
+	}
+
+	client := getClient(cfg, 2, logmock.New(t))
+
+	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
+	assert.NoError(t, err)
+	assert.Len(t, diagnoses, len(testEndpoints))
+	successCount := 0
+	failCount := 0
+	for _, diagnosis := range diagnoses {
+		if diagnosis.Status == diagnose.DiagnosisSuccess {
+			successCount++
+		} else {
+			failCount++
+		}
+	}
+	assert.Equal(t, 2, successCount)
+	assert.Equal(t, 1, failCount)
 }
