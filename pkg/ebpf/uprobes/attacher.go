@@ -161,7 +161,7 @@ func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 			}
 
 			if !matchesAtLeastOneLib {
-				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libsets [%s]", r.LibraryNameRegex, strings.Join(attacherConfig.SharedLibsLibsets, ", ")))
+				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libsets [%v]", r.LibraryNameRegex, attacherConfig.SharedLibsLibsets))
 			}
 		}
 	}
