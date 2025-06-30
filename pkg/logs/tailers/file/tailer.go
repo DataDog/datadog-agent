@@ -335,8 +335,11 @@ func (t *Tailer) readForever() {
 		}
 
 		if n > 0 && t.fingerprintingEnabled && t.fingerprint == 0 {
-			filePath := t.Identifier()[5:]
-			t.fingerprint = ComputeFingerprint(filePath, t.fingerprintConfig)
+			identifier := t.Identifier()
+			if len(identifier) > 5 {
+				filePath := identifier[5:]
+				t.fingerprint = ComputeFingerprint(filePath, t.fingerprintConfig)
+			}
 			if t.fingerprint != 0 {
 				log.Infof("Successfully computed fingerprint for file %q on retry", t.file.Path)
 			}

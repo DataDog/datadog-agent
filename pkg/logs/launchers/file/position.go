@@ -24,7 +24,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	fingerprintConfig := registry.GetFingerprintConfig(identifier)
 	previousFingerprint := registry.GetFingerprint(identifier)
 	filePath := ""
-	if len(identifier) > 0 {
+	if len(identifier) > 5 {
 		filePath = identifier[5:]
 	}
 	newFingerprint := tailerfile.ComputeFingerprint(filePath, fingerprintConfig)
