@@ -6,16 +6,11 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
+features:
+  - |
+    The NTP check on Windows now discovers and queries the primary domain controller (PDC) for time on domain-joined hosts when `use_local_defined_servers` is enabled. If the PDC is unavailable, it automatically falls back to registry-defined servers. The check also now performs order-insensitive server list comparisons to reduce log noise and avoids using itself as a time source when running on a domain controller.
 
 fixes:
   - |
-    The NTP check on Windows is now more resilient. If a machine is configured to use an Active Directory domain controller for time (`NT5DS`) but cannot reach it, the check will now automatically fall back to using the NTP servers listed in the Windows registry instead of failing completely.
-  - |
-    The check is now smarter about detecting changes to the NTP server list. It will no longer create a log entry if the discovered servers are the same but in a different order, reducing log noise.
-  - |
-    When discovering a domain controller for time synchronization, the check will now avoid using the machine itself if it is also a domain controller.
-  - |
-    Fixed a misleading log message that occurred when NTP domain controller discovery failed on Windows. The log will no longer include ``(The operation completed successfully.)`` alongside the error code.
-  - |
-    The NTP check will no longer fail to start if the initial discovery of local NTP servers fails. It will instead log a warning and retry on the next run.
+    The NTP check will no longer fail to start if the initial discovery of local NTP servers fails at agent startup.
 

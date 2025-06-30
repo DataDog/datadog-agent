@@ -8,14 +8,12 @@ package agentimpl
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -46,8 +44,6 @@ func runAgentSidekicks(ag component) error {
 	if err := coredump.Setup(pkgconfigsetup.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
-
-	rand.Seed(time.Now().UTC().UnixNano())
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		cf, err := newConfigFetcher(ag.ipc)
@@ -84,21 +80,22 @@ func runAgentSidekicks(ag component) error {
 		// Adding a route to trigger a secrets refresh from the CLI.
 		// TODO - components: the secrets comp already export a route but it requires the API component which is not
 		// used by the trace agent. This should be removed once the trace-agent is fully componentize.
-		ag.Agent.DebugServer.AddRoute("/secret/refresh", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if apiutil.Validate(w, req) != nil {
-				return
-			}
-
-			res, err := secrets.Refresh()
-			if err != nil {
-				log.Errorf("error while refresing secrets: %s", err)
-				w.Header().Set("Content-Type", "application/json")
-				body, _ := json.Marshal(map[string]string{"error": err.Error()})
-				http.Error(w, string(body), http.StatusInternalServerError)
-				return
-			}
-			w.Write([]byte(res))
-		}))
+		ag.Agent.DebugServer.AddRoute("/secret/refresh",
+			// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
+			ag.ipc.HTTPMiddleware(
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					res, err := secrets.Refresh()
+					if err != nil {
+						log.Errorf("error while refresing secrets: %s", err)
+						w.Header().Set("Content-Type", "application/json")
+						body, _ := json.Marshal(map[string]string{"error": err.Error()})
+						http.Error(w, string(body), http.StatusInternalServerError)
+						return
+					}
+					w.Write([]byte(res))
+				}),
+			),
+		)
 	}
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)
@@ -163,5 +160,5 @@ func newConfigFetcher(ipc ipc.Component) (rc.ConfigFetcher, error) {
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return ipc.GetAuthToken(), nil }, ipc.GetTLSClientConfig) // TODO IPC: GRPC client will be provided by the IPC component
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
 }

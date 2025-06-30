@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -46,7 +46,6 @@ type MockProvider struct {
 	collectCounter int
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
@@ -56,13 +55,12 @@ func (p *MockProvider) String() string {
 	return "mocked"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p *MockProvider) GetConfigErrors() map[string]providers.ErrorMsgSet {
-	return make(map[string]providers.ErrorMsgSet)
+func (p *MockProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }
 
 type MockProvider2 struct {
@@ -74,7 +72,6 @@ type MockListener struct {
 	stopReceived bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *MockListener) Listen(_, _ chan<- listeners.Service) {
 	l.ListenCount++
 }
@@ -260,7 +257,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
 	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
-	ac.Stop()
+	ac.stop()
 
 	assert.True(suite.T(), ml.stopReceived)
 }
@@ -565,7 +562,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			expectedResult: "pass: \"********\"",
 		},
 		{
-			name:           "With nil Requet",
+			name:           "With nil Request",
 			request:        nil,
 			expectedResult: "pass: \"********\"",
 		},
@@ -584,7 +581,15 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			out := responseRecorder.Body.Bytes()
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
-			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
+			assert.Equal(t, tc.expectedResult, string(result.Configs[0].Config.Instances[0]))
+
+			// Check also that the unresolved configs are returned
+			var unresolved []integration.Config
+			for _, config := range result.Unresolved {
+				unresolved = append(unresolved, config)
+			}
+			require.Len(t, unresolved, 1)
+			assert.Equal(t, tc.expectedResult, string(unresolved[0].Instances[0]))
 		})
 	}
 }

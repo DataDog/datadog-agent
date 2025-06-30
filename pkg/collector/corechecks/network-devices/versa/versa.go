@@ -37,6 +37,7 @@ type checkCfg struct {
 	// add versa specific fields
 	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
 	DirectorEndpoint                string   `yaml:"director_endpoint"`
+	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
 	Username                        string   `yaml:"username"`
 	Password                        string   `yaml:"password"`
 	UseHTTP                         bool     `yaml:"use_http"`
@@ -55,6 +56,7 @@ type checkCfg struct {
 	CollectHardwareStatus           *bool    `yaml:"collect_hardware_status"`
 	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
 	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
+	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -70,7 +72,7 @@ func (v *VersaCheck) Run() error {
 
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -111,19 +113,56 @@ func (v *VersaCheck) Run() error {
 	deviceMetadata := make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
 	deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
 
-	directorDeviceMetdata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
+	directorDeviceMetadata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
 	if err != nil {
 		log.Errorf("error getting director device metadata: %v", err)
 	} else {
-		deviceMetadata = append(deviceMetadata, directorDeviceMetdata)
+		deviceMetadata = append(deviceMetadata, directorDeviceMetadata)
 	}
+
+	// Send the tags to the metrics sender
+	deviceTags := payload.GetApplianceDevicesTags(v.config.Namespace, appliances)
+	directorDeviceTags, err := payload.GetDirectorDeviceTags(v.config.Namespace, directorStatus)
+	if err != nil {
+		log.Warnf("error getting director device tags, director metrics will contain default tags: %v", err)
+	}
+	// TODO: is there any chance that the director IP overlaps with an appliance IP?
+	for ip, tags := range directorDeviceTags {
+		deviceTags[ip] = append(deviceTags[ip], tags...)
+	}
+	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
 		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
 	}
 
-	// TODO: send metrics from the appliance detail call
+	// Send hardware metrics to the metrics sender
+	if *v.config.CollectHardwareMetrics {
+		uptimes := payload.GetDevicesUptime(appliances)
+		deviceStatus := payload.GetDevicesStatus(appliances)
+
+		v.metricsSender.SendDeviceMetrics(appliances)
+		v.metricsSender.SendUptimeMetrics(uptimes)
+		v.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+
+		// Director metrics
+		v.metricsSender.SendDirectorDeviceMetrics(directorStatus)
+		v.metricsSender.SendDirectorUptimeMetrics(directorStatus)
+		v.metricsSender.SendDirectorStatus(directorStatus)
+	}
+
+	if *v.config.CollectSLAMetrics {
+		deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
+		slaMetrics, err := c.GetSLAMetrics()
+		if err != nil {
+			log.Warnf("error getting SLA metrics from Versa client: %v", err)
+		}
+		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+	}
+
+	// Commit
+	v.metricsSender.Commit()
 
 	return nil
 }
@@ -159,6 +198,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
+	instanceConfig.CollectSLAMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -223,6 +263,18 @@ func filterOrganizations(orgs []client.Organization, includedOrgs []string, excl
 	}
 
 	return filteredOrgs
+}
+
+// TODO: should we convert the tags map to use ID instead of IP?
+// generateDeviceNameToIPMap generates a map of device IP to device name to enrich the results from Analytics responses
+func generateDeviceNameToIPMap(deviceMetadata []devicemetadata.DeviceMetadata) map[string]string {
+	deviceNameToIPMap := make(map[string]string)
+	for _, device := range deviceMetadata {
+		if device.Name != "" {
+			deviceNameToIPMap[device.Name] = device.IPAddress
+		}
+	}
+	return deviceNameToIPMap
 }
 
 func boolPointer(b bool) *bool {

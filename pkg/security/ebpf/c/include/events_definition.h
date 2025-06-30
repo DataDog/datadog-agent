@@ -300,6 +300,15 @@ struct mount_event_t {
     struct mount_fields_t mountfields;
 };
 
+struct fsmount_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct fsmount_fields_t fsmountfields;
+};
+
 struct unshare_mntns_event_t {
     struct kevent_t event;
     struct mount_fields_t mountfields;
@@ -469,6 +478,8 @@ struct chdir_event_t {
     struct file_t file;
 };
 
+#define ON_DEMAND_PER_ARG_SIZE 64
+
 struct on_demand_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -476,7 +487,7 @@ struct on_demand_event_t {
     struct container_context_t container;
 
     u32 synth_id;
-    char data[256];
+    char data[ON_DEMAND_PER_ARG_SIZE * 6];
 };
 
 struct raw_packet_event_t {
@@ -514,6 +525,30 @@ struct sysctl_event_t {
     u16 new_value_len;
     u16 flags;
     char sysctl_buffer[MAX_SYSCTL_BUFFER_LEN];
+};
+
+struct setrlimit_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+
+    int resource;
+    u32 target;
+    u64 rlim_cur;
+    u64 rlim_max;
+};
+
+struct setsockopt_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+
+    int level;
+    int optname;
 };
 
 #endif

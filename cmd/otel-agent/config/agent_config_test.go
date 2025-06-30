@@ -60,7 +60,7 @@ func (suite *ConfigTestSuite) TestAgentConfig() {
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, 10, c.Get("apm_config.trace_buffer"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"disable_operation_and_resource_name_logic_v2"}, c.Get("apm_config.features"))
+	assert.Equal(t, []string{}, c.Get("apm_config.features"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
@@ -82,12 +82,12 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"disable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
+	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"},
 		c.Get("apm_config.features"))
 }
 
-func (suite *ConfigTestSuite) TestOperationAndResourceNameV2FeatureGate() {
-	featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+func (suite *ConfigTestSuite) TestDisableOperationAndResourceNameV2FeatureGate() {
+	featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", false)
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
@@ -106,7 +106,7 @@ func (suite *ConfigTestSuite) TestOperationAndResourceNameV2FeatureGate() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"},
+	assert.Equal(t, []string{"disable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
 		c.Get("apm_config.features"))
 }
 
@@ -165,7 +165,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"disable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
+	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
 	assert.Equal(t, "debug", c.Get("log_level"))

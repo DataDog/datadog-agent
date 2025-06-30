@@ -15,11 +15,10 @@ import (
 	"sort"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -145,7 +144,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
+		Tags: tls.GetStaticTags(tagOpenSSL | tagTLS),
 	}
 	// fixup Protocol stack as on windows or macos
 	// we don't have tags mechanism inserting TLS protocol on protocol stack
@@ -595,7 +594,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 	require.Equal(t, len(expected.Conns), len(actual.Conns), "expected both model.Connections to have the same number of connections")
 
-	for i := 0; i < len(actual.Conns); i++ {
+	for i := range actual.Conns {
 		expectedRawHTTP := expected.Conns[i].HttpAggregations
 		actualRawHTTP := actual.Conns[i].HttpAggregations
 

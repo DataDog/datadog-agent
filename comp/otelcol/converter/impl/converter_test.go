@@ -59,16 +59,6 @@ func TestConvert(t *testing.T) {
 		agentConfig    string
 	}{
 		{
-			name:           "connectors/no-dd-connector",
-			provided:       "connectors/no-dd-connector/config.yaml",
-			expectedResult: "connectors/no-dd-connector/config.yaml",
-		},
-		{
-			name:           "connectors/already-set",
-			provided:       "connectors/already-set/config.yaml",
-			expectedResult: "connectors/already-set/config.yaml",
-		},
-		{
 			name:           "extensions/empty-extensions",
 			provided:       "extensions/empty-extensions/config.yaml",
 			expectedResult: "extensions/empty-extensions/config-result.yaml",
@@ -314,6 +304,48 @@ func TestConvert(t *testing.T) {
 			provided:       "dd-core-cfg/env/empty-profiler-options/config.yaml",
 			expectedResult: "dd-core-cfg/env/empty-profiler-options/config-result.yaml",
 			agentConfig:    "dd-core-cfg/env/empty-profiler-options/acfg.yaml",
+		},
+		{
+			name:           "features/all-features",
+			provided:       "features/all-features/config.yaml",
+			expectedResult: "features/all-features/config-result.yaml",
+			agentConfig:    "features/all-features/acfg.yaml",
+		},
+		{
+			name:           "features/all-extensions-only",
+			provided:       "features/all-extensions-only/config.yaml",
+			expectedResult: "features/all-extensions-only/config-result.yaml",
+			agentConfig:    "features/all-extensions-only/acfg.yaml",
+		},
+		{
+			name:           "features/some-extensions-only",
+			provided:       "features/some-extensions-only/config.yaml",
+			expectedResult: "features/some-extensions-only/config-result.yaml",
+			agentConfig:    "features/some-extensions-only/acfg.yaml",
+		},
+		{
+			name:           "features/infraattributes-only",
+			provided:       "features/infraattributes-only/config.yaml",
+			expectedResult: "features/infraattributes-only/config-result.yaml",
+			agentConfig:    "features/infraattributes-only/acfg.yaml",
+		},
+		{
+			name:           "features/no-features",
+			provided:       "features/no-features/config.yaml",
+			expectedResult: "features/no-features/config.yaml",
+			agentConfig:    "features/no-features/acfg.yaml",
+		},
+		{
+			name:           "features/prometheus-only",
+			provided:       "features/prometheus-only/config.yaml",
+			expectedResult: "features/prometheus-only/config-result.yaml",
+			agentConfig:    "features/prometheus-only/acfg.yaml",
+		},
+		{
+			name:           "features/no-defined-features",
+			provided:       "features/no-defined-features/config.yaml",
+			expectedResult: "features/no-defined-features/config-result.yaml",
+			agentConfig:    "features/no-defined-features/acfg.yaml",
 		},
 	}
 

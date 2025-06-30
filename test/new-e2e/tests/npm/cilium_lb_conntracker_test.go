@@ -40,7 +40,7 @@ type ciliumLBConntrackerTestSuite struct {
 
 func TestCiliumLBConntracker(t *testing.T) {
 	// TODO: find a way to update this list dynamically
-	versionsToTest := []string{"1.15.14", "1.16.7", "1.17.1"}
+	versionsToTest := []string{"1.15.17", "1.16.10", "1.17.4"}
 	for _, v := range versionsToTest {
 		t.Run(fmt.Sprintf("version %s", v), func(_t *testing.T) {
 			_t.Parallel()
@@ -86,7 +86,7 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithName(name),
 				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
-				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigWithCiliumLB)),
+				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
 				awskubernetes.WithWorkloadApp(httpBinServiceInstall),
 				awskubernetes.WithWorkloadApp(npmToolsWorkload),
 			),

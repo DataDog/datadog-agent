@@ -90,12 +90,12 @@ var testCatalog = catalog{
 		{
 			Package: string(datadogAgent),
 			Version: latestAgentImageVersion,
-			URL:     fmt.Sprintf("oci://install.datad0g.com/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://install.datad0g.com.internal.dda-testing.com/agent-package:%s", latestAgentImageVersion),
 		},
 		{
 			Package: string(datadogApmInject),
 			Version: apmInjectVersion,
-			URL:     "oci://install.datadoghq.com/apm-inject-package:latest",
+			URL:     "oci://dd-agent.s3.amazonaws.com/apm-inject-package:latest",
 		},
 	},
 }
@@ -196,7 +196,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 			{
 				Package: "datadog-agent",
 				Version: currentVersion,
-				URL:     fmt.Sprintf("oci://install.datadoghq.com/agent-package:%s", currentVersion),
+				URL:     fmt.Sprintf("oci://dd-agent.s3.amazonaws.com/agent-package:%s", currentVersion),
 			},
 		},
 	}

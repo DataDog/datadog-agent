@@ -38,6 +38,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   patch source: "libxslt-solaris-configure.patch", env: env if solaris2? || omnios? || smartos?
+  patch source: "0001-disable-doc-tests.patch", env: env
 
   if windows?
     patch source: "libxslt-windows-relocate.patch", env: env

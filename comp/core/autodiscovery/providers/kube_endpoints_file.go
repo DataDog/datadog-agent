@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -57,7 +58,7 @@ type KubeEndpointsFileConfigProvider struct {
 }
 
 // NewKubeEndpointsFileConfigProvider returns a new KubeEndpointsFileConfigProvider
-func NewKubeEndpointsFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewKubeEndpointsFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
 	templates, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err
@@ -94,18 +95,14 @@ func NewKubeEndpointsFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, 
 
 // Collect returns the check configurations defined in Yaml files.
 // Only configs with advanced AD identifiers targeting kubernetes endpoints are handled by this collector.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *KubeEndpointsFileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (p *KubeEndpointsFileConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	p.setUpToDate(true)
 
 	return p.store.generateConfigs(), nil
 }
 
 // IsUpToDate returns whether the config provider needs to be polled.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *KubeEndpointsFileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (p *KubeEndpointsFileConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -118,8 +115,8 @@ func (p *KubeEndpointsFileConfigProvider) String() string {
 }
 
 // GetConfigErrors is not implemented for the KubeEndpointsFileConfigProvider.
-func (p *KubeEndpointsFileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (p *KubeEndpointsFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }
 
 func (p *KubeEndpointsFileConfigProvider) setUpToDate(v bool) {

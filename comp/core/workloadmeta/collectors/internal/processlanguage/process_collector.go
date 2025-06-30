@@ -175,7 +175,7 @@ func transform(diff *processwlm.ProcessCacheDiff) []workloadmeta.CollectorEvent 
 				CreationTime: time.UnixMilli(creation.CreationTime),
 				Language:     creation.Language,
 			},
-			Source: workloadmeta.SourceLocalProcessCollector,
+			Source: workloadmeta.SourceProcessLanguageCollector,
 		})
 	}
 
@@ -188,7 +188,7 @@ func transform(diff *processwlm.ProcessCacheDiff) []workloadmeta.CollectorEvent 
 					ID:   strconv.Itoa(int(deletion.Pid)),
 				},
 			},
-			Source: workloadmeta.SourceLocalProcessCollector,
+			Source: workloadmeta.SourceProcessLanguageCollector,
 		})
 	}
 

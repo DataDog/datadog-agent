@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
@@ -533,7 +534,54 @@ func testFlushMissingContext(t *testing.T, store *tags.Store) {
 func TestFlushMissingContext(t *testing.T) {
 	testWithTagsStore(t, testFlushMissingContext)
 }
+func testFlushBlocklist(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler(store)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "test.gauge",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	}, 1000)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "test.histogram",
+		Value:      1,
+		Mtype:      metrics.HistogramType,
+		SampleRate: 1,
+	}, 1000)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "test.sketch",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		SampleRate: 1,
+	}, 1000)
+	bl := utilstrings.NewBlocklist([]string{
+		"test.histogram.avg",
+		"test.histogram.count",
+	}, false)
 
+	metrics, sketches := flushSerieWithBlocklist(sampler, 1100, &bl)
+
+	assert.Len(t, metrics, 4)
+	assert.Len(t, sketches, 1)
+
+	names := []string{}
+	for _, metric := range metrics {
+		names = append(names, metric.Name)
+	}
+	for _, sketch := range sketches {
+		names = append(names, sketch.Name)
+	}
+	assert.ElementsMatch(t, names, []string{
+		"test.histogram.max",
+		"test.histogram.median",
+		"test.histogram.95percentile",
+		"test.gauge",
+		"test.sketch",
+	})
+}
+func TestFlushBlocklist(t *testing.T) {
+	testWithTagsStore(t, testFlushBlocklist)
+}
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 
@@ -557,6 +605,14 @@ func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metric
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches)
+	sampler.flush(timestamp, &series, &sketches, nil)
+	return series, sketches
+}
+
+func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist) (metrics.Series, metrics.SketchSeriesList) {
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+
+	sampler.flush(timestamp, &series, &sketches, bl)
 	return series, sketches
 }

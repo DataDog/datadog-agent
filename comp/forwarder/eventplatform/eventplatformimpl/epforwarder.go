@@ -25,7 +25,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -366,7 +365,6 @@ type passthroughPipeline struct {
 	sender                *sender.Sender
 	strategy              sender.Strategy
 	in                    chan *message.Message
-	auditor               auditor.Auditor
 	eventPlatformReceiver eventplatformreceiver.Component
 }
 
@@ -434,11 +432,10 @@ func newHTTPPassthroughPipeline(
 
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
 
-	a := auditor.NewNullAuditor()
 	serverlessMeta := sender.NewServerlessMeta(false)
 	senderImpl := httpsender.NewHTTPSender(
 		coreConfig,
-		a,
+		&sender.NoopSink{},
 		10, // Buffer Size
 		serverlessMeta,
 		endpoints,
@@ -466,7 +463,7 @@ func newHTTPPassthroughPipeline(
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.ArraySerializer,
+			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
@@ -489,13 +486,11 @@ func newHTTPPassthroughPipeline(
 		sender:                senderImpl,
 		strategy:              strategy,
 		in:                    inputChan,
-		auditor:               a,
 		eventPlatformReceiver: eventPlatformReceiver,
 	}, nil
 }
 
 func (p *passthroughPipeline) Start() {
-	p.auditor.Start()
 	if p.strategy != nil {
 		p.strategy.Start()
 		p.sender.Start()
@@ -507,7 +502,6 @@ func (p *passthroughPipeline) Stop() {
 		p.strategy.Stop()
 		p.sender.Stop()
 	}
-	p.auditor.Stop()
 }
 
 func joinHosts(endpoints []config.Endpoint) string {

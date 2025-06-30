@@ -103,7 +103,9 @@ func Test_MatchTCP(t *testing.T) {
 	dstPort := uint16(443)
 	seqNum := uint32(2549)
 	mockHeader := testutils.CreateMockIPv4Header(dstIP, srcIP, 6)
-	_, tcpBytes := testutils.CreateMockTCPPacket(mockHeader, testutils.CreateMockTCPLayer(dstPort, srcPort, seqNum, seqNum+1, true, true, true), false)
+	_, synackBytes := testutils.CreateMockTCPPacket(mockHeader, testutils.CreateMockTCPLayer(dstPort, srcPort, 123, seqNum+1, true, true, false), false)
+	_, rstackBytes := testutils.CreateMockTCPPacket(mockHeader, testutils.CreateMockTCPLayer(dstPort, srcPort, 456, seqNum+1, false, true, true), false)
+	_, rstBytes := testutils.CreateMockTCPPacket(mockHeader, testutils.CreateMockTCPLayer(dstPort, srcPort, 789, 0, false, false, true), false)
 
 	tts := []struct {
 		description string
@@ -153,7 +155,7 @@ func Test_MatchTCP(t *testing.T) {
 		{
 			description:    "non-matching TCP payload returns mismatch error",
 			header:         mockHeader,
-			payload:        tcpBytes,
+			payload:        synackBytes,
 			localIP:        srcIP,
 			localPort:      srcPort,
 			remoteIP:       dstIP,
@@ -163,9 +165,57 @@ func Test_MatchTCP(t *testing.T) {
 			expectedErrMsg: "TCP packet doesn't match",
 		},
 		{
-			description:    "matching TCP payload returns destination IP",
+			description:    "matching SYNACK payload returns destination IP",
 			header:         mockHeader,
-			payload:        tcpBytes,
+			payload:        synackBytes,
+			localIP:        srcIP,
+			localPort:      srcPort,
+			remoteIP:       dstIP,
+			remotePort:     dstPort,
+			seqNum:         seqNum,
+			expectedIP:     dstIP,
+			expectedErrMsg: "",
+		},
+		{
+			description:    "non-matching SYNACK ack number returns mismatch error",
+			header:         mockHeader,
+			payload:        synackBytes,
+			localIP:        srcIP,
+			localPort:      srcPort,
+			remoteIP:       dstIP,
+			remotePort:     dstPort,
+			seqNum:         seqNum + 123,
+			expectedIP:     net.IP{},
+			expectedErrMsg: "TCP packet doesn't match",
+		},
+		{
+			description:    "matching RSTACK payload returns destination IP",
+			header:         mockHeader,
+			payload:        rstackBytes,
+			localIP:        srcIP,
+			localPort:      srcPort,
+			remoteIP:       dstIP,
+			remotePort:     dstPort,
+			seqNum:         seqNum,
+			expectedIP:     dstIP,
+			expectedErrMsg: "",
+		},
+		{
+			description:    "non-matching RSTACK ack number returns mismatch error",
+			header:         mockHeader,
+			payload:        rstackBytes,
+			localIP:        srcIP,
+			localPort:      srcPort,
+			remoteIP:       dstIP,
+			remotePort:     dstPort,
+			seqNum:         seqNum + 123,
+			expectedIP:     net.IP{},
+			expectedErrMsg: "TCP packet doesn't match",
+		},
+		{
+			description:    "RST payload returns destination IP even though the packet has ack=0",
+			header:         mockHeader,
+			payload:        rstBytes,
 			localIP:        srcIP,
 			localPort:      srcPort,
 			remoteIP:       dstIP,
@@ -179,7 +229,9 @@ func Test_MatchTCP(t *testing.T) {
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
 			tp := newParser()
-			actualIP, err := tp.MatchTCP(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			// packetID is not used for TCP matching
+			packetID := uint16(2222)
+			actualIP, err := tp.MatchTCP(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum, packetID)
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))

@@ -264,7 +264,7 @@ func (a *InjectorInstaller) addInstrumentScripts(ctx context.Context) (err error
 	hostMutator := newFileMutator(
 		"/usr/bin/dd-host-install",
 		func(_ context.Context, _ []byte) ([]byte, error) {
-			return embedded.FS.ReadFile("dd-host-install")
+			return embedded.ScriptDDHostInstall, nil
 		},
 		nil, nil,
 	)
@@ -282,7 +282,7 @@ func (a *InjectorInstaller) addInstrumentScripts(ctx context.Context) (err error
 	containerMutator := newFileMutator(
 		"/usr/bin/dd-container-install",
 		func(_ context.Context, _ []byte) ([]byte, error) {
-			return embedded.FS.ReadFile("dd-container-install")
+			return embedded.ScriptDDContainerInstall, nil
 		},
 		nil, nil,
 	)
@@ -303,7 +303,7 @@ func (a *InjectorInstaller) addInstrumentScripts(ctx context.Context) (err error
 		cleanupMutator := newFileMutator(
 			"/usr/bin/dd-cleanup",
 			func(_ context.Context, _ []byte) ([]byte, error) {
-				return embedded.FS.ReadFile("dd-cleanup")
+				return embedded.ScriptDDCleanup, nil
 			},
 			nil, nil,
 		)
@@ -333,19 +333,9 @@ func (a *InjectorInstaller) removeInstrumentScripts(ctx context.Context) (retErr
 		path := filepath.Join("/usr/bin", script)
 		_, err := os.Stat(path)
 		if err == nil {
-			content, err := os.ReadFile(path)
+			err = os.Remove(path)
 			if err != nil {
-				return fmt.Errorf("failed to read %s: %w", path, err)
-			}
-			embeddedContent, err := embedded.FS.ReadFile(script)
-			if err != nil {
-				return fmt.Errorf("failed to read embedded %s: %w", script, err)
-			}
-			if bytes.Equal(content, embeddedContent) {
-				err = os.Remove(path)
-				if err != nil {
-					return fmt.Errorf("failed to remove %s: %w", path, err)
-				}
+				return fmt.Errorf("failed to remove %s: %w", path, err)
 			}
 		}
 	}

@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -134,6 +135,39 @@ func TestOnDemandMprotect(t *testing.T) {
 		}
 
 		return nil
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
+	})
+}
+
+func TestOnDemandCopyFileRange(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_copy_file_range",
+			Expression: `ondemand.name == "syscall:copy_file_range" && ondemand.arg5.uint == 42 && ondemand.arg6.uint == 0 && process.file.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	f, err := os.CreateTemp("", "test-copy_file_range")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	test.WaitSignal(t, func() error {
+		_, err := unix.CopyFileRange(int(f.Fd()), nil, int(f.Fd()), nil, 42, 0)
+		if errors.Is(err, unix.ENOSYS) {
+			return ErrSkipTest{"openat2 is not supported"}
+		}
+		return err
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 	})

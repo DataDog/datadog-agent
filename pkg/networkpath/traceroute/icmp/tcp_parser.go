@@ -49,7 +49,7 @@ func NewICMPTCPParser() Parser {
 }
 
 // Match encapsulates to logic to both parse and match an ICMP packet
-func (p *TCPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error) {
+func (p *TCPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, packetID uint16) (net.IP, error) {
 	if header.Protocol != IPProtoICMP {
 		return net.IP{}, errors.New("expected an ICMP packet")
 	}
@@ -57,7 +57,7 @@ func (p *TCPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, lo
 	if err != nil {
 		return net.IP{}, fmt.Errorf("ICMP parse error: %w", err)
 	}
-	if !icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, innerIdentifier) {
+	if !icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, innerIdentifier, packetID) {
 		return net.IP{}, common.MismatchError("ICMP packet doesn't match")
 	}
 
@@ -113,6 +113,7 @@ func (p *TCPParser) Parse(header *ipv4.Header, payload []byte) (*Response, error
 	p.icmpResponse.InnerDstIP = p.innerIPLayer.DstIP
 	p.icmpResponse.InnerSrcPort = uint16(p.innerTCPLayer.SrcPort)
 	p.icmpResponse.InnerDstPort = uint16(p.innerTCPLayer.DstPort)
+	p.icmpResponse.InnerIPID = p.innerIPLayer.Id
 	p.icmpResponse.InnerIdentifier = p.innerTCPLayer.Seq
 
 	return p.icmpResponse, nil

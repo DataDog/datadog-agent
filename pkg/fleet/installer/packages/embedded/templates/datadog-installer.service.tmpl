@@ -1,0 +1,32 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog Installer
+After=network.target
+Conflicts=datadog-installer-exp.service
+{{- else}}
+Description=Datadog Installer Experiment
+After=network.target
+OnFailure=datadog-installer.service
+Conflicts=datadog-installer.service
+JobTimeoutSec=3000
+{{- end}}
+
+[Service]
+{{- if .Stable}}
+Type=simple
+PIDFile=/opt/datadog-packages/run/installer.pid
+Restart=on-failure
+ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer run -p /opt/datadog-packages/run/installer.pid
+StartLimitInterval=10
+StartLimitBurst=5
+{{- else}}
+Type=oneshot
+PIDFile=/opt/datadog-packages/run/installer-exp.pid
+ExecStart=/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer run -p /opt/datadog-packages/run/installer-exp.pid
+ExecStart=/bin/false
+ExecStop=/usr/bin/tail --pid $MAINPID -f /dev/null
+ExecStop=/bin/false
+{{- end}}
+
+[Install]
+WantedBy=multi-user.target

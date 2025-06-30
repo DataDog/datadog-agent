@@ -56,6 +56,7 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -93,7 +94,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		}),
 		sysprobeconfig.NoneModule(),
 		ipcfx.ModuleReadWrite(),
-		collectorfx.Module(),
+		collectorfx.Module(collectorimpl.NewParams(false)),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {

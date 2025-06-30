@@ -29,7 +29,7 @@
     checks.d: {{.config.additional_checksd}}
     {{- end }}
 
-  {{- if eq .config.fips_enabled "true" }}
+  {{- if eq .config.fips_proxy_enabled "true" }}
 
   FIPS proxy
   ==========
