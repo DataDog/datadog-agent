@@ -424,7 +424,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.66.1
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.64.0-devel
@@ -566,7 +566,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.65.1
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.66.1
 	github.com/DataDog/datadog-agent/comp/core/status v0.63.0
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
@@ -598,7 +598,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/api v0.63.0
+	github.com/DataDog/datadog-agent/pkg/api v0.65.1
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.66.1
 	github.com/DataDog/datadog-agent/pkg/config/create v0.66.1
 	github.com/DataDog/datadog-agent/pkg/config/env v0.66.1
@@ -606,7 +606,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.66.1
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.66.1
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.65.1
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.12
@@ -643,7 +643,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.66.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/option v0.66.1
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3
