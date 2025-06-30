@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !e2ecoverage
 
+// Package coverage does nothing when compiling without the e2ecoverage build tag.
 package coverage
 
 import (
@@ -12,4 +13,5 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 )
 
-func SetupCoverageCommand(globalParamsGetter func() *subcommands.GlobalParams, cmd *cobra.Command) {}
+// SetupCoverageCommand does nothing when compiling without the e2ecoverage build tag
+func SetupCoverageCommand(_ func() *subcommands.GlobalParams, _ *cobra.Command) {}

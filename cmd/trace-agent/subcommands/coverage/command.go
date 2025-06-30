@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// SetupCoverageCommand adds the coverage command to the trace-agent command tree.
 func SetupCoverageCommand(globalParamsGetter func() *subcommands.GlobalParams, cmd *cobra.Command) {
 	cmd.AddCommand(MakeCommand(globalParamsGetter))
 }

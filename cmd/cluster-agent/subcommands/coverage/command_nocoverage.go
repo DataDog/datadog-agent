@@ -5,6 +5,7 @@
 
 //go:build !e2ecoverage && !windows && kubeapiserver
 
+// Package coverage does nothing when compiling without the e2ecoverage build tag.
 package coverage
 
 import (

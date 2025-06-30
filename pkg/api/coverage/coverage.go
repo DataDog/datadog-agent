@@ -9,6 +9,7 @@
 
 //go:build e2ecoverage
 
+// Package coverage implements the api endpoints for the `/coverage` prefix.
 package coverage
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// SetupCoverageHandler adds the coverage handler to the router
 func SetupCoverageHandler(r *mux.Router) {
 	r.HandleFunc("/coverage", ComponentCoverageHandler).Methods("GET")
 }
