@@ -42,7 +42,10 @@ type ContainerListener struct {
 // NewContainerListener returns a new ContainerListener.
 func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
-	l := &ContainerListener{}
+	l := &ContainerListener{
+		filterStore: options.Filter,
+		tagger:      options.Tagger,
+	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
@@ -56,7 +59,6 @@ func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error)
 	if err != nil {
 		return nil, err
 	}
-	l.tagger = options.Tagger
 
 	return l, nil
 }

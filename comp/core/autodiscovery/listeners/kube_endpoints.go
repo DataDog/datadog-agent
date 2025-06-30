@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -493,11 +492,11 @@ func (s *KubeEndpointService) IsReady() bool {
 
 // HasFilter returns whether the kube endpoint should not collect certain metrics
 // due to filtering applied.
-func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	switch filter {
-	case containers.MetricsFilter:
+func (s *KubeEndpointService) HasFilter(fs filter.Scope) bool {
+	switch fs {
+	case filter.MetricsFilter:
 		return s.metricsExcluded
-	case containers.GlobalFilter:
+	case filter.GlobalFilter:
 		return s.globalExcluded
 	default:
 		return false

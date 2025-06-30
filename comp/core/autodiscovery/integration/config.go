@@ -17,7 +17,7 @@ import (
 	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -198,13 +198,13 @@ func (c *Config) IsLogConfig() bool {
 }
 
 // HasFilter returns true if metrics or logs collection must be disabled for this config.
-func (c *Config) HasFilter(filter containers.FilterType) bool {
+func (c *Config) HasFilter(fs filter.Scope) bool {
 	// no containers.GlobalFilter case here because we don't create services
 	// that are globally excluded in AD
-	switch filter {
-	case containers.MetricsFilter:
+	switch fs {
+	case filter.MetricsFilter:
 		return c.MetricsExcluded
-	case containers.LogsFilter:
+	case filter.LogsFilter:
 		return c.LogsExcluded
 	}
 	return false
