@@ -38,9 +38,9 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_TOPIC_NAME(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, false)
 
-// The client ID actually allows any UTF-8 chars but we restrict it to printable ASCII characters
+// Client string (client id/software name/software version) allows any UTF-8 chars but we restrict it to printable ASCII characters
 // for now to avoid false positives.
-#define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
+#define CHECK_STRING_VALID_CLIENT_STRING(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
 // The UUID must be v4 and its variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
@@ -48,44 +48,30 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
     (topic_id[6] >> 4) == 4 && \
     0x8 <= (topic_id[8] >> 4) && (topic_id[8] >> 4) <= 0xB
 
-PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(client_id, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(kafka_client_string, CLIENT_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
-// Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
-// namely, composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 real_client_id_size) {
-    const u32 key = 0;
-    // Fetch the client id buffer from per-cpu array, which gives us the ability to extend the size of the buffer,
-    // as the stack is limited with the number of bytes we can allocate on.
-    char *client_id = bpf_map_lookup_elem(&kafka_client_id, &key);
-    if (client_id == NULL) {
-        return false;
-    }
-    bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_read_into_buffer_client_id(client_id, pkt, offset);
-
-    // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
-    CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
-}
-
-PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(client_software_string, CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
-
-// Verifies the specified string is valid (up to CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE bytes from the given offset)
+// Used to validate the client_id, software name and software version.
+// The same buffer is used for all of them to cut down on instruction count in the verifier.
 // valid means composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool is_valid_client_software_string(pktbuf_t pkt, u32 offset, u16 real_string_size) {
+static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16 real_string_size) {
     if (real_string_size == 0) {
         return true;
     }
-    const u32 key = 0;
-    // Use a buffer from per-cpu array as the stack is limited.
-    char *client_software_string = bpf_map_lookup_elem(&kafka_client_software, &key);
-    if (client_software_string == NULL) {
+    // Needed to cut instructions in the verifier.
+    if (real_string_size > CLIENT_STRING_MAX_SIZE) {
         return false;
     }
-    bpf_memset(client_software_string, 0, CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE);
-    pktbuf_read_into_buffer_client_software_string(client_software_string, pkt, offset);
+    const u32 key = 0;
+    // Use a buffer from per-cpu array as the stack is limited.
+    char *client_string = bpf_map_lookup_elem(&kafka_client_string, &key);
+    if (client_string == NULL) {
+        return false;
+    }
+    bpf_memset(client_string, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_kafka_client_string(client_string, pkt, offset);
 
     // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
-    CHECK_STRING_COMPOSED_OF_ASCII(CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE, real_string_size, client_software_string, true);
+    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_STRING_SIZE_TO_VALIDATE, real_string_size, client_string);
 }
 
 // Checks the given kafka header represents a valid one.
@@ -455,20 +441,20 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
 
         // Verify client software name
         s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
-        if (client_software_name_size < 0 || client_software_name_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
+        if (client_software_name_size < 0 || client_software_name_size > CLIENT_STRING_MAX_SIZE) {
             return false;
         }
-        if (!is_valid_client_software_string(pkt, offset, client_software_name_size)) {
+        if (!is_valid_client_string(pkt, offset, client_software_name_size)) {
             return false;
         }
         offset += client_software_name_size;
 
         // Verify client software version
         s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
-        if (client_software_version_size < 0 || client_software_version_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
+        if (client_software_version_size < 0 || client_software_version_size > CLIENT_STRING_MAX_SIZE) {
             return false;
         }
-        if (!is_valid_client_software_string(pkt, offset, client_software_version_size)) {
+        if (!is_valid_client_string(pkt, offset, client_software_version_size)) {
             return false;
         }
         offset += client_software_version_size;
@@ -516,7 +502,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
-        if (!is_valid_client_id(pkt, offset, kafka_header.client_id_size)) {
+        if (!is_valid_client_string(pkt, offset, kafka_header.client_id_size)) {
             return false;
         }
         offset += kafka_header.client_id_size;

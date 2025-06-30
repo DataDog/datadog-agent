@@ -1647,7 +1647,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
-        if (!is_valid_client_id(pkt, offset, kafka_header.client_id_size)) {
+        if (!is_valid_client_string(pkt, offset, kafka_header.client_id_size)) {
             return false;
         }
         offset += kafka_header.client_id_size;
