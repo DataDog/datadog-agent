@@ -166,6 +166,9 @@ def get_omnibus_env(
         'DD_CMAKE_TOOLCHAIN',
         'OMNIBUS_FORCE_PACKAGES',
         'OMNIBUS_PACKAGE_ARTIFACT_DIR',
+        'OMNIBUS_GIT_CACHE_DIR',
+        'S3_OMNIBUS_CACHE_BUCKET',
+        'S3_OMNIBUS_GIT_CACHE_BUCKET',
         # Cherry pick some essentials values from the parent process env
         'PATH',
         'PKG_CONFIG_LIBDIR',
