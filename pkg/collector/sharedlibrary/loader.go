@@ -14,6 +14,7 @@ package sharedlibrary
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unsafe"
@@ -58,6 +59,7 @@ func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	}
 
 	var cErr *C.char
+	defer C._free(unsafe.Pointer(cErr))
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	name := "libdatadog-agent-" + config.Name
@@ -69,8 +71,8 @@ func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	handle := C.load_shared_library(cName, &cErr)
 	if handle == nil {
 		if cErr != nil {
-			defer C._free(unsafe.Pointer(cErr))
-			return nil, fmt.Errorf("failed to load shared library %s: %s", config.Name, C.GoString(cErr))
+			errMsg := fmt.Sprintf("failed to load shared library %q", name)
+			return nil, errors.New(errMsg)
 		}
 	}
 
@@ -84,7 +86,7 @@ func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	configDigest := config.FastDigest()
 
 	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
-		return nil, err
+		return c, err
 	}
 
 	return c, nil
