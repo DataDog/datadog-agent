@@ -248,8 +248,6 @@ newSyscallLoop:
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
 func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) bool {
-
-	
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -317,8 +315,6 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		return !pn.findDNSNode(evt.DNS.Question.Name, dnsMatchMaxDepth, evt.DNS.Question.Type)
 	}
 
-	//pn.UpdateTimes(imageTag, evt.ResolveEventTime())
-
 	DNSNames.Insert(evt.DNS.Question.Name)
 	dnsNode, ok := pn.DNSNames[evt.DNS.Question.Name]
 	if ok {
@@ -382,10 +378,6 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 		return false
 	}
 	
-	if !dryRun {
-		//pn.UpdateTimes(imageTag, evt.ResolveEventTime())
-	}
-	
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
 
@@ -417,15 +409,13 @@ func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
 	if pn.HasImageTag(imageTag) {
 		return
 	}
-	now := time.Now()
-	pn.Record(imageTag, now)
+	pn.AppendImageTag(imageTag)
 	parent := pn.GetParent()
 	for parent != nil {
-			parent.AppendImageTag(imageTag) // if i apply image tag on the parent what timestamp should i use? 
-			parent = parent.GetParent()
-		}
+		parent.AppendImageTag(imageTag)
+		parent = parent.GetParent()
 	}
-
+}
 
 // TagAllNodes tags this process, its files/dns/socks and childrens with the given image tag
 func (pn *ProcessNode) TagAllNodes(imageTag string) {

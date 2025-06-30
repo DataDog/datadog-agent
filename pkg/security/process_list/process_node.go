@@ -65,7 +65,6 @@ func NewProcessExecNodeFromEvent(event *model.Event, processKey, execKey interfa
 		PossibleExecs: []*ExecNode{exec},
 	}
 	exec.ProcessLink = process
-
 	return process
 }
 
