@@ -11,8 +11,6 @@ logs_config:
   logs_no_ssl: true
   force_use_http: true
 
-log_level: info
-
 dd_url: http://127.0.0.1:9091
 process_config:
   process_dd_url: http://localhost:9093
@@ -21,23 +19,14 @@ telemetry:
   checks: '*'
 
 otelcollector:
-  enabled: false
+  converter:
+    enabled: true
+  enabled: true
+  extension_timeout: 0
+  flare:
+    timeout: 60
 
 agent_ipc:
   config_refresh_interval: 60
   host: localhost
-  port: 5678
-
-otlp_config:
-  receiver:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
-  metrics:
-    enabled: true
-  traces:
-    enabled: false
-  logs:
-    enabled: false
+  port: 5009
