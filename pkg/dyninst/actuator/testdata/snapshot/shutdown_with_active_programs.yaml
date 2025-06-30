@@ -10,7 +10,7 @@
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 - !compiled {program_id: 1}
 - !loaded {program_id: 1}
 - !attached {program_id: 1, process_id: 1001}
@@ -21,11 +21,11 @@
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
     - process_id: {pid: 1002} 
       executable: {path: /usr/bin/test2}
       probes:
-        - {type: LOG_PROBE, id: probe2, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 
 # Now trigger shutdown
 - !shutdown {error: "test shutdown"} 
@@ -37,7 +37,7 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 effects:
   - !spawn-ebpf-compilation {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
 state:
@@ -85,11 +85,11 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
     - process_id: {pid: 1002}
       executable: {path: /usr/bin/test2}
       probes:
-        - {type: LOG_PROBE, id: probe2, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
   - !spawn-ebpf-compilation {executable: /usr/bin/test2@0.0m0.0, probes: [probe2], program_id: 2}
 state:

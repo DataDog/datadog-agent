@@ -237,8 +237,8 @@ func marshalTypeAsID(enc *jsontext.Encoder, t ir.Type) error {
 
 func makeOperationMarshaler(
 	marshalers *json.Marshalers,
-) func(enc *jsontext.Encoder, op ir.Op) error {
-	return func(enc *jsontext.Encoder, op ir.Op) error {
+) func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
+	return func(enc *jsontext.Encoder, op ir.ExpressionOp) error {
 		switch op := op.(type) {
 		case *ir.LocationOp:
 			type locationWithKind struct {
