@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 )
 
-// Commands returns nil when compiling without the jmx build flag
+// Commands returns nil when compiling without the e2ecoverage build flag
 func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }
