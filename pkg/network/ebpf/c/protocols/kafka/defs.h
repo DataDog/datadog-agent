@@ -22,7 +22,7 @@
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
 #define CLIENT_SOFTWARE_STRING_MAX_SIZE 255
-#define CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE 80 // 16 * 5. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
+#define CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
 
 // The number of varint bytes required to support the specified values.
 // 127
