@@ -183,7 +183,7 @@ func TestSanitizeInjectionModeTag(t *testing.T) {
 	config := Config{
 		DatadogYAML: DatadogConfig{
 			APIKey: "1234567890",
-			Tags: []string{"_dd.injection.mode:host"},
+			Tags:   []string{"_dd.injection.mode:host"},
 		},
 	}
 
