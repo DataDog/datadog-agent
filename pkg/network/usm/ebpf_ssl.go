@@ -545,7 +545,7 @@ func (o *sslProgram) PreStart() error {
 
 	sslCtxByPIDTGIDMapCleaner, err := ddebpf.NewMapCleaner[uint64, uint64](sslCtxByPIDTGIDMapObj, protocols.DefaultMapCleanerBatchSize/2, sslCtxByPIDTGIDMap, UsmTLSAttacherName)
 	if err != nil {
-		return fmt.Errorf("failed to create sslCtxByPIDTGIDMapCleaner cleaner: %w", err)
+		return fmt.Errorf("failed to create sslCtxByPIDTGIDMapCleaner: %w", err)
 	}
 	o.sslCtxByPIDTGIDMapCleaner = sslCtxByPIDTGIDMapCleaner
 
@@ -556,7 +556,7 @@ func (o *sslProgram) PreStart() error {
 
 	sslSockByCtxMapCleaner, err := ddebpf.NewMapCleaner[uint64, http.SslSock](sslSockByCtxMapObj, protocols.DefaultMapCleanerBatchSize/2, sslSockByCtxMap, UsmTLSAttacherName)
 	if err != nil {
-		return fmt.Errorf("failed to create sslSockByCtxMapCleaner cleaner: %w", err)
+		return fmt.Errorf("failed to create sslSockByCtxMapCleaner: %w", err)
 	}
 	o.sslSockByCtxMapCleaner = sslSockByCtxMapCleaner
 
@@ -567,7 +567,7 @@ func (o *sslProgram) PreStart() error {
 
 	sslCtxByTupleMapCleaner, err := ddebpf.NewMapCleaner[http.ConnTuple, uint64](sslCtxByTupleMapObj, protocols.DefaultMapCleanerBatchSize/2, sslCtxByTupleMap, UsmTLSAttacherName)
 	if err != nil {
-		return fmt.Errorf("failed to create sslCtxByTupleMap cleaner: %w", err)
+		return fmt.Errorf("failed to create sslCtxByTupleMapCleaner: %w", err)
 	}
 	o.sslCtxByTupleMapCleaner = sslCtxByTupleMapCleaner
 	return o.attacher.Start()
@@ -765,9 +765,9 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 		pid := uint32(pidTgid >> 32)
 		if _, isAlive := alivePIDs[pid]; !isAlive {
 			sslCtxToClean[sslCtx] = struct{}{}
-			return true // Clean this entry
+			return true
 		}
-		return false // Keep this entry
+		return false
 	})
 
 	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
