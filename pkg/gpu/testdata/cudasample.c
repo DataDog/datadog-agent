@@ -93,6 +93,8 @@ int main(int argc, char **argv) {
 
     cudaEventDestroy(event);
 
+    setenv("CUDA_VISIBLE_DEVICES", "42", 1);
+
     // we don't exit to avoid flakiness when the process is terminated before it was hooked for gpu monitoring
     // the expected usage is to send a kill signal to the process (or stop the container that is running it)
 
