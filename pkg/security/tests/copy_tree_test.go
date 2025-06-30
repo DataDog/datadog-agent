@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -60,7 +61,7 @@ func TestCopyTree(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: `open.file.name == "test-open"`,
+			Expression: `mount.syscall.fs_type != "xxxxx"`,
 		},
 	}
 
@@ -134,17 +135,27 @@ func TestCopyTree(t *testing.T) {
 			return nil
 		}, func(event *model.Event) bool {
 			typeStr := event.GetType()
-			if typeStr != "mount" {
+			fmt.Println("type", typeStr, event.Mount)
+			if typeStr != "open_tree" {
 				return false
 			}
 
 			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
 			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
 			assert.Equal(t, mountIDsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
-			seen++
-			return seen == 3
-		}, 5*time.Second, model.FileMountEventType)
 
+			seen++
+			if seen == 1 {
+				assert.Equal(t, true, event.Mount.Detached, "First mount should be detached")
+				assert.Equal(t, false, event.Mount.Visible, "First mount shouldn't be visible")
+			} else {
+				assert.Equal(t, false, event.Mount.Detached, "Second and third mounts shouldn't be detached")
+				assert.Equal(t, false, event.Mount.Visible, "Second and third mounts shouldn't be visible")
+			}
+
+			return seen == 3
+		}, 10*time.Second, model.FileOpenTreeEventType)
+		assert.Equal(t, seen, 3)
 	})
 
 	//TOOD: Create copy-tree-test-not-recursive
