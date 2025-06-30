@@ -288,6 +288,11 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
 			}
+		case config.ExcludeTruncated:
+			if msg.IsTruncated {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false
+			}
 		}
 	}
 
