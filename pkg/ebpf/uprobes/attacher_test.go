@@ -1089,15 +1089,15 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 				}
 			},
 			3, 10*time.Millisecond, 500*time.Millisecond, "did not catch %s process, received calls %v", tc.description, mockRegistry.Calls)
+
+		require.NotNil(t, cmd)
+		require.NotNil(t, cmd.Process)
 		commands = append(commands, cmd)
 	}
 
 	for i, cmd := range commands {
 		mockRegistry.AssertCalled(t, "Register", testCases[i].libPath, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
-
-		if cmd != nil && cmd.Process != nil {
-			cmd.Process.Kill()
-		}
+		cmd.Process.Kill()
 	}
 
 	// Verify unregister calls for all processes
