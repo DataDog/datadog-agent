@@ -9,388 +9,152 @@
 package securityprofiletests
 
 import (
+	"net"
+	"net/netip"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	seclModel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 )
 
-// createTestProcessCacheEntry creates a valid ProcessCacheEntry for testing
-func createTestProcessCacheEntry() *model.ProcessCacheEntry {
-	return &model.ProcessCacheEntry{
-		ProcessContext: model.ProcessContext{
-			Process: model.Process{
-				PIDContext: model.PIDContext{Pid: 12345},
-			},
-		},
+// This is a basic behavior test for FileNode: Testing
+func TestNodeBase_NodeBaseBehavior_onFileNode(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+
+	fn := &activity_tree.FileNode{
+		NodeBase: activity_tree.NewNodeBase(),
+		Name:     "/tmp/foo.conf",
+		File:     &model.FileEvent{PathnameStr: "/tmp/foo.conf", BasenameStr: "foo.conf"},
+	}
+
+	fn.Record("v1.2.3", now)
+	assert.False(t, fn.IsEmpty())
+	assert.True(t, fn.HasImageTag("v1.2.3"))
+
+	it := fn.Seen["v1.2.3"]
+	assert.Equal(t, now, it.FirstSeen)
+	assert.Equal(t, now, it.LastSeen)
+
+	later := now.Add(5 * time.Minute)
+	fn.Record("v1.2.3", later)
+	it = fn.Seen["v1.2.3"]
+	assert.Equal(t, now, it.FirstSeen, "FirstSeen should stay the same")
+	assert.Equal(t, later, it.LastSeen, "LastSeen should update to later")
+
+	removed := fn.EvictImageTag("v1.2.3")
+	assert.True(t, removed, "EvictImageTag should report it removed an existing tag")
+	assert.False(t, fn.HasImageTag("v1.2.3"))
+	assert.True(t, fn.IsEmpty(), "After removal, NodeBase should be empty again")
+}
+
+func makeFiveTuple(srcIP string, srcPort uint16, dstIP string, dstPort uint16) seclModel.FiveTuple {
+	return seclModel.FiveTuple{
+		Source:      netip.AddrPortFrom(netip.MustParseAddr(srcIP), srcPort),
+		Destination: netip.AddrPortFrom(netip.MustParseAddr(dstIP), dstPort),
+		L4Protocol:  17,
 	}
 }
 
-type baseNodeTestIteration struct {
-	testName string
-
-	// input
-	imageTag        string
-	eventTime       time.Time
-	updateCount     int
-	evictImageTag   string
-
-	// expected output
-	expectedFirstSeen time.Time
-	expectedLastSeen  time.Time
-	expectedHasVersion bool
-	expectedShouldRemove bool
-}
-
-func TestProcessNode_BaseNodeTimeTracking(t *testing.T) {
-	tests := []baseNodeTestIteration{
-		{
-			testName:            "initial_record",
-			imageTag:            "test-image:latest",
-			eventTime:           time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-			updateCount:         1,
-			expectedFirstSeen:   time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-			expectedLastSeen:    time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-			expectedHasVersion:  true,
-		},
-		{
-			testName:            "update_later_time",
-			imageTag:            "test-image:latest",
-			eventTime:           time.Date(2023, 1, 1, 13, 0, 0, 0, time.UTC),
-			updateCount:         1,
-			expectedFirstSeen:   time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC), // Should remain the same (first seen)
-			expectedLastSeen:    time.Date(2023, 1, 1, 13, 0, 0, 0, time.UTC), // Should update to new time
-			expectedHasVersion:  true,
-		},
-		{
-			testName:            "update_earlier_time",
-			imageTag:            "test-image:latest",
-			eventTime:           time.Date(2023, 1, 1, 11, 0, 0, 0, time.UTC),
-			updateCount:         1,
-			expectedFirstSeen:   time.Date(2023, 1, 1, 11, 0, 0, 0, time.UTC), // Should update to earlier time
-			expectedLastSeen:    time.Date(2023, 1, 1, 13, 0, 0, 0, time.UTC), // Should remain the later time (13:00)
-			expectedHasVersion:  true,
-		},
-		{
-			testName:            "multiple_updates",
-			imageTag:            "test-image:latest",
-			eventTime:           time.Date(2023, 1, 1, 14, 0, 0, 0, time.UTC),
-			updateCount:         3,
-			expectedFirstSeen:   time.Date(2023, 1, 1, 11, 0, 0, 0, time.UTC), // Should remain earliest
-			expectedLastSeen:    time.Date(2023, 1, 1, 14, 0, 0, 0, time.UTC), // Should be latest
-			expectedHasVersion:  true,
-		},
-		{
-			testName:            "empty_image_tag",
-			imageTag:            "",
-			eventTime:           time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-			updateCount:         1,
-			expectedFirstSeen:   time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-			expectedLastSeen:    time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-			expectedHasVersion:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.testName, func(t *testing.T) {
-			// Create a new process node
-			node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
-
-			// Record the initial time
-			initialTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-			node.Record(tt.imageTag, initialTime)
-
-			// For the "update_earlier_time" test, we need to record a later time first
-			if tt.testName == "update_earlier_time" {
-				laterTime := time.Date(2023, 1, 1, 13, 0, 0, 0, time.UTC)
-				node.Record(tt.imageTag, laterTime)
-			}
-
-			// For the "multiple_updates" test, we need to record an earlier time first
-			if tt.testName == "multiple_updates" {
-				earlierTime := time.Date(2023, 1, 1, 11, 0, 0, 0, time.UTC)
-				node.Record(tt.imageTag, earlierTime)
-			}
-
-			// For the "empty_image_tag" test, we need to handle the fact that NewProcessNode already records an empty string
-			if tt.testName == "empty_image_tag" {
-				// The NewProcessNode already called node.Record("", now), so we need to override it
-				// Clear the existing record and start fresh
-				node.EvictVersion("")
-				node.Record(tt.imageTag, initialTime)
-			}
-
-			// Update with the test time multiple times if needed
-			for i := 0; i < tt.updateCount; i++ {
-				node.Record(tt.imageTag, tt.eventTime)
-			}
-
-			// Verify the version exists
-			assert.Equal(t, tt.expectedHasVersion, node.HasVersion(tt.imageTag))
-
-			// Get the version times
-			if tt.expectedHasVersion {
-				versionTimes, exists := node.Seen[tt.imageTag]
-				assert.True(t, exists)
-				assert.Equal(t, tt.expectedFirstSeen, versionTimes.FirstSeen)
-				assert.Equal(t, tt.expectedLastSeen, versionTimes.LastSeen)
-			}
-		})
+func makeFlow(ft seclModel.FiveTuple) seclModel.Flow {
+	srcAddr := ft.Source.Addr()
+	dstAddr := ft.Destination.Addr()
+	
+	srcIPNet := net.IPNet{IP: net.IP(srcAddr.AsSlice())}
+	dstIPNet := net.IPNet{IP: net.IP(dstAddr.AsSlice())}
+	
+	return seclModel.Flow{
+		Source:      seclModel.IPPortContext{IPNet: srcIPNet, Port: ft.Source.Port()},
+		Destination: seclModel.IPPortContext{IPNet: dstIPNet, Port: ft.Destination.Port()},
+		L3Protocol:  6,
+		L4Protocol:  ft.L4Protocol,
+		Ingress:     seclModel.NetworkStats{DataSize: 1, PacketCount: 1},
+		Egress:      seclModel.NetworkStats{DataSize: 2, PacketCount: 2},
 	}
 }
 
-func TestProcessNode_BaseNodeVersionEviction(t *testing.T) {
-	tests := []baseNodeTestIteration{
-		{
-			testName:            "evict_existing_version",
-			imageTag:            "test-image:latest",
-			evictImageTag:       "test-image:latest",
-			expectedHasVersion:  false,
-		},
-		{
-			testName:            "evict_nonexistent_version",
-			imageTag:            "test-image:latest",
-			evictImageTag:       "nonexistent-image",
-			expectedHasVersion:  true, // Original version should still exist
-		},
-		{
-			testName:            "evict_empty_version",
-			imageTag:            "test-image:latest",
-			evictImageTag:       "",
-			expectedHasVersion:  true, // Original version should still exist
-		},
+func TestNetworkDeviceNode_TagAndEvict(t *testing.T) {
+	// build two distinct flows under one device
+	ft1 := makeFiveTuple("1.1.1.1", 1111, "2.2.2.2", 2222)
+	ft2 := makeFiveTuple("3.3.3.3", 3333, "4.4.4.4", 4444)
+
+	flow1 := activity_tree.NewFlowNode(makeFlow(ft1), activity_tree.Runtime, "v1.0.0")
+	flow2 := activity_tree.NewFlowNode(makeFlow(ft2), activity_tree.Runtime, "v2.0.0")
+
+	netdev := activity_tree.NewNetworkDeviceNode(&seclModel.NetworkDeviceContext{}, activity_tree.Runtime)
+	netdev.FlowNodes = map[seclModel.FiveTuple]*activity_tree.FlowNode{
+		ft1: flow1,
+		ft2: flow2,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.testName, func(t *testing.T) {
-			// Create a new process node
-			node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
-
-			// Record the initial version
-			initialTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-			node.Record(tt.imageTag, initialTime)
-
-			// Verify the version exists initially
-			assert.True(t, node.HasVersion(tt.imageTag))
-
-			// Evict the version
-			node.EvictVersion(tt.evictImageTag)
-
-			// Verify the version state after eviction
-			assert.Equal(t, tt.expectedHasVersion, node.HasVersion(tt.imageTag))
-		})
+	// attach to a ProcessNode and record both original versions
+	pn := &activity_tree.ProcessNode{
+		NodeBase:       activity_tree.NewNodeBase(),
+		NetworkDevices: map[seclModel.NetworkDeviceContext]*activity_tree.NetworkDeviceNode{{}: netdev},
 	}
+
+	now := time.Now()
+	pn.Record("v1.0.0", now)
+	pn.Record("v2.0.0", now)
+
+	// Verify initial state
+	assert.Contains(t, netdev.FlowNodes, ft1, "ft1 should exist before eviction")
+	assert.Contains(t, netdev.FlowNodes, ft2, "ft2 should exist before eviction")
+	assert.True(t, netdev.FlowNodes[ft1].HasImageTag("v1.0.0"), "flow1 should have v1.0.0")
+	assert.True(t, netdev.FlowNodes[ft2].HasImageTag("v2.0.0"), "flow2 should have v2.0.0")
+
+	// Verify ProcessNode has the tags
+	assert.True(t, pn.HasImageTag("v1.0.0"), "ProcessNode should have v1.0.0")
+	assert.True(t, pn.HasImageTag("v2.0.0"), "ProcessNode should have v2.0.0")
+
+	// Evict v1.0.0 → should drop only flow1 (which becomes empty)
+	removed := pn.EvictImageTag("v1.0.0", nil, make(map[int]int))
+	assert.False(t, removed, "device still has flow2 so should not be removed")
+	assert.NotContains(t, netdev.FlowNodes, ft1, "ft1 should be removed after evicting v1.0.0")
+	assert.Contains(t, netdev.FlowNodes, ft2, "ft2 should remain after evicting v1.0.0")
 }
 
-func TestProcessNode_UpdateTimes(t *testing.T) {
-	tests := []struct {
-		name      string
-		eventTime time.Time
-	}{
-		{
-			name:      "zero_time",
-			eventTime: time.Time{},
-		},
-		{
-			name:      "specific_time",
-			eventTime: time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC),
-		},
-		{
-			name:      "current_time",
-			eventTime: time.Now(),
-		},
+func TestNodeBase_DNSNode_TTL_Eviction(t *testing.T) {
+	// Create a ProcessNode with DNSNames
+	processNode := &activity_tree.ProcessNode{
+		NodeBase: activity_tree.NewNodeBase(),
+		DNSNames: make(map[string]*activity_tree.DNSNode),
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a new process node
-			node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
+	now := time.Now()
+	old := now.Add(-3 * time.Hour)
+	recent := now.Add(-30 * time.Minute)
 
-			// Record initial time
-			initialTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-			node.Record("test-image", initialTime)
-
-			// Update last seen (this is the public method that updates times)
-			node.UpdateLastSeen("test-image")
-
-			// Verify the node still exists and hasn't been corrupted
-			assert.NotNil(t, node)
-			assert.True(t, node.HasVersion("test-image"))
-		})
+	// Create a DNSNode with first tag "old"
+	dnsEvt := &seclModel.DNSEvent{
+		Question: seclModel.DNSQuestion{Name: "example.com", Type: 1, Class: 1},
 	}
+	dns := activity_tree.NewDNSNode(dnsEvt, nil, activity_tree.Runtime, "old")
+
+	// Add DNSNode to ProcessNode
+	processNode.DNSNames["example.com"] = dns
+
+	// Force its timestamp to 'old'
+	dns.RecordWithTimestamps("old", old, old)
+	// Append a fresh tag "new"
+	dns.Record("new", recent)
+
+	assert.True(t, dns.HasImageTag("old"))
+	assert.True(t, dns.HasImageTag("new"))
+
+	// Evict tags last‐seen before 1h ago → should remove "old"
+	removedOld := dns.EvictBeforeTimestamp(now.Add(-1 * time.Hour))
+	assert.Equal(t, 1, removedOld)
+	assert.False(t, dns.HasImageTag("old"))
+	assert.True(t, dns.HasImageTag("new"))
+	assert.False(t, dns.IsEmpty())
+
+	// Evict everything older than just after now → should remove "new"
+	removedNew := dns.EvictBeforeTimestamp(now.Add(1 * time.Minute))
+	assert.Equal(t, 1, removedNew)
+	assert.False(t, dns.HasImageTag("new"))
+	assert.True(t, dns.IsEmpty())
 }
-
-func TestProcessNode_UpdateLastSeen(t *testing.T) {
-	t.Run("update_last_seen", func(t *testing.T) {
-		// Create a new process node
-		node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
-
-		// Record initial time
-		initialTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-		node.Record("test-image", initialTime)
-
-		// Update last seen
-		node.UpdateLastSeen("test-image")
-
-		// Verify the version still exists
-		assert.True(t, node.HasVersion("test-image"))
-
-		// Get the version times
-		versionTimes, exists := node.Seen["test-image"]
-		assert.True(t, exists)
-		assert.Equal(t, initialTime.Unix(), versionTimes.FirstSeen.Unix())
-		// LastSeen should be updated to current time (we can't easily check exact value)
-		assert.Greater(t, versionTimes.LastSeen.Unix(), versionTimes.FirstSeen.Unix())
-	})
-}
-
-func TestProcessNode_ImageTagEviction(t *testing.T) {
-	tests := []struct {
-		name                string
-		initialImageTags    []string
-		evictImageTag       string
-		expectedShouldRemove bool
-		expectedRemainingTags []string
-	}{
-		{
-			name:                "evict_single_tag",
-			initialImageTags:    []string{"tag1"},
-			evictImageTag:       "tag1",
-			expectedShouldRemove: true,
-			expectedRemainingTags: []string{},
-		},
-		{
-			name:                "evict_one_of_multiple_tags",
-			initialImageTags:    []string{"tag1", "tag2", "tag3"},
-			evictImageTag:       "tag2",
-			expectedShouldRemove: false,
-			expectedRemainingTags: []string{"tag1", "tag3"},
-		},
-		{
-			name:                "evict_nonexistent_tag",
-			initialImageTags:    []string{"tag1", "tag2"},
-			evictImageTag:       "nonexistent",
-			expectedShouldRemove: false,
-			expectedRemainingTags: []string{"tag1", "tag2"},
-		},
-		{
-			name:                "evict_empty_tag",
-			initialImageTags:    []string{"tag1", "tag2"},
-			evictImageTag:       "",
-			expectedShouldRemove: false,
-			expectedRemainingTags: []string{"tag1", "tag2"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a new process node
-			node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
-
-			// Add initial image tags
-			for _, tag := range tt.initialImageTags {
-				node.ImageTags = append(node.ImageTags, tag)
-				node.Record(tag, time.Now())
-			}
-
-			// Evict the image tag
-			shouldRemove := node.EvictImageTag(tt.evictImageTag, nil, make(map[int]int))
-
-			// Verify the result
-			assert.Equal(t, tt.expectedShouldRemove, shouldRemove)
-			assert.Equal(t, tt.expectedRemainingTags, node.ImageTags)
-
-			// Verify version tracking
-			for _, tag := range tt.expectedRemainingTags {
-				assert.True(t, node.HasVersion(tag))
-			}
-			if tt.expectedShouldRemove {
-				assert.False(t, node.HasVersion(tt.evictImageTag))
-			}
-		})
-	}
-}
-
-func TestProcessNode_ConcurrentAccess(t *testing.T) {
-	t.Run("concurrent_record_access", func(t *testing.T) {
-		// Create a new process node
-		node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
-
-		// Create a channel to signal when all goroutines are done
-		done := make(chan bool, 10)
-
-		// Start multiple goroutines to record times concurrently
-		for i := 0; i < 10; i++ {
-			go func(id int) {
-				defer func() { done <- true }()
-				timestamp := time.Now().Add(time.Duration(id) * time.Second)
-				node.Record("concurrent-tag", timestamp)
-			}(i)
-		}
-
-		// Wait for all goroutines to complete
-		for i := 0; i < 10; i++ {
-			<-done
-		}
-
-		// Verify the version exists and has been updated
-		assert.True(t, node.HasVersion("concurrent-tag"))
-		
-		versionTimes, exists := node.Seen["concurrent-tag"]
-		assert.True(t, exists)
-		assert.Greater(t, versionTimes.LastSeen.Unix(), versionTimes.FirstSeen.Unix())
-	})
-}
-
-func TestProcessNode_Integration(t *testing.T) {
-	t.Run("full_lifecycle", func(t *testing.T) {
-		// Create a new process node
-		node := activity_tree.NewProcessNode(createTestProcessCacheEntry(), activity_tree.Runtime, nil)
-
-		// Step 1: Record initial time
-		initialTime := time.Date(2023, 1, 1, 12, 0, 0, 0, time.UTC)
-		node.Record("test-image", initialTime)
-		
-		assert.True(t, node.HasVersion("test-image"))
-		assert.Equal(t, []string{}, node.ImageTags) // No image tags yet
-
-		// Step 2: Add image tag
-		node.ImageTags = append(node.ImageTags, "test-image")
-		
-		assert.Equal(t, []string{"test-image"}, node.ImageTags)
-
-		// Step 3: Update with later time
-		laterTime := time.Date(2023, 1, 1, 13, 0, 0, 0, time.UTC)
-		node.Record("test-image", laterTime)
-		
-		versionTimes, exists := node.Seen["test-image"]
-		assert.True(t, exists)
-		assert.Equal(t, initialTime.Unix(), versionTimes.FirstSeen.Unix())
-		assert.Equal(t, laterTime.Unix(), versionTimes.LastSeen.Unix())
-
-		// Step 4: Add another image tag
-		node.ImageTags = append(node.ImageTags, "another-image")
-		node.Record("another-image", laterTime)
-		
-		assert.Equal(t, []string{"test-image", "another-image"}, node.ImageTags)
-		assert.True(t, node.HasVersion("another-image"))
-
-		// Step 5: Evict one image tag
-		shouldRemove := node.EvictImageTag("test-image", nil, make(map[int]int))
-		
-		assert.False(t, shouldRemove) // Should not remove because there's another tag
-		assert.Equal(t, []string{"another-image"}, node.ImageTags)
-		assert.False(t, node.HasVersion("test-image"))
-		assert.True(t, node.HasVersion("another-image"))
-
-		// Step 6: Evict the last image tag
-		shouldRemove = node.EvictImageTag("another-image", nil, make(map[int]int))
-		
-		assert.True(t, shouldRemove) // Should remove because it's the last tag
-		assert.Equal(t, []string{}, node.ImageTags)
-		assert.False(t, node.HasVersion("another-image"))
-	})
-} 
