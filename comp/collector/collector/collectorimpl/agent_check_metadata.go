@@ -126,6 +126,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 				}
 				for _, checkRaw := range checks {
 					check, ok := checkRaw.(map[string]interface{})
+					// The default check status is OK, so if there is no status, it means the check is OK
 					if !ok {
 						continue
 					}
