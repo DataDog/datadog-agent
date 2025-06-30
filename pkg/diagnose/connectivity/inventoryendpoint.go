@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -176,64 +177,132 @@ func (e *endpointDescription) buildRoute(domain domain) (string, string) {
 	return base, base + path
 }
 
+const (
+	maxParallelWorkers = 3
+	httpClientTimeout  = 10 * time.Second
+)
+
 // DiagnoseInventory checks the connectivity of the endpoints
-func DiagnoseInventory(cfg config.Component, log log.Component) []diagnose.Diagnosis {
+func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Component) ([]diagnose.Diagnosis, error) {
 	endpointsDescription := getEndpointsDescriptions(cfg)
 	domains := getDomains(cfg)
 
-	diagnoses := []diagnose.Diagnosis{}
-
-	client := getClient(cfg, 1, log, withOneRedirect(), withTimeout(5*time.Second))
-
+	// Collect all endpoints to check
+	var allEndpoints []resolvedEndpoint
 	for _, ed := range endpointsDescription {
 		endpoints := ed.buildEndpoints(cfg, domains)
-		for _, endpoint := range endpoints {
-			description := "Ping: " + endpoint.base
-			diagnosis, err := endpoint.checkServiceConnectivity(client)
+		allEndpoints = append(allEndpoints, endpoints...)
+	}
 
-			if err != nil {
-				diagnoses = append(diagnoses, diagnose.Diagnosis{
-					Status:    diagnose.DiagnosisFail,
-					Name:      description,
-					Diagnosis: diagnosis,
-					Metadata: map[string]string{
-						"endpoint":  endpoint.url,
-						"raw_error": err.Error(),
-					},
-				})
-			} else {
-				diagnoses = append(diagnoses, diagnose.Diagnosis{
-					Status:    diagnose.DiagnosisSuccess,
-					Name:      description,
-					Diagnosis: diagnosis,
-					Metadata: map[string]string{
-						"endpoint": endpoint.url,
-					},
-				})
+	// Create HTTP client for workers
+	client := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withOneRedirect(), withTimeout(httpClientTimeout))
+
+	return checkEndpoints(ctx, allEndpoints, client)
+}
+
+// checkEndpoints checks the connectivity of the provided endpoints in parallel
+func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *http.Client) ([]diagnose.Diagnosis, error) {
+	workerCount := min(maxParallelWorkers, len(endpoints))
+
+	// Create channels for work distribution and results collection
+	endpointChan := make(chan resolvedEndpoint, len(endpoints))
+	resultChan := make(chan diagnose.Diagnosis, len(endpoints))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for endpoint := range endpointChan {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				description := "Ping: " + endpoint.base
+				diagnosis, err := endpoint.checkServiceConnectivity(ctx, client)
+
+				var result diagnose.Diagnosis
+				if err != nil {
+					result = diagnose.Diagnosis{
+						Status:    diagnose.DiagnosisFail,
+						Name:      description,
+						Diagnosis: diagnosis,
+						Metadata: map[string]string{
+							"endpoint":  endpoint.url,
+							"raw_error": err.Error(),
+						},
+					}
+				} else {
+					result = diagnose.Diagnosis{
+						Status:    diagnose.DiagnosisSuccess,
+						Name:      description,
+						Diagnosis: diagnosis,
+						Metadata: map[string]string{
+							"endpoint": endpoint.url,
+						},
+					}
+				}
+
+				select {
+				case resultChan <- result:
+				case <-ctx.Done():
+					return
+				}
 			}
+		}()
+	}
+
+	// Send all endpoints to workers
+	go func() {
+		defer close(endpointChan)
+		for _, endpoint := range endpoints {
+			select {
+			case endpointChan <- endpoint:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	// Wait for all workers to complete
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results
+	var diagnoses []diagnose.Diagnosis
+	for result := range resultChan {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			diagnoses = append(diagnoses, result)
 		}
 	}
 
-	return diagnoses
+	return diagnoses, nil
 }
 
-func (e resolvedEndpoint) checkServiceConnectivity(client *http.Client) (string, error) {
-	// Build URL based on service type
+func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *http.Client) (string, error) {
 	switch e.method {
 	case head:
-		return e.checkHead(client)
+		return e.checkHead(ctx, client)
 	case get:
-		return e.checkGet(client)
+		return e.checkGet(ctx, client)
 	default:
 		return "Unknown Method", fmt.Errorf("unknown Method for service %s", e.url)
 	}
 }
 
-func (e resolvedEndpoint) checkHead(client *http.Client) (string, error) {
+func (e resolvedEndpoint) checkHead(ctx context.Context, client *http.Client) (string, error) {
 	if e.limitRedirect {
 		withOneRedirect()(client)
 	}
-	statusCode, _, err := sendHead(context.Background(), client, e.url)
+	statusCode, _, err := sendHead(ctx, client, e.url)
 	if e.limitRedirect {
 		client.CheckRedirect = nil
 	}
@@ -243,9 +312,9 @@ func (e resolvedEndpoint) checkHead(client *http.Client) (string, error) {
 	return validateStatusCode(e, statusCode)
 }
 
-func (e resolvedEndpoint) checkGet(client *http.Client) (string, error) {
+func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (string, error) {
 	httpTraces := []string{}
-	ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, true))
+	ctx = httptrace.WithClientTrace(ctx, createDiagnoseTraces(&httpTraces, true))
 	statusCode, _, _, err := sendGet(ctx, client, e.url, map[string]string{
 		"DD-API-KEY": e.apiKey,
 	})

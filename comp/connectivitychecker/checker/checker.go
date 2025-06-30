@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package runner implements the connectivity checker component
-package runner
+// Package checker implements the connectivity checker component
+package checker
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -28,12 +30,16 @@ type DiagnosisPayload struct {
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
-// Diagnose runs the connectivity checks
-func Diagnose(
+// Check runs the connectivity checks
+func Check(
+	ctx context.Context,
 	config config.Component,
 	log log.Component,
 ) (map[string][]DiagnosisPayload, error) {
-	diagnoses := connectivity.DiagnoseInventory(config, log)
+	diagnoses, err := connectivity.DiagnoseInventory(ctx, config, log)
+	if err != nil {
+		return nil, err
+	}
 
 	diagnosesPayload := []DiagnosisPayload{}
 	for _, diagnosis := range diagnoses {
