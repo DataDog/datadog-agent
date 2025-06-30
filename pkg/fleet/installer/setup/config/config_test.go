@@ -177,3 +177,24 @@ func TestApplicationMonitoring(t *testing.T) {
 
 	assert.Equal(t, *config.ApplicationMonitoringYAML, cfgres)
 }
+
+func TestSanitizeInjectionModeTag(t *testing.T) {
+	tempDir := t.TempDir()
+	config := Config{
+		DatadogYAML: DatadogConfig{
+			APIKey: "1234567890",
+			Tags: []string{"_dd.injection.mode:host"},
+		},
+	}
+
+	err := WriteConfigs(config, tempDir)
+	assert.NoError(t, err)
+
+	// Check datadog.yaml
+	datadogYAML, err := os.ReadFile(filepath.Join(tempDir, datadogConfFile))
+	assert.NoError(t, err)
+	var datadog map[string]interface{}
+	err = yaml.Unmarshal(datadogYAML, &datadog)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"api_key": "1234567890"}, datadog)
+}
