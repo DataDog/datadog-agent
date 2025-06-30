@@ -144,9 +144,6 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceIDs[key]++
-		fmt.Println("rz6300 previousValue", previousValue)
-		fmt.Println("rz6300 newValue", newValue)
-		fmt.Println("rz6300 foo sequenceID", c.sequenceIDs[key])
 	}
 	c.Unlock()
 

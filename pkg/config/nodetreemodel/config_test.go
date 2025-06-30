@@ -1140,6 +1140,10 @@ func TestSequenceID(t *testing.T) {
 	config.Set("a", 2, model.SourceAgentRuntime)
 	assert.Equal(t, uint64(2), config.GetSequenceID("a"))
 
+	// Setting the same value does not update the sequence ID
+	config.Set("a", 2, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID("a"))
+
 	// Does not update the sequence ID since the source does not match
 	config.UnsetForSource("a", model.SourceEnvVar)
 	assert.Equal(t, uint64(2), config.GetSequenceID("a"))
