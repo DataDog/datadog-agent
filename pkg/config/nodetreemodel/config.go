@@ -996,3 +996,9 @@ func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	copy(res, c.extraConfigFilePaths)
 	return res
 }
+
+func (c *ntmConfig) GetSequenceID(key string) uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return c.sequenceIDs[key]
+}

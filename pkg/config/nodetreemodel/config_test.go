@@ -1126,3 +1126,24 @@ func TestWarningLogged(t *testing.T) {
 	// Check that the warning was logged
 	assert.Equal(t, &model.Warnings{Errors: []error{errors.New("empty key given to Set")}}, cfg.Warnings())
 }
+
+func TestSequenceID(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Equal(t, uint64(0), config.GetSequenceID("a"))
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(1), config.GetSequenceID("a"))
+
+	config.Set("a", 2, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID("a"))
+
+	// Does not update the sequence ID since the source does not match
+	config.UnsetForSource("a", model.SourceEnvVar)
+	assert.Equal(t, uint64(2), config.GetSequenceID("a"))
+
+	config.UnsetForSource("a", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(3), config.GetSequenceID("a"))
+}

@@ -140,9 +140,13 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue != nil {
+	if previousValue != nil && previousValue != newValue {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
+		c.sequenceIDs[key]++
+		fmt.Println("rz6300 previousValue", previousValue)
+		fmt.Println("rz6300 newValue", newValue)
+		fmt.Println("rz6300 foo sequenceID", c.sequenceIDs[key])
 	}
 	c.Unlock()
 
@@ -855,4 +859,11 @@ func (c *safeConfig) ExtraConfigFilesUsed() []string {
 }
 
 func (c *safeConfig) SetTestOnlyDynamicSchema(_ bool) {
+}
+
+func (c *safeConfig) GetSequenceID(key string) uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	c.checkKnownKey(key)
+	return c.sequenceIDs[key]
 }
