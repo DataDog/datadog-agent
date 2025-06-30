@@ -15,15 +15,10 @@ type systemAPI interface {
 	IsServiceRunning(serviceName string) (bool, error)
 	StopService(serviceName string) error
 	StartService(serviceName string) error
-	OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (processHandle, error)
-	TerminateProcess(handle processHandle, exitCode uint32) error
-	WaitForSingleObject(handle processHandle, timeoutMs uint32) (uint32, error)
-	CloseHandle(handle processHandle) error
-}
-
-// processHandle abstracts process handle operations
-type processHandle interface {
-	// This is just a marker interface - actual handle operations are done through SystemAPI
+	OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error)
+	TerminateProcess(handle windows.Handle, exitCode uint32) error
+	WaitForSingleObject(handle windows.Handle, timeoutMs uint32) (uint32, error)
+	CloseHandle(handle windows.Handle) error
 }
 
 // Real implementations of the interfaces
@@ -64,30 +59,22 @@ func (api *winSystemAPI) StartService(serviceName string) error {
 	return winutil.StartService(serviceName)
 }
 
-func (api *winSystemAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (processHandle, error) {
+func (api *winSystemAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error) {
 	handle, err := windows.OpenProcess(desiredAccess, inheritHandle, processID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return &WinProcessHandle{handle: handle}, nil
+	return handle, nil
 }
 
-func (api *winSystemAPI) TerminateProcess(handle processHandle, exitCode uint32) error {
-	winHandle := handle.(*WinProcessHandle)
-	return windows.TerminateProcess(winHandle.handle, exitCode)
+func (api *winSystemAPI) TerminateProcess(handle windows.Handle, exitCode uint32) error {
+	return windows.TerminateProcess(handle, exitCode)
 }
 
-func (api *winSystemAPI) WaitForSingleObject(handle processHandle, timeoutMs uint32) (uint32, error) {
-	winHandle := handle.(*WinProcessHandle)
-	return windows.WaitForSingleObject(winHandle.handle, timeoutMs)
+func (api *winSystemAPI) WaitForSingleObject(handle windows.Handle, timeoutMs uint32) (uint32, error) {
+	return windows.WaitForSingleObject(handle, timeoutMs)
 }
 
-func (api *winSystemAPI) CloseHandle(handle processHandle) error {
-	winHandle := handle.(*WinProcessHandle)
-	return windows.CloseHandle(winHandle.handle)
-}
-
-// WinProcessHandle implements ProcessHandle
-type WinProcessHandle struct {
-	handle windows.Handle
+func (api *winSystemAPI) CloseHandle(handle windows.Handle) error {
+	return windows.CloseHandle(handle)
 }

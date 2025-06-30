@@ -4,6 +4,7 @@ package windows
 
 import (
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/sys/windows"
 )
 
 // Mock implementations
@@ -32,29 +33,22 @@ func (m *mockSystemAPI) StartService(serviceName string) error {
 	return args.Error(0)
 }
 
-func (m *mockSystemAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (processHandle, error) {
+func (m *mockSystemAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error) {
 	args := m.Called(desiredAccess, inheritHandle, processID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(processHandle), args.Error(1)
+	return args.Get(0).(windows.Handle), args.Error(1)
 }
 
-func (m *mockSystemAPI) TerminateProcess(handle processHandle, exitCode uint32) error {
+func (m *mockSystemAPI) TerminateProcess(handle windows.Handle, exitCode uint32) error {
 	args := m.Called(handle, exitCode)
 	return args.Error(0)
 }
 
-func (m *mockSystemAPI) WaitForSingleObject(handle processHandle, timeoutMs uint32) (uint32, error) {
+func (m *mockSystemAPI) WaitForSingleObject(handle windows.Handle, timeoutMs uint32) (uint32, error) {
 	args := m.Called(handle, timeoutMs)
 	return args.Get(0).(uint32), args.Error(1)
 }
 
-func (m *mockSystemAPI) CloseHandle(handle processHandle) error {
+func (m *mockSystemAPI) CloseHandle(handle windows.Handle) error {
 	args := m.Called(handle)
 	return args.Error(0)
-}
-
-type mockProcessHandle struct {
-	mock.Mock
 }

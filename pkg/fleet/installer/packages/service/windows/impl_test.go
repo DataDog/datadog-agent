@@ -20,13 +20,13 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 		serviceName   string
 		expectError   bool
 		errorContains string
-		setupMocks    func(*mockSystemAPI, *mockProcessHandle)
+		setupMocks    func(*mockSystemAPI)
 	}{
 		{
 			name:        "service not running",
 			serviceName: "testservice",
 			expectError: false,
-			setupMocks: func(api *mockSystemAPI, _ *mockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI) {
 				api.On("GetServiceProcessID", "testservice").Return(uint32(0), nil)
 			},
 		},
@@ -34,7 +34,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			name:        "service does not exist",
 			serviceName: "nonexistent",
 			expectError: false,
-			setupMocks: func(api *mockSystemAPI, _ *mockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI) {
 				api.On("GetServiceProcessID", "nonexistent").Return(uint32(0), windows.ERROR_SERVICE_DOES_NOT_EXIST)
 			},
 		},
@@ -42,14 +42,16 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			name:        "successful termination",
 			serviceName: "testservice",
 			expectError: false,
-			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI) {
+				pid := uint32(1234)
+				proc := windows.Handle(0x80000000 | pid)
 				// First call to get PID
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Open process
-				api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(proc, nil)
+				api.On("OpenProcess", mock.Anything, false, pid).Return(proc, nil)
 				api.On("CloseHandle", proc).Return(nil)
 				// Second call to verify PID (same PID)
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Terminate and wait
 				api.On("TerminateProcess", proc, uint32(1)).Return(nil)
 				api.On("WaitForSingleObject", proc, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
@@ -60,14 +62,16 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			serviceName:   "testservice",
 			expectError:   true,
 			errorContains: "could not terminate process",
-			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI) {
+				pid := uint32(1234)
+				proc := windows.Handle(0x80000000 | pid)
 				// First call to get PID
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Open process
-				api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(proc, nil)
+				api.On("OpenProcess", mock.Anything, false, pid).Return(proc, nil)
 				api.On("CloseHandle", proc).Return(nil)
 				// Second call to verify PID (same PID)
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Terminate fails
 				api.On("TerminateProcess", proc, uint32(1)).Return(errors.New("access denied"))
 			},
@@ -77,14 +81,16 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			serviceName:   "testservice",
 			expectError:   true,
 			errorContains: "process ID for service testservice changed from 1234 to 5678, aborting termination",
-			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI) {
+				pid := uint32(1234)
+				proc := windows.Handle(0x80000000 | pid)
 				// First call to get PID
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Open process
-				api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(proc, nil)
+				api.On("OpenProcess", mock.Anything, false, pid).Return(proc, nil)
 				api.On("CloseHandle", proc).Return(nil)
 				// Second call to verify PID (PID has changed - race condition)
-				api.On("GetServiceProcessID", "testservice").Return(uint32(5678), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(uint32(5678), nil).Once() // new PID
 				// Should not proceed with termination since PID changed
 			},
 		},
@@ -93,14 +99,16 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			serviceName:   "testservice",
 			expectError:   true,
 			errorContains: "timeout waiting for process 1234 for service testservice to exit",
-			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI) {
+				pid := uint32(1234)
+				proc := windows.Handle(0x80000000 | pid)
 				// First call to get PID
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Open process
-				api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(proc, nil)
+				api.On("OpenProcess", mock.Anything, false, pid).Return(proc, nil)
 				api.On("CloseHandle", proc).Return(nil)
 				// Second call to verify PID (same PID)
-				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
 				// Terminate succeeds
 				api.On("TerminateProcess", proc, uint32(1)).Return(nil)
 				// Wait times out
@@ -112,9 +120,8 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockAPI := &mockSystemAPI{}
-			mockProc := &mockProcessHandle{}
 
-			tt.setupMocks(mockAPI, mockProc)
+			tt.setupMocks(mockAPI)
 
 			manager := NewWinServiceManagerWithAPI(mockAPI)
 
@@ -131,7 +138,6 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			}
 
 			mockAPI.AssertExpectations(t)
-			mockProc.AssertExpectations(t)
 		})
 	}
 }
@@ -204,11 +210,12 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					api.On("IsServiceRunning", serviceName).Return(true, nil).Once()
 
 					// Successful termination process
-					p := &mockProcessHandle{}
-					api.On("GetServiceProcessID", serviceName).Return(uint32(1234), nil).Once() // First call
-					api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(p, nil)
+					pid := uint32(1234)
+					p := windows.Handle(0x80000000 | pid)
+					api.On("GetServiceProcessID", serviceName).Return(pid, nil).Once() // First call
+					api.On("OpenProcess", mock.Anything, false, pid).Return(p, nil)
 					api.On("CloseHandle", p).Return(nil)
-					api.On("GetServiceProcessID", serviceName).Return(uint32(1234), nil).Once() // Verification call
+					api.On("GetServiceProcessID", serviceName).Return(pid, nil).Once() // Verification call
 					api.On("TerminateProcess", p, uint32(1)).Return(nil)
 					api.On("WaitForSingleObject", p, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
 				}
