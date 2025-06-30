@@ -426,7 +426,9 @@ func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kuberne
 
 	if out == nil {
 		// try by querying the api directly
-		node, err := apiClient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+		ctx, cancel := context.WithTimeout(context.Background(), ci.timeout)
+		defer cancel()
+		node, err := apiClient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 		if err != nil {
 			return "", fmt.Errorf("couldn't describe node %s from the API server: %v", nodeName, err)
 		}
@@ -468,7 +470,9 @@ func (ci *CWSInstrumentation) hasReadonlyRootfs(pod *corev1.Pod, container strin
 
 func (ci *CWSInstrumentation) getPod(apiClient kubernetes.Interface, name string, ns string) (*corev1.Pod, error) {
 	start := time.Now()
-	pod, err := apiClient.CoreV1().Pods(ns).Get(context.Background(), name, metav1.GetOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), ci.timeout)
+	defer cancel()
+	pod, err := apiClient.CoreV1().Pods(ns).Get(ctx, name, metav1.GetOptions{})
 	// measure execution time
 	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), ci.mode.String(), webhookForCommandsName, "query_pod", strconv.FormatBool(err == nil), "")
 	return pod, err
@@ -478,7 +482,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationMeasured(exec *core
 	start := time.Now()
 	injected, err := ci.injectCWSCommandInstrumentation(exec, name, ns, userInfo, apiClient)
 	totalTime := time.Since(start).Seconds()
-	if totalTime > 10 {
+	if totalTime > ci.timeout.Seconds() {
 		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, exec.Container, userInfo.Username, totalTime)
 	}
 	metrics.CWSResponseDuration.Observe(totalTime, ci.mode.String(), webhookForCommandsName, "total", strconv.FormatBool(err == nil), strconv.FormatBool(injected))
@@ -661,9 +665,11 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 }
 
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *corev1.Pod, container string, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath string) error {
-	apiclient, err := apiserverUtils.WaitForAPIClient(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), ci.timeout)
+	defer cancel()
+	apiclient, err := apiserverUtils.WaitForAPIClient(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't initialize API client")
+		return fmt.Errorf("couldn't initialize API client: %v", err)
 	}
 
 	cp := k8scp.NewCopy(apiclient)
