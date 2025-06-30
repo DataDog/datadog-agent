@@ -54,11 +54,6 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		}
 	}
 
-	// Fallback to deprecated ImageTags field for backward compatibility
-	for _, imageTag := range pan.ImageTags {
-		ppan.Record(imageTag, time.Now())
-	}
-
 	for _, rule := range pan.MatchedRules {
 		ppan.MatchedRules = append(ppan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
