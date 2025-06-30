@@ -171,7 +171,7 @@ func (s *BaseSuite) createStableAgent() {
 	agentVersion := "7.68.0-rc.5"
 	agentVersionPackage := "7.68.0-rc.5-1"
 	agentRegistry := consts.BetaS3OCIRegistry
-	agentChannel := "beta"
+	agentMSIURL := "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.68.0-rc.5.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -192,7 +192,7 @@ func (s *BaseSuite) createStableAgent() {
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithChannel(agentChannel),
+		windowsagent.WithURL(agentMSIURL),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
