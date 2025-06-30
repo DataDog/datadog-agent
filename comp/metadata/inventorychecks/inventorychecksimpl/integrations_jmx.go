@@ -26,7 +26,7 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 		return
 	}
 
-	if configsRaw, ok := jmxIntegrations["configurations"]; ok {
+	if configsRaw, ok := jmxIntegrations["configs"]; ok {
 		configs := configsRaw.(map[string]integration.JSONMap)
 		for _, jmxIntegration := range configs {
 			jmxName := jmxIntegration["check_name"].(string)
