@@ -9,6 +9,7 @@
 package model
 
 import (
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -137,6 +138,19 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	}
 
 	return pids, paths
+}
+
+// GetAncestorsPIDs return the ancestors list PIDs
+func (pc *ProcessCacheEntry) GetAncestorsPIDs() []uint32 {
+	var pids []uint32
+
+	for pc != nil {
+		if !slices.Contains(pids, pc.Pid) {
+			pids = append(pids, pc.Pid)
+		}
+		pc = pc.Ancestor
+	}
+	return pids
 }
 
 // SetForkParent set the parent of the fork entry

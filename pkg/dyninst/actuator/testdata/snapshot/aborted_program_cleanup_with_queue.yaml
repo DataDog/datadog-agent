@@ -1,0 +1,73 @@
+# Tests aborted program cleanup with queued programs. When a process is removed
+# during compilation, the program gets aborted. When the compilation completes,
+# the aborted program should be cleaned up and the next program should start.
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/app1}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+    - process_id: {pid: 1002}
+      executable: {path: /usr/bin/app2}
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
+- !processes-updated {removed: [1001]}
+- !compiled {program_id: 1}
+- !compiled {program_id: 2} 
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/app1}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+    - process_id: {pid: 1002}
+      executable: {path: /usr/bin/app2}
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-ebpf-compilation {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], program_id: 1}
+state:
+  currently_compiling: <nil> -> 1
+  queued_programs: '[] -> [2]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+    1002: <nil> -> WaitingForProgram (prog 2)
+  programs:
+    1: <nil> -> Compiling (proc 1001)
+    2: <nil> -> Queued (proc 1002)
+---
+event: !processes-updated {removed: [1001]}
+state:
+  currently_compiling: "1"
+  queued_programs: '[2]'
+  processes:
+    1001: WaitingForProgram (prog 1)
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: Compiling (proc 1001) -> CompilationAborted (proc 1001)
+    2: Queued (proc 1002)
+---
+event: !compiled {program_id: 1}
+effects:
+  - !spawn-ebpf-compilation {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], program_id: 2}
+state:
+  currently_compiling: 1 -> 2
+  queued_programs: '[2] -> []'
+  processes:
+    1001: WaitingForProgram (prog 1) -> <nil>
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: CompilationAborted (proc 1001) -> <nil>
+    2: Queued (proc 1002) -> Compiling (proc 1002)
+---
+event: !compiled {program_id: 2}
+effects:
+  - !spawn-bpf-loading {program_id: 2}
+state:
+  currently_compiling: "2"
+  queued_programs: '[]'
+  processes:
+    1002: WaitingForProgram (prog 2)
+  programs:
+    2: Compiling (proc 1002) -> Loading (proc 1002)

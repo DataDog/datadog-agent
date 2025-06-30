@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -31,6 +32,7 @@ type dependencies struct {
 	Config   config.Component
 	Hostname hostnameinterface.Component
 	Logger   log.Component
+	IPC      ipc.Component
 }
 
 type hostinfo struct {
@@ -38,7 +40,7 @@ type hostinfo struct {
 }
 
 func newHostInfo(deps dependencies) (hostinfoComp.Component, error) {
-	hinfo, err := checks.CollectHostInfo(deps.Config, deps.Hostname)
+	hinfo, err := checks.CollectHostInfo(deps.Config, deps.Hostname, deps.IPC)
 	if err != nil {
 		_ = deps.Logger.Critical("Error collecting host details:", err)
 		return nil, fmt.Errorf("error collecting host details: %v", err)

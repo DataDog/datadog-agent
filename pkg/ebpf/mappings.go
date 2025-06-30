@@ -10,6 +10,7 @@ package ebpf
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -306,6 +307,11 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 		}
 
 		if specs[0].Type != ebpf.Kprobe {
+			continue
+		}
+		progType, _, _ := strings.Cut(specs[0].SectionName, "/")
+		switch progType {
+		case "uprobe", "uretprobe":
 			continue
 		}
 

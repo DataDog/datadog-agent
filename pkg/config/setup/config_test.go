@@ -307,6 +307,30 @@ func TestProxy(t *testing.T) {
 			proxyForCloudMetadata: true,
 		},
 		{
+			name: "from DD env vars comma or space usage",
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a,b c") // space and comma-separated list
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars mixed comma space usage",
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a ,b, c") // space and comma-separated list
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
 			name: "from DD env vars precedence over UNIX env vars",
 			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "dd_http_url")

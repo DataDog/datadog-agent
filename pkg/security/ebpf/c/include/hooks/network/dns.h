@@ -65,18 +65,18 @@ TAIL_CALL_CLASSIFIER_FNC(dns_request, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     struct dnshdr header = {};
     if (bpf_skb_load_bytes(skb, pkt->offset, &header, sizeof(header)) < 0) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
     pkt->offset += sizeof(header);
 
     struct dns_event_t *evt = reset_dns_event(skb, pkt);
     if (evt == NULL) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
     evt->qdcount = htons(header.qdcount);
     evt->id = htons(header.id);
@@ -85,32 +85,32 @@ TAIL_CALL_CLASSIFIER_FNC(dns_request, struct __sk_buff *skb) {
     bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
 
     // tail call failed, ignore packet
-    return ACT_OK;
+    return TC_ACT_UNSPEC;
 }
 
 TAIL_CALL_CLASSIFIER_FNC(dns_request_parser, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     struct dns_event_t *evt = get_dns_event();
     if (evt == NULL) {
         // should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     int qname_length = parse_dns_request(skb, pkt, evt);
     if (qname_length < 0) {
         // couldn't parse DNS request
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     // really should not happen, the loop in parse_dns_request only ever
     // reads DNS_MAX_LENGTH bytes
     if (qname_length > DNS_MAX_LENGTH) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     // send DNS event
@@ -120,41 +120,41 @@ TAIL_CALL_CLASSIFIER_FNC(dns_request_parser, struct __sk_buff *skb) {
         bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
     }
 
-    return ACT_OK;
+    return TC_ACT_UNSPEC;
 }
 
 TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     union dns_responses_t * map_elem = reset_dns_response_event(skb, pkt);
     if (map_elem == NULL) {
         // should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     int len = pkt->payload_len;
 
     if (len > DNS_RECEIVE_MAX_LENGTH) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     if(len <= sizeof(struct dnshdr)) {
         // Reject if less than the minimum size
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     struct dns_flags_as_bits_and_pieces_t flags;
     if (bpf_skb_load_bytes(skb, pkt->offset + 2, &flags, sizeof(flags)) < 0) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     if(!flags.qr || flags.tc) {
         // Stop processing if it's not a query response or if the message is truncated
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     uint16_t header_id;
@@ -164,21 +164,21 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     struct bpf_map_def *buffer = select_buffer(&fb_dns_stats, &bb_dns_stats, DNS_FILTERED_KEY);
     if (buffer == NULL) {
         // Should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     const u32 key = 0;
     struct dns_receiver_stats_t *stats = bpf_map_lookup_elem(buffer, &key);
     if (stats == NULL) {
         // Should never happen
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     u16 should_discard = (get_dns_rcode_discarder_mask() >> flags.rcode) & 1;
     if(should_discard) {
         __sync_fetch_and_add(&stats->discarded_dns_packets, 1);
         if (flags.rcode != 0) {
-            return ACT_OK;
+            return TC_ACT_UNSPEC;
         }
         // Even if there's a discarder, we still send packets with rcode=0 without context information for the DNS resolver
         err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->short_dns_response.header, sizeof(struct dnshdr));
@@ -192,7 +192,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     }
 
     if (err < 0) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     pkt->offset += sizeof(struct dnshdr);
@@ -203,7 +203,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     if (lru_entry != NULL && lru_entry->timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
         if (len == lru_entry->packet_size) {
             __sync_fetch_and_add(&stats->filtered_dns_packets, 1);
-            return ACT_OK;
+            return TC_ACT_UNSPEC;
         }
 
         __sync_fetch_and_add(&stats->same_id_different_size, 1);
@@ -217,7 +217,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     int remaining_bytes = len - sizeof(struct dnshdr);
 
     if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     if (send_packet_with_context) {
@@ -227,7 +227,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     }
 
     if (err < 0) {
-        return ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     if (send_packet_with_context) {
@@ -236,7 +236,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
         send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_SHORT, &map_elem->short_dns_response, offsetof(struct short_dns_response_event_t, data) + remaining_bytes);
     }
 
-    return ACT_OK;
+    return TC_ACT_UNSPEC;
 }
 
 #endif

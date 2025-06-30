@@ -238,6 +238,7 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
 	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.AndSelectors(
+			fields.OneTermNotEqualSelector("status.phase", "Pending"),
 			fields.OneTermNotEqualSelector("status.phase", "Running"),
 			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
 		).String()
