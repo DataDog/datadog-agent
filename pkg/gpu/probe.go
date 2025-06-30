@@ -394,7 +394,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 			},
 			{
 				LibraryNameRegex: regexp.MustCompile(`libc\.so`),
-				Targets:          uprobes.AttachToSharedLibraries,
+				Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.AllOf{
 						Selectors: []manager.ProbesSelector{
