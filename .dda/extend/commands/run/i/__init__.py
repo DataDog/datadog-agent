@@ -22,4 +22,4 @@ def cmd(app: Application, *, args: tuple[str, ...]) -> None:
     venv_path = app.config.storage.join("venvs", "legacy").data
     with app.tools.uv.virtual_env(venv_path) as venv:
         ensure_features_installed(["legacy-tasks"], app=app, prefix=str(venv.path))
-        app.subprocess.exit_with(list(args))
+        app.subprocess.attach(list(args))
