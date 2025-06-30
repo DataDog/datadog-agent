@@ -54,7 +54,7 @@ func getMountID(path string) (uint32, error) {
 	return uint32(stx.Mnt_id), nil
 }
 
-func TestCopyTree(t *testing.T) {
+func TestOpenTree(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -70,64 +70,64 @@ func TestCopyTree(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("copy-tree-test-recursive", func(t *testing.T) {
-		// Mount the following directory struct in /tmp:
-		// + /tmp/<somedir>/001        (tmpfs, 1MB)
-		// |-- /tmp/<somedir>/001/tmp1 (tmpfs, 1MB)
-		// |-- /tmp/<somedir>/001/tmp2 (tmpfs, 1MB)
-		// In which `tmp1` and `tmp2` are have 001 as the parent mount
-		// This is using the new mount api, but could have been accomplished with the mount() syscall too
-		// because this isn't the part that we're testing
-		var tounmount []string
-		mountIDsToPath := make(map[uint32]string)
+	// Mount the following directory struct in /tmp:
+	// + /tmp/<somedir>/001        (tmpfs, 1MB)
+	// |-- /tmp/<somedir>/001/tmp1 (tmpfs, 1MB)
+	// |-- /tmp/<somedir>/001/tmp2 (tmpfs, 1MB)
+	// In which `tmp1` and `tmp2` are have 001 as the parent mount
+	// This is using the new mount api, but could have been accomplished with the mount() syscall too
+	// because this isn't the part that we're testing
+	var tounmount []string
+	mountIDsToPath := make(map[uint32]string)
 
-		dir := t.TempDir()
-		tounmount = append(tounmount, dir)
+	dir := t.TempDir()
+	tounmount = append(tounmount, dir)
 
-		err := TmpMountAt(dir)
+	err = TmpMountAt(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if id, err := getMountID(dir); err != nil {
+		t.Fatal(err)
+	} else {
+		mountIDsToPath[id] = "/"
+	}
+
+	mountSubDir := func(subdir string) {
+		fullpath := dir + "/" + subdir
+		err = os.Mkdir(fullpath, 0755)
+
+		tounmount = append(tounmount, fullpath)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = TmpMountAt(fullpath)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if id, err := getMountID(dir); err != nil {
+		if id, err := getMountID(fullpath); err != nil {
 			t.Fatal(err)
 		} else {
-			mountIDsToPath[id] = "/"
+			mountIDsToPath[id] = "/" + subdir
 		}
+	}
 
-		mountSubDir := func(subdir string) {
-			fullpath := dir + "/" + subdir
-			err = os.Mkdir(fullpath, 0755)
+	mountSubDir("tmp1")
+	mountSubDir("tmp2")
 
-			tounmount = append(tounmount, fullpath)
-
+	defer func() {
+		for i := len(tounmount) - 1; i >= 0; i-- {
+			err = unix.Unmount(tounmount[i], syscall.MNT_DETACH)
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = TmpMountAt(fullpath)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if id, err := getMountID(fullpath); err != nil {
-				t.Fatal(err)
-			} else {
-				mountIDsToPath[id] = "/" + subdir
-			}
 		}
+	}()
 
-		mountSubDir("tmp1")
-		mountSubDir("tmp2")
-
-		defer func() {
-			for i := len(tounmount) - 1; i >= 0; i-- {
-				err = unix.Unmount(tounmount[i], syscall.MNT_DETACH)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-		}()
-
+	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
 		seen := 0
 		err = test.GetProbeEvent(func() error {
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
@@ -155,6 +155,25 @@ func TestCopyTree(t *testing.T) {
 		assert.Equal(t, seen, 3)
 	})
 
-	//TOOD: Create copy-tree-test-not-recursive
+	t.Run("copy-tree-test-detached-non-recursive", func(t *testing.T) {
+		seen := 0
+		err = test.GetProbeEvent(func() error {
+			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 
+			return nil
+		}, func(event *model.Event) bool {
+			if event.GetType() != "open_tree" {
+				return false
+			}
+
+			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
+			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
+			assert.Equal(t, mountIDsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
+			assert.Equal(t, true, event.Mount.Detached, "First mount should be detached")
+			assert.Equal(t, false, event.Mount.Visible, "First mount shouldn't be visible")
+
+			return seen == 1
+		}, 10*time.Second, model.FileOpenTreeEventType)
+		assert.Equal(t, seen, 1)
+	})
 }
