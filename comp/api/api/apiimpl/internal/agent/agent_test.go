@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 
@@ -56,7 +57,9 @@ func TestSetupHandlers(t *testing.T) {
 	defer ts.Close()
 
 	for _, tc := range testcases {
-		req, err := http.NewRequest(tc.method, ts.URL+tc.route, nil)
+		fullURL, err := url.JoinPath(ts.URL, tc.route)
+		require.NoError(t, err)
+		req, err := http.NewRequest(tc.method, fullURL, nil)
 		require.NoError(t, err)
 
 		resp, err := ts.Client().Do(req)
@@ -69,7 +72,7 @@ func TestSetupHandlers(t *testing.T) {
 }
 
 func TestInstallInfoAPIRoutes(t *testing.T) {
-	// Instead of trying to set up a file, which isn't the purpose of this test, use environment variables
+	// Backup original environment
 	originalTool := os.Getenv("DD_INSTALL_INFO_TOOL")
 	originalToolVersion := os.Getenv("DD_INSTALL_INFO_TOOL_VERSION")
 	originalInstallerVersion := os.Getenv("DD_INSTALL_INFO_INSTALLER_VERSION")
@@ -78,7 +81,6 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 	os.Setenv("DD_INSTALL_INFO_TOOL_VERSION", "1.0.0")
 	os.Setenv("DD_INSTALL_INFO_INSTALLER_VERSION", "test-installer-1.0")
 
-	// Cleanup function to restore original environment
 	defer func() {
 		if originalTool == "" {
 			os.Unsetenv("DD_INSTALL_INFO_TOOL")
@@ -108,8 +110,8 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 		payload      interface{}
 		expectedCode int
 		description  string
+		assertFunc   func(t *testing.T, resp *http.Response, body []byte)
 	}{
-		// Install info GET endpoint tests
 		{
 			name:         "install info get with GET method",
 			route:        "/install-info/get",
@@ -117,6 +119,15 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			payload:      nil,
 			expectedCode: 200,
 			description:  "GET request to install-info/get should succeed with test config",
+			assertFunc: func(t *testing.T, resp *http.Response, body []byte) {
+				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+				var installInfo installinfo.InstallInfo
+				err := json.Unmarshal(body, &installInfo)
+				assert.NoError(t, err)
+				assert.Equal(t, "test-tool", installInfo.Tool)
+				assert.Equal(t, "1.0.0", installInfo.ToolVersion)
+				assert.Equal(t, "test-installer-1.0", installInfo.InstallerVersion)
+			},
 		},
 		{
 			name:         "install info get with POST method",
@@ -142,8 +153,6 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			expectedCode: 405,
 			description:  "DELETE request to install-info/get should be rejected",
 		},
-
-		// Install info SET endpoint tests
 		{
 			name:   "install info set with POST method and valid payload",
 			route:  "/install-info/set",
@@ -155,6 +164,14 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			},
 			expectedCode: 200,
 			description:  "POST request to install-info/set with valid payload should succeed",
+			assertFunc: func(t *testing.T, resp *http.Response, body []byte) {
+				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+				var response map[string]interface{}
+				err := json.Unmarshal(body, &response)
+				assert.NoError(t, err)
+				assert.True(t, response["success"].(bool))
+				assert.NotEmpty(t, response["message"])
+			},
 		},
 		{
 			name:   "install info set with PUT method and valid payload",
@@ -167,6 +184,14 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			},
 			expectedCode: 200,
 			description:  "PUT request to install-info/set with valid payload should succeed",
+			assertFunc: func(t *testing.T, resp *http.Response, body []byte) {
+				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+				var response map[string]interface{}
+				err := json.Unmarshal(body, &response)
+				assert.NoError(t, err)
+				assert.True(t, response["success"].(bool))
+				assert.NotEmpty(t, response["message"])
+			},
 		},
 		{
 			name:         "install info set with GET method",
@@ -211,65 +236,31 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 
 			if tt.payload != nil {
 				body, err = json.Marshal(tt.payload)
-				require.NoError(t, err, "Failed to marshal test payload")
+				require.NoError(t, err)
 			}
 
-			req, err := http.NewRequest(tt.method, ts.URL+tt.route, bytes.NewReader(body))
-			require.NoError(t, err, "Failed to create HTTP request")
+			fullURL, err := url.JoinPath(ts.URL, tt.route)
+			require.NoError(t, err)
+			req, err := http.NewRequest(tt.method, fullURL, bytes.NewReader(body))
+			require.NoError(t, err)
 
 			if tt.payload != nil {
 				req.Header.Set("Content-Type", "application/json")
 			}
 
 			resp, err := ts.Client().Do(req)
-			require.NoError(t, err, "Failed to execute HTTP request")
+			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			// Read and discard body to ensure connection reuse
 			responseBody, err := io.ReadAll(resp.Body)
-			require.NoError(t, err, "Failed to read response body")
+			require.NoError(t, err)
 
 			assert.Equal(t, tt.expectedCode, resp.StatusCode,
 				"%s: %s %s returned %d, expected %d. Response: %s",
 				tt.description, tt.method, tt.route, resp.StatusCode, tt.expectedCode, string(responseBody))
 
-			// Additional validation for successful responses
-			if tt.expectedCode == 200 {
-				// Verify Content-Type header is set for JSON responses
-				contentType := resp.Header.Get("Content-Type")
-				assert.Equal(t, "application/json", contentType, "Response should have JSON content type")
-
-				// For GET operations, verify the response structure
-				if tt.route == "/install-info/get" {
-					var installInfo installinfo.InstallInfo
-					err = json.Unmarshal(responseBody, &installInfo)
-					assert.NoError(t, err, "Response should be valid InstallInfo JSON")
-
-					assert.Equal(t, "test-tool", installInfo.Tool, "Tool should match test data")
-					assert.Equal(t, "1.0.0", installInfo.ToolVersion, "ToolVersion should match test data")
-					assert.Equal(t, "test-installer-1.0", installInfo.InstallerVersion, "InstallerVersion should match test data")
-				}
-
-				// For SET operations, verify the response structure
-				if tt.route == "/install-info/set" {
-					var response map[string]interface{}
-					err = json.Unmarshal(responseBody, &response)
-					assert.NoError(t, err, "Response should be valid JSON")
-
-					success, exists := response["success"]
-					assert.True(t, exists, "Response should contain 'success' field")
-					assert.True(t, success.(bool), "Response should indicate success")
-
-					message, exists := response["message"]
-					assert.True(t, exists, "Response should contain 'message' field")
-					assert.NotEmpty(t, message, "Response message should not be empty")
-				}
-			}
-
-			// Additional validation for method not allowed responses
-			if tt.expectedCode == 405 {
-				// Gorilla Mux returns 405 for unsupported methods
-				assert.Equal(t, 405, resp.StatusCode, "Should return Method Not Allowed for unsupported methods")
+			if tt.assertFunc != nil {
+				tt.assertFunc(t, resp, responseBody)
 			}
 		})
 	}
@@ -289,7 +280,9 @@ func TestInstallInfoAPIRoutesWithRuntimeInfo(t *testing.T) {
 	body, err := json.Marshal(setPayload)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("POST", ts.URL+"/install-info/set", bytes.NewReader(body))
+	fullURL, err := url.JoinPath(ts.URL, "/install-info/set")
+	require.NoError(t, err)
+	req, err := http.NewRequest("POST", fullURL, bytes.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -299,7 +292,9 @@ func TestInstallInfoAPIRoutesWithRuntimeInfo(t *testing.T) {
 
 	assert.Equal(t, 200, resp.StatusCode, "Setting install info should succeed")
 
-	req, err = http.NewRequest("GET", ts.URL+"/install-info/get", nil)
+	fullURL, err = url.JoinPath(ts.URL, "/install-info/get")
+	require.NoError(t, err)
+	req, err = http.NewRequest("GET", fullURL, nil)
 	require.NoError(t, err)
 
 	resp, err = ts.Client().Do(req)
