@@ -113,6 +113,12 @@ func (s *worker) run() {
 			sent := false
 			for !sent {
 				for _, destSender := range reliableDestinations {
+					// Drop non-MRF payloads to MRF destinations
+					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						sent = true
+						continue
+					}
+
 					if destSender.Send(payload) {
 						if destSender.destination.Metadata().ReportingEnabled {
 							s.pipelineMonitor.ReportComponentIngress(payload, destSender.destination.Metadata().MonitorTag())

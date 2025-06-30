@@ -459,16 +459,17 @@ func newHTTPPassthroughPipeline(
 	if desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
-		strategy = sender.NewBatchStrategy(inputChan,
+		strategy = sender.NewBatchStrategy(
+			inputChan,
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
-			sender.NewArraySerializer(),
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
 			desc.eventType,
-			encoder,
+			endpoints.Main,
+			compressor,
 			pipelineMonitor)
 	}
 
