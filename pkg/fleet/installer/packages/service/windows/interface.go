@@ -8,6 +8,8 @@ import (
 )
 
 // ServiceManager interface abstracts all service management operations
+//
+// Could generalize for arbitrary services later, but we only need the Agent services for now.
 type ServiceManager interface {
 	StopAllAgentServices(ctx context.Context) error
 	StartAgentServices(ctx context.Context) error

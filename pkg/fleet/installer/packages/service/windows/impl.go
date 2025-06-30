@@ -31,7 +31,8 @@ func NewWinServiceManagerWithAPI(api systemAPI) *WinServiceManager {
 	}
 }
 
-// terminateServiceProcess terminates a service by killing its process
+// terminateServiceProcess terminates a service by killing its process.
+// Returns nil if the service is not running or does not exist.
 func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, serviceName string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "terminate_service_process")
 	defer func() { span.Finish(err) }()
@@ -64,7 +65,8 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 		return fmt.Errorf("could not verify process ID for service %s: %w", serviceName, err)
 	}
 	if currentProcessID == 0 {
-		return nil // Service stopped between PID lookup and process termination
+		// Service stopped between PID lookup and process termination
+		return nil
 	}
 
 	if currentProcessID != processID {
@@ -92,7 +94,10 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 	return nil
 }
 
-// StopAllAgentServices stops all agent services
+// StopAllAgentServices stops the Agent service, expecting it to stop all other services as well.
+// After attempting to stop the Agent service, it will force stop any remaining services.
+//
+// Returns nil if the Agent service does not exist.
 func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error) {
 	allAgentServices := []string{
 		"datadog-trace-agent",
@@ -124,6 +129,10 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 	return nil
 }
 
+// terminateServiceProcesses terminates the processes of the given services.
+//
+// Returns an error if any of the services failed to terminate.
+// Returns nil if all services were terminated successfully, were not running, or do not exist.
 func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, serviceNames []string) (err error) {
 	var failedServices []error
 	for _, serviceName := range serviceNames {
@@ -137,7 +146,7 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 			continue
 		}
 
-		// Service is running, terminate its process
+		// Service is running or we failed to check, terminate its process
 		err = w.terminateServiceProcess(ctx, serviceName)
 		if err != nil {
 			// Check if service is actually stopped despite the termination error
@@ -157,7 +166,7 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 	return nil
 }
 
-// StartAgentServices starts the agent services
+// StartAgentServices starts the Agent service, expecting it to start all other services as well.
 func (w *WinServiceManager) StartAgentServices(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "start_agent_service")
 	defer func() { span.Finish(err) }()
@@ -170,7 +179,10 @@ func (w *WinServiceManager) StartAgentServices(ctx context.Context) (err error) 
 	return nil
 }
 
-// RestartAgentServices restarts the agent services
+// RestartAgentServices combines StopAllAgentServices and StartAgentServices.
+//
+// Ignores errors from StopAllAgentServices and will always attempt to start the services again.
+// Returns an error if any of the services failed to start.
 func (w *WinServiceManager) RestartAgentServices(ctx context.Context) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "restart_agent_services")
 	defer func() { span.Finish(err) }()
