@@ -56,7 +56,7 @@ func makeInstruction(op Op) codeFragment {
 
 	case ExprDereferenceCfaOp:
 		bytes := make([]byte, 0, 12)
-		bytes = binary.LittleEndian.AppendUint32(bytes, op.Offset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.Offset))
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
 		return staticInstruction{

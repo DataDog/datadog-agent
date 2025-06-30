@@ -60,48 +60,6 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
 RUN if [ -n "$WITH_JMX_FIPS" ]; then cd /opt/bouncycastle-fips && mvn dependency:copy-dependencies; else mkdir -p /opt/bouncycastle-fips/target/dependency; fi
 
-############################################
-#  Preparation stage: extract and cleanup  #
-############################################
-
-FROM extract-base AS extract
-ARG TARGETARCH
-ARG WITH_JMX
-
-ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
-WORKDIR /output
-
-# Configuration:
-#   - copy default config files
-COPY datadog*.yaml etc/datadog-agent/
-
-# Installation information
-COPY install_info etc/datadog-agent/
-
-# Extract and cleanup:
-#   - unused systemd unit
-#   - GPL sources for embedded software  # FIXME: move upstream
-#   - docs and manpages                  # FIXME: move upstream
-#   - static libraries                   # FIXME: move upstream
-#   - jmxfetch on nojmx build
-
-RUN --mount=from=artifacts,target=/artifacts \
- find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
- && rm -rf usr etc/init lib \
-    go/ \
-    opt/datadog-agent/sources \
-    opt/datadog-agent/embedded/share/doc \
-    opt/datadog-agent/embedded/share/man \
-    # self-test certificates that are detected (false positive) as private keys
-    opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
- && find opt/datadog-agent/ -iname "*.a" -delete \
- && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
- && mkdir conf.d checks.d
-
-
 ########################################################################
 #  Construct the base image for the release, everything but the Agent  #
 ########################################################################
@@ -168,6 +126,47 @@ ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Dj
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
+
+##########################################################
+#  Preparation stage: extract Agent package and cleanup  #
+##########################################################
+
+FROM extract-base AS extract
+ARG TARGETARCH
+ARG WITH_JMX
+
+ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
+# copy everything - globbing with args wont work
+COPY ${DD_AGENT_ARTIFACT} /
+WORKDIR /output
+
+# Configuration:
+#   - copy default config files
+COPY datadog*.yaml etc/datadog-agent/
+
+# Installation information
+COPY install_info etc/datadog-agent/
+
+# Extract and cleanup:
+#   - unused systemd unit
+#   - GPL sources for embedded software  # FIXME: move upstream
+#   - docs and manpages                  # FIXME: move upstream
+#   - static libraries                   # FIXME: move upstream
+#   - jmxfetch on nojmx build
+
+RUN --mount=from=artifacts,target=/artifacts \
+ find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
+ && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+ && rm -rf usr etc/init lib \
+    go/ \
+    opt/datadog-agent/sources \
+    opt/datadog-agent/embedded/share/doc \
+    opt/datadog-agent/embedded/share/man \
+    # self-test certificates that are detected (false positive) as private keys
+    opt/datadog-agent/embedded/lib/python*/site-packages/future/backports/test \
+ && find opt/datadog-agent/ -iname "*.a" -delete \
+ && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
+ && mkdir conf.d checks.d
 
 ###########################################################
 #  Release docker image construction including the Agent  #

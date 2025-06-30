@@ -168,11 +168,16 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
-
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
-	setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+	// Set databricks_cluster resource tag based on whether we're on a job cluster
+	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
+	if isJobCluster == "TRUE" && ok {
+		setHostTag(s, "dd.internal.resource:databricks_cluster", jobID)
+	} else {
+		setIfExists(s, "DB_CLUSTER_ID", "dd.internal.resource:databricks_cluster", nil)
+	}
 
 	addCustomHostTags(s)
 }

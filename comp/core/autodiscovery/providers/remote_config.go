@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +24,7 @@ import (
 
 // RemoteConfigProvider receives configuration from remote-config
 type RemoteConfigProvider struct {
-	configErrors map[string]ErrorMsgSet
+	configErrors map[string]types.ErrorMsgSet
 	configCache  map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu           sync.RWMutex
 	upToDate     bool
@@ -41,7 +42,7 @@ var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_INTEGRATIONS/
 // NewRemoteConfigProvider creates a new RemoteConfigProvider.
 func NewRemoteConfigProvider() *RemoteConfigProvider {
 	return &RemoteConfigProvider{
-		configErrors: make(map[string]ErrorMsgSet),
+		configErrors: make(map[string]types.ErrorMsgSet),
 		configCache:  make(map[string]integration.Config),
 		upToDate:     false,
 	}
@@ -78,11 +79,11 @@ func (rc *RemoteConfigProvider) String() string {
 }
 
 // GetConfigErrors returns a map of configuration errors for each configuration path
-func (rc *RemoteConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (rc *RemoteConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 
-	errors := make(map[string]ErrorMsgSet, len(rc.configErrors))
+	errors := make(map[string]types.ErrorMsgSet, len(rc.configErrors))
 
 	maps.Copy(errors, rc.configErrors)
 
@@ -104,7 +105,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 		err = json.Unmarshal(intg.Config, &d)
 		if err != nil {
 			log.Errorf("Can't decode agent configuration provided by remote-config: %v", err)
-			rc.configErrors[cfgPath] = ErrorMsgSet{
+			rc.configErrors[cfgPath] = types.ErrorMsgSet{
 				err.Error(): struct{}{},
 			}
 			applyStateCallback(cfgPath, state.ApplyStatus{

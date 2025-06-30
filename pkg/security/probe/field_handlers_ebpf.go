@@ -221,7 +221,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.C
 
 // getContainerRuntime returns the container runtime managing the cgroup
 func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch containerutils.CGroupManager(flags & containerutils.CGroupManagerMask) {
+	switch flags.GetCGroupManager() {
 	case containerutils.CGroupManagerCRI:
 		return string(workloadmeta.ContainerRuntimeContainerd)
 	case containerutils.CGroupManagerCRIO:

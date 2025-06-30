@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -33,7 +34,7 @@ type CloudFoundryConfigProvider struct {
 }
 
 // NewCloudFoundryConfigProvider instantiates a new CloudFoundryConfigProvider from given config
-func NewCloudFoundryConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewCloudFoundryConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
 	cfp := CloudFoundryConfigProvider{
 		lastCollected: time.Now(),
 	}
@@ -215,6 +216,6 @@ func (cf CloudFoundryConfigProvider) renderExtractedConfigs(configs []integratio
 }
 
 // GetConfigErrors is not implemented for the CloudFoundryConfigProvider
-func (cf CloudFoundryConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (cf CloudFoundryConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }

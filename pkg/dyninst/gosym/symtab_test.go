@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -54,7 +53,7 @@ func runTest(
 	caseName string,
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
+	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
 	mef, err := object.NewMMappingElfFile(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, mef.Close()) }()
@@ -96,12 +95,10 @@ func runTest(
 			require.NotEmpty(t, locations)
 			fmt.Fprintf(&out, "pc: 0x%x\n", pc)
 			for _, location := range locations {
-				// Drop toolchain-architecture-dependent infix
-				re := regexp.MustCompile("golang.org/toolchain[^/]*/")
-				location.File = re.ReplaceAllString(location.File, "golang.org/toolchain@*/")
-				// Hide path prefix that depends on repository, and GOPATH locations.
-				i := strings.Index(location.File, "/pkg/") + 1
-				fmt.Fprintf(&out, "\t%s@%s:%d\n", location.Function, location.File[i:], location.Line)
+				// Hide path prefixes that depends on toolchain,repository, and GOPATH locations.
+				// Just use the file name, which is the last path component, replaces the leading path with *
+				i := strings.LastIndex(location.File, "/")
+				fmt.Fprintf(&out, "\t%s@*%s:%d\n", location.Function, location.File[i:], location.Line)
 			}
 		}
 	}

@@ -15,7 +15,6 @@
     *   [kmt.init](#kmtinit)
     *   [kmt.update-resources](#kmtupdate-resources)
     *   [kmt.ls](#kmtls)
-    *   [kmt.create-stack](#kmtcreate-stack)
     *   [kmt.gen-config](#kmtgen-config)
     *   [kmt.launch-stack](#kmtlaunch-stack)
     *   [kmt.status](#kmtstatus)
@@ -76,9 +75,8 @@ dda inv -e kmt.init --all-images
 A stack is a collection of VMs. This command will create a new stack and configure it to run one local Ubuntu 22.04 VM.
 
 ```bash
-# --init-stack creates the stack if it does not exist
 # If --stack is not provided, a name is generated from your git branch
-dda inv -e kmt.gen-config --vms=ubuntu_22.04-local-distro --init-stack
+dda inv -e kmt.gen-config --vms=ubuntu_22.04-local-distro
 ```
 
 **3. Launch the Stack**
@@ -152,15 +150,14 @@ dda inv -e kmt.init --remote-setup-only
 This command will create a new stack and configure it to run one remote Ubuntu 22.04 VM on an x86_64 EC2 instance.
 
 ```bash
-# --init-stack creates the stack if it does not exist
-dda inv -e kmt.gen-config --vms=x86-jammy-distro --init-stack
+dda inv -e kmt.gen-config --vms=x86-jammy-distro
 ```
 
 You can also specify multiple VMs with different architectures. KMT will launch them on separate EC2 instances.
 
 ```bash
 # This configures a stack with multiple x86_64 and arm64 VMs
-dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --init-stack
+dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro
 ```
 
 **3. Launch the Stack**
@@ -231,7 +228,7 @@ Provide a list of both local and remote VMs to the `gen-config` command.
 
 ```bash
 # This configures one local Ubuntu 22.04 VM and one remote x86_64 Ubuntu 22.04 VM
-dda inv -e kmt.gen-config --vms=ubuntu_22.04-local-distro,x86-jammy-distro --init-stack
+dda inv -e kmt.gen-config --vms=ubuntu_22.04-local-distro,x86-jammy-distro
 ```
 
 **3. Launch the Stack**
@@ -355,16 +352,6 @@ Lists available VM images and indicates which ones are already downloaded locall
 dda inv -e kmt.ls
 ```
 
-### `kmt.create-stack`
-
-Creates a new, empty stack.
-
-```bash
-dda inv -e kmt.create-stack [--stack=<name>]
-```
-
-If no `--stack` name is provided, one is automatically generated from the current git branch name. Note that `kmt.gen-config --init-stack` provides a convenient way to create and configure a stack in one step.
-
 ### `kmt.gen-config`
 
 Generates or updates the `vmsets` configuration file for a stack, specifying which VMs to launch.
@@ -376,8 +363,8 @@ dda inv -e kmt.gen-config --vms=<list> [--stack=<name>]
 **Common Flags:**
 
 -   `--vms=<list>`: A comma-separated list of VMs to add to the stack. See [Specifying VMs](#specifying-vms) below for the format.
+-   `--init-stack`: Automatically creates the stack if it doesn't exist. Stack name is generated from the current git branch name, if not explicitly provided. This is true by default.
 -   `--stack=<name>`: The target stack. Defaults to a name based on the current git branch.
--   `--init-stack`: Automatically creates the stack if it doesn't exist.
 -   `--new`: Creates a fresh configuration file, removing any existing VMs from the stack's configuration.
 -   `--from-ci-pipeline=<id>`: Configures the stack to replicate failed jobs from a CI pipeline. See [CI Integration](#ci-integration).
 

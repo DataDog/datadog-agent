@@ -47,12 +47,12 @@ func (hc *HealthCommand) prepareCommand(destFile string) []string {
 // Run runs the cws-instrumentation health command
 func (hc *HealthCommand) Run(remoteFile string, pod *corev1.Pod, container string, mode string, webhookName string, timeout time.Duration) error {
 	start := time.Now()
-	err := hc.run(remoteFile, pod, container, timeout)
+	err := hc.run(remoteFile, pod, container, mode, webhookName, timeout)
 	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "health_command", strconv.FormatBool(err == nil), "")
 	return err
 }
 
-func (hc *HealthCommand) run(remoteFile string, pod *corev1.Pod, container string, timeout time.Duration) error {
+func (hc *HealthCommand) run(remoteFile string, pod *corev1.Pod, container string, mode string, webhookName string, timeout time.Duration) error {
 	hc.Container = container
 
 	streamOptions := StreamOptions{
@@ -63,7 +63,7 @@ func (hc *HealthCommand) run(remoteFile string, pod *corev1.Pod, container strin
 		Stdin: false,
 	}
 
-	if err := hc.Execute(pod, hc.prepareCommand(remoteFile), streamOptions, timeout); err != nil {
+	if err := hc.Execute(pod, hc.prepareCommand(remoteFile), streamOptions, mode, webhookName, timeout); err != nil {
 		return err
 	}
 

@@ -911,7 +911,7 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+	mapCleaner.Start(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
 		return (now - int64(val.Updated)) > ttl
 	})
 

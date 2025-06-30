@@ -612,6 +612,12 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 		colSpec.Programs[progSpec.Name] = progSpec
 	}
 
+	// verify that the programs are using the TC_ACT_UNSPEC return code
+	err = probes.CheckUnspecReturnCode(colSpec.Programs)
+	if err != nil {
+		return fmt.Errorf("programs are not using the TC_ACT_UNSPEC return code: %w", err)
+	}
+
 	col, err := lib.NewCollection(&colSpec)
 	if err != nil {
 		return fmt.Errorf("failed to load program: %w", err)

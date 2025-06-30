@@ -47,7 +47,7 @@ type FileSerializer struct {
 	// File mount ID
 	MountID *uint32 `json:"mount_id,omitempty"`
 	// File filesystem name
-	Filesystem string `json:"filesystem"`
+	Filesystem string `json:"filesystem,omitempty"`
 	// File User ID
 	UID int64 `json:"uid"`
 	// File Group ID

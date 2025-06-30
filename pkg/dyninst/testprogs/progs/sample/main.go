@@ -9,9 +9,12 @@ package main
 import (
 	"bufio"
 	"os"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 func main() {
+	tracer.Start(tracer.WithService("sample-service"))
 
 	// Wait for input before executing functions to allow time for uprobe attachment
 	scanner := bufio.NewScanner(os.Stdin)
