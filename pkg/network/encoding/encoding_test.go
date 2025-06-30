@@ -144,7 +144,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			UsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(tagOpenSSL | tagTLS),
+		Tags: tls.GetStaticTags(tagOpenSSL | tagTLS),
 	}
 	// fixup Protocol stack as on windows or macos
 	// we don't have tags mechanism inserting TLS protocol on protocol stack

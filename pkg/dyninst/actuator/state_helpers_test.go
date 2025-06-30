@@ -12,12 +12,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // deepCopyState creates a deep copy of the state struct, though note that
-// some things are not deep copied like the config.Probe objects because they
+// some things are not deep copied like the rcjson.Probe objects because they
 // are considered immutable.
 func deepCopyState(original *state) *state {
 	if original == nil {
@@ -60,7 +61,7 @@ func deepCopyProgram(original *program) *program {
 	}
 
 	// Shallow copy probes slice (probes themselves are shared).
-	copiedConfig := make([]config.Probe, len(original.config))
+	copiedConfig := make([]irgen.ProbeDefinition, len(original.config))
 	copy(copiedConfig, original.config)
 
 	copied := &program{
@@ -90,7 +91,7 @@ func deepCopyProcess(original *process) *process {
 	}
 
 	// Shallow copy probes map (probes themselves are shared).
-	copiedProbes := make(map[probeKey]config.Probe)
+	copiedProbes := make(map[probeKey]irgen.ProbeDefinition)
 	for key, probe := range original.probes {
 		copiedProbes[key] = probe
 	}
@@ -112,18 +113,21 @@ func TestDeepCopyState(t *testing.T) {
 	s := newState()
 	processID := ProcessID{PID: 123}
 	executable := Executable{Path: "/test/path"}
-	probe := &config.LogProbe{
-		ID:      "test-probe",
-		Version: 1,
-		Where:   &config.Where{MethodName: "testMethod"},
+	probe := &rcjson.LogProbe{
+		ID:              "test-probe",
+		Version:         1,
+		Where:           &rcjson.Where{MethodName: "testMethod"},
+		CaptureSnapshot: true,
 	}
+	probeDef, err := irgen.ProbeDefinitionFromRemoteConfig(probe)
+	require.NoError(t, err)
 	s.programIDAlloc = 5
 	s.processes[processID] = &process{
 		state:      processStateWaitingForProgram,
 		id:         processID,
 		executable: executable,
-		probes: map[probeKey]config.Probe{
-			{id: "test-probe", version: 1}: probe,
+		probes: map[probeKey]irgen.ProbeDefinition{
+			{id: "test-probe", version: 1}: probeDef,
 		},
 		currentProgram: 1,
 	}
@@ -131,7 +135,7 @@ func TestDeepCopyState(t *testing.T) {
 	program := &program{
 		state:      programStateQueued,
 		id:         programID,
-		config:     []config.Probe{probe},
+		config:     []irgen.ProbeDefinition{probeDef},
 		executable: executable,
 		processID:  &s.processes[processID].id,
 	}

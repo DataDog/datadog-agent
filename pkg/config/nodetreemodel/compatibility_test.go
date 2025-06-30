@@ -287,6 +287,22 @@ customKey2: unused
 		assert.NotContains(t, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())), "customkey2")
 		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey2")
 	})
+
+	t.Run("SetWithoutSource won't create known key", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+		})
+		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+
+		wantKeys := []string{"port"}
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+	})
+
 }
 
 func TestCompareAllKeysLowercased(t *testing.T) {
@@ -349,6 +365,21 @@ customKey2: unused
 		})
 
 		wantKeys := []string{"port", "host", "customkey1", "customkey2"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
+
+	t.Run("SetWithoutSource will create unknown key", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+		})
+		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+
+		wantKeys := []string{"port", "unknown_key.unknown_subkey"}
 		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
 		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
 	})
