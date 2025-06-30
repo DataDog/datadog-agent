@@ -770,6 +770,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.validation.unlabelled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
@@ -839,6 +840,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
 
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.unlabelled", false)
 
 	// Declare other keys that don't have a default/env var.
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
