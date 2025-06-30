@@ -14354,6 +14354,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.119.1.0.9.el7.x86_64",
+			"cindex": 48
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.15.2.0.1.el7.x86_64",
 			"cindex": 48
 		},

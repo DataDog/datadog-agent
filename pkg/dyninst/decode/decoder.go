@@ -35,8 +35,6 @@ type Decoder struct {
 	probeEvents map[ir.TypeID]probeEvent
 }
 
-var errorUnimplemented = errors.New("errorUnimplemented type")
-
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(program *ir.Program) (*Decoder, error) {
 	decoder := &Decoder{
@@ -155,7 +153,7 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	err = enc.WriteToken(jsontext.String(p.probe.ID))
+	err = enc.WriteToken(jsontext.String(p.probe.GetID()))
 	if err != nil {
 		return err
 	}
@@ -219,12 +217,23 @@ func (d *Decoder) encodeValue(
 			irType: uint32(v.Pointee.GetID()),
 			addr:   addr,
 		}
+
+		var (
+			header         *output.DataItemHeader
+			pointedData    []byte
+			dontParseValue bool
+		)
 		pointedValue, ok := dataItems[key]
 		if !ok {
-			return errors.New("pointer not found in address pass map")
+			header = &output.DataItemHeader{
+				Address: key.addr,
+			}
+			dontParseValue = true
+		} else {
+			header = pointedValue.Header()
+			pointedData = pointedValue.Data()
 		}
-		header := pointedValue.Header()
-		if pointedValue.Header().Address == 0 {
+		if header.Address == 0 {
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
 		}
 		err := enc.WriteToken(jsontext.BeginObject)
@@ -235,12 +244,12 @@ func (d *Decoder) encodeValue(
 		if err != nil {
 			return err
 		}
-		err = enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
+		addrString := fmt.Sprintf("0x%x", header.Address)
+		err = enc.WriteToken(jsontext.String(addrString))
 		if err != nil {
 			return err
 		}
-
-		if _, ok := currentlyEncoding[key]; !ok {
+		if _, ok := currentlyEncoding[key]; !ok && !dontParseValue {
 			currentlyEncoding[key] = struct{}{}
 			defer delete(currentlyEncoding, key)
 
@@ -253,7 +262,7 @@ func (d *Decoder) encodeValue(
 				dataItems,
 				currentlyEncoding,
 				d.program.Types[ir.TypeID(header.Type)],
-				pointedValue.Data(),
+				pointedData,
 			)
 			if err != nil {
 				return fmt.Errorf("could not get pointed-at value: %s", err)
@@ -311,9 +320,9 @@ func (d *Decoder) encodeValue(
 		}
 		return nil
 	case *ir.GoEmptyInterfaceType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - empty interface"))
 	case *ir.GoInterfaceType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - non-empty interface"))
 	case *ir.GoSliceHeaderType:
 		if len(data) < int(v.ByteSize) {
 			return errors.New("passed data not long enough for slice header")
@@ -359,7 +368,7 @@ func (d *Decoder) encodeValue(
 		}
 		return nil
 	case *ir.GoChannelType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - channel"))
 	case *ir.GoStringHeaderType:
 		var address uint64
 		for _, field := range v.Fields {
@@ -387,17 +396,17 @@ func (d *Decoder) encodeValue(
 		}
 		return nil
 	case *ir.GoMapType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - map"))
 	case *ir.GoHMapHeaderType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - hmap header"))
 	case *ir.GoHMapBucketType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - hmap bucket"))
 	case *ir.GoSwissMapHeaderType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - swiss map header"))
 	case *ir.GoSwissMapGroupsType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - swiss map groups"))
 	case *ir.EventRootType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - event root"))
 	default:
 		return errors.New("invalid type")
 	}

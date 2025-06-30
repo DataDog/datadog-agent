@@ -63,7 +63,7 @@ type ExprSaveOp struct {
 
 type ExprDereferenceCfaOp struct {
 	baseOp
-	Offset       uint32
+	Offset       int32
 	Len          uint32
 	OutputOffset uint32
 }

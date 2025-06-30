@@ -318,7 +318,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
 
 	// If true, then the go loader will be prioritized over the python loader.
-	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
@@ -656,6 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
+	config.BindEnvAndSetDefault("jmx_java_tool_options", "")
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))

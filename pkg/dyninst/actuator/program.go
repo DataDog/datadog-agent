@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -22,16 +21,15 @@ type CompiledProgram struct {
 	// IR is the IR program that was generated from the probe configuration.
 	IR *ir.Program
 	// Probes is the list of probes that were compiled.
-	Probes []config.Probe
+	Probes []ir.ProbeDefinition
 	// CompiledBPF is the compiled eBPF program.
 	CompiledBPF compiler.CompiledBPF
 }
 
 type loadedProgram struct {
-	id           ir.ProgramID
-	probes       []config.Probe
+	program      *ir.Program
 	collection   *ebpf.Collection
-	program      *ebpf.Program
+	bpfProgram   *ebpf.Program
 	attachpoints []codegen.BPFAttachPoint
 }
 
@@ -42,9 +40,8 @@ func (p *loadedProgram) close() {
 }
 
 type attachedProgram struct {
-	progID         ir.ProgramID
+	program        *ir.Program
 	procID         ProcessID
 	executableLink *link.Executable
 	attachedLinks  []link.Link
-	probes         []config.Probe
 }

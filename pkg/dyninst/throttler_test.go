@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -53,8 +54,12 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	// Practically infinite period, with specific event count.
 	require.Equal(t, 1, len(irp.Probes))
 	expectedEvents := 7
-	irp.Probes[0].ThrottlePeriodMs = 1000 * 1000
-	irp.Probes[0].ThrottleBudget = int64(expectedEvents)
+
+	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
+		ProbeDefinition: irp.Probes[0].ProbeDefinition,
+		periodMs:        1000 * 1000,
+		budget:          int64(expectedEvents),
+	}
 
 	// Compile the IR and prepare the BPF program.
 	t.Logf("compiling BPF")
@@ -107,8 +112,11 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	// Adjust throttling parameters.
 	// Small period, and budget.
 	require.Equal(t, 1, len(irp.Probes))
-	irp.Probes[0].ThrottlePeriodMs = 1
-	irp.Probes[0].ThrottleBudget = 2
+	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
+		ProbeDefinition: irp.Probes[0].ProbeDefinition,
+		periodMs:        1,
+		budget:          2,
+	}
 
 	// Compile the IR and prepare the BPF program.
 	t.Logf("compiling BPF")
@@ -140,4 +148,22 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 		_, err := rd.Read()
 		require.NoError(t, err)
 	}
+}
+
+type overriddenThrottle struct {
+	ir.ProbeDefinition
+	periodMs uint32
+	budget   int64
+}
+
+func (o *overriddenThrottle) GetThrottleConfig() ir.ThrottleConfig {
+	return o
+}
+
+func (o *overriddenThrottle) GetThrottlePeriodMs() uint32 {
+	return o.periodMs
+}
+
+func (o *overriddenThrottle) GetThrottleBudget() int64 {
+	return o.budget
 }

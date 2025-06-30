@@ -60,9 +60,6 @@ type providerCache struct {
 	count int
 }
 
-// ErrorMsgSet contains a list of unique configuration errors for a provider
-type ErrorMsgSet map[string]struct{}
-
 // newProviderCache instantiate a ProviderCache.
 // nolint needed as this function is defined in a file without a build tag,
 // but only used in multiple files with different build tags, none of which
