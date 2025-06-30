@@ -243,6 +243,37 @@ type testReporter struct {
 	t        *testing.T
 }
 
+func makeTestReporter(t *testing.T) *testReporter {
+	return &testReporter{
+		t:        t,
+		attached: make(chan struct{}, 1),
+	}
+}
+
+// ReportAttached implements actuator.Reporter.
+func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
+	select {
+	case r.attached <- struct{}{}:
+	default:
+	}
+}
+
+// ReportDetached implements actuator.Reporter.
+func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
+
+// ReportIRGenFailed implements actuator.Reporter.
+func (r *testReporter) ReportIRGenFailed(
+	programID ir.ProgramID, err error, probes []ir.ProbeDefinition,
+) {
+	r.t.Fatalf("IR generation failed for program %d: %v (with probes: %v)", programID, err, probes)
+}
+
+// ReportLoadingFailed implements actuator.Reporter.
+func (r *testReporter) ReportLoadingFailed(program *ir.Program, err error) {
+	defer close(r.attached)
+	r.t.Fatalf("loading failed for program %d: %v", program.ID, err)
+}
+
 // ReportAttachingFailed implements actuator.Reporter.
 func (r *testReporter) ReportAttachingFailed(
 	processID actuator.ProcessID, program *ir.Program, err error,
@@ -253,28 +284,6 @@ func (r *testReporter) ReportAttachingFailed(
 		program.ID, processID, err,
 	)
 }
-
-// ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(program *ir.Program, err error) {
-	defer close(r.attached)
-	r.t.Fatalf("loading failed for program %d: %v", program.ID, err)
-}
-
-func makeTestReporter(t *testing.T) *testReporter {
-	return &testReporter{
-		t:        t,
-		attached: make(chan struct{}, 1),
-	}
-}
-
-func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
-	select {
-	case r.attached <- struct{}{}:
-	default:
-	}
-}
-
-func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
 
 // clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
 func clearAddressFields(data map[string]any) {

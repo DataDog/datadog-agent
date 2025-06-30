@@ -105,8 +105,10 @@ type Reporter interface {
 	// ReportDetached is called when a program is detached from a process.
 	ReportDetached(ProcessID, *ir.Program)
 
+	//ReportIRGenFailed is called when generating the IR for the binary fails.
+	ReportIRGenFailed(ir.ProgramID, error, []ir.ProbeDefinition)
+
 	// ReportLoadingFailed is called when a program fails to load.
-	// ir.Program might be nil, if ir generation failed.
 	ReportLoadingFailed(*ir.Program, error)
 
 	// ReportAttachingFailed is called when a program fails to attach to a process.
@@ -115,10 +117,11 @@ type Reporter interface {
 
 type noopReporter struct{}
 
-func (noopReporter) ReportLoadingFailed(*ir.Program, error)              {}
-func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error) {}
-func (noopReporter) ReportAttached(ProcessID, *ir.Program)               {}
-func (noopReporter) ReportDetached(ProcessID, *ir.Program)               {}
+func (noopReporter) ReportAttached(ProcessID, *ir.Program)                       {}
+func (noopReporter) ReportDetached(ProcessID, *ir.Program)                       {}
+func (noopReporter) ReportIRGenFailed(ir.ProgramID, error, []ir.ProbeDefinition) {}
+func (noopReporter) ReportLoadingFailed(*ir.Program, error)                      {}
+func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error)         {}
 
 // Loader is an interface that abstracts ebpf program loader.
 type Loader interface {

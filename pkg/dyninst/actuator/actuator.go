@@ -181,7 +181,7 @@ func (a *effects) loadProgram(
 		defer a.wg.Done()
 		ir, err := generateIR(programID, executable, probes)
 		if err != nil {
-			a.reporter.ReportLoadingFailed(nil, err)
+			a.reporter.ReportIRGenFailed(programID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
