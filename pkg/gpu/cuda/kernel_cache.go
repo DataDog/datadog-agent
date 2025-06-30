@@ -369,11 +369,7 @@ func (kc *KernelCache) GetStats() map[string]interface{} {
 		}
 	}
 
-	kc.cacheMutex.RLock()
-	defer kc.cacheMutex.RUnlock()
-
 	return map[string]interface{}{
-		"active":  true,
-		"kernels": len(kc.cache),
+		"active": true,
 	}
 }
