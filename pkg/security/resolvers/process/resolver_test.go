@@ -882,12 +882,10 @@ func TestCGroupContext(t *testing.T) {
 		)
 
 		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
-			CGroupID:    cgroupID,
-			CGroupFlags: 0,
+			CGroupID: cgroupID,
 		}, nil)
 
 		assert.Equal(t, cgroupID, node.ProcessCacheEntry.CGroup.CGroupID)
-		assert.Equal(t, containerutils.CGroupManagerCRI, node.ProcessCacheEntry.CGroup.CGroupFlags.GetCGroupManager())
 		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerID)
 	})
 }

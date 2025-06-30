@@ -295,7 +295,7 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.GetProfileCookie()); err != nil {
+	if err := m.securityProfileMap.Put(workload.CGroupFile, profile.GetProfileCookie()); err != nil {
 		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), profile.Metadata.Name, err)
 		return
 	}
@@ -364,22 +364,8 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
-	if !workload.CGroupFlags.IsContainer() {
-		return
-	}
-
-	defaultConfigs, err := m.getDefaultLoadConfigs()
-	if err != nil {
-		seclog.Errorf("couldn't get default load configs: %v", err)
-		return
-	}
-
-	// check whether we are configured to apply a profile for this type of workload/cgroup
-	// as this function is called by the tags resolver, which also resolves tags for systemd cgroups
-	_, found := defaultConfigs[workload.CGroupFlags.GetCGroupManager()]
-	if !found {
-		seclog.Debugf("no default load config found for manager %s, not applying profile for workload %s", workload.CGroupFlags.GetCGroupManager().String(), workload.Selector.String())
+	// TODO: remove this check once we start handling profiles for non-containerized workloads
+	if workload.ContainerContext.ContainerID == "" {
 		return
 	}
 

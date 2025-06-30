@@ -192,7 +192,9 @@ func (p *Probe) Close() error {
 
 // Stop the probe
 func (p *Probe) Stop() {
-	p.cancelFnc()
+	if p.cancelFnc != nil {
+		p.cancelFnc()
+	}
 	p.wg.Wait()
 
 	p.PlatformProbe.Stop()
