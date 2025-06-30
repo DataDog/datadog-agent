@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -488,15 +487,15 @@ func (s *baseStartStopSuite) SetupSuite() {
 	host := s.Env().RemoteHost
 
 	// Enable driver verifier and reboot
-	out, err := windowsCommon.EnableDriverVerifier(host, s.getInstalledKernelServices())
-	if err != nil {
-		s.T().Logf("Driver verifier error output:\n%s", err)
-	}
-	if out != "" {
-		s.T().Logf("Driver verifier output:\n%s", out)
-	}
+	// out, err := windowsCommon.EnableDriverVerifier(host, s.getInstalledKernelServices())
+	// if err != nil {
+	// 	s.T().Logf("Driver verifier error output:\n%s", err)
+	// }
+	// if out != "" {
+	//	s.T().Logf("Driver verifier output:\n%s", out)
+	// }
 
-	windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
+	// windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 
 	// TODO(WINA-1320): mark this crash as flaky while we investigate it
 	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
