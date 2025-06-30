@@ -23,6 +23,7 @@
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -195,6 +196,70 @@ int ptrace_attach() {
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
     }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nofile() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 1024;  // soft limit
+    rlim.rlim_max = 2048;  // hard limit
+    
+    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NOFILE");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nproc() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 512;   // soft limit
+    rlim.rlim_max = 1024;  // hard limit
+    
+    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NPROC");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+int prlimit64_stack(void) {
+    struct rlimit64 rlim;
+    rlim.rlim_cur = 1024;   
+    rlim.rlim_max = 2048;
+
+    pid_t dummy_pid = fork();
+    if (dummy_pid < 0) {
+        perror("fork");
+        return EXIT_FAILURE;
+    }
+
+    if (dummy_pid == 0) {
+        sleep(30);
+        return EXIT_SUCCESS;
+    }
+
+    if (prlimit64(dummy_pid, RLIMIT_STACK, &rlim, NULL) < 0) {
+        perror("prlimit64 RLIMIT_STACK");
+        kill(dummy_pid, SIGTERM);
+        waitpid(dummy_pid, NULL, 0);
+        return EXIT_FAILURE;
+    }
+
+    kill(dummy_pid, SIGTERM);
+    waitpid(dummy_pid, NULL, 0);
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_core() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 0;      // no core dumps
+    rlim.rlim_max = 0;      // no core dumps
+    
+    if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_CORE");
+        return EXIT_FAILURE;
+    }    
     return EXIT_SUCCESS;
 }
 
@@ -1311,6 +1376,14 @@ int main(int argc, char **argv) {
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
             exit_code = ptrace_attach();
+        } else if (strcmp(cmd, "setrlimit-nofile") == 0) {
+            exit_code = setrlimit_nofile();
+        } else if (strcmp(cmd, "setrlimit-nproc") == 0) {
+            exit_code = setrlimit_nproc();
+        } else if (strcmp(cmd, "prlimit64-stack") == 0) {
+            exit_code = prlimit64_stack();
+        } else if (strcmp(cmd, "setrlimit-core") == 0) {
+            exit_code = setrlimit_core();
         } else if (strcmp(cmd, "span-open") == 0) {
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
@@ -1334,7 +1407,7 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "connect") == 0) {
             exit_code = test_connect(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fork") == 0) {
-            return test_forkexec(sub_argc, sub_argv);
+            exit_code = test_forkexec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "set-signal-handler") == 0) {
             exit_code = test_set_signal_handler(sub_argc, sub_argv);
         } else if (strcmp(cmd, "wait-signal") == 0) {
@@ -1368,14 +1441,13 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "chown") == 0) {
             exit_code = test_chown(sub_argc, sub_argv);
         } else if (strcmp(cmd, "rename") == 0) {
-            return test_rename(sub_argc, sub_argv);
+            exit_code = test_rename(sub_argc, sub_argv);
         } else if (strcmp(cmd, "utimes") == 0) {
-            return test_utimes(sub_argc, sub_argv);
+            exit_code = test_utimes(sub_argc, sub_argv);
         } else if (strcmp(cmd, "link") == 0) {
-            return test_link(sub_argc, sub_argv);
-        }
-        else {
-            fprintf(stderr, "Unknown command `%s`\n", cmd);
+            exit_code = test_link(sub_argc, sub_argv);
+        } else {
+            fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
         }
 

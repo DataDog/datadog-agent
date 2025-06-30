@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
@@ -124,19 +125,21 @@ type Tailer struct {
 	fingerprintConfig     *logsconfig.FingerprintConfig
 	fingerprint           uint64
 	fingerprintingEnabled bool
+	registry              auditor.Registry
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan        chan *message.Message   // Required
-	File              *File                   // Required
-	SleepDuration     time.Duration           // Required
-	Decoder           *decoder.Decoder        // Required
-	Info              *status.InfoRegistry    // Required
-	Rotated           bool                    // Optional
-	TagAdder          tag.EntityTagAdder      // Required
-	PipelineMonitor   metrics.PipelineMonitor // Required
-	FingerprintConfig *logsconfig.FingerprintConfig
+	OutputChan        chan *message.Message         // Required
+	File              *File                         // Required
+	SleepDuration     time.Duration                 // Required
+	Decoder           *decoder.Decoder              // Required
+	Info              *status.InfoRegistry          // Required
+	Rotated           bool                          // Optional
+	TagAdder          tag.EntityTagAdder            // Required
+	PipelineMonitor   metrics.PipelineMonitor       // Required
+	FingerprintConfig *logsconfig.FingerprintConfig //Optional
+	Registry          auditor.Registry              //Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -198,6 +201,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprintConfig:      fingerprintConfig,
 		fingerprint:            0,
 		fingerprintingEnabled:  fingerprintingEnabled,
+		registry:               opts.Registry,
 	}
 
 	if fileRotated {
@@ -218,7 +222,15 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to a new channel and using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
+func (t *Tailer) NewRotatedTailer(
+	file *File,
+	outputChan chan *message.Message,
+	pipelineMonitor metrics.PipelineMonitor,
+	decoder *decoder.Decoder,
+	info *status.InfoRegistry,
+	tagAdder tag.EntityTagAdder,
+	registry auditor.Registry,
+) *Tailer {
 	options := &TailerOptions{
 		OutputChan:        outputChan,
 		File:              file,
@@ -229,6 +241,7 @@ func (t *Tailer) NewRotatedTailer(file *File, outputChan chan *message.Message, 
 		TagAdder:          tagAdder,
 		PipelineMonitor:   pipelineMonitor,
 		FingerprintConfig: t.fingerprintConfig,
+		Registry:          registry,
 	}
 
 	return NewTailer(options)
@@ -243,7 +256,7 @@ func (t *Tailer) Identifier() string {
 	//
 	// This is the identifier used in the registry, so changing it will invalidate existing
 	// registry entries on upgrade.
-	return fmt.Sprintf("file:%s", t.file.Path)
+	return t.file.Identifier()
 }
 
 // Start begins the tailer's operation in a dedicated goroutine.
@@ -255,7 +268,7 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	}
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
-
+	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
@@ -272,6 +285,7 @@ func (t *Tailer) StartFromBeginning() error {
 // Stop stops the tailer and returns only after all in-flight messages have
 // been flushed to the output channel.
 func (t *Tailer) Stop() {
+	t.registry.SetTailed(t.Identifier(), false)
 	t.stop <- struct{}{}
 	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed

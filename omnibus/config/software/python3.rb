@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.12.10"
+default_version "3.12.11"
 
 unless windows?
   dependency "libxcrypt"
@@ -14,7 +14,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "15d9c623abfd2165fe816ea1fb385d6ed8cf3c664661ab357f1782e3036a6dac"
+       :sha256 => "7b8d59af8216044d2313de8120bfc2cc00a9bd2e542f15795e1d616c51faf3d6"
 
 relative_path "Python-#{version}"
 
@@ -70,7 +70,6 @@ build do
   else
     dependency "vc_redist_14"
 
-    vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
     ###############################
     # Setup openssl dependency... #
     ###############################

@@ -31,15 +31,15 @@ type probeEvent struct {
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
 	program     *ir.Program
+	stackHashes map[uint64][]uint64
 	probeEvents map[ir.TypeID]probeEvent
 }
-
-var errorUnimplemented = errors.New("errorUnimplemented type")
 
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(program *ir.Program) (*Decoder, error) {
 	decoder := &Decoder{
 		program:     program,
+		stackHashes: make(map[uint64][]uint64),
 		probeEvents: make(map[ir.TypeID]probeEvent),
 	}
 	for _, probe := range program.Probes {
@@ -62,15 +62,27 @@ type typeAndAddr struct {
 
 // Decode decodes the given event into the given writer.
 func (d *Decoder) Decode(event output.Event, out io.Writer) error {
-
-	frames, err := event.StackPCs()
+	enc := jsontext.NewEncoder(out)
+	err := enc.WriteToken(jsontext.BeginObject)
 	if err != nil {
 		return err
 	}
-	enc := jsontext.NewEncoder(out)
-	err = enc.WriteToken(jsontext.BeginObject)
+
+	header, err := event.Header()
 	if err != nil {
 		return err
+	}
+
+	// bpf will only upload the pc's for a given hash once.
+	// We cache the frames for each hash accordingly.
+	var frames []uint64
+	frames, ok := d.stackHashes[header.Stack_hash]
+	if !ok {
+		frames, err = event.StackPCs()
+		if err != nil {
+			return err
+		}
+		d.stackHashes[header.Stack_hash] = frames
 	}
 
 	err = enc.WriteToken(jsontext.String("stack_frames"))
@@ -133,6 +145,19 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		}] = item
 	}
 
+	p, ok := d.probeEvents[rootType.ID]
+	if !ok {
+		return errors.New("no probe event found for root type")
+	}
+	err = enc.WriteToken(jsontext.String("probe_id"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(p.probe.GetID()))
+	if err != nil {
+		return err
+	}
+
 	// This map is used to avoid infinite recursion when encoding pointer values.
 	// When an address has already been encountered it is added to this map, and
 	// removed when the recursive function call chain returns. This way unique
@@ -189,15 +214,26 @@ func (d *Decoder) encodeValue(
 			return nil
 		}
 		key := typeAndAddr{
-			irType: uint32(irType.GetID()),
+			irType: uint32(v.Pointee.GetID()),
 			addr:   addr,
 		}
+
+		var (
+			header         *output.DataItemHeader
+			pointedData    []byte
+			dontParseValue bool
+		)
 		pointedValue, ok := dataItems[key]
 		if !ok {
-			return errors.New("pointer not found in address pass map")
+			header = &output.DataItemHeader{
+				Address: key.addr,
+			}
+			dontParseValue = true
+		} else {
+			header = pointedValue.Header()
+			pointedData = pointedValue.Data()
 		}
-		header := pointedValue.Header()
-		if pointedValue.Header().Address == 0 {
+		if header.Address == 0 {
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
 		}
 		err := enc.WriteToken(jsontext.BeginObject)
@@ -208,12 +244,12 @@ func (d *Decoder) encodeValue(
 		if err != nil {
 			return err
 		}
-		err = enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
+		addrString := fmt.Sprintf("0x%x", header.Address)
+		err = enc.WriteToken(jsontext.String(addrString))
 		if err != nil {
 			return err
 		}
-
-		if _, ok := currentlyEncoding[key]; !ok {
+		if _, ok := currentlyEncoding[key]; !ok && !dontParseValue {
 			currentlyEncoding[key] = struct{}{}
 			defer delete(currentlyEncoding, key)
 
@@ -226,7 +262,7 @@ func (d *Decoder) encodeValue(
 				dataItems,
 				currentlyEncoding,
 				d.program.Types[ir.TypeID(header.Type)],
-				pointedValue.Data(),
+				pointedData,
 			)
 			if err != nil {
 				return fmt.Errorf("could not get pointed-at value: %s", err)
@@ -263,40 +299,94 @@ func (d *Decoder) encodeValue(
 			return err
 		}
 	case *ir.ArrayType:
-		return errorUnimplemented
+		err := enc.WriteToken(jsontext.BeginArray)
+		if err != nil {
+			return err
+		}
+
+		elementType := v.Element
+		elementSize := int(elementType.GetByteSize())
+		numElements := int(v.Count)
+		for i := range numElements {
+			elementData := data[i*elementSize : (i+1)*elementSize]
+			err := d.encodeValue(enc, dataItems, currentlyEncoding, v.Element, elementData)
+			if err != nil {
+				return err
+			}
+		}
+		err = enc.WriteToken(jsontext.EndArray)
+		if err != nil {
+			return err
+		}
+		return nil
 	case *ir.GoEmptyInterfaceType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - empty interface"))
 	case *ir.GoInterfaceType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - non-empty interface"))
 	case *ir.GoSliceHeaderType:
-		return errorUnimplemented
-	case *ir.GoSliceDataType:
-		return errorUnimplemented
+		if len(data) < int(v.ByteSize) {
+			return errors.New("passed data not long enough for slice header")
+		}
+		address := binary.NativeEndian.Uint64(data[0:8])
+		length := binary.NativeEndian.Uint64(data[8:16])
+		if length == 0 {
+			err := enc.WriteToken(jsontext.BeginArray)
+			if err != nil {
+				return err
+			}
+			err = enc.WriteToken(jsontext.EndArray)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		elementType := v.Data.ID
+		elementSize := int(v.Data.Element.GetByteSize())
+		sliceDataItem, ok := dataItems[typeAndAddr{
+			addr:   address,
+			irType: uint32(elementType),
+		}]
+		if !ok {
+			return errors.New("slice data item not found in data items")
+		}
+		err := enc.WriteToken(jsontext.BeginArray)
+		if err != nil {
+			return err
+		}
+		sliceLength := int(sliceDataItem.Header().Length) / elementSize
+		sliceData := sliceDataItem.Data()
+		for i := range int(sliceLength) {
+			elementData := sliceData[i*elementSize : (i+1)*elementSize]
+			err := d.encodeValue(enc, dataItems, currentlyEncoding, v.Data.Element, elementData)
+			if err != nil {
+				return err
+			}
+		}
+		err = enc.WriteToken(jsontext.EndArray)
+		if err != nil {
+			return err
+		}
+		return nil
 	case *ir.GoChannelType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - channel"))
 	case *ir.GoStringHeaderType:
-		stringHeader := irType.(*ir.GoStringHeaderType)
-		var address, length uint64
-		for _, field := range stringHeader.Fields {
+		var address uint64
+		for _, field := range v.Fields {
 			if field.Name == "str" {
 				if uint32(field.Type.GetByteSize()) != 8 || len(data) < int(field.Offset+field.Type.GetByteSize()) {
 					return errors.New("malformed string field 'str'")
 				}
 				address = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+uint32(field.Type.GetByteSize())])
-			} else if field.Name == "len" {
-				if field.Type.GetByteSize() != 8 {
-					return errors.New("malformed string field 'len'")
-				}
-				length = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+uint32(field.Type.GetByteSize())])
 			}
 		}
 		stringValue, ok := dataItems[typeAndAddr{
-			irType: uint32(irType.GetID()),
+			irType: uint32(v.Data.GetID()),
 			addr:   address,
 		}]
 		if !ok {
 			return fmt.Errorf("string content not present in data items")
 		}
+		length := stringValue.Header().Length
 		if len(stringValue.Data()) < int(length) {
 			return errors.New("string content not long enough for known length")
 		}
@@ -305,20 +395,18 @@ func (d *Decoder) encodeValue(
 			return err
 		}
 		return nil
-	case *ir.GoStringDataType:
-		return errorUnimplemented
 	case *ir.GoMapType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - map"))
 	case *ir.GoHMapHeaderType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - hmap header"))
 	case *ir.GoHMapBucketType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - hmap bucket"))
 	case *ir.GoSwissMapHeaderType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - swiss map header"))
 	case *ir.GoSwissMapGroupsType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - swiss map groups"))
 	case *ir.EventRootType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - event root"))
 	default:
 		return errors.New("invalid type")
 	}
