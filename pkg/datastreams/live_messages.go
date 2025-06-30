@@ -46,9 +46,9 @@ type liveMessagesConfig struct {
 	ID    string      `yaml:"id" json:"id"`
 }
 
-// Controller listens to remote configuration updates for the Data Streams live messages feature
+// controller listens to remote configuration updates for the Data Streams live messages feature
 // and configures the kafka_consumer integration to fetch messages from Kafka.
-type Controller struct {
+type controller struct {
 	ac            autodiscovery.Component
 	rcclient      rcclient.Component
 	configChanges chan integration.ConfigChanges
@@ -58,19 +58,19 @@ type Controller struct {
 
 // String returns the name of the provider.  All Config instances produced
 // by this provider will have this value in their Provider field.
-func (c *Controller) String() string {
+func (c *controller) String() string {
 	return names.DataStreamsLiveMessages
 }
 
 // GetConfigErrors returns a map of errors that occurred on the last Collect
 // call, indexed by a description of the resource that generated the error.
 // The result is displayed in diagnostic tools such as `agent status`.
-func (c *Controller) GetConfigErrors() map[string]providers.ErrorMsgSet {
+func (c *controller) GetConfigErrors() map[string]providers.ErrorMsgSet {
 	return nil
 }
 
 // manageSubscriptionToRC subscribes to remote configuration updates if the agent is running the kafka_consumer integration.
-func (c *Controller) manageSubscriptionToRC() {
+func (c *controller) manageSubscriptionToRC() {
 	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -96,9 +96,9 @@ func isConnectedToKafka(ac autodiscovery.Component) bool {
 	return false
 }
 
-// NewController creates a new Controller instance
-func NewController(ac autodiscovery.Component, rcclient rcclient.Component) *Controller {
-	c := &Controller{
+// NewController creates a new controller instance
+func NewController(ac autodiscovery.Component, rcclient rcclient.Component) providers.ConfigProvider {
+	c := &controller{
 		ac:            ac,
 		rcclient:      rcclient,
 		configChanges: make(chan integration.ConfigChanges, 10),
@@ -108,7 +108,7 @@ func NewController(ac autodiscovery.Component, rcclient rcclient.Component) *Con
 }
 
 // Stream starts sending configuration updates for the kafka_consumer integration to the output channel.
-func (c *Controller) Stream(ctx context.Context) <-chan integration.ConfigChanges {
+func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	go func() {
 		<-ctx.Done()
 		c.closeMutex.Lock()
@@ -120,7 +120,7 @@ func (c *Controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 }
 
 // update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
-func (c *Controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
 	if len(remoteConfigs) == 0 {
 		return

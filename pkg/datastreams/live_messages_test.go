@@ -109,7 +109,11 @@ func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
 }
 
 func TestController(t *testing.T) {
-	c := NewController(&mockedAutodiscovery{}, &mockedRcClient{})
+	c := &controller{
+		ac:            &mockedAutodiscovery{},
+		rcclient:      &mockedRcClient{},
+		configChanges: make(chan integration.ConfigChanges, 10),
+	}
 	config := liveMessagesConfig{
 		ID: "config_2_id",
 		Kafka: kafkaConfig{
