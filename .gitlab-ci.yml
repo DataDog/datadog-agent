@@ -36,6 +36,7 @@ include:
   - .gitlab/trigger_distribution/conditions.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
+  - .gitlab/scan/windows.yml
 
 default:
   retry:
@@ -75,6 +76,7 @@ stages:
   - pkg_metrics
   - container_build
   - container_scan
+  - scan
   - check_deploy
   - dev_container_deploy
   - deploy_packages
@@ -161,29 +163,29 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v68287210-66c494d7
+  CI_IMAGE_BTF_GEN: v68913450-a14377f4
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v68287210-66c494d7
+  CI_IMAGE_DEB_X64: v68913450-a14377f4
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v68287210-66c494d7
+  CI_IMAGE_DEB_ARM64: v68913450-a14377f4
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v68287210-66c494d7
+  CI_IMAGE_DEB_ARMHF: v68913450-a14377f4
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v68287210-66c494d7
+  CI_IMAGE_DOCKER_X64: v68913450-a14377f4
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v68287210-66c494d7
+  CI_IMAGE_DOCKER_ARM64: v68913450-a14377f4
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v68287210-66c494d7
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v68913450-a14377f4
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v68287210-66c494d7
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v68913450-a14377f4
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v68287210-66c494d7
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v68913450-a14377f4
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v68287210-66c494d7
+  CI_IMAGE_RPM_X64: v68913450-a14377f4
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v68287210-66c494d7
+  CI_IMAGE_RPM_ARM64: v68913450-a14377f4
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v68287210-66c494d7
+  CI_IMAGE_RPM_ARMHF: v68913450-a14377f4
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v68287210-66c494d7
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -241,6 +243,7 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
+  VIRUS_TOTAL: virus-total  # windows-agent
   # End vault variables
 
   DD_PKG_VERSION: "latest"
@@ -598,6 +601,8 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
 
 # New E2E related rules
 

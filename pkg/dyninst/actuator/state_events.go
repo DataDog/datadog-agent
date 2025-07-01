@@ -82,7 +82,7 @@ func (e eventProgramAttached) String() string {
 	if e.program == nil {
 		return "eventProgramAttached{program: nil}"
 	}
-	return fmt.Sprintf("eventProgramAttached{programID: %v, processID: %v}", e.program.progID, e.program.procID)
+	return fmt.Sprintf("eventProgramAttached{programID: %v, processID: %v}", e.program.program.ID, e.program.procID)
 }
 
 type eventProgramAttachingFailed struct {

@@ -52,7 +52,7 @@ func runTest(
 	caseName string,
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
+	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)

@@ -132,6 +132,12 @@ Package configsync implements synchronizing the configuration using the core age
 
 Package diagnose provides the diagnose suite for the agent.
 
+### [comp/core/filter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/filter)
+
+*Datadog Team*: container-platform
+
+Package filter provides the interface for the filter component
+
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
 *Datadog Team*: agent-configuration
