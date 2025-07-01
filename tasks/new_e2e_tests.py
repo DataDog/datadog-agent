@@ -462,7 +462,7 @@ def run(
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar=junit_tar,
+            junit_tar="",  # No need to store JUnit results for teardown-only runs
             result_json="/dev/null",  # No need to store results for teardown-only runs
             test_profiler=None,
         )
