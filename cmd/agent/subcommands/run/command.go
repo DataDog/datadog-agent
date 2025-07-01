@@ -353,8 +353,6 @@ func run(log log.Component,
 		return err
 	}
 
-	
-
 	return <-stopCh
 }
 
