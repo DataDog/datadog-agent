@@ -60,6 +60,7 @@ func (h *NetworkPolicyHandlers) BuildMessageBody(ctx processors.ProcessorContext
 		GroupSize:       int32(groupSize),
 		NetworkPolicies: models,
 		Tags:            util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:    ctx.GetAgentVersion(),
 	}
 }
 

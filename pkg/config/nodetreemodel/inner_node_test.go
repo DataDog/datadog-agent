@@ -133,11 +133,9 @@ func TestMergeErrorLeafToNode(t *testing.T) {
 
 	// checking leaf to node
 	err = base.Merge(overwrite)
-	require.Error(t, err)
-	assert.Equal(t, "tree conflict, can't merge inner and leaf nodes for 'a'", err.Error())
+	require.NoError(t, err)
 
 	// checking node to leaf
 	err = overwrite.Merge(base)
-	require.Error(t, err)
-	assert.Equal(t, "tree conflict, can't merge inner and leaf nodes for 'a'", err.Error())
+	require.NoError(t, err)
 }

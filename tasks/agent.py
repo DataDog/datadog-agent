@@ -150,10 +150,6 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if flavor.is_ot():
-        # for agent build purposes the UA agent is just like base
-        flavor = AgentFlavor.base
-
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()

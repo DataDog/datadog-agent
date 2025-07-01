@@ -118,6 +118,42 @@ agent_suse-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
 
+ddot_rpm-x64:
+  extends: [.package_rpm_common, .package_rpm_x86]
+  needs: ["datadog-otel-agent-x64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
+ddot_rpm-arm64:
+  extends: [.package_rpm_common, .package_rpm_arm64]
+  needs: ["datadog-otel-agent-arm64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
+ddot_suse_rpm-x64:
+  extends: [.package_suse_rpm_common, .package_rpm_x86]
+  needs: ["datadog-otel-agent-x64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
+ddot_suse_rpm-arm64:
+  extends: [.package_suse_rpm_common, .package_rpm_arm64]
+  needs: ["datadog-otel-agent-arm64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["installer-arm64"]

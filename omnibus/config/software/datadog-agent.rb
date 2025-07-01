@@ -222,16 +222,6 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # OTel agent
-  if ot_target?
-    unless windows_target?
-      command "dda inv -- -e otel-agent.build", :env => env
-      copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
-
-      move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
-    end
-  end
-
   # APM Injection agent
   if windows_target?
     if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
