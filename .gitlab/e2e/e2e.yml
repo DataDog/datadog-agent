@@ -894,6 +894,18 @@ new-e2e-gpu:
       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
+new-e2e-agent-onboarding:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_agent_onboarding_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-onboarding
+    TEAM: agent-onboarding
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestGKESuite"
+
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   stage: e2e
