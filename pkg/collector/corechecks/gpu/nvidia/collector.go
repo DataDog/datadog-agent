@@ -136,6 +136,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	return tagsMapping
 }
 
+// RemoveDuplicateMetrics removes duplicate metrics from the given list, keeping the highest priority metric.
 func RemoveDuplicateMetrics(metrics []Metric) []Metric {
 	metricsByName := make(map[string]Metric)
 
