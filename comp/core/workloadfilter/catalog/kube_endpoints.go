@@ -8,17 +8,17 @@ package catalog
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
 func LegacyEndpointsMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyEndpointsMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), filter.EndpointType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), filter.EndpointType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.EndpointType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.EndpointType, logger),
 	}
 }
 
@@ -37,7 +37,7 @@ func LegacyEndpointsGlobalProgram(config config.Component, logger log.Component)
 
 	return program.CELProgram{
 		Name:    "LegacyEndpointsGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, filter.EndpointType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.EndpointType, logger),
+		Include: createProgramFromOldFilters(includeList, workloadfilter.EndpointType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.EndpointType, logger),
 	}
 }
