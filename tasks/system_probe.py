@@ -1705,7 +1705,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
         nw.rule(
             name="compress_minimized_btf",
-            command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
+            command=f"tar cf $out --mtime=@0 -I 'xz -8 -T{os.environ.get('KUBERNETES_CPU_REQUEST', 1)}' -C $tar_working_directory $rel_in && rm $in",
         )
 
         for root, dirs, files in os.walk(source_dir):
