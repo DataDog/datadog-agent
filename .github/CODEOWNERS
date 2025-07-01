@@ -32,16 +32,13 @@
 
 /LICENSE*                               # do not notify anyone
 
-# Todo: is this file still needed?
-/Makefile.trace                         @DataDog/agent-delivery
-
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-devx
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
-/service.datadog.yaml                   @DataDog/agent-delivery
+/service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
 
 /modules.yml                            @DataDog/agent-runtimes
@@ -88,6 +85,7 @@
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
+/.gitlab/trigger_distribution/*                      @DataDog/agent-delivery
 /.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
@@ -274,9 +272,6 @@
 /go.mod                                 # do not notify anyone
 /go.sum                                 # do not notify anyone
 
-
-/Makefile.trace                         @DataDog/agent-apm
-
 /omnibus/                               @DataDog/agent-build
 /omnibus/package-scripts/agent-rpm/     @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/     @DataDog/agent-build @DataDog/fleet
@@ -324,6 +319,7 @@
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
+/comp/core/filter @DataDog/container-platform
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
@@ -683,6 +679,7 @@
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/agent-devx
+/test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines

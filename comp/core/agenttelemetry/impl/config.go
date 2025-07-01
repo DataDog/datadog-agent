@@ -280,15 +280,6 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
-  - name: status
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: status.dce_render_errors
-          aggregate_tags:
-            - kind
-            - template_name
   - name: service-discovery
     metric:
       metrics:

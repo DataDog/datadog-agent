@@ -71,31 +71,29 @@ agent_deb-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
-.package_ot_deb_common:
-  extends: [.package_deb_common]
-  script:
-    - !reference [.cache_omnibus_ruby_deps, setup]
-    - !reference [.setup_deb_signing_key]
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
-    - !reference [.create_signature_and_lint_linux_packages]
-
-ot_agent_deb-x64-a7:
-  extends: [.package_ot_deb_common, .package_deb_x86]
+ddot_deb-x64:
+  extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-agent-7-x64", "datadog-otel-agent-x64"]
+  needs: ["datadog-otel-agent-x64"]
   variables:
-    DD_PROJECT: "agent"
+    DD_PROJECT: "ddot"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
-ot_agent_deb-arm64-a7:
-  extends: [.package_ot_deb_common, .package_deb_arm64]
+ddot_deb-arm64:
+  extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-agent-7-arm64", "datadog-otel-agent-arm64"]
+  needs: ["datadog-otel-agent-arm64"]
   variables:
-    DD_PROJECT: "agent"
+    DD_PROJECT: "ddot"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]

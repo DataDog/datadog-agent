@@ -29,8 +29,6 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    if flavor.is_ot():
-        flavor = AgentFlavor.base
 
     ldflags, gcflags, env = get_build_flags(
         ctx,

@@ -29,23 +29,20 @@ INTEGRATIONS_CORE_JSON_FIELD = "INTEGRATIONS_CORE_VERSION"
 RELEASE_JSON_FIELDS_TO_UPDATE = [
     INTEGRATIONS_CORE_JSON_FIELD,
     "OMNIBUS_RUBY_VERSION",
-    "MACOS_BUILD_VERSION",
 ]
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
-INTERNAL_DEPS_REPOS = ["omnibus-ruby", "datadog-agent-macos-build"]
+INTERNAL_DEPS_REPOS = ["omnibus-ruby"]
 DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
 ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
 UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT] + ["datadog-agent-buildimages"]
 DEFAULT_BRANCHES = {
     "omnibus-ruby": "datadog-5.5.0",
-    "datadog-agent-macos-build": "master",
     "datadog-agent": "main",
     "datadog-agent-buildimages": "main",
 }
 DEFAULT_BRANCHES_AGENT6 = {
     "omnibus-ruby": "6.53.x",
-    "datadog-agent-macos-build": "6.53.x",
     "datadog-agent": "6.53.x",
 }
 
@@ -130,7 +127,6 @@ def _update_release_json_entry(
     jmxfetch_version,
     jmxfetch_shasum,
     security_agent_policies_version,
-    macos_build_version,
     windows_ddnpm_driver,
     windows_ddnpm_version,
     windows_ddnpm_shasum,
@@ -152,7 +148,6 @@ def _update_release_json_entry(
     new_version_config["JMXFETCH_VERSION"] = jmxfetch_version
     new_version_config["JMXFETCH_HASH"] = jmxfetch_shasum
     new_version_config["SECURITY_AGENT_POLICIES_VERSION"] = security_agent_policies_version
-    new_version_config["MACOS_BUILD_VERSION"] = macos_build_version
     new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
     new_version_config["WINDOWS_DDNPM_VERSION"] = windows_ddnpm_version
     new_version_config["WINDOWS_DDNPM_SHASUM"] = windows_ddnpm_shasum
@@ -216,15 +211,6 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
         check_for_rc,
     )
 
-    macos_build_version = _fetch_dependency_repo_version(
-        "datadog-agent-macos-build",
-        new_version,
-        max_version,
-        allowed_major_versions,
-        compatible_version_re,
-        check_for_rc,
-    )
-
     # Part 2: repositories which have their own version scheme
 
     # jmxfetch version is updated directly by the AML team
@@ -253,7 +239,6 @@ def _update_release_json(release_json, new_version: Version, max_version: Versio
         jmxfetch_version,
         jmxfetch_shasum,
         security_agent_policies_version,
-        macos_build_version,
         windows_ddnpm_driver,
         windows_ddnpm_version,
         windows_ddnpm_shasum,
