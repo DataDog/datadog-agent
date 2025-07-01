@@ -159,7 +159,8 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
         .mountfields = {
             .params.visible = false,
             .params.detached = true,
-        }
+        },
+        .source = SOURCE_OPEN_TREE
     };
 
     fill_mount_fields(syscall, &event.mountfields);
@@ -167,7 +168,7 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
-    send_event(ctx, EVENT_OPEN_TREE, event);
+    send_event(ctx, EVENT_MOUNT, event);
 
     return 0;
 }
@@ -258,7 +259,8 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             .mountfields = {
                 .params.visible = false,
                 .params.detached = false,
-            }
+            },
+            .source = SOURCE_OPEN_TREE
         };
 
         fill_mount_fields(syscall, &event.mountfields);
@@ -270,10 +272,11 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             // All the other mounts are ultimately attached to the detached mount
             // That's why they aren't detached but are visible
             event.mountfields.params.visible = true;
+            event.source = SOURCE_MOUNT;
             pop_syscall(EVENT_MOUNT);
         }
 
-        send_event(ctx, syscall->type, event);
+        send_event(ctx, EVENT_MOUNT, event);
 
     } else if (syscall->type == EVENT_UNSHARE_MNTNS) {
         struct unshare_mntns_event_t event = { 0 };
@@ -520,6 +523,7 @@ HOOK_SYSCALL_EXIT(fsmount) {
 
     struct mount_event_t event = {
         .syscall.retval = SYSCALL_PARMRET(ctx),
+        .source = SOURCE_FSMOUNT,
     };
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
@@ -542,7 +546,7 @@ HOOK_SYSCALL_EXIT(fsmount) {
         event.mountfields.params.visible = false;
     }
 
-    send_event(ctx, EVENT_FSMOUNT, event);
+    send_event(ctx, EVENT_MOUNT, event);
     return 0;
 }
 

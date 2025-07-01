@@ -237,4 +237,12 @@ enum sysctl_action_t
     SYSCTL_WRITE,
 };
 
+enum mount_source_t
+{
+    SOURCE_NONE = 0,
+    SOURCE_MOUNT,
+    SOURCE_FSMOUNT,
+    SOURCE_OPEN_TREE,
+};
+
 #endif
