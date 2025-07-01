@@ -107,7 +107,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
 	}
-	// Increment the sequence ID for the key
+	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
 	c.Unlock()
 
