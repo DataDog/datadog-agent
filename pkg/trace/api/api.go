@@ -674,6 +674,13 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagProcessTags] = ptags
 	}
+
+	log.Debugf("adding _dd.tags.function to trace payload tags in the api")
+	if tp.Tags == nil {
+		tp.Tags = make(map[string]string)
+	}
+	tp.Tags["_dd.tags.function"] = "region:gcp-us-central1,test-primary-tag:cloudrun"
+
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
