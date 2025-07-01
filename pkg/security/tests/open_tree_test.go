@@ -85,7 +85,8 @@ func TestOpenTree(t *testing.T) {
 
 	err = TmpMountAt(dir)
 	if err != nil {
-		t.Fatal(err)
+		// Syscall not available in this kernel
+		t.Skip(err)
 	}
 
 	if id, err := getMountID(dir); err != nil {
