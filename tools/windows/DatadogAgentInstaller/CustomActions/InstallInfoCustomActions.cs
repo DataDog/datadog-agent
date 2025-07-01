@@ -12,7 +12,7 @@ namespace Datadog.CustomActions
         private static ActionResult WriteInstallInfo(ISession session)
         {
             var skipInstallInfo = session.Property("SKIP_INSTALL_INFO");
-            if (!string.IsNullOrEmpty(skipInstallInfo) && skipInstallInfo == "1")
+            if (skipInstallInfo == "1")
             {
                 session.Log("SKIP_INSTALL_INFO flag is set, skipping install_info file creation");
                 return ActionResult.Success;
