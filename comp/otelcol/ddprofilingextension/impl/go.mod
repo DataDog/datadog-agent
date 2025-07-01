@@ -32,8 +32,8 @@ require (
 )
 
 require (
-	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
-	github.com/onsi/gomega v1.36.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.22.2 // indirect
+	github.com/onsi/gomega v1.36.2 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.128.0 // indirect
 	github.com/shoenig/test v1.7.1 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.128.0 // indirect
