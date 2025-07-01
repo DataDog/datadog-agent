@@ -86,23 +86,9 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 	}
 
 	var returnTask v3or4.Task
-	if len(rt.tags) > 0 || len(rt.containerInstanceTags) > 0 {
-		// Found task in the cache
-		// use the cached tags
-		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTask(ctx)
-		if err != nil {
-			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
-			if errors.Is(err, context.DeadlineExceeded) {
-				log.Debugf("timeout while getting task from metadata v4 API: %s", err)
-			} else {
-				log.Warnf("failed to get task from metadata v4 API: %s", err)
-			}
-			return v1TaskToV4Task(task), err
-		}
-		taskWithTags.TaskTags = rt.tags
-		taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
-		returnTask = *taskWithTags
-	} else {
+	// If we have tags, are collecting tags and have zero tags present in the cache
+	// Call getTaskWithTags
+	if c.hasResourceTags && c.collectResourceTags && len(rt.tags) == 0 && len(rt.containerInstanceTags) == 0 {
 		// No tags in the cache, fetch from metadata v4 API
 		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
 		if err != nil {
@@ -123,7 +109,29 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 
 		c.resourceTags[task.Arn] = rt
 		returnTask = *taskWithTags
+	} else {
+		// Do not query for tags, but use them if they exist
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTask(ctx)
+		if err != nil {
+			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
+			if errors.Is(err, context.DeadlineExceeded) {
+				log.Debugf("timeout while getting task from metadata v4 API: %s", err)
+			} else {
+				log.Warnf("failed to get task from metadata v4 API: %s", err)
+			}
+			return v1TaskToV4Task(task), err
+		}
+		// Add tags if they exist
+		if len(rt.tags) == 0 {
+			taskWithTags.TaskTags = rt.tags
+		}
+		if len(rt.containerInstanceTags) == 0 {
+			taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
+		}
+
+		returnTask = *taskWithTags
 	}
+
 	return returnTask, nil
 }
 
