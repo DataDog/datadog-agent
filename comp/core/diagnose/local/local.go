@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -41,7 +40,6 @@ func Run(
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	tagger tagger.Component,
-	config config.Component,
 ) (*diagnose.Result, error) {
 
 	localSuite := diagnose.Suites{
@@ -59,7 +57,7 @@ func Run(
 		},
 	}
 
-	integrationConfigs, err := getLocalIntegrationConfigs(senderManager, wmeta, ac, secretResolver, tagger, config)
+	integrationConfigs, err := getLocalIntegrationConfigs(senderManager, wmeta, ac, secretResolver, tagger)
 
 	if err != nil {
 		localSuite[diagnose.CheckDatadog] = func(_ diagnose.Config) []diagnose.Diagnosis {
@@ -100,8 +98,7 @@ func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
-	tagger tagger.Component,
-	config config.Component) ([]integration.Config, error) {
+	tagger tagger.Component) ([]integration.Config, error) {
 	senderManagerInstance, err := senderManager.LazyGetSenderManager()
 	if err != nil {
 		return nil, err
@@ -111,7 +108,7 @@ func getLocalIntegrationConfigs(senderManager diagnosesendermanager.Component,
 	if !ok {
 		return nil, fmt.Errorf("Workload Meta is not available")
 	}
-	common.LoadComponents(secretResolver, wmetaInstance, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, ac)
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.
