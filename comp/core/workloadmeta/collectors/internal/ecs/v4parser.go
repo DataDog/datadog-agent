@@ -86,7 +86,6 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 	}
 
 	var returnTask v3or4.Task
-	var err error
 	if len(rt.tags) > 0 || len(rt.containerInstanceTags) > 0 {
 		// Found task in the cache
 		// use the cached tags
