@@ -18,6 +18,7 @@ func convertToIdx(payload *pb.TracerPayload) *idx.TracerPayload {
 	internedStrings := newInternedStrings()
 	payloadAttrs := convertAttributesMap(payload.Tags, internedStrings)
 	idxChunks := make([]*idx.TraceChunk, len(payload.Chunks))
+	tracerRuntimeID := ""
 	for chunkIndex, chunk := range payload.Chunks {
 		// We MUST have at least one span to be sending this chunk
 		// But let's check anyway to avoid a panic, we'll default to nil otherwise
@@ -79,6 +80,10 @@ func convertToIdx(payload *pb.TracerPayload) *idx.TracerPayload {
 			version := span.Meta["version"]
 			component := span.Meta["component"]
 			kindStr := span.Meta["kind"]
+			// We don't actually copy the tracer runtime ID into the payload field for v04 payloads
+			if tracerRuntimeID == "" && span.Meta["runtime-id"] != "" {
+				tracerRuntimeID = span.Meta["runtime-id"]
+			}
 			var kind idx.SpanKind
 			switch kindStr {
 			case "server":
@@ -124,12 +129,15 @@ func convertToIdx(payload *pb.TracerPayload) *idx.TracerPayload {
 			DecisionMakerRef: internedStrings.addString(decisionMaker),
 		}
 	}
+	if payload.RuntimeID != "" {
+		tracerRuntimeID = payload.RuntimeID
+	}
 	idxPayload := &idx.TracerPayload{
 		ContainerIDRef:     internedStrings.addString(payload.ContainerID),
 		LanguageNameRef:    internedStrings.addString(payload.LanguageName),
 		LanguageVersionRef: internedStrings.addString(payload.LanguageVersion),
 		TracerVersionRef:   internedStrings.addString(payload.TracerVersion),
-		RuntimeIDRef:       internedStrings.addString(payload.RuntimeID),
+		RuntimeIDRef:       internedStrings.addString(tracerRuntimeID),
 		EnvRef:             internedStrings.addString(payload.Env),
 		HostnameRef:        internedStrings.addString(payload.Hostname),
 		VersionRef:         internedStrings.addString(payload.AppVersion),
