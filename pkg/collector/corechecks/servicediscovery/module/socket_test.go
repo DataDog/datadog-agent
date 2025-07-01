@@ -31,8 +31,8 @@ func getSocketsOriginal(p *process.Process) ([]uint64, error) {
 	// sockets have the following pattern "socket:[inode]"
 	var sockets []uint64
 	for _, fd := range FDs {
-		if strings.HasPrefix(fd.Path, prefix) {
-			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
+		if strings.HasPrefix(fd.Path, socketPrefix) {
+			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], socketPrefix)
 			sock, err := strconv.ParseUint(inodeStr, 10, 64)
 			if err != nil {
 				continue
@@ -61,8 +61,8 @@ func getSocketsOld(pid int32) ([]uint64, error) {
 		if err != nil {
 			continue
 		}
-		if strings.HasPrefix(fullPath, prefix) {
-			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
+		if strings.HasPrefix(fullPath, socketPrefix) {
+			sock, err := strconv.ParseUint(fullPath[len(socketPrefix):len(fullPath)-1], 10, 64)
 			if err != nil {
 				continue
 			}
@@ -108,7 +108,7 @@ func TestGetSockets(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, readlinkBufferSize)
-	sockets, err := getSockets(p.Pid, buf)
+	openFiles, err := getOpenFilesInfo(p.Pid, buf)
 	require.NoError(t, err)
 
 	socketsOld, err := getSocketsOld(p.Pid)
@@ -117,8 +117,8 @@ func TestGetSockets(t *testing.T) {
 	socketsOriginal, err := getSocketsOriginal(p)
 	require.NoError(t, err)
 
-	require.Equal(t, sockets, socketsOld)
-	require.Equal(t, sockets, socketsOriginal)
+	require.Equal(t, openFiles.sockets, socketsOld)
+	require.Equal(t, openFiles.sockets, socketsOriginal)
 }
 
 func TestGetSocketsBufferTooSmall(t *testing.T) {
@@ -126,7 +126,7 @@ func TestGetSocketsBufferTooSmall(t *testing.T) {
 	require.NoError(t, err)
 
 	buf := make([]byte, readlinkBufferSize-1)
-	_, err = getSockets(p.Pid, buf)
+	_, err = getOpenFilesInfo(p.Pid, buf)
 	require.ErrorIs(t, err, io.ErrShortBuffer)
 }
 
@@ -154,7 +154,7 @@ func BenchmarkGetSockets(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		getSockets(int32(os.Getpid()), buf)
+		getOpenFilesInfo(int32(os.Getpid()), buf)
 	}
 }
 
