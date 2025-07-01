@@ -373,6 +373,7 @@ func TestBuffering(t *testing.T) {
 
 	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
 	pm := metrics.NewNoopPipelineMonitor("")
+	mockConfig := configmock.New(t)
 
 	p := &Processor{
 		encoder:                   JSONEncoder,
@@ -389,6 +390,7 @@ func TestBuffering(t *testing.T) {
 		},
 		pipelineMonitor: pm,
 		utilization:     pm.MakeUtilizationMonitor("processor"),
+		config:          mockConfig,
 	}
 
 	var processedMessages atomic.Int32
