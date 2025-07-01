@@ -55,7 +55,7 @@ def build(ctx, byoc=False):
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
 
     if sys.platform.startswith('linux') and "CI_JOB_NAME" in os.environ and "fips" not in os.environ["CI_JOB_NAME"]:
-        env["GOEXPERIMENT"] = "greenteagc"
+        env["GOEXPERIMENT"] = "greenteagc,jsonv2"
 
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
