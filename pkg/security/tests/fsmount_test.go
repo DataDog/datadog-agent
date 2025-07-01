@@ -56,6 +56,7 @@ func TestFsmount(t *testing.T) {
 	defer test.Close()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
+
 		err = test.GetProbeEvent(func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
@@ -78,7 +79,11 @@ func TestFsmount(t *testing.T) {
 		}, func(event *model.Event) bool {
 			assert.NotEqual(t, event.Mount.MountID, uint32(0), "Mount id is zero")
 			return true
-		}, 3*time.Second, model.FileFsmountEventType)
+		}, 3*time.Second, model.FileMountEventType)
+
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 
 	t.Run("fsmount-resolve-open-file", func(t *testing.T) {

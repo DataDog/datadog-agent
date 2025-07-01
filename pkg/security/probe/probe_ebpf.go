@@ -1087,7 +1087,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	switch eventType {
 
-	case model.FileMountEventType, model.FileFsmountEventType, model.FileOpenTreeEventType:
+	case model.FileMountEventType:
+		fmt.Printf("Mount received: %+v\n", event.Mount)
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
