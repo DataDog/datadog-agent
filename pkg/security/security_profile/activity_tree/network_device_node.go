@@ -14,11 +14,14 @@ import (
 
 // NetworkDeviceNode is used to store a Network Device node
 type NetworkDeviceNode struct {
+	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-	Context        model.NetworkDeviceContext
+
+	Context model.NetworkDeviceContext
+
 	// FlowNodes are indexed by source IPPortContexts
-	FlowNodes      map[model.FiveTuple]*FlowNode
+	FlowNodes map[model.FiveTuple]*FlowNode
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
@@ -28,6 +31,7 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 		Context:        *ctx,
 		FlowNodes:      make(map[model.FiveTuple]*FlowNode),
 	}
+	node.NodeBase = NewNodeBase()
 	return node
 }
 
@@ -39,7 +43,7 @@ func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string) {
 
 func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
 	for key, flow := range netdevice.FlowNodes {
-		if flow.evictImageTag(imageTag){
+		if flow.evictImageTag(imageTag) {
 			delete(netdevice.FlowNodes, key)
 		}
 	}
