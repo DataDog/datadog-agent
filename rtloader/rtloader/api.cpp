@@ -57,11 +57,8 @@ static HMODULE rtloader_backend = NULL;
 static void *rtloader_backend = NULL;
 #endif
 
-// temporary pointer to store rtloader until we have a subclass for shared library checks
-static rtloader_t *python_rtloader = NULL;
-
 // temporary pointer to store the callback of pkg/collect/aggregator.go
-static cb_submit_metric_t aggregator_submit_metric_cb = NULL;
+static cb_submit_metric_t submit_metric_cb = NULL;
 
 #ifdef _WIN32
 
@@ -173,10 +170,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
         return NULL;
     }
 
-    RtLoader *python_rtloader_obj = create_three(python_home, python_exe, _get_memory_tracker_cb());
-
-    python_rtloader = AS_TYPE(rtloader_t, python_rtloader_obj);
-    return AS_TYPE(rtloader_t, python_rtloader_obj);
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
 // it uses the python rtloader initialization because the subclass for shared library checks is not yet implemented
@@ -217,9 +211,11 @@ void run_shared_library(char *checkID, void *handle, const char **error)
         *error = strdupe(err_msg.str().c_str());
     }
 
+    const char *dlsym_error = NULL;
+
     // dlsym run function
     so_run_t *run_function = (so_run_t *)dlsym(handle, "Run");
-    const char *dlsym_error = dlerror();
+    dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to run shared library: " << dlsym_error;
@@ -229,6 +225,19 @@ void run_shared_library(char *checkID, void *handle, const char **error)
     std::cout << "Running shared library:" << std::endl;
 
     run_function();
+
+    // dlsym data function
+    so_data_t *data_function = (so_data_t *)dlsym(handle, "Data");
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+        std::ostringstream err_msg;
+        err_msg << "Unable to run shared library: " << dlsym_error;
+        *error = strdupe(err_msg.str().c_str());
+    }
+
+    int result = data_function();
+
+    std::cout << "Shared library Data() returned: " << result << std::endl;
 
     // temporary test metric submission
     char **tags = new char *[2];
@@ -363,9 +372,7 @@ DATADOG_AGENT_RTLOADER_API void submit_metric(char *checkID, const metric_type_t
                                             char *metricName, const double value, char **tags,
                                             char *hostname, const bool flushFirstValue)
 {
-    // AS_TYPE(RtLoader, python_rtloader)->getSubmitMetricCb()(checkID, metricType, metricName, value, tags, hostname,
-    //                                           flushFirstValue);
-    aggregator_submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);             
+    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);             
 }
 
 /*
@@ -500,7 +507,7 @@ void set_module_attr_string(rtloader_t *rtloader, char *module, char *attr, char
  */
 
 DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t cb) {
-    aggregator_submit_metric_cb = cb;
+    submit_metric_cb = cb;
 }
 
 void set_submit_metric_cb(rtloader_t *rtloader, cb_submit_metric_t cb)

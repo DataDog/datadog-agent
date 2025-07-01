@@ -94,6 +94,12 @@ typedef struct pymem_stats_s {
  * custom builtins
  */
 
+// shared libraries
+typedef void *(so_run_t)(void);
+
+typedef int (so_data_t)(void);
+
+
 // aggregator
 //
 // (id, metric_type, metric_name, value, tags, hostname, flush_first_value)
