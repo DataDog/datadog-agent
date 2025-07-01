@@ -44,7 +44,7 @@ const (
 )
 
 // DOMAIN_CONTROLLER_INFO structure
-// Name is intended to match the Windows API name see MSDN: https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/ns-dsgetdc-domain_controller_infoa
+// Name is intended to match the Windows API name see MSDN: https://learn.microsoft.com/en-us/windows/win32/api/dsgetdc/ns-dsgetdc-domain_controller_infow
 type DOMAIN_CONTROLLER_INFO struct {
 	DomainControllerName        *uint16
 	DomainControllerAddress     *uint16

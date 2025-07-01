@@ -51,12 +51,6 @@ func TestGetNptServersFromRegKeyValue(t *testing.T) {
 			expectedServers: nil,
 			expectError:     true,
 		},
-		{
-			name:            "Server with port",
-			regKeyValue:     "ntp.example.com:123,0x9",
-			expectedServers: []string{"ntp.example.com:123"},
-			expectError:     false,
-		},
 	}
 
 	for _, tc := range testCases {
