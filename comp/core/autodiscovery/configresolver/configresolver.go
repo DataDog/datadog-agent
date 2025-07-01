@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 

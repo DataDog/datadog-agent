@@ -10,9 +10,9 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
-	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -20,8 +20,8 @@ import (
 func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyContainerMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), filter.ContainerType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ContainerType, logger),
 	}
 }
 
@@ -29,8 +29,8 @@ func LegacyContainerMetricsProgram(config config.Component, logger log.Component
 func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyContainerLogsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_logs"), filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_logs"), filter.ContainerType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_logs"), workloadfilter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_logs"), workloadfilter.ContainerType, logger),
 	}
 }
 
@@ -38,7 +38,7 @@ func LegacyContainerLogsProgram(config config.Component, logger log.Component) p
 func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyContainerACExcludeProgram",
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("ac_exclude"), filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("ac_exclude"), workloadfilter.ContainerType, logger),
 	}
 }
 
@@ -46,7 +46,7 @@ func LegacyContainerACExcludeProgram(config config.Component, logger log.Compone
 func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyContainerACIncludeProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("ac_include"), filter.ContainerType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("ac_include"), workloadfilter.ContainerType, logger),
 	}
 }
 
@@ -54,8 +54,8 @@ func LegacyContainerACIncludeProgram(config config.Component, logger log.Compone
 func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyContainerGlobalProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include"), filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude"), filter.ContainerType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include"), workloadfilter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude"), workloadfilter.ContainerType, logger),
 	}
 }
 
@@ -68,8 +68,8 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 
 	return program.CELProgram{
 		Name:    "LegacyContainerSBOMProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_include"), filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_include"), workloadfilter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.ContainerType, logger),
 	}
 }
 
@@ -84,7 +84,7 @@ func createContainerADAnnotationsProgram(programName, annotationKey string, logg
 		 container.pod.annotations["ad.datadoghq.com/%s"] == "true")
 	`, annotationKey, annotationKey, annotationKey, annotationKey)
 
-	excludeProgram, err := createCELProgram(excludeFilter, filter.ContainerType)
+	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ContainerType)
 
 	if err != nil {
 		logger.Warnf("Error creating CEL filtering program: %v", err)
@@ -120,6 +120,6 @@ func ContainerPausedProgram(config config.Component, logger log.Component) progr
 
 	return program.CELProgram{
 		Name:    "ContainerPausedProgram",
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.ContainerType, logger),
 	}
 }

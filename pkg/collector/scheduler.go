@@ -19,8 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"

@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -127,7 +127,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
-		if c.HasFilter(filter.MetricsFilter) || c.HasFilter(filter.GlobalFilter) {
+		if c.HasFilter(workloadfilter.MetricsFilter) || c.HasFilter(workloadfilter.GlobalFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
 			continue
 		}

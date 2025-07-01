@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -32,6 +31,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -71,7 +71,7 @@ func main() {
 
 	err := fxutil.OneShot(
 		run,
-		filterfx.Module(),
+		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{

@@ -8,8 +8,8 @@ package catalog
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
-	"github.com/DataDog/datadog-agent/comp/core/filter/program"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 

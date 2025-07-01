@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.filter;
 
-option go_package = "comp/core/filter/def/proto"; // golang
+option go_package = "comp/core/workloadfilter/def/proto"; // golang
 
 message FilterContainer {
   string id = 1;

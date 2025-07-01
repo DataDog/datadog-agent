@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package filter
+package workloadfilter
 
 import (
-	typedef "github.com/DataDog/datadog-agent/comp/core/filter/def/proto"
+	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 

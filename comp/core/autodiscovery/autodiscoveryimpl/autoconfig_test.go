@@ -26,13 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
-	filterfxmock "github.com/DataDog/datadog-agent/comp/core/filter/fx-mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -609,7 +609,7 @@ func createDeps(t *testing.T) Deps {
 	return fxutil.Test[Deps](t,
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		filterfxmock.MockModule(),
+		workloadfilterfxmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 	)
 }

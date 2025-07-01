@@ -7,8 +7,8 @@
 package fx
 
 import (
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
-	filterimpl "github.com/DataDog/datadog-agent/comp/core/filter/impl"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	filterimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

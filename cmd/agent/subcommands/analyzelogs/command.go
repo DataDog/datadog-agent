@@ -25,11 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
@@ -84,7 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot("", "off", true)}),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadmetafx.Module(defaults.DefaultParams()),
-				filterfx.Module(),
+				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
 				ipcfx.ModuleReadOnly(),
 			)

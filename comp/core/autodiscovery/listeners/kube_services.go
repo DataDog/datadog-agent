@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +43,7 @@ type KubeServiceListener struct {
 	delService        chan<- Service
 	targetAllServices bool
 	m                 sync.RWMutex
-	filterStore       filter.Component
+	filterStore       workloadfilter.Component
 	telemetryStore    *telemetry.Store
 }
 
@@ -237,12 +237,12 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	svc := processService(ksvc)
 
 	svc.metricsExcluded = l.filterStore.IsServiceExcluded(
-		filter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
 		nil,
 	)
 
 	svc.globalExcluded = l.filterStore.IsServiceExcluded(
-		filter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
 		nil,
 	)
 
@@ -373,11 +373,11 @@ func (s *KubeServiceService) IsReady() bool {
 
 // HasFilter returns whether the kube service should not collect certain metrics
 // due to filtering applied.
-func (s *KubeServiceService) HasFilter(fs filter.Scope) bool {
+func (s *KubeServiceService) HasFilter(fs workloadfilter.Scope) bool {
 	switch fs {
-	case filter.MetricsFilter:
+	case workloadfilter.MetricsFilter:
 		return s.metricsExcluded
-	case filter.GlobalFilter:
+	case workloadfilter.GlobalFilter:
 		return s.globalExcluded
 	default:
 		return false

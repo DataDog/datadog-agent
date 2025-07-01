@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	// we need some valid check in the catalog to run tests

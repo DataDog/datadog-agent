@@ -13,13 +13,13 @@ import (
 
 	"github.com/google/cel-go/cel"
 
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // createProgramFromOldFilters handles the conversion of old filters to new filters and creates a CEL program.
-func createProgramFromOldFilters(oldFilters []string, objectType filter.ResourceType, logger log.Component) cel.Program {
+func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.ResourceType, logger log.Component) cel.Program {
 	filterString, err := convertOldToNewFilter(oldFilters, objectType)
 	if err != nil {
 		logger.Warnf("Error converting filters: %v", err)
@@ -35,12 +35,12 @@ func createProgramFromOldFilters(oldFilters []string, objectType filter.Resource
 	return program
 }
 
-func createCELProgram(rules string, objectType filter.ResourceType) (cel.Program, error) {
+func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
 	if rules == "" {
 		return nil, nil
 	}
 	env, err := cel.NewEnv(
-		cel.Types(&filter.Container{}, &filter.Pod{}),
+		cel.Types(&workloadfilter.Container{}, &workloadfilter.Pod{}),
 		cel.Variable(string(objectType), cel.ObjectType(convertTypeToProtoType(objectType))),
 	)
 	if err != nil {
@@ -58,16 +58,16 @@ func createCELProgram(rules string, objectType filter.ResourceType) (cel.Program
 }
 
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
-func getFieldMapping(objectType filter.ResourceType) map[string]string {
+func getFieldMapping(objectType workloadfilter.ResourceType) map[string]string {
 	return map[string]string{
 		"id":    fmt.Sprintf("%s.id.matches", objectType),
 		"name":  fmt.Sprintf("%s.name.matches", objectType),
 		"image": fmt.Sprintf("%s.image.matches", objectType),
 		"kube_namespace": func() string {
-			if objectType == filter.PodType {
+			if objectType == workloadfilter.PodType {
 				return fmt.Sprintf("%s.namespace.matches", objectType)
 			}
-			return fmt.Sprintf("%s.%s.namespace.matches", objectType, filter.PodType)
+			return fmt.Sprintf("%s.%s.namespace.matches", objectType, workloadfilter.PodType)
 		}(),
 	}
 }
@@ -85,7 +85,7 @@ func getValidKeys(m map[string]string) []string {
 //
 // Old Format: []string{"image:nginx.*", "name:xyz-.*"},
 // New Format: "container.name.matches('xyz-.*') || container.image.matches('nginx.*')"
-func convertOldToNewFilter(oldFilters []string, objectType filter.ResourceType) (string, error) {
+func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.ResourceType) (string, error) {
 	if oldFilters == nil {
 		return "", nil
 	}
@@ -106,7 +106,7 @@ func convertOldToNewFilter(oldFilters []string, objectType filter.ResourceType) 
 		}
 
 		// Check if the key is in the excluded
-		if objectType != filter.ContainerType && key == "image" {
+		if objectType != workloadfilter.ContainerType && key == "image" {
 			continue
 		}
 
@@ -125,15 +125,15 @@ func convertOldToNewFilter(oldFilters []string, objectType filter.ResourceType) 
 }
 
 // convertTypeToProtoType converts a filter.ResourceType to its corresponding proto type string.
-func convertTypeToProtoType(key filter.ResourceType) string {
+func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 	switch key {
-	case filter.ContainerType:
+	case workloadfilter.ContainerType:
 		return "datadog.filter.FilterContainer"
-	case filter.PodType:
+	case workloadfilter.PodType:
 		return "datadog.filter.FilterPod"
-	case filter.ServiceType:
+	case workloadfilter.ServiceType:
 		return "datadog.filter.FilterKubeService"
-	case filter.EndpointType:
+	case workloadfilter.EndpointType:
 		return "datadog.filter.FilterKubeEndpoint"
 	default:
 		return ""

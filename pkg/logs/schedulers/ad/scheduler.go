@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
@@ -65,7 +65,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		if !config.IsLogConfig() {
 			continue
 		}
-		if config.HasFilter(filter.LogsFilter) {
+		if config.HasFilter(workloadfilter.LogsFilter) {
 			log.Debugf("Config %s is filtered out for logs collection, ignoring it", configName(config))
 			continue
 		}
@@ -90,7 +90,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsLogConfig() || config.HasFilter(filter.LogsFilter) {
+		if !config.IsLogConfig() || config.HasFilter(workloadfilter.LogsFilter) {
 			continue
 		}
 		switch {

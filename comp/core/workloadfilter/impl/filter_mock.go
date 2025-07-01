@@ -5,13 +5,13 @@
 
 //go:build test
 
-package filterimpl
+package workloadfilterimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	filtermock "github.com/DataDog/datadog-agent/comp/core/filter/mock"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfiltermock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +24,7 @@ type MockRequires struct {
 
 // MockProvides is a struct containing the mock.
 type MockProvides struct {
-	Comp filtermock.Mock
+	Comp workloadfiltermock.Mock
 }
 
 // NewMock instantiates a new fakeTagger.

@@ -9,7 +9,7 @@
 package mock
 
 import (
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 // Mock implements mock-specific methods for the filter component.

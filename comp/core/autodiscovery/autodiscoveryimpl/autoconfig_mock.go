@@ -12,11 +12,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	mockTagger "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -33,7 +33,7 @@ type mockdependencies struct {
 	Params     MockParams
 	TaggerComp mockTagger.Mock
 	LogsComp   log.Component
-	FilterComp filter.Component
+	FilterComp workloadfilter.Component
 	Telemetry  telemetry.Component
 	Secrets    secrets.Component
 }

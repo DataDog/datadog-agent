@@ -8,17 +8,17 @@ package catalog
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
-	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
 // LegacyServiceMetricsProgram creates a program for filtering service metrics
 func LegacyServiceMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
 		Name:    "LegacyServiceMetricsProgram",
-		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), filter.ServiceType, logger),
-		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), filter.ServiceType, logger),
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), workloadfilter.ServiceType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), workloadfilter.ServiceType, logger),
 	}
 }
 
@@ -37,7 +37,7 @@ func LegacyServiceGlobalProgram(config config.Component, logger log.Component) p
 
 	return program.CELProgram{
 		Name:    "LegacyServiceGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ServiceType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ServiceType, logger),
+		Include: createProgramFromOldFilters(includeList, workloadfilter.ServiceType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, workloadfilter.ServiceType, logger),
 	}
 }
