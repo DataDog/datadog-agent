@@ -78,6 +78,7 @@ def build(
         ldflags=ldflags,
         gcflags=gcflags,
         env=env,
+        check_deadcode=True,
     )
 
 

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+from invoke import Context
+from invoke.exceptions import Exit
+from invoke.runners import Result
 
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
-
-if TYPE_CHECKING:
-    from invoke import Context
-    from invoke.runners import Result
 
 
 def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = False, max_retry: int = 3):
@@ -35,6 +34,7 @@ def go_build(
     bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
+    check_deadcode: bool = False,
 ) -> Result:
     cmd = "go build"
     if mod:
@@ -57,5 +57,15 @@ def go_build(
         cmd += f" -ldflags=\"{ldflags}\""
 
     cmd += f" {entrypoint}"
+    res = ctx.run(cmd, env=env)
 
-    return ctx.run(cmd, env=env)
+    if check_deadcode:
+        # whydeadcode prints unexpected input on stderr (eg. build warnings), and
+        # dead code call stack on stdout
+        # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
+        # so we hide stderr, and check whether stdout is empty
+        res = ctx.run("whydeadcode", in_stream=res.stdout, warn=True, hide="both")
+        if res.stdout:
+            raise Exit(f"dead code elimination is disabled by the following call stack:\n{res.stdout}")
+
+    return res
