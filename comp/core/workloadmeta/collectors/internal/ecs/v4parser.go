@@ -59,6 +59,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
 	// TODO: Do we update task instantly in case a failed call?
+	// TODO: Memory leak? Do we need to cleanup cache?
 	rt := c.resourceTags[task.Arn]
 
 	var metaURI string
@@ -84,26 +85,27 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		return v1TaskToV4Task(task), errors.New(err)
 	}
 
-	var taskWithTags *v3or4.Task
+	var returnTask v3or4.Task
 	var err error
 	if len(rt.tags) > 0 || len(rt.containerInstanceTags) > 0 {
 		// Found task in the cache
 		// use the cached tags
-		taskWithTags, err = c.metaV3or4(metaURI, "v4").GetTask(ctx)
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTask(ctx)
 		if err != nil {
 			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
 			if errors.Is(err, context.DeadlineExceeded) {
-				log.Debugf("timeout while getting task with tags from metadata v4 API: %s", err)
+				log.Debugf("timeout while getting task from metadata v4 API: %s", err)
 			} else {
-				log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
+				log.Warnf("failed to get task from metadata v4 API: %s", err)
 			}
 			return v1TaskToV4Task(task), err
 		}
 		taskWithTags.TaskTags = rt.tags
 		taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
+		returnTask = *taskWithTags
 	} else {
 		// No tags in the cache, fetch from metadata v4 API
-		taskWithTags, err = c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
+		taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
 		if err != nil {
 			// If it's a timeout error, log it as debug to avoid spamming the logs as the data can be fetched in next run
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -121,9 +123,9 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		}
 
 		c.resourceTags[task.Arn] = rt
-
+		returnTask = *taskWithTags
 	}
-	return *taskWithTags, nil
+	return returnTask, nil
 }
 
 func v1TaskToV4Task(task v1.Task) v3or4.Task {
