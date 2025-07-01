@@ -223,6 +223,8 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		log.Errorf("could not set '%s' invalid key: %s", key, err)
 	}
 
+	receivers := slices.Clone(c.notificationReceivers)
+
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
 		return
@@ -231,7 +233,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.sequenceID++
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range c.notificationReceivers {
+	for _, receiver := range receivers {
 		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
@@ -345,9 +347,10 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
+	receivers := slices.Clone(c.notificationReceivers)
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range c.notificationReceivers {
+	for _, receiver := range receivers {
 		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
