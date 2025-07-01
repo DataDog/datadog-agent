@@ -237,9 +237,8 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 					}
 				} else {
 					result = diagnose.Diagnosis{
-						Status:    diagnose.DiagnosisSuccess,
-						Name:      description,
-						Diagnosis: diagnosis,
+						Status: diagnose.DiagnosisSuccess,
+						Name:   description,
 						Metadata: map[string]string{
 							"endpoint": endpoint.url,
 						},

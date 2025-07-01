@@ -24,11 +24,11 @@ func Module() fxutil.Module {
 
 		// connectivitychecker is a component with no public method, therefore nobody depends on it and FX only instantiates
 		// components when they're needed. Adding a dummy function that takes our Component as a parameter forces
-		// the instantiation of ssistatus. This means that simply using 'ssistatusfx.Module()' will run our
+		// the instantiation of connectivitychecker. This means that simply using 'connectivitycheckerfx.Module()' will run our
 		// component (which is the expected behavior).
 		//
-		// This prevents silent corner case where including 'ssistatus' in the main function would not actually
-		// instantiate it. This also removes the need for every main using ssistatus to add the line below.
+		// This prevents silent corner case where including 'connectivitychecker' in the main function would not actually
+		// instantiate it. This also removes the need for every main using connectivitychecker to add the line below.
 		uberfx.Invoke(func(_ connectivitychecker.Component) {}),
 	)
 }
