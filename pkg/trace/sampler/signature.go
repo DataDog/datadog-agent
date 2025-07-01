@@ -95,8 +95,8 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 type sum32a uint32
 
 const (
-	offset32 = 2166136261
-	prime32  = 16777619
+	offset32 = 2_166_136_261
+	prime32  = 16_777_619
 )
 
 func new32a() sum32a {
