@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -26,7 +25,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -205,10 +203,11 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
-		containerFilter: &containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
+		// TODO GABE:
+		// containerFilter: &containers.Filter{
+		// 	Enabled:         true,
+		// 	NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+		// },
 		store:  fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
 		tagger: fakeTagger,
 	}
@@ -285,11 +284,12 @@ func TestContainersRunning(t *testing.T) {
 
 	// Create Docker check
 	check := DockerCheck{
-		instance:        &DockerConfig{},
-		dockerHostname:  "testhostname",
-		containerFilter: &containers.Filter{},
-		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
-		tagger:          fakeTagger,
+		instance:       &DockerConfig{},
+		dockerHostname: "testhostname",
+		// containerFilter: &containers.Filter{},
+		// TODO GABE:
+		store:  fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger: fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)

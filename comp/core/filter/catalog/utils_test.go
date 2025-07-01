@@ -77,6 +77,12 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 			[]string{"name:foo-.*", "image:nginx.*"},
 			`endpoint.name.matches("foo-.*")`,
 		},
+		{
+			"exclude omitted image key in image",
+			filter.ImageType,
+			[]string{"image:openshift/origin-pod"},
+			`image.name.matches("openshift/origin-pod")`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

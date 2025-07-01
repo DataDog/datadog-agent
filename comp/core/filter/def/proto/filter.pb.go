@@ -367,6 +367,50 @@ func (x *FilterKubeEndpoint) GetAnnotations() map[string]string {
 	return nil
 }
 
+type FilterImage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FilterImage) Reset() {
+	*x = FilterImage{}
+	mi := &file_comp_core_filter_def_proto_filter_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FilterImage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FilterImage) ProtoMessage() {}
+
+func (x *FilterImage) ProtoReflect() protoreflect.Message {
+	mi := &file_comp_core_filter_def_proto_filter_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FilterImage.ProtoReflect.Descriptor instead.
+func (*FilterImage) Descriptor() ([]byte, []int) {
+	return file_comp_core_filter_def_proto_filter_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *FilterImage) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_comp_core_filter_def_proto_filter_proto protoreflect.FileDescriptor
 
 const file_comp_core_filter_def_proto_filter_proto_rawDesc = "" +
@@ -403,7 +447,9 @@ const file_comp_core_filter_def_proto_filter_proto_rawDesc = "" +
 	"\vannotations\x18\x03 \x03(\v23.datadog.filter.FilterKubeEndpoint.AnnotationsEntryR\vannotations\x1a>\n" +
 	"\x10AnnotationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x1cZ\x1acomp/core/filter/def/protob\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"!\n" +
+	"\vFilterImage\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04nameB\x1cZ\x1acomp/core/filter/def/protob\x06proto3"
 
 var (
 	file_comp_core_filter_def_proto_filter_proto_rawDescOnce sync.Once
@@ -417,23 +463,24 @@ func file_comp_core_filter_def_proto_filter_proto_rawDescGZIP() []byte {
 	return file_comp_core_filter_def_proto_filter_proto_rawDescData
 }
 
-var file_comp_core_filter_def_proto_filter_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_comp_core_filter_def_proto_filter_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_comp_core_filter_def_proto_filter_proto_goTypes = []any{
 	(*FilterContainer)(nil),    // 0: datadog.filter.FilterContainer
 	(*FilterPod)(nil),          // 1: datadog.filter.FilterPod
 	(*FilterECSTask)(nil),      // 2: datadog.filter.FilterECSTask
 	(*FilterKubeService)(nil),  // 3: datadog.filter.FilterKubeService
 	(*FilterKubeEndpoint)(nil), // 4: datadog.filter.FilterKubeEndpoint
-	nil,                        // 5: datadog.filter.FilterPod.AnnotationsEntry
-	nil,                        // 6: datadog.filter.FilterKubeService.AnnotationsEntry
-	nil,                        // 7: datadog.filter.FilterKubeEndpoint.AnnotationsEntry
+	(*FilterImage)(nil),        // 5: datadog.filter.FilterImage
+	nil,                        // 6: datadog.filter.FilterPod.AnnotationsEntry
+	nil,                        // 7: datadog.filter.FilterKubeService.AnnotationsEntry
+	nil,                        // 8: datadog.filter.FilterKubeEndpoint.AnnotationsEntry
 }
 var file_comp_core_filter_def_proto_filter_proto_depIdxs = []int32{
 	1, // 0: datadog.filter.FilterContainer.pod:type_name -> datadog.filter.FilterPod
 	2, // 1: datadog.filter.FilterContainer.ecs_task:type_name -> datadog.filter.FilterECSTask
-	5, // 2: datadog.filter.FilterPod.annotations:type_name -> datadog.filter.FilterPod.AnnotationsEntry
-	6, // 3: datadog.filter.FilterKubeService.annotations:type_name -> datadog.filter.FilterKubeService.AnnotationsEntry
-	7, // 4: datadog.filter.FilterKubeEndpoint.annotations:type_name -> datadog.filter.FilterKubeEndpoint.AnnotationsEntry
+	6, // 2: datadog.filter.FilterPod.annotations:type_name -> datadog.filter.FilterPod.AnnotationsEntry
+	7, // 3: datadog.filter.FilterKubeService.annotations:type_name -> datadog.filter.FilterKubeService.AnnotationsEntry
+	8, // 4: datadog.filter.FilterKubeEndpoint.annotations:type_name -> datadog.filter.FilterKubeEndpoint.AnnotationsEntry
 	5, // [5:5] is the sub-list for method output_type
 	5, // [5:5] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -456,7 +503,7 @@ func file_comp_core_filter_def_proto_filter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_comp_core_filter_def_proto_filter_proto_rawDesc), len(file_comp_core_filter_def_proto_filter_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -18,17 +18,17 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"google.golang.org/protobuf/proto"
 
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // computeEvents converts Containerd events into Datadog events
-func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
+func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -37,7 +37,7 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		if split[1] == "images" && fil.IsExcluded(nil, "", e.ID, "") {
+		if split[1] == "images" && c.filterStore.IsImageExcluded(filter.CreateImage(e.ID), [][]filter.ImageFilter{{}}) {
 			continue
 		}
 

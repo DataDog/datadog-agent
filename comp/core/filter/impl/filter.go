@@ -101,6 +101,9 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	filter.registerProgram(filterdef.EndpointType, int(filterdef.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
 	filter.registerProgram(filterdef.EndpointType, int(filterdef.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram(config, logger))
 
+	// Image Filters
+	filter.registerProgram(filterdef.ImageType, int(filterdef.ImageContainerPaused), catalog.ImageContainerPausedProgram(config, logger))
+
 	// WIP: Pod Filters
 
 	return filter, nil
@@ -122,6 +125,10 @@ func (f *filter) IsServiceExcluded(service *filterdef.Service, serviceFilters []
 
 func (f *filter) IsEndpointExcluded(endpoint *filterdef.Endpoint, endpointFilters [][]filterdef.EndpointFilter) bool {
 	return evaluateResource(f, endpoint, endpointFilters) == filterdef.Excluded
+}
+
+func (f *filter) IsImageExcluded(image *filterdef.Image, imageFilters [][]filterdef.ImageFilter) bool {
+	return evaluateResource(f, image, imageFilters) == filterdef.Excluded
 }
 
 // evaluateResource checks if a resource is excluded based on the provided filters.

@@ -538,3 +538,14 @@ func TestEndpointFiltering(t *testing.T) {
 	res := evaluateResource(f, endpoint, [][]filterdef.EndpointFilter{{filterdef.LegacyEndpointGlobal}})
 	assert.Equal(t, filterdef.Included, res)
 }
+
+func TestImageFiltering(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("exclude_pause_container", true)
+	f := newFilterObject(t, mockConfig)
+
+	image := filterdef.CreateImage("image:rancher/pause")
+
+	res := evaluateResource(f, image, [][]filterdef.ImageFilter{{filterdef.ImageContainerPaused}})
+	assert.Equal(t, filterdef.Excluded, res)
+}

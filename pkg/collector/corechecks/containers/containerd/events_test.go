@@ -296,7 +296,7 @@ func TestComputeEvents(t *testing.T) {
 	mocked := mocksender.NewMockSender(containerdCheck.ID())
 	var err error
 	defer containers.ResetSharedFilter()
-	containerdCheck.containerFilter, err = containers.GetSharedMetricFilter()
+	// containerdCheck.containerFilter, err = containers.GetSharedMetricFilter()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -374,7 +374,7 @@ func TestComputeEvents(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			containerdCheck.computeEvents(test.events, mocked, containerdCheck.containerFilter)
+			containerdCheck.computeEvents(test.events, mocked)
 			mocked.On("Event", mock.AnythingOfType("event.Event"))
 			if len(mocked.Calls) > 0 {
 				res := (mocked.Calls[0].Arguments.Get(0)).(event.Event)

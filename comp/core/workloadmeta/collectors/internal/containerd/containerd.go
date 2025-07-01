@@ -19,6 +19,7 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"go.uber.org/fx"
 
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -81,13 +81,13 @@ type exitInfo struct {
 }
 
 type collector struct {
-	id                     string
-	store                  workloadmeta.Component
-	catalog                workloadmeta.AgentType
-	containerdClient       cutil.ContainerdItf
-	filterPausedContainers *containers.Filter
-	eventsChan             <-chan *containerdevents.Envelope
-	errorsChan             <-chan error
+	id               string
+	store            workloadmeta.Component
+	filterStore      filter.Component
+	catalog          workloadmeta.AgentType
+	containerdClient cutil.ContainerdItf
+	eventsChan       <-chan *containerdevents.Envelope
+	errorsChan       <-chan error
 
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
@@ -140,10 +140,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
-	if err != nil {
-		return err
-	}
+	// GABE TODO: Add support for returning err
 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
 	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, subscribeFilters()...)
@@ -397,7 +394,7 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 	}
 
 	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded(nil, "", info.Image, ""), nil
+	return c.filterStore.IsImageExcluded(filter.CreateImage(info.Image), [][]filter.ImageFilter{{filter.ImageContainerPaused}}), nil
 }
 
 func subscribeFilters() []string {

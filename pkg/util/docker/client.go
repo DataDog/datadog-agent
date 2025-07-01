@@ -16,7 +16,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 )
 
 // Client defines the interface of our custom Docker client (e.g. DockerUtil)
@@ -28,5 +28,5 @@ type Client interface {
 	GetPreferredImageName(imageID string, repoTags []string, repoDigests []string) string
 	GetStorageStats(ctx context.Context) ([]*StorageStats, error)
 	CountVolumes(ctx context.Context) (int, int, error)
-	LatestContainerEvents(ctx context.Context, since time.Time, filter *containers.Filter) ([]*ContainerEvent, time.Time, error)
+	LatestContainerEvents(ctx context.Context, since time.Time, filterStore filter.Component) ([]*ContainerEvent, time.Time, error)
 }

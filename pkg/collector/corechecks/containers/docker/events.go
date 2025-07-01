@@ -44,7 +44,7 @@ func (d *DockerCheck) retrieveEvents(du docker.Client) ([]*docker.ContainerEvent
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
-	events, latest, err := du.LatestContainerEvents(context.TODO(), d.lastEventTime, d.containerFilter)
+	events, latest, err := du.LatestContainerEvents(context.TODO(), d.lastEventTime, d.filterStore)
 	if err != nil {
 		return events, err
 	}

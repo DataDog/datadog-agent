@@ -59,6 +59,12 @@ func createCELProgram(rules string, objectType filter.ResourceType) (cel.Program
 
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
 func getFieldMapping(objectType filter.ResourceType) map[string]string {
+	if objectType == filter.ImageType {
+		return map[string]string{
+			"image": fmt.Sprintf("%s.name.matches", objectType),
+		}
+	}
+
 	return map[string]string{
 		"id":    fmt.Sprintf("%s.id.matches", objectType),
 		"name":  fmt.Sprintf("%s.name.matches", objectType),
@@ -106,7 +112,7 @@ func convertOldToNewFilter(oldFilters []string, objectType filter.ResourceType) 
 		}
 
 		// Check if the key is in the excluded
-		if objectType != filter.ContainerType && key == "image" {
+		if objectType != filter.ContainerType && objectType != filter.ImageType && key == "image" {
 			continue
 		}
 
@@ -135,6 +141,8 @@ func convertTypeToProtoType(key filter.ResourceType) string {
 		return "datadog.filter.FilterKubeService"
 	case filter.EndpointType:
 		return "datadog.filter.FilterKubeEndpoint"
+	case filter.ImageType:
+		return "datadog.filter.FilterImage"
 	default:
 		return ""
 	}
