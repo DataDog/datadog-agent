@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -133,7 +134,7 @@ func TestOpenTree(t *testing.T) {
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "open_tree" {
+			if event.GetType() != "mount" || event.Mount.Source != 3 {
 				return false
 			}
 
@@ -151,7 +152,7 @@ func TestOpenTree(t *testing.T) {
 			}
 
 			return seen == 3
-		}, 10*time.Second, model.FileOpenTreeEventType)
+		}, 10*time.Second, model.FileMountEventType)
 		assert.Equal(t, seen, 3)
 	})
 
@@ -159,21 +160,23 @@ func TestOpenTree(t *testing.T) {
 		seen := 0
 		err = test.GetProbeEvent(func() error {
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
-
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "open_tree" {
+			fmt.Printf("MOUNT %+v\n", event.Mount)
+			fmt.Println("-----------------------------")
+			if event.GetType() != "mount" && event.Mount.Source != 3 {
 				return false
 			}
+			seen++
 
 			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
 			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
-			assert.Equal(t, mountIDsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
-			assert.Equal(t, true, event.Mount.Detached, "First mount should be detached")
-			assert.Equal(t, false, event.Mount.Visible, "First mount shouldn't be visible")
+			assert.Equal(t, "/", event.GetMountMountpointPath(), "Wrong Path")
+			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
+			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
 
 			return seen == 1
-		}, 10*time.Second, model.FileOpenTreeEventType)
+		}, 10*time.Second, model.FileMountEventType)
 		assert.Equal(t, seen, 1)
 	})
 }

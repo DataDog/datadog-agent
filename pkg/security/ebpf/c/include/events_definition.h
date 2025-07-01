@@ -298,6 +298,7 @@ struct mount_event_t {
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
     struct mount_fields_t mountfields;
+    u32    source;
 };
 
 struct unshare_mntns_event_t {

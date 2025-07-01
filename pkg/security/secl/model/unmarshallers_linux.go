@@ -477,7 +477,13 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
+	if err != nil {
+		return n, err
+	}
+	data = data[n:]
+	e.Source = binary.NativeEndian.Uint32(data[4:8])
+	return n + 12, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
