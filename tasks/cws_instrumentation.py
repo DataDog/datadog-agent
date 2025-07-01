@@ -77,6 +77,7 @@ def build(
         build_tags=build_tags,
         bin_path=agent_bin,
         env=env,
+        check_deadcode=True,  # the size impact is minimal so we could skip if needed
     )
 
 

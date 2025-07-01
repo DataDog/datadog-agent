@@ -110,6 +110,7 @@ def build(
         build_tags=build_tags,
         bin_path=BIN_PATH,
         env=env,
+        check_deadcode=True,
     )
 
     render_config(ctx, env=env, skip_assets=skip_assets)
