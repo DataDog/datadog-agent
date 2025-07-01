@@ -10,7 +10,7 @@ package actuator
 import (
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -20,18 +20,31 @@ type configuration struct {
 	reporter         Reporter
 	codegenWriter    CodegenWriterFactory
 	compiledCallback CompiledCallback
+	compiler         Compiler
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
 
-var defaultSettings = configuration{
-	ringBufSize: defaultRingbufSize,
-	sink:        noopDispatcher{},
-	reporter:    noopReporter{},
-	codegenWriter: func(*ir.Program) io.Writer {
-		return nil
-	},
-	compiledCallback: func(*CompiledProgram) {},
+func noopCodegenWriter(*ir.Program) io.Writer {
+	return nil
+}
+
+func makeConfiguration(opts ...Option) configuration {
+	cfg := configuration{
+		ringBufSize:      defaultRingbufSize,
+		sink:             noopDispatcher{},
+		reporter:         noopReporter{},
+		codegenWriter:    noopCodegenWriter,
+		compiledCallback: func(*CompiledProgram) {},
+		compiler:         nil, // set after options are applied
+	}
+	for _, opt := range opts {
+		opt.apply(&cfg)
+	}
+	if cfg.compiler == nil {
+		cfg.compiler = compiler.NewCompiler()
+	}
+	return cfg
 }
 
 // Option is a function that can be used to configure the Actuator.
@@ -92,14 +105,30 @@ func WithReporter(reporter Reporter) Option {
 // TODO: This is not sufficient for what we'll need for driving the
 // diagnostics output, but it's a start to drive testing.
 type Reporter interface {
-	ReportAttached(processID ProcessID, probes []config.Probe)
-	ReportDetached(processID ProcessID, probes []config.Probe)
+
+	// ReportAttached is called when a program is attached to a process.
+	ReportAttached(ProcessID, *ir.Program)
+
+	// ReportDetached is called when a program is detached from a process.
+	ReportDetached(ProcessID, *ir.Program)
+
+	// ReportCompilationFailed is called when a program fails to compile.
+	ReportCompilationFailed(ir.ProgramID, error, []ir.ProbeDefinition)
+
+	// ReportLoadingFailed is called when a program fails to load.
+	ReportLoadingFailed(*ir.Program, error)
+
+	// ReportAttachingFailed is called when a program fails to attach to a process.
+	ReportAttachingFailed(ProcessID, *ir.Program, error)
 }
 
 type noopReporter struct{}
 
-func (noopReporter) ReportAttached(ProcessID, []config.Probe) {}
-func (noopReporter) ReportDetached(ProcessID, []config.Probe) {}
+func (noopReporter) ReportCompilationFailed(ir.ProgramID, error, []ir.ProbeDefinition) {}
+func (noopReporter) ReportLoadingFailed(*ir.Program, error)                            {}
+func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error)               {}
+func (noopReporter) ReportAttached(ProcessID, *ir.Program)                             {}
+func (noopReporter) ReportDetached(ProcessID, *ir.Program)                             {}
 
 // WithRingBufSize sets the size of the ring buffer for the Actuator.
 func WithRingBufSize(size int) Option {
@@ -129,5 +158,20 @@ type CompiledCallback func(*CompiledProgram)
 func WithCompiledCallback(f CompiledCallback) Option {
 	return optionFunc(func(s *configuration) {
 		s.compiledCallback = f
+	})
+}
+
+// Compiler is an interface that abstracts the eBPF compiler.
+type Compiler interface {
+	Compile(
+		program *ir.Program,
+		extraCodeSink io.Writer,
+	) (compiler.CompiledBPF, error)
+}
+
+// WithCompiler sets the compiler for the Actuator.
+func WithCompiler(c Compiler) Option {
+	return optionFunc(func(s *configuration) {
+		s.compiler = c
 	})
 }

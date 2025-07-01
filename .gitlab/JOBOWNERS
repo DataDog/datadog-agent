@@ -159,7 +159,7 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 # New E2E
 e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
-
+go_e2e_test_binaries              @DataDog/agent-devx
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
@@ -168,6 +168,7 @@ kmt_*                             @DataDog/ebpf-platform
 upload_secagent_tests*            @DataDog/ebpf-platform
 upload_sysprobe_tests*            @DataDog/ebpf-platform
 notify_ebpf_complexity_changes    @DataDog/ebpf-platform
+test_ebpf_complexity_changes      @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
