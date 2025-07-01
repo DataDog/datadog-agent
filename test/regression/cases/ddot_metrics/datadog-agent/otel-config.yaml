@@ -1,4 +1,10 @@
 receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
   prometheus:
     config:
       scrape_configs:
@@ -6,20 +12,17 @@ receivers:
           scrape_interval: 10s
           static_configs:
             - targets: ["0.0.0.0:8888"]
-  otlp:
-    protocols:
-      grpc:
-         endpoint: 0.0.0.0:4317
-      http:
-         endpoint: 0.0.0.0:4318
 exporters:
-  debug:
-    verbosity: detailed
+  traces:
+    span_name_as_resource_name: true
+    endpoint: "http://127.0.0.1:9091"
+  hostname: "smp-regression"
   datadog:
     api:
       key: ${env:DD_API_KEY}
       site: datadoghq.com
     metrics:
+      resource_attributes_as_tags: true
       endpoint: "http://127.0.0.1:9091"
     traces:
       endpoint: "http://127.0.0.1:9091"
@@ -33,12 +36,14 @@ processors:
   batch:
     send_batch_size: 4096
     timeout: 10s
+# Use datadog connector to compute stats for pre-sampled traces
 connectors:
   datadog/connector:
     traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
-      compute_stats_by_span_kind: true
 service:
   pipelines:
     traces:
