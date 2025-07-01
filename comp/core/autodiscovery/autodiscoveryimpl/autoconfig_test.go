@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -59,8 +59,8 @@ func (p *MockProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return true, nil
 }
 
-func (p *MockProvider) GetConfigErrors() map[string]providers.ErrorMsgSet {
-	return make(map[string]providers.ErrorMsgSet)
+func (p *MockProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }
 
 type MockProvider2 struct {

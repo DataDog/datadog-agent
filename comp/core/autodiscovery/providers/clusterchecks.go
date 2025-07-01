@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -43,7 +44,7 @@ type ClusterChecksConfigProvider struct {
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
 // cluster check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
+func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	if providerConfig == nil {
 		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
 	}
@@ -222,6 +223,6 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 }
 
 // GetConfigErrors is not implemented for the ClusterChecksConfigProvider
-func (c *ClusterChecksConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (c *ClusterChecksConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
+	return make(map[string]providerTypes.ErrorMsgSet)
 }

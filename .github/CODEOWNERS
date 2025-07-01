@@ -319,6 +319,7 @@
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
+/comp/core/filter @DataDog/container-platform
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration

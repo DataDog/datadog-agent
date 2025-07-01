@@ -13,7 +13,6 @@ import (
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 )
 
 // state represents the state of an Actuator.
@@ -80,7 +79,7 @@ func newState() *state {
 type program struct {
 	state      programState
 	id         ir.ProgramID
-	config     []irgen.ProbeDefinition
+	config     []ir.ProbeDefinition
 	executable Executable
 
 	// Populated after the program has been compiled.
@@ -101,7 +100,7 @@ type process struct {
 
 	id         ProcessID
 	executable Executable
-	probes     map[probeKey]irgen.ProbeDefinition
+	probes     map[probeKey]ir.ProbeDefinition
 
 	// The currently installed program, if there is one. Will be 0 if the
 	// process's program creation failed.
@@ -134,7 +133,7 @@ func (pk probeKey) cmp(other probeKey) int {
 type effectHandler interface {
 
 	// Compile IR to eBPF bytecode.
-	compileProgram(ir.ProgramID, Executable, []irgen.ProbeDefinition) // -> ProgramCompiled/Failed
+	compileProgram(ir.ProgramID, Executable, []ir.ProbeDefinition) // -> ProgramCompiled/Failed
 
 	// Load eBPF program into kernel.
 	loadProgram(*CompiledProgram)
@@ -217,7 +216,7 @@ func handleProcessesUpdated(
 	var before, after []probeKey
 	anythingChanged := func(
 		p *process,
-		probesAfterUpdate []irgen.ProbeDefinition,
+		probesAfterUpdate []ir.ProbeDefinition,
 	) bool {
 		before = before[:0]
 		for k := range p.probes {
@@ -256,7 +255,7 @@ func handleProcessesUpdated(
 			p = &process{
 				id:         pu.ProcessID,
 				executable: pu.Executable,
-				probes:     make(map[probeKey]irgen.ProbeDefinition),
+				probes:     make(map[probeKey]ir.ProbeDefinition),
 			}
 			sm.processes[pu.ProcessID] = p
 		}
@@ -331,11 +330,11 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 		delete(sm.processes, p.id)
 		return nil
 	}
-	probes := make([]irgen.ProbeDefinition, 0, len(p.probes))
+	probes := make([]ir.ProbeDefinition, 0, len(p.probes))
 	for _, probe := range p.probes {
 		probes = append(probes, probe)
 	}
-	slices.SortFunc(probes, func(a, b irgen.ProbeDefinition) int {
+	slices.SortFunc(probes, func(a, b ir.ProbeDefinition) int {
 		return cmp.Or(
 			cmp.Compare(a.GetID(), b.GetID()),
 			cmp.Compare(a.GetVersion(), b.GetVersion()),

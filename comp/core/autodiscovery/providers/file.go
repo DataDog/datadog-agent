@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 )
 
@@ -54,6 +55,6 @@ func (c *FileConfigProvider) String() string {
 }
 
 // GetConfigErrors is not implemented for the FileConfigProvider
-func (c *FileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (c *FileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return make(map[string]types.ErrorMsgSet)
 }

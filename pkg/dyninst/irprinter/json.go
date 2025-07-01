@@ -19,6 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 // PrintJSON marshals the IR program to JSON.
 func PrintJSON(p *ir.Program) ([]byte, error) {
 	buf := bytes.Buffer{}
@@ -81,6 +88,49 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 			})
 		}),
 	)
+
+	// Flattens the ProbeDefinition into the probe json, keeping its
+	// fields first.
+	marshalProbe := func(enc *jsontext.Encoder, v *ir.Probe) (err error) {
+		var buf bytes.Buffer
+		if err := json.MarshalWrite(
+			&buf, v.ProbeDefinition,
+			json.WithMarshalers(probeMarshalers),
+		); err != nil {
+			return err
+		}
+		dec := jsontext.NewDecoder(&buf)
+		defer func() {
+			switch r := recover().(type) {
+			case nil:
+			case error:
+				err = r
+			default:
+				panic(r)
+			}
+		}()
+		readToken := func() jsontext.Token { return must(dec.ReadToken()) }
+		readValue := func() jsontext.Value { return must(dec.ReadValue()) }
+		writeToken := func(t jsontext.Token) { must(0, enc.WriteToken(t)) }
+		writeValue := func(v jsontext.Value) { must(0, enc.WriteValue(v)) }
+		encode := func(v any) {
+			must(0, json.MarshalEncode(enc, v, json.WithMarshalers(probeMarshalers)))
+		}
+
+		beginT := readToken()
+		writeToken(beginT)
+		for dec.PeekKind() != '}' {
+			writeToken(readToken())
+			writeValue(readValue())
+		}
+		endT := readToken()
+		writeToken(jsontext.String("subprogram"))
+		encode(v.Subprogram)
+		writeToken(jsontext.String("events"))
+		encode(v.Events)
+		writeToken(endT)
+		return nil
+	}
 	underOperationMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(marshalVariable),
@@ -88,12 +138,7 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 	topLevelMarshalers := json.JoinMarshalers(
 		basicMarshalers,
 		json.MarshalToFunc(makeOperationMarshaler(underOperationMarshalers)),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, v *ir.Probe) error {
-			return json.MarshalEncode(
-				enc, v,
-				json.WithMarshalers(probeMarshalers),
-			)
-		}),
+		json.MarshalToFunc(marshalProbe),
 	)
 	if err := json.MarshalEncode(
 		enc, p,

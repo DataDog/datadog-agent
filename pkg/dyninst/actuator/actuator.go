@@ -197,7 +197,7 @@ var _ effectHandler = (*effects)(nil)
 func (a *effects) compileProgram(
 	programID ir.ProgramID,
 	executable Executable,
-	probes []irgen.ProbeDefinition,
+	probes []ir.ProbeDefinition,
 ) {
 	a.wg.Add(1)
 	go func() {
@@ -209,7 +209,7 @@ func (a *effects) compileProgram(
 		)
 		if err != nil {
 			err = fmt.Errorf("failed to compile eBPF program: %w", err)
-			a.reporter.ReportCompilationFailed(programID, err)
+			a.reporter.ReportCompilationFailed(programID, err, probes)
 			a.sendEvent(eventProgramCompilationFailed{
 				programID: programID,
 				err:       err,
@@ -228,7 +228,7 @@ func compileProgram(
 	compiler Compiler,
 	programID ir.ProgramID,
 	exe Executable,
-	probes []irgen.ProbeDefinition,
+	probes []ir.ProbeDefinition,
 	cwf CodegenWriterFactory,
 ) (*CompiledProgram, error) {
 
@@ -278,7 +278,7 @@ func (a *effects) loadProgram(compiled *CompiledProgram) {
 
 		loaded, err := loadProgram(a.ringbufMap, compiled)
 		if err != nil {
-			a.reporter.ReportLoadingFailed(compiled.IR.ID, err)
+			a.reporter.ReportLoadingFailed(compiled.IR, err)
 			a.sendEvent(eventProgramCompilationFailed{
 				programID: compiled.IR.ID,
 				err:       fmt.Errorf("failed to load collection spec: %w", err),
@@ -325,10 +325,9 @@ func loadProgram(
 	}
 
 	return &loadedProgram{
-		id:           compiled.IR.ID,
-		probes:       compiled.Probes,
+		program:      compiled.IR,
 		collection:   bpfCollection,
-		program:      bpfProg,
+		bpfProgram:   bpfProg,
 		attachpoints: compiled.CompiledBPF.Attachpoints,
 	}, nil
 }
@@ -345,9 +344,9 @@ func (a *effects) attachToProcess(
 			loaded, executable, processID, a.reporter,
 		)
 		if err != nil {
-			a.reporter.ReportAttachingFailed(loaded.id, processID, err)
+			a.reporter.ReportAttachingFailed(processID, loaded.program, err)
 			a.sendEvent(eventProgramAttachingFailed{
-				programID: loaded.id,
+				programID: loaded.program.ID,
 				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 		} else {
@@ -391,7 +390,7 @@ func attachToProcess(
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset
 		l, err := linkExe.Uprobe(
 			"",
-			loaded.program,
+			loaded.bpfProgram,
 			&link.UprobeOptions{
 				PID:     int(processID.PID),
 				Address: addr,
@@ -421,14 +420,13 @@ func attachToProcess(
 	// does not have any visible impact on the API, but it's still a bit of a
 	// smell. It's not, however, clear that this callback ought to be called on
 	// the state machine goroutine.
-	reporter.ReportAttached(processID, loaded.probes)
+	reporter.ReportAttached(processID, loaded.program)
 
 	return &attachedProgram{
-		progID:         loaded.id,
+		program:        loaded.program,
 		procID:         processID,
 		executableLink: linkExe,
 		attachedLinks:  attached,
-		probes:         loaded.probes,
 	}, nil
 }
 
@@ -460,11 +458,11 @@ func (a *effects) detachFromProcess(ap *attachedProgram) {
 		}
 
 		if a.reporter != nil {
-			a.reporter.ReportDetached(ap.procID, ap.probes)
+			a.reporter.ReportDetached(ap.procID, ap.program)
 		}
 
 		a.sendEvent(eventProgramDetached{
-			programID: ap.progID,
+			programID: ap.program.ID,
 			processID: ap.procID,
 		})
 	}()

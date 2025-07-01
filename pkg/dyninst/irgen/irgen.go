@@ -55,7 +55,7 @@ const maxHashBucketsSize = 4 * maxDynamicTypeSize
 func GenerateIR(
 	programID ir.ProgramID,
 	objFile object.File,
-	config []ProbeDefinition,
+	config []ir.ProbeDefinition,
 ) (_ *ir.Program, retErr error) {
 	// Given that the go dwarf library is not intentionally safe when
 	// used with untrusted inputs, let's at least recover from panics and
@@ -504,7 +504,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 			if byteSize > math.MaxUint32 {
 				return fmt.Errorf(
 					"event %q has too many bytes: %d",
-					probe.ID, byteSize,
+					probe.GetID(), byteSize,
 				)
 			}
 			event.Type = &ir.EventRootType{
@@ -716,7 +716,7 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func (v *rootVisitor) newProbe(
-	probeCfg ProbeDefinition,
+	probeCfg ir.ProbeDefinition,
 	unit *dwarf.Entry,
 	subprogram *ir.Subprogram,
 ) (*ir.Probe, error) {
@@ -771,17 +771,10 @@ func (v *rootVisitor) newProbe(
 			Type: nil,
 		},
 	}
-	throttleConfig := probeCfg.GetThrottleConfig()
 	probe := &ir.Probe{
-		ID:                  probeCfg.GetID(),
-		Subprogram:          subprogram,
-		Kind:                kind,
-		Version:             probeCfg.GetVersion(),
-		Tags:                probeCfg.GetTags(),
-		Events:              events,
-		ThrottlePeriodMs:    throttleConfig.GetThrottlePeriodMs(),
-		ThrottleBudget:      throttleConfig.GetThrottleBudget(),
-		PointerChasingLimit: probeCfg.GetCaptureConfig().GetMaxReferenceDepth(),
+		ProbeDefinition: probeCfg,
+		Subprogram:      subprogram,
+		Events:          events,
 	}
 	return probe, nil
 }
@@ -847,7 +840,7 @@ type subprogramChildVisitor struct {
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
 	subprogram *ir.Subprogram
-	probesCfgs []ProbeDefinition
+	probesCfgs []ir.ProbeDefinition
 }
 
 func (v *subprogramChildVisitor) push(
@@ -960,7 +953,7 @@ func (v *rootVisitor) processVariable(
 
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
-	probesCfgs []ProbeDefinition
+	probesCfgs []ir.ProbeDefinition
 	subprogram *ir.Subprogram
 	variables  map[dwarf.Offset]*ir.Variable
 }
@@ -1129,17 +1122,17 @@ const runtimePackageName = "runtime"
 // interests tracks what compile units and subprograms we're interested in.
 type interests struct {
 	compileUnits map[string]struct{}
-	subprograms  map[string][]ProbeDefinition
+	subprograms  map[string][]ir.ProbeDefinition
 }
 
-func makeInterests(cfg []ProbeDefinition) (interests, error) {
+func makeInterests(cfg []ir.ProbeDefinition) (interests, error) {
 	i := interests{
 		compileUnits: make(map[string]struct{}),
-		subprograms:  make(map[string][]ProbeDefinition),
+		subprograms:  make(map[string][]ir.ProbeDefinition),
 	}
 	for _, probe := range cfg {
 		switch where := probe.GetWhere().(type) {
-		case FunctionWhere:
+		case ir.FunctionWhere:
 			methodName := where.Location()
 			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
 			i.subprograms[methodName] = append(i.subprograms[methodName], probe)

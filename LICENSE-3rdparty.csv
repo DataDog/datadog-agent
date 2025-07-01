@@ -1125,6 +1125,7 @@ core,github.com/google/cel-go/common/ast,Apache-2.0,Copyright (c) 2018 The Go Au
 core,github.com/google/cel-go/common/containers,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/common/debug,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/common/decls,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/cel-go/common/env,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/common/functions,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/common/operators,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/common/overloads,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
