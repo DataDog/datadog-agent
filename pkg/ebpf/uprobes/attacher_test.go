@@ -1129,7 +1129,7 @@ func (s *SharedLibrarySuite) TestMultipleLibsets() {
 
 	// Verify unregister calls for all processes
 	require.Eventually(t, func() bool {
-		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Unregister", 3)
+		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Unregister", len(commands))
 	}, 1500*time.Millisecond, 10*time.Millisecond, "did not receive unregister calls for all processes, received calls %v", mockRegistry.Calls)
 }
 
