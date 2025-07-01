@@ -53,6 +53,8 @@ def go_build(
         cmd += f" -o {bin_path}"
     if gcflags:
         cmd += f" -gcflags=\"{gcflags}\""
+    if check_deadcode:
+        ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
 
