@@ -44,9 +44,11 @@ func TestPullWithTaskCollectionEnabledWithV4Parser(t *testing.T) {
 		metaV3or4: func(metaURI, metaVersion string) v3or4.Client {
 			return v3or4.NewClient(metaURI, metaVersion)
 		},
-		taskCache:     cache.New(3*time.Minute, 30*time.Second),
-		taskRateRPS:   35,
-		taskRateBurst: 60,
+		taskCache:           cache.New(3*time.Minute, 30*time.Second),
+		taskRateRPS:         35,
+		taskRateBurst:       60,
+		hasResourceTags:     true,
+		collectResourceTags: true,
 	}
 
 	collector.taskCollectionParser = collector.parseTasksFromV4Endpoint
