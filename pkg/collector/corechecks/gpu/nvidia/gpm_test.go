@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -25,7 +26,8 @@ func TestGPMCollectorSupportDetection(t *testing.T) {
 		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 0},
 	}
 
-	safenvml.WithMockNVML(t, mockLib)
+	mocklib := testutil.GetBasicNvmlMock()
+	safenvml.WithMockNVML(t, mocklib)
 
 	collector, err := newGPMCollector(mockDevice)
 	assert.Nil(t, collector)
@@ -123,7 +125,7 @@ func TestGPMCollectorCollectSample(t *testing.T) {
 				return nil
 			},
 		},
-		samples:             []nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+		samples:             [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
 		nextSampleToCollect: 0,
 	}
 
@@ -140,7 +142,7 @@ func TestGPMCollectorCollectSample(t *testing.T) {
 
 func TestGPMCollectorGetLastTwoSamples(t *testing.T) {
 	collector := &gpmCollector{
-		samples:             []nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+		samples:             [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
 		nextSampleToCollect: 0, // about to overwrite samples[0] next
 	}
 	last, secondLast := collector.getLastTwoSamples()
@@ -187,7 +189,7 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	gpmCol := collector.(*gpmCollector)
 
 	// Pre-fill samples so calculateGpmMetrics works
-	gpmCol.samples = []nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}}
+	gpmCol.samples = [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}}
 	gpmCol.nextSampleToCollect = 0
 
 	result, err := gpmCol.Collect()

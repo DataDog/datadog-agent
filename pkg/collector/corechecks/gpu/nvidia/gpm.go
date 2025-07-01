@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -23,7 +24,7 @@ const sampleBufferSize = 2
 type gpmCollector struct {
 	lib                 ddnvml.SafeNVML
 	device              ddnvml.SafeDevice
-	samples             []nvml.GpmSample
+	samples             [sampleBufferSize]nvml.GpmSample
 	metricsToCollect    map[nvml.GpmMetricId]gpmMetric
 	nextSampleToCollect int
 }
@@ -71,7 +72,7 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
 	support, err := device.GpmQueryDeviceSupport()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get GPM support: %w", err)
+		return nil, fmt.Errorf("failed to query for GPM support: %w", err)
 	}
 
 	if support.IsSupportedDevice == 0 {
@@ -79,10 +80,7 @@ func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
 	}
 
 	// Clone the global allGpmMetrics map to avoid mutating global state
-	clonedMetrics := make(map[nvml.GpmMetricId]gpmMetric, len(allGpmMetrics))
-	for key, value := range allGpmMetrics {
-		clonedMetrics[key] = value
-	}
+	clonedMetrics := maps.Clone(allGpmMetrics)
 
 	collector := &gpmCollector{
 		device:           device,
@@ -106,7 +104,7 @@ func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to allocate GPM sample: %w", err)
 		}
-		collector.samples = append(collector.samples, sample)
+		collector.samples[i] = sample
 	}
 
 	if err := collector.removeUnsupportedMetrics(); err != nil {
@@ -154,7 +152,9 @@ func (c *gpmCollector) collectSample() error {
 
 func (c *gpmCollector) freeSamples() {
 	for _, sample := range c.samples {
-		_ = c.lib.GpmSampleFree(sample)
+		if sample != nil {
+			_ = c.lib.GpmSampleFree(sample)
+		}
 	}
 }
 
@@ -173,7 +173,6 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 		Version:    nvml.GPM_METRICS_GET_VERSION,
 		Sample1:    sample1,
 		Sample2:    sample2,
-		Metrics:    [98]nvml.GpmMetric{},
 	}
 
 	metricIndex := 0
