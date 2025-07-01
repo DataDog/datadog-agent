@@ -81,8 +81,8 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 
 	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []model.NotificationReceiver
 	c.Lock()
+	defer c.Unlock()
 	oldValue := c.Viper.Get(key)
 
 	// First we check if the layer changed
@@ -93,7 +93,6 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		// nothing changed:w
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
-		c.Unlock()
 		return
 	}
 
@@ -102,17 +101,16 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	latestValue := c.Viper.Get(key)
 	if !reflect.DeepEqual(oldValue, latestValue) {
 		log.Debugf("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
-		// if the value has not changed, do not duplicate the slice so that no callback is called
-		receivers = slices.Clone(c.notificationReceivers)
 	} else {
+		// if the value has not changed, do not notify the receivers
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
+		return
 	}
 	// Increment the sequence ID for the key
 	c.sequenceID++
-	c.Unlock()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
+	for _, receiver := range c.notificationReceivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
 		receiver(key, oldValue, latestValue, c.sequenceID)
 	}
@@ -134,21 +132,21 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 // UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []model.NotificationReceiver
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
 	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
-		// if the value has not changed, do not duplicate the slice so that no callback is called
-		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
+	} else {
+		// if the value has not changed, do not notify the receivers
+		return
 	}
-	c.Unlock()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
+	for _, receiver := range c.notificationReceivers {
 		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
