@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package connectivity implements the connectivity checker component
-package connectivity
+// Package checker implements the connectivity checker component
+package checker
 
 import (
 	"context"
@@ -16,13 +16,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	connectivityutils "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity/utils"
 )
 
 type separator string
@@ -34,7 +34,7 @@ const (
 )
 
 type endpointDescription struct {
-	method        method
+	method        connectivityutils.Method
 	route         string
 	routePrefix   string
 	routePath     string
@@ -46,34 +46,34 @@ type endpointDescription struct {
 
 func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
 	return []endpointDescription{
-		{route: "https://install.datadoghq.com", method: head},
-		{route: "https://yum.datadoghq.com", method: head},
-		{route: "https://apt.datadoghq.com", method: head},
-		{route: "https://keys.datadoghq.com", method: head},
-		{routePrefix: "process", routePath: "probe", method: get},
-		{route: helpers.GetFlareEndpoint(cfg), method: head, limitRedirect: true},
-		{routePrefix: "orchestrator", routePath: "probe", method: get},
-		{routePrefix: "llmobs-intake.", routePath: "probe", method: get},
-		{routePrefix: "intake.synthetics.", routePath: "probe", method: get},
-		{routePrefix: "ndm-intake.", routePath: "probe", method: get, configPrefix: "network_devices.metadata."},
-		{routePrefix: "snmp-traps-intake.", routePath: "probe", method: get, configPrefix: "network_devices.snmp_traps.forwarder."},
-		{routePrefix: "ndmflow-intake.", routePath: "probe", method: get, configPrefix: "network_devices.netflow.forwarder."},
-		{routePrefix: "netpath-intake.", routePath: "probe", method: get, configPrefix: "network_path.forwarder."},
-		{routePrefix: "contlcycle-intake.", routePath: "probe", method: get, configPrefix: "container_lifecycle.forwarder."},
-		{routePrefix: "browser-intake-", routePath: "probe", method: get, separator: dash},
-		{routePrefix: "agent-http-intake.logs.", routePath: "probe", method: get, configPrefix: "logs_config."},
-		{routePrefix: "trace.agent", routePath: "_health", method: get},
-		{routePrefix: "config", routePath: "_health", method: get},
-		{routePrefix: "instrumentation-telemetry-intake", routePath: "probe", method: get, configPrefix: "service_discovery.forwarder."},
-		{routePrefix: "intake.profile", routePath: "probe", method: get},
-		{routePrefix: "app", routePath: "probe", versioned: true, method: get},
+		{route: "https://install.datadoghq.com", method: connectivityutils.Head},
+		{route: "https://yum.datadoghq.com", method: connectivityutils.Head},
+		{route: "https://apt.datadoghq.com", method: connectivityutils.Head},
+		{route: "https://keys.datadoghq.com", method: connectivityutils.Head},
+		{routePrefix: "process", routePath: "probe", method: connectivityutils.Get},
+		{route: helpers.GetFlareEndpoint(cfg), method: connectivityutils.Head, limitRedirect: true},
+		{routePrefix: "orchestrator", routePath: "probe", method: connectivityutils.Get},
+		{routePrefix: "llmobs-intake.", routePath: "probe", method: connectivityutils.Get},
+		{routePrefix: "intake.synthetics.", routePath: "probe", method: connectivityutils.Get},
+		{routePrefix: "ndm-intake.", routePath: "probe", method: connectivityutils.Get, configPrefix: "network_devices.metadata."},
+		{routePrefix: "snmp-traps-intake.", routePath: "probe", method: connectivityutils.Get, configPrefix: "network_devices.snmp_traps.forwarder."},
+		{routePrefix: "ndmflow-intake.", routePath: "probe", method: connectivityutils.Get, configPrefix: "network_devices.netflow.forwarder."},
+		{routePrefix: "netpath-intake.", routePath: "probe", method: connectivityutils.Get, configPrefix: "network_path.forwarder."},
+		{routePrefix: "contlcycle-intake.", routePath: "probe", method: connectivityutils.Get, configPrefix: "container_lifecycle.forwarder."},
+		{routePrefix: "browser-intake-", routePath: "probe", method: connectivityutils.Get, separator: dash},
+		{routePrefix: "agent-http-intake.logs.", routePath: "probe", method: connectivityutils.Get, configPrefix: "logs_config."},
+		{routePrefix: "trace.agent", routePath: "_health", method: connectivityutils.Get},
+		{routePrefix: "config", routePath: "_health", method: connectivityutils.Get},
+		{routePrefix: "instrumentation-telemetry-intake", routePath: "probe", method: connectivityutils.Get, configPrefix: "service_discovery.forwarder."},
+		{routePrefix: "intake.profile", routePath: "probe", method: connectivityutils.Get},
+		{routePrefix: "app", routePath: "probe", versioned: true, method: connectivityutils.Get},
 	}
 }
 
 type resolvedEndpoint struct {
 	url           string
 	base          string
-	method        method
+	method        connectivityutils.Method
 	apiKey        string
 	limitRedirect bool
 }
@@ -183,7 +183,7 @@ const (
 )
 
 // DiagnoseInventory checks the connectivity of the endpoints
-func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Component) ([]diagnose.Diagnosis, error) {
+func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Component) ([]DiagnosisPayload, error) {
 	endpointsDescription := getEndpointsDescriptions(cfg)
 	domains := getDomains(cfg)
 
@@ -195,18 +195,18 @@ func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Compon
 	}
 
 	// Create HTTP client for workers
-	client := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withOneRedirect(), withTimeout(httpClientTimeout))
+	client := connectivityutils.GetClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, connectivityutils.WithOneRedirect(), connectivityutils.WithTimeout(httpClientTimeout))
 
 	return checkEndpoints(ctx, allEndpoints, client)
 }
 
 // checkEndpoints checks the connectivity of the provided endpoints in parallel
-func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *http.Client) ([]diagnose.Diagnosis, error) {
+func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *http.Client) ([]DiagnosisPayload, error) {
 	workerCount := min(maxParallelWorkers, len(endpoints))
 
 	// Create channels for work distribution and results collection
 	endpointChan := make(chan resolvedEndpoint, len(endpoints))
-	resultChan := make(chan diagnose.Diagnosis, len(endpoints))
+	resultChan := make(chan DiagnosisPayload, len(endpoints))
 
 	// Start workers
 	var wg sync.WaitGroup
@@ -224,22 +224,21 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 				description := "Ping: " + endpoint.base
 				diagnosis, err := endpoint.checkServiceConnectivity(ctx, client)
 
-				var result diagnose.Diagnosis
+				var result DiagnosisPayload
 				if err != nil {
-					result = diagnose.Diagnosis{
-						Status:    diagnose.DiagnosisFail,
-						Name:      description,
-						Diagnosis: diagnosis,
+					result = DiagnosisPayload{
+						Description: description,
+						Status:      failure,
+						Error:       diagnosis,
 						Metadata: map[string]string{
 							"endpoint":  endpoint.url,
 							"raw_error": err.Error(),
 						},
 					}
 				} else {
-					result = diagnose.Diagnosis{
-						Status:    diagnose.DiagnosisSuccess,
-						Name:      description,
-						Diagnosis: diagnosis,
+					result = DiagnosisPayload{
+						Status:      success,
+						Description: description,
 						Metadata: map[string]string{
 							"endpoint": endpoint.url,
 						},
@@ -274,7 +273,7 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 	}()
 
 	// Collect results
-	var diagnoses []diagnose.Diagnosis
+	var diagnoses []DiagnosisPayload
 	for result := range resultChan {
 		select {
 		case <-ctx.Done():
@@ -289,9 +288,9 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 
 func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *http.Client) (string, error) {
 	switch e.method {
-	case head:
+	case connectivityutils.Head:
 		return e.checkHead(ctx, client)
-	case get:
+	case connectivityutils.Get:
 		return e.checkGet(ctx, client)
 	default:
 		return "Unknown Method", fmt.Errorf("unknown Method for service %s", e.url)
@@ -300,9 +299,9 @@ func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *
 
 func (e resolvedEndpoint) checkHead(ctx context.Context, client *http.Client) (string, error) {
 	if e.limitRedirect {
-		withOneRedirect()(client)
+		connectivityutils.WithOneRedirect()(client)
 	}
-	statusCode, _, err := sendHead(ctx, client, e.url)
+	statusCode, _, err := connectivityutils.SendHead(ctx, client, e.url)
 	if e.limitRedirect {
 		client.CheckRedirect = nil
 	}
@@ -314,8 +313,8 @@ func (e resolvedEndpoint) checkHead(ctx context.Context, client *http.Client) (s
 
 func (e resolvedEndpoint) checkGet(ctx context.Context, client *http.Client) (string, error) {
 	httpTraces := []string{}
-	ctx = httptrace.WithClientTrace(ctx, createDiagnoseTraces(&httpTraces, true))
-	statusCode, _, _, err := sendGet(ctx, client, e.url, map[string]string{
+	ctx = httptrace.WithClientTrace(ctx, connectivityutils.CreateDiagnoseTraces(&httpTraces, true))
+	statusCode, _, _, err := connectivityutils.SendGet(ctx, client, e.url, map[string]string{
 		"DD-API-KEY": e.apiKey,
 	})
 	if err != nil {
@@ -333,7 +332,7 @@ func validateStatusCode(endpoint resolvedEndpoint, statusCode int) (string, erro
 
 func isSuccessStatusCode(endpoint resolvedEndpoint, statusCode int) bool {
 	switch endpoint.method {
-	case head:
+	case connectivityutils.Head:
 		if statusCode == http.StatusTemporaryRedirect || statusCode == http.StatusPermanentRedirect {
 			return endpoint.limitRedirect
 		}

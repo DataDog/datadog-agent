@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package connectivity contains logic for connectivity troubleshooting between the Agent
+// Package utils contains logic for connectivity troubleshooting between the Agent
 // and Datadog endpoints. It uses HTTP request to contact different endpoints and displays
 // some results depending on endpoints responses, if any.
-package connectivity
+package utils
 
 // This file contains all the functions used by httptrace.ClientTrace.
 // Each function is called at a specific moment during the communication
@@ -21,12 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// createDiagnoseTraces creates a httptrace.ClientTrace containing functions that collects
+// CreateDiagnoseTraces creates a httptrace.ClientTrace containing functions that collects
 // additional information when a http.Client is sending requests
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
-func createDiagnoseTraces(httpTraces *[]string, errorOnly bool) *httptrace.ClientTrace {
+func CreateDiagnoseTraces(httpTraces *[]string, errorOnly bool) *httptrace.ClientTrace {
 
 	hooks := &httpTraceContext{
 		httpTraces: httpTraces,

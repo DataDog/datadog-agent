@@ -22,6 +22,7 @@ import (
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	connectivityutils "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -95,7 +96,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 		}
 	}
 	numberOfWorkers := 1
-	client := getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
+	client := connectivityutils.GetClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
@@ -144,11 +145,11 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 				if endpointInfo.Method == "HEAD" {
 					logURL = endpointInfo.Endpoint.Route
-					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
+					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, connectivityutils.GetClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, connectivityutils.WithOneRedirect()))
 				} else {
 					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
-					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
+					ctx := httptrace.WithClientTrace(context.Background(), connectivityutils.CreateDiagnoseTraces(&httpTraces, false))
 
 					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
 				}
@@ -208,7 +209,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 		"DD-API-KEY":   apiKey,
 	}
 
-	return sendPost(ctx, client, url, endpointInfo.Payload, headers)
+	return connectivityutils.SendPost(ctx, client, url, endpointInfo.Payload, headers)
 }
 
 // createEndpointUrl joins a domain with an endpoint
@@ -268,7 +269,7 @@ func noResponseHints(err error) string {
 
 // See if the URL is redirected to another URL, and return the status code of the redirection
 func sendHTTPHEADRequestToEndpoint(url string, client *http.Client) (int, error) {
-	statusCode, _, err := sendHead(context.Background(), client, url)
+	statusCode, _, err := connectivityutils.SendHead(context.Background(), client, url)
 	if err != nil {
 		return -1, err
 	}

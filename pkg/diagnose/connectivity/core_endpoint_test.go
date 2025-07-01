@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity/utils"
 )
 
 var (
@@ -85,7 +86,7 @@ func TestAcceptRedirection(t *testing.T) {
 
 	ddURL := ts.URL
 
-	client := getClient(mockConfig, 1, mockLog, withOneRedirect())
+	client := utils.GetClient(mockConfig, 1, mockLog, utils.WithOneRedirect())
 
 	url := ddURL + "/support/flare"
 	statusCode, err := sendHTTPHEADRequestToEndpoint(url, client)

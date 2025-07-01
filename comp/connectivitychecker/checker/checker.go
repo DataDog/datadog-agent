@@ -10,9 +10,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 )
 
 type status string
@@ -36,33 +34,12 @@ func Check(
 	config config.Component,
 	log log.Component,
 ) (map[string][]DiagnosisPayload, error) {
-	diagnoses, err := connectivity.DiagnoseInventory(ctx, config, log)
+	diagnosesPayload, err := DiagnoseInventory(ctx, config, log)
 	if err != nil {
 		return nil, err
-	}
-
-	diagnosesPayload := []DiagnosisPayload{}
-	for _, diagnosis := range diagnoses {
-		diagnosesPayload = append(diagnosesPayload, DiagnosisPayload{
-			Status:      toStatus(diagnosis.Status),
-			Description: diagnosis.Name,
-			Error:       diagnosis.Diagnosis,
-			Metadata:    diagnosis.Metadata,
-		})
 	}
 
 	return map[string][]DiagnosisPayload{
 		"connectivity": diagnosesPayload,
 	}, nil
-}
-
-func toStatus(ds diagnose.Status) status {
-	switch ds {
-	case diagnose.DiagnosisSuccess:
-		return success
-	case diagnose.DiagnosisFail:
-		return failure
-	default:
-		return failure
-	}
 }

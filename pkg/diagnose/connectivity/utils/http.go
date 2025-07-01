@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package connectivity contains logic for connectivity troubleshooting between the Agent
+// Package utils contains logic for connectivity troubleshooting between the Agent
 // and Datadog endpoints. It uses HTTP request to contact different endpoints and displays
 // some results depending on endpoints responses, if any.
-package connectivity
+package utils
 
 import (
 	"bytes"
@@ -22,30 +22,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-type method string
+// Method represents the HTTP method to use for the request
+type Method string
 
 const (
-	head method = "HEAD"
-	get  method = "GET"
-	post method = "POST"
+	// Head is the HTTP HEAD method
+	Head Method = "HEAD"
+	// Get is the HTTP GET method
+	Get Method = "GET"
+	// Post is the HTTP POST method
+	Post Method = "POST"
 )
 
-func sendHead(ctx context.Context, client *http.Client, url string) (statusCode int, logURL string, err error) {
-	status, _, logURL, err := sendRequest(ctx, client, url, head, nil, nil)
+// SendHead sends an HTTP HEAD request to the given URL
+func SendHead(ctx context.Context, client *http.Client, url string) (statusCode int, logURL string, err error) {
+	status, _, logURL, err := SendRequest(ctx, client, url, Head, nil, nil)
 	return status, logURL, err
 }
 
-func sendGet(ctx context.Context, client *http.Client, url string, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
-	return sendRequest(ctx, client, url, get, nil, headers)
+// SendGet sends an HTTP GET request to the given URL with the given headers
+func SendGet(ctx context.Context, client *http.Client, url string, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
+	return SendRequest(ctx, client, url, Get, nil, headers)
 }
 
-// sendHTTPRequestToEndpoint sends an HTTP Request with the method and payload inside the endpoint information
-func sendPost(ctx context.Context, client *http.Client, url string, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
-	return sendRequest(ctx, client, url, post, payload, headers)
+// SendPost sends an HTTP Request with the method and payload inside the endpoint information
+func SendPost(ctx context.Context, client *http.Client, url string, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
+	return SendRequest(ctx, client, url, Post, payload, headers)
 }
 
-// sendRequest
-func sendRequest(ctx context.Context, client *http.Client, url string, method method, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
+// SendRequest sends an HTTP request to the given URL with the given method, payload and headers
+// It returns the status code, the body, the scrubbed log URL and an error if any
+func SendRequest(ctx context.Context, client *http.Client, url string, method Method, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
 	logURL = scrubber.ScrubLine(url)
 
 	var reader io.Reader
@@ -83,7 +90,8 @@ func sendRequest(ctx context.Context, client *http.Client, url string, method me
 	return resp.StatusCode, body, logURL, nil
 }
 
-func withOneRedirect() func(*http.Client) {
+// WithOneRedirect sets the HTTP client to return only the last response when a redirect is encountered
+func WithOneRedirect() func(*http.Client) {
 	return func(client *http.Client) {
 		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -91,13 +99,15 @@ func withOneRedirect() func(*http.Client) {
 	}
 }
 
-func withTimeout(timeout time.Duration) func(*http.Client) {
+// WithTimeout sets the timeout for the HTTP client
+func WithTimeout(timeout time.Duration) func(*http.Client) {
 	return func(client *http.Client) {
 		client.Timeout = timeout
 	}
 }
 
-func getClient(config config.Component, numberOfWorkers int, log log.Component, clientOptions ...func(*http.Client)) *http.Client {
+// GetClient creates a new HTTP client with the given configuration and options
+func GetClient(config config.Component, numberOfWorkers int, log log.Component, clientOptions ...func(*http.Client)) *http.Client {
 	transport := forwarder.NewHTTPTransport(config, numberOfWorkers, log)
 
 	client := &http.Client{

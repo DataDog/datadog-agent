@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package connectivity
+package checker
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	connectivityutils "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -137,7 +137,7 @@ func TestBuildEndpoints(t *testing.T) {
 			name: "endpoint with route",
 			endpointDescription: endpointDescription{
 				route:  "https://custom.endpoint.com",
-				method: head,
+				method: connectivityutils.Head,
 			},
 			domains: map[string]domain{
 				"main": {
@@ -156,7 +156,7 @@ func TestBuildEndpoints(t *testing.T) {
 			name: "endpoint with prefix and multiple domains",
 			endpointDescription: endpointDescription{
 				routePrefix: "install",
-				method:      head,
+				method:      connectivityutils.Head,
 			},
 			domains: map[string]domain{
 				"main": {
@@ -184,7 +184,7 @@ func TestBuildEndpoints(t *testing.T) {
 			endpointDescription: endpointDescription{
 				routePrefix: "browser-intake",
 				routePath:   "api/v2/logs",
-				method:      get,
+				method:      connectivityutils.Get,
 				separator:   dash,
 			},
 			domains: map[string]domain{
@@ -204,7 +204,7 @@ func TestBuildEndpoints(t *testing.T) {
 			name: "endpoint with config prefix",
 			endpointDescription: endpointDescription{
 				routePrefix:  "ndm.metadata.",
-				method:       get,
+				method:       connectivityutils.Get,
 				configPrefix: "service.metadata.",
 			},
 			config: map[string]string{
@@ -237,7 +237,7 @@ func TestBuildEndpoints(t *testing.T) {
 			name: "endpoint with config prefix and no api key",
 			endpointDescription: endpointDescription{
 				routePrefix:  "ndm.metadata.",
-				method:       get,
+				method:       connectivityutils.Get,
 				configPrefix: "service.metadata.",
 			},
 			domains: map[string]domain{
@@ -378,7 +378,7 @@ func TestCheckGet(t *testing.T) {
 	endpoint := resolvedEndpoint{
 		url:    ts.URL,
 		base:   ts.URL,
-		method: get,
+		method: connectivityutils.Get,
 		apiKey: "test-api-key",
 	}
 
@@ -402,7 +402,7 @@ func TestCheckGetConnectionFailure(t *testing.T) {
 	endpoint := resolvedEndpoint{
 		url:    "http://invalid-url-that-does-not-exist.com",
 		base:   "http://invalid-url-that-does-not-exist.com",
-		method: get,
+		method: connectivityutils.Get,
 		apiKey: "test-api-key",
 	}
 
@@ -434,7 +434,7 @@ func TestCheckHeadWithRedirectLimit(t *testing.T) {
 	endpoint := resolvedEndpoint{
 		url:           ts.URL,
 		base:          ts.URL,
-		method:        head,
+		method:        connectivityutils.Head,
 		apiKey:        "irrelevant",
 		limitRedirect: true,
 	}
@@ -468,23 +468,23 @@ func TestRun(t *testing.T) {
 		{
 			url:    ts.URL,
 			base:   ts.URL,
-			method: head,
+			method: connectivityutils.Head,
 		},
 		{
 			url:    ts.URL,
 			base:   ts.URL,
-			method: get,
+			method: connectivityutils.Get,
 			apiKey: "test-api-key",
 		},
 		{
 			url:    ts.URL,
 			base:   ts.URL,
-			method: get,
+			method: connectivityutils.Get,
 			apiKey: "wrong-api-key",
 		},
 	}
 
-	client := getClient(cfg, 2, logmock.New(t))
+	client := connectivityutils.GetClient(cfg, 2, logmock.New(t))
 
 	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
 	assert.NoError(t, err)
@@ -492,7 +492,7 @@ func TestRun(t *testing.T) {
 	successCount := 0
 	failCount := 0
 	for _, diagnosis := range diagnoses {
-		if diagnosis.Status == diagnose.DiagnosisSuccess {
+		if diagnosis.Status == success {
 			successCount++
 		} else {
 			failCount++
