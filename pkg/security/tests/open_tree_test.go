@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -131,7 +132,11 @@ func TestOpenTree(t *testing.T) {
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
 		seen := 0
 		err = test.GetProbeEvent(func() error {
-			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+			_, err = unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+			if err != nil {
+				fmt.Printf("Err: %+v\n", err)
+				t.Skip(err)
+			}
 			return nil
 		}, func(event *model.Event) bool {
 			if event.GetType() != "mount" || event.Mount.Source != 3 {
