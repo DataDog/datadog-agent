@@ -547,7 +547,7 @@ func (m *Manager) persistProfile(p *profile.Profile) error {
 }
 
 // For version-filtered persistence, use persistWithFiltering instead
-func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
+func (m *Manager) persistwithoutFiltering(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
 	for format, requests := range formatsRequests {
 		p.Metadata.Serialization = format.String()
 
@@ -587,7 +587,7 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 	return nil
 }
 
-func (m *Manager) persistWithFiltering(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
+func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
 	// Get filtered profiles for each version
 	profilesData, err := p.EncodeSecurityProfileProtobufByVersion()
 	if err != nil {

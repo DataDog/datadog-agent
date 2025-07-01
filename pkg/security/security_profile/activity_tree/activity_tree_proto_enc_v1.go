@@ -615,14 +615,14 @@ func processActivityNodeToProtoWithVersionFilter(pan *ProcessNode, imageTag stri
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		ImdsEvents:     make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
-		NodeBase:       nodeBaseToProtoWithVersionFilter(&pan.NodeBase, imageTag),
+		NodeBase:       nodeBaseToProtoWithVersionFilter(&pan.NodeBase, imageTag),//do we want to filter the nodebase? or we want to keep all the image tags?
 		SyscallNodes:   make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
 		NetworkDevices: make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
 	}
 
 	for _, rule := range pan.MatchedRules {
 		ppan.MatchedRules = append(ppan.MatchedRules, matchedRuleToProto(rule))
-	}
+	} //TODO: do we want to filter the matched rules? for a specific image tag i don't know if we want to keep all the rules or just the ones that match the image tag
 
 	// Filter children by version
 	for _, child := range pan.Children {
