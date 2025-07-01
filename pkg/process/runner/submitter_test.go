@@ -187,12 +187,20 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor(flavor.ProcessAgent)
 
-	deps := getSubmitterDeps(t, nil, nil)
+	configOverrides := map[string]interface{}{
+		"process_config.process_collection.enabled": "false",
+	}
+	sysprobeconfigOverrides := map[string]interface{}{
+		"discovery.enabled": "false",
+	}
+	deps := getSubmitterDeps(t, configOverrides, sysprobeconfigOverrides)
 	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
 
 	agentVersion, _ := version.Agent()
 	now := time.Now()
+
+	requestID := submitter.getRequestID(now, 0)
 
 	tests := []struct {
 		name          string
@@ -207,13 +215,16 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "3",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "3",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.RequestIDHeader:         requestID,
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
@@ -224,13 +235,15 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "3",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "3",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
@@ -241,13 +254,15 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "2",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "2",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
@@ -258,41 +273,47 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "5",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "5",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
 			name:    "process_discovery",
 			message: &model.CollectorProcDiscovery{},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "0",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "0",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
 			name:    "process_events",
 			message: &model.CollectorProcEvent{},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:             testHostName,
-				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
-				headers.ContainerCountHeader:   "0",
-				headers.ContentTypeHeader:      headers.ProtobufContentType,
-				headers.EVPOriginHeader:        "process-agent",
-				headers.EVPOriginVersionHeader: version.AgentVersion,
-				headers.AgentStartTime:         strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:          "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "0",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.EVPOriginHeader:         "process-agent",
+				headers.EVPOriginVersionHeader:  version.AgentVersion,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 	}
