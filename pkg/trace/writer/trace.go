@@ -263,6 +263,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
+	log.Debugf("manually adding function tags")
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
 		HostName:           w.hostname,
@@ -271,6 +272,9 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     payloads,
+		Tags: map[string]string{
+			"_dd.tags.function": "region:gcp-us-central1,test-primary-tag:cloudrun",
+		},
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

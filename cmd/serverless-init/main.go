@@ -103,6 +103,8 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component) error {
+	log.Debugf("running a modified version of serverless-init")
+
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
