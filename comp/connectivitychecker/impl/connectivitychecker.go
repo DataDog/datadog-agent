@@ -25,7 +25,6 @@ const (
 
 // Requires defines the dependencies for the connectivitychecker component
 type Requires struct {
-	// Remove this field if the component has no lifecycle hooks
 	Lifecycle compdef.Lifecycle
 
 	Log            log.Component
@@ -59,7 +58,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		collectCancel:  collectCancel,
 	}
 
-	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.Start, OnStop: comp.Stop})
+	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
 	reqs.Config.OnUpdate(func(_ string, _, _ any) { comp.restartTimer() })
 
 	provides := Provides{Comp: comp}
@@ -98,7 +97,7 @@ func (c *inventoryImpl) restartTimer() {
 	case <-c.timerStopCh:
 		// Channel is already closed, do nothing
 	default:
-		_ = c.Stop(context.Background())
+		_ = c.stop(context.Background())
 	}
 
 	c.timerStopCh = make(chan struct{})
@@ -128,16 +127,16 @@ func (c *inventoryImpl) collect() {
 	}
 
 	// Send results to inventory agent
-	c.inventoryAgent.Set("connectivity", diagnoses)
+	c.inventoryAgent.Set("diagnostics", diagnoses)
 	c.log.Debug("Connectivity check completed successfully")
 }
 
-func (c *inventoryImpl) Start(_ context.Context) error {
+func (c *inventoryImpl) start(_ context.Context) error {
 	c.startTimer(initialDelay)
 	return nil
 }
 
-func (c *inventoryImpl) Stop(_ context.Context) error {
+func (c *inventoryImpl) stop(_ context.Context) error {
 	// Cancel any ongoing collect operations
 	c.collectCancel()
 	close(c.timerStopCh)
