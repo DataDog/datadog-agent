@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -162,8 +161,6 @@ func TestOpenTree(t *testing.T) {
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
 			return nil
 		}, func(event *model.Event) bool {
-			fmt.Printf("MOUNT %+v\n", event.Mount)
-			fmt.Println("-----------------------------")
 			if event.GetType() != "mount" && event.Mount.Source != 3 {
 				return false
 			}
