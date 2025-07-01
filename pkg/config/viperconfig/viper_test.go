@@ -450,22 +450,22 @@ func TestSetWithEnvTransformer(t *testing.T) {
 func TestSequenceID(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 
-	assert.Equal(t, uint64(0), config.GetSequenceID("foo"))
+	assert.Equal(t, uint64(0), config.GetSequenceID())
 
 	config.Set("foo", "bar", model.SourceFile)
-	assert.Equal(t, uint64(1), config.GetSequenceID("foo"))
+	assert.Equal(t, uint64(1), config.GetSequenceID())
 
 	config.Set("foo", "baz", model.SourceFile)
-	assert.Equal(t, uint64(2), config.GetSequenceID("foo"))
+	assert.Equal(t, uint64(2), config.GetSequenceID())
 
 	// Setting the same value does not update the sequence ID
 	config.Set("foo", "baz", model.SourceFile)
-	assert.Equal(t, uint64(2), config.GetSequenceID("foo"))
+	assert.Equal(t, uint64(2), config.GetSequenceID())
 
 	// Does not update the sequence ID since the source does not match
 	config.UnsetForSource("foo", model.SourceAgentRuntime)
-	assert.Equal(t, uint64(2), config.GetSequenceID("foo"))
+	assert.Equal(t, uint64(2), config.GetSequenceID())
 
 	config.UnsetForSource("foo", model.SourceFile)
-	assert.Equal(t, uint64(3), config.GetSequenceID("foo"))
+	assert.Equal(t, uint64(3), config.GetSequenceID())
 }

@@ -143,7 +143,7 @@ type Reader interface {
 	GetStringMapStringSlice(key string) map[string][]string
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
-	GetSequenceID(key string) uint64
+	GetSequenceID() uint64
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource

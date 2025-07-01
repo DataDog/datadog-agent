@@ -103,7 +103,7 @@ type ntmConfig struct {
 	envTransform   map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
-	sequenceIDs           map[string]uint64
+	sequenceID            uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -230,11 +230,11 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
-	c.sequenceIDs[key]++
+	c.sequenceID++
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue, c.sequenceIDs[key])
+		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -346,12 +346,12 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		return
 	}
 
-	c.sequenceIDs[key]++
+	c.sequenceID++
 	receivers := slices.Clone(c.notificationReceivers)
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue, c.sequenceIDs[key])
+		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -963,7 +963,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
-		sequenceIDs:        map[string]uint64{},
+		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
@@ -998,8 +998,8 @@ func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	return res
 }
 
-func (c *ntmConfig) GetSequenceID(key string) uint64 {
+func (c *ntmConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.sequenceIDs[key]
+	return c.sequenceID
 }

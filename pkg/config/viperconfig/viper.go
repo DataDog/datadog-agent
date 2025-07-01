@@ -41,7 +41,7 @@ type safeConfig struct {
 	envKeyReplacer *strings.Replacer
 
 	notificationReceivers []model.NotificationReceiver
-	sequenceIDs           map[string]uint64
+	sequenceID            uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -108,13 +108,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
 	}
 	// Increment the sequence ID for the key
-	c.sequenceIDs[key]++
+	c.sequenceID++
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, oldValue, latestValue, c.sequenceIDs[key])
+		receiver(key, oldValue, latestValue, c.sequenceID)
 	}
 }
 
@@ -143,13 +143,13 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
-		c.sequenceIDs[key]++
+		c.sequenceID++
 	}
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue, c.sequenceIDs[key])
+		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -801,7 +801,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 	config := safeConfig{
 		Viper:         viper.New(),
 		configSources: map[model.Source]*viper.Viper{},
-		sequenceIDs:   map[string]uint64{},
+		sequenceID:    0,
 		configEnvVars: map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
 	}
@@ -858,9 +858,8 @@ func (c *safeConfig) ExtraConfigFilesUsed() []string {
 func (c *safeConfig) SetTestOnlyDynamicSchema(_ bool) {
 }
 
-func (c *safeConfig) GetSequenceID(key string) uint64 {
+func (c *safeConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
-	c.checkKnownKey(key)
-	return c.sequenceIDs[key]
+	return c.sequenceID
 }
