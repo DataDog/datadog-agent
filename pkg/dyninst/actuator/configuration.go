@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 )
 
 type configuration struct {
@@ -108,28 +107,28 @@ func WithReporter(reporter Reporter) Option {
 type Reporter interface {
 
 	// ReportAttached is called when a program is attached to a process.
-	ReportAttached(ProcessID, []irgen.ProbeDefinition)
+	ReportAttached(ProcessID, *ir.Program)
 
 	// ReportDetached is called when a program is detached from a process.
-	ReportDetached(ProcessID, []irgen.ProbeDefinition)
+	ReportDetached(ProcessID, *ir.Program)
 
 	// ReportCompilationFailed is called when a program fails to compile.
-	ReportCompilationFailed(ir.ProgramID, error)
+	ReportCompilationFailed(ir.ProgramID, error, []ir.ProbeDefinition)
 
 	// ReportLoadingFailed is called when a program fails to load.
-	ReportLoadingFailed(ir.ProgramID, error)
+	ReportLoadingFailed(*ir.Program, error)
 
 	// ReportAttachingFailed is called when a program fails to attach to a process.
-	ReportAttachingFailed(ir.ProgramID, ProcessID, error)
+	ReportAttachingFailed(ProcessID, *ir.Program, error)
 }
 
 type noopReporter struct{}
 
-func (noopReporter) ReportCompilationFailed(ir.ProgramID, error)          {}
-func (noopReporter) ReportLoadingFailed(ir.ProgramID, error)              {}
-func (noopReporter) ReportAttachingFailed(ir.ProgramID, ProcessID, error) {}
-func (noopReporter) ReportAttached(ProcessID, []irgen.ProbeDefinition)    {}
-func (noopReporter) ReportDetached(ProcessID, []irgen.ProbeDefinition)    {}
+func (noopReporter) ReportCompilationFailed(ir.ProgramID, error, []ir.ProbeDefinition) {}
+func (noopReporter) ReportLoadingFailed(*ir.Program, error)                            {}
+func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error)               {}
+func (noopReporter) ReportAttached(ProcessID, *ir.Program)                             {}
+func (noopReporter) ReportDetached(ProcessID, *ir.Program)                             {}
 
 // WithRingBufSize sets the size of the ring buffer for the Actuator.
 func WithRingBufSize(size int) Option {

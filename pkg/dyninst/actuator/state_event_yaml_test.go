@@ -16,7 +16,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -113,7 +112,7 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.progID),
+			"program_id": int(ev.program.program.ID),
 			"process_id": int(ev.program.procID.PID),
 		})
 
@@ -176,7 +175,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		// Convert updated processes
 		var updated []ProcessUpdate
 		for _, proc := range eventData.Updated {
-			var probes []irgen.ProbeDefinition
+			var probes []ir.ProbeDefinition
 			for _, p := range proc.Probes {
 				probeJSON, err := json.Marshal(p)
 				if err != nil {
@@ -186,11 +185,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal probe: %w", err)
 				}
-				probeDef, err := irgen.ProbeDefinitionFromRemoteConfig(rcProbe)
-				if err != nil {
-					return fmt.Errorf("failed to unmarshal probe: %w", err)
-				}
-				probes = append(probes, probeDef)
+				probes = append(probes, rcProbe)
 			}
 
 			updated = append(updated, ProcessUpdate{
@@ -260,7 +255,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
 			loadedProgram: &loadedProgram{
-				id: ir.ProgramID(eventData.ProgramID),
+				program: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
 			},
 		}
 
@@ -287,8 +282,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				progID: ir.ProgramID(eventData.ProgramID),
-				procID: ProcessID{PID: int32(eventData.ProcessID)},
+				program: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
+				procID:  ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}
 
