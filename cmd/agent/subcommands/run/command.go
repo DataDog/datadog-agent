@@ -610,7 +610,7 @@ func startAgent(
 	// start remote configuration management
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
-		rcclient.SubscribeAgentTask()
+		rcclient.Subscribe(data.ProductAgentTask, rcclient.AgentTaskUpdateCallback)
 		controller := datastreams.NewController(ac, rcclient)
 		ac.AddConfigProvider(controller, false, 0)
 
