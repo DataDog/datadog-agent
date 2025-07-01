@@ -6,6 +6,10 @@
 // Package metrics holds metrics related files
 package metrics
 
+import (
+	"strings"
+)
+
 var (
 	// MetricRuntimePrefix is the prefix of the metrics sent by the runtime security module
 	MetricRuntimePrefix = "datadog.runtime_security"
@@ -615,4 +619,20 @@ func newRuntimeMetric(name string) string {
 
 func newAgentMetric(name string) string {
 	return MetricAgentPrefix + name
+}
+
+// ITMetric is a struct that represents a metric for internal telemetry
+type ITMetric struct {
+	// Subsystem is the subsystem of the metric, used to group related metrics
+	Subsystem string
+	// Name is the name of the metric, used to identify it
+	Name string
+}
+
+func newITRuntimeMetric(subsystem string, name string) ITMetric {
+	name = strings.ReplaceAll(name, ".", "__")
+	return ITMetric{
+		Subsystem: "runtime_security__" + subsystem,
+		Name:      name,
+	}
 }
