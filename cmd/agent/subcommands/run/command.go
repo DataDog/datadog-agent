@@ -589,7 +589,7 @@ func startAgent(
 	// start remote configuration management
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
-		rcclient.SubscribeAgentTask()
+		rcclient.Subscribe(data.ProductAgentTask, rcclient.AgentTaskUpdateCallback)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
