@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -16,6 +17,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -87,10 +89,11 @@ func GetStaticTags(ctx context.Context, datadogConfig config.Component) map[stri
 	return sliceToMap(tags)
 }
 
-// GetGlobalEnvTags is similar to GetStaticTags, but returning a map[string][]string containing
+// GetClusterAgentStaticTags is similar to GetStaticTags, but returning a map[string][]string containing
 // <key>:<value> pairs for all global environment tags on the cluster agent. This includes:
-// DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, and DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
-func GetGlobalEnvTags(config config.Reader) map[string][]string {
+// DD_TAGS, DD_EXTRA_TAGS, DD_CLUSTER_CHECKS_EXTRA_TAGS, DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
+// and other cluster level tags like orch_cluster_id, cluster_name, etc.
+func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 	if flavor.GetFlavor() != flavor.ClusterAgent {
 		return nil
 	}
@@ -100,6 +103,24 @@ func GetGlobalEnvTags(config config.Reader) map[string][]string {
 
 	// DD_CLUSTER_CHECKS_EXTRA_TAGS / DD_ORCHESTRATOR_EXPLORER_EXTRA_TAGS
 	tags = append(tags, configUtils.GetConfiguredDCATags(config)...)
+
+	// ORCH_CLUSTER_ID
+	clusterIDValue, _ := clustername.GetClusterID()
+	if clusterIDValue != "" {
+		tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+	}
+
+	// CLUSTER_NAME and KUBE_CLUSTER_NAME
+	hname, _ := hostname.Get(context.TODO())
+	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
+	clusterTagName := config.GetString("cluster_checks.cluster_tag_name")
+	if clusterTagValue != "" {
+		if clusterTagName != "" && !config.GetBool("disable_cluster_name_tag_key") {
+			tags = append(tags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		tags = append(tags, taggertags.KubeClusterName+":"+clusterTagValue)
+	}
 
 	if tags == nil {
 		return nil
