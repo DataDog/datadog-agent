@@ -13,7 +13,7 @@ type Params struct {
 	ID                string
 	DisplayName       string
 	AuthToken         string
-	StatusCallback    func() map[string]string
+	StatusCallback    func(format string) string
 	FlareCallback     func() map[string][]byte
 	TelemetryCallback func() string
 }

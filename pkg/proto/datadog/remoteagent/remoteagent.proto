@@ -2,11 +2,9 @@ syntax = "proto3";
 
 package datadog.remoteagent;
 
-option go_package = "pkg/proto/pbgo/core"; // golang
+import "google/protobuf/struct.proto";
 
-message StatusSection {
-  map<string, string> fields = 1;
-}
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 message RegisterRemoteAgentRequest {
   // Unique ID of the remote agent.
@@ -46,18 +44,12 @@ message RegisterRemoteAgentResponse {
   uint32 recommended_refresh_interval_secs = 1;
 }
 
-message GetStatusDetailsRequest {}
+message GetStatusDetailsRequest {
+  string format = 1;
+}
 
 message GetStatusDetailsResponse {
-  // Main status detail section.
-  //
-  // Generally reserved for high-level details such as version, uptime, configuration flags, etc.
-  StatusSection main_section = 1;
-
-  // Named status detail sections.
-  //
-  // Generally reserved for specific (sub)component details, such as the status of a specific feature or integration, etc.
-  map<string, StatusSection> named_sections = 2;
+  string data = 1;
 }
 
 message GetFlareFilesRequest {}
@@ -70,7 +62,7 @@ message GetFlareFilesResponse {
   // The key SHOULD be an ASCII string with no path separators (`/`), and will be sanitized as necessary to ensure it can be
   // used as a valid filename. The key SHOULD have a file extension that is applicable to the file contents, such as
   // `.yaml` for YAML data.
-  map<string, bytes> files = 1;
+  google.protobuf.Struct data = 1;
 }
 
 message GetTelemetryRequest {}

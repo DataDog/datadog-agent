@@ -79,13 +79,11 @@ type remoteAgentServer struct {
 	pbcore.UnimplementedRemoteAgentServer
 }
 
-func (s *remoteAgentServer) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+func (s *remoteAgentServer) GetStatusDetails(_ context.Context, r *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	log.Printf("GetStatusDetails called at %s", time.Now().Format(time.RFC3339))
+	log.Printf("Data: %s", s.remoteAgentParams.StatusCallback(r.Format))
 	return &pbcore.GetStatusDetailsResponse{
-		MainSection: &pbcore.StatusSection{
-			Fields: s.remoteAgentParams.StatusCallback(),
-		},
-		NamedSections: make(map[string]*pbcore.StatusSection),
+		Data: s.remoteAgentParams.StatusCallback(r.Format),
 	}, nil
 
 }

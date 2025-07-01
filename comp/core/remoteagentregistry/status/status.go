@@ -7,7 +7,8 @@
 package status
 
 import (
-	"embed"
+	"encoding/json"
+	"fmt"
 	"io"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -15,13 +16,12 @@ import (
 )
 
 // populateStatus populates the status stats
-func populateStatus(registry remoteagentregistry.Component, stats map[string]interface{}) {
-	stats["registeredAgents"] = registry.GetRegisteredAgents()
-	stats["registeredAgentStatuses"] = registry.GetRegisteredAgentStatuses()
-}
+// func populateStatus(registry remoteagentregistry.Component, stats map[string]interface{}) {
+// 	stats["registeredAgents"] = registry.GetRegisteredAgents()
+// 	stats["registeredAgentStatuses"] = registry.GetRegisteredAgentStatuses()
+// }
 
-//go:embed status_templates
-var templatesFS embed.FS
+// var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
@@ -33,13 +33,13 @@ func GetProvider(registry remoteagentregistry.Component) status.Provider {
 	return Provider{registry: registry}
 }
 
-func (p Provider) getStatusInfo() map[string]interface{} {
-	stats := make(map[string]interface{})
+// func (p Provider) getStatusInfo() map[string]interface{} {
+// 	stats := make(map[string]interface{})
 
-	populateStatus(p.registry, stats)
+// 	populateStatus(p.registry, stats)
 
-	return stats
-}
+// 	return stats
+// }
 
 // Name returns the name
 func (p Provider) Name() string {
@@ -53,17 +53,39 @@ func (p Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(p.registry, stats)
+	values := p.registry.GetRegisteredAgentStatuses("json")
+	for _, value := range values {
+		var result map[string]any
+		err := json.Unmarshal([]byte(value.Data), &result)
+		if err != nil {
+			return err
+		}
+		stats[value.AgentID] = result
+	}
 
 	return nil
 }
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "remote_agents.tmpl", buffer, p.getStatusInfo())
+	values := p.registry.GetRegisteredAgentStatuses("text")
+	for _, value := range values {
+		_, err := fmt.Fprint(buffer, value.Data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "remote_agents_html.tmpl", buffer, p.getStatusInfo())
+	values := p.registry.GetRegisteredAgentStatuses("html")
+	for _, value := range values {
+		_, err := fmt.Fprint(buffer, value.Data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

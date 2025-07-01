@@ -184,7 +184,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 							filepath.Join("system-probe", "conntrack_cached.log"):       bytesOrError(getSystemProbeConntrackCached()),
 							filepath.Join("system-probe", "conntrack_host.log"):         bytesOrError(getSystemProbeConntrackHost()),
 							filepath.Join("system-probe", "ebpf_btf_loader.log"):        bytesOrError(getSystemProbeBTFLoaderInfo()),
-							filepath.Join("system-probe", "dmesg.log"):                  bytesOrError(GetLinuxDmesg()),
+							filepath.Join("system-probe", "dmesg.log"):                  bytesOrError(getLinuxDmesg()),
 							filepath.Join("system-probe", "selinux_sestatus.log"):       bytesOrError(getSystemProbeSelinuxSestatus()),
 							filepath.Join("system-probe", "selinux_semodule_list.log"):  bytesOrError(getSystemProbeSelinuxSemoduleList()),
 						}
@@ -616,7 +616,7 @@ func getSystemProbeDiscoveryState() ([]byte, error) {
 	return getHTTPData(sysProbeClient, url)
 }
 
-func GetLinuxDmesg() ([]byte, error) {
+func getLinuxDmesg() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	url := sysprobeclient.DebugURL("/dmesg")
 	return getHTTPData(sysProbeClient, url)

@@ -19,8 +19,7 @@ type StatusData struct {
 	AgentID       string
 	DisplayName   string
 	FailureReason string
-	MainSection   StatusSection
-	NamedSections map[string]StatusSection
+	Data          string
 }
 
 // FlareData contains the flare data for a remote agent

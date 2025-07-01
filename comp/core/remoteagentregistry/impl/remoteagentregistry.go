@@ -326,7 +326,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgents() []*remoteagentregistry.Regi
 }
 
 // GetRegisteredAgentStatuses returns the status of all registered remote agents.
-func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregistry.StatusData {
+func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses(format string) []*remoteagentregistry.StatusData {
 	queryTimeout := ra.getQueryTimeout()
 
 	ra.agentMapMu.Lock()
@@ -361,7 +361,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 
 		go func() {
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
-			resp, err := details.client.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+			resp, err := details.client.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{Format: format}, grpc.WaitForReady(true))
 			if err != nil {
 				data <- &remoteagentregistry.StatusData{
 					AgentID:       agentID,
