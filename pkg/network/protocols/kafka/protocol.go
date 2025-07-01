@@ -87,7 +87,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: responseMap,
 		},
 		{
-			Name: "kafka_client_id",
+			Name: "kafka_client_string",
 		},
 		{
 			Name: "kafka_topic_name",
