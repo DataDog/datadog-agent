@@ -41,12 +41,14 @@ const (
 	defaultMinCollectionInterval = 300
 	defaultDaysCritical          = 7
 	defaultDaysWarning           = 14
+	defaultCrlDaysWarning        = 0
 
 	certStoreOpenFlags = windows.CERT_SYSTEM_STORE_LOCAL_MACHINE | windows.CERT_STORE_READONLY_FLAG | windows.CERT_STORE_OPEN_EXISTING_FLAG
 	certEncoding       = windows.X509_ASN_ENCODING | windows.PKCS_7_ASN_ENCODING
 	cryptENotFound     = windows.Errno(windows.CRYPT_E_NOT_FOUND)
 	eInvalidArg        = windows.Errno(windows.E_INVALIDARG)
 	certX500NameStr    = 3
+	certNameStrCRLF    = 0x08000000
 )
 
 // Config is the configuration options for this check
@@ -60,7 +62,6 @@ type Config struct {
 	DaysCritical        int      `yaml:"days_critical" json:"days_critical" minimum:"0"`
 	DaysWarning         int      `yaml:"days_warning" json:"days_warning" minimum:"0"`
 	EnableCRLMonitoring bool     `yaml:"enable_crl_monitoring" json:"enable_crl_monitoring" default:"false"`
-	CrlDaysCritical     int      `yaml:"crl_days_critical" json:"crl_days_critical" minimum:"0"`
 	CrlDaysWarning      int      `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
 }
 
@@ -134,10 +135,9 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 	}
 
 	config := Config{
-		DaysCritical:    defaultDaysCritical,
-		DaysWarning:     defaultDaysWarning,
-		CrlDaysCritical: defaultDaysCritical,
-		CrlDaysWarning:  defaultDaysWarning,
+		DaysCritical:   defaultDaysCritical,
+		DaysWarning:    defaultDaysWarning,
+		CrlDaysWarning: defaultCrlDaysWarning,
 	}
 
 	if err := yaml.Unmarshal(data, &config); err != nil {
@@ -151,14 +151,6 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 
 	if w.config.DaysWarning == w.config.DaysCritical {
 		log.Warnf("Days warning (%d) is equal to days critical (%d). Warning service checks will not be emitted.", w.config.DaysWarning, w.config.DaysCritical)
-	}
-
-	if w.config.CrlDaysWarning < w.config.CrlDaysCritical {
-		log.Warnf("CRL days warning (%d) is less than CRL days critical (%d). Warning service checks will not be emitted.", w.config.CrlDaysWarning, w.config.CrlDaysCritical)
-	}
-
-	if w.config.CrlDaysWarning == w.config.CrlDaysCritical {
-		log.Warnf("CRL days warning (%d) is equal to CRL days critical (%d). Warning service checks will not be emitted.", w.config.CrlDaysWarning, w.config.CrlDaysCritical)
 	}
 
 	log.Infof("Windows Certificate Check configured with Certificate Store: '%s' and Certificate Subjects: '%v'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
@@ -259,12 +251,6 @@ func (w *WinCertChk) Run() error {
 				"",
 				crlTags,
 				fmt.Sprintf("CRL has expired. CRL expiration date is %s", crlExpirationDate))
-		} else if crlDaysRemaining < float64(w.config.CrlDaysCritical) {
-			sender.ServiceCheck("windows_certificate.crl_expiration",
-				servicecheck.ServiceCheckCritical,
-				"",
-				crlTags,
-				fmt.Sprintf("CRL will expire in only %.2f days. CRL expiration date is %s", crlDaysRemaining, crlExpirationDate))
 		} else if crlDaysRemaining < float64(w.config.CrlDaysWarning) {
 			sender.ServiceCheck("windows_certificate.crl_expiration",
 				servicecheck.ServiceCheckWarning,
@@ -528,20 +514,22 @@ func getCrlInfo(storeHandle windows.Handle) ([]crlInfoCopy, error) {
 	var crlContext *winutil.CRLContext
 	var crlInfo []crlInfoCopy
 	defer func() {
-		err = winutil.CertFreeCRLContext(crlContext)
-		log.Debugf("Freeing CRL context")
-		if err != nil {
-			log.Errorf("Error freeing CRL context: %v", err)
+		if crlContext != nil {
+			log.Debugf("Freeing CRL context")
+			err = winutil.CertFreeCRLContext(crlContext)
+			if err != nil {
+				log.Errorf("Error freeing CRL context: %v", err)
+			}
 		}
 	}()
 
 	for {
 		crlContext, err = winutil.CertEnumCRLsInStore(storeHandle, crlContext)
 		if err == cryptENotFound {
-			fmt.Printf("No matching CRLs found: %v\n", err)
+			log.Debugf("No matching CRLs found: %v", err)
 			break
 		} else if err != nil {
-			fmt.Printf("Error enumerating CRL: %v\n", err)
+			log.Errorf("Error enumerating CRL: %v", err)
 			return nil, err
 		}
 
@@ -551,8 +539,13 @@ func getCrlInfo(storeHandle windows.Handle) ([]crlInfoCopy, error) {
 		}
 
 		pCrlInfo := (*winutil.CRLInfo)(unsafe.Pointer(crlContext.PCrlInfo))
+		issuerStr, err := convertCertNameBlobToString(&pCrlInfo.Issuer)
+		if err != nil {
+			log.Errorf("Error converting CRL issuer to string: %v", err)
+			continue
+		}
 		crl := crlInfoCopy{
-			Issuer:     convertCertNameBlobToString(&pCrlInfo.Issuer),
+			Issuer:     issuerStr,
 			NextUpdate: time.Unix(0, pCrlInfo.NextUpdate.Nanoseconds()),
 		}
 
@@ -589,6 +582,9 @@ func getSubjectTags(cert *x509.Certificate) []string {
 	return subjectTags
 }
 
+// getCrlIssuerTags returns the tags for the CRL issuer
+// For example: [L=Internet, O="VeriSign, Inc.", OU=VeriSign Commercial Software Publishers CA]
+// will become: [crl_issuer_L:Internet, crl_issuer_O:VeriSign, Inc., crl_issuer_OU:VeriSign Commercial Software Publishers CA]
 func getCrlIssuerTags(issuer string) []string {
 	issuerTags := []string{}
 
@@ -596,15 +592,15 @@ func getCrlIssuerTags(issuer string) []string {
 		return issuerTags
 	}
 
-	issuerAttributes := splitByComma(issuer)
-	for _, part := range issuerAttributes {
-		part = strings.TrimSpace(part)
-		if part == "" {
+	issuerRDNs := strings.Split(issuer, "\r\n")
+	for _, rdn := range issuerRDNs {
+		rdn = strings.TrimSpace(rdn)
+		if rdn == "" {
 			continue
 		}
 
 		// Split by "=" to get key and value
-		keyValue := strings.SplitN(part, "=", 2)
+		keyValue := strings.SplitN(rdn, "=", 2)
 		if len(keyValue) == 2 {
 			key := strings.TrimSpace(keyValue[0])
 			value := strings.TrimSpace(keyValue[1])
@@ -614,7 +610,7 @@ func getCrlIssuerTags(issuer string) []string {
 				value = strings.Trim(value, "\"")
 			}
 
-			// Format as requested: "crl_issuer_<key>:<value>"
+			// Format: "crl_issuer_<key>:<value>"
 			component := fmt.Sprintf("crl_issuer_%s:%s", key, value)
 			issuerTags = append(issuerTags, component)
 		}
@@ -624,56 +620,25 @@ func getCrlIssuerTags(issuer string) []string {
 	return issuerTags
 }
 
-// splitByComma splits a string by commas, handling quoted parts correctly
-// For example L=Internet, O="VeriSign, Inc.", OU=VeriSign Commercial Software Publishers CA
-// will be split into [L=Internet, O=VeriSign, Inc., OU=VeriSign Commercial Software Publishers CA]
-func splitByComma(s string) []string {
-	var parts []string
-	var current strings.Builder
-	inQuotes := false
-
-	for _, char := range s {
-		switch char {
-		case '"':
-			inQuotes = !inQuotes
-			current.WriteRune(char)
-		case ',':
-			if inQuotes {
-				current.WriteRune(char)
-			} else {
-				parts = append(parts, current.String())
-				current.Reset()
-			}
-		default:
-			current.WriteRune(char)
-		}
-	}
-
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
-
-	return parts
-}
-
-func convertCertNameBlobToString(nameBlob *windows.CertNameBlob) string {
+func convertCertNameBlobToString(nameBlob *windows.CertNameBlob) (string, error) {
 	if nameBlob == nil || nameBlob.Size == 0 {
-		return "<empty>"
+		return "", nil
 	}
+	dwStrType := uint32(certX500NameStr | certNameStrCRLF)
 
 	var strBuffer []uint16
-	_, bufferSize, err := winutil.CertNameToStrW(windows.X509_ASN_ENCODING, nameBlob, certX500NameStr, nil, 0)
+	_, bufferSize, err := winutil.CertNameToStrW(windows.X509_ASN_ENCODING, nameBlob, dwStrType, nil, 0)
 
 	if err != nil {
-		return fmt.Sprintf("Error getting buffer size: %v", err)
+		return "", err
 	}
 
 	strBuffer = make([]uint16, bufferSize)
-	certNameStr, _, err := winutil.CertNameToStrW(windows.X509_ASN_ENCODING, nameBlob, certX500NameStr, strBuffer, bufferSize)
+	certNameStr, _, err := winutil.CertNameToStrW(windows.X509_ASN_ENCODING, nameBlob, dwStrType, strBuffer, bufferSize)
 	if err != nil {
-		return fmt.Sprintf("Error converting name to string: %v", err)
+		return "", err
 	}
-	return certNameStr
+	return certNameStr, nil
 }
 
 // Returns the human-readable name for a given OID string

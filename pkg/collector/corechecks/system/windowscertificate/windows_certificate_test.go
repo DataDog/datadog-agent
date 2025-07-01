@@ -212,7 +212,6 @@ certificate_store: CA
 certificate_subjects:
   - INVALID
 enable_crl_monitoring: true
-crl_days_critical: -1
 crl_days_warning: -1`)
 
 	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
