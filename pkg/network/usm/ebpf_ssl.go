@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -438,6 +439,9 @@ type sslProgram struct {
 	cfg         *config.Config
 	attacher    *uprobes.UprobeAttacher
 	ebpfManager *manager.Manager
+
+	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uint64]
+	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[uint64, http.SslSock]
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
@@ -523,8 +527,41 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	o.addProcessExitProbe(options)
 }
 
+// initMapCleaner creates and assigns a MapCleaner for the given eBPF map.
+func initMapCleaner[K, V interface{}](mgr *manager.Manager, mapName string) (*ddebpf.MapCleaner[K, V], error) {
+	mapObj, _, err := mgr.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", mapName, err)
+	}
+
+	cleaner, err := ddebpf.NewMapCleaner[K, V](mapObj, protocols.DefaultMapCleanerBatchSize, mapName, UsmTLSAttacherName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s cleaner: %w", mapName, err)
+	}
+	return cleaner, nil
+}
+
+func (o *sslProgram) initAllMapCleaners() error {
+	var err error
+
+	o.sslCtxByPIDTGIDMapCleaner, err = initMapCleaner[uint64, uint64](o.ebpfManager, sslCtxByPIDTGIDMap)
+	if err != nil {
+		return err
+	}
+
+	o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart() error {
+	if err := o.initAllMapCleaners(); err != nil {
+		return err
+	}
 	return o.attacher.Start()
 }
 
@@ -655,7 +692,6 @@ var sslPidKeyMaps = []string{
 	sslReadExArgsMap,
 	sslWriteArgsMap,
 	sslWriteExArgsMap,
-	sslCtxByPIDTGIDMap,
 	bioNewSocketArgsMap,
 }
 
@@ -666,6 +702,9 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 		if err != nil {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
+	}
+	if err := o.deleteDeadPidsInSSLCtxMap(alivePIDs); err != nil {
+		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
 	}
 }
 
@@ -691,6 +730,34 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 	for _, k := range keysToDelete {
 		_ = emap.Delete(unsafe.Pointer(&k))
 	}
+
+	return nil
+}
+
+// deleteDeadPidsInSSLCtxMap cleans up three related SSL maps in sequence:
+// 1. ssl_ctx_by_pid_tgid: Maps PIDs to SSL contexts
+// 2. ssl_sock_by_ctx: Maps SSL contexts to socket info
+// 3. ssl_ctx_by_tuple: Maps connection tuples to SSL contexts
+func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) error {
+	// Track SSL contexts that need to be cleaned up
+	// These are contexts belonging to dead PIDs
+	sslCtxToClean := make(map[uint64]struct{})
+
+	// First pass: Clean ssl_ctx_by_pid_tgid map and collect dead SSL contexts
+	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, sslCtx uint64) bool {
+		pid := uint32(pidTgid >> 32)
+		if _, isAlive := alivePIDs[pid]; !isAlive {
+			sslCtxToClean[sslCtx] = struct{}{}
+			return true
+		}
+		return false
+	})
+
+	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
+	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
+		_, shouldClean := sslCtxToClean[sslCtx]
+		return shouldClean
+	})
 
 	return nil
 }
