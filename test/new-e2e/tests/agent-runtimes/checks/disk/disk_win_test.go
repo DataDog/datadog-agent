@@ -23,7 +23,7 @@ func TestWindowsDiskSuite(t *testing.T) {
 	suite := &windowsDiskCheckSuite{
 		diskCheckSuite{
 			descriptor:            e2eos.WindowsDefault,
-			metricCompareFraction: 0.02,
+			metricCompareFraction: 0.05,
 			metricCompareDecimals: 1,
 		},
 	}

@@ -62,6 +62,7 @@ func (v *diskCheckSuite) TestCheckDisk() {
 		name        string
 		checkConfig string
 		agentConfig string
+		onlyLinux   bool
 	}{
 		{
 			"default",
@@ -70,10 +71,55 @@ instances:
   - use_mount: false
 `,
 			``,
+			false,
+		},
+		{
+			"all partitions",
+			`init_config:
+instances:
+  - use_mount: true
+    all_partitions: true
+`,
+			``,
+			false,
+		},
+		{
+			"tag by filesystem",
+			`init_config:
+instances:
+  - use_mount: false
+    tag_by_filesystem: true
+`,
+			``,
+			false,
+		},
+		{
+			"do not tag by label",
+			`init_config:
+instances:
+  - use_mount: false
+    tag_by_label: false
+`,
+			``,
+			true,
+		},
+		{
+			"use lsblk",
+			`init_config:
+instances:
+  - use_mount: false
+    use_lsblk: true
+`,
+			``,
+			true,
 		},
 	}
 	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
+		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
+			continue
+		}
+
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
 			v.printDiskUsage()

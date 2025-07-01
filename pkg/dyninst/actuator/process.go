@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // ProcessesUpdate is a set of updates to the actuator's state.
@@ -36,7 +36,7 @@ type ProcessUpdate struct {
 	//
 	// If a previous update contained a different set of probes, they
 	// will be wholly replaced by the new set.
-	Probes []irgen.ProbeDefinition
+	Probes []ir.ProbeDefinition
 }
 
 // Executable is a reference to an executable file that a process is running.
@@ -53,6 +53,8 @@ type ProcessID struct {
 	// PID is the operating system process ID.
 	PID int32
 
+	// Service is the service name for the process.
+	Service string
 	// Realistically this should include something about the start time of
 	// the process to be robust to PID wraparound. This is less of a problem
 	// these days now that pids in linux are 32 bits, but technically it's
@@ -61,7 +63,10 @@ type ProcessID struct {
 
 // String returns a string representation of the process ID.
 func (p ProcessID) String() string {
-	return fmt.Sprintf("{PID:%d}", p.PID)
+	if p.Service == "" {
+		return fmt.Sprintf("{PID:%d}", p.PID)
+	}
+	return fmt.Sprintf("{PID:%d,Svc:%s}", p.PID, p.Service)
 }
 
 // FileHandle identifies a file on a device.
