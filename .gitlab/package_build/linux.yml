@@ -12,6 +12,23 @@
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
   - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
   - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
+  - pushd golinkinterceptor; scripts/build.sh; popd
+  - TARBALL="$(basename "$(find "$OMNIBUS_PACKAGE_DIR" -maxdepth 1 -type f -name 'datadog-*agent-*.tar.xz' ! -name '*-dbg-*')")"
+  - unxz "$OMNIBUS_PACKAGE_DIR/$TARBALL"
+  - tar -rv --transform 's,^golinkinterceptor/bin,opt/datadog-agent/embedded/bin/,' -f "$OMNIBUS_PACKAGE_DIR/${TARBALL%.xz}" golinkinterceptor/bin/executor
+  - tar -rv --transform "s,^$(go env GOTOOLDIR | sed 's|^/||'),opt/datadog-agent/embedded/bin/," -f "$OMNIBUS_PACKAGE_DIR/${TARBALL%.xz}" "$(go env GOTOOLDIR)/link"
+  - |
+    sqlite3 -readonly -init /dev/null /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'SELECT file FROM package_file;' | while read -r file; do
+      tar -rv --transform 's,^root/.cache/,opt/datadog-agent/embedded/share/datadog-agent/,' -f "$OMNIBUS_PACKAGE_DIR/${TARBALL%.xz}" "$file"
+    done
+  - sqlite3 /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'UPDATE package_file SET file = REPLACE(file, "/root/.cache/", "/opt/datadog-agent/embedded/share/datadog-agent/");'
+  - sqlite3 /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'UPDATE link_command SET binary_name = "agent" WHERE binary_name = "./bin/agent/agent";'
+  - sqlite3 /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'UPDATE link_command SET binary_name = "process-agent" WHERE binary_name = "./bin/process-agent/process-agent";'
+  - sqlite3 /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'UPDATE link_command SET binary_name = "trace-agent" WHERE binary_name = "./bin/trace-agent/trace-agent";'
+  - sqlite3 /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'UPDATE link_command_args SET arg = "-extld=x86_64-linux-gnu-gcc" WHERE arg = "-extld=x86_64-unknown-linux-gnu-gcc";'
+  - sqlite3 /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db 'UPDATE link_command_args SET arg = "-extld=aarch64-linux-gnu-gcc" WHERE arg = "-extld=aarch64-unknown-linux-gnu-gcc";'
+  - tar -rv --transform 's,^omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/,opt/datadog-agent/embedded/share/datadog-agent/,' -f "$OMNIBUS_PACKAGE_DIR/${TARBALL%.xz}" /omnibus/src/datadog-agent/src/github.com/DataDog/datadog-agent/link.db
+  - xz "$OMNIBUS_PACKAGE_DIR/${TARBALL%.xz}"
   - ls -la $OMNIBUS_PACKAGE_DIR
   - !reference [.upload_sbom_artifacts]
 
