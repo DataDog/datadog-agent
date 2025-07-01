@@ -44,7 +44,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -109,8 +108,8 @@ processors: {}
 receivers:
   otlp:
     protocols:
-      grpc: {}
-      http: {}
+      grpc: null
+      http: null
   prometheus/dd-autoconfigured:
     api_server: null
     config:
