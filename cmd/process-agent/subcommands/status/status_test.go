@@ -87,7 +87,8 @@ func TestStatus(t *testing.T) {
 			"logs": null,
 			"install-method": null,
 			"proxy-info": null,
-			"otlp": null
+			"otlp": null,
+			"fips_mode": false
 			}
 		},
 		"expvars": {

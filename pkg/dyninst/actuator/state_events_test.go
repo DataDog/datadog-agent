@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 func TestEventStringer(t *testing.T) {
@@ -55,8 +57,8 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev: eventProgramAttached{
 				program: &attachedProgram{
-					progID: 1,
-					procID: ProcessID{PID: 100},
+					program: &ir.Program{ID: 1},
+					procID:  ProcessID{PID: 100},
 				},
 			},
 			wantStr: "eventProgramAttached{programID: 1, processID: {PID:100}}",
