@@ -63,20 +63,20 @@ SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/nu
 
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 LAMBDA_EXTENSION_REPOSITORY_PATH="${LAMBDA_EXTENSION_REPOSITORY_PATH:-../datadog-lambda-extension}"
-if [ "$BUILD_EXTENSION" != "false" ]; then
-    echo "Building extension"
-
-    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
-        ENABLE_RACE_DETECTION=false
-    fi
-
-    # This version number is arbitrary and won't be used by AWS
-    PLACEHOLDER_EXTENSION_VERSION=123
-
-    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
-else
-    echo "Skipping extension build, reusing previously built extension"
-fi
+#if [ "$BUILD_EXTENSION" != "false" ]; then
+#    echo "Building extension"
+#
+#    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
+#        ENABLE_RACE_DETECTION=false
+#    fi
+#
+#    # This version number is arbitrary and won't be used by AWS
+#    PLACEHOLDER_EXTENSION_VERSION=123
+#
+#    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+#else
+#    echo "Skipping extension build, reusing previously built extension"
+#fi
 
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
