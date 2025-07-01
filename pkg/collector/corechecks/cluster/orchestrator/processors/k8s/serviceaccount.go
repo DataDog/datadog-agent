@@ -61,6 +61,7 @@ func (h *ServiceAccountHandlers) BuildMessageBody(ctx processors.ProcessorContex
 		GroupSize:       int32(groupSize),
 		ServiceAccounts: models,
 		Tags:            util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:    ctx.GetAgentVersion(),
 	}
 }
 
