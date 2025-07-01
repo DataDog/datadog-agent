@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from tasks.libs.common.retry import run_command_with_retry
@@ -23,7 +24,7 @@ def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = Fal
 
 def go_build(
     ctx: Context,
-    entrypoint: str,
+    entrypoint: str | Path,
     mod: str | None = None,
     race: bool = False,
     gcflags: str | None = None,
@@ -31,7 +32,7 @@ def go_build(
     build_tags: list[str] | None = None,
     rebuild: bool = False,
     env: dict[str, str] | None = None,
-    bin_path: str | None = None,
+    bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
 ) -> Result:

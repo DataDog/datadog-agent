@@ -2022,10 +2022,7 @@ def build_gpu_event_viewer(ctx):
     binary = build_dir / "event-viewer"
     main_file = build_dir / "main.go"
 
-    cmd = f"go build -tags \"{','.join(tags)}\" -o {binary} {main_file}"
-
-    ctx.run(cmd)
-
+    go_build(ctx, main_file, build_tags=tags, bin_path=binary)
     print(f"Built {binary}")
 
 
