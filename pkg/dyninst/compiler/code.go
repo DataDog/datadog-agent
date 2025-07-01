@@ -77,14 +77,20 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 	}, nil
 }
 
-// DispatchingSerializer is a CodeSerializer that dispatches to a list of other CodeSerializers.
-type DispatchingSerializer struct {
-	Serializers []CodeSerializer
+// NewDispatchingSerializer creates a CodeSerializer that dispatches to a list of other CodeSerializers.
+func NewDispatchingSerializer(serializers ...CodeSerializer) CodeSerializer {
+	return &dispatchingSerializer{
+		serializers: serializers,
+	}
+}
+
+type dispatchingSerializer struct {
+	serializers []CodeSerializer
 }
 
 // CommentBlock implements CodeSerializer.
-func (s DispatchingSerializer) CommentBlock(comment string) error {
-	for _, serializer := range s.Serializers {
+func (s *dispatchingSerializer) CommentBlock(comment string) error {
+	for _, serializer := range s.serializers {
 		if err := serializer.CommentBlock(comment); err != nil {
 			return err
 		}
@@ -93,8 +99,8 @@ func (s DispatchingSerializer) CommentBlock(comment string) error {
 }
 
 // CommentFunction implements CodeSerializer.
-func (s DispatchingSerializer) CommentFunction(id FunctionID, pc uint32) error {
-	for _, serializer := range s.Serializers {
+func (s *dispatchingSerializer) CommentFunction(id FunctionID, pc uint32) error {
+	for _, serializer := range s.serializers {
 		if err := serializer.CommentFunction(id, pc); err != nil {
 			return err
 		}
@@ -103,8 +109,8 @@ func (s DispatchingSerializer) CommentFunction(id FunctionID, pc uint32) error {
 }
 
 // SerializeInstruction implements CodeSerializer.
-func (s DispatchingSerializer) SerializeInstruction(opcode Opcode, paramBytes []byte, comment string) error {
-	for _, serializer := range s.Serializers {
+func (s *dispatchingSerializer) SerializeInstruction(opcode Opcode, paramBytes []byte, comment string) error {
+	for _, serializer := range s.serializers {
 		if err := serializer.SerializeInstruction(opcode, paramBytes, comment); err != nil {
 			return err
 		}

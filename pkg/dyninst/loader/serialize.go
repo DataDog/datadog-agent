@@ -69,9 +69,7 @@ func serializeProgram(program compiler.Program, additionalSerializer compiler.Co
 	})
 
 	if additionalSerializer != nil {
-		serializer = compiler.DispatchingSerializer{
-			Serializers: []compiler.CodeSerializer{serializer, additionalSerializer},
-		}
+		serializer = compiler.NewDispatchingSerializer(serializer, additionalSerializer)
 	}
 
 	metadata, err := compiler.GenerateCode(program, serializer)
