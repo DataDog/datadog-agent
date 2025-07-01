@@ -902,6 +902,8 @@ func TestGetContainerForProcess(t *testing.T) {
 					},
 				})
 			}
+
+			// Testing
 			container, err := s.GetContainerForProcess(tc.pidToQuery)
 			if tc.expectedError != nil {
 				assert.EqualError(t, err, tc.expectedError.Error())

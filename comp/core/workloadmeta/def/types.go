@@ -1241,7 +1241,7 @@ type Process struct {
 	Name         string   // Name -- /proc/[pid]/status
 	Cwd          string   // Current Working Directory -- /proc/[pid]/cwd
 	Exe          string   // Exceutable Path -- /proc[pid]/exe
-	Comm         string   // Short Command Name -- /proc/[]id]/comm
+	Comm         string   // Short Command Name -- /proc/[pid]/comm
 	Cmdline      []string // Command Line -- /proc/[pid]/cmdline
 	Uids         []int32  // User IDs -- /proc/[pid]/status
 	Gids         []int32  // Group IDs -- /proc/[pid]/status
