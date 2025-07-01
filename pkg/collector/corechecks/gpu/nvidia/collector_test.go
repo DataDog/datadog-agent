@@ -145,6 +145,8 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 
 	deduplicated := RemoveDuplicateMetrics(metrics)
 	require.Len(t, deduplicated, 2)
-	require.Equal(t, deduplicated[0].Name, "metric1")
-	require.Equal(t, deduplicated[1].Name, "metric2")
+	require.ElementsMatch(t, deduplicated, []Metric{
+		{Name: "metric1", Priority: 2},
+		{Name: "metric2", Priority: 1},
+	})
 }
