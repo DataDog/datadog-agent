@@ -20,13 +20,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/dwarf/loclist"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 )
 
 // TODO: Validate the probes in the config and report things that are
@@ -57,7 +55,7 @@ const maxHashBucketsSize = 4 * maxDynamicTypeSize
 func GenerateIR(
 	programID ir.ProgramID,
 	objFile object.File,
-	config []config.Probe,
+	config []ir.ProbeDefinition,
 ) (_ *ir.Program, retErr error) {
 	// Given that the go dwarf library is not intentionally safe when
 	// used with untrusted inputs, let's at least recover from panics and
@@ -486,7 +484,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 					Offset: uint32(0),
 					Expression: ir.Expression{
 						Type: variable.Type,
-						Operations: []ir.Op{
+						Operations: []ir.ExpressionOp{
 							&ir.LocationOp{
 								Variable: variable,
 								Offset:   0,
@@ -506,7 +504,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 			if byteSize > math.MaxUint32 {
 				return fmt.Errorf(
 					"event %q has too many bytes: %d",
-					probe.ID, byteSize,
+					probe.GetID(), byteSize,
 				)
 			}
 			event.Type = &ir.EventRootType{
@@ -537,7 +535,7 @@ type rootVisitor struct {
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
 	probes             []*ir.Probe
 	typeCatalog        *typeCatalog
-	loclistReader      *object.LoclistReader
+	loclistReader      *loclist.Reader
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
@@ -718,28 +716,20 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func (v *rootVisitor) newProbe(
-	probeCfg config.Probe,
+	probeCfg ir.ProbeDefinition,
 	unit *dwarf.Entry,
 	subprogram *ir.Subprogram,
 ) (*ir.Probe, error) {
-	kind, err := getProbeKind(probeCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get probe kind: %w", err)
-	}
-	var captureSnapshot bool
-	pointerChasingLimit := uint32(math.MaxUint32)
-	if lp, ok := probeCfg.(*config.LogProbe); ok {
-		captureSnapshot = lp.CaptureSnapshot
-		if lp.Capture != nil {
-			pointerChasingLimit = uint32(lp.Capture.MaxReferenceDepth)
-		}
+	kind := probeCfg.GetKind()
+	if !kind.IsValid() {
+		return nil, fmt.Errorf("invalid probe kind: %v", kind)
 	}
 
 	lineReader, err := v.dwarf.LineReader(unit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get line reader: %w", err)
 	}
-	var injectionPCs []uint64
+	var injectionPoints []ir.InjectionPoint
 	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
 		return nil, fmt.Errorf("subprogram %q has no pc ranges", subprogram.Name)
 	}
@@ -750,54 +740,41 @@ func (v *rootVisitor) newProbe(
 		}
 		if !ok {
 			// Frameless subprogram, first PC should be suitable for injection.
-			injectionPCs = append(injectionPCs, subprogram.OutOfLinePCRanges[0][0])
+			injectionPoints = append(injectionPoints, ir.InjectionPoint{
+				PC:        subprogram.OutOfLinePCRanges[0][0],
+				Frameless: true,
+			})
 		} else {
-			injectionPCs = append(injectionPCs, prologueEnd)
+			injectionPoints = append(injectionPoints, ir.InjectionPoint{
+				PC:        prologueEnd,
+				Frameless: false,
+			})
 		}
 	}
 	for _, inlinedInstanceRanges := range subprogram.InlinePCRanges {
-		// Inlined instances are always frameless.
-		injectionPCs = append(injectionPCs, inlinedInstanceRanges[0][0])
+		injectionPoints = append(injectionPoints, ir.InjectionPoint{
+			PC: inlinedInstanceRanges[0][0],
+			// TODO: We need to determine from the inlined parent whether the
+			// inlined instance is frameless.
+			Frameless: true,
+		})
 	}
 
 	// TODO: Find the return locations and add a return event.
 	events := []*ir.Event{
 		{
-			ID:           v.eventIDAlloc.next(),
-			InjectionPCs: injectionPCs,
-			Condition:    nil,
+			ID:              v.eventIDAlloc.next(),
+			InjectionPoints: injectionPoints,
+			Condition:       nil,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
 			Type: nil,
 		},
 	}
-	var throttlePeriodMs uint32
-	var throttleBudget int64
-	switch c := probeCfg.(type) {
-	case *config.LogProbe:
-		if c.CaptureSnapshot {
-			throttlePeriodMs = 1000
-			throttleBudget = int64(c.Sampling.SnapshotsPerSecond)
-		} else {
-			throttlePeriodMs = 100
-			throttleBudget = 500
-		}
-	case *config.MetricProbe:
-		// Effectively unlimited.
-		throttlePeriodMs = 1000
-		throttleBudget = math.MaxInt
-	}
 	probe := &ir.Probe{
-		ID:                  probeCfg.GetID(),
-		Subprogram:          subprogram,
-		Kind:                kind,
-		Version:             probeCfg.GetVersion(),
-		Tags:                probeCfg.GetTags(),
-		Events:              events,
-		Snapshot:            captureSnapshot,
-		ThrottlePeriodMs:    throttlePeriodMs,
-		ThrottleBudget:      throttleBudget,
-		PointerChasingLimit: pointerChasingLimit,
+		ProbeDefinition: probeCfg,
+		Subprogram:      subprogram,
+		Events:          events,
 	}
 	return probe, nil
 }
@@ -856,19 +833,6 @@ func findPrologueEnd(
 	return 0, false, nil
 }
 
-func getProbeKind(probeCfg config.Probe) (ir.ProbeKind, error) {
-	switch ty := probeCfg.GetType(); ty {
-	case config.TypeLogProbe:
-		return ir.ProbeKindLog, nil
-	case config.TypeMetricProbe:
-		return ir.ProbeKindMetric, nil
-	case config.TypeSpanProbe:
-		return ir.ProbeKindSpan, nil
-	default:
-		return 0, fmt.Errorf("unexpected probe type: %s", ty)
-	}
-}
-
 type subprogramChildVisitor struct {
 	root            *rootVisitor
 	unit            *dwarf.Entry
@@ -876,7 +840,7 @@ type subprogramChildVisitor struct {
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
 	subprogram *ir.Subprogram
-	probesCfgs []config.Probe
+	probesCfgs []ir.ProbeDefinition
 }
 
 func (v *subprogramChildVisitor) push(
@@ -989,7 +953,7 @@ func (v *rootVisitor) processVariable(
 
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
-	probesCfgs []config.Probe
+	probesCfgs []ir.ProbeDefinition
 	subprogram *ir.Subprogram
 	variables  map[dwarf.Offset]*ir.Variable
 }
@@ -1053,6 +1017,8 @@ func (v *inlinedSubroutineChildVisitor) push(
 		return nil, nil
 	case dwarf.TagLexDwarfBlock:
 		return v, nil
+	case dwarf.TagTypedef:
+		return v, nil
 	}
 	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 }
@@ -1067,21 +1033,7 @@ func (v *rootVisitor) computeLocations(
 	typ ir.Type,
 	locField *dwarf.Field,
 ) ([]ir.Location, error) {
-	totalSize := int64(typ.GetByteSize())
-	pointerSize := int(v.object.PointerSize())
-	fixLoclist := func(pieces []locexpr.LocationPiece) []locexpr.LocationPiece {
-		// Workaround for delve not returning sizes.
-		if len(pieces) == 1 {
-			pieces[0].Size = totalSize
-		}
-		// Workaround for net/dwarfutils/locexpr doing incorrect pointer-side adjustment
-		for i := range pieces {
-			if !pieces[i].InReg {
-				pieces[i].StackOffset -= int64(pointerSize)
-			}
-		}
-		return pieces
-	}
+	totalSize := typ.GetByteSize()
 	var locations []ir.Location
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
@@ -1091,44 +1043,32 @@ func (v *rootVisitor) computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		if err := v.loclistReader.Seek(unit, offset); err != nil {
+		loclist, err := v.loclistReader.Read(unit, offset, totalSize)
+		if err != nil {
 			return nil, err
 		}
-		var entry loclist.Entry
-		for v.loclistReader.Next(&entry) {
-			locationPieces, err := locexpr.Exec(
-				entry.Instr, totalSize, pointerSize,
-			)
-			if err != nil {
-				return nil, err
-			}
-			locationPieces = fixLoclist(locationPieces)
-			locations = append(locations, ir.Location{
-				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
-				Pieces: locationPieces,
-			})
+		if len(loclist.Default) > 0 {
+			return nil, fmt.Errorf("unexpected default location pieces")
 		}
+		locations = loclist.Locations
 
 	case dwarf.ClassExprLoc:
-		locationExpression, ok := locField.Val.([]byte)
+		instr, ok := locField.Val.([]byte)
 		if !ok {
 			return nil, fmt.Errorf(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		locationPieces, err := locexpr.Exec(
-			locationExpression, totalSize, pointerSize,
-		)
+		pieces, err := loclist.ParseInstructions(instr, v.object.PointerSize(), totalSize)
 		if err != nil {
 			return nil, err
 		}
-		locationPieces = fixLoclist(locationPieces)
 		// BUG: This should take into consideration the ranges of the current
 		// block, not necessarily the ranges of the subprogram.
 		for _, r := range subprogramRanges {
 			locations = append(locations, ir.Location{
 				Range:  r,
-				Pieces: locationPieces,
+				Pieces: pieces,
 			})
 		}
 	default:
@@ -1137,6 +1077,7 @@ func (v *rootVisitor) computeLocations(
 			locField.Attr, locField.Class,
 		)
 	}
+
 	return locations, nil
 }
 
@@ -1181,25 +1122,23 @@ const runtimePackageName = "runtime"
 // interests tracks what compile units and subprograms we're interested in.
 type interests struct {
 	compileUnits map[string]struct{}
-	subprograms  map[string][]config.Probe
+	subprograms  map[string][]ir.ProbeDefinition
 }
 
-func makeInterests(cfg []config.Probe) (interests, error) {
+func makeInterests(cfg []ir.ProbeDefinition) (interests, error) {
 	i := interests{
 		compileUnits: make(map[string]struct{}),
-		subprograms:  make(map[string][]config.Probe),
+		subprograms:  make(map[string][]ir.ProbeDefinition),
 	}
 	for _, probe := range cfg {
-		where := probe.GetWhere()
-
-		if where == nil {
-			return interests{}, fmt.Errorf(
-				"no interests found for probe %s", probe,
-			)
+		switch where := probe.GetWhere().(type) {
+		case ir.FunctionWhere:
+			methodName := where.Location()
+			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
+			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		default:
+			return interests{}, fmt.Errorf("unexpected where type: %T", where)
 		}
-		methodName := probe.GetWhere().MethodName
-		i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
-		i.subprograms[methodName] = append(i.subprograms[methodName], probe)
 	}
 	return i, nil
 }

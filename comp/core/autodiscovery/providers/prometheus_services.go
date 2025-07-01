@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -66,7 +67,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -318,6 +319,6 @@ func (p *PrometheusServicesConfigProvider) promAnnotationsDiffer(first, second m
 }
 
 // GetConfigErrors is not implemented for the PrometheusServicesConfigProvider
-func (p *PrometheusServicesConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
-	return make(map[string]ErrorMsgSet)
+func (p *PrometheusServicesConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
+	return make(map[string]providerTypes.ErrorMsgSet)
 }
