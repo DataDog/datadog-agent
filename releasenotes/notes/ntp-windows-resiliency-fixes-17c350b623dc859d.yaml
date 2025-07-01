@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    The NTP check on Windows now discovers and queries the primary domain controller (PDC) for time on domain-joined hosts when `use_local_defined_servers` is enabled. If the PDC is unavailable, it automatically falls back to registry-defined servers. The check also now performs order-insensitive server list comparisons to reduce log noise and avoids using itself as a time source when running on a domain controller.
+    The NTP check on Windows now discovers the primary domain controller (PDC) on domain-joined hosts when `use_local_defined_servers` is enabled. If the PDC is unavailable, it automatically falls back to registry-defined servers. Check now performs order-insensitive server list comparisons, reduces log noise and avoids using itself as a time source when running on a domain controller.
 
 fixes:
   - |

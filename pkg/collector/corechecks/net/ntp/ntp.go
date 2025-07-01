@@ -122,8 +122,9 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 		localNtpServers, err = getLocalServers()
 		if err != nil {
 			log.Warnf("Could not get local NTP servers, falling back to configured hosts: %v", err)
+		} else {
+			log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 		}
-		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 	}
 
 	if len(localNtpServers) > 0 {
