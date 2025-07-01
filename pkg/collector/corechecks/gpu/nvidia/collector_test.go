@@ -135,3 +135,16 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveDuplicateMetrics(t *testing.T) {
+	metrics := []Metric{
+		{Name: "metric1", Priority: 0},
+		{Name: "metric2", Priority: 1},
+		{Name: "metric1", Priority: 2},
+	}
+
+	deduplicated := RemoveDuplicateMetrics(metrics)
+	require.Len(t, deduplicated, 2)
+	require.Equal(t, deduplicated[0].Name, "metric1")
+	require.Equal(t, deduplicated[1].Name, "metric2")
+}
