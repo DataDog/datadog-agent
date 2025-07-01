@@ -2118,7 +2118,7 @@ func makeMockClient(profiles []profiledefinition.ProfileDefinition) (*mockRCClie
 	}, nil
 }
 
-func (m *mockRCClient) AgentTaskUpdateCallbackk(_ map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {}
+func (m *mockRCClient) AgentTaskUpdateCallback(_ map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {}
 
 // noop
 func (m *mockRCClient) applyStateCallback(string, state.ApplyStatus) {}
