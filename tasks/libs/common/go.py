@@ -59,14 +59,16 @@ def go_build(
         cmd += f" -ldflags=\"{ldflags}\""
 
     cmd += f" {entrypoint}"
-    res = ctx.run(cmd, env=env)
+    # -dumpdep is very verbose so we hide that
+    # any unrecognized log line is shown by whydeadcode anyway
+    res = ctx.run(cmd, env=env, hide="stderr" if check_deadcode else None)
 
     if check_deadcode:
         # whydeadcode prints unexpected input on stderr (eg. build warnings), and
         # dead code call stack on stdout
         # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
-        # so we hide stderr, and check whether stdout is empty
-        res = ctx.run("whydeadcode", in_stream=res.stdout, warn=True, hide="both")
+        # so we check whether stdout is empty to know if dead code elimination is disabled
+        res = ctx.run("whydeadcode", in_stream=res.stderr, warn=True, hide="stdout")
         if res.stdout:
             raise Exit(f"dead code elimination is disabled by the following call stack:\n{res.stdout}")
 
