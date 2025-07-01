@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -115,6 +116,7 @@ func (s *worker) run() {
 				for _, destSender := range reliableDestinations {
 					// Drop non-MRF payloads to MRF destinations
 					if destSender.destination.IsMRF() && !payload.IsMRF() {
+						log.Debugf("Dropping non-MRF payload to MRF destination: %s", destSender.destination.Target())
 						sent = true
 						continue
 					}
