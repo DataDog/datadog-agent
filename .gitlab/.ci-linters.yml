@@ -87,8 +87,6 @@ job-owners:
     - new-e2e-package-signing-debian-a7-x86_64
     - new-e2e-package-signing-suse-a7-x86_64
     - new-e2e-unit-tests
-    - ot_agent_deb-arm64-a7
-    - ot_agent_deb-x64-a7
     - publish_fakeintake
     - publish_fakeintake_latest
     - rc_kubernetes_deploy
