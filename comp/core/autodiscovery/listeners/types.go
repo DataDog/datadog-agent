@@ -11,8 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -37,7 +37,7 @@ type Service interface {
 	GetPid() (int, error)                                        // process identifier
 	GetHostname() (string, error)                                // hostname.domainname for the entity
 	IsReady() bool                                               // is the service ready
-	HasFilter(containers.FilterType) bool                        // whether the service is excluded by metrics or logs exclusion config
+	HasFilter(workloadfilter.Scope) bool                         // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values
 
 	// FilterTemplates filters the templates which will be resolved against
@@ -69,6 +69,7 @@ type ServiceListernerDeps struct {
 	Config    Config
 	Telemetry *telemetry.Store
 	Tagger    tagger.Component
+	Filter    workloadfilter.Component
 	Wmeta     option.Option[workloadmeta.Component]
 }
 

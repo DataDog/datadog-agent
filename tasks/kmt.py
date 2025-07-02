@@ -214,7 +214,7 @@ def gen_config_from_ci_pipeline(
     kmt_pipeline.retrieve_jobs()
 
     for job in kmt_pipeline.setup_jobs:
-        if (vcpu is None or memory is None) and job.status == "success":
+        if (vcpu is None or memory is None) and job.status == GitlabJobStatus.SUCCESS:
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
                 memory_list = vmset.get("memory", [])
@@ -231,7 +231,7 @@ def gen_config_from_ci_pipeline(
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
     for test_job in kmt_pipeline.test_jobs:
-        if test_job.status == "failed" and job.component == vmconfig_template:
+        if test_job.status == GitlabJobStatus.FAILED and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = "local"
@@ -1786,8 +1786,8 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     kmt_pipeline = KMTPipeline(pipeline)
     kmt_pipeline.retrieve_jobs()
 
-    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == "failed"]
-    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == "failed"]
+    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == GitlabJobStatus.FAILED]
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.FAILED]
     failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"
