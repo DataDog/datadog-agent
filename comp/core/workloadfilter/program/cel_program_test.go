@@ -11,7 +11,7 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/stretchr/testify/require"
 
-	filterdef "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func TestCELFieldConfigurationErrors(t *testing.T) {

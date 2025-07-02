@@ -7,7 +7,7 @@
 package program
 
 import (
-	filterdef "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 // FilterProgram is an interface that defines a method for evaluating a filter program.

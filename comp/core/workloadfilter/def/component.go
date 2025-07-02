@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package filter provides the interface for the filter component
-package filter
+// Package workloadfilter provides the interface for the filter component
+package workloadfilter
 
 // team: container-platform
 
@@ -16,4 +16,6 @@ package filter
 type Component interface {
 	IsContainerExcluded(container *Container, containerFilters [][]ContainerFilter) bool
 	IsPodExcluded(pod *Pod, podFilters [][]PodFilter) bool
+	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
+	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
 }

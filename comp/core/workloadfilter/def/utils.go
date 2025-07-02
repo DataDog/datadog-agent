@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package filter
+package workloadfilter
 
 import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -74,9 +74,9 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 			low = append(low, LegacyContainerACExclude)
 		}
 	case MetricsFilter:
-		low = append(low, LegacyContainerMetrics)
+		low = append(low, LegacyContainerMetrics, ContainerADAnnotationsMetrics)
 	case LogsFilter:
-		low = append(low, LegacyContainerLogs)
+		low = append(low, LegacyContainerLogs, ContainerADAnnotationsLogs)
 	}
 
 	flist[lowPrecedence] = low

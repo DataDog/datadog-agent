@@ -8,7 +8,7 @@ package program
 import (
 	"fmt"
 
-	filterdef "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 
 	"github.com/google/cel-go/cel"
 )

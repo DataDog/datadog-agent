@@ -13,44 +13,74 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 
-	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func TestConvertOldToNewFilter_Success(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    []string
-		expected string
+		name        string
+		objectType  filter.ResourceType
+		legacyInput []string
+		expected    string
 	}{
 		{
 			"single name filter",
+			filter.ContainerType,
 			[]string{"name:foo-.*"},
 			`container.name.matches("foo-.*")`,
 		},
 		{
 			"single image filter",
+			filter.ContainerType,
 			[]string{"image:nginx.*"},
 			`container.image.matches("nginx.*")`,
 		},
 		{
 			"multiple filters",
+			filter.ContainerType,
 			[]string{"name:foo-.*", "image:nginx.*"},
 			`container.name.matches("foo-.*") || container.image.matches("nginx.*")`,
 		},
 		{
 			"filter with single quote and backslash",
+			filter.ContainerType,
 			[]string{`name:foo'bar\zab`},
 			`container.name.matches("foo'bar\\zab")`,
 		},
 		{
 			"empty filter is skipped",
+			filter.ContainerType,
 			[]string{"", "name:foo"},
 			`container.name.matches("foo")`,
+		},
+		{
+			"nil filter is skipped",
+			filter.ContainerType,
+			nil,
+			"",
+		},
+		{
+			"exclude omitted image key in pod",
+			filter.PodType,
+			[]string{"name:foo-.*", "image:nginx.*"},
+			`pod.name.matches("foo-.*")`,
+		},
+		{
+			"exclude omitted image key in service",
+			filter.ServiceType,
+			[]string{"name:foo-.*", "image:nginx.*"},
+			`service.name.matches("foo-.*")`,
+		},
+		{
+			"exclude omitted image key in endpoint",
+			filter.EndpointType,
+			[]string{"name:foo-.*", "image:nginx.*"},
+			`endpoint.name.matches("foo-.*")`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := convertOldToNewFilter(tt.input)
+			got, err := convertOldToNewFilter(tt.legacyInput, tt.objectType)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
 		})
@@ -73,7 +103,7 @@ func TestConvertOldToNewFilter_Errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := convertOldToNewFilter(tt.input)
+			_, err := convertOldToNewFilter(tt.input, filter.ContainerType)
 			assert.Error(t, err)
 		})
 	}
