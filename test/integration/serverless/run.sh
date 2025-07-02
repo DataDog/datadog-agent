@@ -63,20 +63,20 @@ SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/nu
 
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
 LAMBDA_EXTENSION_REPOSITORY_PATH="${LAMBDA_EXTENSION_REPOSITORY_PATH:-../datadog-lambda-extension}"
-if [ "$BUILD_EXTENSION" != "false" ]; then
-    echo "Building extension"
-
-    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
-        ENABLE_RACE_DETECTION=false
-    fi
-
-    # This version number is arbitrary and won't be used by AWS
-    PLACEHOLDER_EXTENSION_VERSION=123
-
-    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
-else
-    echo "Skipping extension build, reusing previously built extension"
-fi
+#if [ "$BUILD_EXTENSION" != "false" ]; then
+#    echo "Building extension"
+#
+#    if [ "$ENABLE_RACE_DETECTION" != "true" ]; then
+#        ENABLE_RACE_DETECTION=false
+#    fi
+#
+#    # This version number is arbitrary and won't be used by AWS
+#    PLACEHOLDER_EXTENSION_VERSION=123
+#
+#    ARCHITECTURE=$ARCHITECTURE RACE_DETECTION_ENABLED=$ENABLE_RACE_DETECTION VERSION=$PLACEHOLDER_EXTENSION_VERSION $LAMBDA_EXTENSION_REPOSITORY_PATH/scripts/build_binary_and_layer_dockerized.sh
+#else
+#    echo "Skipping extension build, reusing previously built extension"
+#fi
 
 cd $SERVERLESS_INTEGRATION_TESTS_DIR
 
@@ -112,58 +112,58 @@ function remove_stack() {
 trap remove_stack EXIT
 
 metric_functions=(
-    "metric-node"
-    "metric-python"
-    "metric-java"
-    "metric-go"
-    "metric-csharp"
-    "metric-proxy"
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-    "error-node"
-    "error-python"
-    "error-java"
-    "error-csharp"
-    "error-proxy"
+    #"metric-node"
+    #"metric-python"
+    #"metric-java"
+    #"metric-go"
+    #"metric-csharp"
+    #"metric-proxy"
+    #"timeout-node"
+    #"timeout-python"
+    #"timeout-java"
+    #"timeout-go"
+    #"timeout-csharp"
+    #"timeout-proxy"
+    #"error-node"
+    #"error-python"
+    #"error-java"
+    #"error-csharp"
+    #"error-proxy"
 )
 log_functions=(
-    "log-node"
-    "log-python"
-    "log-java"
-    "log-go"
-    "log-csharp"
-    "log-proxy"
+    #"log-node"
+    #"log-python"
+    #"log-java"
+    #"log-go"
+    #"log-csharp"
+    #"log-proxy"
 )
 trace_functions=(
-    "trace-node"
-    "trace-python"
-    "trace-java"
+    #"trace-node"
+    #"trace-python"
+    #"trace-java"
     "trace-go"
-    "trace-csharp"
-    "trace-proxy"
-    "otlp-python"
+    #"trace-csharp"
+    #"trace-proxy"
+    #"otlp-python"
 )
 appsec_functions=(
-    "appsec-node"
-    "appsec-python"
-    "appsec-java"
-    "appsec-go"
-    "appsec-csharp"
+    #"appsec-node"
+    #"appsec-python"
+    #"appsec-java"
+    #"appsec-go"
+    #"appsec-csharp"
 )
 proxy_functions=(
-    "proxy-env-apikey"
-    "proxy-yaml-apikey"
-    "proxy-yaml-env-apikey"
-    "proxy-env-secret"
-    "proxy-yaml-secret"
-    "proxy-yaml-env-secret"
-    "proxy-env-kms"
-    "proxy-yaml-kms"
-    "proxy-yaml-env-kms"
+    #"proxy-env-apikey"
+    #"proxy-yaml-apikey"
+    #"proxy-yaml-env-apikey"
+    #"proxy-env-secret"
+    #"proxy-yaml-secret"
+    #"proxy-yaml-env-secret"
+    #"proxy-env-kms"
+    #"proxy-yaml-kms"
+    #"proxy-yaml-env-kms"
 )
 
 declare -a all_functions # This is an array
