@@ -207,8 +207,9 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 			metricFilepath := filepath.Join(sysNetLocation, iface.Name(), metricFileName)
 			val, err := readIntFile(metricFilepath, filesystem)
 			if err != nil {
-				sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
+				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
 			}
+			sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
 		}
 		queuesFilepath := filepath.Join(sysNetLocation, iface.Name(), "queues")
 		queues, err := afero.ReadDir(filesystem, queuesFilepath)
@@ -218,9 +219,9 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 			txQueueCount, rxQueueCount := 0, 0
 			for _, queue := range queues {
 				if strings.HasPrefix(queue.Name(), "tx-") {
-					txQueueCount += 1
+					txQueueCount++
 				} else if strings.HasPrefix(queue.Name(), "rx-") {
-					rxQueueCount += 1
+					rxQueueCount++
 				}
 			}
 			sender.Gauge("system.net.iface.num_tx_queues", float64(txQueueCount), "", ifaceTag)
@@ -728,15 +729,21 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 	// the whitelist is losing its default value
 	for _, metricName := range availableFiles {
 		if len(blacklistConntrackMetrics) > 0 {
-			if slices.Contains(blacklistConntrackMetrics, metricName) {
+			if slices.ContainsFunc(blacklistConntrackMetrics, func(s string) {
+				strings.Contains(metricName, s)
+			}) {
 				continue
 			}
 		} else if len(whitelistConntrackMetrics) > 0 {
-			if !slices.Contains(whitelistConntrackMetrics, metricName) {
+			if !slices.ContainsFunc(whitelistConntrackMetrics, func(s string) {
+				strings.Contains(metricName, s)
+			}) {
 				continue
 			}
 		} else {
-			if !slices.Contains([]string{"max", "count"}, metricName) {
+			if !slices.Contains([]string{"max", "count"}, func(s string) {
+				strings.Contains(metricName, s)
+			}) {
 				continue
 			}
 		}
