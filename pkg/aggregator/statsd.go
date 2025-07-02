@@ -37,7 +37,6 @@ func NewStatsdDirect(demux DemultiplexerWithAggregator, hostnameComp hostnameint
 		origin: taggertypes.OriginInfo{
 			LocalData:     origindetection.LocalData{ProcessID: uint32(os.Getpid())},
 			ProductOrigin: origindetection.ProductOriginDogStatsD,
-			Cardinality:   types.HighCardinalityString,
 		},
 		hostname: hostname,
 	}, nil
