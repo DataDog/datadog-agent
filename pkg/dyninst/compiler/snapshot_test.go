@@ -62,6 +62,7 @@ func runTest(
 	defer func() { require.NoError(t, elfFile.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probeDefs)
 	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
 	program, err := GenerateProgram(ir)
 	require.NoError(t, err)

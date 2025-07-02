@@ -96,9 +96,9 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Check there are no more events after a short delay.
 	rd.SetDeadline(time.Now().Add(10 * time.Millisecond))
-	_, err = rd.Read()
+	v, err := rd.Read()
 	log.Printf("err: %v", err)
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "expected deadline exceeded, got %#+v, %#+v", err, v)
 }
 
 func refreshesBudget(t *testing.T, busyloopPath string) {
