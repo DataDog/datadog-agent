@@ -44,7 +44,7 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
 SEC("socket/protocol_dispatcher_kafka")
 int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
-    dispatch_kafka(skb, 0);
+    dispatch_kafka(skb, FLAG_ALL);
     return 0;
 }
 
