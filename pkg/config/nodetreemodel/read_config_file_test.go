@@ -238,17 +238,31 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, errors.New("invalid type from configuration for key 'c'"), c.warnings[0])
+	assert.Equal(t, errors.New("invalid type from configuration for key 'c': 1234"), c.warnings[0])
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{},
-			},
-		},
-	}
-	assert.Equal(t, expected, c.file)
+	// The file node with "1234" still exists, but it was not merged because it didn't match
+	// the schema layer.
+	expected := `tree(#ptr<000000>) source=root
+> a
+    leaf(#ptr<000001>), val:"orange", source:file
+> c
+  inner(#ptr<000002>)
+  > d
+      leaf(#ptr<000003>), val:true, source:default
+tree(#ptr<000004>) source=default
+> a
+    leaf(#ptr<000005>), val:"apple", source:default
+> c
+  inner(#ptr<000006>)
+  > d
+      leaf(#ptr<000007>), val:true, source:default
+tree(#ptr<000008>) source=environment-variable
+tree(#ptr<000009>) source=file
+> a
+    leaf(#ptr<000010>), val:"orange", source:file
+> c
+    leaf(#ptr<000011>), val:1234, source:file`
+	assert.Equal(t, expected, c.Stringify("all", model.OmitPointerAddr))
 }
 
 func TestToMapStringInterface(t *testing.T) {
