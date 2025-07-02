@@ -104,7 +104,7 @@ go_e2e_test_binaries:
   needs:
     - go_e2e_deps
   variables:
-    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_MEMORY_REQUEST: 64Gi
     KUBERNETES_MEMORY_LIMIT: 64Gi
   before_script:

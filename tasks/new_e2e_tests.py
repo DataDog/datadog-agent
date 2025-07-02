@@ -33,6 +33,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
@@ -149,11 +150,13 @@ def build_binaries(
                     pkg_result, success, message = future.result()
                     if success:
                         success_count += 1
-                        # Store the original package path and binary name
-                        binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
-                        built_packages.append((pkg_result, binary_name))
+
                     else:
                         failure_count += 1
+
+                    # Even if it failed to build, we still want to add it to the manifest, so that we know something is missing in the test execution
+                    binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+                    built_packages.append((pkg_result, binary_name))
 
                     # Print progress
                     with print_lock:
@@ -198,7 +201,8 @@ def build_binaries(
     print(f"Manifest created: {manifest_file_path}")
 
     if failure_count > 0:
-        print(f"Warning: {failure_count} packages failed to build")
+        print(f"Error: {failure_count} packages failed to build")
+        raise Exit(code=1)
 
 
 @task(
@@ -548,32 +552,30 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
 
         return True
 
-    with open(path) as f:
-        lines = [json.loads(line) for line in f]
+    result_json = ResultJson.from_file(path)
 
-    lines = [
-        json_line for json_line in lines if "Package" in json_line and "Test" in json_line and "Output" in json_line
-    ]
+    lines = [line for line in result_json.lines if line.output and line.test]
 
-    tests = {(json_line["Package"], json_line["Test"]): [] for json_line in lines}
+    tests: dict[tuple[str, str], list] = {(json_line.package, json_line.test): [] for json_line in lines}  # type: ignore
 
     # Used to preserve order, line where a test appeared first
-    test_order = {(json_line["Package"], json_line["Test"]): i for (i, json_line) in list(enumerate(lines))[::-1]}
+    test_order = {(json_line.package, json_line.test): i for (i, json_line) in list(enumerate(lines))[::-1]}
 
     for json_line in lines:
-        if json_line["Action"] == "output":
-            output: str = json_line["Output"]
+        assert json_line.output and json_line.test  # Just making mypy happy
+        if json_line.action == ActionType.OUTPUT:
+            output: str = json_line.output
             if "===" in output:
                 continue
 
             # Append logs to all children tests + this test
-            current_test_name_splitted = json_line["Test"].split("/")
+            current_test_name_splitted = json_line.test.split("/")
             for (package, test_name), logs in tests.items():
-                if package != json_line["Package"]:
+                if package != json_line.package:
                     continue
 
                 if is_parent(current_test_name_splitted, test_name.split("/")):
-                    logs.append(json_line["Output"])
+                    logs.append(json_line.output)
 
     # Rebuild order
     return sorted(

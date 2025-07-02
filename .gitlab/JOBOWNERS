@@ -71,6 +71,9 @@ iot_agent_suse*                      @DataDog/agent-delivery
 dogstatsd_suse*                      @DataDog/agent-delivery
 agent_oci*                           @DataDog/agent-delivery
 installer_oci*                       @DataDog/agent-delivery
+ddot_deb*                            @DataDog/agent-delivery
+ddot_rpm*                            @DataDog/agent-delivery
+ddot_suse_rpm*                       @DataDog/agent-delivery
 check_pkg_size                       @DataDog/agent-delivery
 
 # Testing package deploy
@@ -168,6 +171,7 @@ kmt_*                             @DataDog/ebpf-platform
 upload_secagent_tests*            @DataDog/ebpf-platform
 upload_sysprobe_tests*            @DataDog/ebpf-platform
 notify_ebpf_complexity_changes    @DataDog/ebpf-platform
+test_ebpf_complexity_changes      @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance

@@ -45,15 +45,7 @@ if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
     # This dir contains `aws.rb` which will execute if we just call `aws`,
     # so we need to be explicit about the executable extension/path
-    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
-    #       causes it to fail due to not searching the PATH.
-    # NOTE: The full path to `aws.cmd` is likely to contain spaces, so if the full path is
-    #       used instead, it must be quoted when passed to ctx.run.
-    # This unfortunately means that the quoting requirements are different if you use
-    # the full path or just the filename.
-    # aws.cmd -> awscli v1 from Python env
-    AWS_CMD = "aws.cmd"
-    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
+    AWS_CMD = "aws.exe"
 else:
     AWS_CMD = "aws"
 
@@ -157,10 +149,6 @@ def build(
         dda inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
-
-    if flavor.is_ot():
-        # for agent build purposes the UA agent is just like base
-        flavor = AgentFlavor.base
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
@@ -471,7 +459,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -645,12 +633,11 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
-    excluded = excluded.split(',')
     integrations = []
 
     for entry in os.listdir(integrations_dir):
         int_path = os.path.join(integrations_dir, entry)
-        if not os.path.isdir(int_path) or entry in excluded:
+        if not os.path.isdir(int_path) or entry in excluded.split(','):
             continue
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
