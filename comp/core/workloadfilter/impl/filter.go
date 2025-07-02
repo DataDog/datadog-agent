@@ -96,6 +96,8 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	// Service Filters
 	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram(config, logger))
 	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram(config, logger))
+	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), catalog.ServiceADAnnotationsProgram(config, logger))
+	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), catalog.ServiceADAnnotationsMetricsProgram(config, logger))
 
 	// Endpoints Filters
 	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
