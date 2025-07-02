@@ -8,6 +8,7 @@ package workloadfilterimpl
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -456,16 +457,43 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 	})
 }
 
+func TestContainerFilterInitializationError(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
+	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
+	f := newFilterObject(t, mockConfig)
+
+	t.Run("Properly defined filter", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors(workloadfilter.LegacyContainerMetrics)
+		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
+	})
+
+	t.Run("Improperly defined filter", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors(workloadfilter.LegacyContainerGlobal)
+		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
+		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
+	})
+}
+
 type errorInclProgram struct{}
 
 func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
 	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
 }
 
+func (p errorInclProgram) GetInitializationErrors() []error {
+	return nil
+}
+
 type errorExclProgram struct{}
 
 func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
 	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
+}
+
+func (p errorExclProgram) GetInitializationErrors() []error {
+	return nil
 }
 
 func TestProgramErrorHandling(t *testing.T) {
@@ -537,4 +565,14 @@ func TestEndpointFiltering(t *testing.T) {
 
 	res := evaluateResource(f, endpoint, [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}})
 	assert.Equal(t, workloadfilter.Included, res)
+}
+
+// containsErrorWithMessage checks if any error in the slice contains the specified message
+func containsErrorWithMessage(errs []error, message string) bool {
+	for _, err := range errs {
+		if strings.Contains(err.Error(), message) {
+			return true
+		}
+	}
+	return false
 }

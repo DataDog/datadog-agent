@@ -18,4 +18,6 @@ type Component interface {
 	IsPodExcluded(pod *Pod, podFilters [][]PodFilter) bool
 	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
 	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
+
+	GetContainerFilterInitializationErrors(filter ContainerFilter) []error
 }
