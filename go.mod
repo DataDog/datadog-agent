@@ -1192,4 +1192,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
 
-replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20250702100719-9a1ba4e3340c
+replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20250702110233-5bd5487bd9ce
