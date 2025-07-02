@@ -123,6 +123,7 @@ func GenerateIR(
 	); err != nil {
 		return nil, err
 	}
+	slices.SortFunc(v.probes, compareProbes)
 	return &ir.Program{
 		ID:          programID,
 		Subprograms: v.subprograms,
@@ -130,6 +131,18 @@ func GenerateIR(
 		Types:       v.typeCatalog.typesByID,
 		MaxTypeID:   v.typeCatalog.idAlloc.alloc,
 	}, nil
+}
+
+type probeIDer interface {
+	GetID() string
+	GetVersion() int
+}
+
+func compareProbes[A, B probeIDer](a A, b B) int {
+	return cmp.Or(
+		cmp.Compare(a.GetID(), b.GetID()),
+		cmp.Compare(b.GetVersion(), a.GetVersion()), // reverse version order
+	)
 }
 
 func (v *rootVisitor) instantiateAbstractSubprograms() error {
