@@ -267,27 +267,32 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
-		switch rule.Type {
-		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
-				return false
-			}
-			msg.RecordProcessingRule(rule.Type, rule.Name)
-		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
+		if rule.Regex != nil {
+			switch rule.Type {
+			case config.ExcludeAtMatch:
+				// if this message matches, we ignore it
+				if rule.Regex.Match(content) {
 					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false
+				}
+			case config.IncludeAtMatch:
+				// if this message doesn't match, we ignore it
+				if !rule.Regex.Match(content) {
+					return false
+				}
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			case config.MaskSequences:
+				if isMatchingLiteralPrefix(rule.Regex, content) {
+					originalContent := content
+					content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+					if !bytes.Equal(originalContent, content) {
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+					}
 				}
 			}
+		} else {
+			// Log a warning for rules with nil regex - this indicates a configuration issue
+			log.Warnf("Processing rule '%s' of type '%s' has nil regex - rule will be skipped", rule.Name, rule.Type)
 		}
 	}
 
