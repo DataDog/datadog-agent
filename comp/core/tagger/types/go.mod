@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/types
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.67.1-rc.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.67.1
 	github.com/stretchr/testify v1.10.0
 )
 
