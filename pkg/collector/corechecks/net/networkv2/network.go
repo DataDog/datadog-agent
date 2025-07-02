@@ -729,20 +729,20 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 	// the whitelist is losing its default value
 	for _, metricName := range availableFiles {
 		if len(blacklistConntrackMetrics) > 0 {
-			if slices.ContainsFunc(blacklistConntrackMetrics, func(s string) {
-				strings.Contains(metricName, s)
+			if slices.ContainsFunc(blacklistConntrackMetrics, func(s string) bool {
+				return strings.Contains(metricName, s)
 			}) {
 				continue
 			}
 		} else if len(whitelistConntrackMetrics) > 0 {
-			if !slices.ContainsFunc(whitelistConntrackMetrics, func(s string) {
-				strings.Contains(metricName, s)
+			if !slices.ContainsFunc(whitelistConntrackMetrics, func(s string) bool {
+				return strings.Contains(metricName, s)
 			}) {
 				continue
 			}
 		} else {
-			if !slices.Contains([]string{"max", "count"}, func(s string) {
-				strings.Contains(metricName, s)
+			if !slices.Contains([]string{"max", "count"}, func(s string) bool {
+				return strings.Contains(metricName, s)
 			}) {
 				continue
 			}
