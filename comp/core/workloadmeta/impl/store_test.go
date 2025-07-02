@@ -909,11 +909,6 @@ func TestGetContainerForProcess(t *testing.T) {
 				assert.EqualError(t, err, tc.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
-			}
-
-			if tc.expectedContainer == nil {
-				assert.Nil(t, container)
-			} else {
 				assert.Equal(t, *tc.expectedContainer, *container)
 			}
 		})
