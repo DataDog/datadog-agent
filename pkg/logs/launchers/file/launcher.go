@@ -51,7 +51,7 @@ type Launcher struct {
 	done                chan struct{}
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
-	// Feature flag defaulting to false,
+	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
@@ -203,7 +203,7 @@ func (s *Launcher) scan() {
 				continue
 			}
 			if didRotate {
-				// Always restart tailer to honor close_timeout contract and preserve state
+				// restart tailer because of file-rotation on file
 				succeeded := s.restartTailerAfterFileRotation(tailered, file)
 				if !succeeded {
 					// the setup failed, let's try to tail this file in the next scan
@@ -244,7 +244,6 @@ func (s *Launcher) scan() {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
-			// create a new tailer tailing from the beginning of the file if no offset has been recorded
 			checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if checkSumEnabled == "checksum" {
 
@@ -269,6 +268,7 @@ func (s *Launcher) scan() {
 				filesTailed[scanKey] = true
 				continue
 			} else {
+				// create a new tailer tailing from the beginning of the file if no offset has been recorded
 				succeeded := s.startNewTailer(file, config.Beginning)
 				if !succeeded {
 					// the setup failed, let's try to tail this file in the next scan
@@ -280,6 +280,8 @@ func (s *Launcher) scan() {
 			}
 		}
 	}
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
 	if err == nil {

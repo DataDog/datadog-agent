@@ -41,8 +41,8 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	fileSize := fi1.Size()
 
-	recreated := !os.SameFile(fi1, fi2)    //if fingerprint changed, treat as rotation
-	truncated := fileSize < lastReadOffset //if offset decreases, treat as truncation and reset reading position
+	recreated := !os.SameFile(fi1, fi2)
+	truncated := fileSize < lastReadOffset
 
 	if recreated {
 		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
