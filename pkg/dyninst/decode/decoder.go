@@ -153,7 +153,7 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	err = enc.WriteToken(jsontext.String(p.probe.ID))
+	err = enc.WriteToken(jsontext.String(p.probe.GetID()))
 	if err != nil {
 		return err
 	}
