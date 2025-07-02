@@ -230,7 +230,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
-            check_deadcode=True,
+            check_deadcode_in_ci=True,
         )
 
     if embedded_path is None:

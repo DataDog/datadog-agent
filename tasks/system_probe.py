@@ -839,7 +839,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
-        check_deadcode=True,
+        check_deadcode_in_ci=True,
     )
 
 

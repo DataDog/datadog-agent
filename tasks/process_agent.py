@@ -82,7 +82,7 @@ def build(
         build_tags=build_tags,
         bin_path=BIN_PATH,
         env=env,
-        check_deadcode=True,
+        check_deadcode_in_ci=True,
     )
 
 
