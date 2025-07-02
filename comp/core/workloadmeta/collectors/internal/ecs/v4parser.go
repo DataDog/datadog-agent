@@ -121,10 +121,10 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 			return v1TaskToV4Task(task), err
 		}
 		// Add tags if they exist
-		if len(rt.tags) == 0 {
+		if len(rt.tags) > 0 {
 			taskWithTags.TaskTags = rt.tags
 		}
-		if len(rt.containerInstanceTags) == 0 {
+		if len(rt.containerInstanceTags) > 0 {
 			taskWithTags.ContainerInstanceTags = rt.containerInstanceTags
 		}
 
