@@ -5,14 +5,19 @@
 
 //go:build ignore
 
-package output
+// Package loader supports setting up the eBPF program.
+package loader
 
 // #define CGO
+// #define bool _Bool
+// #define int64_t long long
+// #define uint8_t unsigned char
 // #define uint16_t unsigned short
 // #define uint32_t unsigned int
 // #define uint64_t unsigned long long
-// #include "../ebpf/framing.h"
+// #include "../ebpf/types.h"
 import "C"
 
-type EventHeader C.di_event_header_t
-type DataItemHeader C.di_data_item_header_t
+type typeInfo C.type_info_t
+type probeParams C.probe_params_t
+type throttlerParams C.throttler_params_t
