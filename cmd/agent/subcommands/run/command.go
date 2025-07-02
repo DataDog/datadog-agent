@@ -353,6 +353,24 @@ func run(log log.Component,
 		return err
 	}
 
+	agentStarted := telemetry.NewCounter(
+		"runtime",
+		"started",
+		[]string{},
+		"Establish if the agent has started",
+	)
+	agentRunning := telemetry.NewGauge(
+		"runtime",
+		"running",
+		[]string{},
+		"Establish if the agent is running",
+	)
+
+	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
+	agentStarted.Inc()
+	agentRunning.Set(1)
+
 	return <-stopCh
 }
 
