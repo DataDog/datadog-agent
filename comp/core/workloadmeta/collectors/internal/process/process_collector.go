@@ -626,16 +626,28 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				log.Errorf("Error getting processes for service discovery: %v", err)
 				continue
 			}
-			if len(alivePids) == 0 {
-				continue // no processes to check
+
+			var wlmDeletedProcs []*workloadmeta.Process
+			for pid := range c.pidHeartbeats {
+				if alivePids.Has(pid) {
+					continue
+				}
+
+				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindProcess,
+						ID:   strconv.Itoa(int(pid)),
+					},
+				})
 			}
 
 			wlmServiceEntities, _ := c.updateServices(alivePids)
 
-			if len(wlmServiceEntities) > 0 {
+			if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
 				c.processEventsCh <- &Event{
 					Type:    EventTypeServiceDiscovery,
 					Created: wlmServiceEntities,
+					Deleted: wlmDeletedProcs,
 				}
 			}
 
