@@ -66,7 +66,8 @@ const (
 	tlsProduceResponsePartitionParserV9TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v9"
 
 	tlsTerminationTailCall = "uprobe__kafka_tls_termination"
-	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
+	tlsDispatcherTailCall1 = "uprobe__tls_protocol_dispatcher_kafka1"
+	tlsDispatcherTailCall2 = "uprobe__tls_protocol_dispatcher_kafka2"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
 	netifProbe414    = "netif_receive_skb_core_kafka_4_14"
@@ -237,7 +238,14 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsDispatcherTailCall,
+				EBPFFuncName: tlsDispatcherTailCall1,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsDispatcherTailCall2,
 			},
 		},
 	},

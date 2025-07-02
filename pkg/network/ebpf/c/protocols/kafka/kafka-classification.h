@@ -48,26 +48,31 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
     (topic_id[6] >> 4) == 4 && \
     0x8 <= (topic_id[8] >> 4) && (topic_id[8] >> 4) <= 0xB
 
+// should be additive
+// Used to flag which kafka operations we are interested in.
+// Specifically, allows to split classification into multiple programs
+typedef enum {
+    FLAG_PRODUCE = 1,
+    FLAG_FETCH = 2,
+    FLAG_API_VERSIONS = 4
+} __attribute__ ((packed)) classification_flag_t;
+
+
 PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(kafka_client_string, CLIENT_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
 // Used to validate the client_id, software name and software version.
 // The same buffer is used for all of them to cut down on instruction count in the verifier.
 // valid means composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16 real_string_size) {
+static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16 real_string_size, char *client_string) {
     if (real_string_size == 0) {
         return true;
     }
-    // Needed to cut instructions in the verifier.
+    // Explicitly check to lower verifier instruction count.
     if (real_string_size > CLIENT_STRING_MAX_SIZE) {
         return false;
     }
-    const u32 key = 0;
-    // Use a buffer from per-cpu array as the stack is limited.
-    char *client_string = bpf_map_lookup_elem(&kafka_client_string, &key);
-    if (client_string == NULL) {
-        return false;
-    }
-    bpf_memset(client_string, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
+
+//    bpf_memset(client_string, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
     pktbuf_read_into_buffer_kafka_client_string(client_string, pkt, offset);
 
     // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
@@ -96,40 +101,23 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 }
 
 // Checks the given kafka api key (= operation) and api version is supported and wanted by us.
-static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version) {
+// Filters out operations which are not "on" in the classification flags.
+static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version, __u32 classification_flags) {
+    // This function is all inline conditions to cut down on instruction count in the verifier.
     switch (api_key) {
     case KAFKA_FETCH:
-        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-            return false;
-        }
-        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-            return false;
-        }
-        break;
+        return (classification_flags == 0 || classification_flags & FLAG_FETCH) && api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION &&
+            api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION;
     case KAFKA_PRODUCE:
-        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
-            // We have seen some false positives when both request_api_version and request_api_key are 0,
-            // so dropping support for this case
-            return false;
-        } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
-            return false;
-        }
-        break;
+        return (classification_flags == 0 || classification_flags & FLAG_PRODUCE) && api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION &&
+            api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION;
     case KAFKA_API_VERSIONS:
-        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
-            return false;
-        }
-        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
-            return false;
-        }
-        break;
+        return (classification_flags == 0 || classification_flags & FLAG_API_VERSIONS) && api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION &&
+            api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION;
     default:
         // We are only interested in fetch and produce requests
         return false;
     }
-
-    // if we didn't hit any of the above checks, we are good to go.
-    return true;
 }
 
 PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
@@ -439,12 +427,19 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
             return false;
         }
 
+        const u32 key = 0;
+        // Use a buffer from per-cpu array as the stack is limited.
+        char *client_string = bpf_map_lookup_elem(&kafka_client_string, &key);
+        if (client_string == NULL) {
+            return false;
+        }
+
         // Verify client software name
         s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
         if (client_software_name_size < 0 || client_software_name_size > CLIENT_STRING_MAX_SIZE) {
             return false;
         }
-        if (!is_valid_client_string(pkt, offset, client_software_name_size)) {
+        if (!is_valid_client_string(pkt, offset, client_software_name_size, client_string)) {
             return false;
         }
         offset += client_software_name_size;
@@ -454,7 +449,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         if (client_software_version_size < 0 || client_software_version_size > CLIENT_STRING_MAX_SIZE) {
             return false;
         }
-        if (!is_valid_client_string(pkt, offset, client_software_version_size)) {
+        if (!is_valid_client_string(pkt, offset, client_software_version_size, client_string)) {
             return false;
         }
         offset += client_software_version_size;
@@ -478,7 +473,9 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
 }
 
 // Checks if the packet represents a kafka request.
-static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_size) {
+// Classification flags are used to split the classification into multiple programs (0 will match all requests).
+// (e.g. one for produce and fetch requests, another for api versions).
+static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_size, __u32 classification_flags) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
 
     const kafka_header_t *header_view = (kafka_header_t *)buf;
@@ -494,7 +491,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
         return false;
     }
 
-    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
+    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version, classification_flags)) {
         return false;
     }
 
@@ -502,7 +499,14 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
-        if (!is_valid_client_string(pkt, offset, kafka_header.client_id_size)) {
+        const u32 key = 0;
+        // Use a buffer from per-cpu array as the stack is limited.
+        char *client_string = bpf_map_lookup_elem(&kafka_client_string, &key);
+        if (client_string == NULL) {
+            return false;
+        }
+
+        if (!is_valid_client_string(pkt, offset, kafka_header.client_id_size, client_string)) {
             return false;
         }
         offset += kafka_header.client_id_size;
@@ -513,14 +517,14 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     return is_kafka_request(&kafka_header, pkt, offset);
 }
 
-static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
+static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size, __u32 classification_flags)
 {
-    return __is_kafka(pktbuf_from_skb(skb, skb_info), buf, buf_size);
+    return __is_kafka(pktbuf_from_skb(skb, skb_info), buf, buf_size, classification_flags);
 }
 
-static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
+static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size, __u32 classification_flags)
 {
-    return __is_kafka(pktbuf_from_tls(ctx, tls), buf, buf_size);
+    return __is_kafka(pktbuf_from_tls(ctx, tls), buf, buf_size, classification_flags);
 }
 
 #endif

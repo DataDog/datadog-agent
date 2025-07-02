@@ -65,24 +65,24 @@ update_stack:
 
 /*
  * Processes decrypted TLS traffic and dispatches it to appropriate protocol handlers.
- * 
+ *
  * This function is called by various TLS hookpoints (OpenSSL, GnuTLS, GoTLS, JavaTLS)
  * to process decrypted TLS payloads. It manages the protocol stack for each connection,
  * classifies the decrypted payload if the application protocol is not yet known, and
  * dispatches the traffic to the appropriate protocol handler via tail calls.
- * 
+ *
  * The function first creates or retrieves a protocol stack for the connection. If the
  * application protocol is unknown, it attempts to classify the payload. For Kafka traffic,
  * an additional classification step may be performed via a tail call if Kafka monitoring
  * is enabled.
- * 
+ *
  * For each supported protocol, the function performs a tail call to a dedicated handler:
  * - HTTP: PROG_HTTP
  * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
  * - Kafka: PROG_KAFKA
  * - PostgreSQL: PROG_POSTGRES
  * - Redis: PROG_REDIS
- * 
+ *
  * The function takes the BPF program context, connection metadata (tuple), a pointer to
  * the decrypted payload and its length, and connection metadata tags as input.
  */
@@ -180,7 +180,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
+static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx, __u32 classification_flags)
 {
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -199,7 +199,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
-    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER, classification_flags);
     if (!is_kafka) {
         return;
     }

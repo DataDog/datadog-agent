@@ -204,7 +204,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     }
 }
 
-static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
+static __always_inline void dispatch_kafka(struct __sk_buff *skb, __u32 classification_flags) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
     // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
@@ -218,7 +218,7 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     const size_t payload_length = skb_info.data_end - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-    if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
+    if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size, classification_flags)) {
         cur_fragment_protocol = PROTOCOL_KAFKA;
         update_protocol_stack(&skb_tup, cur_fragment_protocol);
     }
