@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    Add a new metric counter to the Agent telemetry for the startup and running states.
+    Add a new metric to the Agent telemetry for the startup and running states.
     This will help us track the startup and running states of the Agent.
