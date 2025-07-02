@@ -403,7 +403,7 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	s.Stop()
 }
 
-func TestSubmitterFeatureFlags(t *testing.T) {
+func TestSubmitterFeatureHeaders(t *testing.T) {
 	tests := []struct {
 		name                       string
 		configOverrides            map[string]interface{}
