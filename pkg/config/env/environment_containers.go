@@ -253,10 +253,15 @@ func detectNVML(features FeatureMap, cfg model.Reader) {
 		return
 	}
 
+	libPath := cfg.GetString("nvml_lib_path")
+	if libPath == "" {
+		libPath = defaultNVMLLibraryName // let the system find it based on the library name
+	}
+
 	// Use dlopen to search for the library to avoid importing the go-nvml package here,
 	// which is 1MB in size and would increase the agent binary size, when we don't really
 	// need it for anything else.
-	if err := system.CheckLibraryExists(defaultNVMLLibraryName); err != nil {
+	if err := system.CheckLibraryExists(libPath); err != nil {
 		log.Debugf("Agent did not find NVML library: %v", err)
 		return
 	}
