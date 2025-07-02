@@ -196,6 +196,12 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("apm_config.features", apmConfigFeatures, pkgconfigmodel.SourceDefault)
 	}
 
+	// Proxy Setup from config
+	if ddc.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
 	return pkgconfig, nil
 }
 

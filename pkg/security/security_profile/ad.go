@@ -220,7 +220,7 @@ func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 	}
 
 	ad.Profile.AddTags([]string{
-		"cgroup_manager:" + containerutils.CGroupManager(ad.Profile.Metadata.CGroupContext.CGroupFlags&containerutils.CGroupManagerMask).String(),
+		"cgroup_manager:" + ad.Profile.Metadata.CGroupContext.CGroupFlags.GetCGroupManager().String(),
 	})
 
 	return nil
