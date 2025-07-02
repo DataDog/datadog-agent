@@ -15,7 +15,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -181,7 +181,7 @@ func (a *effects) loadProgram(
 		defer a.wg.Done()
 		ir, err := generateIR(programID, executable, probes)
 		if err != nil {
-			a.reporter.ReportLoadingFailed(nil, err)
+			a.reporter.ReportIRGenFailed(programID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
@@ -241,7 +241,7 @@ func loadProgram(
 	loader Loader,
 	ir *ir.Program,
 ) (*loader.Program, error) {
-	program, err := sm.GenerateProgram(ir)
+	program, err := compiler.GenerateProgram(ir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate program: %w", err)
 	}

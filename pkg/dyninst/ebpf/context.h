@@ -1,12 +1,6 @@
 #ifndef __CONTEXT_H__
 #define __CONTEXT_H__
 
-#ifdef DYNINST_RUNTIME_COMPILATION
-// kconfig.h must precede asm/ptrace.h
-#include "kconfig.h"
-#include <asm/ptrace.h>
-#endif
-
 #include "bpf_tracing.h"
 #include "types.h"
 #include "queue.h"

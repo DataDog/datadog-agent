@@ -21,7 +21,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -123,7 +123,7 @@ func CompileAndLoadBPF(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, codeDump.Close()) }()
 
-	smProgram, err := sm.GenerateProgram(irp)
+	smProgram, err := compiler.GenerateProgram(irp)
 	require.NoError(t, err)
 
 	loader, err := loader.NewLoader()

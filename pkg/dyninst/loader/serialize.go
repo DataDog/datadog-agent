@@ -14,8 +14,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -52,30 +51,28 @@ func (s *ByteSerializer) CommentBlock(_ string) error {
 }
 
 // CommentFunction implements CodeSerializer.
-func (s *ByteSerializer) CommentFunction(_ sm.FunctionID, _ uint32) error {
+func (s *ByteSerializer) CommentFunction(_ compiler.FunctionID, _ uint32) error {
 	return nil
 }
 
 // SerializeInstruction implements CodeSerializer.
-func (s *ByteSerializer) SerializeInstruction(opcode sm.Opcode, paramBytes []byte, _ string) error {
+func (s *ByteSerializer) SerializeInstruction(opcode compiler.Opcode, paramBytes []byte, _ string) error {
 	s.buf.WriteByte(opcodeByte(opcode))
 	s.buf.Write(paramBytes)
 	return nil
 }
 
-func serializeProgram(program sm.Program, additionalSerializer sm.CodeSerializer) (*serializedProgram, error) {
+func serializeProgram(program compiler.Program, additionalSerializer compiler.CodeSerializer) (*serializedProgram, error) {
 	buf := &bytes.Buffer{}
-	serializer := sm.CodeSerializer(&ByteSerializer{
+	serializer := compiler.CodeSerializer(&ByteSerializer{
 		buf: buf,
 	})
 
 	if additionalSerializer != nil {
-		serializer = codegen.DispatchingSerializer{
-			Serializers: []sm.CodeSerializer{serializer, additionalSerializer},
-		}
+		serializer = compiler.NewDispatchingSerializer(serializer, additionalSerializer)
 	}
 
-	metadata, err := sm.GenerateCode(program, serializer)
+	metadata, err := compiler.GenerateCode(program, serializer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize code: %w", err)
 	}
@@ -84,7 +81,7 @@ func serializeProgram(program sm.Program, additionalSerializer sm.CodeSerializer
 		maxOpLen: metadata.MaxOpLen,
 	}
 	var ok bool
-	serialized.chasePointersEntrypoint, ok = metadata.FunctionLoc[sm.ChasePointers{}]
+	serialized.chasePointersEntrypoint, ok = metadata.FunctionLoc[compiler.ChasePointers{}]
 	if !ok {
 		return nil, fmt.Errorf("serialized program is missing ChasePointers function")
 	}
@@ -98,7 +95,7 @@ func serializeProgram(program sm.Program, additionalSerializer sm.CodeSerializer
 		serialized.typeIDs[i] = uint64(t.GetID())
 		serialized.typeInfos[i] = typeInfo{
 			Byte_len:   t.GetByteSize(),
-			Enqueue_pc: metadata.FunctionLoc[sm.ProcessType{Type: t}],
+			Enqueue_pc: metadata.FunctionLoc[compiler.ProcessType{Type: t}],
 		}
 	}
 
@@ -111,7 +108,7 @@ func serializeProgram(program sm.Program, additionalSerializer sm.CodeSerializer
 	}
 
 	for _, p := range program.Functions {
-		if f, ok := p.ID.(sm.ProcessEvent); ok {
+		if f, ok := p.ID.(compiler.ProcessEvent); ok {
 			serialized.probeParams = append(serialized.probeParams, probeParams{
 				Throttler_idx:         uint32(f.ThrottlerIdx),
 				Stack_machine_pc:      metadata.FunctionLoc[f],
