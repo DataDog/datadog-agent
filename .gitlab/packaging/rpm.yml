@@ -86,6 +86,8 @@ installer_rpm-amd64:
     # There are currently no files to check for in the installer so we
     # explicitly disable the check
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 agent_rpm-x64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_x86]
@@ -116,12 +118,50 @@ agent_suse-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
 
+ddot_rpm-x64:
+  extends: [.package_rpm_common, .package_rpm_x86]
+  needs: ["datadog-otel-agent-x64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
+ddot_rpm-arm64:
+  extends: [.package_rpm_common, .package_rpm_arm64]
+  needs: ["datadog-otel-agent-arm64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
+ddot_suse_rpm-x64:
+  extends: [.package_suse_rpm_common, .package_rpm_x86]
+  needs: ["datadog-otel-agent-x64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
+ddot_suse_rpm-arm64:
+  extends: [.package_suse_rpm_common, .package_rpm_arm64]
+  needs: ["datadog-otel-agent-arm64"]
+  variables:
+    DD_PROJECT: ddot
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
+
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 installer_suse_rpm-amd64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
@@ -129,6 +169,8 @@ installer_suse_rpm-amd64:
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 installer_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
@@ -136,6 +178,8 @@ installer_suse_rpm-arm64:
   variables:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 .package_iot_rpm_common:
   rules:
@@ -181,6 +225,8 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
@@ -209,6 +255,8 @@ dogstatsd_rpm-x64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
@@ -216,3 +264,5 @@ dogstatsd_suse-x64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false

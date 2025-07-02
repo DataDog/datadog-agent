@@ -8,28 +8,30 @@
 #include "framing.h"
 #include "scratch.h"
 #include "types.h"
+#include "program.h"
 #include "queue.h"
 
-extern const uint8_t stack_machine_code[];
-extern const uint64_t stack_machine_code_len;
-extern const uint32_t stack_machine_code_max_op;
+DEFINE_BINARY_SEARCH(
+  lookup_type_info,
+  type_t,
+  type_id,
+  type_ids,
+  num_types
+);
 
-// extern const target_ptr_t VARIABLE_runtime_dot_firstmoduledata;
-// extern const uint64_t OFFSET_runtime_dot_moduledata__types;
-// extern const uint64_t OFFSET_runtime_dot_eface___type;
-// extern const uint64_t OFFSET_runtime_dot_eface__data;
-// extern const uint64_t OFFSET_runtime_dot_iface__data;
-// extern const uint64_t OFFSET_runtime_dot_iface__tab;
-// extern const uint64_t OFFSET_runtime_dot_itab___type;
-
-extern const uint32_t chase_pointers_entrypoint;
-// extern const uint32_t unresolved_go_subroutine_type;
+static bool get_type_info(type_t t, const type_info_t** info_out) {
+  uint32_t idx = lookup_type_info_by_type_id(t);
+  *info_out = bpf_map_lookup_elem(&type_info, &idx);
+  if (!*info_out) {
+    return false;
+  }
+  return true;
+}
 
 __attribute__((noinline)) bool chased_pointer_contains(chased_pointers_t* chased, target_ptr_t ptr, type_t type) {
   if (!chased) {
     return false;
   }
-  uint32_t i = 0;
   uint32_t max = chased->n;
   if (max >= MAX_CHASED_POINTERS) {
     return false;
@@ -80,20 +82,6 @@ static bool chased_pointers_push(chased_pointers_t* chased, target_ptr_t ptr,
   chased->types[i] = type;
   chased->n++;
   return true;
-}
-
-static inline uint32_t read_uint32(const uint8_t* buf) {
-  return (uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 |
-         (uint32_t)buf[3] << 24;
-}
-
-static inline int32_t read_int32(const uint8_t* buf) {
-  return (int32_t)buf[0] | (int32_t)buf[1] << 8 | (int32_t)buf[2] << 16 |
-         (int32_t)buf[3] << 24;
-}
-
-static inline uint16_t read_uint16(const uint8_t* buf) {
-  return (uint16_t)buf[0] | (uint16_t)buf[1] << 8;
 }
 
 typedef struct zero_data_ctx {
@@ -149,28 +137,72 @@ void copy_data(scratch_buf_t* buf, buf_offset_t src, buf_offset_t dst,
   bpf_loop(len, copy_data_loop, &ctx, 0);
 }
 
-inline __attribute__((always_inline)) uint8_t
+static inline uint32_t read_uint32(const uint8_t* buf) {
+  return (uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 |
+         (uint32_t)buf[3] << 24;
+}
+
+static inline int32_t read_int32(const uint8_t* buf) {
+  return (int32_t)buf[0] | (int32_t)buf[1] << 8 | (int32_t)buf[2] << 16 |
+         (int32_t)buf[3] << 24;
+}
+
+static inline uint16_t read_uint16(const uint8_t* buf) {
+  return (uint16_t)buf[0] | (uint16_t)buf[1] << 8;
+}
+
+static inline __attribute__((always_inline)) uint8_t
 sm_read_program_uint8(stack_machine_t* sm) {
-  uint8_t param = stack_machine_code[sm->pc];
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) {
+    LOG(1, "enqueue: failed to load code\n");
+    return 0;
+  }
+  if (sm->pc >= stack_machine_code_len) {
+    LOG(1, "enqueue: code read out of bounds %d >= %d\n", sm->pc, stack_machine_code_len);
+    return 0;
+  }
+  uint8_t param = data[sm->pc];
   sm->pc += 1;
   return param;
 }
 
-inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint16_t
 sm_read_program_uint16(stack_machine_t* sm) {
-  uint32_t param = read_uint16(&stack_machine_code[sm->pc]);
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) {
+    LOG(1, "enqueue: failed to load code\n");
+    return 0;
+  }
+  if (sm->pc >= stack_machine_code_len-1) {
+    LOG(1, "enqueue: code read out of bounds %d+1 >= %d\n", sm->pc, stack_machine_code_len);
+    return 0;
+  }
+  uint32_t param = read_uint16(&data[sm->pc]);
   sm->pc += 2;
   return param;
 }
 
-inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint32_t
 sm_read_program_uint32(stack_machine_t* sm) {
-  uint32_t param = read_uint32(&stack_machine_code[sm->pc]);
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) {
+    LOG(1, "enqueue: failed to load code\n");
+    return 0;
+  }
+  if (sm->pc >= stack_machine_code_len-3) {
+    LOG(1, "enqueue: code read out of bounds %d+3 >= %d\n", sm->pc, stack_machine_code_len);
+    return 0;
+  }
+  uint32_t param = read_uint32(&data[sm->pc]);
   sm->pc += 4;
   return param;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: push on full data stack");
@@ -181,7 +213,7 @@ sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_data_stack_pop(stack_machine_t* sm) {
   if (sm->data_stack_pointer == 0) {
     LOG(2, "enqueue: pop on empty data stack");
@@ -198,7 +230,7 @@ sm_data_stack_pop(stack_machine_t* sm) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
+static inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   if (sm->pc_stack_pointer == 0) {
     return false;
   }
@@ -214,29 +246,37 @@ inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   return true;
 }
 
-static bool sm_enqueue_pointer(global_ctx_t* ctx,
-                               data_item_header_t data_item) {
-  data_item_header_t* elem =
-      pointers_queue_push(&ctx->stack_machine->pointers_queue);
-  if (elem == NULL) {
-    return false;
-  }
-  *elem = data_item;
-  return true;
-}
+static inline __attribute__((always_inline)) bool
+sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
+  stack_machine_t* sm = ctx->stack_machine;
 
-// Call the enqueue function for the given type. If the type has no enqueue an
-// enqueue function, returns false and is otherwise a no-op.
-inline __attribute__((always_inline)) bool
-sm_call_enqueue_for_type(stack_machine_t* sm, const type_info_t* t) {
-  if (!t->enqueue_pc) {
+  // Serialize object entry.
+  const type_info_t* info;
+  if (!get_type_info((type_t)item.di.type, &info)) {
+    LOG(4, "chase: type info not found %d", item.di.type);
+    return true;
+  }
+  if (info->byte_len == 0) {
+    return true;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, info->byte_len);
+  if (!sm->offset) {
+    LOG(3, "chase: failed to serialize type %d", item.di.type);
+    return true;
+  }
+
+  // Recurse if there is more to capture object of this type.
+  sm->pointer_chasing_ttl = item.ttl;
+  sm->di_0 = item.di;
+  sm->di_0.length = info->byte_len;
+  if (!info->enqueue_pc) {
     return false;
   }
-  if (t->enqueue_pc >= stack_machine_code_len) {
+  if (info->enqueue_pc >= stack_machine_code_len) {
     LOG(1,
         "chase: enqueue_pc out of "
         "bounds %ld >= %ld",
-        t->enqueue_pc, stack_machine_code_len);
+        info->enqueue_pc, stack_machine_code_len);
     return false;
   }
   if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
@@ -245,37 +285,12 @@ sm_call_enqueue_for_type(stack_machine_t* sm, const type_info_t* t) {
   }
   sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
   sm->pc_stack_pointer++;
-  sm->pc = t->enqueue_pc;
+  sm->pc = info->enqueue_pc;
   return true;
 }
 
-inline __attribute__((always_inline)) bool
-sm_chase_pointer(global_ctx_t* ctx, data_item_header_t data_item) {
-  stack_machine_t* sm = ctx->stack_machine;
-
-  // Serialize object entry.
-  const type_info_t* info;
-  if (!get_type_info((type_t)data_item.type, &info)) {
-    return true;
-  }
-  LOG(4, "chase: :%d !%d >%x", data_item.type, info->byte_len, info->enqueue_pc);
-  if (info->byte_len == 0) {
-    return true;
-  }
-  sm->offset = scratch_buf_serialize(ctx->buf, &data_item, info->byte_len);
-  if (!sm->offset) {
-    LOG(3, "chase: failed to serialize type %d", data_item.type);
-    return true;
-  }
-
-  // Recurse if there is more to capture object of this type.
-  sm->di_0 = data_item;
-  sm->di_0.length = info->byte_len;
-  return sm_call_enqueue_for_type(sm, info);
-}
-
 // Returns false if the pointer has already been memoized.
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
                    target_ptr_t addr) {
   // Check if address was already processed before.
@@ -283,22 +298,38 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
   return chased_pointers_push(&sm->chased, addr, type);
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
+                  bool decrease_ttl,
                   uint32_t maybe_len) {
   stack_machine_t* sm = ctx->stack_machine;
   if (addr == 0) {
     return true;
   }
+  if (decrease_ttl && sm->pointer_chasing_ttl == 0) {
+    return true;
+  }
   if (!sm_memoize_pointer(ctx, type, addr)) {
     return true;
   }
-  data_item_header_t data_item = {
+  pointers_queue_item_t* item;
+  if (decrease_ttl) {
+    item = pointers_queue_push_back(&ctx->stack_machine->pointers_queue);
+  } else {
+    item = pointers_queue_push_front(&ctx->stack_machine->pointers_queue);
+  }
+  if (item == NULL) {
+    return false;
+  }
+  *item = (pointers_queue_item_t){
+    .di = {
       .type = type,
       .length = maybe_len,
       .address = addr,
+    },
+    .ttl = sm->pointer_chasing_ttl - (decrease_ttl ? 1 : 0),
   };
-  return sm_enqueue_pointer(ctx, data_item);
+  return true;
 }
 
 // inline __attribute__((always_inline)) bool
@@ -566,11 +597,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_CALL: {
+    uint32_t next_pc = sm_read_program_uint32(sm);
     if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
       LOG(2, "enqueue: call stack limit reached");
       return 1;
     }
-    uint32_t next_pc = sm_read_program_uint32(sm);
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
     sm->pc_stack_pointer++;
     sm->pc = next_pc;
@@ -730,7 +761,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_PROCESS_POINTER: {
     type_t elem_type = (type_t)sm_read_program_uint32(sm);
-    if (elem_type == TYPE_NONE) {
+    if (elem_type == 0) {
       LOG(1, "enqueue: unknown pointer type %d", elem_type)
       return 1;
     }
@@ -739,7 +770,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
 
-    if (!sm_record_pointer(ctx, elem_type, addr, ENQUEUE_LEN_SENTINEL)) {
+    if (!sm_record_pointer(ctx, elem_type, addr, /*decrease_ttl=*/true, ENQUEUE_LEN_SENTINEL)) {
       LOG(3, "enqueue: failed pointer chase");
     }
   } break;
@@ -755,7 +786,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
     int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
     if (len > 0) {
-      if (!sm_record_pointer(ctx, slice_data_type, addr, len * elem_byte_len)) {
+      if (!sm_record_pointer(ctx, slice_data_type, addr, /*decrease_ttl=*/false, len * elem_byte_len)) {
         LOG(3, "enqueue: failed slice chase");
       }
     }
@@ -814,7 +845,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
     int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
     if (len > 0) {
-      if (!sm_record_pointer(ctx, string_data_type, addr, len)) {
+      if (!sm_record_pointer(ctx, string_data_type, addr, /*decrease_ttl=*/false, len)) {
         LOG(3, "enqueue: failed string chase");
       }
     }
@@ -837,11 +868,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   // } break;
 
   case SM_OP_CHASE_POINTERS: {
-    data_item_header_t* elem = pointers_queue_pop(&sm->pointers_queue);
-    if (elem != NULL) {
+    pointers_queue_item_t* item = pointers_queue_pop_front(&sm->pointers_queue);
+    if (item != NULL) {
       // Loop as long as there are more pointers to chase.
       sm->pc--;
-      sm_chase_pointer(ctx, *elem);
+      sm_chase_pointer(ctx, *item);
     }
   } break;
 
@@ -854,7 +885,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // checking from the verifier.
     barrier_var(typ);
     barrier_var(data_len);
-    uint32_t sb_len = scratch_buf_len(buf);
 
     sm->di_0.type = typ;
     sm->di_0.length = data_len;
@@ -1161,7 +1191,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   //   sm->go_context_capture_bitmask = 0;
   // } break;
 
-  default: LOG(1, "enqueue: unknown instruction %d\n", op); return 1;
+  default: LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc-1, op); return 1;
   }
 
   return 0;

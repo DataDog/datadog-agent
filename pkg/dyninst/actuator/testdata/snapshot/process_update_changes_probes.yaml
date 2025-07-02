@@ -1,0 +1,106 @@
+# Tests process update that changes probes. The old program should be cleared
+# and a new program created with the updated probes.
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: oldFunc}, captureSnapshot: true}
+- !loaded {program_id: 1}
+- !attached {program_id: 1, process_id: 1001}
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: newFunc}, captureSnapshot: true}
+- !detached {program_id: 1, process_id: 1001}
+- !loaded {program_id: 2}
+- !attached {program_id: 2, process_id: 1001} 
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: oldFunc}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+---
+event: !loaded {program_id: 1}
+effects:
+  - !register-program-with-dispatcher {program_id: 1}
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
+state:
+  currently_loading: 1 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
+  programs:
+    1: Loading (proc 1001) -> Loaded (proc 1001)
+---
+event: !attached {program_id: 1, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 1) -> Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: newFunc}, captureSnapshot: true}
+effects:
+  - !detach-from-process {process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) -> Detaching (prog 1)
+  programs:
+    1: Loaded (proc 1001) -> Draining (proc 1001)
+---
+event: !detached {program_id: 1, process_id: 1001}
+effects:
+  - !unregister-program-with-dispatcher {program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe2], program_id: 2}
+state:
+  currently_loading: <nil> -> 2
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1) -> WaitingForProgram (prog 2)
+  programs:
+    1: Draining (proc 1001) -> <nil>
+    2: <nil> -> Loading (proc 1001)
+---
+event: !loaded {program_id: 2}
+effects:
+  - !register-program-with-dispatcher {program_id: 2}
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 2}
+state:
+  currently_loading: 2 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 2) -> Attaching (prog 2)
+  programs:
+    2: Loading (proc 1001) -> Loaded (proc 1001)
+---
+event: !attached {program_id: 2, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 2) -> Attached (prog 2)
+  programs:
+    2: Loaded (proc 1001)

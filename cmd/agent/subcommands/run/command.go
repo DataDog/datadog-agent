@@ -73,6 +73,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
@@ -90,6 +91,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -279,6 +281,7 @@ func run(log log.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
+	ipc ipc.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -345,9 +348,28 @@ func run(log log.Component,
 		settings,
 		agenttelemetryComponent,
 		hostname,
+		ipc,
 	); err != nil {
 		return err
 	}
+
+	agentStarted := telemetry.NewCounter(
+		"runtime",
+		"started",
+		[]string{},
+		"Establish if the agent has started",
+	)
+	agentRunning := telemetry.NewGauge(
+		"runtime",
+		"running",
+		[]string{},
+		"Establish if the agent is running",
+	)
+
+	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
+	agentStarted.Inc()
+	agentRunning.Set(1)
 
 	return <-stopCh
 }
@@ -510,6 +532,7 @@ func getSharedFxOption() fx.Option {
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
+		workloadfilterfx.Module(),
 	)
 }
 
@@ -541,6 +564,7 @@ func startAgent(
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
+	ipc ipc.Component,
 ) error {
 	var err error
 
@@ -622,7 +646,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmxfetch.InitRunner(server, jmxLogger)
+	jmxfetch.InitRunner(server, jmxLogger, ipc)
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector

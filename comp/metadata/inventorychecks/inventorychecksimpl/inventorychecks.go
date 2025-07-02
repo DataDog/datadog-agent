@@ -264,6 +264,14 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		}
 	}
 
+	jmxMetadata := ic.getJMXChecksMetadata()
+	for checkName, checks := range jmxMetadata {
+		if _, ok := payloadData[checkName]; !ok {
+			payloadData[checkName] = []metadata{}
+		}
+		payloadData[checkName] = append(payloadData[checkName], checks...)
+	}
+
 	return &Payload{
 		Hostname:     ic.hostname,
 		Timestamp:    time.Now().UnixNano(),

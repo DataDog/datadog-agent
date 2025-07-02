@@ -15,11 +15,14 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+import tasks.libs.cws.backend_doc_gen as backend_doc_gen
+import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.agent import generate_config
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -96,21 +99,18 @@ def build(
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
-
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": BIN_PATH,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
-
-    ctx.run(cmd.format(**args), env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/security-agent",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        gcflags=gcflags,
+        ldflags=ldflags,
+        build_tags=build_tags,
+        bin_path=BIN_PATH,
+        env=env,
+    )
 
     render_config(ctx, env=env, skip_assets=skip_assets)
 
@@ -171,11 +171,8 @@ def gen_mocks(ctx):
 
 
 @task
-def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=False):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} {verbose_opt} {testflags}'
-    if fentry:
-        cmd = "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true " + cmd
-
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -226,8 +223,13 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
 def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
-    ctx.run(
-        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go",
+
+    go_build(
+        ctx,
+        f"{syscall_tester_go_dir}/syscall_go_tester.go",
+        build_tags=["syscalltesters", "osusergo", "netgo"],
+        ldflags="-extldflags=-static",
+        bin_path=syscall_tester_exe_file,
     )
     return syscall_tester_exe_file
 
@@ -400,7 +402,6 @@ def functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    fentry=False,
 ):
     build_functional_tests(
         ctx,
@@ -417,7 +418,6 @@ def functional_tests(
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
-        fentry=fentry,
     )
 
 
@@ -514,23 +514,28 @@ def docker_functional_tests(
 
 
 @task
-def generate_cws_documentation(ctx, go_generate=False):
-    if go_generate:
-        cws_go_generate(ctx)
-
+def generate_cws_documentation(ctx):
     # secl docs
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
+    secl_doc_gen.generate_secl_documentation(
+        "./docs/cloud-workload-security/secl_linux.json",
+        "./docs/cloud-workload-security/linux_expressions.md",
+        "./linux_expressions.md",
     )
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_windows.json --output ./docs/cloud-workload-security/windows_expressions.md --template ./windows_expressions.md"
+    secl_doc_gen.generate_secl_documentation(
+        "./docs/cloud-workload-security/secl_windows.json",
+        "./docs/cloud-workload-security/windows_expressions.md",
+        "./windows_expressions.md",
     )
     # backend event docs
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md --template ./backend_linux.md"
+    backend_doc_gen.generate_backend_documentation(
+        "./docs/cloud-workload-security/backend_linux.schema.json",
+        "./docs/cloud-workload-security/backend_linux.md",
+        "./backend_linux.md",
     )
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md --template ./backend_windows.md"
+    backend_doc_gen.generate_backend_documentation(
+        "./docs/cloud-workload-security/backend_windows.schema.json",
+        "./docs/cloud-workload-security/backend_windows.md",
+        "./backend_windows.md",
     )
 
 
@@ -562,6 +567,9 @@ def cws_go_generate(ctx, verbose=False):
 
     # synchronize the seclwin package from the secl package
     sync_secl_win_pkg(ctx)
+
+    # generate documentation
+    generate_cws_documentation(ctx)
 
 
 @task
@@ -705,7 +713,6 @@ class FailingTask:
 def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
-        [generate_cws_documentation],
         [gen_mocks],
     ]
     failing_tasks = []
@@ -820,6 +827,7 @@ def sync_secl_win_pkg(ctx):
         ("consts_windows.go", "consts_win.go"),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
+        ("accessors_helpers.go", None),
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
         ("security_profile.go", None),
