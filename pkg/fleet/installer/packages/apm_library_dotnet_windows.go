@@ -114,6 +114,7 @@ func preRemoveAPMLibraryDotnet(ctx HookContext) (err error) {
 		}
 		return err
 	}
+	// TODO always uninstrument IIS just in cas
 	return uninstrumentDotnetLibraryIfNeeded(ctx.Context, "stable")
 }
 
@@ -133,6 +134,12 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 }
 
 func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
+	envInst := env.FromEnv()
+	method := envInst.InstallScript.APMInstrumentationEnabled
+	return updateInstrumentation(ctx, method, target)
+}
+
+func updateInstrumentation(ctx context.Context, newMethod, target string) (err error) {
 	// TODO What if it's a reinstall and the injection method config was not properly cleaned up by the previous installation?
 	// Check if a an injection method was set during a previous installation
 	var currentMethod string
@@ -141,36 +148,28 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 		return fmt.Errorf("could not get current injection method: %w", err)
 	}
 
-	// Check if a different injection method is configured for this installation we should first uninstrument the current method
-	envInst := env.FromEnv()
-	newMethod := envInst.InstallScript.APMInstrumentationEnabled
-
 	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
 
-	if currentMethod == env.APMInstrumentationNotSet {
-		if newMethod == env.APMInstrumentationNotSet {
-			return nil
-		}
-		err = instrumentDotnetLibrary(ctx, newMethod, target)
-		if err != nil {
-			return fmt.Errorf("could not instrument dotnet library: %w", err)
-		}
-		return setAPMInjectionMethod(newMethod)
-	}
-
-	if newMethod != env.APMInstrumentationNotSet && newMethod != currentMethod {
-		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
-		if err != nil {
-			log.Errorf("Error changing instrumentation method for dotnet library, could not uninstrument the current method (%s): %v", currentMethod, err)
-		}
-	} else {
+	// If no new method is provided, defaults to the current method
+	if newMethod == env.APMInstrumentationNotSet {
 		newMethod = currentMethod
 	}
 
-	err = instrumentDotnetLibrary(ctx, newMethod, target)
-	if err != nil {
+	if newMethod == env.APMInstrumentationNotSet {
+		return nil
+	}
+
+	if currentMethod != env.APMInstrumentationNotSet && currentMethod != newMethod {
+		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
+		if err != nil {
+			return fmt.Errorf("could not uninstrument dotnet library: %w", err)
+		}
+	}
+
+	if err = instrumentDotnetLibrary(ctx, newMethod, target); err != nil {
 		return fmt.Errorf("could not instrument dotnet library: %w", err)
 	}
+
 	return setAPMInjectionMethod(newMethod)
 }
 

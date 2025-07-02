@@ -83,29 +83,7 @@ func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "instrument_injector")
 	defer func() { span.Finish(err) }()
 
-	err = ValidateAPMInstrumentationMethod(method)
-	if err != nil {
-		return err
-	}
-
-	var currentMethod string
-	currentMethod, err = getAPMInjectionMethod()
-	if err != nil {
-		return err
-	}
-	if currentMethod != env.APMInstrumentationNotSet && currentMethod != method {
-		err = UninstrumentAPMInjector(ctx, currentMethod)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = instrumentDotnetLibrary(ctx, method, "stable")
-	if err != nil {
-		return err
-	}
-
-	return setAPMInjectionMethod(method)
+	return updateInstrumentation(ctx, method, "stable")
 }
 
 // UninstrumentAPMInjector un-instruments the APM injector for IIS on Windows
