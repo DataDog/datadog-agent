@@ -381,8 +381,8 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rs := rules.NewRuleSet(&model.Model{}, eventCtor, ruleOpts, evalOpts)
 			loader := rules.NewPolicyLoader(newTestPolicyProvider(tc.policies...))
-			errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
-			policyStates := NewPoliciesState(rs, errs, false)
+			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
+			policyStates := NewPoliciesState(rs, filteredRules, errs, false)
 
 			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates, goCmpOpts...), gocmp.Diff(tc.expectedPolicyStates, policyStates, goCmpOpts...), "policy states mismatch")
 		})
