@@ -321,13 +321,13 @@ int hook_attach_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("__attach_mnt")
 int hook___attach_mnt(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
+    struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree);
     if (!syscall) {
         return 0;
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
-    // check if this mount has already been processed
+    // check if this mount has already been processed by the hook on attach_mnt
     if (syscall->mount.newmnt == newmnt) {
         return 0;
     }
