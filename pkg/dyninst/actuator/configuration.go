@@ -8,43 +8,36 @@
 package actuator
 
 import (
-	"io"
+	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
 
 type configuration struct {
-	ringBufSize      int
-	sink             MessageSink
-	reporter         Reporter
-	codegenWriter    CodegenWriterFactory
-	compiledCallback CompiledCallback
-	compiler         Compiler
+	sink     MessageSink
+	reporter Reporter
+	loader   Loader
 }
 
-const defaultRingbufSize = 1 << 20 // 1 MiB
-
-func noopCodegenWriter(*ir.Program) io.Writer {
-	return nil
-}
-
-func makeConfiguration(opts ...Option) configuration {
+func makeConfiguration(opts ...Option) (configuration, error) {
 	cfg := configuration{
-		ringBufSize:      defaultRingbufSize,
-		sink:             noopDispatcher{},
-		reporter:         noopReporter{},
-		codegenWriter:    noopCodegenWriter,
-		compiledCallback: func(*CompiledProgram) {},
-		compiler:         nil, // set after options are applied
+		sink:     noopDispatcher{},
+		reporter: noopReporter{},
+		loader:   nil, // set after options are applied
 	}
 	for _, opt := range opts {
 		opt.apply(&cfg)
 	}
-	if cfg.compiler == nil {
-		cfg.compiler = compiler.NewCompiler()
+	if cfg.loader == nil {
+		var err error
+		cfg.loader, err = loader.NewLoader()
+		if err != nil {
+			return configuration{}, err
+		}
 	}
-	return cfg
+	return cfg, nil
 }
 
 // Option is a function that can be used to configure the Actuator.
@@ -112,10 +105,8 @@ type Reporter interface {
 	// ReportDetached is called when a program is detached from a process.
 	ReportDetached(ProcessID, *ir.Program)
 
-	// ReportCompilationFailed is called when a program fails to compile.
-	ReportCompilationFailed(ir.ProgramID, error, []ir.ProbeDefinition)
-
 	// ReportLoadingFailed is called when a program fails to load.
+	// ir.Program might be nil, if ir generation failed.
 	ReportLoadingFailed(*ir.Program, error)
 
 	// ReportAttachingFailed is called when a program fails to attach to a process.
@@ -124,54 +115,21 @@ type Reporter interface {
 
 type noopReporter struct{}
 
-func (noopReporter) ReportCompilationFailed(ir.ProgramID, error, []ir.ProbeDefinition) {}
-func (noopReporter) ReportLoadingFailed(*ir.Program, error)                            {}
-func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error)               {}
-func (noopReporter) ReportAttached(ProcessID, *ir.Program)                             {}
-func (noopReporter) ReportDetached(ProcessID, *ir.Program)                             {}
+func (noopReporter) ReportLoadingFailed(*ir.Program, error)              {}
+func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error) {}
+func (noopReporter) ReportAttached(ProcessID, *ir.Program)               {}
+func (noopReporter) ReportDetached(ProcessID, *ir.Program)               {}
 
-// WithRingBufSize sets the size of the ring buffer for the Actuator.
-func WithRingBufSize(size int) Option {
-	return optionFunc(func(s *configuration) {
-		s.ringBufSize = size
-	})
+// Loader is an interface that abstracts ebpf program loader.
+type Loader interface {
+	Load(program sm.Program) (*loader.Program, error)
+	OutputReader() *ringbuf.Reader
+	Close() error
 }
 
-// CodegenWriterFactory is a function that optionally creates a writer
-// to which the generated code will be written.
-type CodegenWriterFactory func(*ir.Program) io.Writer
-
-// WithCodegenWriter allows the client to inject a writer to be used
-// for writing out the generated code.
-func WithCodegenWriter(f CodegenWriterFactory) Option {
+// WithLoader sets the loader for the Actuator.
+func WithLoader(l Loader) Option {
 	return optionFunc(func(s *configuration) {
-		s.codegenWriter = f
-	})
-}
-
-// CompiledCallback is a function that is called when the eBPF program
-// has been compiled.
-type CompiledCallback func(*CompiledProgram)
-
-// WithCompiledCallback allows the client to inject a callback to be used
-// for writing out the compiled code.
-func WithCompiledCallback(f CompiledCallback) Option {
-	return optionFunc(func(s *configuration) {
-		s.compiledCallback = f
-	})
-}
-
-// Compiler is an interface that abstracts the eBPF compiler.
-type Compiler interface {
-	Compile(
-		program *ir.Program,
-		extraCodeSink io.Writer,
-	) (compiler.CompiledBPF, error)
-}
-
-// WithCompiler sets the compiler for the Actuator.
-func WithCompiler(c Compiler) Option {
-	return optionFunc(func(s *configuration) {
-		s.compiler = c
+		s.loader = l
 	})
 }

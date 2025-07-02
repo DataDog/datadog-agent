@@ -24,7 +24,7 @@ import (
 )
 
 func TestThrottler(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
@@ -62,8 +62,8 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	}
 
 	// Compile the IR and prepare the BPF program.
-	t.Logf("compiling BPF")
-	bpfCollection, bpfProg, attachpoints, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
+	t.Logf("loading BPF")
+	program, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
 	defer cleanup()
 
 	// Launch the sample service, inject the BPF program and collect the output.
@@ -75,7 +75,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
 	cleanup = dyninsttest.AttachBPFProbes(
-		t, busyloopPath, obj, sampleProc.Process.Pid, bpfProg, attachpoints,
+		t, busyloopPath, obj, sampleProc.Process.Pid, program,
 	)
 	defer cleanup()
 	defer func() {
@@ -85,7 +85,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	sampleStdin.Write([]byte("\n"))
 
 	// Read expected number of events.
-	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
+	rd, err := ringbuf.NewReader(program.Collection.Maps["out_ringbuf"])
 	require.NoError(t, err)
 	rd.SetDeadline(time.Now().Add(10 * time.Second))
 	for range expectedEvents {
@@ -120,7 +120,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Compile the IR and prepare the BPF program.
 	t.Logf("compiling BPF")
-	bpfCollection, bpfProg, attachpoints, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
+	program, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
 	defer cleanup()
 
 	// Launch the sample service, inject the BPF program and collect the output.
@@ -131,7 +131,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 		ctx, t, tempDir, busyloopPath,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
-	cleanup = dyninsttest.AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, bpfProg, attachpoints)
+	cleanup = dyninsttest.AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, program)
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
@@ -140,7 +140,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	sampleStdin.Write([]byte("\n"))
 
 	// We should be able to observe multiple events.
-	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
+	rd, err := ringbuf.NewReader(program.Collection.Maps["out_ringbuf"])
 	require.NoError(t, err)
 	rd.SetDeadline(time.Now().Add(10 * time.Second))
 	for range 12 {
