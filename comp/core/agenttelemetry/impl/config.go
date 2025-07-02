@@ -295,7 +295,7 @@ var defaultProfiles = `
       metrics:
         - name: runtime.started
     schedule:
-      start_after: 0
+      start_after: 5
       iterations: 1
   - name: runtime-running
     metric:

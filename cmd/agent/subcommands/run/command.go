@@ -353,6 +353,23 @@ func run(log log.Component,
 		return err
 	}
 
+	agentStarted := telemetry.NewCounter(
+		"runtime",
+		"started",
+		[]string{},
+		"Establish if the agent has started",
+	)
+
+	agentRunning := telemetry.NewGauge(
+		"runtime",
+		"running",
+		[]string{},
+		"Establish if the agent is running",
+	)
+
+	agentStarted.Inc()
+	agentRunning.Set(1)
+
 	return <-stopCh
 }
 
@@ -579,23 +596,6 @@ func startAgent(
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
-
-	agentStarted := telemetry.NewCounter(
-		"runtime",
-		"started",
-		[]string{},
-		"Establish if the agent has started",
-	)
-
-	agentRunning := telemetry.NewGauge(
-		"runtime",
-		"running",
-		[]string{},
-		"Establish if the agent is running",
-	)
-
-	agentStarted.Inc()
-	defer agentRunning.Set(1)
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {

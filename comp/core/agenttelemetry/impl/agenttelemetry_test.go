@@ -458,10 +458,6 @@ func TestRun(t *testing.T) {
 	a.start()
 
 	// Default configuration has 4 jobs with different schedules:
-	// 1. {StartAfter:30 Iterations:0 Period:900} - checks, logs-and-metrics, database, service-discovery profiles
-	// 2. {StartAfter:600 Iterations:0 Period:14400} - api profile
-	// 3. {StartAfter:30 Iterations:1 Period:900} - runtime-started profile
-	// 4. {StartAfter:30 Iterations:0 Period:15} - runtime-running profile
 	assert.Equal(t, 4, len(r.(*runnerMock).jobs))
 
 	// Verify we have the expected number of profiles across all jobs
