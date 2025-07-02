@@ -19,5 +19,5 @@ type Component interface {
 	IsServiceExcluded(service *Service, serviceFilters [][]ServiceFilter) bool
 	IsEndpointExcluded(endpoint *Endpoint, endpointFilters [][]EndpointFilter) bool
 
-	GetContainerFilterInitializationErrors(filter ContainerFilter) []error
+	GetContainerFilterInitializationErrors(filter []ContainerFilter) []error
 }

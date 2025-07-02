@@ -462,16 +462,29 @@ func TestContainerFilterInitializationError(t *testing.T) {
 	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
 	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("ac_include", []string{"other_bad_name:nginx"})
 	f := newFilterObject(t, mockConfig)
 
 	t.Run("Properly defined filter", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors(workloadfilter.LegacyContainerMetrics)
+		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
 		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
 	})
 
 	t.Run("Improperly defined filter", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors(workloadfilter.LegacyContainerGlobal)
+		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
+		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
+	})
+
+	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
+		errs := f.GetContainerFilterInitializationErrors(
+			append(
+				workloadfilter.FlattenFilterSets(workloadfilter.GetAutodiscoveryFilters(workloadfilter.GlobalFilter)),
+				workloadfilter.LegacyContainerACInclude,
+			),
+		)
+		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
+		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
 	})
 }
