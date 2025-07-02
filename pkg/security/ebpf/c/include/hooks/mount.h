@@ -485,10 +485,8 @@ int rethook_alloc_vfsmnt(ctx_t *ctx) {
     return 0;
 }
 
-// Detached copy always comes from an open_tree call
-// We only care about detached copies, that creates new mount points
-HOOK_ENTRY("open_detached_copy")
-int hook_open_detached_copy(ctx_t *ctx) {
+HOOK_SYSCALL_ENTRY3(open_tree, int, dfd, const char *, filename, unsigned int, flags)
+{
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN_TREE,
     };
@@ -496,8 +494,7 @@ int hook_open_detached_copy(ctx_t *ctx) {
     return 0;
 }
 
-HOOK_EXIT("open_detached_copy")
-int rethook_open_detached_copy(ctx_t *ctx) {
+HOOK_SYSCALL_EXIT(open_tree) {
     pop_syscall(EVENT_OPEN_TREE);
     return 0;
 }
