@@ -66,18 +66,6 @@ func getMountProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_alloc_vfsmnt",
 			},
 		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_open_detached_copy",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "rethook_open_detached_copy",
-			},
-		},
 	}
 
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
@@ -104,6 +92,11 @@ func getMountProbes(fentry bool) []*manager.Probe {
 		},
 		SyscallFuncName: "fsmount",
 	}, fentry, EntryAndExit)...)
-
+	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "open_tree",
+	}, fentry, EntryAndExit)...)
 	return mountProbes
 }

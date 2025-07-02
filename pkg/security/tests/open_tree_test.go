@@ -172,7 +172,7 @@ func TestOpenTree(t *testing.T) {
 
 			return seen == 3
 		}, 10*time.Second, model.FileMountEventType)
-		assert.Equal(t, seen, 3)
+		assert.Equal(t, 3, seen)
 	})
 
 	t.Run("copy-tree-test-detached-non-recursive", func(t *testing.T) {
@@ -194,6 +194,6 @@ func TestOpenTree(t *testing.T) {
 
 			return seen == 1
 		}, 10*time.Second, model.FileMountEventType)
-		assert.Equal(t, seen, 1)
+		assert.Equal(t, 1, seen)
 	})
 }
