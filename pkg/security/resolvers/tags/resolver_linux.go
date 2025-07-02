@@ -94,10 +94,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 func needsTagsResolution(workload *Workload) bool {
 	// Container or cgroup workloads need tags resolution if they don't have a ready selector
-	if (len(workload.ContainerID) != 0 || len(workload.CGroupID) != 0) && !workload.Selector.IsReady() {
-		return true
-	}
-	return false
+	return (len(workload.ContainerID) != 0 || len(workload.CGroupID) != 0) && !workload.Selector.IsReady()
 }
 
 // checkTags checks if the tags of a workload were properly set

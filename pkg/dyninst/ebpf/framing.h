@@ -10,7 +10,7 @@
 // memory layout.
 
 // The message header used for the event program.
-typedef struct event_header {
+typedef struct di_event_header {
   // The number of bytes of data items and messages to follow, including
   // the size of this header. Most of the other headers are exclusive of their
   // own size, but for the snapshot header, the size of the header is included.
@@ -33,7 +33,7 @@ typedef struct event_header {
 }
 // Use aligned attribute to ensure that the size of the structure is a multiple
 // of 8 bytes; the attribute leads to the compiler adding padding.
-__attribute((aligned(8))) event_header_t;
+__attribute((aligned(8))) di_event_header_t;
 
 // The maximum number of pcs in a captured stack trace.
 #define STACK_DEPTH 511
@@ -47,13 +47,13 @@ typedef struct stack_pcs {
 } stack_pcs_t;
 
 // The header of a data item.
-typedef struct data_item_header {
+typedef struct di_data_item_header {
   // The type of the data item.
   uint32_t type;
   // The length of the data item.
   uint32_t length;
   // The address of the data item in the user process's address space.
   uint64_t address;
-} __attribute__((aligned(8))) data_item_header_t;
+} __attribute__((aligned(8))) di_data_item_header_t;
 
 #endif // __FRAMING_H__

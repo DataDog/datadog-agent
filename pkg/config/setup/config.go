@@ -318,7 +318,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
 
 	// If true, then the go loader will be prioritized over the python loader.
-	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
@@ -1478,6 +1478,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control dogstatsd shutdown behaviors
+	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
