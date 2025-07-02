@@ -299,17 +299,22 @@ int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentr
     return get_inode_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
+struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_path(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct dentry *lower;
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 16);
 
+    return lower;
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_path(dentry);
     return get_dentry_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
+struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_entry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_entry
@@ -323,10 +328,15 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentr
     // 4 for the __num_lower field + 4 of padding + 8 for the layer ptr in ovl_path
     bpf_probe_read(&lower, sizeof(lower), (char *)oe + 4 + 4 + 8);
 
+    return lower;
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_entry(dentry);
     return get_dentry_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
+struct dentry * __attribute__((always_inline)) get_ovl_upper_dentry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach upper dentry
@@ -335,6 +345,11 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     struct dentry *upper;
     bpf_probe_read(&upper, sizeof(upper), (char *)d_inode + get_sizeof_inode());
 
+    return upper;
+}
+
+int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
+    struct dentry *upper = get_ovl_upper_dentry(dentry);
     return get_dentry_ino(upper);
 }
 
@@ -344,11 +359,30 @@ int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
         return get_ovl_lower_ino_from_ovl_entry(dentry);
     case 1:
         return get_ovl_lower_ino_from_ovl_path(dentry);
-    default:
-        return get_ovl_lower_ino_direct(dentry);
     }
+    return get_ovl_lower_ino_direct(dentry);
+}
 
-    return 0;
+int __attribute__((always_inline)) get_ovl_upper_nlink(struct dentry *dentry) {
+    struct dentry *upper = get_ovl_upper_dentry(dentry);
+    return get_dentry_nlink(upper);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_nlink_from_ovl_entry(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_entry(dentry);
+    return get_dentry_nlink(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_nlink_from_ovl_path(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_path(dentry);
+    return get_dentry_nlink(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_nlink(struct dentry *dentry) {
+    if (get_ovl_path_in_inode() == 2) {
+        return get_ovl_lower_nlink_from_ovl_entry(dentry);
+    }
+    return get_ovl_lower_nlink_from_ovl_path(dentry);
 }
 
 int __always_inline get_overlayfs_layer(struct dentry *dentry) {
@@ -360,7 +394,7 @@ void __always_inline set_overlayfs_inode(struct dentry *dentry, struct file_t *f
     u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
-    // NOTE(safchain) both lower & upper inode seems to be incorrect somtimes on kernel >= 6.8.
+    // NOTE(safchain) both lower & upper inode seems to be incorrect sometimes on kernel >= 6.8.
     // Need to investigate the root cause.
     if (get_ovl_path_in_inode() == 2 && lower_inode != orig_inode && upper_inode != orig_inode) {
         return;
@@ -373,6 +407,19 @@ void __always_inline set_overlayfs_inode(struct dentry *dentry, struct file_t *f
     }
 
     file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
+}
+
+void __always_inline set_overlayfs_nlink(struct dentry *dentry, struct file_t *file) {
+    u64 orig_nlink = file->metadata.nlink;
+    u64 lower_nlink = get_ovl_lower_nlink(dentry);
+    u64 upper_nlink = get_ovl_upper_nlink(dentry);
+
+    // keep the highest nlink as it is mostly used to discard the userspace cache
+    if (lower_nlink > orig_nlink) {
+        file->metadata.nlink = lower_nlink;
+    } else if (upper_nlink > orig_nlink) {
+        file->metadata.nlink = upper_nlink;
+    }
 }
 
 #define VFS_ARG_POSITION1 1
