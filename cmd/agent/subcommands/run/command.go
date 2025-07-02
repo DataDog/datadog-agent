@@ -371,7 +371,7 @@ func run(log log.Component,
 	agentStarted.Inc()
 	// agentRunning is a gauge set to 1 when the agent is running.
 	// This metric is sent periodically to indicate that the agent is still alive and operational.
-	// It is registered in the Prometheus registry for  the COAT monitoring frameworks.
+	// It is registered in the Prometheus registry for the COAT monitoring frameworks.
 	agentRunning.Set(1)
 
 	return <-stopCh
