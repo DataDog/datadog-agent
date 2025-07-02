@@ -161,6 +161,7 @@ func updateInstrumentation(ctx context.Context, newMethod, target string) (err e
 
 	if currentMethod != env.APMInstrumentationNotSet && currentMethod != newMethod {
 		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
+		// TODO show an error but do not fail the installation
 		if err != nil {
 			return fmt.Errorf("could not uninstrument dotnet library: %w", err)
 		}
