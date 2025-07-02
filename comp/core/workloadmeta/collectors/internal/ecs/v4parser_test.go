@@ -154,12 +154,51 @@ func TestPullWithTaskCollectionEnabledWithV4ParserNoResourceTags(t *testing.T) {
 	require.Len(t, store.notifiedEvents, 0)
 }
 
+// TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing tests the Pull method with taskCollectionEnabled enabled
+// and taskCollectionParser set to parseTasksFromV4Endpoint to parse the tasks from the v4 metadata endpoint
+// This test runs collect twice with cache clearing in between to test tag caching behavior
+func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
+	_, store, collector, cleanup := setupV4ParserTest(t, true)
+	defer cleanup()
+
+	// First pull - should fetch tags from API
+	fmt.Println("Josh first run")
+	err := collector.Pull(context.Background())
+	require.NoError(t, err)
+
+	verifyV4ParserResults(t, store, true)
+
+	// Verify tags are cached
+	rt := collector.resourceTags["arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/7d2dae60ad844c608fb2d44215a46f6f"]
+	require.Equal(t, "task-test-value", rt.tags["tag-test"])
+	require.Equal(t, "tag_value", rt.containerInstanceTags["tag_key"])
+
+	// Clear the task cache to force re-fetching
+	collector.taskCache.Flush()
+
+	// Reset store notifications to track new events
+	store.notifiedEvents = store.notifiedEvents[:0]
+
+	// Second pull - should fetch from API again since cache was cleared
+	fmt.Println("Josh second run")
+	err = collector.Pull(context.Background())
+	require.NoError(t, err)
+
+	// Should notify events again since cache was cleared
+	verifyV4ParserResults(t, store, true)
+
+	// Verify tags are still cached (should use existing tags from resourceTags cache)
+	rt = collector.resourceTags["arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/7d2dae60ad844c608fb2d44215a46f6f"]
+	require.Equal(t, "task-test-value", rt.tags["tag-test"])
+	require.Equal(t, "tag_value", rt.containerInstanceTags["tag_key"])
+}
+
 func getDummyECS() (*httptest.Server, error) {
 	dummyECS, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v4/1234-1/taskWithTags", "./testdata/datadog-agent.json"),
 		testutil.FileHandlerOption("/v4/1234-2/taskWithTags", "./testdata/nginx.json"),
-		testutil.FileHandlerOption("/v4/1234-1/task", "./testdata/datadog-agent.json"),
-		testutil.FileHandlerOption("/v4/1234-2/task", "./testdata/nginx.json"),
+		testutil.FileHandlerOption("/v4/1234-1/task", "./testdata/datadog-agent-no-tags.json"),
+		testutil.FileHandlerOption("/v4/1234-2/task", "./testdata/nginx-no-tags.json"),
 		testutil.FileHandlerOption("/v1/tasks", "./testdata/tasks.json"),
 	)
 	if err != nil {
