@@ -1088,13 +1088,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	switch eventType {
 
 	case model.FileMountEventType:
-
-		fmt.Printf("Mount received: %+v\n", event.Mount)
-		fmt.Printf("Raw data: %+v\n", data[offset:])
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
+
+		fmt.Printf("Mount received: %+v\n", event.Mount)
+		fmt.Printf("Raw data: %+v\n", data[offset:])
 
 		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)

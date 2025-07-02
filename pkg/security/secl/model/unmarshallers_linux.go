@@ -472,7 +472,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	m.Visible = bitfield&0b01 > 0
 	m.Detached = bitfield&0b10 > 0
 
-	return 60, nil
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -482,8 +482,8 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, err
 	}
 	data = data[n:]
-	e.Source = binary.NativeEndian.Uint32(data[4:8])
-	return n + 12, nil
+	e.Source = binary.NativeEndian.Uint32(data[0:4])
+	return n + 4, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
