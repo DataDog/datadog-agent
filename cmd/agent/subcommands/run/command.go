@@ -359,7 +359,6 @@ func run(log log.Component,
 		[]string{},
 		"Establish if the agent has started",
 	)
-
 	agentRunning := telemetry.NewGauge(
 		"runtime",
 		"running",
@@ -367,7 +366,12 @@ func run(log log.Component,
 		"Establish if the agent is running",
 	)
 
+	// agentStarted is a counter that increments to 1 when the agent starts successfully.
+	// This metric is only sent once at startup to indicate successful initialization.
 	agentStarted.Inc()
+	// agentRunning is a gauge set to 1 when the agent is running.
+	// This metric is sent periodically to indicate that the agent is still alive and operational.
+	// It is registered in the Prometheus registry for  the COAT monitoring frameworks.
 	agentRunning.Set(1)
 
 	return <-stopCh
