@@ -143,6 +143,8 @@ func TestOpenTree(t *testing.T) {
 				return false
 			}
 
+			fmt.Printf("Open tree test mount: %+v\n", event.Mount)
+
 			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
 			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
 			assert.Equal(t, mountIDsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
