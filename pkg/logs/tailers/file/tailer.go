@@ -399,23 +399,25 @@ func (t *Tailer) forwardMessages() {
 		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.FilePath = t.file.Path
 		origin.Fingerprint = t.fingerprint
-		output.Origin = origin
-		// add tailer tags
-		tags := t.buildTailerTags()
+
+		tags := make([]string, len(t.tags))
+		copy(tags, t.tags)
+		tags = append(tags, t.tagProvider.GetTags()...)
 		tags = append(tags, output.ParsingExtra.Tags...)
-		output.Origin.SetTags(tags)
+		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue
 		}
 
+		msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
-		case t.outputChan <- output:
-			t.PipelineMonitor.ReportComponentIngress(output, "processor")
+		case t.outputChan <- msg:
+			t.PipelineMonitor.ReportComponentIngress(msg, "processor")
 		case <-t.forwardContext.Done():
 		}
 	}
