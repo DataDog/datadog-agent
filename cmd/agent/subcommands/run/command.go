@@ -490,8 +490,8 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		snmpscanfx.Module(),
 		collectorimpl.Module(),
-		fx.Provide(func(demux demultiplexer.Component) (ddgostatsd.ClientInterface, error) {
-			return aggregator.NewStatsdDirect(demux)
+		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
+			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
 		process.Bundle(),
 		guiimpl.Module(),
