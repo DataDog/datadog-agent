@@ -26,9 +26,8 @@ func GkeRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Kuber
 	if err != nil {
 		return err
 	}
-	var clusterOptions []gke.Option
 
-	cluster, err := gke.NewGKECluster(gcpEnv, clusterOptions...)
+	cluster, err := gke.NewGKECluster(gcpEnv, params.gkeOptions...)
 	if err != nil {
 		return err
 	}

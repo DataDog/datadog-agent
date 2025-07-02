@@ -7,6 +7,7 @@ package provisioners
 
 import (
 	"fmt"
+	"github.com/DataDog/test-infra-definitions/scenarios/gcp/gke"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +42,7 @@ type KubernetesProvisionerParams struct {
 	k8sVersion         string
 	kustomizeResources []string
 
+	gkeOptions        []gke.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
 	yamlWorkloads     []YAMLWorkload
