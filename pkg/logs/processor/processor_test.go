@@ -591,3 +591,28 @@ func BenchmarkMaskSequences(b *testing.B) {
 	})
 
 }
+
+func TestInvalidProcessingRuleWithNilRegex(t *testing.T) {
+	assert := assert.New(t)
+
+	// Create a processor with an invalid rule that has nil regex
+	invalidRule := &config.ProcessingRule{
+		Type: config.ExcludeAtMatch,
+		Name: "50%_log_exclusion",
+		// Regex is nil - this simulates an invalid configuration
+		Regex: nil,
+	}
+
+	p := &Processor{
+		processingRules: []*config.ProcessingRule{invalidRule},
+	}
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	msg1 := newMessage([]byte("test message"), source, "")
+	shouldProcess := p.applyRedactingRules(msg1)
+
+	assert.True(shouldProcess, "Message should be processed when rule has nil regex")
+	assert.Equal([]byte("test message"), msg1.GetContent(), "Message content should remain unchanged")
+	assert.Equal(int64(0), msg1.Origin.LogSource.ProcessingInfo.GetCount("exclude_at_match:50%_log_exclusion"), "No processing rule should be recorded for invalid rule")
+}
