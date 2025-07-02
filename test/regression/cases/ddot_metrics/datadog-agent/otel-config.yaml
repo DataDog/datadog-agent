@@ -13,9 +13,6 @@ receivers:
           static_configs:
             - targets: ["0.0.0.0:8888"]
 exporters:
-  traces:
-    span_name_as_resource_name: true
-    endpoint: "http://127.0.0.1:9091"
   hostname: "smp-regression"
   datadog:
     api:
@@ -36,14 +33,8 @@ processors:
   batch:
     send_batch_size: 4096
     timeout: 10s
-# Use datadog connector to compute stats for pre-sampled traces
 connectors:
   datadog/connector:
-    traces:
-      span_name_as_resource_name: true
-      compute_stats_by_span_kind: true
-      compute_top_level_by_span_kind: true
-      peer_tags_aggregation: true
 service:
   pipelines:
     traces:
