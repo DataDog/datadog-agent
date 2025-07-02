@@ -94,11 +94,17 @@ typedef struct pymem_stats_s {
  * custom builtins
  */
 
-// shared libraries
-typedef void *(so_run_t)(void);
+// payload structure returned by the shared library
+typedef struct payload_s {
+    char *name;
+    metric_type_t metricType;
+    double value;
+    char **tags;
+    char *hostname;
+    bool flushFirstValue;
+} payload_t;
 
-typedef int (so_data_t)(void);
-
+typedef payload_t *(so_run_t)(void);
 
 // aggregator
 //

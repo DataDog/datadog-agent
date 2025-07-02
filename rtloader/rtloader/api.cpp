@@ -31,7 +31,6 @@
 #include "datadog_agent_rtloader.h"
 #include "rtloader.h"
 #include "rtloader_mem.h"
-// #include "../sharedlibrary/sharedlibrary.h"
 
 #if __linux__
 #    define LIB_EXTENSION ".so"
@@ -213,7 +212,7 @@ void run_shared_library(char *checkID, void *handle, const char **error)
 
     const char *dlsym_error = NULL;
 
-    // dlsym run function
+    // dlsym run function to get the metric payload from the shared library check
     so_run_t *run_function = (so_run_t *)dlsym(handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
@@ -222,22 +221,11 @@ void run_shared_library(char *checkID, void *handle, const char **error)
         *error = strdupe(err_msg.str().c_str());
     }
 
-    std::cout << "Running shared library:" << std::endl;
+    payload_t *payload = run_function();
 
-    run_function();
-
-    // dlsym data function
-    so_data_t *data_function = (so_data_t *)dlsym(handle, "Data");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-        std::ostringstream err_msg;
-        err_msg << "Unable to run shared library: " << dlsym_error;
-        *error = strdupe(err_msg.str().c_str());
-    }
-
-    int result = data_function();
-
-    std::cout << "Shared library Data() returned: " << result << std::endl;
+    // test the returned payload
+    std::cout << "Payload name: " << payload->name << std::endl;
+    std::cout << "Payload value: " << payload->value << std::endl;
 
     // temporary test metric submission
     char **tags = new char *[2];
