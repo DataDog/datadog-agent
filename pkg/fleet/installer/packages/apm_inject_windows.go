@@ -17,11 +17,11 @@ import (
 const (
 	// APMRegistryKey is the registry key path for APM configuration
 	APMRegistryKey = `SOFTWARE\Datadog\Datadog Installer\APM`
-	// APMInjectionMethodKey is the registry value name for APM injection method
-	APMInjectionMethodKey = "InjectionMethod"
+	// APMInstrumentationMethodKey is the registry value name for APM instrumentation method
+	APMInstrumentationMethodKey = "InstrumentationMethod"
 )
 
-func setAPMInjectionMethod(method string) error {
+func setAPMInstrumentationMethod(method string) error {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.ALL_ACCESS)
 	if err != nil {
 		// If the key doesn't exist, create it
@@ -32,11 +32,11 @@ func setAPMInjectionMethod(method string) error {
 	}
 	defer k.Close()
 
-	fmt.Printf("setting APM injection method to: %s\n", method)
-	return k.SetStringValue(APMInjectionMethodKey, method)
+	fmt.Printf("setting APM instrumentation method to: %s\n", method)
+	return k.SetStringValue(APMInstrumentationMethodKey, method)
 }
 
-func unsetAPMInjectionMethod() error {
+func unsetAPMInstrumentationMethod() error {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.ALL_ACCESS)
 	if err != nil {
 		if err == registry.ErrNotExist {
@@ -46,11 +46,10 @@ func unsetAPMInjectionMethod() error {
 	}
 	defer k.Close()
 
-	return k.DeleteValue(APMInjectionMethodKey)
+	return k.DeleteValue(APMInstrumentationMethodKey)
 }
 
-// getAPMInjectionMethod gets the APM injection method from the registry
-func getAPMInjectionMethod() (string, error) {
+func getAPMInstrumentationMethod() (string, error) {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, APMRegistryKey, registry.QUERY_VALUE)
 	if err != nil {
 		if err == registry.ErrNotExist {
@@ -60,7 +59,7 @@ func getAPMInjectionMethod() (string, error) {
 	}
 	defer k.Close()
 
-	method, _, err := k.GetStringValue(APMInjectionMethodKey)
+	method, _, err := k.GetStringValue(APMInstrumentationMethodKey)
 	if err != nil {
 		if err == registry.ErrNotExist {
 			return env.APMInstrumentationNotSet, nil
@@ -73,7 +72,7 @@ func getAPMInjectionMethod() (string, error) {
 // ValidateAPMInstrumentationMethod validates that the provided method is supported
 func ValidateAPMInstrumentationMethod(method string) error {
 	if method != env.APMInstrumentationEnabledIIS && method != env.APMInstrumentationEnabledDotnet {
-		return fmt.Errorf("Unsupported injection method: %s", method)
+		return fmt.Errorf("Unsupported instrumentation method: %s", method)
 	}
 	return nil
 }
@@ -92,7 +91,7 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	defer func() { span.Finish(err) }()
 
 	var currentMethod string
-	currentMethod, err = getAPMInjectionMethod()
+	currentMethod, err = getAPMInstrumentationMethod()
 	if err != nil {
 		return err
 	}
@@ -114,5 +113,5 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	if currentMethod != method {
 		return nil
 	}
-	return unsetAPMInjectionMethod()
+	return unsetAPMInstrumentationMethod()
 }

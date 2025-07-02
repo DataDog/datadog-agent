@@ -140,12 +140,12 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 }
 
 func updateInstrumentation(ctx context.Context, newMethod, target string) (err error) {
-	// TODO What if it's a reinstall and the injection method config was not properly cleaned up by the previous installation?
-	// Check if a an injection method was set during a previous installation
+	// TODO What if it's a reinstall and the instrumentation method config was not properly cleaned up by the previous installation?
+	// Check if a an instrumentation method was set during a previous installation
 	var currentMethod string
-	currentMethod, err = getAPMInjectionMethod()
+	currentMethod, err = getAPMInstrumentationMethod()
 	if err != nil {
-		return fmt.Errorf("could not get current injection method: %w", err)
+		return fmt.Errorf("could not get current instrumentation method: %w", err)
 	}
 
 	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
@@ -171,7 +171,7 @@ func updateInstrumentation(ctx context.Context, newMethod, target string) (err e
 		return fmt.Errorf("could not instrument dotnet library: %w", err)
 	}
 
-	return setAPMInjectionMethod(newMethod)
+	return setAPMInstrumentationMethod(newMethod)
 }
 
 func instrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
@@ -195,13 +195,13 @@ func instrumentDotnetLibrary(ctx context.Context, method, target string) (err er
 		_, err = dotnetExec.EnableGlobalInstrumentation(ctx, getLibraryPath(installDir))
 		return err
 	default:
-		return fmt.Errorf("unsupported injection method: %s", method)
+		return fmt.Errorf("unsupported instrumentation method: %s", method)
 	}
 }
 
 func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
 	var method string
-	method, err = getAPMInjectionMethod()
+	method, err = getAPMInstrumentationMethod()
 	if err != nil {
 		return err
 	}
@@ -213,7 +213,7 @@ func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err 
 	if err != nil {
 		return fmt.Errorf("could not uninstrument dotnet library: %w", err)
 	}
-	return unsetAPMInjectionMethod()
+	return unsetAPMInstrumentationMethod()
 }
 
 func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
@@ -237,6 +237,6 @@ func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err 
 		_, err = dotnetExec.RemoveGlobalInstrumentation(ctx)
 		return err
 	default:
-		return fmt.Errorf("unsupported injection method: %s", method)
+		return fmt.Errorf("unsupported instrumentation method: %s", method)
 	}
 }
