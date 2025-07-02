@@ -1,7 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/datadog-api-client-go/v2 v2.41.0 h1:MCcyRk3whNVSlNuKvV3AyxpvTj3oVHufmTjRVMisqwY=
-github.com/DataDog/datadog-api-client-go/v2 v2.41.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
+github.com/DataDog/datadog-api-client-go/v2 v2.42.0 h1:0L03LqChbOf7IaaiBUZpXi1Ss6PseGGhQEQrNqD9nU8=
+github.com/DataDog/datadog-api-client-go/v2 v2.42.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.0 h1:tbp4kjTNOK+S/yufHMZquOFQBXaTc7SNd5Bd/UD3GJQ=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.0/go.mod h1:0YqFLZe5Ng0/bLYp87CSpU53wdrFiapYK4joAwMVT2Q=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.0 h1:dLmvZh7iiINIA6Mb7wwnfRiMzN3zCMko7z51LsV6pSM=
