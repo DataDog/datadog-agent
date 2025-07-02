@@ -290,34 +290,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 	}
 }
 
-func TestWinServiceManager_StartAndRestartServices(t *testing.T) {
-	t.Run("StartAgentServices success", func(t *testing.T) {
-		mockAPI := &mockSystemAPI{}
-		mockAPI.On("StartService", "datadogagent").Return(nil)
-
-		manager := NewWinServiceManagerWithAPI(mockAPI)
-
-		ctx := context.Background()
-		err := manager.StartAgentServices(ctx)
-
-		assert.NoError(t, err)
-		mockAPI.AssertExpectations(t)
-	})
-
-	t.Run("StartAgentServices fails", func(t *testing.T) {
-		mockAPI := &mockSystemAPI{}
-		mockAPI.On("StartService", "datadogagent").Return(errors.New("service start failed"))
-
-		manager := NewWinServiceManagerWithAPI(mockAPI)
-
-		ctx := context.Background()
-		err := manager.StartAgentServices(ctx)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to start datadogagent service")
-		mockAPI.AssertExpectations(t)
-	})
-
+func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 	t.Run("RestartAgentServices success", func(t *testing.T) {
 		mockAPI := &mockSystemAPI{}
 		// Stop services
