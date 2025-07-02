@@ -85,6 +85,7 @@ func getCFlags(cfg *config) []string {
 		"-Wno-unused-variable",
 		"-Wno-unused-function",
 		"-DDYNINST_GENERATED_CODE",
+		"-DDYNINST_RUNTIME_COMPILATION",
 	}
 	if cfg.ebpfConfig.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")

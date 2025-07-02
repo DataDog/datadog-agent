@@ -10,26 +10,27 @@
 #include "types.h"
 #include "queue.h"
 
-extern const uint8_t stack_machine_code[];
-extern const uint64_t stack_machine_code_len;
-extern const uint32_t stack_machine_code_max_op;
+DEFINE_BINARY_SEARCH(
+  lookup_type_info,
+  type_t,
+  type_id,
+  type_ids,
+  num_types
+);
 
-// extern const target_ptr_t VARIABLE_runtime_dot_firstmoduledata;
-// extern const uint64_t OFFSET_runtime_dot_moduledata__types;
-// extern const uint64_t OFFSET_runtime_dot_eface___type;
-// extern const uint64_t OFFSET_runtime_dot_eface__data;
-// extern const uint64_t OFFSET_runtime_dot_iface__data;
-// extern const uint64_t OFFSET_runtime_dot_iface__tab;
-// extern const uint64_t OFFSET_runtime_dot_itab___type;
-
-extern const uint32_t chase_pointers_entrypoint;
-// extern const uint32_t unresolved_go_subroutine_type;
+static bool get_type_info(type_t t, const type_info_t** info_out) {
+  uint32_t idx = lookup_type_info_by_type_id(t);
+  if (idx >= num_types || type_ids[idx] != t) {
+    return false;
+  }
+  *info_out = &type_info[idx];
+  return true;
+}
 
 __attribute__((noinline)) bool chased_pointer_contains(chased_pointers_t* chased, target_ptr_t ptr, type_t type) {
   if (!chased) {
     return false;
   }
-  uint32_t i = 0;
   uint32_t max = chased->n;
   if (max >= MAX_CHASED_POINTERS) {
     return false;
@@ -156,21 +157,21 @@ sm_read_program_uint8(stack_machine_t* sm) {
   return param;
 }
 
-inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint32_t
 sm_read_program_uint16(stack_machine_t* sm) {
   uint32_t param = read_uint16(&stack_machine_code[sm->pc]);
   sm->pc += 2;
   return param;
 }
 
-inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint32_t
 sm_read_program_uint32(stack_machine_t* sm) {
   uint32_t param = read_uint32(&stack_machine_code[sm->pc]);
   sm->pc += 4;
   return param;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: push on full data stack");
@@ -181,7 +182,7 @@ sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_data_stack_pop(stack_machine_t* sm) {
   if (sm->data_stack_pointer == 0) {
     LOG(2, "enqueue: pop on empty data stack");
@@ -198,7 +199,7 @@ sm_data_stack_pop(stack_machine_t* sm) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
+static inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   if (sm->pc_stack_pointer == 0) {
     return false;
   }
@@ -214,7 +215,7 @@ inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   stack_machine_t* sm = ctx->stack_machine;
 
@@ -258,7 +259,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
 }
 
 // Returns false if the pointer has already been memoized.
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
                    target_ptr_t addr) {
   // Check if address was already processed before.
@@ -266,7 +267,7 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
   return chased_pointers_push(&sm->chased, addr, type);
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
                   bool decrease_ttl,
                   uint32_t maybe_len) {
@@ -853,7 +854,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // checking from the verifier.
     barrier_var(typ);
     barrier_var(data_len);
-    uint32_t sb_len = scratch_buf_len(buf);
 
     sm->di_0.type = typ;
     sm->di_0.length = data_len;
