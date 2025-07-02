@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	"github.com/moby/sys/mountinfo"
 	"os"
 	"syscall"
 	"testing"
@@ -44,15 +45,25 @@ func TmpMountAt(dir string) error {
 	return nil
 }
 
-// getMountID returns the mount ID reported by the kernel for the mount which
-// contains the provided path. It relies on the STATX_MNT_ID extension which is
-// available on Linux ≥ 5.8.
 func getMountID(path string) (uint32, error) {
-	var stx unix.Statx_t
-	if err := unix.Statx(unix.AT_FDCWD, path, unix.AT_SYMLINK_NOFOLLOW, unix.STATX_MNT_ID, &stx); err != nil {
-		return 0, err
+	var stat unix.Stat_t
+	if err := unix.Stat(path, &stat); err != nil {
+		return 0, fmt.Errorf("failed to stat %s: %w", path, err)
 	}
-	return uint32(stx.Mnt_id), nil
+
+	mounts, err := mountinfo.GetMounts(nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get mounts: %w", err)
+	}
+
+	for _, mnt := range mounts {
+		mountDevice := unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))
+		if mountDevice == stat.Dev {
+			return uint32(mnt.ID), nil
+		}
+	}
+
+	return 0, fmt.Errorf("mount not found for path %s", path)
 }
 
 func TestOpenTree(t *testing.T) {
@@ -131,6 +142,7 @@ func TestOpenTree(t *testing.T) {
 
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
 		seen := 0
+		fmt.Println("STARTING TEST. mountIDsToPath::", mountIDsToPath)
 		err = test.GetProbeEvent(func() error {
 			_, err = unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			if err != nil {
