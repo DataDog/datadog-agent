@@ -37,6 +37,7 @@ const (
 	PodType       ResourceType = "pod"
 	ServiceType   ResourceType = "service"
 	EndpointType  ResourceType = "endpoint"
+	ImageType     ResourceType = "image"
 )
 
 //
@@ -220,6 +221,8 @@ type ServiceFilter int
 const (
 	LegacyServiceMetrics ServiceFilter = iota
 	LegacyServiceGlobal
+	ServiceADAnnotationsMetrics
+	ServiceADAnnotations
 )
 
 //
@@ -261,4 +264,46 @@ type EndpointFilter int
 const (
 	LegacyEndpointMetrics EndpointFilter = iota
 	LegacyEndpointGlobal
+	EndpointADAnnotationsMetrics
+	EndpointADAnnotations
+)
+
+//
+// Image Definition
+//
+
+// Image represents a filterable image object.
+type Image struct {
+	*typedef.FilterImage
+}
+
+// CreateImage creates a Filterable Image object.
+func CreateImage(name string) *Image {
+	return &Image{
+		FilterImage: &typedef.FilterImage{
+			Name: name,
+		},
+	}
+}
+
+var _ Filterable = &Image{}
+
+// Serialize converts the Image object to a filterable object.
+func (i *Image) Serialize() any {
+	return i.FilterImage
+}
+
+// Type returns the resource type of the image.
+func (i *Image) Type() ResourceType {
+	return ImageType
+}
+
+// ImageFilter defines the type of image filter.
+type ImageFilter int
+
+// Defined Image filter kinds
+const (
+	LegacyImage ImageFilter = iota
+	ImagePaused
+	ImageSBOM
 )
