@@ -20,7 +20,6 @@ import (
 	"slices"
 	"strings"
 
-	loclist_reader "github.com/go-delve/delve/pkg/dwarf/loclist"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
@@ -56,7 +55,7 @@ const maxHashBucketsSize = 4 * maxDynamicTypeSize
 func GenerateIR(
 	programID ir.ProgramID,
 	objFile object.File,
-	config []ProbeDefinition,
+	config []ir.ProbeDefinition,
 ) (_ *ir.Program, retErr error) {
 	// Given that the go dwarf library is not intentionally safe when
 	// used with untrusted inputs, let's at least recover from panics and
@@ -505,7 +504,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 			if byteSize > math.MaxUint32 {
 				return fmt.Errorf(
 					"event %q has too many bytes: %d",
-					probe.ID, byteSize,
+					probe.GetID(), byteSize,
 				)
 			}
 			event.Type = &ir.EventRootType{
@@ -536,7 +535,7 @@ type rootVisitor struct {
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
 	probes             []*ir.Probe
 	typeCatalog        *typeCatalog
-	loclistReader      *object.LoclistReader
+	loclistReader      *loclist.Reader
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
@@ -717,7 +716,7 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func (v *rootVisitor) newProbe(
-	probeCfg ProbeDefinition,
+	probeCfg ir.ProbeDefinition,
 	unit *dwarf.Entry,
 	subprogram *ir.Subprogram,
 ) (*ir.Probe, error) {
@@ -772,17 +771,10 @@ func (v *rootVisitor) newProbe(
 			Type: nil,
 		},
 	}
-	throttleConfig := probeCfg.GetThrottleConfig()
 	probe := &ir.Probe{
-		ID:                  probeCfg.GetID(),
-		Subprogram:          subprogram,
-		Kind:                kind,
-		Version:             probeCfg.GetVersion(),
-		Tags:                probeCfg.GetTags(),
-		Events:              events,
-		ThrottlePeriodMs:    throttleConfig.GetThrottlePeriodMs(),
-		ThrottleBudget:      throttleConfig.GetThrottleBudget(),
-		PointerChasingLimit: probeCfg.GetCaptureConfig().GetMaxReferenceDepth(),
+		ProbeDefinition: probeCfg,
+		Subprogram:      subprogram,
+		Events:          events,
 	}
 	return probe, nil
 }
@@ -848,7 +840,7 @@ type subprogramChildVisitor struct {
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
 	subprogram *ir.Subprogram
-	probesCfgs []ProbeDefinition
+	probesCfgs []ir.ProbeDefinition
 }
 
 func (v *subprogramChildVisitor) push(
@@ -961,7 +953,7 @@ func (v *rootVisitor) processVariable(
 
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
-	probesCfgs []ProbeDefinition
+	probesCfgs []ir.ProbeDefinition
 	subprogram *ir.Subprogram
 	variables  map[dwarf.Offset]*ir.Variable
 }
@@ -1041,8 +1033,7 @@ func (v *rootVisitor) computeLocations(
 	typ ir.Type,
 	locField *dwarf.Field,
 ) ([]ir.Location, error) {
-	totalSize := int64(typ.GetByteSize())
-	pointerSize := int(v.object.PointerSize())
+	totalSize := typ.GetByteSize()
 	var locations []ir.Location
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
@@ -1052,20 +1043,14 @@ func (v *rootVisitor) computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		if err := v.loclistReader.Seek(unit, offset); err != nil {
+		loclist, err := v.loclistReader.Read(unit, offset, totalSize)
+		if err != nil {
 			return nil, err
 		}
-		var entry loclist_reader.Entry
-		for v.loclistReader.Next(&entry) {
-			pieces, err := loclist.ParseInstructions(entry.Instr, uint8(pointerSize), uint32(totalSize))
-			if err != nil {
-				return nil, err
-			}
-			locations = append(locations, ir.Location{
-				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
-				Pieces: pieces,
-			})
+		if len(loclist.Default) > 0 {
+			return nil, fmt.Errorf("unexpected default location pieces")
 		}
+		locations = loclist.Locations
 
 	case dwarf.ClassExprLoc:
 		instr, ok := locField.Val.([]byte)
@@ -1074,7 +1059,7 @@ func (v *rootVisitor) computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		pieces, err := loclist.ParseInstructions(instr, uint8(pointerSize), uint32(totalSize))
+		pieces, err := loclist.ParseInstructions(instr, v.object.PointerSize(), totalSize)
 		if err != nil {
 			return nil, err
 		}
@@ -1091,11 +1076,6 @@ func (v *rootVisitor) computeLocations(
 			"unexpected %s class: %s",
 			locField.Attr, locField.Class,
 		)
-	}
-
-	locations, err := loclist.FixLoclists(locations, uint64(totalSize))
-	if err != nil {
-		return nil, err
 	}
 
 	return locations, nil
@@ -1142,17 +1122,17 @@ const runtimePackageName = "runtime"
 // interests tracks what compile units and subprograms we're interested in.
 type interests struct {
 	compileUnits map[string]struct{}
-	subprograms  map[string][]ProbeDefinition
+	subprograms  map[string][]ir.ProbeDefinition
 }
 
-func makeInterests(cfg []ProbeDefinition) (interests, error) {
+func makeInterests(cfg []ir.ProbeDefinition) (interests, error) {
 	i := interests{
 		compileUnits: make(map[string]struct{}),
-		subprograms:  make(map[string][]ProbeDefinition),
+		subprograms:  make(map[string][]ir.ProbeDefinition),
 	}
 	for _, probe := range cfg {
 		switch where := probe.GetWhere().(type) {
-		case FunctionWhere:
+		case ir.FunctionWhere:
 			methodName := where.Location()
 			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
 			i.subprograms[methodName] = append(i.subprograms[methodName], probe)

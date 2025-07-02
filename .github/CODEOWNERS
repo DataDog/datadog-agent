@@ -327,6 +327,7 @@
 /comp/core/status @DataDog/agent-configuration
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
+/comp/core/workloadfilter @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
