@@ -72,8 +72,9 @@
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
+    PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
   script:
-    - dda inv -- -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -92,6 +93,35 @@
 
 .needs_new_e2e_template:
   - go_e2e_deps
+  - go_e2e_test_binaries
+
+# Build test binaries job that creates pre-compiled test binaries
+# This job runs early in the pipeline and creates artifacts that can be reused by test jobs
+go_e2e_test_binaries:
+  stage: binary_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  tags: ["arch:amd64"]
+  needs:
+    - go_e2e_deps
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 64Gi
+    KUBERNETES_MEMORY_LIMIT: 64Gi
+  before_script:
+    - !reference [.retrieve_linux_go_e2e_deps]
+  script:
+    - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
+    - tar czf test-binaries.tar.gz test-binaries
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - test-binaries.tar.gz
+      - manifest.json
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+
 
 .new_e2e_template_needs_windows_x64:
   extends: .new_e2e_template
@@ -156,7 +186,7 @@ new-e2e-containers-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
   needs:
-    - !reference [.needs_new_e2e_template]
+    - go_e2e_deps
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -166,6 +196,9 @@ new-e2e-containers-eks-init:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
 
 new-e2e-containers-eks:
@@ -289,6 +322,19 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
 
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
+
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -334,7 +380,7 @@ new-e2e-npm-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
   needs:
-    - !reference [.needs_new_e2e_template]
+    - go_e2e_deps
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
@@ -344,6 +390,9 @@ new-e2e-npm-eks-init:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
 
 new-e2e-npm-eks:
@@ -427,7 +476,8 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
@@ -492,7 +542,8 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-    # TODO: Re-enable on fips pipeline when this test does not rely on remote-configuration: ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
@@ -597,6 +648,8 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
@@ -678,7 +731,8 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
 new-e2e-ha-agent-failover:
@@ -741,13 +795,16 @@ new-e2e-otel-eks-init:
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]
   needs:
-    - !reference [.needs_new_e2e_template]
+    - go_e2e_deps
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
 
 new-e2e-otel-eks:

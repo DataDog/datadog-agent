@@ -128,6 +128,8 @@ type Agent struct {
 	ctx context.Context
 
 	firstSpanMap sync.Map
+
+	processWg *sync.WaitGroup
 }
 
 // SpanModifier is an interface that allows to modify spans while they are
@@ -168,6 +170,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
 		Timing:                timing,
+		processWg:             &sync.WaitGroup{},
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
@@ -203,6 +206,7 @@ func (a *Agent) Run() {
 	workers := max(runtime.GOMAXPROCS(0), 1)
 
 	log.Infof("Processing Pipeline configured with %d workers", workers)
+	a.processWg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go a.work()
 	}
@@ -241,6 +245,7 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 }
 
 func (a *Agent) work() {
+	defer a.processWg.Done()
 	for {
 		p, ok := <-a.In
 		if !ok {
@@ -248,7 +253,6 @@ func (a *Agent) work() {
 		}
 		a.Process(p)
 	}
-
 }
 
 func (a *Agent) loop() {
@@ -256,9 +260,14 @@ func (a *Agent) loop() {
 	log.Info("Exiting...")
 
 	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
+	// Stop the receiver first before other processing components
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
+
+	//Wait to process any leftover payloads in flight before closing components that might be needed
+	a.processWg.Wait()
+
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -465,6 +474,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTa
 		AppVersion:             p.TracerPayload.AppVersion,
 		TracerEnv:              p.TracerPayload.Env,
 		TracerHostname:         p.TracerPayload.Hostname,
+		Lang:                   p.TracerPayload.LanguageName,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}

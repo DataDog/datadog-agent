@@ -6,9 +6,9 @@
 package log
 
 import (
-	"testing"
-
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"io"
+	"testing"
 )
 
 func TestChannelWriter_Write(t *testing.T) {
@@ -97,5 +97,32 @@ func TestChannelWriter_WriteError(t *testing.T) {
 	msg = <-ch
 	if string(msg.Content) != message {
 		t.Fatalf("Expected message content '%s' but got '%s'", message, msg.Content)
+	}
+}
+
+func TestChannelWriter_ReturnsLength(t *testing.T) {
+	ch := make(chan *logConfig.ChannelMessage, 1)
+	cw := NewChannelWriter(ch, true)
+
+	mw := io.MultiWriter(io.Discard, cw)
+
+	payload := []byte("test error\n")
+	n, err := mw.Write(payload)
+
+	if err != nil {
+		t.Fatalf(
+			"MultiWriter.Write returned an error; likely ChannelWriter.Write returned n < len(p). Error: %v", err,
+		)
+	}
+	if n != len(payload) {
+		t.Fatalf("MultiWriter.Write returned %d; expected %d", n, len(payload))
+	}
+
+	if len(ch) != 1 {
+		t.Fatalf("Expected 1 message in channel, got %d", len(ch))
+	}
+	msg := <-ch
+	if string(msg.Content) != string(payload) {
+		t.Fatalf("Expected channel content %q, got %q", string(payload), msg.Content)
 	}
 }

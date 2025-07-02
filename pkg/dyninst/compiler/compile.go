@@ -9,15 +9,19 @@ package compiler
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpfruntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
+
+// RingbufMapName is the name of the ringbuffer map that is used to collect
+// probe output.
+const RingbufMapName = "out_ringbuf"
 
 //go:generate $GOPATH/bin/include_headers pkg/dyninst/ebpf/event.c pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/bytecode/runtime/dyninst_event.go runtime
@@ -26,13 +30,15 @@ import (
 type CompiledBPF struct {
 	Obj ebpfruntime.CompiledOutput
 
-	// Program to attach and list of pcs to attach at, along with the cookie that should be provided at that attach point.
+	// Program to attach and list of pcs to attach at, along with the cookie
+	// that should be provided at that attach point.
 	ProgramName  string
 	Attachpoints []codegen.BPFAttachPoint
 }
 
-// CompileBPFProgram compiles the eBPF program.
-func CompileBPFProgram(program *ir.Program, extraCodeSink io.Writer) (CompiledBPF, error) {
+func compileBPFProgram(
+	cfg *config, program *ir.Program, extraCodeSink io.Writer,
+) (CompiledBPF, error) {
 	generatedCode := bytes.NewBuffer(nil)
 	smProgram, err := sm.GenerateProgram(program)
 	if err != nil {
@@ -58,13 +64,14 @@ func CompileBPFProgram(program *ir.Program, extraCodeSink io.Writer) (CompiledBP
 		return t.Execute(out, generatedCode.String())
 	}
 
-	cfg := ddebpf.NewConfig()
 	opts := ebpfruntime.CompileOptions{
 		AdditionalFlags:  getCFlags(cfg),
 		ModifyCallback:   injector,
 		UseKernelHeaders: true,
 	}
-	obj, err := ebpfruntime.Dyninstevent.CompileWithOptions(cfg, opts)
+	obj, err := ebpfruntime.Dyninstevent.CompileWithOptions(
+		cfg.ebpfConfig, opts,
+	)
 	if err != nil {
 		return CompiledBPF{}, err
 	}
@@ -72,15 +79,21 @@ func CompileBPFProgram(program *ir.Program, extraCodeSink io.Writer) (CompiledBP
 	return CompiledBPF{Obj: obj, ProgramName: "probe_run_with_cookie", Attachpoints: attachpoints}, nil
 }
 
-func getCFlags(config *ddebpf.Config) []string {
+func getCFlags(cfg *config) []string {
 	cflags := []string{
 		"-g",
 		"-Wno-unused-variable",
 		"-Wno-unused-function",
 		"-DDYNINST_GENERATED_CODE",
 	}
-	if config.BPFDebug {
+	if cfg.ebpfConfig.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
+	}
+	if cfg.dyninstDebugEnabled {
+		cflags = append(
+			cflags,
+			fmt.Sprintf("-DDYNINST_DEBUG=%d", cfg.dyninstDebugLevel),
+		)
 	}
 	return cflags
 }

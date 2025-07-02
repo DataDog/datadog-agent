@@ -26,6 +26,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
+from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -779,20 +780,18 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
     )
     config_dump = yaml.safe_dump(config_object)
     res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
-    status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-
-    print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
     if len(res.warnings) > 0:
-        print(
-            f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
-            file=sys.stderr,
+        raise SingleGitlabLintFailure(
+            entry_point=entry_point,
+            _level=FailureLevel.WARNING,
+            _details=f"Gitlab CI configuration has warnings: {res.warnings}",
         )
     if not res.valid:
-        print(
-            f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
-            file=sys.stderr,
+        raise SingleGitlabLintFailure(
+            entry_point=entry_point,
+            _level=FailureLevel.ERROR,
+            _details=f"Gitlab CI configuration is invalid: {res.errors}",
         )
-        raise Exit(code=1)
 
 
 def post_process_gitlab_ci_configuration(
@@ -867,6 +866,7 @@ def get_all_gitlab_ci_configurations(
     Returns:
         A dictionary of [entry point] -> configuration
     """
+    print(f'[{color_message("INFO", Color.BLUE)}] Fetching Gitlab CI configurations...')
 
     # configurations[input_file] -> parsed config
     configurations: dict[str, dict] = {}
@@ -1226,7 +1226,7 @@ def gitlab_configuration_is_modified(ctx):
     return False
 
 
-def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
+def compute_gitlab_ci_config_diff(ctx, before: str | None = None, after: str | None = None):
     """Computes the full configs and the diff between two git references.
 
     The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".
@@ -1300,7 +1300,7 @@ def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comme
         yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
 
 
-def update_gitlab_config(file_path, tag, images="", test=True, update=True):
+def update_gitlab_config(file_path, tag, images="", test=True, update=True, windows=False):
     """
     Override variables in .gitlab-ci.yml file.
     """
@@ -1310,7 +1310,7 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     gitlab_ci = yaml.safe_load("".join(file_content))
     variables = gitlab_ci['variables']
     # Select the buildimages prefixed with CI_IMAGE matchins input images list
-    images_to_update = list(find_buildimages(variables, images))
+    images_to_update = list(find_buildimages(variables, images, windows=windows))
     if update:
         output = update_image_tag(file_content, tag, images_to_update, test=test)
         with open(file_path, "w") as gl:
@@ -1318,7 +1318,7 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     return images_to_update
 
 
-def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
+def find_buildimages(variables, images="", prefix="CI_IMAGE_", windows=False):
     """
     Select the buildimages variables to update.
     With default values, the former CI_IMAGE_ variables are updated.
@@ -1330,6 +1330,8 @@ def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
             and variable.endswith(suffix)
             and any(image in variable.casefold() for image in images.casefold().split(","))
         ):
+            if 'WIN' in variable and not windows:
+                continue
             yield variable.removesuffix(suffix)
 
 

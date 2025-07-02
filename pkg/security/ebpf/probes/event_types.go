@@ -215,7 +215,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
 			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("rethook_alloc_vfsmnt"),
+			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", fentry, EntryAndExit, true)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsmount", fentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", fentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
@@ -534,6 +538,13 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					},
 				},
 				hookFunc("hook_proc_sys_call_handler"),
+			}},
+		},
+		"setrlimit": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setrlimit", fentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prlimit64", fentry, EntryAndExit)},
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_security_task_setrlimit"),
 			}},
 		},
 	}
