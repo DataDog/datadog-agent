@@ -9,15 +9,15 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,8 +65,8 @@ func (c *controller) String() string {
 // GetConfigErrors returns a map of errors that occurred on the last Collect
 // call, indexed by a description of the resource that generated the error.
 // The result is displayed in diagnostic tools such as `agent status`.
-func (c *controller) GetConfigErrors() map[string]providers.ErrorMsgSet {
-	return nil
+func (c *controller) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return map[string]types.ErrorMsgSet{}
 }
 
 // manageSubscriptionToRC subscribes to remote configuration updates if the agent is running the kafka_consumer integration.
@@ -97,7 +97,7 @@ func isConnectedToKafka(ac autodiscovery.Component) bool {
 }
 
 // NewController creates a new controller instance
-func NewController(ac autodiscovery.Component, rcclient rcclient.Component) providers.ConfigProvider {
+func NewController(ac autodiscovery.Component, rcclient rcclient.Component) types.ConfigProvider {
 	c := &controller{
 		ac:            ac,
 		rcclient:      rcclient,

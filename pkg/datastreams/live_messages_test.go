@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -33,7 +33,7 @@ func (m *mockedRcClient) Subscribe(_ data.Product, _ func(map[string]state.RawCo
 type mockedAutodiscovery struct {
 }
 
-func (m *mockedAutodiscovery) AddConfigProvider(_ providers.ConfigProvider, _ bool, _ time.Duration) {
+func (m *mockedAutodiscovery) AddConfigProvider(_ types.ConfigProvider, _ bool, _ time.Duration) {
 }
 func (m *mockedAutodiscovery) LoadAndRun(_ context.Context) {}
 func (m *mockedAutodiscovery) ForceRanOnceFlag()            {}
@@ -46,10 +46,10 @@ func (m *mockedAutodiscovery) RemoveScheduler(_ string)                         
 func (m *mockedAutodiscovery) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID {
 	return checkID
 }
-func (m *mockedAutodiscovery) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+func (m *mockedAutodiscovery) GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet {
 	return nil
 }
-func (m *mockedAutodiscovery) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
+func (m *mockedAutodiscovery) GetProviderCatalog() map[string]types.ConfigProviderFactory {
 	return nil
 }
 func (m *mockedAutodiscovery) GetTelemetryStore() *telemetry.Store {
