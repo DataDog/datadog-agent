@@ -100,6 +100,13 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	// Endpoints Filters
 	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
 	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram(config, logger))
+	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), catalog.EndpointsADAnnotationsProgram(config, logger))
+	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), catalog.EndpointsADAnnotationsMetricsProgram(config, logger))
+
+	// Image Filters
+	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.LegacyImage), catalog.LegacyImageProgram(config, logger))
+	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImagePaused), catalog.ImagePausedProgram(config, logger))
+	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImageSBOM), catalog.ImageSBOMProgram(config, logger))
 
 	// WIP: Pod Filters
 
@@ -122,6 +129,10 @@ func (f *filter) IsServiceExcluded(service *workloadfilter.Service, serviceFilte
 
 func (f *filter) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
 	return evaluateResource(f, endpoint, endpointFilters) == workloadfilter.Excluded
+}
+
+func (f *filter) IsImageExcluded(image *workloadfilter.Image, imageFilters [][]workloadfilter.ImageFilter) bool {
+	return evaluateResource(f, image, imageFilters) == workloadfilter.Excluded
 }
 
 // evaluateResource checks if a resource is excluded based on the provided filters.
