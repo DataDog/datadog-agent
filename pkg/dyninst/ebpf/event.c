@@ -14,9 +14,6 @@
 
 char _license[] SEC("license") = "GPL";
 
-extern const probe_params_t probe_params[];
-extern const uint32_t num_probe_params;
-
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __uint(max_entries, 1);
@@ -31,7 +28,10 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   if (cookie >= num_probe_params) {
     return 0;
   }
-  const probe_params_t* params = &probe_params[cookie];
+  const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);
+  if (!params) {
+    return 0;
+  }
 
   if (should_throttle(params->throttler_idx, start_ns)) {
     uint32_t zero = 0;

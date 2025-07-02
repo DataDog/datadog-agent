@@ -8,6 +8,7 @@
 #include "framing.h"
 #include "scratch.h"
 #include "types.h"
+#include "program.h"
 #include "queue.h"
 
 DEFINE_BINARY_SEARCH(
@@ -20,10 +21,10 @@ DEFINE_BINARY_SEARCH(
 
 static bool get_type_info(type_t t, const type_info_t** info_out) {
   uint32_t idx = lookup_type_info_by_type_id(t);
-  if (idx >= num_types || type_ids[idx] != t) {
+  *info_out = bpf_map_lookup_elem(&type_info, &idx);
+  if (!*info_out) {
     return false;
   }
-  *info_out = &type_info[idx];
   return true;
 }
 
@@ -83,20 +84,6 @@ static bool chased_pointers_push(chased_pointers_t* chased, target_ptr_t ptr,
   return true;
 }
 
-static inline uint32_t read_uint32(const uint8_t* buf) {
-  return (uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 |
-         (uint32_t)buf[3] << 24;
-}
-
-static inline int32_t read_int32(const uint8_t* buf) {
-  return (int32_t)buf[0] | (int32_t)buf[1] << 8 | (int32_t)buf[2] << 16 |
-         (int32_t)buf[3] << 24;
-}
-
-static inline uint16_t read_uint16(const uint8_t* buf) {
-  return (uint16_t)buf[0] | (uint16_t)buf[1] << 8;
-}
-
 typedef struct zero_data_ctx {
   scratch_buf_t* buf;
   buf_offset_t base_offset;
@@ -150,23 +137,67 @@ void copy_data(scratch_buf_t* buf, buf_offset_t src, buf_offset_t dst,
   bpf_loop(len, copy_data_loop, &ctx, 0);
 }
 
-inline __attribute__((always_inline)) uint8_t
+static inline uint32_t read_uint32(const uint8_t* buf) {
+  return (uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 |
+         (uint32_t)buf[3] << 24;
+}
+
+static inline int32_t read_int32(const uint8_t* buf) {
+  return (int32_t)buf[0] | (int32_t)buf[1] << 8 | (int32_t)buf[2] << 16 |
+         (int32_t)buf[3] << 24;
+}
+
+static inline uint16_t read_uint16(const uint8_t* buf) {
+  return (uint16_t)buf[0] | (uint16_t)buf[1] << 8;
+}
+
+static inline __attribute__((always_inline)) uint8_t
 sm_read_program_uint8(stack_machine_t* sm) {
-  uint8_t param = stack_machine_code[sm->pc];
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) {
+    LOG(1, "enqueue: failed to load code\n");
+    return 0;
+  }
+  if (sm->pc >= stack_machine_code_len) {
+    LOG(1, "enqueue: code read out of bounds %d >= %d\n", sm->pc, stack_machine_code_len);
+    return 0;
+  }
+  uint8_t param = data[sm->pc];
   sm->pc += 1;
   return param;
 }
 
-static inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint16_t
 sm_read_program_uint16(stack_machine_t* sm) {
-  uint32_t param = read_uint16(&stack_machine_code[sm->pc]);
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) {
+    LOG(1, "enqueue: failed to load code\n");
+    return 0;
+  }
+  if (sm->pc >= stack_machine_code_len-1) {
+    LOG(1, "enqueue: code read out of bounds %d+1 >= %d\n", sm->pc, stack_machine_code_len);
+    return 0;
+  }
+  uint32_t param = read_uint16(&data[sm->pc]);
   sm->pc += 2;
   return param;
 }
 
 static inline __attribute__((always_inline)) uint32_t
 sm_read_program_uint32(stack_machine_t* sm) {
-  uint32_t param = read_uint32(&stack_machine_code[sm->pc]);
+  uint32_t zero = 0;
+  uint8_t* data = bpf_map_lookup_elem(&stack_machine_code, &zero);
+  if (!data) {
+    LOG(1, "enqueue: failed to load code\n");
+    return 0;
+  }
+  if (sm->pc >= stack_machine_code_len-3) {
+    LOG(1, "enqueue: code read out of bounds %d+3 >= %d\n", sm->pc, stack_machine_code_len);
+    return 0;
+  }
+  uint32_t param = read_uint32(&data[sm->pc]);
   sm->pc += 4;
   return param;
 }
@@ -222,9 +253,9 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   // Serialize object entry.
   const type_info_t* info;
   if (!get_type_info((type_t)item.di.type, &info)) {
+    LOG(4, "chase: type info not found %d", item.di.type);
     return true;
   }
-  LOG(4, "chase: :%d !%d >%x", item.di.type, info->byte_len, info->enqueue_pc);
   if (info->byte_len == 0) {
     return true;
   }
@@ -566,11 +597,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
   case SM_OP_CALL: {
+    uint32_t next_pc = sm_read_program_uint32(sm);
     if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
       LOG(2, "enqueue: call stack limit reached");
       return 1;
     }
-    uint32_t next_pc = sm_read_program_uint32(sm);
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
     sm->pc_stack_pointer++;
     sm->pc = next_pc;
@@ -730,7 +761,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_PROCESS_POINTER: {
     type_t elem_type = (type_t)sm_read_program_uint32(sm);
-    if (elem_type == TYPE_NONE) {
+    if (elem_type == 0) {
       LOG(1, "enqueue: unknown pointer type %d", elem_type)
       return 1;
     }
@@ -1160,7 +1191,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   //   sm->go_context_capture_bitmask = 0;
   // } break;
 
-  default: LOG(1, "enqueue: unknown instruction %d\n", op); return 1;
+  default: LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc-1, op); return 1;
   }
 
   return 0;

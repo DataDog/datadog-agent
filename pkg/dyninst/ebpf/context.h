@@ -12,6 +12,8 @@
 #include "queue.h"
 #include "scratch.h"
 
+typedef uint32_t type_t;
+
 typedef struct frame_data {
   uint16_t stack_idx;
   uint64_t cfa;

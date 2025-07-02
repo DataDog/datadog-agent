@@ -8,14 +8,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
-func TestCgoAlignment_TypeInfo(t *testing.T) {
-	ebpftest.TestCgoAlignment[TypeInfo](t)
+func TestCgoAlignment_typeInfo(t *testing.T) {
+	ebpftest.TestCgoAlignment[typeInfo](t)
 }
 
-func TestCgoAlignment_ProbeParams(t *testing.T) {
-	ebpftest.TestCgoAlignment[ProbeParams](t)
+func TestCgoAlignment_probeParams(t *testing.T) {
+	ebpftest.TestCgoAlignment[probeParams](t)
 }
 
-func TestCgoAlignment_ThrottlerParams(t *testing.T) {
-	ebpftest.TestCgoAlignment[ThrottlerParams](t)
+func TestCgoAlignment_throttlerParams(t *testing.T) {
+	ebpftest.TestCgoAlignment[throttlerParams](t)
 }

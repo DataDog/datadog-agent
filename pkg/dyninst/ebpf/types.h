@@ -83,36 +83,4 @@ static const char* op_code_name(sm_opcode_t op_code) {
 }
 #endif
 
-#ifdef DYNINST_GENERATED_CODE
-
-{{ . }}
-
-#else
-
-typedef enum type { TYPE_NONE = 0 } type_t;
-const type_info_t type_info[] = {};
-const uint32_t type_ids[] = {};
-const uint32_t num_types = 0;
-const uint32_t prog_id = 0;
-const throttler_params_t throttler_params[] = {};
-#define NUM_THROTTLERS 0
-
-
-const uint8_t stack_machine_code[] = {};
-const uint64_t stack_machine_code_len = 0;
-const uint32_t stack_machine_code_max_op = 0;
-
-const uint32_t chase_pointers_entrypoint = 0;
-// const uint32_t unresolved_go_subroutine_type;
-
-// const target_ptr_t VARIABLE_runtime_dot_firstmoduledata;
-// const uint64_t OFFSET_runtime_dot_moduledata__types;
-// const uint64_t OFFSET_runtime_dot_eface___type;
-// const uint64_t OFFSET_runtime_dot_eface__data;
-// const uint64_t OFFSET_runtime_dot_iface__data;
-// const uint64_t OFFSET_runtime_dot_iface__tab;
-// const uint64_t OFFSET_runtime_dot_itab___type;
-
-#endif
-
 #endif // __TYPES_H__

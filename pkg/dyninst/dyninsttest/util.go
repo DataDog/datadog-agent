@@ -18,20 +18,32 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
+
+// MinimumKernelVersion is the minimum kernel version required by the ebpf program.
+var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
+
+// SkipIfKernelNotSupported skips the test if the kernel version is not supported.
+func SkipIfKernelNotSupported(t *testing.T) {
+	curKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if curKernelVersion < MinimumKernelVersion {
+		t.Skipf("Kernel version %v is not supported", curKernelVersion)
+	}
+}
 
 // SetupLogging is used to have a consistent logging setup for all tests.
 // It is best to call this in TestMain.
@@ -106,32 +118,21 @@ func CompileAndLoadBPF(
 	t *testing.T,
 	tempDir string,
 	irp *ir.Program,
-) (*ebpf.Collection, *ebpf.Program, []codegen.BPFAttachPoint, func()) {
-	codeDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.c"))
+) (*loader.Program, func()) {
+	codeDump, err := os.Create(filepath.Join(tempDir, "probe.sm.txt"))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, codeDump.Close()) }()
 
-	compiledBPF, err := compiler.NewCompiler().Compile(irp, codeDump)
+	smProgram, err := sm.GenerateProgram(irp)
 	require.NoError(t, err)
 
-	bpfObjDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
+	loader, err := loader.NewLoader()
 	require.NoError(t, err)
-	defer func() { require.NoError(t, bpfObjDump.Close()) }()
-	_, err = io.Copy(bpfObjDump, compiledBPF.Obj)
-	require.NoError(t, err)
-
-	spec, err := ebpf.LoadCollectionSpecFromReader(compiledBPF.Obj)
+	program, err := loader.Load(smProgram)
 	require.NoError(t, err)
 
-	bpfCollection, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
-	require.NoError(t, err)
-
-	bpfProg, ok := bpfCollection.Programs[compiledBPF.ProgramName]
-	require.True(t, ok)
-
-	return bpfCollection, bpfProg, compiledBPF.Attachpoints, func() {
-		compiledBPF.Obj.Close()
-		bpfCollection.Close()
+	return program, func() {
+		program.Close()
 	}
 }
 
@@ -157,8 +158,7 @@ func AttachBPFProbes(
 	binPath string,
 	obj *object.ElfFile,
 	pid int,
-	bpfProg *ebpf.Program,
-	attachpoints []codegen.BPFAttachPoint,
+	program *loader.Program,
 ) func() {
 	sampleLink, err := link.OpenExecutable(binPath)
 	require.NoError(t, err)
@@ -166,12 +166,12 @@ func AttachBPFProbes(
 	require.NoError(t, err)
 
 	var allAttached []link.Link
-	for _, attachpoint := range attachpoints {
+	for _, attachpoint := range program.Attachpoints {
 		// Despite the name, Uprobe expects an offset in the object file, and not the virtual address.
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset
 		attached, err := sampleLink.Uprobe(
 			"",
-			bpfProg,
+			program.BpfProgram,
 			&link.UprobeOptions{
 				PID:     pid,
 				Address: addr,
