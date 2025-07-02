@@ -21,7 +21,7 @@ require (
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20241206090539-a14610dc22b6 // indirect
 	github.com/DataDog/go-sqllexer v0.1.0 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.26.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect

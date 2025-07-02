@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.28.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.29.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.35.0
@@ -127,7 +127,6 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.129.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.129.0 // indirect
 	go.opentelemetry.io/collector/receiver v1.35.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
 	go.opentelemetry.io/otel v1.36.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.36.0 // indirect

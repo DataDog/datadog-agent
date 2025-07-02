@@ -144,7 +144,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.28.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.29.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
@@ -286,7 +286,6 @@ require (
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.129.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.129.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.129.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.128.1-0.20250610090210-188191247685 // indirect
 	go.opentelemetry.io/collector/service v0.129.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.129.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.11.0 // indirect
