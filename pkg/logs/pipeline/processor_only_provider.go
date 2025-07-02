@@ -23,7 +23,7 @@ type processorOnlyProvider struct {
 	processor       *processor.Processor
 	inputChan       chan *message.Message
 	outputChan      chan *message.Message
-	pipelineMonitor *metrics.TelemetryPipelineMonitor
+	pipelineMonitor metrics.PipelineMonitor
 }
 
 // NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
@@ -33,7 +33,7 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	encoder := processor.JSONEncoder
 	inputChan := make(chan *message.Message, chanSize)
 	pipelineID := "0"
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor()
+	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
 	processor := processor.New(cfg, inputChan, outputChan, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
 
