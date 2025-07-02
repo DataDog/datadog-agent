@@ -107,9 +107,7 @@ func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
 		collector.samples[i] = sample
 	}
 
-	if err := collector.removeUnsupportedMetrics(); err != nil {
-		return nil, fmt.Errorf("failed to remove unsupported metrics: %w", err)
-	}
+	collector.removeUnsupportedMetrics()
 
 	if len(collector.metricsToCollect) == 0 {
 		return nil, errUnsupportedDevice
@@ -118,18 +116,20 @@ func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
 	return collector, nil
 }
 
-func (c *gpmCollector) removeUnsupportedMetrics() error {
+func (c *gpmCollector) removeUnsupportedMetrics() {
 	// Now collect two samples and try to get the metrics, to discard any unsupported ones
+	// It's a best-effort approach, so any errors in the process are ignored. If they are not temporary,
+	// the collector will fail to collect metrics later and that will show in the logs.
 	for i := 0; i < 2; i++ {
 		err := c.collectSample()
 		if err != nil {
-			return fmt.Errorf("failed to collect GPM sample: %w", err)
+			return
 		}
 	}
 
 	metrics, err := c.calculateGpmMetrics()
 	if err != nil {
-		return fmt.Errorf("failed to get GPM metrics: %w", err)
+		return
 	}
 
 	for i := uint32(0); i < metrics.NumMetrics; i++ {
@@ -137,8 +137,6 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 			delete(c.metricsToCollect, nvml.GpmMetricId(metrics.Metrics[i].MetricId))
 		}
 	}
-
-	return nil
 }
 
 func (c *gpmCollector) collectSample() error {
