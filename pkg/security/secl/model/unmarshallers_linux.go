@@ -442,7 +442,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 60 {
+	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
 
