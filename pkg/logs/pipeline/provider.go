@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -53,7 +54,7 @@ type Provider interface {
 	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
 	GetOutputChan() chan *message.Message
-	NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor)
+	NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor)
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
 }
@@ -245,6 +246,7 @@ func (p *provider) Start() {
 			p.hostname,
 			p.cfg,
 			p.compression,
+			strconv.Itoa(i),
 		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
@@ -340,14 +342,14 @@ func (p *provider) GetOutputChan() chan *message.Message {
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
-func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil, nil
 	}
 	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan, nextPipeline.pipelineMonitor
+	return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.
