@@ -66,7 +66,7 @@ func TestFsmount(t *testing.T) {
 			defer unix.Close(fsfd)
 
 			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, unix.MOUNT_ATTR_RDONLY)
@@ -77,7 +77,10 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
-			assert.NotEqual(t, event.Mount.MountID, uint32(0), "Mount id is zero")
+			assert.NotEqual(t, uint32(0), event.Mount.MountID, "Mount id should not be zero")
+			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
+			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
+			assert.Equal(t, uint32(2), event.Mount.Source, "Source should be fsmount")
 			return true
 		}, 3*time.Second, model.FileMountEventType)
 
@@ -96,7 +99,7 @@ func TestFsmount(t *testing.T) {
 			defer unix.Close(fsfd)
 
 			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
