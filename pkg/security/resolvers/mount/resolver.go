@@ -374,7 +374,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	}
 	cache[mountID] = true
 
-	if mount.Origin == model.MountOriginFsmount || mount.Detached {
+	if mount.Detached {
 		// Detached mount
 		return "/", source, mount.Origin, nil
 	}
