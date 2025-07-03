@@ -41,11 +41,11 @@ type ProcessedNcmConfig struct {
 	Devices   map[string]DeviceConfig // map of device IP addresses to DeviceConfig
 }
 
-func newConfig(agentConfig config.Component) *ProcessedNcmConfig {
+func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
 	ncm := &RawNcmConfig{}
 	err := structure.UnmarshalKey(agentConfig, "network_config_management", &ncm)
 	if err != nil {
-		return nil
+		return &ProcessedNcmConfig{}, err
 	}
 	deviceMap := make(map[string]DeviceConfig)
 	for _, d := range ncm.Devices {
@@ -54,5 +54,5 @@ func newConfig(agentConfig config.Component) *ProcessedNcmConfig {
 	return &ProcessedNcmConfig{
 		Namespace: ncm.Namespace,
 		Devices:   deviceMap,
-	}
+	}, nil
 }

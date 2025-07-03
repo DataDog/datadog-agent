@@ -15,15 +15,8 @@ func TestConfig(t *testing.T) {
 	var tests = []struct {
 		name           string
 		configYaml     string
-		expectedConfig RawNcmConfig
+		expectedConfig ProcessedNcmConfig
 	}{
-		{
-			name:       "NCM not configured / set-up and enabled",
-			configYaml: ``,
-			expectedConfig: RawNcmConfig{
-				Devices: []DeviceConfig{},
-			},
-		},
 		{
 			name: "NCM configured with one device using SSH configurations",
 			configYaml: `
@@ -37,10 +30,10 @@ network_config_management:
         port: 22
         protocol: tcp
 `,
-			expectedConfig: RawNcmConfig{
+			expectedConfig: ProcessedNcmConfig{
 				Namespace: "test",
-				Devices: []DeviceConfig{
-					{
+				Devices: map[string]DeviceConfig{
+					"10.0.0.1": {
 						IPAddress: "10.0.0.1",
 						Auth: AuthCredentials{
 							Username: "admin",
@@ -71,10 +64,10 @@ network_config_management:
         port: 22
         protocol: tcp
 `,
-			expectedConfig: RawNcmConfig{
+			expectedConfig: ProcessedNcmConfig{
 				Namespace: "test",
-				Devices: []DeviceConfig{
-					{
+				Devices: map[string]DeviceConfig{
+					"10.0.0.1": {
 						IPAddress: "10.0.0.1",
 						Auth: AuthCredentials{
 							Username: "admin",
@@ -83,7 +76,7 @@ network_config_management:
 							Protocol: "tcp",
 						},
 					},
-					{
+					"10.0.0.2": {
 						IPAddress: "10.0.0.2",
 						Auth: AuthCredentials{
 							Username: "user",
@@ -99,7 +92,8 @@ network_config_management:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
-			testConfig := newConfig(mockConfig)
+			testConfig, err := newConfig(mockConfig)
+			assert.Nil(t, err)
 			assert.Equal(t, tt.expectedConfig.Namespace, testConfig.Namespace)
 			assert.Equal(t, tt.expectedConfig.Devices, testConfig.Devices)
 		})
