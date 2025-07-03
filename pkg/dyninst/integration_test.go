@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -99,7 +100,6 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, objectFile.Close()) }()
 
-	var sink testMessageSink
 	reporter := makeTestReporter(t)
 	loader, err := loader.NewLoader(
 		// Add following to help debug this test.
@@ -109,12 +109,9 @@ func testDyninst(
 		}),
 	)
 	require.NoError(t, err)
-	a, err := actuator.NewActuator(
-		actuator.WithMessageSink(&sink),
-		actuator.WithReporter(reporter),
-		actuator.WithLoader(loader),
-	)
+	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
+	at := a.NewTenant("integration-test", reporter)
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
@@ -137,7 +134,7 @@ func testDyninst(
 	}
 
 	// Send update to actuator to instrument the process.
-	a.HandleUpdate(actuator.ProcessesUpdate{
+	at.HandleUpdate(actuator.ProcessesUpdate{
 		Processes: []actuator.ProcessUpdate{
 			{
 				ProcessID: actuator.ProcessID{
@@ -152,7 +149,8 @@ func testDyninst(
 
 	// Wait for the process to be attached.
 	t.Log("Waiting for attachment")
-	<-reporter.attached
+	sink, ok := <-reporter.attached
+	require.True(t, ok)
 	if t.Failed() {
 		return
 	}
@@ -163,7 +161,7 @@ func testDyninst(
 	sampleStdin.Write([]byte("\n"))
 
 	expNumEvents := len(probes)
-	read := []actuator.Message{}
+	var read []output.Event
 	for m := range sink.ch {
 		read = append(read, m)
 		if len(read) == expNumEvents {
@@ -172,7 +170,7 @@ func testDyninst(
 	}
 	require.NoError(t, sampleProc.Wait())
 
-	a.HandleUpdate(actuator.ProcessesUpdate{
+	at.HandleUpdate(actuator.ProcessesUpdate{
 		Removals: []actuator.ProcessID{
 			{PID: int32(sampleProc.Process.Pid)},
 		},
@@ -215,8 +213,7 @@ func testDyninst(
 	require.NoError(t, err)
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
-	for _, msg := range read {
-		ev := msg.Event()
+	for _, ev := range read {
 		// Validate that the header has the correct program ID.
 		{
 			header, err := ev.Header()
@@ -320,32 +317,41 @@ func redactJSON(t *testing.T, input []byte) (redacted []byte) {
 
 type testMessageSink struct {
 	irp *ir.Program
-	ch  chan actuator.Message
+	ch  chan output.Event
 }
 
-func (d *testMessageSink) HandleMessage(m actuator.Message) error {
-	d.ch <- m
+func (d *testMessageSink) HandleEvent(ev output.Event) error {
+	d.ch <- append(make(output.Event, 0, len(ev)), ev...)
 	return nil
 }
 
-func (d *testMessageSink) RegisterProgram(p *ir.Program) {
-	d.irp = p
-	d.ch = make(chan actuator.Message, 100)
-}
-
-func (d *testMessageSink) UnregisterProgram(ir.ProgramID) {
+func (d *testMessageSink) Close() {
 	close(d.ch)
 }
 
 type testReporter struct {
-	attached chan struct{}
+	attached chan *testMessageSink
 	t        *testing.T
+	sink     testMessageSink
+}
+
+// ReportAttaching implements actuator.Reporter.
+func (r *testReporter) ReportAttaching(actuator.ProcessID, actuator.Executable, *ir.Program) {
+}
+
+// ReportLoaded implements actuator.Reporter.
+func (r *testReporter) ReportLoaded(p *ir.Program) (actuator.Sink, error) {
+	r.sink = testMessageSink{
+		irp: p,
+		ch:  make(chan output.Event, 100),
+	}
+	return &r.sink, nil
 }
 
 // ReportAttached implements actuator.Reporter.
 func (r *testReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
 	select {
-	case r.attached <- struct{}{}:
+	case r.attached <- &r.sink:
 	default:
 	}
 }
@@ -388,7 +394,7 @@ func (r *testReporter) ReportCompilationFailed(
 func makeTestReporter(t *testing.T) *testReporter {
 	return &testReporter{
 		t:        t,
-		attached: make(chan struct{}, 1),
+		attached: make(chan *testMessageSink, 1),
 	}
 }
 

@@ -29,7 +29,7 @@ import (
 type stateUpdate struct {
 	CurrentlyLoading string         `yaml:"currently_loading,omitempty"`
 	QueuedPrograms   string         `yaml:"queued_programs,omitempty"`
-	Processes        map[int]string `yaml:"processes,omitempty"`
+	Processes        map[any]string `yaml:"processes,omitempty"`
 	Programs         map[int]string `yaml:"programs,omitempty"`
 }
 
@@ -94,13 +94,22 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 
 	// Process each event
 	s := newState()
+	effects := effectRecorder{}
 	for i, ev := range events {
 
 		// Create snapshot before handling event
 		before := deepCopyState(s)
+		if loaded, ok := ev.event.(eventProgramLoaded); ok {
+			closeSink := &closeEffectRecorderSink{
+				r:         &effects,
+				programID: loaded.programID,
+			}
+			loaded.loaded.sink = closeSink
+			ev.event = loaded
+		}
 
 		// Handle the event
-		var effects effectRecorder
+		effects.effects = effects.effects[:0]
 		err = handleEvent(s, &effects, ev.event)
 		require.NoError(t, err)
 		output[i] = generateEventOutput(t, eventNodes[i], effects, before, s)
@@ -240,7 +249,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	}
 	{
 		before, after := before.processes, after.processes
-		allIDs := make(map[ProcessID]bool)
+		allIDs := make(map[processKey]bool)
 		for id := range before {
 			allIDs[id] = true
 		}
@@ -251,7 +260,12 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
-			key := int(id.PID)
+			var key any
+			if id.tenantID != 0 {
+				key = fmt.Sprintf("t%d:%d", id.tenantID, id.PID)
+			} else {
+				key = int(id.PID)
+			}
 
 			var beforeState, afterState any
 			if beforeProc != nil {
@@ -275,7 +289,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 				}
 			}
 			if update.Processes == nil {
-				update.Processes = make(map[int]string)
+				update.Processes = make(map[any]string)
 			}
 			if beforeState != afterState {
 				update.Processes[key] = fmt.Sprintf(
@@ -307,13 +321,13 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			if beforeProg != nil {
 				beforeState = fmt.Sprintf(
 					"%s (proc %d)",
-					beforeProg.state.String(), beforeProg.processID.PID,
+					beforeProg.state.String(), beforeProg.PID,
 				)
 			}
 			if afterProg != nil {
 				afterState = fmt.Sprintf(
 					"%s (proc %d)",
-					afterProg.state.String(), afterProg.processID.PID,
+					afterProg.state.String(), afterProg.PID,
 				)
 			}
 

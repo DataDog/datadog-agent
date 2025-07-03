@@ -53,9 +53,12 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 		}
 
 		eventData := struct {
-			Updated []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed []int               `yaml:"removed,omitempty"`
-		}{}
+			TenantID tenantID            `yaml:"tenant_id,omitempty"`
+			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed  []int               `yaml:"removed,omitempty"`
+		}{
+			TenantID: ev.tenantID,
+		}
 
 		// Convert updated processes
 		for _, proc := range ev.updated {
@@ -154,8 +157,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		var eventData struct {
-			Updated []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed []int               `yaml:"removed,omitempty"`
+			TenantID tenantID            `yaml:"tenant_id,omitempty"`
+			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed  []int               `yaml:"removed,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode processes-updated event: %w", err)
@@ -203,8 +207,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		ye.event = eventProcessesUpdated{
-			updated: updated,
-			removed: removedProcessIDs,
+			tenantID: eventData.TenantID,
+			updated:  updated,
+			removed:  removedProcessIDs,
 		}
 
 	case "loaded":

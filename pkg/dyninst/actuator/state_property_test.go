@@ -272,7 +272,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 				}
 
 				updates = append(updates, ProcessUpdate{
-					ProcessID:  processID,
+					ProcessID:  processID.ProcessID,
 					Executable: existingProcess.executable,
 					Probes:     probes,
 				})
@@ -283,7 +283,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			existingProcesses := pts.existingProcesses()
 			if len(existingProcesses) > 0 {
 				toRemove := existingProcesses[pts.rng.Intn(len(existingProcesses))]
-				removals = append(removals, toRemove)
+				removals = append(removals, toRemove.ProcessID)
 			}
 		}
 	}
@@ -294,13 +294,17 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 	}
 }
 
-func (pts *propertyTestState) existingProcesses() []ProcessID {
-	existingProcesses := make([]ProcessID, 0, len(pts.sm.processes))
-	for pid := range pts.sm.processes {
-		existingProcesses = append(existingProcesses, pid)
+func (pts *propertyTestState) existingProcesses() []processKey {
+	existingProcesses := make([]processKey, 0, len(pts.sm.processes))
+	for key := range pts.sm.processes {
+		existingProcesses = append(existingProcesses, key)
 	}
-	slices.SortFunc(existingProcesses, func(a, b ProcessID) int {
-		return cmp.Compare(a.PID, b.PID)
+	slices.SortFunc(existingProcesses, func(a, b processKey) int {
+		return cmp.Or(
+			cmp.Compare(a.tenantID, b.tenantID),
+			cmp.Compare(a.PID, b.PID),
+			cmp.Compare(a.Service, b.Service),
+		)
 	})
 	return existingProcesses
 }
