@@ -47,6 +47,15 @@ func (r *Resolver) ResolveFilePath(e *model.FileFields, _ *model.PIDContext, _ *
 	return pathStr, nil
 }
 
+// ResolveMountAttributes resolves the mount attributes of the mountpoint of a file
+func (r *Resolver) ResolveMountAttributes(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (bool, bool, error) {
+	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ContainerID)
+	if err != nil {
+		return false, false, err
+	}
+	return mnt.Visible, mnt.Detached, nil
+}
+
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path along with its mount path
 func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	pathStr, err := r.ResolveFilePath(e, pidCtx, ctrCtx)

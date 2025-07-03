@@ -82,6 +82,10 @@ type FileSerializer struct {
 	MountSource string `json:"mount_source,omitempty"`
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
+	// MountVisible origin of the mount
+	MountVisible bool `json:"mount_visible,omitempty"`
+	// MountDetached origin of the mount
+	MountDetached bool `json:"mount_detached,omitempty"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }
@@ -775,6 +779,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
+		MountVisible:        fe.MountVisible,
+		MountDetached:       fe.MountDetached,
 	}
 
 	if metadata != nil {

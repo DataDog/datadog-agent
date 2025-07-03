@@ -87,6 +87,7 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
+		f.MountVisible, f.MountDetached, err = fh.resolvers.PathResolver.ResolveMountAttributes(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
 	}
 
 	return f.PathnameStr
