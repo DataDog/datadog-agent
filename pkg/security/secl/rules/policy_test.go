@@ -1404,7 +1404,7 @@ func TestActionSetVariableScopeField(t *testing.T) {
 
 	// check the parent_correlation_keys of the PID from the cgroup_write
 	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
-	assert.Equal(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
+	assert.ElementsMatch(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
 }
 
 func TestActionSetVariableExpression(t *testing.T) {

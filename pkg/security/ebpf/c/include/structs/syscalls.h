@@ -118,6 +118,14 @@ struct syscall_cache_t {
         } umount;
 
         struct {
+            struct mount *newmnt;
+            // collected from kernel functions arguments
+            int fd;
+            int flags;
+            unsigned int mount_attrs;
+        } fsmount;
+
+        struct {
             struct file_t src_file;
             struct path *src_path;
             struct dentry *src_dentry;
@@ -141,7 +149,6 @@ struct syscall_cache_t {
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
-            u8 is_parsed;
         } exec;
 
         struct {

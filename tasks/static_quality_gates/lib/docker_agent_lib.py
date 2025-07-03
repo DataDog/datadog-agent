@@ -8,12 +8,15 @@ from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.diff import diff as folder_content_diff
 from tasks.libs.common.git import get_common_ancestor
+from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
 
 
 def calculate_image_on_disk_size(ctx, url):
     # Pull image locally to get on disk size
-    ctx.run(f"crane pull {url} output.tar")
+    crane_output = ctx.run(f"crane pull {url} output.tar", warn=True)
+    if crane_output.exited != 0:
+        raise InfraError(f"Crane pull failed to retrieve {url}. Retrying... (infra flake)")
     # The downloaded image contains some metadata files and another tar.gz file. We are computing the sum of
     # these metadata files and the uncompressed size of the tar.gz inside of output.tar.
     ctx.run("tar -xf output.tar")

@@ -8,30 +8,36 @@
 package actuator
 
 import (
-	"io"
+	"github.com/cilium/ebpf/ringbuf"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
 
 type configuration struct {
-	ringBufSize      int
-	sink             MessageSink
-	reporter         Reporter
-	codegenWriter    CodegenWriterFactory
-	compiledCallback CompiledCallback
+	sink     MessageSink
+	reporter Reporter
+	loader   Loader
 }
 
-const defaultRingbufSize = 1 << 20 // 1 MiB
-
-var defaultSettings = configuration{
-	ringBufSize: defaultRingbufSize,
-	sink:        noopDispatcher{},
-	reporter:    noopReporter{},
-	codegenWriter: func(*ir.Program) io.Writer {
-		return nil
-	},
-	compiledCallback: func(*CompiledProgram) {},
+func makeConfiguration(opts ...Option) (configuration, error) {
+	cfg := configuration{
+		sink:     noopDispatcher{},
+		reporter: noopReporter{},
+		loader:   nil, // set after options are applied
+	}
+	for _, opt := range opts {
+		opt.apply(&cfg)
+	}
+	if cfg.loader == nil {
+		var err error
+		cfg.loader, err = loader.NewLoader()
+		if err != nil {
+			return configuration{}, err
+		}
+	}
+	return cfg, nil
 }
 
 // Option is a function that can be used to configure the Actuator.
@@ -92,42 +98,41 @@ func WithReporter(reporter Reporter) Option {
 // TODO: This is not sufficient for what we'll need for driving the
 // diagnostics output, but it's a start to drive testing.
 type Reporter interface {
-	ReportAttached(processID ProcessID, probes []config.Probe)
-	ReportDetached(processID ProcessID, probes []config.Probe)
+
+	// ReportAttached is called when a program is attached to a process.
+	ReportAttached(ProcessID, *ir.Program)
+
+	// ReportDetached is called when a program is detached from a process.
+	ReportDetached(ProcessID, *ir.Program)
+
+	//ReportIRGenFailed is called when generating the IR for the binary fails.
+	ReportIRGenFailed(ir.ProgramID, error, []ir.ProbeDefinition)
+
+	// ReportLoadingFailed is called when a program fails to load.
+	ReportLoadingFailed(*ir.Program, error)
+
+	// ReportAttachingFailed is called when a program fails to attach to a process.
+	ReportAttachingFailed(ProcessID, *ir.Program, error)
 }
 
 type noopReporter struct{}
 
-func (noopReporter) ReportAttached(ProcessID, []config.Probe) {}
-func (noopReporter) ReportDetached(ProcessID, []config.Probe) {}
+func (noopReporter) ReportAttached(ProcessID, *ir.Program)                       {}
+func (noopReporter) ReportDetached(ProcessID, *ir.Program)                       {}
+func (noopReporter) ReportIRGenFailed(ir.ProgramID, error, []ir.ProbeDefinition) {}
+func (noopReporter) ReportLoadingFailed(*ir.Program, error)                      {}
+func (noopReporter) ReportAttachingFailed(ProcessID, *ir.Program, error)         {}
 
-// WithRingBufSize sets the size of the ring buffer for the Actuator.
-func WithRingBufSize(size int) Option {
-	return optionFunc(func(s *configuration) {
-		s.ringBufSize = size
-	})
+// Loader is an interface that abstracts ebpf program loader.
+type Loader interface {
+	Load(program compiler.Program) (*loader.Program, error)
+	OutputReader() *ringbuf.Reader
+	Close() error
 }
 
-// CodegenWriterFactory is a function that optionally creates a writer
-// to which the generated code will be written.
-type CodegenWriterFactory func(*ir.Program) io.Writer
-
-// WithCodegenWriter allows the client to inject a writer to be used
-// for writing out the generated code.
-func WithCodegenWriter(f CodegenWriterFactory) Option {
+// WithLoader sets the loader for the Actuator.
+func WithLoader(l Loader) Option {
 	return optionFunc(func(s *configuration) {
-		s.codegenWriter = f
-	})
-}
-
-// CompiledCallback is a function that is called when the eBPF program
-// has been compiled.
-type CompiledCallback func(*CompiledProgram)
-
-// WithCompiledCallback allows the client to inject a callback to be used
-// for writing out the compiled code.
-func WithCompiledCallback(f CompiledCallback) Option {
-	return optionFunc(func(s *configuration) {
-		s.compiledCallback = f
+		s.loader = l
 	})
 }

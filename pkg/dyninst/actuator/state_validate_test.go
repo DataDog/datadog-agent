@@ -33,7 +33,7 @@ func validateState(s *state, reportError func(error)) {
 
 	// Verify queue integrity.
 	queuedPrograms := make(map[ir.ProgramID]bool)
-	for progID := range s.queuedCompilations.m {
+	for progID := range s.queuedLoading.m {
 		queuedPrograms[progID] = true
 
 		prog, exists := s.programs[progID]
@@ -57,13 +57,13 @@ func validateState(s *state, reportError func(error)) {
 	}
 
 	// Verify currentlyCompiling consistency.
-	if s.currentlyCompiling != nil {
-		progID := s.currentlyCompiling.id
+	if s.currentlyLoading != nil {
+		progID := s.currentlyLoading.id
 		if prog, exists := s.programs[progID]; !exists {
-			report("currentlyCompiling references non-existent program %v", progID)
-		} else if prog != s.currentlyCompiling {
+			report("currentlyLoading references non-existent program %v", progID)
+		} else if prog != s.currentlyLoading {
 			report(
-				"currentlyCompiling points to program instance %v in programs map",
+				"currentlyLoading points to program instance %v in programs map",
 				progID,
 			)
 		}
@@ -74,13 +74,13 @@ func validateState(s *state, reportError func(error)) {
 		}
 
 		// Should be in an active compilation state.
-		switch s.currentlyCompiling.state {
-		case programStateCompiling, programStateLoading,
-			programStateCompilationAborted:
-			// Valid states for currently compiling.
+		switch s.currentlyLoading.state {
+		case programStateLoading,
+			programStateLoadingAborted:
+			// Valid states for currently loading.
 		default:
-			report("currentlyCompiling program %v is in unexpected state %v",
-				progID, s.currentlyCompiling.state)
+			report("currentlyLoading program %v is in unexpected state %v",
+				progID, s.currentlyLoading.state)
 		}
 	}
 
@@ -168,10 +168,10 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.progID != proc.currentProgram {
+			proc.attachedProgram.ir.ID != proc.currentProgram {
 			report(
 				"process %v attachedProgram ID %v does not match currentProgram %v",
-				procID, proc.attachedProgram.progID, proc.currentProgram,
+				procID, proc.attachedProgram.ir.ID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil &&
@@ -193,13 +193,13 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 			)
 		}
 
-	case processStateCompilationFailed:
+	case processStateLoadingFailed:
 		// currentProgram may be 0 after failure.
 		if proc.err == nil {
-			report("process %v in CompilationFailed state has no error", procID)
+			report("process %v in LoadingFailed state has no error", procID)
 		}
 		if len(proc.probes) == 0 {
-			report("process %v has no probes in CompilationFailed state", procID)
+			report("process %v has no probes in LoadingFailed state", procID)
 		}
 
 	case processStateInvalid:
@@ -231,7 +231,7 @@ func validateProgram(
 		}
 	} else {
 		switch prog.state {
-		case programStateCompilationAborted, programStateDraining:
+		case programStateLoadingAborted, programStateDraining:
 			// Valid states for programs with no process.
 		default:
 			report(
@@ -243,29 +243,12 @@ func validateProgram(
 
 	switch prog.state {
 	case programStateQueued:
-		if prog.compiledProgram != nil {
-			report("program %v in Queued state should not have IR", progID)
-		}
-		if prog.loadedProgram != nil {
+		if prog.loaded != nil {
 			report("program %v in Queued state should not have loadedProgram", progID)
 		}
 
-	case programStateCompiling:
-		if prog.compiledProgram != nil {
-			report("program %v in Compiling state should not have compiledProgram", progID)
-		}
-		if prog.loadedProgram != nil {
-			report(
-				"program %v in Compiling state should not have loadedProgram yet",
-				progID,
-			)
-		}
-
 	case programStateLoading:
-		if prog.compiledProgram == nil {
-			report("program %v in Loading state should have IR", progID)
-		}
-		if prog.loadedProgram != nil {
+		if prog.loaded != nil {
 			report(
 				"program %v in Loading state should not have loadedProgram yet",
 				progID,
@@ -273,24 +256,20 @@ func validateProgram(
 		}
 
 	case programStateLoaded:
-		if prog.compiledProgram == nil {
-			report("program %v in Loaded state should have IR", progID)
-		}
-		if prog.loadedProgram == nil {
+		if prog.loaded == nil {
 			report(
 				"program %v in Loaded state should have loadedProgram", progID,
 			)
 		}
-		if prog.loadedProgram != nil && prog.loadedProgram.id != progID {
+		if prog.loaded != nil && prog.loaded.ir.ID != progID {
 			report(
 				"program %v has loadedProgram with mismatched ID %v",
-				progID,
-				prog.loadedProgram.id,
+				progID, prog.loaded.ir.ID,
 			)
 		}
 
 	case programStateDraining,
-		programStateCompilationAborted:
+		programStateLoadingAborted:
 		// Transitional state, can have various field combinations.
 
 	case programStateInvalid:

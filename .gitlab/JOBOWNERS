@@ -71,6 +71,9 @@ iot_agent_suse*                      @DataDog/agent-delivery
 dogstatsd_suse*                      @DataDog/agent-delivery
 agent_oci*                           @DataDog/agent-delivery
 installer_oci*                       @DataDog/agent-delivery
+ddot_deb*                            @DataDog/agent-delivery
+ddot_rpm*                            @DataDog/agent-delivery
+ddot_suse_rpm*                       @DataDog/agent-delivery
 check_pkg_size                       @DataDog/agent-delivery
 
 # Testing package deploy
@@ -123,7 +126,7 @@ qa_installer_script*                   @DataDog/agent-delivery
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
-deploy_mutable_image_tags*             @Datadog/agent-delivery 
+deploy_mutable_image_tags*             @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -132,6 +135,9 @@ deploy_containers-cws-instrumentation* @DataDog/agent-security
 trigger_manual_prod_release*            @DataDog/agent-delivery
 trigger_auto_staging_release*           @DataDog/agent-delivery
 generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
+
+# Trigger distribution
+trigger_distribution*         @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
@@ -157,7 +163,7 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 # New E2E
 e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
-
+go_e2e_test_binaries              @DataDog/agent-devx
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
@@ -166,6 +172,7 @@ kmt_*                             @DataDog/ebpf-platform
 upload_secagent_tests*            @DataDog/ebpf-platform
 upload_sysprobe_tests*            @DataDog/ebpf-platform
 notify_ebpf_complexity_changes    @DataDog/ebpf-platform
+test_ebpf_complexity_changes      @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance

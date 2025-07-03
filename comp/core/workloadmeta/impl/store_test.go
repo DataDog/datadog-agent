@@ -781,6 +781,140 @@ func TestGetProcess(t *testing.T) {
 	}
 }
 
+func TestGetContainerForProcess(t *testing.T) {
+	for _, tc := range []struct {
+		description       string
+		processData       []*wmdef.Process
+		containerData     []*wmdef.Container
+		pidToQuery        string
+		expectedContainer *wmdef.Container
+		expectedError     error
+	}{
+		{
+			description: "process with container",
+			processData: []*wmdef.Process{
+				{
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
+						ID:   "123",
+					},
+					Owner: &wmdef.EntityID{
+						Kind: wmdef.KindContainer,
+						ID:   "container_id1",
+					},
+				},
+				{
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
+						ID:   "234",
+					},
+					Owner: &wmdef.EntityID{
+						Kind: wmdef.KindContainer,
+						ID:   "container_id2",
+					},
+				},
+			},
+			containerData: []*wmdef.Container{
+				{
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindContainer,
+						ID:   "container_id1",
+					},
+				},
+				{
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindContainer,
+						ID:   "container_id2",
+					},
+				},
+			},
+			pidToQuery: "123",
+			expectedContainer: &wmdef.Container{
+				EntityID: wmdef.EntityID{
+					Kind: wmdef.KindContainer,
+					ID:   "container_id1",
+				},
+			},
+		},
+		{
+			description: "process with no container id",
+			processData: []*wmdef.Process{
+				{
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
+						ID:   "123",
+					},
+				},
+			},
+			containerData:     []*wmdef.Container{},
+			pidToQuery:        "123",
+			expectedContainer: nil,
+			expectedError:     errors.NewNotFound("123"),
+		},
+		{
+			description: "process and container does not exist",
+			processData: []*wmdef.Process{
+				{
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
+						ID:   "123",
+					},
+					Owner: &wmdef.EntityID{
+						Kind: wmdef.KindContainer,
+						ID:   "container_id1",
+					},
+				},
+			},
+			containerData:     []*wmdef.Container{},
+			pidToQuery:        "123",
+			expectedContainer: nil,
+			expectedError:     errors.NewNotFound("container_id1"),
+		},
+		{
+			description:   "process does not exist",
+			processData:   []*wmdef.Process{},
+			containerData: []*wmdef.Container{},
+			pidToQuery:    "123",
+			expectedError: errors.NewNotFound("process"),
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			s := newWorkloadmetaObject(t)
+
+			// store process data into wlm
+			for _, proc := range tc.processData {
+				s.handleEvents([]wmdef.CollectorEvent{
+					{
+						Type:   wmdef.EventTypeSet,
+						Source: fooSource,
+						Entity: proc,
+					},
+				})
+			}
+
+			// store container data into wlm
+			for _, container := range tc.containerData {
+				s.handleEvents([]wmdef.CollectorEvent{
+					{
+						Type:   wmdef.EventTypeSet,
+						Source: fooSource,
+						Entity: container,
+					},
+				})
+			}
+
+			// Testing
+			container, err := s.GetContainerForProcess(tc.pidToQuery)
+			if tc.expectedError != nil {
+				assert.EqualError(t, err, tc.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, *tc.expectedContainer, *container)
+			}
+		})
+	}
+}
+
 func TestListContainers(t *testing.T) {
 	container := &wmdef.Container{
 		EntityID: wmdef.EntityID{
@@ -1336,7 +1470,6 @@ func TestResetProcesses(t *testing.T) {
 			assert.ElementsMatch(t, processes, test.newProcesses)
 		})
 	}
-
 }
 
 func TestGetKubernetesMetadata(t *testing.T) {
@@ -1702,7 +1835,6 @@ func TestPushEvents(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "Expected Push operation to succeed and return nil")
 			}
-
 		})
 	}
 }
