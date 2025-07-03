@@ -47,8 +47,14 @@ const (
 	certEncoding       = windows.X509_ASN_ENCODING | windows.PKCS_7_ASN_ENCODING
 	cryptENotFound     = windows.Errno(windows.CRYPT_E_NOT_FOUND)
 	eInvalidArg        = windows.Errno(windows.E_INVALIDARG)
-	certX500NameStr    = 3
-	certNameStrCRLF    = 0x08000000
+
+	// https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certnametostrw
+	//
+	// CERT_X500_NAME_STR converts OIDs to their X.500 key names
+	certX500NameStr = 3
+
+	// CERT_NAME_STR_CRLF_FLAG replaces commas with a \r\n separator
+	certNameStrCRLF = 0x08000000
 )
 
 // Config is the configuration options for this check
