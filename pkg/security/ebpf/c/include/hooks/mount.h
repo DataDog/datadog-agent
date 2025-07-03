@@ -479,10 +479,6 @@ int rethook_alloc_vfsmnt(ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->type != EVENT_FSMOUNT) {
-        return 0;
-    }
-
     struct mount *newmnt = (struct mount *)CTX_PARMRET(ctx);
     syscall->mount.newmnt = newmnt;
 
@@ -526,7 +522,9 @@ HOOK_SYSCALL_EXIT(fsmount) {
         return 0;
     }
 
-    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, true);
+    if(syscall->retval >= 0) {
+        handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, true);
+    }
 
     return 0;
 }

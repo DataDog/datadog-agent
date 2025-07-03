@@ -276,7 +276,7 @@ var MountSources = [...]string{
 	"snapshot",
 }
 
-// MountEventSource source of the mount
+// MountEventSource source syscall of the mount event
 type MountEventSource = uint32
 
 const (
@@ -286,7 +286,7 @@ const (
 	MountEventSourceOpenTreeSyscall
 )
 
-// MountEventSources defines mount sources
+// MountEventSources defines source syscall of the mount event
 var MountEventSources = [...]string{
 	"invalid",
 	"mount",
