@@ -127,6 +127,31 @@ def init_kernel_matrix_testing_system(
 
     get_compiler(ctx).start()
 
+    if not remote_setup_only:
+        libvirt_version = get_libvirt_version(ctx)
+        if libvirt_version is None:
+            raise Exit(
+                "libvirtd not found in $PATH, this should have been installed previously by the method kmt_os.init_local"
+            )
+
+        info(f"[+] Installing libvirt-python=={libvirt_version} to match local libvirt version")
+        ctx.run(f"{sys.executable} -m pip install libvirt-python=={libvirt_version}")
+
     cm = ConfigManager()
     cm.config["setup"] = "remote" if remote_setup_only else "full"
     cm.save()
+
+
+def get_libvirt_version(ctx: Context) -> str | None:
+    """
+    Returns the version of libvirt installed on the system. If the version is not found, returns None.
+    """
+    res = ctx.run("libvirtd --version", warn=True)
+    if res is None:
+        return None
+
+    parts = res.stdout.strip().split()
+    if len(parts) != 3:
+        return None
+
+    return parts[2]
