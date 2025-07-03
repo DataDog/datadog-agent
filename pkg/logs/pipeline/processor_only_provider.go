@@ -7,7 +7,6 @@ package pipeline
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -24,7 +23,7 @@ type processorOnlyProvider struct {
 	processor       *processor.Processor
 	inputChan       chan *message.Message
 	outputChan      chan *message.Message
-	pipelineMonitor *metrics.TelemetryPipelineMonitor
+	pipelineMonitor metrics.PipelineMonitor
 }
 
 // NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
@@ -33,10 +32,10 @@ func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiv
 	outputChan := make(chan *message.Message, chanSize)
 	encoder := processor.JSONEncoder
 	inputChan := make(chan *message.Message, chanSize)
-	pipelineID := 0
-	pipelineMonitor := metrics.NewTelemetryPipelineMonitor(strconv.Itoa(pipelineID))
+	pipelineID := "0"
+	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
 	processor := processor.New(cfg, inputChan, outputChan, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor)
+		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
 
 	p := &processorOnlyProvider{
 		processor:       processor,
@@ -72,8 +71,8 @@ func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
 	return p.inputChan
 }
 
-func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return p.inputChan, p.pipelineMonitor
+func (p *processorOnlyProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
+	return p.inputChan, p.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, "0")
 }
 
 func (p *processorOnlyProvider) GetOutputChan() chan *message.Message {

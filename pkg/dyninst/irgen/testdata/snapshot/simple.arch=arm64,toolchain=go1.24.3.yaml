@@ -1,137 +1,39 @@
 ID: 1
 Probes:
-    - ID: intArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 3}
-      Events:
-        - ID: 1
-          Type: 53 EventRootType Probe[main.intArg]
-          InjectionPoints: [{PC: 741932, Frameless: false}]
+    - id: PointerChainArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.PointerChainArg}
+      capture:
+        maxReferenceDepth: 3
+        maxFieldCount: 0
+        maxCollectionSize: 0
+      captureSnapshot: true
+      subprogram: {subprogram: 2}
+      events:
+        - ID: 11
+          Type: 63 EventRootType Probe[main.PointerChainArg]
+          InjectionPoints: [{PC: 741836, Frameless: true}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: stringArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 4}
-      Events:
-        - ID: 2
-          Type: 54 EventRootType Probe[main.stringArg]
-          InjectionPoints: [{PC: 742044, Frameless: false}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: intSliceArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 5}
-      Events:
-        - ID: 3
-          Type: 55 EventRootType Probe[main.intSliceArg]
-          InjectionPoints: [{PC: 742172, Frameless: false}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: intArrayArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 6}
-      Events:
-        - ID: 4
-          Type: 56 EventRootType Probe[main.intArrayArg]
-          InjectionPoints: [{PC: 742300, Frameless: false}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: stringSliceArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 7}
-      Events:
-        - ID: 5
-          Type: 57 EventRootType Probe[main.stringSliceArg]
-          InjectionPoints: [{PC: 742428, Frameless: false}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: stringArrayArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 8}
-      Events:
-        - ID: 6
-          Type: 58 EventRootType Probe[main.stringArrayArg]
-          InjectionPoints: [{PC: 742556, Frameless: false}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: intArrayArgFrameless
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 9}
-      Events:
-        - ID: 7
-          Type: 59 EventRootType Probe[main.stringArrayArgFrameless]
-          InjectionPoints: [{PC: 742672, Frameless: true}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: mapArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 10}
-      Events:
-        - ID: 8
-          Type: 60 EventRootType Probe[main.mapArg]
-          InjectionPoints: [{PC: 742892, Frameless: false}]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: bigMapArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 11}
-      Events:
+    - id: bigMapArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.bigMapArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 11}
+      events:
         - ID: 9
           Type: 61 EventRootType Probe[main.bigMapArg]
           InjectionPoints: [{PC: 743008, Frameless: false}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 4.294967295e+09
-    - ID: inlined
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 1}
-      Events:
+    - id: inlined
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.inlined}
+      sampling: {snapshotsPerSecond: 2}
+      captureSnapshot: true
+      subprogram: {subprogram: 1}
+      events:
         - ID: 10
           Type: 62 EventRootType Probe[main.inlined]
           InjectionPoints:
@@ -140,24 +42,94 @@ Probes:
             - PC: 741356
               Frameless: true
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 2
-      PointerChasingLimit: 4.294967295e+09
-    - ID: PointerChainArg
-      Kind: ProbeKindSnapshot
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 2}
-      Events:
-        - ID: 11
-          Type: 63 EventRootType Probe[main.PointerChainArg]
-          InjectionPoints: [{PC: 741836, Frameless: true}]
+    - id: intArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 3}
+      events:
+        - ID: 1
+          Type: 53 EventRootType Probe[main.intArg]
+          InjectionPoints: [{PC: 741932, Frameless: false}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 1000
-      ThrottleBudget: 1
-      PointerChasingLimit: 3
+    - id: intArrayArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intArrayArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 6}
+      events:
+        - ID: 4
+          Type: 56 EventRootType Probe[main.intArrayArg]
+          InjectionPoints: [{PC: 742300, Frameless: false}]
+          Condition: null
+    - id: intArrayArgFrameless
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArrayArgFrameless}
+      captureSnapshot: true
+      subprogram: {subprogram: 9}
+      events:
+        - ID: 7
+          Type: 59 EventRootType Probe[main.stringArrayArgFrameless]
+          InjectionPoints: [{PC: 742672, Frameless: true}]
+          Condition: null
+    - id: intSliceArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intSliceArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 5}
+      events:
+        - ID: 3
+          Type: 55 EventRootType Probe[main.intSliceArg]
+          InjectionPoints: [{PC: 742172, Frameless: false}]
+          Condition: null
+    - id: mapArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.mapArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 10}
+      events:
+        - ID: 8
+          Type: 60 EventRootType Probe[main.mapArg]
+          InjectionPoints: [{PC: 742892, Frameless: false}]
+          Condition: null
+    - id: stringArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 4}
+      events:
+        - ID: 2
+          Type: 54 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: 742044, Frameless: false}]
+          Condition: null
+    - id: stringArrayArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArrayArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 8}
+      events:
+        - ID: 6
+          Type: 58 EventRootType Probe[main.stringArrayArg]
+          InjectionPoints: [{PC: 742556, Frameless: false}]
+          Condition: null
+    - id: stringSliceArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringSliceArg}
+      captureSnapshot: true
+      subprogram: {subprogram: 7}
+      events:
+        - ID: 5
+          Type: 57 EventRootType Probe[main.stringSliceArg]
+          InjectionPoints: [{PC: 742428, Frameless: false}]
+          Condition: null
 Subprograms:
     - ID: 3
       Name: main.intArg
@@ -981,3 +953,4 @@ Types:
                   Offset: 0
                   ByteSize: 8
 MaxTypeID: 63
+Issues: []

@@ -145,6 +145,9 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		}] = item
 	}
 
+	if rootType == nil {
+		return errors.New("no root type found")
+	}
 	p, ok := d.probeEvents[rootType.ID]
 	if !ok {
 		return errors.New("no probe event found for root type")
@@ -153,7 +156,7 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	err = enc.WriteToken(jsontext.String(p.probe.ID))
+	err = enc.WriteToken(jsontext.String(p.probe.GetID()))
 	if err != nil {
 		return err
 	}

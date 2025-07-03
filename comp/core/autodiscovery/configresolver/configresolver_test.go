@@ -16,8 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
@@ -83,7 +84,7 @@ func (s *dummyService) IsReady() bool {
 }
 
 // HasFilter returns false
-func (s *dummyService) HasFilter(_ containers.FilterType) bool {
+func (s *dummyService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 
