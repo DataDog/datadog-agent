@@ -64,7 +64,7 @@ func (p *provider) GetTags() []string {
 		p.clock.Sleep(p.taggerWarmupDuration)
 	})
 
-	tags, err := p.tagAdder.Tag(p.entityID, types.HighCardinality)
+	tags, err := p.tagAdder.Tag(p.entityID, types.LogsConfigCardinality)
 	if err != nil {
 		log.Warnf("Cannot tag container %s: %v", p.entityID, err)
 		return []string{}
