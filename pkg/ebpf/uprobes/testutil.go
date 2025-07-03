@@ -250,7 +250,12 @@ func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, re
 		}
 	}
 
-	require.Fail(t, "condition not met after %d retries", maxRetries, msgAndArgs)
+	extraFmt := ""
+	if len(msgAndArgs) > 0 {
+		extraFmt = fmt.Sprintf(msgAndArgs[0].(string), msgAndArgs[1:]...) + ": "
+	}
+
+	require.Fail(t, "condition not met", "%scondition not met after %d retries", extraFmt, maxRetries)
 }
 
 // processMonitorProxy is a wrapper around a ProcessMonitor that stores the
