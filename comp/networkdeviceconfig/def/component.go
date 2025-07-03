@@ -11,5 +11,4 @@ package networkdeviceconfig
 // Component is the component type.
 type Component interface {
 	RetrieveConfiguration(deviceID string) (string, error)
-	/* TODO: define Component interface */
 }
