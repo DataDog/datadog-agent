@@ -22,7 +22,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.21.0
+    SMP_VERSION: 0.23.5
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
@@ -53,7 +53,7 @@ single-machine-performance-regression_detector:
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
-    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
+    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
     - BASELINE_SHA="${SMP_MERGE_BASE}"
     - echo "Computing baseline..."
