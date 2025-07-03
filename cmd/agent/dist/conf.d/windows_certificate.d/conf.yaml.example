@@ -67,6 +67,8 @@ instances:
     ## @param crl_days_warning - integer - optional - default: 0
     ## Number of days before CRL expiration from which the service check
     ## `windows_certificate.crl_expiration` begins emitting WARNING.
+    ## If the CRLs in the store are updated automatically, set to 0 to avoid getting WARNING alerts.
+    ## If the CRLs are updated manually, set to the number days beforehand that you would like to recieve a WARNING.
     #
     # crl_days_warning: 0
 
