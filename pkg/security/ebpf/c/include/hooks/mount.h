@@ -487,6 +487,10 @@ int rethook_alloc_vfsmnt(ctx_t *ctx) {
 
 HOOK_SYSCALL_ENTRY3(open_tree, int, dfd, const char *, filename, unsigned int, flags)
 {
+    if (!(flags & OPEN_TREE_CLONE)) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN_TREE,
     };
