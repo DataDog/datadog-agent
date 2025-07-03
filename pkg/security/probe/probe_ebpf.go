@@ -1093,9 +1093,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		fmt.Printf("Mount received: %+v\n", event.Mount)
-		fmt.Printf("Raw data: %+v\n", data[offset:])
-
 		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return

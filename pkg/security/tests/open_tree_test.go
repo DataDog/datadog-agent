@@ -142,7 +142,7 @@ func TestOpenTree(t *testing.T) {
 
 	t.Run("copy-tree-test-detached-recursive", func(t *testing.T) {
 		seen := 0
-		fmt.Println("STARTING TEST. mountIDsToPath::", mountIDsToPath)
+
 		err = test.GetProbeEvent(func() error {
 			_, err = unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			if err != nil {
@@ -154,8 +154,6 @@ func TestOpenTree(t *testing.T) {
 			if event.GetType() != "mount" || event.Mount.Source != 3 {
 				return false
 			}
-
-			fmt.Printf("Open tree test mount: %+v\n", event.Mount)
 
 			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
 			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
