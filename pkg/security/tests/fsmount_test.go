@@ -78,7 +78,7 @@ func TestFsmount(t *testing.T) {
 			return nil
 		}, func(event *model.Event) bool {
 			assert.NotEqual(t, uint32(0), event.Mount.MountID, "Mount id should not be zero")
-			assert.Equal(t, model.MountEventSourceFsmountSyscall, event.Mount.Source, "Incorrect mount source")
+			assert.Equal(t, model.MountOriginFsmount, event.Mount.Origin, "Incorrect mount source")
 			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
 			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
 			return true

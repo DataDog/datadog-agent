@@ -370,7 +370,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 12 + argsEnvSize, nil
 }
 
-// UnmarshalBinary unmarshals the given content
+// UnmarshalBinary unmarshaMountEventSourceMountSyscallls the given content
 func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
@@ -466,7 +466,6 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
-	m.Origin = MountOriginEvent
 
 	bitfield := binary.NativeEndian.Uint32(data[24:28])
 	m.Visible = bitfield&0b01 > 0
@@ -482,7 +481,17 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, err
 	}
 	data = data[n:]
-	e.Source = binary.NativeEndian.Uint32(data[0:4])
+	origin := binary.NativeEndian.Uint32(data[0:4])
+
+	switch origin {
+	case MountEventSourceMountSyscall:
+		e.Origin = MountOriginEvent
+	case MountEventSourceOpenTreeSyscall:
+		e.Origin = MountOriginOpenTree
+	case MountEventSourceFsmountSyscall:
+		e.Origin = MountOriginFsmount
+	}
+
 	return n + 4, nil
 }
 

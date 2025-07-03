@@ -533,7 +533,6 @@ type MountEvent struct {
 	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
 	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
-	Source                uint32 `field:"-"`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
