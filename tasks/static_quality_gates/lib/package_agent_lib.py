@@ -101,27 +101,22 @@ def download_packages(sha, download_dir, build_job_name):
 
 
 def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
-    # Manual control over temporary folders
-    current_pipeline_extract_dir = tempfile.TemporaryDirectory()
-    ancestor_pipeline_extract_dir = tempfile.TemporaryDirectory()
-
-    # extract both packages
-    extract_package(
-        ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=current_pipeline_extract_dir.name
-    )
-    extract_package(
-        ctx=ctx,
-        package_os=package_os,
-        package_path=ancestor_package_path,
-        extract_dir=ancestor_pipeline_extract_dir.name,
-    )
-
-    # Compare both packages content
-    folder_content_diff(current_pipeline_extract_dir.name, ancestor_pipeline_extract_dir.name)
-
-    # Cleanup temporary directories
-    current_pipeline_extract_dir.cleanup()
-    ancestor_pipeline_extract_dir.cleanup()
+    with (
+        tempfile.TemporaryDirectory() as current_pipeline_extract_dir,
+        tempfile.TemporaryDirectory() as ancestor_pipeline_extract_dir,
+    ):
+        # extract both packages
+        extract_package(
+            ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=current_pipeline_extract_dir
+        )
+        extract_package(
+            ctx=ctx,
+            package_os=package_os,
+            package_path=ancestor_package_path,
+            extract_dir=ancestor_pipeline_extract_dir,
+        )
+        # Compare both packages content
+        folder_content_diff(current_pipeline_extract_dir, ancestor_pipeline_extract_dir)
 
 
 def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
@@ -142,21 +137,16 @@ def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
     if sys_os == "heroku":
         package_os = "debian"
 
-    ancestor_download_dir = tempfile.TemporaryDirectory()
-    current_download_dir = tempfile.TemporaryDirectory()
+    with tempfile.TemporaryDirectory() as ancestor_download_dir, tempfile.TemporaryDirectory() as current_download_dir:
+        ancestor_sha = get_common_ancestor(ctx, "HEAD")
+        download_packages(ancestor_sha, ancestor_download_dir, build_job_name)
+        download_packages(os.environ.get("CI_COMMIT_SHA"), current_download_dir, build_job_name)
 
-    ancestor_sha = get_common_ancestor(ctx, "HEAD")
-    download_packages(ancestor_sha, ancestor_download_dir.name, build_job_name)
-    download_packages(os.environ.get("CI_COMMIT_SHA"), current_download_dir.name, build_job_name)
+        # Find the current package path from its download directory
+        os.environ['OMNIBUS_PACKAGE_DIR'] = f"{current_download_dir}/omnibus/pkg"
+        package_path = find_package_path(flavor, package_os, package_arch)
+        # Find the ancestor package path from its download directory
+        os.environ['OMNIBUS_PACKAGE_DIR'] = f"{ancestor_download_dir}/omnibus/pkg"
+        ancestor_package_path = find_package_path(flavor, package_os, package_arch)
 
-    # Find the current package path from its download directory
-    os.environ['OMNIBUS_PACKAGE_DIR'] = f"{current_download_dir.name}/omnibus/pkg"
-    package_path = find_package_path(flavor, package_os, package_arch)
-    # Find the ancestor package path from its download directory
-    os.environ['OMNIBUS_PACKAGE_DIR'] = f"{ancestor_download_dir.name}/omnibus/pkg"
-    ancestor_package_path = find_package_path(flavor, package_os, package_arch)
-
-    debug_package_size(ctx, sys_os, package_path, ancestor_package_path)
-
-    ancestor_download_dir.cleanup()
-    current_download_dir.cleanup()
+        debug_package_size(ctx, sys_os, package_path, ancestor_package_path)
