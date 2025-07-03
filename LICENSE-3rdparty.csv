@@ -2022,6 +2022,7 @@ core,github.com/prometheus/sigv4,Apache-2.0,Copyright 2012-2015 The Prometheus A
 core,github.com/puzpuzpuz/xsync/v3,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Copyright 2012 Richard Crowley. All rights reserved
 core,github.com/redis/go-redis/v9,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
+core,github.com/redis/go-redis/v9/auth,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/hashtag,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/internal/hscan,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
@@ -2919,6 +2920,11 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/remoteconfig,Apache-2.0,"Copyright
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/stacktrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry/internal/knownmetrics,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry/internal/mapper,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry/internal/transport,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry/log,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Copyright 2016-Present Datadog, Inc."

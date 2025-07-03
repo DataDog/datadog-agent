@@ -14,7 +14,7 @@
     - $BUILD_DATE = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - cp ${OMNIBUS_PACKAGE_DIR}/${AGENT_ZIP} ${BUILD_CONTEXT}/datadog-agent-latest.amd64.zip
+    - cp ${OMNIBUS_PACKAGE_DIR}/pipeline-${CI_PIPELINE_ID}/${AGENT_ZIP} ${BUILD_CONTEXT}/datadog-agent-latest.amd64.zip
     - cp entrypoint.exe ${BUILD_CONTEXT}/entrypoint.exe
 
     # Much faster but doesn't exist in build container
