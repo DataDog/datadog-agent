@@ -145,6 +145,11 @@ func (c *NetworkCheck) Run() error {
 				c.submitProtocolMetrics(sender, counters[protocol])
 			}
 		}
+		if tcpStats, ok := counters["Tcp"]; ok {
+			if val, ok := tcpStats.Stats["CurrEstab"]; ok {
+				sender.Gauge("system.net.tcp.current_established", float64(val), "", nil)
+			}
+		}
 	}
 
 	submitInterfaceSysMetrics(sender)
@@ -741,7 +746,7 @@ func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo
 				continue
 			}
 		} else {
-			if !slices.Contains([]string{"max", "count"}, func(s string) bool {
+			if !slices.ContainsFunc([]string{"max", "count"}, func(s string) bool {
 				return strings.Contains(metricName, s)
 			}) {
 				continue
