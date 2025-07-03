@@ -10,6 +10,7 @@
   - export GO_VERSION="$(cat .go-version)"
   - eval "$(gimme $GO_VERSION)"
   - export PATH="$PATH:$GOROOT/bin"
+  - export GOPATH=$GOROOT
   - echo Go version should be $GO_VERSION
   - go version
   - dda inv check-go-version
@@ -26,7 +27,7 @@
 agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64", "specific:true"]
-  needs: ["go_mod_tidy_check"]
+  needs: ["go_mod_tidy_check", "go_deps"]
   rules:
      - !reference [.on_macos_gui_change]
      - !reference [.on_packaging_change]
@@ -66,6 +67,7 @@ agent_dmg-x64-a7:
     - !reference [.vault_login]
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
+    - !reference [.retrieve_linux_go_deps]
     # List Python and Go existing environments and their disk space
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
