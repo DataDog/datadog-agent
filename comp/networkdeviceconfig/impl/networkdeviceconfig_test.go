@@ -64,7 +64,10 @@ func (f *FakeRemoteSession) Close() error {
 }
 
 func NewTestComponent(reqs Requires, factory RemoteClientFactory) (Provides, error) {
-	ncmConfig := newConfig(reqs.Config)
+	ncmConfig, err := newConfig(reqs.Config)
+	if err != nil {
+		return Provides{}, reqs.Logger.Errorf("Failed to read network device configuration: %v", err)
+	}
 	var impl = &networkDeviceConfigImpl{
 		config:        ncmConfig,
 		log:           reqs.Logger,
