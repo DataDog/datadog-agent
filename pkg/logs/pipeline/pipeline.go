@@ -99,13 +99,18 @@ func getStrategy(
 	compressor logscompression.Component,
 ) sender.Strategy {
 	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
-		var encoder compressioncommon.Compressor
-		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
-		if endpoints.Main.UseCompression {
-			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
-		}
-
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverlessMeta, sender.NewArraySerializer(), endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor)
+		return sender.NewBatchStrategy(
+			inputChan,
+			outputChan,
+			flushChan,
+			serverlessMeta,
+			endpoints.BatchWait,
+			endpoints.BatchMaxSize,
+			endpoints.BatchMaxContentSize,
+			"logs",
+			endpoints.Main,
+			compressor,
+			pipelineMonitor)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

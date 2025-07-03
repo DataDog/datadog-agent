@@ -345,3 +345,20 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	reliableServer2.Stop()
 	worker.stop()
 }
+
+func TestMRFPayloads(t *testing.T) {
+	cfg := configmock.New(t)
+	input := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
+
+	server := http.NewTestServerWithOptions(200, 1, true, make(chan int), cfg)
+
+	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
+
+	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
+	worker.start()
+
+	input <- &message.Payload{}
+}
