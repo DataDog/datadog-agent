@@ -7,17 +7,3 @@
 
 // Package mock provides a mock for the networkdeviceconfig component
 package mock
-
-import (
-	networkdeviceconfig "github.com/DataDog/datadog-agent/comp/networkdeviceconfig/def"
-)
-
-type networkDeviceConfigMock struct{}
-
-func newMock() networkdeviceconfig.Component {
-	return &networkDeviceConfigMock{}
-}
-
-func (n *networkDeviceConfigMock) RetrieveConfiguration(_ string) (string, error) {
-	return "Building configuration...\nCurrent configuration : 3781 bytes\n!\nversion 12.3", nil
-}
