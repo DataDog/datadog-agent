@@ -83,9 +83,9 @@ type FileSerializer struct {
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
 	// MountVisible origin of the mount
-	MountVisible bool `json:"mount_visible,omitempty"`
+	MountVisible bool `json:"mount_visible"`
 	// MountDetached origin of the mount
-	MountDetached bool `json:"mount_detached,omitempty"`
+	MountDetached bool `json:"mount_detached"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }

@@ -3123,6 +3123,10 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			out.MountSource = string(in.String())
 		case "mount_origin":
 			out.MountOrigin = string(in.String())
+		case "mount_visible":
+			out.MountVisible = bool(in.Bool())
+		case "mount_detached":
+			out.MountDetached = bool(in.Bool())
 		case "metadata":
 			if in.IsNull() {
 				in.Skip()
@@ -3330,6 +3334,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 		const prefix string = ",\"mount_origin\":"
 		out.RawString(prefix)
 		out.String(string(in.MountOrigin))
+	}
+	{
+		const prefix string = ",\"mount_visible\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.MountVisible))
+	}
+	{
+		const prefix string = ",\"mount_detached\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.MountDetached))
 	}
 	if in.FileMetadata != nil {
 		const prefix string = ",\"metadata\":"
@@ -3674,6 +3688,10 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 			out.MountSource = string(in.String())
 		case "mount_origin":
 			out.MountOrigin = string(in.String())
+		case "mount_visible":
+			out.MountVisible = bool(in.Bool())
+		case "mount_detached":
+			out.MountDetached = bool(in.Bool())
 		case "metadata":
 			if in.IsNull() {
 				in.Skip()
@@ -3921,6 +3939,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 		const prefix string = ",\"mount_origin\":"
 		out.RawString(prefix)
 		out.String(string(in.MountOrigin))
+	}
+	{
+		const prefix string = ",\"mount_visible\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.MountVisible))
+	}
+	{
+		const prefix string = ",\"mount_detached\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.MountDetached))
 	}
 	if in.FileMetadata != nil {
 		const prefix string = ",\"metadata\":"
