@@ -883,8 +883,10 @@ def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") and recursive else t for t in targets)
+    if recursive:
+        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    else:
+        packages = ' '.join(targets)
     return packages
 
 
