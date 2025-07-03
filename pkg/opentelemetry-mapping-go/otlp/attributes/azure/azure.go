@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 const (
@@ -33,11 +33,11 @@ type HostInfo struct {
 
 // HostnameFromAttrs gets the Azure hostname from attributes.
 func HostnameFromAttrs(attrs pcommon.Map) (string, bool) {
-	if vmID, ok := attrs.Get(conventions.AttributeHostID); ok {
+	if vmID, ok := attrs.Get(string(conventions.HostIDKey)); ok {
 		return vmID.Str(), true
 	}
 
-	if hostname, ok := attrs.Get(conventions.AttributeHostName); ok {
+	if hostname, ok := attrs.Get(string(conventions.HostNameKey)); ok {
 		return hostname.Str(), true
 	}
 

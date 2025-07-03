@@ -391,6 +391,9 @@ func TestGetSLAMetrics(t *testing.T) {
 	defer server.Close()
 
 	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
 	require.NoError(t, err)
 
 	slaMetrics, err := client.GetSLAMetrics()

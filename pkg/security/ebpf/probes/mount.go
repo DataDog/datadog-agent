@@ -54,6 +54,12 @@ func getMountProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_mnt_set_mountpoint",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_alloc_vfsmnt",
+			},
+		},
 	}
 
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
@@ -73,6 +79,12 @@ func getMountProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unshare",
+	}, fentry, EntryAndExit)...)
+	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "fsmount",
 	}, fentry, EntryAndExit)...)
 
 	return mountProbes

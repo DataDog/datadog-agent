@@ -1476,6 +1476,120 @@
       ]
     },
     {
+      "name": "cgroup_write",
+      "definition": "A process migrated another process to a cgroup",
+      "type": "Kernel",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "cgroup_write.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "cgroup_write.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "cgroup_write.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "cgroup_write.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "cgroup_write.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "cgroup_write.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "cgroup_write.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "cgroup_write.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "cgroup_write.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "cgroup_write.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "cgroup_write.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "cgroup_write.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "cgroup_write.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "cgroup_write.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "cgroup_write.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "cgroup_write.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "cgroup_write.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "cgroup_write.pid",
+          "definition": "PID of the process added to the cgroup",
+          "property_doc_link": "cgroup_write-pid-doc"
+        }
+      ]
+    },
+    {
       "name": "chdir",
       "definition": "A process changed the current directory",
       "type": "File",
@@ -1596,7 +1710,7 @@
     },
     {
       "name": "chmod",
-      "definition": "A file’s permissions were changed",
+      "definition": "A file's permissions were changed",
       "type": "File",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -1730,7 +1844,7 @@
     },
     {
       "name": "chown",
-      "definition": "A file’s owner was changed",
+      "definition": "A file's owner was changed",
       "type": "File",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -2186,6 +2300,46 @@
           "name": "exec.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "exec.file.metadata.abi",
+          "definition": "[Experimental] ABI of the file (only for executable files)",
+          "property_doc_link": "exec-file-metadata-abi-doc"
+        },
+        {
+          "name": "exec.file.metadata.architecture",
+          "definition": "[Experimental] Architecture of the file (only for executable files)",
+          "property_doc_link": "exec-file-metadata-architecture-doc"
+        },
+        {
+          "name": "exec.file.metadata.compression",
+          "definition": "[Experimental] Compression type of the file (only for compressed files)",
+          "property_doc_link": "exec-file-metadata-compression-doc"
+        },
+        {
+          "name": "exec.file.metadata.is_executable",
+          "definition": "[Experimental] Tells if the file is executable or not",
+          "property_doc_link": "exec-file-metadata-is_executable-doc"
+        },
+        {
+          "name": "exec.file.metadata.is_garble_obfuscated",
+          "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+          "property_doc_link": "exec-file-metadata-is_garble_obfuscated-doc"
+        },
+        {
+          "name": "exec.file.metadata.is_upx_packed",
+          "definition": "[Experimental] Tells if the binary has been packed using UPX",
+          "property_doc_link": "exec-file-metadata-is_upx_packed-doc"
+        },
+        {
+          "name": "exec.file.metadata.size",
+          "definition": "[Experimental] Size of the file",
+          "property_doc_link": "exec-file-metadata-size-doc"
+        },
+        {
+          "name": "exec.file.metadata.type",
+          "definition": "[Experimental] Type of the file",
+          "property_doc_link": "exec-file-metadata-type-doc"
         },
         {
           "name": "exec.file.mode",
@@ -5758,6 +5912,1294 @@
       ]
     },
     {
+      "name": "setrlimit",
+      "definition": "A setrlimit command was executed",
+      "type": "Process",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setrlimit.resource",
+          "definition": "Resource type being limited",
+          "property_doc_link": "setrlimit-resource-doc"
+        },
+        {
+          "name": "setrlimit.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setrlimit.rlim_cur",
+          "definition": "Current (soft) limit value",
+          "property_doc_link": "setrlimit-rlim_cur-doc"
+        },
+        {
+          "name": "setrlimit.rlim_max",
+          "definition": "Maximum (hard) limit value",
+          "property_doc_link": "setrlimit-rlim_max-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.args",
+          "definition": "Arguments of the process (as a string, excluding argv0)",
+          "property_doc_link": "common-process-args-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.args_flags",
+          "definition": "Flags in the process arguments",
+          "property_doc_link": "common-process-args_flags-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.args_options",
+          "definition": "Argument of the process as options",
+          "property_doc_link": "common-process-args_options-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.args_truncated",
+          "definition": "Indicator of arguments truncation",
+          "property_doc_link": "common-process-args_truncated-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.argv",
+          "definition": "Arguments of the process (as an array, excluding argv0)",
+          "property_doc_link": "common-process-argv-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.argv0",
+          "definition": "First argument of the process",
+          "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cap_effective",
+          "definition": "Effective capability set of the process",
+          "property_doc_link": "common-credentials-cap_effective-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cap_permitted",
+          "definition": "Permitted capability set of the process",
+          "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cgroup.manager",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
+          "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.comm",
+          "definition": "Comm attribute of the process",
+          "property_doc_link": "common-process-comm-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.egid",
+          "definition": "Effective GID of the process",
+          "property_doc_link": "common-credentials-egid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.egroup",
+          "definition": "Effective group of the process",
+          "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.envs_truncated",
+          "definition": "Indicator of environment variables truncation",
+          "property_doc_link": "common-process-envs_truncated-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.euid",
+          "definition": "Effective UID of the process",
+          "property_doc_link": "common-credentials-euid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.euser",
+          "definition": "Effective user of the process",
+          "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.fsgid",
+          "definition": "FileSystem-gid of the process",
+          "property_doc_link": "common-credentials-fsgid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.fsgroup",
+          "definition": "FileSystem-group of the process",
+          "property_doc_link": "common-credentials-fsgroup-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.fsuid",
+          "definition": "FileSystem-uid of the process",
+          "property_doc_link": "common-credentials-fsuid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.fsuser",
+          "definition": "FileSystem-user of the process",
+          "property_doc_link": "common-credentials-fsuser-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.gid",
+          "definition": "GID of the process",
+          "property_doc_link": "common-credentials-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.group",
+          "definition": "Group of the process",
+          "property_doc_link": "common-credentials-group-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.interpreter.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.is_kworker",
+          "definition": "Indicates whether the process is a kworker",
+          "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.is_thread",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.tid",
+          "definition": "Thread ID of the thread",
+          "property_doc_link": "common-pidcontext-tid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.tty_name",
+          "definition": "Name of the TTY associated with the process",
+          "property_doc_link": "common-process-tty_name-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.uid",
+          "definition": "UID of the process",
+          "property_doc_link": "common-credentials-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user",
+          "definition": "User of the process",
+          "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.args",
+          "definition": "Arguments of the process (as a string, excluding argv0)",
+          "property_doc_link": "common-process-args-doc"
+        },
+        {
+          "name": "setrlimit.target.args_flags",
+          "definition": "Flags in the process arguments",
+          "property_doc_link": "common-process-args_flags-doc"
+        },
+        {
+          "name": "setrlimit.target.args_options",
+          "definition": "Argument of the process as options",
+          "property_doc_link": "common-process-args_options-doc"
+        },
+        {
+          "name": "setrlimit.target.args_truncated",
+          "definition": "Indicator of arguments truncation",
+          "property_doc_link": "common-process-args_truncated-doc"
+        },
+        {
+          "name": "setrlimit.target.argv",
+          "definition": "Arguments of the process (as an array, excluding argv0)",
+          "property_doc_link": "common-process-argv-doc"
+        },
+        {
+          "name": "setrlimit.target.argv0",
+          "definition": "First argument of the process",
+          "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "setrlimit.target.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "setrlimit.target.cap_effective",
+          "definition": "Effective capability set of the process",
+          "property_doc_link": "common-credentials-cap_effective-doc"
+        },
+        {
+          "name": "setrlimit.target.cap_permitted",
+          "definition": "Permitted capability set of the process",
+          "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.manager",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
+          "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "setrlimit.target.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
+          "name": "setrlimit.target.comm",
+          "definition": "Comm attribute of the process",
+          "property_doc_link": "common-process-comm-doc"
+        },
+        {
+          "name": "setrlimit.target.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "setrlimit.target.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "setrlimit.target.egid",
+          "definition": "Effective GID of the process",
+          "property_doc_link": "common-credentials-egid-doc"
+        },
+        {
+          "name": "setrlimit.target.egroup",
+          "definition": "Effective group of the process",
+          "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "setrlimit.target.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "setrlimit.target.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "setrlimit.target.envs_truncated",
+          "definition": "Indicator of environment variables truncation",
+          "property_doc_link": "common-process-envs_truncated-doc"
+        },
+        {
+          "name": "setrlimit.target.euid",
+          "definition": "Effective UID of the process",
+          "property_doc_link": "common-credentials-euid-doc"
+        },
+        {
+          "name": "setrlimit.target.euser",
+          "definition": "Effective user of the process",
+          "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "setrlimit.target.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "setrlimit.target.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "setrlimit.target.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "setrlimit.target.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "setrlimit.target.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "setrlimit.target.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "setrlimit.target.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setrlimit.target.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "setrlimit.target.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "setrlimit.target.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "setrlimit.target.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "setrlimit.target.fsgid",
+          "definition": "FileSystem-gid of the process",
+          "property_doc_link": "common-credentials-fsgid-doc"
+        },
+        {
+          "name": "setrlimit.target.fsgroup",
+          "definition": "FileSystem-group of the process",
+          "property_doc_link": "common-credentials-fsgroup-doc"
+        },
+        {
+          "name": "setrlimit.target.fsuid",
+          "definition": "FileSystem-uid of the process",
+          "property_doc_link": "common-credentials-fsuid-doc"
+        },
+        {
+          "name": "setrlimit.target.fsuser",
+          "definition": "FileSystem-user of the process",
+          "property_doc_link": "common-credentials-fsuser-doc"
+        },
+        {
+          "name": "setrlimit.target.gid",
+          "definition": "GID of the process",
+          "property_doc_link": "common-credentials-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.group",
+          "definition": "Group of the process",
+          "property_doc_link": "common-credentials-group-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.interpreter.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "setrlimit.target.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
+          "name": "setrlimit.target.is_kworker",
+          "definition": "Indicates whether the process is a kworker",
+          "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "setrlimit.target.is_thread",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.args",
+          "definition": "Arguments of the process (as a string, excluding argv0)",
+          "property_doc_link": "common-process-args-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.args_flags",
+          "definition": "Flags in the process arguments",
+          "property_doc_link": "common-process-args_flags-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.args_options",
+          "definition": "Argument of the process as options",
+          "property_doc_link": "common-process-args_options-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.args_truncated",
+          "definition": "Indicator of arguments truncation",
+          "property_doc_link": "common-process-args_truncated-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.argv",
+          "definition": "Arguments of the process (as an array, excluding argv0)",
+          "property_doc_link": "common-process-argv-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.argv0",
+          "definition": "First argument of the process",
+          "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cap_effective",
+          "definition": "Effective capability set of the process",
+          "property_doc_link": "common-credentials-cap_effective-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cap_permitted",
+          "definition": "Permitted capability set of the process",
+          "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.manager",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
+          "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.comm",
+          "definition": "Comm attribute of the process",
+          "property_doc_link": "common-process-comm-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.egid",
+          "definition": "Effective GID of the process",
+          "property_doc_link": "common-credentials-egid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.egroup",
+          "definition": "Effective group of the process",
+          "property_doc_link": "common-credentials-egroup-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.envs_truncated",
+          "definition": "Indicator of environment variables truncation",
+          "property_doc_link": "common-process-envs_truncated-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.euid",
+          "definition": "Effective UID of the process",
+          "property_doc_link": "common-credentials-euid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.euser",
+          "definition": "Effective user of the process",
+          "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.fsgid",
+          "definition": "FileSystem-gid of the process",
+          "property_doc_link": "common-credentials-fsgid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.fsgroup",
+          "definition": "FileSystem-group of the process",
+          "property_doc_link": "common-credentials-fsgroup-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.fsuid",
+          "definition": "FileSystem-uid of the process",
+          "property_doc_link": "common-credentials-fsuid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.fsuser",
+          "definition": "FileSystem-user of the process",
+          "property_doc_link": "common-credentials-fsuser-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.gid",
+          "definition": "GID of the process",
+          "property_doc_link": "common-credentials-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.group",
+          "definition": "Group of the process",
+          "property_doc_link": "common-credentials-group-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.interpreter.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.is_kworker",
+          "definition": "Indicates whether the process is a kworker",
+          "property_doc_link": "common-pidcontext-is_kworker-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.is_thread",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.tid",
+          "definition": "Thread ID of the thread",
+          "property_doc_link": "common-pidcontext-tid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.tty_name",
+          "definition": "Name of the TTY associated with the process",
+          "property_doc_link": "common-process-tty_name-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.uid",
+          "definition": "UID of the process",
+          "property_doc_link": "common-credentials-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user",
+          "definition": "User of the process",
+          "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
+          "name": "setrlimit.target.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "setrlimit.target.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "setrlimit.target.tid",
+          "definition": "Thread ID of the thread",
+          "property_doc_link": "common-pidcontext-tid-doc"
+        },
+        {
+          "name": "setrlimit.target.tty_name",
+          "definition": "Name of the TTY associated with the process",
+          "property_doc_link": "common-process-tty_name-doc"
+        },
+        {
+          "name": "setrlimit.target.uid",
+          "definition": "UID of the process",
+          "property_doc_link": "common-credentials-uid-doc"
+        },
+        {
+          "name": "setrlimit.target.user",
+          "definition": "User of the process",
+          "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        }
+      ]
+    },
+    {
+      "name": "setsockopt",
+      "definition": "A setsockopt was executed",
+      "type": "Network",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setsockopt.level",
+          "definition": "Socket level",
+          "property_doc_link": "setsockopt-level-doc"
+        },
+        {
+          "name": "setsockopt.optname",
+          "definition": "Socket option name",
+          "property_doc_link": "setsockopt-optname-doc"
+        },
+        {
+          "name": "setsockopt.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "setuid",
       "definition": "A process changed its effective uid",
       "type": "Process",
@@ -7640,6 +9082,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7671,6 +9116,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7698,6 +9146,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7725,6 +9176,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7747,6 +9201,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7774,6 +9231,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7796,6 +9256,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7818,6 +9281,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7840,6 +9306,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7854,6 +9323,7 @@
       "type": "int",
       "definition": "Change time (ctime) of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -7883,6 +9353,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -7912,6 +9388,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7934,6 +9413,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7956,6 +9438,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -7991,6 +9476,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8013,6 +9501,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8035,6 +9526,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8057,6 +9551,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8079,6 +9576,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8101,6 +9601,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8123,6 +9626,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8163,6 +9669,7 @@
       "type": "string",
       "definition": "File's filesystem",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8192,6 +9699,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -8221,6 +9734,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8243,6 +9759,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8265,6 +9784,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8287,6 +9809,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8309,6 +9834,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8323,6 +9851,7 @@
       "type": "int",
       "definition": "GID of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8352,6 +9881,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -8381,6 +9916,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8395,6 +9933,7 @@
       "type": "string",
       "definition": "Group of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8424,6 +9963,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -8445,6 +9990,7 @@
       "type": "string",
       "definition": "[Experimental] List of cryptographic hashes computed for this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8474,6 +10020,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -8504,6 +10056,9 @@
         "ptrace.tracee.ancestors.cgroup",
         "ptrace.tracee.cgroup",
         "ptrace.tracee.parent.cgroup",
+        "setrlimit.target.ancestors.cgroup",
+        "setrlimit.target.cgroup",
+        "setrlimit.target.parent.cgroup",
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
@@ -8532,6 +10087,7 @@
       "type": "bool",
       "definition": "Indicator of the file layer, for example, in an OverlayFS",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8561,6 +10117,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -8583,6 +10145,7 @@
       "definition": "Inode of the file",
       "prefixes": [
         "cgroup.file",
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8620,6 +10183,15 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.cgroup.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.cgroup.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.cgroup.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.cgroup.file",
         "signal.target.ancestors.file",
@@ -8672,6 +10244,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8694,6 +10269,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8736,6 +10314,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -8758,6 +10339,9 @@
         "ptrace.tracee.ancestors.user_session",
         "ptrace.tracee.parent.user_session",
         "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
         "signal.target.ancestors.user_session",
         "signal.target.parent.user_session",
         "signal.target.user_session"
@@ -8780,6 +10364,9 @@
         "ptrace.tracee.ancestors.user_session",
         "ptrace.tracee.parent.user_session",
         "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
         "signal.target.ancestors.user_session",
         "signal.target.parent.user_session",
         "signal.target.user_session"
@@ -8802,6 +10389,9 @@
         "ptrace.tracee.ancestors.user_session",
         "ptrace.tracee.parent.user_session",
         "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
         "signal.target.ancestors.user_session",
         "signal.target.parent.user_session",
         "signal.target.user_session"
@@ -8842,6 +10432,8 @@
       "type": "int",
       "definition": "Length of the corresponding element",
       "prefixes": [
+        "cgroup_write.file.name",
+        "cgroup_write.file.path",
         "chdir.file.name",
         "chdir.file.path",
         "chmod.file.name",
@@ -8904,6 +10496,19 @@
         "rename.file.path",
         "rmdir.file.name",
         "rmdir.file.path",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.ancestors.file.name",
+        "setrlimit.target.ancestors.file.path",
+        "setrlimit.target.ancestors.interpreter.file.name",
+        "setrlimit.target.ancestors.interpreter.file.path",
+        "setrlimit.target.file.name",
+        "setrlimit.target.file.path",
+        "setrlimit.target.interpreter.file.name",
+        "setrlimit.target.interpreter.file.path",
+        "setrlimit.target.parent.file.name",
+        "setrlimit.target.parent.file.path",
+        "setrlimit.target.parent.interpreter.file.name",
+        "setrlimit.target.parent.interpreter.file.path",
         "setxattr.file.name",
         "setxattr.file.path",
         "signal.target.ancestors",
@@ -8945,6 +10550,9 @@
         "ptrace.tracee.ancestors.cgroup",
         "ptrace.tracee.cgroup",
         "ptrace.tracee.parent.cgroup",
+        "setrlimit.target.ancestors.cgroup",
+        "setrlimit.target.cgroup",
+        "setrlimit.target.parent.cgroup",
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
@@ -8959,6 +10567,7 @@
       "type": "int",
       "definition": "Mode of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8988,6 +10597,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9009,6 +10624,7 @@
       "type": "int",
       "definition": "Modification time (mtime) of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9038,6 +10654,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9060,6 +10682,7 @@
       "definition": "Mount ID of the file",
       "prefixes": [
         "cgroup.file",
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9097,6 +10720,15 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.cgroup.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.cgroup.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.cgroup.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.cgroup.file",
         "signal.target.ancestors.file",
@@ -9121,6 +10753,7 @@
       "type": "string",
       "definition": "File's basename",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9150,6 +10783,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9189,6 +10828,7 @@
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9218,6 +10858,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9239,6 +10885,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9268,6 +10915,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9289,6 +10942,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9318,6 +10972,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9352,6 +11012,7 @@
       "type": "string",
       "definition": "File's path",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9381,6 +11042,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9419,6 +11086,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -9461,6 +11131,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -9493,6 +11166,8 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setrlimit",
+        "setsockopt",
         "setxattr",
         "signal",
         "splice",
@@ -9510,6 +11185,7 @@
       "type": "int",
       "definition": "Rights of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9539,6 +11215,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9581,6 +11263,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -9603,6 +11288,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -9625,6 +11313,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -9639,6 +11330,7 @@
       "type": "int",
       "definition": "UID of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9668,6 +11360,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9697,6 +11395,9 @@
         "ptrace.tracee",
         "ptrace.tracee.ancestors",
         "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
@@ -9716,6 +11417,7 @@
       "type": "string",
       "definition": "User of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9745,6 +11447,12 @@
         "rename.file",
         "rename.file.destination",
         "rmdir.file",
+        "setrlimit.target.ancestors.file",
+        "setrlimit.target.ancestors.interpreter.file",
+        "setrlimit.target.file",
+        "setrlimit.target.interpreter.file",
+        "setrlimit.target.parent.file",
+        "setrlimit.target.parent.interpreter.file",
         "setxattr.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
@@ -9775,6 +11483,9 @@
         "ptrace.tracee.ancestors.cgroup",
         "ptrace.tracee.cgroup",
         "ptrace.tracee.parent.cgroup",
+        "setrlimit.target.ancestors.cgroup",
+        "setrlimit.target.cgroup",
+        "setrlimit.target.parent.cgroup",
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
@@ -9949,6 +11660,18 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "cgroup_write.pid",
+      "link": "cgroup_write-pid-doc",
+      "type": "int",
+      "definition": "PID of the process added to the cgroup",
+      "prefixes": [
+        "cgroup_write"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -10345,6 +12068,102 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.abi",
+      "link": "exec-file-metadata-abi-doc",
+      "type": "int",
+      "definition": "[Experimental] ABI of the file (only for executable files)",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "ABI",
+      "constants_link": "abi",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.architecture",
+      "link": "exec-file-metadata-architecture-doc",
+      "type": "int",
+      "definition": "[Experimental] Architecture of the file (only for executable files)",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "Architecture",
+      "constants_link": "architecture",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.compression",
+      "link": "exec-file-metadata-compression-doc",
+      "type": "int",
+      "definition": "[Experimental] Compression type of the file (only for compressed files)",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "CompressionType",
+      "constants_link": "compressiontype",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.is_executable",
+      "link": "exec-file-metadata-is_executable-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the file is executable or not",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.is_garble_obfuscated",
+      "link": "exec-file-metadata-is_garble_obfuscated-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.is_upx_packed",
+      "link": "exec-file-metadata-is_upx_packed-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been packed using UPX",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.size",
+      "link": "exec-file-metadata-size-doc",
+      "type": "int",
+      "definition": "[Experimental] Size of the file",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.type",
+      "link": "exec-file-metadata-type-doc",
+      "type": "int",
+      "definition": "[Experimental] Type of the file",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "FileType",
+      "constants_link": "filetype",
       "examples": []
     },
     {
@@ -11020,6 +12839,66 @@
       "examples": []
     },
     {
+      "name": "setrlimit.resource",
+      "link": "setrlimit-resource-doc",
+      "type": "int",
+      "definition": "Resource type being limited",
+      "prefixes": [
+        "setrlimit"
+      ],
+      "constants": "Resource limit types",
+      "constants_link": "resource-limit-types",
+      "examples": []
+    },
+    {
+      "name": "setrlimit.rlim_cur",
+      "link": "setrlimit-rlim_cur-doc",
+      "type": "int",
+      "definition": "Current (soft) limit value",
+      "prefixes": [
+        "setrlimit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setrlimit.rlim_max",
+      "link": "setrlimit-rlim_max-doc",
+      "type": "int",
+      "definition": "Maximum (hard) limit value",
+      "prefixes": [
+        "setrlimit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.level",
+      "link": "setsockopt-level-doc",
+      "type": "int",
+      "definition": "Socket level",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.optname",
+      "link": "setsockopt-optname-doc",
+      "type": "int",
+      "definition": "Socket option name",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "setuid.euid",
       "link": "setuid-euid-doc",
       "type": "int",
@@ -11309,6 +13188,52 @@
     }
   ],
   "constants": [
+    {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
     {
       "name": "BPF attach types",
       "link": "bpf-attach-types",
@@ -12572,6 +14497,41 @@
       ]
     },
     {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS Responses",
       "link": "dns-responses",
       "description": "DNS Responses are the supported response codes",
@@ -13631,6 +15591,53 @@
       ]
     },
     {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Inode mode constants",
       "link": "inode-mode-constants",
       "description": "Inode mode constants are the supported file type constants as well as the file mode constants.",
@@ -14383,6 +16390,25 @@
       ]
     },
     {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "MMap flags",
       "link": "mmap-flags",
       "description": "MMap flags are the supported flags for the mmap syscall.",
@@ -15108,6 +17134,979 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
+        }
+      ]
+    },
+    {
+      "name": "Resource limit types",
+      "link": "resource-limit-types",
+      "description": "Resource limit types are the supported resource types for setrlimit syscall.",
+      "all": [
+        {
+          "name": "RLIMIT_CPU",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_FSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_DATA",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_STACK",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_CORE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_RSS",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_NPROC",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_NOFILE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_MEMLOCK",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_AS",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_LOCKS",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_SIGPENDING",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_MSGQUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_NICE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_RTPRIO",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_RTTIME",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SetSockopt Levels",
+      "link": "setsockopt-levels",
+      "description": "SetSockopt Levels are the supported levels for the setsockopt event.",
+      "all": [
+        {
+          "name": "IPPROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "SOL_SOCKET",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMPV6",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SetSockopt Options",
+      "link": "setsockopt-options",
+      "description": "SetSockopt Options are the supported options for the setsockopt event.",
+      "all": [
+        {
+          "name": "IP_TOS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_TTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_HDRINCL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_OPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ROUTER_ALERT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RETOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PKTOPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MTU_DISCOVER",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVERR",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVTTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVTOS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_FREEBIND",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_IPSEC_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_XFRM_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_TRANSPARENT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ORIGDSTADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MINTTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_NODEFRAG",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_CHECKSUM",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_BIND_ADDRESS_NO_PORT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVFRAGSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVERR_RFC4884",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_TTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ADD_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_DROP_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_UNBLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_BLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ADD_SOURCE_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_DROP_SOURCE_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MSFILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_JOIN_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_BLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_UNBLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_LEAVE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_JOIN_SOURCE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_LEAVE_SOURCE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_MSFILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_UNICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEBUG",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TYPE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DONTROUTE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BROADCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_KEEPALIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_OOBINLINE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NO_CHECK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LINGER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BSDCOMPAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEPORT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVTIMEO_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDTIMEO_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_AUTHENTICATION",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_ENCRYPTION_TRANSPORT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_ENCRYPTION_NETWORK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BINDTODEVICE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMP_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ACCEPTCONN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPNS_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPING_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PROTOCOL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RXQ_OVFL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_WIFI_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEEK_OFF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NOFCS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LOCK_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SELECT_ERR_QUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUSY_POLL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MAX_PACING_RATE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BPF_EXTENSIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_INCOMING_CPU",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_BPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_REUSEPORT_CBPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_REUSEPORT_EBPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_CNX_ADVICE",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TIMESTAMPING_OPT_STATS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MEMINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_INCOMING_NAPI_ID",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TIMESTAMPING_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERGROUPS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ZEROCOPY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TXTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BINDTOIFINDEX",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMP_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPNS_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPING_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVTIMEO_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDTIMEO_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_REUSEPORT_BPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PREFER_BUSY_POLL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUSY_POLL_BUDGET",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NETNS_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUF_LOCK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RESERVE_MEM",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TXREHASH",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVMARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSPIDFD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERPIDFD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_LINEAR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_DMABUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_DONTNEED",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TS_OPT_ID",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVPRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_NODELAY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MAXSEG",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CORK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPIDLE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPINTVL",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPCNT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SYNCNT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_LINGER2",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_DEFER_ACCEPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_WINDOW_CLAMP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_QUICKACK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CONGESTION",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MD5SIG",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_THIN_LINEAR_TIMEOUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_THIN_DUPACK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_USER_TIMEOUT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_QUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_QUEUE_SEQ",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_OPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_TIMESTAMP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_NOTSENT_LOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CC_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SAVE_SYN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SAVED_SYN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_WINDOW",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_CONNECT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_ULP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MD5SIG_EXT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_KEY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_NO_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_ZEROCOPY_RECEIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_INQ",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_TX_DELAY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADDRFORM",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292HOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292DSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292RTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292PKTOPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292HOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_UNICAST_HOPS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_HOPS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADD_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DROP_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ROUTER_ALERT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MTU_DISCOVER",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVERR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_V6ONLY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_JOIN_ANYCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_LEAVE_ANYCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ROUTER_ALERT_ISOLATE",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVERR_RFC4884",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWLABEL_MGR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWINFO_SEND",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_IPSEC_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_XFRM_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HDRINCL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVPKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVHOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVHOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RTHDRDSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVRTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVDSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVPATHMTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_PATHMTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DONTFRAG",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVTCLASS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_TCLASS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_AUTOFLOWLABEL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADDR_PREFERENCES",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MINHOPCOUNT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ORIGDSTADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_TRANSPARENT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_UNICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVFRAGSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FREEBIND",
+          "architecture": "all"
         }
       ]
     },

@@ -382,7 +382,10 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
             return false; // no error
         case TCP_CONN_FAILED_RESET:
         case TCP_CONN_FAILED_TIMEOUT:
-        case TCP_CONN_FAILED_REFUSED: {
+        case TCP_CONN_FAILED_REFUSED:
+        case TCP_CONN_FAILED_EHOSTUNREACH:
+        case TCP_CONN_FAILED_ENETUNREACH:
+        {
             tcp_stats_t stats = { .failure_reason = err };
             update_tcp_stats(t, stats);
             return true;

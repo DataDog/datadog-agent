@@ -138,6 +138,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		"--jsonfile", jsonpath,
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
+		"--rerun-fails-abort-on-data-race",
 		"--raw-command", "--",
 		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg,
 	}

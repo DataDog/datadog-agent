@@ -12,17 +12,17 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
 
 const hostTagPrefix = "datadog.host.tag."
 
 var hostTagMapping = map[string]string{
-	conventions.AttributeDeploymentEnvironment: "env",
-	conventions.AttributeK8SClusterName:        "cluster_name",
-	conventions.AttributeCloudProvider:         "cloud_provider",
-	conventions.AttributeCloudRegion:           "region",
-	conventions.AttributeCloudAvailabilityZone: "zone",
+	string(conventions.DeploymentEnvironmentKey): "env",
+	string(conventions.K8SClusterNameKey):        "cluster_name",
+	string(conventions.CloudProviderKey):         "cloud_provider",
+	string(conventions.CloudRegionKey):           "region",
+	string(conventions.CloudAvailabilityZoneKey): "zone",
 
 	// TODO(OTEL-1766): import of semconv 1.27.0 is blocked on Go1.22 support
 	"deployment.environment.name": "env",

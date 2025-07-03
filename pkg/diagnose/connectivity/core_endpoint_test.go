@@ -12,11 +12,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -107,4 +110,51 @@ func TestGetLogsUseTCP(t *testing.T) {
 
 	mockConfig.SetWithoutSource("logs_config.force_use_http", true)
 	assert.False(t, getLogsUseTCP())
+}
+
+func TestSendHTTPRequestToEndpoint_ProtoPayload(t *testing.T) {
+	mockConfig := configmock.New(t)
+	log := logmock.New(t)
+
+	// Create a fake server that checks for protobuf content type and unmarshals the payload
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
+		assert.Equal(t, "api_key1", r.Header.Get("DD-API-KEY"))
+
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		defer r.Body.Close()
+
+		var sketch gogen.SketchPayload
+		err = proto.Unmarshal(body, &sketch)
+		assert.NoError(t, err)
+		assert.Len(t, sketch.Sketches, 1)
+		assert.Equal(t, "example.metric", sketch.Sketches[0].Metric)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Received Protobuf"))
+	}))
+	defer ts.Close()
+
+	client := defaultforwarder.NewHTTPClient(mockConfig, 1, log)
+
+	endpointInfo := endpointInfo{
+		Endpoint:    transaction.Endpoint{Route: "/", Name: "sketch"},
+		Method:      "POST",
+		Payload:     mustMarshalProto(buildSketchPayload(), t),
+		ContentType: "application/x-protobuf",
+	}
+
+	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts.URL, endpointInfo, "api_key1")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, statusCode)
+	assert.Equal(t, "Received Protobuf", string(responseBody))
+}
+
+func mustMarshalProto(msg proto.Message, t *testing.T) []byte {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatalf("Failed to marshal proto: %v", err)
+	}
+	return data
 }

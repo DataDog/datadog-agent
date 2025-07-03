@@ -36,12 +36,12 @@ func makeDeps(t *testing.T) dependencies {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		telemetryimpl.MockModule(),
 		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		fx.Supply(NewParams(0, false, 0)),
 	))
 }
 
-func makeConfigSync(t *testing.T) *configSync {
-	deps := makeDeps(t)
+func makeConfigSync(deps dependencies) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
@@ -50,31 +50,31 @@ func makeConfigSync(t *testing.T) *configSync {
 	cs := &configSync{
 		Config: deps.Config,
 		Log:    deps.Log,
-		IPC:    deps.IPC,
 		url:    defaultURL,
-		client: http.DefaultClient,
+		client: deps.IPCClient,
 		ctx:    context.Background(),
 	}
 	return cs
 }
 
-func makeServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *http.Client, *url.URL) {
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+func makeServer(t *testing.T, ipcmock *ipcmock.IPCMock, handler http.HandlerFunc) (*httptest.Server, *url.URL) {
+	server := ipcmock.NewMockServer(handler)
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	return server, server.Client(), url
+	return server, url
 }
 
 //nolint:revive
 func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.HandlerFunc) *configSync {
-	_, client, url := makeServer(t, handler)
+	deps := makeDeps(t)
 
-	cs := makeConfigSync(t)
+	ipcmock := ipcmock.New(t)
+	_, url := makeServer(t, ipcmock, handler)
+
+	cs := makeConfigSync(deps)
 	cs.ctx = ctx
-	cs.client = client
 	cs.url = url
 
 	return cs

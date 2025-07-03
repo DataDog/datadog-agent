@@ -17,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -51,11 +50,7 @@ func acquireHostname(c *config.AgentConfig) error {
 		return err
 	}
 
-	err = util.SetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return err
-	}
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), util.GetTLSClientConfig)
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), c.IPCTLSClientConfig)
 	if err != nil {
 		return err
 	}

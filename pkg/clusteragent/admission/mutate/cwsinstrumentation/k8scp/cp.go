@@ -14,10 +14,13 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -51,8 +54,16 @@ func (o *Copy) prepareCommand(destFile string) []string {
 	return cmdArr
 }
 
-// CopyToPod copies the provided local file to the provided container
-func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
+// CopyToPod copies the provided local file to the provided container while observing the execution time
+func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string, mode string, webhookName string, timeout time.Duration) error {
+	start := time.Now()
+	err := o.copyToPod(localFile, remoteFile, pod, container, mode, webhookName, timeout)
+	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "copy_to_pod", strconv.FormatBool(err == nil), "")
+	return err
+}
+
+// copyToPod copies the provided local file to the provided container
+func (o *Copy) copyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string, mode string, webhookName string, timeout time.Duration) error {
 	o.Container = container
 	localFile = path.Clean(localFile)
 	remoteFile = path.Clean(remoteFile)
@@ -63,9 +74,16 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 	}
 
 	reader, writer := io.Pipe()
-	defer reader.Close()
+	defer func() {
+		_ = reader.Close()
+		_ = writer.Close()
+	}()
 	tarErrChan := make(chan error, 1)
 	go func(src, dest string, writer io.WriteCloser) {
+		tarStart := time.Now()
+		defer func() {
+			metrics.CWSResponseDuration.Observe(time.Since(tarStart).Seconds(), mode, webhookName, "copy_to_pod_tar", "true", "")
+		}()
 		if err := makeTar(src, dest, writer); err != nil {
 			_ = writer.Close()
 			tarErrChan <- fmt.Errorf("failed to tar local file: %v", err)
@@ -87,9 +105,12 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		Stdin: true,
 	}
 
-	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions); err != nil {
-		return err
+	start := time.Now()
+	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions, mode, webhookName, timeout); err != nil {
+		metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "copy_to_pod_cmd_execute", "false", "")
+		return fmt.Errorf("command execute error (in %s): %v", time.Since(start), err)
 	}
+	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "copy_to_pod_cmd_execute", "true", "")
 
 	// close pipe, wait for tar chan to finish and check tar error
 	tarErr := <-tarErrChan

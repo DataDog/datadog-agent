@@ -498,8 +498,8 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
-## @param collect_gpu_tags - boolean - optional - default: false
-## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: false
+## @param collect_gpu_tags - boolean - optional - default: true
+## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
 ## Collect GPU related host tags
 #
 # collect_gpu_tags: false
@@ -597,7 +597,6 @@ api_key:
 
 
 ## @param fips - custom object - optional
-## [BETA] Enter specific configurations for using the FIPS proxy.
 ## Uncomment this parameter and the one below to enable them.
 #
 # fips:
@@ -865,10 +864,35 @@ api_key:
 #
 # windows_use_pythonpath: false
 {{ end }}
+## @param secret_backend_type - string - optional
+## @env DD_SECRET_BACKEND_TYPE - string - optional
+## This feature is in preview.
+##
+## `secret_backend_type` is the type of backend where secrets are stored.
+## Supported backends are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
+## "file.json", "file.yaml"
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+##
+## This option is ignored if 'secret_backend_command' is set.
+#
+# secret_backend_type: <BACKEND_TYPE>
+
+## @param secret_backend_config - map - optional
+## @env DD_SECRET_BACKEND_CONFIG - map - optional
+## This feature is in preview.
+##
+## The section contains information required to resolved secrets.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+#
+# secret_backend_config:
+#   <KEY_1>: <VALUE_1>
+
 ## @param secret_backend_command - string - optional
 ## @env DD_SECRET_BACKEND_COMMAND - string - optional
-## `secret_backend_command` is the path to the script to execute to fetch secrets.
+## `secret_backend_command` is the path to your custom script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
+##
+## This option take precedence over `secret_backend_type`.
 ##
 ## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
 #
@@ -877,6 +901,8 @@ api_key:
 ## @param secret_backend_arguments - list of strings - optional
 ## @env DD_SECRET_BACKEND_ARGUMENTS - space separated list of strings - optional
 ## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
+##
+## This option take precedence over `secret_backend_type`.
 #
 # secret_backend_arguments:
 #   - <ARGUMENT_1>
@@ -987,6 +1013,14 @@ api_key:
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
 
+  ## @param auto_multi_line_detection - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+  ## Enable automatic aggregation of multi-line logs for common log patterns.
+  ## More information can be found in Datadog documentation:
+  ## https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
+  #
+  # auto_multi_line_detection: true
+
   ## @param force_use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
   ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
@@ -1029,6 +1063,12 @@ api_key:
   ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
+
+  ## @param close_timeout - integer - optional - default: 60
+  ## @env DD_LOGS_CONFIG_CLOSE_TIMEOUT - integer - optional - default: 60
+  ## The maximum number of seconds the Agent spends reading from a file after it has been rotated.
+  #
+  # close_timeout: 60
 
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
@@ -2561,6 +2601,13 @@ api_key:
 #
 # jmx_telemetry_enabled: false
 
+## @param jmx_java_tool_options - string - optional
+## @env DD_JMX_JAVA_TOOL_OPTIONS - string - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
+#
+# jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
+
 {{ end -}}
 {{- if .Logging }}
 
@@ -3935,6 +3982,11 @@ api_key:
     #
     # collect_topology: true
 
+    ## @param collect_vpn - boolean - optional - default: false
+    ## Enable collection of VPN tunnels and route table data
+    #
+    # collect_vpn: true
+
     ## @param ping - custom object - optional
     ## Configure ICMP pings for all hosts in SNMP autodiscovery
     ## Devices will be pinged with these settings each time the SNMP
@@ -4730,4 +4782,77 @@ api_key:
   ## To learn about all the available service matching conditions & configuration options, visit
   ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
 
+{{end}}
+
+{{- if .ApplicationMonitoring -}}
+###############################
+## Datadog APM Configuration ##
+###############################
+
+## @section APM Configuration Rules
+##
+## Enable and configure APM, profiling, and security monitoring features.
+##
+## Settings can be configured via environment variables or the application_monitoring.yaml file.
+## Configuration precedence (highest to lowest priority):
+##   1. Fleet-managed config file
+##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
+##   2. Environment variables
+##   3. Local config file
+##      (etc/datadog-agent/application_monitoring.yaml)
+# apm_configuration_rules:
+
+  ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
+  ## Enable Datadog tracing.
+  ## Docs: https://docs.datadoghq.com/tracing/trace_collection/
+  # DD_APM_TRACING_ENABLED: true
+
+  ## @param DD_RUNTIME_METRICS_ENABLED - boolean - optional - default: false
+  ## Enable runtime metrics.
+  ## Docs: https://docs.datadoghq.com/tracing/metrics/runtime_metrics/?tab=java#environment-variables
+  # DD_RUNTIME_METRICS_ENABLED: false
+
+  ## @param DD_LOGS_INJECTION - boolean - optional - default: false
+  ## Enable automatic trace and span ID injection into logs.
+  ## Docs: https://docs.datadoghq.com/tracing/other_telemetry/connect_logs_and_traces/
+  # DD_LOGS_INJECTION: false
+
+  ## @param DD_PROFILING_ENABLED - boolean - optional - default: false
+  ## Enable continuous profiling.
+  ## Docs: https://docs.datadoghq.com/profiler/
+  # DD_PROFILING_ENABLED: false
+
+  ## @param DD_DATA_STREAMS_ENABLED - boolean - optional - default: false
+  ## Enable data streams monitoring.
+  ## Docs: https://docs.datadoghq.com/data_streams/
+  # DD_DATA_STREAMS_ENABLED: false
+
+  ## @param DD_APPSEC_ENABLED - boolean - optional - default: false
+  ## Enable the Application Security product.
+  ## Docs: https://docs.datadoghq.com/security/application_security/
+  # DD_APPSEC_ENABLED: false
+
+  ## @param DD_IAST_ENABLED - boolean - optional - default: false
+  ## Enable Interactive Application Security Testing (IAST).
+  ## Docs: https://docs.datadoghq.com/security/code_security/iast/setup/#amazon-ecs
+  # DD_IAST_ENABLED: false
+
+  ## @param DD_DYNAMIC_INSTRUMENTATION_ENABLED - boolean - optional - default: false
+  ## Enable Dynamic Instrumentation.
+  ## Docs: https://docs.datadoghq.com/dynamic_instrumentation/
+  # DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
+
+  ## @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
+  ## Enable data jobs visibility.
+  # DD_DATA_JOBS_ENABLED: false
+
+  ## @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
+  ## Enable Software Composition Analysis.
+  ## Docs: https://docs.datadoghq.com/security/code_security/software_composition_analysis/
+  # DD_APPSEC_SCA_ENABLED: false
+
+  ## @param DD_TRACE_DEBUG - boolean - optional - default: false
+  ## Enable debug logging for the tracer.
+  ## Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
+  # DD_TRACE_DEBUG: false
 {{end}}

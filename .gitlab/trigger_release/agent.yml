@@ -15,11 +15,11 @@
     RELEASE_PRODUCT: datadog-agent
   script:
     - !reference [.setup_dd_pkg]
-    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
+    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
     - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
     - |-
       dd-pkg promote \
-        --build-pipeline-id $CI_PIPELINE_ID \
+        --build-pipeline-id $PARENT_PIPELINE_ID \
         --release-product $RELEASE_PRODUCT \
         --key-id $PIPELINE_KEY_ALIAS \
         --release-version $RELEASE_VERSION \
@@ -41,19 +41,7 @@ trigger_auto_staging_release:
     # We are no longer using this tag format as of 7.61.0-v1.3.0
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
-    - !reference [.on_deploy]
-
-trigger_auto_staging_release_on_failure:
-  extends: .agent_release_management_trigger
-  timeout: 2h 30m
-  variables:
-    TARGET_REPO: staging
-  rules:
-    # Pattern matches a tag like `7.61.0-v1.3.0`, which is how we formerly tagged OTel releases
-    # We are no longer using this tag format as of 7.61.0-v1.3.0
-    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
-      when: never
-    - !reference [.on_deploy_failure]
+    - when: always
 
 trigger_manual_prod_release:
   extends: .agent_release_management_trigger
@@ -65,17 +53,6 @@ trigger_manual_prod_release:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
     - !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]
-
-trigger_manual_prod_release_on_failure:
-  extends: .agent_release_management_trigger
-  variables:
-    TARGET_REPO: prod
-  rules:
-    # Pattern matches a tag like `7.61.0-v1.3.0`, which is how we formerly tagged OTel releases
-    # We are no longer using this tag format as of 7.61.0-v1.3.0
-    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
-      when: never
-    - !reference [.on_deploy_stable_on_failure]
 
 .setup_github_app_agent_platform_auto_pr:
   # GitHub App rate-limits are per-app. Since we are rarely calling the job, we are only using the instance 2
@@ -95,7 +72,7 @@ generate_windows_gitlab_runner_bump_pr:
       when: never
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
   script:
-    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - python3 -m dda self dep sync -f legacy-tasks
@@ -103,7 +80,7 @@ generate_windows_gitlab_runner_bump_pr:
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- -e github.update-windows-runner-version
 
-# Manual job to generate the gitlab bump pr on buildenv if trigger_auto_staging_release fails
+# Manual job to generate the gitlab bump pr on ci-platform-machine-images if trigger_auto_staging_release fails
 generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
@@ -115,7 +92,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
       when: manual
   script:
-    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository
     - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - python3 -m dda self dep sync -f legacy-tasks

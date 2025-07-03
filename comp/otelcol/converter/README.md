@@ -6,9 +6,50 @@ The converter enhances the user provided configuration.
 
 The autoconfigure logic is applied within the `Convert` function. It takes in a `*confmap.Conf` and will modify it based on the logic described below.
 
+## Feature Configuration
+
+The converter supports selective enabling and disabling of features through the `otelcollector.converter.features` configuration option.
+
+### Available Features
+
+- **`infraattributes`**: Adds the infra attributes processor to pipelines with Datadog exporters
+- **`prometheus`**: Adds a prometheus receiver to collect internal telemetry metrics
+- **`pprof`**: Adds the pprof extension for profiling capabilities
+- **`zpages`**: Adds the zpages extension for debugging information
+- **`health_check`**: Adds the health check extension for health monitoring
+- **`ddflare`**: Adds the Datadog flare extension for diagnostic information
+
+### Configuration Examples
+
+```yaml
+# Default: all features enabled
+otelcollector:
+  converter:
+    enabled: true
+    features: ["infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"]
+
+# Enable only specific features
+otelcollector:
+  converter:
+    enabled: true
+    features: ["infraattributes", "prometheus"]
+
+# Disable all features
+otelcollector:
+  converter:
+    enabled: true
+    features: []
+```
+
+### Environment Variable
+You may also set these features using an environment variable:
+```bash
+export DD_OTELCOLLECTOR_CONVERTER_FEATURES="infraattributes,prometheus,pprof"
+```
+
 ### Extensions
 
-The converter looks for the `pprof`, `health_check`, `zpages` and `datadog` extensions. If these are already defined in the service pipeline, it makes no changes. If any of these extensions are not defined, it will add the extensions config (name: `<extension_name>/dd-autoconfigured`) and add the component in the services extension pipeline.  
+The converter looks for the `pprof`, `health_check`, `zpages` and `datadog` extensions. If these are already defined in the service pipeline, it makes no changes. If any of these extensions are not defined, it will add the extensions config (name: `<extension_name>/dd-autoconfigured`) and add the component in the services extension pipeline.
 
 ### Infra Attributes Processor
 
@@ -16,7 +57,7 @@ The converter will check for any pipelines which have the dd exporter without th
 
 ### Prometheus Receiver
 
-The converter will check to see if a prometheus receiver is defined which points to the service internal telemetry metrics address. It then checks that this receiver is used in the same pipeline as *all* configured datadog exporters. 
+The converter will check to see if a prometheus receiver is defined which points to the service internal telemetry metrics address. It then checks that this receiver is used in the same pipeline as *all* configured datadog exporters.
 
 If it finds datadogexporters which are not defined in a pipeline with the prometheus receiver, it adds the prometheus config (name: `prometheus/dd-autoconfigured`), and then create it's own pipeline `metrics/dd-autoconfigured/<dd exporter name>` which contains the prometheus receiver and the datadog exporter.
 

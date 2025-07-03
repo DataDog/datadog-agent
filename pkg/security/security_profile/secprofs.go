@@ -364,6 +364,25 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+	if !workload.CGroupFlags.IsContainer() {
+		return
+	}
+
+	defaultConfigs, err := m.getDefaultLoadConfigs()
+	if err != nil {
+		seclog.Errorf("couldn't get default load configs: %v", err)
+		return
+	}
+
+	// check whether we are configured to apply a profile for this type of workload/cgroup
+	// as this function is called by the tags resolver, which also resolves tags for systemd cgroups
+	_, found := defaultConfigs[workload.CGroupFlags.GetCGroupManager()]
+	if !found {
+		seclog.Debugf("no default load config found for manager %s, not applying profile for workload %s", workload.CGroupFlags.GetCGroupManager().String(), workload.Selector.String())
+		return
+	}
+
 	selector := workload.Selector
 	selector.Tag = "*"
 

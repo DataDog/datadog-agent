@@ -497,7 +497,7 @@ GROUP BY sales1828.product_key`,
 		} {
 			t.Run("", func(t *testing.T) {
 				assert := assert.New(t)
-				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true})
+				oq, err := NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{ReplaceDigits: true}, "")
 				assert.NoError(err)
 				assert.Empty(oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -739,7 +739,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				oq, err = NewObfuscator(Config{}).ObfuscateSQLStringWithOptions(tt.query, &SQLConfig{
 					TableNames:    true,
 					ReplaceDigits: true,
-				})
+				}, "")
 				require.NoError(t, err)
 				assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 				assert.Equal(tt.obfuscated, oq.Query)
@@ -1862,7 +1862,7 @@ func BenchmarkObfuscateSQLString(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, &SQLConfig{ReplaceDigits: true})
+				_, err := obf.ObfuscateSQLStringWithOptions(bm.query, &SQLConfig{ReplaceDigits: true}, "")
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -2906,14 +2906,14 @@ func TestObfuscatorCache(t *testing.T) {
 			assert.NotNil(t, obfuscator.queryCache)
 			assert.NotNil(t, obfuscator.queryCache.Metrics)
 
-			oq, err := obfuscator.ObfuscateSQLStringWithOptions(in, &SQLConfig{ObfuscationMode: tt.mode})
+			oq, err := obfuscator.ObfuscateSQLStringWithOptions(in, &SQLConfig{ObfuscationMode: tt.mode}, "")
 			require.NoError(t, err)
 			require.NotNil(t, oq)
 			// Wait for the cache to be updated
 			// This method isn't documented so if this test becomes flakey
 			// we should switch to polling for the cache to be set
 			obfuscator.queryCache.Wait()
-			oq2, err := obfuscator.ObfuscateSQLStringWithOptions(in, &SQLConfig{ObfuscationMode: tt.mode})
+			oq2, err := obfuscator.ObfuscateSQLStringWithOptions(in, &SQLConfig{ObfuscationMode: tt.mode}, "")
 			require.NoError(t, err)
 			require.NotNil(t, oq2)
 			assert.Equal(t, oq.Query, oq2.Query)
@@ -2944,7 +2944,7 @@ func TestObfuscatorCacheKey(t *testing.T) {
 		CollectComments:  true,
 	}
 
-	oq, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts)
+	oq, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts, "")
 	require.NoError(t, err)
 	require.NotNil(t, oq)
 	// Wait for the cache to be updated
@@ -2953,7 +2953,7 @@ func TestObfuscatorCacheKey(t *testing.T) {
 	obfuscator.queryCache.Wait()
 
 	// Test that with same opts cache is hit
-	oq2, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts)
+	oq2, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts, "")
 	require.NoError(t, err)
 	require.NotNil(t, oq2)
 	assert.Equal(t, oq.Query, oq2.Query)
@@ -2961,10 +2961,17 @@ func TestObfuscatorCacheKey(t *testing.T) {
 
 	// Test that with different opts cache is not
 	opts.KeepSQLAlias = false
-	oq3, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts)
+	oq3, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts, "")
 	require.NoError(t, err)
-	require.NotNil(t, oq2)
+	require.NotNil(t, oq3)
 	assert.NotEqual(t, oq3.Query, oq.Query)
 	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 
+	// Test that with explicit optsStr cache is not
+	opts.KeepSQLAlias = false
+	oq4, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts, "{opts}")
+	require.NoError(t, err)
+	require.NotNil(t, oq4)
+	assert.NotEqual(t, oq4.Query, oq.Query)
+	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 }

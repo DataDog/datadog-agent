@@ -4,7 +4,7 @@ include:
 
 .tests_macos_gitlab:
   stage: source_test
-  extends: 
+  extends:
     - .unit_test_base
     - .macos_gitlab
   rules:
@@ -46,7 +46,6 @@ tests_macos_gitlab_arm64:
   rules:
     !reference [.manual]
   tags: ["macos:ventura-arm64", "specific:true"]
-  allow_failure: true
   after_script:
     - !reference [.vault_login]
     - !reference [.select_python_env_commands]

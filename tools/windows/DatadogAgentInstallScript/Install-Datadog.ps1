@@ -3,7 +3,7 @@
    Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-$SCRIPT_VERSION = "1.0.0"
+$SCRIPT_VERSION = "1.1.0"
 $GENERAL_ERROR_CODE = 1
 
 # Set some defaults if not provided
@@ -12,9 +12,8 @@ if (-Not $ddInstallerUrl) {
    $ddInstallerUrl = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
 }
 
-$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
-if (-Not $ddRemoteUpdates) {
-   $ddRemoteUpdates = "false"
+if (-Not $env:DD_REMOTE_UPDATES) {
+   $env:DD_REMOTE_UPDATES = "false"
 }
 
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
@@ -41,12 +40,19 @@ function Update-DatadogConfigFile($regex, $replacement) {
    if (-Not (Test-Path $configFile)) {
       throw "datadog.yaml doesn't exist"
    }
-   if (((Get-Content $configFile) | Select-String $regex | Measure-Object).Count -eq 0) {
-      Add-Content -Path $configFile -Value $replacement
+
+   # Read file as list of lines
+   $content = @(Get-Content $configFile)
+   if (($content | Select-String $regex | Measure-Object).Count -eq 0) {
+      # Entry does not exist, append to list
+      $content += $replacement
    }
    else {
-    (Get-Content $configFile) -replace $regex, $replacement | Out-File $configFile
+      # Replace existing line that matches regex
+      $content = $content -replace $regex, $replacement
    }
+
+   Set-Content -Path $configFile -Value $content
 }
 
 function Send-Telemetry($payload) {
@@ -63,7 +69,7 @@ function Send-Telemetry($payload) {
       "Content-Type" = "application/json"
    }
    try {
-      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
+      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders -UseBasicParsing
       Write-Host "Sending telemetry: $($result.StatusCode)"
    } catch {
       # Don't propagate errors when sending telemetry, because our error handling code will also
@@ -113,16 +119,16 @@ Error code: $($errorCode)
 
 function Start-ProcessWithOutput {
    param ([string]$Path, [string[]]$ArgumentList)
-   $psi = New-object System.Diagnostics.ProcessStartInfo 
-   $psi.CreateNoWindow = $true 
-   $psi.UseShellExecute = $false 
-   $psi.RedirectStandardOutput = $true 
-   $psi.RedirectStandardError = $true 
+   $psi = New-object System.Diagnostics.ProcessStartInfo
+   $psi.CreateNoWindow = $true
+   $psi.UseShellExecute = $false
+   $psi.RedirectStandardOutput = $true
+   $psi.RedirectStandardError = $true
    $psi.FileName = $Path
    if ($ArgumentList.Count -gt 0) {
       $psi.Arguments = $ArgumentList
    }
-   $process = New-Object System.Diagnostics.Process 
+   $process = New-Object System.Diagnostics.Process
    $process.StartInfo = $psi
    $stdout = Register-ObjectEvent -InputObject $process -EventName 'OutputDataReceived'`
       -Action {
@@ -153,7 +159,7 @@ function Start-ProcessWithOutput {
 function Test-DatadogAgentPresence() {
    # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
    # We check that particular key since we use it later in the script to restart the service.
-   return ( 
+   return (
       ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 1) -and
       (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
       ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
@@ -176,10 +182,16 @@ function Update-DatadogAgentConfig() {
       Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
    }
 
-   if ($ddRemoteUpdates) {
+   if ($env:DD_REMOTE_UPDATES) {
       Write-Host "Writing DD_REMOTE_UPDATES"
-      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
+      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
    }
+}
+
+if ($env:SCRIPT_IMPORT_ONLY) {
+   # exit if we are just importing the script
+   # used so we can test the above functions without running the below installation code
+   Exit 0
 }
 
 try {

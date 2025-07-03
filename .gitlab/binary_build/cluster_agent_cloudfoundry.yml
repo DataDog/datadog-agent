@@ -20,6 +20,7 @@ cluster_agent_cloudfoundry-build_amd64:
     - dda inv -- check-go-version
     - dda inv -- -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
+    - strip datadog-cluster-agent-cloudfoundry
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - PACKAGE_VERSION=$(dda inv agent.version --url-safe) || exit $?
     - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry

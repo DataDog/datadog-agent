@@ -91,6 +91,7 @@ type Destination struct {
 	destMeta        *client.DestinationMetadata
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
+	instanceID      string
 }
 
 // NewDestination returns a new Destination.
@@ -105,7 +106,8 @@ func NewDestination(endpoint config.Endpoint,
 	cfg pkgconfigmodel.Reader,
 	minConcurrency int,
 	maxConcurrency int,
-	pipelineMonitor metrics.PipelineMonitor) *Destination {
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -116,7 +118,8 @@ func NewDestination(endpoint config.Endpoint,
 		cfg,
 		minConcurrency,
 		maxConcurrency,
-		pipelineMonitor)
+		pipelineMonitor,
+		instanceID)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -128,7 +131,8 @@ func newDestination(endpoint config.Endpoint,
 	cfg pkgconfigmodel.Reader,
 	minConcurrency int,
 	maxConcurrency int,
-	pipelineMonitor metrics.PipelineMonitor) *Destination {
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string) *Destination {
 
 	policy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -167,7 +171,8 @@ func newDestination(endpoint config.Endpoint,
 		destMeta:            destMeta,
 		isMRF:               endpoint.IsMRF,
 		pipelineMonitor:     pipelineMonitor,
-		utilization:         pipelineMonitor.MakeUtilizationMonitor(destMeta.MonitorTag()),
+		utilization:         pipelineMonitor.MakeUtilizationMonitor(destMeta.MonitorTag(), instanceID),
+		instanceID:          instanceID,
 	}
 }
 
@@ -386,7 +391,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// internal error. We should retry these requests.
 		return client.NewRetryableError(errServer)
 	} else {
-		d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag())
+		d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 		return nil
 	}
 }
@@ -482,7 +487,7 @@ func getMessageTimestamp(messages []*message.MessageMetadata) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""))
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, false, client.NewNoopDestinationMetadata(), cfg, 1, 1, metrics.NewNoopPipelineMonitor(""), "")
 
 	return ctx, destination
 }

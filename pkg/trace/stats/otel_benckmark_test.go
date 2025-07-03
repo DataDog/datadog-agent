@@ -14,8 +14,8 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/metric/noop"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -41,10 +41,10 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	rspan := traces.ResourceSpans().AppendEmpty()
 	res := rspan.Resource()
 	for k, v := range map[string]string{
-		semconv.AttributeServiceName:           "svc",
-		semconv.AttributeDeploymentEnvironment: "tracer_env",
-		semconv.AttributeDBSystem:              "mysql",
-		semconv.AttributeDBStatement: `
+		string(semconv.ServiceNameKey):           "svc",
+		string(semconv.DeploymentEnvironmentKey): "tracer_env",
+		string(semconv.DBSystemKey):              "mysql",
+		string(semconv.DBStatementKey): `
 		SELECT
     	u.id,
 			u.name,
@@ -127,11 +127,11 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	rspan := traces.ResourceSpans().AppendEmpty()
 	res := rspan.Resource()
 	for k, v := range map[string]string{
-		semconv.AttributeServiceName:           "svc",
-		semconv.AttributeDeploymentEnvironment: "tracer_env",
-		semconv.AttributeContainerID:           "test_cid",
-		semconv.AttributeK8SClusterName:        "test_cluster",
-		"az":                                   "my-az",
+		string(semconv.ServiceNameKey):           "svc",
+		string(semconv.DeploymentEnvironmentKey): "tracer_env",
+		string(semconv.ContainerIDKey):           "test_cid",
+		string(semconv.K8SClusterNameKey):        "test_cluster",
+		"az":                                     "my-az",
 	} {
 		res.Attributes().PutStr(k, v)
 	}
@@ -150,7 +150,7 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-	containerTagKeys := []string{"az", semconv.AttributeContainerID, semconv.AttributeK8SClusterName}
+	containerTagKeys := []string{"az", string(semconv.ContainerIDKey), string(semconv.K8SClusterNameKey)}
 	expected := []string{"az:my-az", "container_id:test_cid", "kube_cluster_name:test_cluster"}
 
 	b.ResetTimer()

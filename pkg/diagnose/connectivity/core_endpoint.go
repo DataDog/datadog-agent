@@ -218,7 +218,11 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 
 	// Add tracing and send the request
 	req = req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
+	contentType := endpointInfo.ContentType
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("DD-API-KEY", apiKey)
 
 	resp, err := client.Do(req)

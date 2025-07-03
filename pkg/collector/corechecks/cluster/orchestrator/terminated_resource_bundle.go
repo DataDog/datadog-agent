@@ -111,7 +111,7 @@ func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) inte
 		return nil
 	}
 
-	if k8sCollector.Metadata().NodeType == orchestrator.K8sCR || k8sCollector.Metadata().NodeType == orchestrator.K8sCRD {
+	if k8sCollector.Metadata().NodeType == orchestrator.K8sCR || k8sCollector.Metadata().NodeType == orchestrator.K8sCRD || k8sCollector.Metadata().IsGenericCollector {
 		typedList := make([]runtime.Object, 0, len(list))
 		for i := range list {
 			if _, ok := list[i].(runtime.Object); !ok {

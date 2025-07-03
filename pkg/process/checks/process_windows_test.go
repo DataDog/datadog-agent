@@ -83,21 +83,3 @@ func TestFormatCPUTimes(t *testing.T) {
 		})
 	}
 }
-
-func TestProcessIsECSFargatePidModeSetToTaskWindows(t *testing.T) {
-	for _, tc := range []struct {
-		description string
-		containers  []*model.Container
-		expected    bool
-	}{
-		{
-			description: "windows unsupported",
-			containers:  []*model.Container{},
-			expected:    false,
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			assert.Equal(t, tc.expected, isECSFargatePidModeSetToTask(tc.containers))
-		})
-	}
-}

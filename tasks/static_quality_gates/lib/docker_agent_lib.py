@@ -2,12 +2,15 @@ import os
 import sys
 
 from tasks.libs.common.color import color_message
+from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
 
 
 def calculate_image_on_disk_size(ctx, url):
     # Pull image locally to get on disk size
-    ctx.run(f"crane pull {url} output.tar")
+    crane_output = ctx.run(f"crane pull {url} output.tar", warn=True)
+    if crane_output.exited != 0:
+        raise InfraError(f"Crane pull failed to retrieve {url}. Retrying... (infra flake)")
     # The downloaded image contains some metadata files and another tar.gz file. We are computing the sum of
     # these metadata files and the uncompressed size of the tar.gz inside of output.tar.
     ctx.run("tar -xf output.tar")
@@ -106,7 +109,9 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
                 "orange",
             )
         )
-    image_suffixes = "-7" if flavor == "agent" else "" + "-jmx" if jmx else "" + image_suffix if image_suffix else ""
+    image_suffixes = (
+        ("-7" if flavor == "agent" else "") + ("-jmx" if jmx else "") + (image_suffix if image_suffix else "")
+    )
     if flavor != "dogstatsd" and is_nightly_run:
         flavor += "-nightly"
     url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"

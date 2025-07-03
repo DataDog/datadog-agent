@@ -126,7 +126,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake, !s.Env().Agent.FIPSEnabled)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }

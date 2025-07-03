@@ -55,7 +55,6 @@ func Test_telemetrySender(t *testing.T) {
 
 	service := model.Service{
 		PID:                        99,
-		Name:                       "test-service",
 		GeneratedName:              "generated-name",
 		GeneratedNameSource:        "generated-name-source",
 		AdditionalGeneratedNames:   []string{"additional0", "additional1"},
@@ -93,7 +92,6 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
 				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
@@ -130,7 +128,6 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
 				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
@@ -167,7 +164,6 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
 				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
@@ -225,7 +221,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	service := model.Service{
 		PID:                        55,
-		Name:                       "test-service",
 		GeneratedName:              "generated-name2",
 		GeneratedNameSource:        "generated-name-source2",
 		ContainerServiceName:       "container-service-name2",
@@ -254,7 +249,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
@@ -283,7 +277,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
@@ -312,7 +305,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",

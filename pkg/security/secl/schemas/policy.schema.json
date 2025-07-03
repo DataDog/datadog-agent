@@ -386,6 +386,9 @@
             "cgroup"
           ]
         },
+        "scope_field": {
+          "type": "string"
+        },
         "size": {
           "type": "integer"
         },
@@ -403,6 +406,9 @@
           ]
         },
         "private": {
+          "type": "boolean"
+        },
+        "inherited": {
           "type": "boolean"
         }
       },

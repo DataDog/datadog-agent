@@ -153,6 +153,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
+	if ddc.ClientConfig.TLS.InsecureSkipVerify {
+		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+	}
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
@@ -174,7 +177,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	if v := ddc.Traces.TraceBuffer; v > 0 {
 		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceFile)
 	}
@@ -191,6 +194,12 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
 		}
 		pkgconfig.Set("apm_config.features", apmConfigFeatures, pkgconfigmodel.SourceDefault)
+	}
+
+	// Proxy Setup from config
+	if ddc.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
 	return pkgconfig, nil
@@ -237,6 +246,9 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal datadog exporter config\n%w", err)
+				}
+				if ddcfg == nil {
+					ddcfg = datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
 				}
 				if strings.Contains(ddcfg.Logs.Endpoint, "http-intake") && !strings.Contains(ddcfg.Logs.Endpoint, "agent-http-intake") {
 					// datadogconfig.Config sets logs endpoint to https://http-intake.logs.{DD_SITE} by default

@@ -143,6 +143,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			ContainerID:     k.ContainerID,
 			GitCommitSha:    k.GitCommitSha,
 			ImageTag:        k.ImageTag,
+			Lang:            k.Lang,
 			ProcessTagsHash: k.ProcessTagsHash,
 		}
 		s, ok := m[key]

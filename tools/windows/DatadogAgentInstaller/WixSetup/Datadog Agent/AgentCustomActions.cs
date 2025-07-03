@@ -341,7 +341,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.RunPreRemovePythonScript,
                     Return.ignore,
                     When.Before,
-                    Step.RemoveFiles,
+                    new Step(CleanupOnUninstall.Id),
                     Conditions.RemovingForUpgrade | Conditions.Maintenance | Conditions.Uninstalling
                 )
             {

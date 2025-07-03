@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The autoinstrumentation webhook will now set a default security context for init containers
+    if the pod is in a namespace with a restricted security context.  This can still be overridden by setting
+    the environment variable ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT``.

@@ -39,8 +39,8 @@ func setupFetcher(t *testing.T) {
 		fetchSystemProbeConfigBySource = configFetcher.SystemProbeConfigBySource
 	})
 
-	fetchSystemProbeConfig = func(_ model.Reader) (string, error) { return "full config", nil }
-	fetchSystemProbeConfigBySource = func(_ model.Reader) (string, error) {
+	fetchSystemProbeConfig = func(_ model.Reader, _ ipc.HTTPClient) (string, error) { return "full config", nil }
+	fetchSystemProbeConfigBySource = func(_ model.Reader, _ ipc.HTTPClient) (string, error) {
 		data, err := json.Marshal(map[string]interface{}{
 			string(model.SourceFile):               map[string]bool{"file": true},
 			string(model.SourceEnvVar):             map[string]bool{"env": true},

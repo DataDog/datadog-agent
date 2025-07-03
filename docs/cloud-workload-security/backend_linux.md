@@ -233,6 +233,21 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "CGroupContextSerializer serializes a cgroup context to JSON"
         },
+        "CGroupWriteEvent": {
+            "properties": {
+                "file": {
+                    "$ref": "#/$defs/File",
+                    "description": "File pointing to the cgroup"
+                },
+                "pid": {
+                    "type": "integer",
+                    "description": "PID of the process added to the cgroup"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+        },
         "ConnectEvent": {
             "properties": {
                 "addr": {
@@ -536,6 +551,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "mount_origin": {
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/FileMetadata"
                 }
             },
             "additionalProperties": false,
@@ -657,6 +675,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
                 },
+                "metadata": {
+                    "$ref": "#/$defs/FileMetadata"
+                },
                 "destination": {
                     "$ref": "#/$defs/File",
                     "description": "Target file information"
@@ -681,6 +702,37 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "gid"
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
+        },
+        "FileMetadata": {
+            "properties": {
+                "size": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "is_executable": {
+                    "type": "boolean"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "abi": {
+                    "type": "string"
+                },
+                "is_upx_packed": {
+                    "type": "boolean"
+                },
+                "compression": {
+                    "type": "string"
+                },
+                "is_garble_obfuscated": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "FileMetadataSerializer serializes a file metadata"
         },
         "Flow": {
             "properties": {
@@ -903,6 +955,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer"
                 },
                 "value": {
+                    "type": "string"
+                },
+                "field": {
                     "type": "string"
                 }
             },
@@ -1195,6 +1250,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/File",
                     "description": "File information of the interpreter"
                 },
+                "cgroup": {
+                    "$ref": "#/$defs/CGroupContext",
+                    "description": "CGroup context"
+                },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
                     "description": "Container context"
@@ -1333,6 +1392,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "interpreter": {
                     "$ref": "#/$defs/File",
                     "description": "File information of the interpreter"
+                },
+                "cgroup": {
+                    "$ref": "#/$defs/CGroupContext",
+                    "description": "CGroup context"
                 },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
@@ -1661,6 +1724,25 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
+        "SetSockOptEvent": {
+            "properties": {
+                "level": {
+                    "type": "integer",
+                    "description": "Level at which the option is defined"
+                },
+                "optname": {
+                    "type": "integer",
+                    "description": "Name of the option being set"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "level",
+                "optname"
+            ],
+            "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -1840,6 +1922,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -2021,6 +2106,12 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "sysctl": {
             "$ref": "#/$defs/SysCtlEvent"
+        },
+        "setsockopt": {
+            "$ref": "#/$defs/SetSockOptEvent"
+        },
+        "cgroup_write": {
+            "$ref": "#/$defs/CGroupWriteEvent"
         }
     },
     "additionalProperties": false,
@@ -2067,6 +2158,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
 | `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
+| `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
+| `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 
 ## `AWSIMDSEvent`
 
@@ -2422,6 +2515,37 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [Variables](#variables) |
+
+## `CGroupWriteEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "file": {
+            "$ref": "#/$defs/File",
+            "description": "File pointing to the cgroup"
+        },
+        "pid": {
+            "type": "integer",
+            "description": "PID of the process added to the cgroup"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `file` | File pointing to the cgroup |
+| `pid` | PID of the process added to the cgroup |
+
+| References |
+| ---------- |
+| [File](#file) |
 
 ## `ConnectEvent`
 
@@ -2854,6 +2978,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "mount_origin": {
             "type": "string",
             "description": "MountOrigin origin of the mount"
+        },
+        "metadata": {
+            "$ref": "#/$defs/FileMetadata"
         }
     },
     "additionalProperties": false,
@@ -2895,6 +3022,9 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
 
+| References |
+| ---------- |
+| [FileMetadata](#filemetadata) |
 
 ## `FileEvent`
 
@@ -3011,6 +3141,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "MountOrigin origin of the mount"
         },
+        "metadata": {
+            "$ref": "#/$defs/FileMetadata"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -3073,7 +3206,48 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [FileMetadata](#filemetadata) |
 | [File](#file) |
+
+## `FileMetadata`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "size": {
+            "type": "integer"
+        },
+        "type": {
+            "type": "string"
+        },
+        "is_executable": {
+            "type": "boolean"
+        },
+        "architecture": {
+            "type": "string"
+        },
+        "abi": {
+            "type": "string"
+        },
+        "is_upx_packed": {
+            "type": "boolean"
+        },
+        "compression": {
+            "type": "string"
+        },
+        "is_garble_obfuscated": {
+            "type": "boolean"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "FileMetadataSerializer serializes a file metadata"
+}
+
+{{< /code-block >}}
+
+
 
 ## `Flow`
 
@@ -3416,6 +3590,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer"
         },
         "value": {
+            "type": "string"
+        },
+        "field": {
             "type": "string"
         }
     },
@@ -3837,6 +4014,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/File",
             "description": "File information of the interpreter"
         },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext",
+            "description": "CGroup context"
+        },
         "container": {
             "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
@@ -3925,6 +4106,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
+| `cgroup` | CGroup context |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -3943,6 +4125,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
+| [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 
@@ -4022,6 +4205,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "interpreter": {
             "$ref": "#/$defs/File",
             "description": "File information of the interpreter"
+        },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext",
+            "description": "CGroup context"
         },
         "container": {
             "$ref": "#/$defs/ContainerContext",
@@ -4130,6 +4317,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
+| `cgroup` | CGroup context |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -4152,6 +4340,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
+| [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 | [Process](#process) |
@@ -4530,6 +4719,38 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `event_type_state` | State of the event type in this profile |
 
 
+## `SetSockOptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "level": {
+            "type": "integer",
+            "description": "Level at which the option is defined"
+        },
+        "optname": {
+            "type": "integer",
+            "description": "Name of the option being set"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "level",
+        "optname"
+    ],
+    "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `level` | Level at which the option is defined |
+| `optname` | Name of the option being set |
+
+
 ## `SignalEvent`
 
 
@@ -4795,6 +5016,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "rmdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

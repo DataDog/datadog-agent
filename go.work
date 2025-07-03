@@ -1,4 +1,4 @@
-go 1.24.3
+go 1.24.4
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -69,6 +69,7 @@ use (
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
 	internal/tools
+	internal/tools/gotest-custom
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
@@ -93,7 +94,6 @@ use (
 	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
-	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message

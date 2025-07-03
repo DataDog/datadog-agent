@@ -39,11 +39,11 @@ func (s *testAgentMSIInstallsDotnetLibrary) SetupSuite() {
 
 	s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_DOTNET_VERSION_PACKAGE"))
 	if s.previousDotnetLibraryVersion.PackageVersion() == "" {
-		s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.13.0-pipeline.58926677.beta.sha-af5a1fab-1")
+		s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1")
 	}
 	s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_DOTNET_VERSION_PACKAGE"))
 	if s.currentDotnetLibraryVersion.PackageVersion() == "" {
-		s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.13.0-pipeline.58951229.beta.sha-af5a1fab-1")
+		s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1")
 	}
 }
 

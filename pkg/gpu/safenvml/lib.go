@@ -43,6 +43,11 @@ func getNonCriticalAPIs() []string {
 	return []string{
 		"nvmlShutdown",
 		"nvmlSystemGetDriverVersion",
+		"nvmlGpmSampleAlloc",
+		"nvmlGpmSampleFree",
+		"nvmlGpmMetricsGet",
+		"nvmlGpmQueryDeviceSupport",
+		"nvmlGpmSampleGet",
 		toNativeName("GetArchitecture"),
 		toNativeName("GetAttributes"),
 		toNativeName("GetClockInfo"),
@@ -90,6 +95,12 @@ type SafeNVML interface {
 	DeviceGetHandleByIndex(idx int) (SafeDevice, error)
 	// SystemGetDriverVersion returns the version of the system's graphics driver
 	SystemGetDriverVersion() (string, error)
+	// GpmSampleAlloc allocates a sample buffer for GPM
+	GpmSampleAlloc() (nvml.GpmSample, error)
+	// GpmSampleFree frees a sample buffer for GPM
+	GpmSampleFree(sample nvml.GpmSample) error
+	// GpmMetricsGet calculates the metrics from the given samples
+	GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error
 }
 
 type safeNvml struct {
@@ -149,10 +160,34 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 	return NewPhysicalDevice(dev)
 }
 
+func (s *safeNvml) GpmSampleAlloc() (nvml.GpmSample, error) {
+	if err := s.lookup("nvmlGpmSampleAlloc"); err != nil {
+		return nil, err
+	}
+	sample, ret := s.lib.GpmSampleAlloc()
+	return sample, NewNvmlAPIErrorOrNil("GpmSampleAlloc", ret)
+}
+
+func (s *safeNvml) GpmSampleFree(sample nvml.GpmSample) error {
+	if err := s.lookup("nvmlGpmSampleFree"); err != nil {
+		return err
+	}
+	ret := s.lib.GpmSampleFree(sample)
+	return NewNvmlAPIErrorOrNil("GpmSampleFree", ret)
+}
+
+func (s *safeNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error {
+	if err := s.lookup("nvmlGpmMetricsGet"); err != nil {
+		return err
+	}
+	ret := s.lib.GpmMetricsGet(metrics)
+	return NewNvmlAPIErrorOrNil("GpmMetricsGet", ret)
+}
+
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).
 // It returns an error only if a critical symbol is missing (to properly initialize device list and create a new safe device wrapper)
-func (s *safeNvml) populateCapabilities() error {
-	s.capabilities = make(map[string]struct{})
+func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
+	capabilities := make(map[string]struct{})
 
 	// Critical API from libnvidia-ml.so that are required for basic functionality
 	criticalAPI := getCriticalAPIs()
@@ -162,25 +197,25 @@ func (s *safeNvml) populateCapabilities() error {
 
 	// Check each critical API symbol and fail if any are missing
 	for _, api := range criticalAPI {
-		err := s.lib.Extensions().LookupSymbol(api)
+		err := lib.Extensions().LookupSymbol(api)
 		if err != nil {
 			// fail the safe nvml wrapper initialization
-			return fmt.Errorf("critical symbol %s not found in NVML library: %w", api, err)
+			return nil, fmt.Errorf("critical symbol %s not found in NVML library: %w", api, err)
 		}
-		s.capabilities[api] = struct{}{}
+		capabilities[api] = struct{}{}
 	}
 
 	// Check each capability
 	for _, api := range allOtherAPI {
-		if err := s.lib.Extensions().LookupSymbol(api); err != nil {
+		if err := lib.Extensions().LookupSymbol(api); err != nil {
 			// don't add it to the capabilities map, but continue and don't fail
 			// TODO: log a warning if the symbol is not found
 			continue
 		}
-		s.capabilities[api] = struct{}{}
+		capabilities[api] = struct{}{}
 	}
 
-	return nil
+	return capabilities, nil
 }
 
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
@@ -212,20 +247,25 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 		libpath = cfg.GetString("nvml_lib_path")
 	}
 
-	s.lib = nvmlNewFunc(nvml.WithLibraryPath(libpath))
-	if s.lib == nil {
+	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))
+	if lib == nil {
 		return fmt.Errorf("failed to create NVML library")
 	}
 
-	ret := s.lib.Init()
+	ret := lib.Init()
 	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
 		return fmt.Errorf("error initializing NVML library: %s", nvml.ErrorString(ret))
 	}
 
 	// Populate and verify critical capabilities
-	if err := s.populateCapabilities(); err != nil {
+	var err error
+	s.capabilities, err = populateCapabilities(lib)
+	if err != nil {
 		return fmt.Errorf("failed to verify NVML capabilities: %w", err)
 	}
+
+	// Once everything is verified, set the library so that it can be reused
+	s.lib = lib
 
 	return nil
 }

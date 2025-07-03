@@ -8,6 +8,12 @@
 // Package rules holds rules related files
 package rules
 
+// VariableScopes is the list of scopes for variables
+var VariableScopes = []string{
+	ScopeProcess,
+	ScopeContainer,
+}
+
 func getStateScopes() map[Scope]VariableProviderFactory {
 	return getCommonStateScopes()
 }

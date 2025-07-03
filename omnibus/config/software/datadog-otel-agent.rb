@@ -9,7 +9,12 @@ require 'pathname'
 
 name 'datadog-otel-agent'
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: [
+           "**/testdata/**/*",
+         ],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
@@ -42,7 +47,7 @@ build do
     mkdir conf_dir
     mkdir embedded_bin_dir
 
-    command "invoke -e otel-agent.build", :env => env
+    command "dda inv -- -e otel-agent.build", :env => env
     copy 'bin/otel-agent/otel-agent', embedded_bin_dir
 
     move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"

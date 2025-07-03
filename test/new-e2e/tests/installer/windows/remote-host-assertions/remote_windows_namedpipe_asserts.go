@@ -18,12 +18,12 @@ type RemoteWindowsNamedPipeAssertions struct {
 
 // WithSecurity asserts that the named pipe has the given security descriptor.
 func (r *RemoteWindowsNamedPipeAssertions) WithSecurity(expected common.ObjectSecurity) *RemoteWindowsNamedPipeAssertions {
-	r.suite.T().Helper()
+	r.context.T().Helper()
 	actual, err := common.GetNamedPipeSecurityInfo(r.remoteHost, r.pipename)
 	r.require.NoError(err)
-	common.AssertEqualAccessSecurity(r.suite.T(), r.pipename, expected, actual)
-	if r.suite.T().Failed() {
-		r.suite.T().FailNow()
+	common.AssertEqualAccessSecurity(r.context.T(), r.pipename, expected, actual)
+	if r.context.T().Failed() {
+		r.context.T().FailNow()
 	}
 	return r
 }

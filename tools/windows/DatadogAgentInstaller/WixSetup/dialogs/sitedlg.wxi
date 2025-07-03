@@ -6,6 +6,7 @@
     <ListItem Text="us5.datadoghq.com" Value="us5.datadoghq.com"/>
     <ListItem Text="ddog-gov.com" Value="ddog-gov.com"/>
     <ListItem Text="ap1.datadoghq.com" Value="ap1.datadoghq.com"/>
+    <ListItem Text="ap2.datadoghq.com" Value="ap2.datadoghq.com"/>
   </ComboBox>
   <Dialog Id="SiteDlg" Width="370" Height="270" Title="!(loc.SiteDialog_Title)">
     <Control Id="SiteFromDefault" Type="ComboBox" ComboList="no" Height="15" Width="320" X="25" Y="148" Property="SITE"/>

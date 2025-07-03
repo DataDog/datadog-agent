@@ -17,11 +17,11 @@
     RELEASE_PRODUCT: datadog-installer
   script:
     - !reference [.setup_dd_pkg]
-    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
+    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
     - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
     - |-
       dd-pkg promote \
-        --build-pipeline-id $CI_PIPELINE_ID \
+        --build-pipeline-id $PARENT_PIPELINE_ID \
         --release-product $RELEASE_PRODUCT \
         --key-id $PIPELINE_KEY_ALIAS \
         --release-version $RELEASE_VERSION \
@@ -41,24 +41,9 @@ installer_trigger_auto_staging_release:
   rules:
     - !reference [.on_deploy_installer]
 
-installer_trigger_auto_staging_release_on_failure:
-  extends: .installer_release_management_trigger
-  timeout: 2h 30m
-  variables:
-    TARGET_REPO: staging
-  rules:
-    - !reference [.on_deploy_installer_failure]
-
 installer_trigger_manual_prod_release:
   extends: .installer_release_management_trigger
   variables:
     TARGET_REPO: prod
   rules:
     - !reference [.on_deploy_installer_stable_or_beta_manual_auto_on_stable]
-
-installer_trigger_manual_prod_release_on_failure:
-  extends: .installer_release_management_trigger
-  variables:
-    TARGET_REPO: prod
-  rules:
-    - !reference [.on_deploy_installer_stable_on_failure]

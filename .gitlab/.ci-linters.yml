@@ -7,6 +7,7 @@ needs-rules:
     - .pre
     - lint
     - notify
+    - deploy_dca
     - deploy_containers
     - deploy_mutable_image_tags
 
@@ -27,8 +28,6 @@ needs-rules:
     - lint_flavor_dogstatsd_linux-x64
     - lint_flavor_heroku_linux-x64
     - lint_flavor_iot_linux-x64
-    - lint_gitlab_ci
-    - lint_gitlab_ci_jobs_codeowners
     - lint_linux-arm64
     - lint_linux-x64
     - lint_macos_gitlab_amd64
@@ -44,13 +43,11 @@ needs-rules:
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
-    - trigger_auto_staging_release_on_failure
     - trigger_manual_prod_release
-    - trigger_manual_prod_release_on_failure
+    - trigger_distribution
+    - trigger_distribution_on_failure
     - installer_trigger_auto_staging_release
-    - installer_trigger_auto_staging_release_on_failure
     - installer_trigger_manual_prod_release
-    - installer_trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
@@ -90,8 +87,6 @@ job-owners:
     - new-e2e-package-signing-debian-a7-x86_64
     - new-e2e-package-signing-suse-a7-x86_64
     - new-e2e-unit-tests
-    - ot_agent_deb-arm64-a7
-    - ot_agent_deb-x64-a7
     - publish_fakeintake
     - publish_fakeintake_latest
     - rc_kubernetes_deploy

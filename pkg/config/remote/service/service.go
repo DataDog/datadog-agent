@@ -56,7 +56,6 @@ const (
 	maxFetchConfigsUntilLogLevelErrors = 5
 	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
 	maxFetchOrgStatusUntilLogLevelErrors = 5
-	initialUpdateDeadline                = 1 * time.Hour
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -892,8 +891,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	// If we have made our initial update (or the deadline has expired)
-	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
+	// We only want to check for this if we have successfully initialized the TUF database
+	if !s.firstUpdate {
+
 		// get the expiration time of timestamp.json
 		expires, err := s.uptane.TimestampExpires()
 		if err != nil {
@@ -983,8 +983,8 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
-	return func(setting string, _, newvalue any) {
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any, uint64) {
+	return func(setting string, _, newvalue any, _ uint64) {
 		if setting != "api_key" {
 			return
 		}

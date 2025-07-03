@@ -111,7 +111,7 @@ func (is *rpmTestSuite) TestRpm() {
 	} else {
 		arch = *architecture
 	}
-	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
+	yumrepo := fmt.Sprintf("http://s3.amazonaws.com/yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 

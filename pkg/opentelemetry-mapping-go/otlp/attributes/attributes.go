@@ -20,8 +20,8 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 // customContainerTagPrefix defines the prefix for custom container tags.
@@ -33,48 +33,48 @@ var (
 	coreMapping = map[string]string{
 		// Datadog conventions
 		// https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
-		conventions.AttributeDeploymentEnvironment:    "env",
-		semconv127.AttributeServiceName:               "service",
-		semconv127.AttributeServiceVersion:            "version",
-		semconv127.AttributeDeploymentEnvironmentName: "env",
+		string(conventions.DeploymentEnvironmentKey):    "env",
+		string(semconv127.ServiceNameKey):               "service",
+		string(semconv127.ServiceVersionKey):            "version",
+		string(semconv127.DeploymentEnvironmentNameKey): "env",
 	}
 
 	// ContainerMappings defines the mapping between OpenTelemetry semantic conventions
 	// and Datadog Agent conventions for containers.
 	ContainerMappings = map[string]string{
 		// Containers
-		semconv127.AttributeContainerID:        "container_id",
-		semconv127.AttributeContainerName:      "container_name",
-		semconv127.AttributeContainerImageName: "image_name",
-		conventions.AttributeContainerImageTag: "image_tag",
-		semconv127.AttributeContainerRuntime:   "runtime",
+		string(semconv127.ContainerIDKey):        "container_id",
+		string(semconv127.ContainerNameKey):      "container_name",
+		string(semconv127.ContainerImageNameKey): "image_name",
+		string(conventions.ContainerImageTagKey): "image_tag",
+		string(semconv127.ContainerRuntimeKey):   "runtime",
 
 		// Cloud conventions
 		// https://www.datadoghq.com/blog/tagging-best-practices/
-		semconv127.AttributeCloudProvider:         "cloud_provider",
-		semconv127.AttributeCloudRegion:           "region",
-		semconv127.AttributeCloudAvailabilityZone: "zone",
+		string(semconv127.CloudProviderKey):         "cloud_provider",
+		string(semconv127.CloudRegionKey):           "region",
+		string(semconv127.CloudAvailabilityZoneKey): "zone",
 
 		// ECS conventions
 		// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/tagger/collectors/ecs_extract.go
-		semconv127.AttributeAWSECSTaskFamily:   "task_family",
-		semconv127.AttributeAWSECSTaskARN:      "task_arn",
-		semconv127.AttributeAWSECSClusterARN:   "ecs_cluster_name",
-		semconv127.AttributeAWSECSTaskRevision: "task_version",
-		semconv127.AttributeAWSECSContainerARN: "ecs_container_name",
+		string(semconv127.AWSECSTaskFamilyKey):   "task_family",
+		string(semconv127.AWSECSTaskARNKey):      "task_arn",
+		string(semconv127.AWSECSClusterARNKey):   "ecs_cluster_name",
+		string(semconv127.AWSECSTaskRevisionKey): "task_version",
+		string(semconv127.AWSECSContainerARNKey): "ecs_container_name",
 
 		// Kubernetes resource name (via semantic conventions)
 		// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/util/kubernetes/const.go
-		semconv127.AttributeK8SContainerName:   "kube_container_name",
-		semconv127.AttributeK8SClusterName:     "kube_cluster_name",
-		semconv127.AttributeK8SDeploymentName:  "kube_deployment",
-		semconv127.AttributeK8SReplicaSetName:  "kube_replica_set",
-		semconv127.AttributeK8SStatefulSetName: "kube_stateful_set",
-		semconv127.AttributeK8SDaemonSetName:   "kube_daemon_set",
-		semconv127.AttributeK8SJobName:         "kube_job",
-		semconv127.AttributeK8SCronJobName:     "kube_cronjob",
-		semconv127.AttributeK8SNamespaceName:   "kube_namespace",
-		semconv127.AttributeK8SPodName:         "pod_name",
+		string(semconv127.K8SContainerNameKey):   "kube_container_name",
+		string(semconv127.K8SClusterNameKey):     "kube_cluster_name",
+		string(semconv127.K8SDeploymentNameKey):  "kube_deployment",
+		string(semconv127.K8SReplicaSetNameKey):  "kube_replica_set",
+		string(semconv127.K8SStatefulSetNameKey): "kube_stateful_set",
+		string(semconv127.K8SDaemonSetNameKey):   "kube_daemon_set",
+		string(semconv127.K8SJobNameKey):         "kube_job",
+		string(semconv127.K8SCronJobNameKey):     "kube_cronjob",
+		string(semconv127.K8SNamespaceNameKey):   "kube_namespace",
+		string(semconv127.K8SPodNameKey):         "pod_name",
 	}
 
 	// Kubernetes mappings defines the mapping between Kubernetes conventions (both general and Datadog specific)
@@ -174,17 +174,17 @@ var (
 	// HTTPMappings defines the mapping between OpenTelemetry semantic conventions
 	// and Datadog Agent conventions for HTTP attributes.
 	HTTPMappings = map[string]string{
-		semconv127.AttributeClientAddress:          "http.client_ip",
-		semconv127.AttributeHTTPResponseBodySize:   "http.response.content_length",
-		semconv127.AttributeHTTPResponseStatusCode: "http.status_code",
-		semconv127.AttributeHTTPRequestBodySize:    "http.request.content_length",
-		"http.request.header.referrer":             "http.referrer",
-		semconv127.AttributeHTTPRequestMethod:      "http.method",
-		semconv127.AttributeHTTPRoute:              "http.route",
-		semconv127.AttributeNetworkProtocolVersion: "http.version",
-		semconv127.AttributeServerAddress:          "http.server_name",
-		semconv127.AttributeURLFull:                "http.url",
-		semconv127.AttributeUserAgentOriginal:      "http.useragent",
+		string(semconv127.ClientAddressKey):          "http.client_ip",
+		string(semconv127.HTTPResponseBodySizeKey):   "http.response.content_length",
+		string(semconv127.HTTPResponseStatusCodeKey): "http.status_code",
+		string(semconv127.HTTPRequestBodySizeKey):    "http.request.content_length",
+		"http.request.header.referrer":               "http.referrer",
+		string(semconv127.HTTPRequestMethodKey):      "http.method",
+		string(semconv127.HTTPRouteKey):              "http.route",
+		string(semconv127.NetworkProtocolVersionKey): "http.version",
+		string(semconv127.ServerAddressKey):          "http.server_name",
+		string(semconv127.URLFullKey):                "http.url",
+		string(semconv127.UserAgentOriginalKey):      "http.useragent",
 	}
 )
 
@@ -199,21 +199,21 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 	attrs.Range(func(key string, value pcommon.Value) bool {
 		switch key {
 		// Process attributes
-		case semconv127.AttributeProcessExecutableName:
+		case string(semconv127.ProcessExecutableNameKey):
 			processAttributes.ExecutableName = value.Str()
-		case semconv127.AttributeProcessExecutablePath:
+		case string(semconv127.ProcessExecutablePathKey):
 			processAttributes.ExecutablePath = value.Str()
-		case semconv127.AttributeProcessCommand:
+		case string(semconv127.ProcessCommandKey):
 			processAttributes.Command = value.Str()
-		case semconv127.AttributeProcessCommandLine:
+		case string(semconv127.ProcessCommandLineKey):
 			processAttributes.CommandLine = value.Str()
-		case semconv127.AttributeProcessPID:
+		case string(semconv127.ProcessPIDKey):
 			processAttributes.PID = value.Int()
-		case semconv127.AttributeProcessOwner:
+		case string(semconv127.ProcessOwnerKey):
 			processAttributes.Owner = value.Str()
 
 		// System attributes
-		case semconv127.AttributeOSType:
+		case string(semconv127.OSTypeKey):
 			systemAttributes.OSType = value.Str()
 		}
 
@@ -251,9 +251,9 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 	// originID is always empty. Container ID is preferred over Kubernetes pod UID.
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
-	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
+	if containerID, ok := attrs.Get(string(conventions.ContainerIDKey)); ok {
 		originID = "container_id://" + containerID.AsString()
-	} else if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
+	} else if podUID, ok := attrs.Get(string(conventions.K8SPodUIDKey)); ok {
 		originID = "kubernetes_pod_uid://" + podUID.AsString()
 	}
 	return

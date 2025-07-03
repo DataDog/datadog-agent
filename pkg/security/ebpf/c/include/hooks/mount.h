@@ -407,4 +407,77 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_mount_exit, struct tracepoint_raw_syscalls_s
     return sys_mount_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
+HOOK_EXIT("alloc_vfsmnt")
+int rethook_alloc_vfsmnt(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_FSMOUNT);
+    if (!syscall) {
+        return 0;
+    }
+
+    if (syscall->type != EVENT_FSMOUNT) {
+        return 0;
+    }
+
+    struct mount *newmnt = (struct mount *)CTX_PARMRET(ctx);
+    syscall->mount.newmnt = newmnt;
+
+    return 0;
+}
+
+HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr_flags)
+{
+    struct syscall_cache_t syscall = {
+        .type = EVENT_FSMOUNT,
+        .fsmount = {
+            .fd = fs_fd,
+            .flags = flags,
+            .mount_attrs = attr_flags,
+        }
+    };
+
+    cache_syscall(&syscall);
+
+    return 0;
+}
+
+
+HOOK_SYSCALL_EXIT(fsmount) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_FSMOUNT);
+    if (!syscall) {
+        // should never happen
+        return 0;
+    }
+
+    struct fsmount_event_t event = {
+        .syscall.retval = SYSCALL_PARMRET(ctx),
+
+        .fsmountfields = {
+            .fd = syscall->fsmount.fd,
+            .flags = syscall->fsmount.flags,
+            .mount_attrs = syscall->fsmount.mount_attrs
+        },
+    };
+
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
+
+    if(event.syscall.retval >= 0) {
+        struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->fsmount.newmnt));
+        event.fsmountfields.root_key.mount_id = get_mount_mount_id(syscall->fsmount.newmnt);
+        event.fsmountfields.root_key.ino = get_dentry_ino(root_dentry);
+        update_path_id(&syscall->mount.root_key, 0);
+
+        struct super_block *sb = get_dentry_sb(root_dentry);
+        struct file_system_type *s_type = get_super_block_fs(sb);
+        bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
+
+        // populate the device of the new mount
+        event.fsmountfields.device = get_mount_dev(syscall->mount.newmnt);
+    }
+
+    send_event(ctx, EVENT_FSMOUNT, event);
+    return 0;
+}
+
 #endif

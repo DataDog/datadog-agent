@@ -6,6 +6,7 @@
 package common
 
 import (
+	"crypto/tls"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -30,11 +31,11 @@ func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 				}
 				return strings.TrimPrefix(target, "https://"), nil
 			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.GetClusterAgentAuthToken(c)
-				}
-			},
 			RemoteFilter: types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality),
+
+			// TODO IPC: we don't have IPC certificate supply chain between CLC and Cluster Agent yet
+			// So we need to skip the verification
+			OverrideTLSConfig:       &tls.Config{InsecureSkipVerify: true},
+			OverrideAuthTokenGetter: security.GetClusterAgentAuthToken,
 		}
 }

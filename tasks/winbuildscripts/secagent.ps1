@@ -7,7 +7,8 @@ $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 if ($Env:TARGET_ARCH -eq "x64") {
     & ridk enable
 }
-& $Env:Python3_ROOT_DIR\python.exe -m pip install dda
+$ddaversion = Get-Content -Path ".dda/version" -Raw
+& $Env:Python3_ROOT_DIR\python.exe -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$ddaversion"
 & $Env:Python3_ROOT_DIR\python.exe -m dda self dep sync -f legacy-tasks
 
 $PROBE_BUILD_ROOT=(Get-Location).Path

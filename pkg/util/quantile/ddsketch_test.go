@@ -357,3 +357,43 @@ func TestConvertDDSketchIntoSketch(t *testing.T) {
 		})
 	}
 }
+
+// BenchmarkDDSketchConversion benchmarks the DDSketch to Sketch conversion
+func BenchmarkDDSketchConversion(b *testing.B) {
+	// Test with different data sizes to see how performance scales
+	datasets := []struct {
+		name      string
+		numValues int
+	}{
+		{"Small", 1000},
+		{"Medium", 10000},
+		{"Large", 100000},
+	}
+
+	for _, dataset := range datasets {
+		b.Run(dataset.name, func(b *testing.B) {
+			// Create a DDSketch with the specified number of values
+			sketch, err := ddsketch.NewDefaultDDSketch(0.01)
+			if err != nil {
+				b.Fatalf("Failed to create sketch: %v", err)
+			}
+
+			// Add values to the sketch (uniform distribution between 0 and 1000)
+			for i := 0; i < dataset.numValues; i++ {
+				err := sketch.Add(float64(i % 1000))
+				if err != nil {
+					b.Fatalf("Failed to add to sketch: %v", err)
+				}
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				// Convert the DDSketch to a Sketch
+				_, err := ConvertDDSketchIntoSketch(sketch)
+				if err != nil {
+					b.Fatalf("Conversion failed: %v", err)
+				}
+			}
+		})
+	}
+}

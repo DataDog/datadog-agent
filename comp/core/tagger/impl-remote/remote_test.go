@@ -6,24 +6,28 @@
 package remoteimpl
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // TestNewComponent tests that the Remote Tagger can be instantiated and started.
@@ -36,11 +40,6 @@ func TestNewComponent(t *testing.T) {
 		t.Skip("Skipping test on macOS runners with an existing Agent.")
 	}
 
-	// Start a mock gRPC server.
-	grpcServer, authToken, grpcErr := grpc.NewMockGrpcSecureServer("5001")
-	require.NoError(t, grpcErr)
-	defer grpcServer.Stop()
-
 	// Instantiate the component.
 	req := Requires{
 		Lc:     compdef.NewTestLifecycle(t),
@@ -48,13 +47,9 @@ func TestNewComponent(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return authToken, nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		IPC:       ipcmock.New(t),
 	}
 	_, err := NewComponent(req)
 	require.NoError(t, err)
@@ -69,13 +64,9 @@ func TestNewComponentNonBlocking(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return "", nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		IPC:       ipcmock.New(t),
 	}
 	_, err := NewComponent(req)
 	require.NoError(t, err)
@@ -90,13 +81,9 @@ func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return "something", nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		IPC:       ipcmock.New(t),
 	}
 	provides, err := NewComponent(req)
 	require.NoError(t, err)
@@ -120,4 +107,64 @@ func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	require.NoError(t, err)
 	assert.NotNil(t, response.Entities)
+}
+
+// TestNewComponentWithOverride tests the Remote Tagger initialization with overrides for TLS and auth token.
+func TestNewComponentWithOverride(t *testing.T) {
+	// Create a mock IPC component
+	ipcComp := ipcmock.New(t)
+
+	// Create a test server with the endpoint handler
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+
+	t.Run("auth token getter blocks 2s and succeeds", func(t *testing.T) {
+		start := time.Now()
+		req := Requires{
+			Lc:     compdef.NewTestLifecycle(t),
+			Config: configmock.New(t),
+			Log:    logmock.New(t),
+			Params: tagger.RemoteParams{
+				RemoteTarget: func(config.Component) (string, error) { return server.URL, nil },
+				OverrideTLSConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+				OverrideAuthTokenGetter: func(_ configmodel.Reader) (string, error) {
+					time.Sleep(2 * time.Second)
+					return "test-token", nil
+				},
+			},
+			Telemetry: nooptelemetry.GetCompatComponent(),
+			IPC:       ipcComp,
+		}
+		_, err := NewComponent(req)
+		elapsed := time.Since(start)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, elapsed, 2*time.Second, "NewComponent should wait for auth token getter")
+	})
+
+	t.Run("auth token getter blocks >10s and fails", func(t *testing.T) {
+		start := time.Now()
+		req := Requires{
+			Lc:     compdef.NewTestLifecycle(t),
+			Config: configmock.New(t),
+			Log:    logmock.New(t),
+			Params: tagger.RemoteParams{
+				RemoteTarget: func(config.Component) (string, error) { return server.URL, nil },
+				OverrideTLSConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+				OverrideAuthTokenGetter: func(_ configmodel.Reader) (string, error) {
+					return "", fmt.Errorf("auth token getter always fails")
+				},
+			},
+			Telemetry: nooptelemetry.GetCompatComponent(),
+			IPC:       ipcComp,
+		}
+		_, err := NewComponent(req)
+		elapsed := time.Since(start)
+		assert.Error(t, err, "NewComponent should fail if auth token getter blocks too long")
+		assert.GreaterOrEqual(t, elapsed, 10*time.Second, "Should wait at least 10s before failing")
+		assert.Less(t, elapsed, 15*time.Second, "Should not wait excessively long")
+	})
 }

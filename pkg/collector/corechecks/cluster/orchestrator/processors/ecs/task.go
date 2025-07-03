@@ -61,6 +61,7 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		Info:         pctx.SystemInfo,
 		HostName:     pctx.Hostname,
 		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 

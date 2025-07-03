@@ -11,6 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -59,20 +60,18 @@ def build(
     if static:
         bin_path = STATIC_BIN_PATH
 
-    # NOTE: consider stripping symbols to reduce binary size
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
-    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(bin_path, bin_name("dogstatsd")),
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
-    ctx.run(cmd.format(**args), env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/dogstatsd",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        gcflags=gcflags,
+        ldflags=ldflags,
+        build_tags=build_tags,
+        bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
+        env=env,
+    )
 
     # Render the configuration file template
     #

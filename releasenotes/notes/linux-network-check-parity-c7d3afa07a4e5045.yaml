@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Add a networkv2 check that is a port of the Python network check to Go. This
+    Add a port of the Linux integrations-core Python network check in Go. This
     version is disabled by default but can be enabled with ``use_networkv2_check``
     in your configuration.

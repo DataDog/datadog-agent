@@ -114,6 +114,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				continue
 			}
 			d.incrementErrors(true)
+			d.updateRetryState(nil, isRetrying)
+			log.Debugf("Resetting TCP connection following write error: %s", err)
+			return
 		}
 
 		d.updateRetryState(nil, isRetrying)

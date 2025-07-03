@@ -14,7 +14,7 @@ import (
 )
 
 // BatchPayloads batch NDM metadata payloads
-func BatchPayloads(integration integrations.Integration, namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
+func BatchPayloads(integration integrations.Integration, namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, vpnTunnels []VPNTunnelMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
@@ -39,6 +39,11 @@ func BatchPayloads(integration integrations.Integration, namespace string, subne
 	for _, linkMetadata := range topologyLinks {
 		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
 		curPayload.Links = append(curPayload.Links, linkMetadata)
+	}
+
+	for _, vpnTunnel := range vpnTunnels {
+		payloads, curPayload, resourceCount = appendToPayloads(integration, namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
+		curPayload.VPNTunnels = append(curPayload.VPNTunnels, vpnTunnel)
 	}
 
 	for _, netflowExporter := range netflowExporters {

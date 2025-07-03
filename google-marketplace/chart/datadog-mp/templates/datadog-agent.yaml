@@ -1,9 +1,0 @@
-{{ if .Values.createAgent }}
-apiVersion: datadoghq.com/v2alpha1
-kind: DatadogAgent
-metadata:
-  name: "{{ .Release.Name }}"
-  namespace: "{{ .Release.Namespace }}"
-spec:
-{{ toYaml .Values.datadog | indent 2 }}
-{{ end }}

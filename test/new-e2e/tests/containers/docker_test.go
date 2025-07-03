@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -60,10 +59,12 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		expectedTags := append([]string{
 			`^container_id:`,
 			`^container_name:redis$`,
-			`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+			`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
+			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 			`^image_id:sha256:`,
-			`^image_name:public.ecr.aws/docker/library/redis$`,
-			`^image_tag:latest$`,
+			`^image_name:ghcr\.io/datadog/redis$`,
+			`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 			`^runtime:docker$`,
 			`^short_image:redis$`,
 		}, extraTags...)
@@ -114,10 +115,12 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
+				`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:sha256:`,
-				`^image_name:public.ecr.aws/docker/library/redis$`,
-				`^image_tag:latest$`,
+				`^image_name:ghcr\.io/datadog/redis$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^short_image:redis$`,
 			},
 			Value: &testMetricExpectValueArgs{
@@ -142,8 +145,6 @@ func (suite *DockerSuite) TestDockerMetrics() {
 
 	const ctrNameSize = 12
 	const ctrNameCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
-
-	rand.Seed(time.Now().UnixNano())
 
 	ctrNameData := make([]byte, ctrNameSize)
 	for i := range ctrNameSize {
@@ -235,7 +236,7 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 				`^container_id:`,
 				`^container_name:metric-sender-uds$`,
 				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
-				`^git.commit.sha:`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
 				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
@@ -260,7 +261,7 @@ func (suite *DockerSuite) TestDSDWithUDP() {
 				`^container_id:`,
 				`^container_name:metric-sender-udp$`,
 				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
-				`^git.commit.sha:`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
 				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,

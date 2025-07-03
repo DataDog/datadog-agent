@@ -44,8 +44,7 @@ type ControlGroup struct {
 
 // GetContainerContext returns both the container ID and its flags
 func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
-	id, flags := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
-	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
+	return containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 }
 
 func parseCgroupLine(line string) (string, string, string, error) {
@@ -332,5 +331,5 @@ func GetCgroup2MountPoint() (string, error) {
 		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: error reading mountinfo: %w", err)
 	}
 
-	return "", fmt.Errorf("cgroup v2 not found")
+	return "", nil
 }

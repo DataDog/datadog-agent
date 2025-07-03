@@ -20,12 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -190,15 +190,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		// TODO: Remove this special case to use Core loader by default for SNMP
-		loaderList := s.loaders
-		if config.Name == "snmp" && selectedInstanceLoader == "" {
-			if len(loaderList) == 2 && loaderList[0].Name() == "python" && loaderList[1].Name() == "core" {
-				loaderList = []check.Loader{loaderList[1], loaderList[0]}
-			}
-		}
-
-		for _, loader := range loaderList {
+		for _, loader := range s.loaders {
 			// the loader is skipped if the loader name is set and does not match
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)
@@ -253,7 +245,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			// skip non check configs.
 			continue
 		}
-		if config.HasFilter(containers.MetricsFilter) {
+		if config.HasFilter(filter.MetricsFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", config.Name)
 			continue
 		}

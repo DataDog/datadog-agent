@@ -48,31 +48,6 @@ func renderRunningChecks() (string, error) {
 	return b.String(), nil
 }
 
-func renderCheck(name string, stats []*stats.Stats) (string, error) {
-	var b = new(bytes.Buffer)
-
-	data := Data{Name: name, CheckStats: stats}
-	e := fillTemplate(b, data, "singleCheck")
-	if e != nil {
-		return "", e
-	}
-	return b.String(), nil
-}
-
-func renderError(name string) (string, error) {
-	var b = new(bytes.Buffer)
-
-	loaderErrs := collector.GetLoaderErrors()
-	configErrs := autodiscoveryimpl.GetConfigErrors()
-
-	data := Data{Name: name, LoaderErrs: loaderErrs, ConfigErrs: configErrs}
-	e := fillTemplate(b, data, "loaderErr")
-	if e != nil {
-		return "", e
-	}
-	return b.String(), nil
-}
-
 func fillTemplate(w io.Writer, data Data, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)

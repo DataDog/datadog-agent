@@ -3,6 +3,12 @@
     "$id": "ruleset_loaded.schema.json",
     "type": "object",
     "properties": {
+        "monitored_files": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
         "policies": {
             "type": "array",
             "items": {
@@ -15,7 +21,8 @@
     },
     "required": [
         "policies",
-        "date"
+        "date",
+        "monitored_files"
     ],
     "$defs": {
         "policyinfo": {
@@ -35,12 +42,24 @@
                 },
                 "version": {
                     "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "loaded",
+                        "partially_loaded",
+                        "error"
+                    ]
+                },
+                "message": {
+                    "type": "string"
                 }
             },
             "required": [
                 "source",
                 "name",
-                "version"
+                "version",
+                "status"
             ]
         },
         "policy": {

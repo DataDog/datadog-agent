@@ -270,7 +270,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 	}
 
 	if selectedDeviceIndex < 0 || selectedDeviceIndex >= int32(len(visibleDevices)) {
-		return nil, fmt.Errorf("device index %d is out of range", selectedDeviceIndex)
+		return nil, fmt.Errorf("device index %d is out of range for visible devices %+v", selectedDeviceIndex, visibleDevices)
 	}
 
 	return visibleDevices[selectedDeviceIndex], nil

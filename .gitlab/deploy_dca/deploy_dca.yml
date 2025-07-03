@@ -1,23 +1,16 @@
 ---
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-
 #
 # DCA image tagging & manifest publication
 #
 
+# Basic flavor
 .deploy_containers-dca-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca
-  needs:
-    - job: "docker_build_cluster_agent_amd64"
-      artifacts: false
-    - job: "docker_build_cluster_agent_arm64"
-      artifacts: false
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}"
 
@@ -25,60 +18,20 @@ deploy_containers-dca:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
 
-deploy_containers-dca-rc:
-  extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-dca-latest:
-  extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_manual_final]
-  variables:
-    VERSION: latest
-
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_internal_manual_final]
 
-deploy_containers-dca_internal-rc:
-  extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_internal_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-dca_internal-latest:
-  extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_internal_manual_final]
-  variables:
-    VERSION: latest
-
+# Fips flavor
 .deploy_containers-dca-fips-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca
-  needs:
-    - job: "docker_build_cluster_agent_fips_amd64"
-      artifacts: false
-    - job: "docker_build_cluster_agent_fips_arm64"
-      artifacts: false
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-fips-amd64,${IMG_BASE_SRC}-fips-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips"
-
-deploy_containers-dca-fips-latest:
-  extends: .deploy_containers-dca-fips-base
-  rules: !reference [.on_deploy_manual_final]
-  variables:
-    VERSION: latest
-
-deploy_containers-dca-fips-rc:
-  extends: .deploy_containers-dca-fips-base
-  rules: !reference [.on_deploy_rc]
-  variables:
-    VERSION: rc
 
 deploy_containers-dca-fips:
   extends: .deploy_containers-dca-fips-base
@@ -87,15 +40,3 @@ deploy_containers-dca-fips:
 deploy_containers-dca-fips_internal:
   extends: .deploy_containers-dca-fips-base
   rules: !reference [.on_deploy_internal_manual_final]
-
-deploy_containers-dca-fips_internal-rc:
-  extends: .deploy_containers-dca-fips-base
-  rules: !reference [.on_deploy_internal_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-dca-fips_internal-latest:
-  extends: .deploy_containers-dca-fips-base
-  rules: !reference [.on_deploy_internal_manual_final]
-  variables:
-    VERSION: latest

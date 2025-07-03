@@ -369,6 +369,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 				nsSelector,
 				objSelector,
 				convertMatchConditions(webhook.MatchConditions()),
+				webhook.Timeout(),
 			),
 		)
 	}
@@ -392,17 +393,20 @@ func (c *ControllerV1beta1) generateTemplates() {
 				nsSelector,
 				objSelector,
 				convertMatchConditions(webhook.MatchConditions()),
+				webhook.Timeout(),
 			),
 		)
 	}
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.ValidatingWebhook {
+func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.ValidatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
-	timeout := c.config.getTimeout()
+	if timeout == 0 {
+		timeout = c.config.getTimeout()
+	}
 	failurePolicy := c.getFailurePolicy()
 
 	webhook := admiv1beta1.ValidatingWebhook{
@@ -441,11 +445,13 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 	return webhook
 }
 
-func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition) admiv1beta1.MutatingWebhook {
+func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.MutatingWebhook {
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
-	timeout := c.config.getTimeout()
+	if timeout == 0 {
+		timeout = c.config.getTimeout()
+	}
 	failurePolicy := c.getFailurePolicy()
 	reinvocationPolicy := c.getReinvocationPolicy()
 

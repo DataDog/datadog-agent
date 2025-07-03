@@ -8,6 +8,7 @@
 package mock
 
 import (
+	"sync"
 	"testing"
 
 	"crypto/tls"
@@ -18,13 +19,48 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=digitalSignature,keyEncipherment" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	testIPCCert = []byte(`-----BEGIN CERTIFICATE-----
+MIIBzDCCAXKgAwIBAgIUR2IeG+dUuibzpp5+uNvk/4g6M+cwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTAzMjQxMzM2NDlaFw0zNTAz
+MjIxMzM2NDlaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAARt8T/DyYsxBbDsSJJY2drHbFoTWYT9u1gzgzooDbbLBzuj
+PHqwmdNHOShuNLSgVkIjIkmZgKendRYgu3uXoswgo4GZMIGWMB0GA1UdDgQWBBQa
+FF5ne0D5vg89fbLm/xUqHGEQvjAfBgNVHSMEGDAWgBQaFF5ne0D5vg89fbLm/xUq
+HGEQvjAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgWgMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0gAMEUCIQCCLOBCW7yF9LkNAzuGbgrZSH1GklnrJWNGcN2XsspEnQIg
+TniyxGyuEhHLJkB5LA1N+Q0NKIwjMnb8/Aw7Z1NIolU=
+-----END CERTIFICATE-----
+`)
+	testIPCKey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1wUA94nU4LmF81zw
+tAaSSpKwY9fI1AXbj1Nr94XW+lyhRANCAARt8T/DyYsxBbDsSJJY2drHbFoTWYT9
+u1gzgzooDbbLBzujPHqwmdNHOShuNLSgVkIjIkmZgKendRYgu3uXoswg
+-----END PRIVATE KEY-----
+`)
+	initTLS                          sync.Once
+	tlsClientConfig, tlsServerConfig *tls.Config
+	token                            = "test-token"
 )
 
 // IPCMock is a mock for the IPC component
@@ -39,30 +75,36 @@ type IPCMock struct {
 // New returns a mock for ipc component.
 func New(t testing.TB) *IPCMock {
 	// setting pkg/api/util globals
-	util.SetAuthTokenInMemory(t) // TODO IPC: remove this line when the migration to component framework will be fully finished
 
 	config := configmock.New(t)
+
+	// Initialize the TLS configs only once
+	initTLS.Do(func() {
+		var err error
+		tlsClientConfig, tlsServerConfig, err = cert.GetTLSConfigFromCert(testIPCCert, testIPCKey)
+		require.NoError(t, err)
+	})
 
 	return &IPCMock{
 		t:      t,
 		conf:   config,
-		client: ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), config),
+		client: ipchttp.NewClient(token, tlsClientConfig, config),
 	}
 }
 
 // GetAuthToken is a mock of the fetchonly GetAuthToken function
 func (m *IPCMock) GetAuthToken() string {
-	return util.GetAuthToken()
+	return token
 }
 
 // GetTLSClientConfig is a mock of the fetchonly GetTLSClientConfig function
 func (m *IPCMock) GetTLSClientConfig() *tls.Config {
-	return util.GetTLSClientConfig()
+	return tlsClientConfig.Clone()
 }
 
 // GetTLSServerConfig is a mock of the fetchonly GetTLSServerConfig function
 func (m *IPCMock) GetTLSServerConfig() *tls.Config {
-	return util.GetTLSServerConfig()
+	return tlsServerConfig.Clone()
 }
 
 // HTTPMiddleware is a mock of the ipc.Component HTTPMiddleware method

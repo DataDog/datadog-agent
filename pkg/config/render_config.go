@@ -60,6 +60,7 @@ type context struct {
 	OTLP                             bool
 	APMInjection                     bool
 	NetworkPath                      bool
+	ApplicationMonitoring            bool
 }
 
 func mkContext(buildType string) context {
@@ -163,6 +164,11 @@ func mkContext(buildType string) context {
 		return context{
 			OS:           runtime.GOOS,
 			APMInjection: true,
+		}
+	case "application-monitoring":
+		return context{
+			OS:                    runtime.GOOS,
+			ApplicationMonitoring: true,
 		}
 	}
 

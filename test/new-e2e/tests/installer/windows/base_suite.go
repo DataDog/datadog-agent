@@ -39,7 +39,7 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer          *DatadogInstaller
+	installer          DatadogInstallerRunner
 	installScriptImpl  InstallScriptRunner
 	currentAgent       *AgentVersionManager
 	stableAgent        *AgentVersionManager
@@ -48,7 +48,7 @@ type BaseSuite struct {
 }
 
 // Installer The Datadog Installer for testing.
-func (s *BaseSuite) Installer() *DatadogInstaller {
+func (s *BaseSuite) Installer() DatadogInstallerRunner {
 	return s.installer
 }
 
@@ -64,6 +64,12 @@ func (s *BaseSuite) SetInstallScriptImpl(impl InstallScriptRunner) {
 	s.installScriptImpl = impl
 }
 
+// SetInstaller sets a custom installer implementation.
+// Use this in your test suite's SetupSuite to override the default implementation.
+func (s *BaseSuite) SetInstaller(impl DatadogInstallerRunner) {
+	s.installer = impl
+}
+
 // Require instantiates a suiteAssertions for the current suite.
 // This allows writing assertions in a "natural" way, i.e.:
 //
@@ -73,7 +79,7 @@ func (s *BaseSuite) SetInstallScriptImpl(impl InstallScriptRunner) {
 // so that it could be shared by multiple suites, but for now it exists only
 // on the Windows Datadog installer `BaseSuite` object.
 func (s *BaseSuite) Require() *suiteasserts.SuiteAssertions {
-	return suiteasserts.New(s.BaseSuite.Require(), s)
+	return suiteasserts.New(s, s.BaseSuite.Require())
 }
 
 // CurrentAgentVersion the version of the Agent in the current pipeline
@@ -274,14 +280,17 @@ func (s *BaseSuite) startExperimentPreviousVersion() (string, error) {
 
 // MustStartExperimentPreviousVersion starts an experiment with the previous version of the Agent
 func (s *BaseSuite) MustStartExperimentPreviousVersion() {
+	s.T().Helper()
+
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
 
 	// Act
-	_, _ = s.startExperimentPreviousVersion()
-	// can't check error here because the process will be killed by the MSI "files in use"
-	// and experiment started in the background
-	// s.Require().NoError(err)
+	s.WaitForDaemonToStop(func() {
+		_, _ = s.startExperimentPreviousVersion()
+		// TODO: after stable is 7.68, we can check for error
+		// s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -306,14 +315,16 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
+	s.T().Helper()
+
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
 
 	// Act
-	_, _ = s.StartExperimentCurrentVersion()
-	// can't check error here because the process will be killed by the MSI "files in use"
-	// and experiment started in the background
-	// s.Require().NoError(err)
+	s.WaitForDaemonToStop(func() {
+		_, err := s.StartExperimentCurrentVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -330,6 +341,8 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 // AssertSuccessfulAgentStartExperiment that experiment started successfully
 func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -343,6 +356,8 @@ func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
 
 // AssertSuccessfulAgentPromoteExperiment that experiment was promoted successfully
 func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -357,21 +372,86 @@ func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
 
 // WaitForInstallerService waits for installer service to be expected state
 func (s *BaseSuite) WaitForInstallerService(state string) error {
-	return s.waitForInstallerServiceWithBackoff(state,
-		// usually waiting after MSI runs so we have to wait awhile
-		// max wait is 30*30 -> 900 seconds (15 minutes)
-		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
+	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), consts.ServiceName)
 }
 
-func (s *BaseSuite) waitForInstallerServiceWithBackoff(state string, b backoff.BackOff) error {
+// WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
+func (s *BaseSuite) WaitForServicesWithBackoff(state string, b backoff.BackOff, services ...string) error {
 	return backoff.Retry(func() error {
-		out, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, consts.ServiceName)
-		if err != nil {
-			return err
-		}
-		if !strings.Contains(out, state) {
-			return fmt.Errorf("expected state %s, got %s", state, out)
+		for _, service := range services {
+			status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, service)
+			if err != nil {
+				return err
+			}
+			if !strings.Contains(status, state) {
+				return fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)
+			}
 		}
 		return nil
 	}, b)
+}
+
+// AssertSuccessfulConfigStartExperiment that config experiment started successfully
+func (s *BaseSuite) AssertSuccessfulConfigStartExperiment(configID string) {
+	s.T().Helper()
+
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState(consts.AgentPackage).
+		WithExperimentConfigEqual(configID).
+		HasARunningDatadogAgentService()
+}
+
+// AssertSuccessfulConfigPromoteExperiment that config experiment was promoted successfully
+func (s *BaseSuite) AssertSuccessfulConfigPromoteExperiment(configID string) {
+	s.T().Helper()
+
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState(consts.AgentPackage).
+		WithStableConfigEqual(configID).
+		WithExperimentConfigEqual("").
+		HasARunningDatadogAgentService()
+}
+
+// AssertSuccessfulConfigStopExperiment that config experiment was stopped successfully
+func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
+	s.T().Helper()
+
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState(consts.AgentPackage).
+		WithExperimentConfigEqual("").
+		HasARunningDatadogAgentService()
+}
+
+// WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
+func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
+	s.T().Helper()
+
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	f()
+
+	err = backoff.Retry(func() error {
+		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return err
+		}
+		if newPID == originalPID {
+			return fmt.Errorf("daemon PID %d is still running", newPID)
+		}
+		return nil
+	}, b)
+	s.Require().NoError(err)
 }

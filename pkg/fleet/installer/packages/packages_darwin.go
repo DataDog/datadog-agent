@@ -20,6 +20,9 @@ var (
 	// the rest of the uninstall or upgrade process.
 	// Today this is only useful for the dotnet tracer on windows and generally *SHOULD BE AVOIDED*.
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{}
+
+	// packageCommands is a map of package names to their command handlers
+	packageCommands = map[string]PackageCommandHandler{}
 )
 
 // InstrumentAPMInjector instruments the APM injector

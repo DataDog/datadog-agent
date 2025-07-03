@@ -8,7 +8,10 @@ require 'pathname'
 
 name 'installer'
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/testdata/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do

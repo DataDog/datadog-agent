@@ -696,7 +696,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				continue
 			}
 			metricPrefix := ksmMetricPrefix
-			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
+			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found && strings.HasPrefix(ddname, "customresource.") {
 				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {

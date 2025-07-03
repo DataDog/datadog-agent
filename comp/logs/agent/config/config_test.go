@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type ConfigTestSuite struct {
@@ -627,7 +628,8 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
+		CompressionKind:        GzipCompressionKind,
+		CompressionLevel:       GzipCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,

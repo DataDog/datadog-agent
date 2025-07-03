@@ -102,6 +102,7 @@ The payload is a JSON dict with the following fields
   - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
   - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
   - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
+  - `feature_auto_instrumentation_enabled` - *bool**: True if APM Auto-Instrumentation is installed and enabled.
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
   - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
@@ -125,6 +126,7 @@ The payload is a JSON dict with the following fields
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
   - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
+  - `auto_instrumentation_modes` -- **array of string**: The injection types enabled for APM Auto-Instrumentation.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 

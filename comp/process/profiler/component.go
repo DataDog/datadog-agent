@@ -6,7 +6,7 @@
 // Package profiler implements a component to handle starting and stopping the internal profiler.
 package profiler
 
-// team: container-intake
+// team: container-experiences
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {

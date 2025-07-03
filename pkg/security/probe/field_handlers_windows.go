@@ -90,6 +90,11 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *FieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
+	return fh.resolvers.ProcessResolver.Resolve(pid)
+}
+
 // ResolveProcessCmdLineScrubbed returns a scrubbed version of the cmdline
 func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.Process) string {
 	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)
@@ -156,4 +161,44 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 		return cp.NewSd
 	}
 	return hrsd
+}
+
+// ResolveFileMetadataSize resolves file metadata size
+func (fh *FieldHandlers) ResolveFileMetadataSize(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataType resolves file metadata type
+func (fh *FieldHandlers) ResolveFileMetadataType(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataIsExecutable resolves file metadata is_executable
+func (fh *FieldHandlers) ResolveFileMetadataIsExecutable(_ *model.Event, _ *model.FileMetadata) bool {
+	return false
+}
+
+// ResolveFileMetadataArchitecture resolves file metadata architecture
+func (fh *FieldHandlers) ResolveFileMetadataArchitecture(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataABI resolves file metadata ABI
+func (fh *FieldHandlers) ResolveFileMetadataABI(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataIsUPXPacked resolves file metadata is_upx_packed
+func (fh *FieldHandlers) ResolveFileMetadataIsUPXPacked(_ *model.Event, _ *model.FileMetadata) bool {
+	return false
+}
+
+// ResolveFileMetadataCompression resolves file metadata compression
+func (fh *FieldHandlers) ResolveFileMetadataCompression(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataIsGarbleObfuscated resolves file metadata is_garble_obfuscated
+func (fh *FieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.Event, _ *model.FileMetadata) bool {
+	return false
 }

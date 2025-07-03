@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -38,6 +39,9 @@ func TestExternalHostTags(t *testing.T) {
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
 		haagentmock.Module(),
+		fx.Provide(func() option.Option[agenttelemetry.Component] {
+			return option.None[agenttelemetry.Component]()
+		}),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),

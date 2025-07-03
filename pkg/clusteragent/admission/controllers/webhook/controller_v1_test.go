@@ -170,9 +170,9 @@ func TestAdmissionControllerFailureModeV1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1.Ignore, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1.Ignore, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 
@@ -180,9 +180,9 @@ func TestAdmissionControllerFailureModeV1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1.Fail, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1.Fail, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 }
@@ -196,7 +196,7 @@ func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.reinvocationpolicy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *mutatingWebhookSkeleton.ReinvocationPolicy)
 	}
 }
@@ -209,7 +209,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	sideEffects := admiv1.SideEffectClassNone
 	port := int32(443)
 	timeout := mockConfig.GetInt32("admission_controller.timeout_seconds")
-	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, operations []admiv1.OperationType, resources []string) admiv1.MutatingWebhook {
+	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, operations []admiv1.OperationType, resources []string, to int32) admiv1.MutatingWebhook {
 		return admiv1.MutatingWebhook{
 			Name: name,
 			ClientConfig: admiv1.WebhookClientConfig{
@@ -234,7 +234,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			FailurePolicy:           &failurePolicy,
 			MatchPolicy:             &matchPolicy,
 			SideEffects:             &sideEffects,
-			TimeoutSeconds:          &timeout,
+			TimeoutSeconds:          &to,
 			AdmissionReviewVersions: []string{"v1", "v1beta1"},
 			ObjectSelector:          objSelector,
 			NamespaceSelector:       nsSelector,
@@ -266,7 +266,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhook}
 			},
 		},
@@ -285,7 +285,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhook}
 			},
 		},
@@ -308,7 +308,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhook}
 			},
 		},
@@ -327,7 +327,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhook}
 			},
 		},
@@ -350,7 +350,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhook}
 			},
 		},
@@ -369,7 +369,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhook}
 			},
 		},
@@ -387,12 +387,12 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
@@ -415,7 +415,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
@@ -424,7 +424,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 							Values:   []string{"false"},
 						},
 					},
-				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, nil, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
@@ -444,12 +444,12 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", nil, &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
-				}, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
+				}, []admiv1.MatchCondition{}, []admiv1.OperationType{admiv1.Create}, []string{"pods"}, timeout)
 				return []admiv1.MutatingWebhook{webhookConfig, webhookTags}
 			},
 		},
@@ -499,6 +499,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					timeout,
 				)
 				return []admiv1.MutatingWebhook{webhook}
 			},
@@ -546,6 +547,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					timeout,
 				)
 				return []admiv1.MutatingWebhook{webhook}
 			},
@@ -561,6 +563,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.timeout", 2)
 			},
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(true, false, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
@@ -580,6 +583,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
@@ -589,6 +593,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				return []admiv1.MutatingWebhook{podWebhook, execWebhook}
 			},
@@ -604,6 +609,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.timeout", 2)
 			},
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(true, false, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
@@ -619,6 +625,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
@@ -628,6 +635,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				return []admiv1.MutatingWebhook{podWebhook, execWebhook}
 			},
@@ -643,6 +651,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.timeout", 2)
 			},
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(true, true, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
@@ -662,6 +671,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
@@ -671,6 +681,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				return []admiv1.MutatingWebhook{podWebhook, execWebhook}
 			},
@@ -686,6 +697,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.timeout", 2)
 			},
 			configFunc: func(mockConfig model.Config) Config { return NewConfig(true, true, false, mockConfig) },
 			want: func() []admiv1.MutatingWebhook {
@@ -701,6 +713,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
@@ -710,6 +723,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
 				)
 				return []admiv1.MutatingWebhook{podWebhook, execWebhook}
 			},
@@ -763,6 +777,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					timeout,
 				)
 				return []admiv1.MutatingWebhook{podWebhook}
 			},
@@ -834,6 +849,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					timeout,
 				)
 				return []admiv1.MutatingWebhook{podWebhook}
 			},
@@ -883,6 +899,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					timeout,
 				)
 				return []admiv1.MutatingWebhook{podWebhook}
 			},
@@ -912,6 +929,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]admiv1.MatchCondition{},
 					[]admiv1.OperationType{admiv1.Create},
 					[]string{"pods"},
+					timeout,
 				)
 				return []admiv1.MutatingWebhook{podWebhook}
 			},
@@ -1058,7 +1076,7 @@ func TestGetValidatingWebhookSkeletonV1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
+			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil, 0))
 		})
 	}
 }
@@ -1164,7 +1182,7 @@ func TestGetMutatingWebhookSkeletonV1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
+			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil, 0))
 		})
 	}
 }

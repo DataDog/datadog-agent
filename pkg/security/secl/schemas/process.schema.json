@@ -174,7 +174,8 @@
                     "enum": [
                         "procfs",
                         "event",
-                        "unshare"
+                        "unshare",
+                        "fsmount"
                     ]
                 }
             },

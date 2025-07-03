@@ -152,7 +152,9 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     shutil.copy2(latest_file, exec_path)
     shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
-    ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
+    ctx.run(
+        f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path} --build-context artifacts={build_context}"
+    )
     ctx.run(f"rm {exec_path}")
     ctx.run(f"rm -rf {cws_instrumentation_base}")
 

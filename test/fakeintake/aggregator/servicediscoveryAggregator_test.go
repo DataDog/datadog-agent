@@ -37,7 +37,6 @@ func TestServiceDiscoveryAggregator(t *testing.T) {
 		require.Len(t, payloads, 3)
 
 		assert.Equal(t, "start-service", payloads[0].RequestType)
-		assert.Equal(t, "chronyd", payloads[0].Payload.ServiceName)
 		assert.Equal(t, "web_service", payloads[1].Payload.ServiceType)
 		assert.Equal(t, "ip-10-1-60-129", payloads[2].Payload.HostName)
 	})

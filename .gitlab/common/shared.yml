@@ -74,3 +74,11 @@
   - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO user) || exit $?
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_RO token | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
   - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+
+
+.docker_pull_winbuildimage_instrumented:
+  - $tmpfile = [System.IO.Path]::GetTempFileName()
+  - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$API_KEY_ORG2" -tempFile "$tmpfile")
+  - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
+  - $Env:DATADOG_API_KEY=$(cat "$tmpfile")
+  - C:\datadog-ci.exe trace -- docker pull ${WINBUILDIMAGE}

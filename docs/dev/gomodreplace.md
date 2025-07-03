@@ -33,7 +33,6 @@ For example,
 // etcd uses unstable code only available until grpc v1.26.0
 // See https://github.com/etcd-io/etcd/issues/11563
 replace (
-	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	google.golang.org/grpc => github.com/grpc/grpc-go v1.26.0
 )
 ```

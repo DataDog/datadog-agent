@@ -74,8 +74,8 @@
 #define DWARF_REGISTER(num) regs[num]
 
 #define DWARF_BP_REG DWARF_REGISTER(29)
-#define DWARF_SP_REG DWARF_REGISTER(31)
-#define DWARF_PC_REG DWARF_REGISTER(32)
+#define DWARF_SP_REG sp
+#define DWARF_PC_REG pc
 
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])

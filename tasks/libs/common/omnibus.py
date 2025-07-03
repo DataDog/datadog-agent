@@ -11,6 +11,10 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
+# Increase this value to force an update to the cache key, invalidating existing
+# caches and forcing a rebuild
+CACHE_VERSION = 2
+
 
 def _get_omnibus_commits(field):
     return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
@@ -36,6 +40,7 @@ def _get_environment_for_cache() -> dict:
             'CI_',
             'CHOCOLATEY_',
             'CLUSTER_AGENT_',
+            'CODESIGNING_CERT_',
             'CONDUCTOR_',
             'DATADOG_AGENT_',
             'DD_',
@@ -55,13 +60,15 @@ def _get_environment_for_cache() -> dict:
             'INSTALLER_',
             'JIRA_',
             'K8S_',
+            'KEYCHAIN_',
             'KITCHEN_',
             'KERNEL_MATRIX_TESTING_',
             'KUBERNETES_',
-            'MACOS_GITHUB_',
+            'MACOS_',
             'OMNIBUS_',
             'POD_',
             'PROCESSOR_',
+            'PYENV_',
             'RC_',
             'RELEASE_VERSION',
             'RPM_',
@@ -85,6 +92,7 @@ def _get_environment_for_cache() -> dict:
             '_VERSION',
         ]
         excluded_values = [
+            "APPLE_ACCOUNT",
             "APPS",
             "ARTIFACT_DOWNLOAD_ATTEMPTS",
             "AVAILABILITY_ZONE",
@@ -97,6 +105,7 @@ def _get_environment_for_cache() -> dict:
             "CHANNEL",
             "CHART",
             "CI",
+            "CLICOLOR",
             "CLUSTERS",
             "CODECOV",
             "CODECOV_TOKEN",
@@ -160,6 +169,7 @@ def _get_environment_for_cache() -> dict:
             "STATIC_BINARIES_DIR",
             "STATSD_URL",
             "SYSTEM_PROBE_BINARIES_DIR",
+            "TEAM_ID",
             "TIMEOUT",
             "TMPDIR",
             "TRACE_AGENT_URL",
@@ -169,11 +179,14 @@ def _get_environment_for_cache() -> dict:
             "USERPROFILE",
             "VCPKG_BLOB_SAS_URL",
             "VERSION",
+            "VIRTUAL_ENV",
             "VM_ASSETS",
             "WIN_S3_BUCKET",
             "WINGET_PAT",
             "WORKFLOW",
             "_",
+            "_OLD_VIRTUAL_PS1",
+            "__CF_USER_TEXT_ENCODING",
             "build_before",
         ]
         for p in excluded_prefixes:
@@ -209,7 +222,7 @@ def _last_omnibus_changes(ctx):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
@@ -223,17 +236,20 @@ def omnibus_compute_cache_key(ctx):
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
-    # Omnibus ruby & software versions can be forced through the environment
-    # so we need to read it from there first, and fallback to release.json
-    omnibus_ruby_commit = os.getenv('OMNIBUS_RUBY_VERSION', _get_omnibus_commits('OMNIBUS_RUBY_VERSION'))
-    print(f'Omnibus ruby commit: {omnibus_ruby_commit}')
-    h.update(str.encode(omnibus_ruby_commit))
+    # Some values can be forced through the environment so we need to read it
+    # from there first, and fallback to release.json
+    release_json_values = ['OMNIBUS_RUBY_VERSION', 'INTEGRATIONS_CORE_VERSION']
+    for val_key in release_json_values:
+        value = os.getenv(val_key, _get_omnibus_commits(val_key))
+        print(f'{val_key}: {value}')
+        h.update(str.encode(value))
     environment = _get_environment_for_cache()
     for k, v in environment.items():
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
         print(f'Current hash value: {h.hexdigest()}')
     cache_key = h.hexdigest()
+    cache_key += f'_{CACHE_VERSION}'
     print(f'Cache key: {cache_key}')
     return cache_key
 
@@ -336,11 +352,26 @@ def send_build_metrics(ctx, overall_duration):
             )
 
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
-    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
+    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers, timeout=10)
     if r.ok:
         print('Successfully sent build metrics to DataDog')
     else:
         print(f'Failed to send build metrics to DataDog: {r.status_code}')
+        print(r.text)
+
+
+def send_cache_mutation_event(ctx, pipeline_id, job_name, job_id):
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
+    payload = {
+        'title': 'omnibus cache mutated',
+        'text': f"Job {job_name} in pipeline #{pipeline_id} attempted to mutate the cache after a hit",
+        'source_type_name': 'omnibus',
+        'date_happened': int(datetime.now().timestamp()),
+        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
+    }
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    if not r.ok:
+        print('Failed to send cache mutation event')
         print(r.text)
 
 
@@ -353,7 +384,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
         'date_happened': int(datetime.now().timestamp()),
         'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
     }
-    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers, timeout=10)
     if not r.ok:
         print('Failed to send cache miss event')
         print(r.text)

@@ -269,7 +269,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	}
 	conn.TCPFailures[uint16(reason)]++
 
-	if st.tcpState == connStatEstablished {
+	if st.tcpState != connStatClosed {
 		conn.Monotonic.TCPClosed++
 	}
 	*st = connectionState{
@@ -319,6 +319,11 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	t.updateTCPStats(conn, st, pktType, tcp, payloadLen, timestampNs)
 	t.updateFinFlag(conn, st, pktType, tcp, payloadLen)
 	t.updateRstFlag(conn, st, pktType, tcp, payloadLen)
+
+	// sync the ConnectionStats direction if necessary
+	if conn.Direction == network.UNKNOWN {
+		conn.Direction = st.connDirection
+	}
 
 	stateChanged := st.tcpState != origState
 	if stateChanged {
@@ -422,16 +427,6 @@ func MakeEbpflessTuple(tuple network.ConnectionTuple) PCAPTuple {
 func MakeConnStatsTuple(tuple PCAPTuple) network.ConnectionTuple {
 	// Direction is still 0, this will get set by the ebpfless tracer in finalizeConnectionDirection
 	return network.ConnectionTuple(tuple)
-}
-
-// GetConnDirection returns the direction of the connection.
-// If the SYN packet was not seen (for a pre-existing connection), it returns ConnDirUnknown.
-func (t *TCPProcessor) GetConnDirection(tuple PCAPTuple) (network.ConnectionDirection, bool) {
-	conn, ok := t.getConn(tuple)
-	if !ok {
-		return network.UNKNOWN, false
-	}
-	return conn.connDirection, true
 }
 
 func (t *TCPProcessor) markRecentlyClosed(tuple PCAPTuple) bool {

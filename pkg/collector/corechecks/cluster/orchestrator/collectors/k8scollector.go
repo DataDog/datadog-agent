@@ -72,9 +72,11 @@ func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadat
 			APIVersion:          metadata.Version,
 			CollectorTags:       metadata.CollectorTags(),
 			TerminatedResources: rcfg.TerminatedResources,
+			AgentVersion:        rcfg.AgentVersion,
 		},
 		APIClient:         rcfg.APIClient,
 		LabelsAsTags:      metadata.LabelsAsTags,
 		AnnotationsAsTags: metadata.AnnotationsAsTags,
+		HostName:          rcfg.HostName,
 	}
 }

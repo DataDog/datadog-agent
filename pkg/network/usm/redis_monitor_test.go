@@ -19,11 +19,11 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -223,7 +223,7 @@ func validateRedis(t *testing.T, monitor *Monitor, expectedStats map[string]map[
 	found := make(map[string]map[redis.CommandType]int)
 	require.Eventually(t, func() bool {
 		statsObj, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		redisProtocolStats, exists := statsObj[protocols.Redis]
 		if !exists {
 			return false
@@ -233,7 +233,7 @@ func validateRedis(t *testing.T, monitor *Monitor, expectedStats map[string]map[
 			// Check all error states for TLS tag and sum counts
 			var hasTLSTag bool
 			for _, stat := range stats.ErrorToStats {
-				if stat.StaticTags&network.ConnTagGo != 0 {
+				if stat.StaticTags&ebpftls.ConnTagGo != 0 {
 					hasTLSTag = true
 					break
 				}

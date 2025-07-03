@@ -4,7 +4,7 @@ import yaml
 from invoke import Context, Exit, task
 
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag, update_gitlab_config, update_test_infra_def
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 
 @task(
@@ -15,19 +15,27 @@ from tasks.libs.common.color import color_message
         "list_images": "List all available images",
     }
 )
-def update(_: Context, tag: str = "", images: str = "", test: bool = True, list_images: bool = False):
+def update(
+    _: Context, tag: str = "", images: str = "", test: bool = True, list_images: bool = False, windows: bool = False
+):
     """
     Update local files to use a new version of dedicated images from agent-buildimages
     Use --no-test to commit without the _test_only suffixes
     Use --list-images to list all available images
+    Use --windows to update windows images
     """
+    generate_windows_images = 'win' in images.casefold() or windows
     if list_images:
         print("List of available images:")
         modified = update_gitlab_config(".gitlab-ci.yml", "", update=False)
     else:
         print("Updating images:")
-        modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test)
+        modified = update_gitlab_config(".gitlab-ci.yml", tag, images, test=test, windows=generate_windows_images)
     print(f"  {', '.join(modified)}")
+    if not generate_windows_images:
+        print(
+            f"[{color_message('WARNING', Color.ORANGE)}] - Windows images are not updated by default, use --windows/-w to update them"
+        )
 
 
 @task(
@@ -103,7 +111,7 @@ This PR updates the current Golang version ([`{old_go_version}`]({old_go_version
 @task(
     help={
         "file_path": "path of the Gitlab configuration YAML file",
-        "image_type": "The type of image to get the tag for (e.g. deb_x64, rpm_armhf, etc). You can use any value defined by or CI_IMAGE_<image_tyoe> in the gitlab-ci configuration variables. Get the DATADOG_AGENT_BUILDIMAGES version if image_type not specified",
+        "image_type": "The type of image to get the tag for (e.g. deb_x64, rpm_armhf, etc). You can use any value defined by or CI_IMAGE_<image_tyoe> in the gitlab-ci configuration variables. Get the first CI_IMAGE_* version if image_type not specified",
     },
     autoprint=True,
 )
@@ -120,19 +128,20 @@ def get_tag(_, file_path=".gitlab-ci.yml", image_type=None):
             code=1,
         )
 
+    available_images = set()
+    for key in gitlab_ci["variables"].keys():
+        if key.startswith("CI_IMAGE") and "_SUFFIX" not in key:
+            image = key.removeprefix("CI_IMAGE_").removesuffix("_SUFFIX").casefold()
+            available_images.add(image)
+            if image_type is None or image_type.casefold() == image:
+                return gitlab_ci["variables"][key]
+
     if image_type is None:
-        return gitlab_ci["variables"].get(
-            "DATADOG_AGENT_BUILDIMAGES",
-            f'{color_message("Not found", "red")}: DATADOG_AGENT_BUILDIMAGES is not defined in the configuration',
+        raise Exit(
+            f'{color_message("ERROR", "red")}: No image type specified, no default image found. Available images: {", ".join(available_images)}',
+            code=1,
         )
     else:
-        available_images = set()
-        for key in gitlab_ci["variables"].keys():
-            if key.startswith("CI_IMAGE"):
-                image = key.removeprefix("CI_IMAGE_").removesuffix("_SUFFIX").casefold()
-                available_images.add(image)
-                if image_type.casefold() == image:
-                    return gitlab_ci["variables"][key]
         raise Exit(
             f'{color_message("ERROR", "red")}: {image_type} is not defined in the configuration. Available images: {", ".join(available_images)}',
             code=1,

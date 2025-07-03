@@ -97,13 +97,13 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
-	var expected = `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": ""}`
+	var expected = `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "LogsTruncated": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": ""}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 
 	initStatus(t)
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalError("bar", "I am an error")
-	expected = `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
+	expected = `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "LogsTruncated": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 }
 
@@ -118,6 +118,7 @@ func TestStatusMetrics(t *testing.T) {
 	assert.Equal(t, "0", status.StatusMetrics["EncodedBytesSent"])
 	assert.Equal(t, "0", status.StatusMetrics["RetryCount"])
 	assert.Equal(t, "0s", status.StatusMetrics["RetryTimeSpent"])
+	assert.Equal(t, "0", status.StatusMetrics["LogsTruncated"])
 
 	metrics.LogsProcessed.Set(5)
 	metrics.LogsSent.Set(3)
@@ -125,6 +126,7 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.EncodedBytesSent.Set(21)
 	metrics.RetryCount.Set(42)
 	metrics.RetryTimeSpent.Set(int64(time.Hour * 2))
+	metrics.LogsTruncated.Set(64)
 	status = Get(false)
 
 	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])
@@ -133,6 +135,7 @@ func TestStatusMetrics(t *testing.T) {
 	assert.Equal(t, "21", status.StatusMetrics["EncodedBytesSent"])
 	assert.Equal(t, "42", status.StatusMetrics["RetryCount"])
 	assert.Equal(t, "2h0m0s", status.StatusMetrics["RetryTimeSpent"])
+	assert.Equal(t, "64", status.StatusMetrics["LogsTruncated"])
 
 	metrics.LogsProcessed.Set(math.MaxInt64)
 	metrics.LogsProcessed.Add(1)

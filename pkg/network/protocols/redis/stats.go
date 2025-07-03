@@ -108,6 +108,7 @@ func (r *RequestStats) mergeRequests(isErr bool, newStats *RequestStat) {
 			log.Debugf("error merging redis transactions: %v", err)
 		}
 	}
+	stats.StaticTags |= newStats.StaticTags
 	stats.Count += newStats.Count
 }
 

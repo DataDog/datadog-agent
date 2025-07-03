@@ -20,9 +20,9 @@ var bpfCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func bpfKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func bpfKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	var (
-		kfilters     []activeKFilter
+		kfilters     []kFilter
 		fieldHandled []eval.Field
 	)
 
@@ -37,5 +37,5 @@ func bpfKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field,
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), fieldHandled, nil
+	return newKFilters(kfilters...), fieldHandled, nil
 }

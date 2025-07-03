@@ -41,6 +41,7 @@ type safeConfig struct {
 	envKeyReplacer *strings.Replacer
 
 	notificationReceivers []model.NotificationReceiver
+	sequenceID            uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -82,7 +83,6 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []model.NotificationReceiver
 	c.Lock()
-
 	oldValue := c.Viper.Get(key)
 
 	// First we check if the layer changed
@@ -107,12 +107,14 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
 	}
+	// Increment the sequence ID only if the value has changed
+	c.sequenceID++
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, oldValue, latestValue)
+		receiver(key, oldValue, latestValue, c.sequenceID)
 	}
 }
 
@@ -138,15 +140,16 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue != nil {
+	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
+		c.sequenceID++
 	}
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
+		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -798,6 +801,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 	config := safeConfig{
 		Viper:         viper.New(),
 		configSources: map[model.Source]*viper.Viper{},
+		sequenceID:    0,
 		configEnvVars: map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
 	}
@@ -852,4 +856,10 @@ func (c *safeConfig) ExtraConfigFilesUsed() []string {
 }
 
 func (c *safeConfig) SetTestOnlyDynamicSchema(_ bool) {
+}
+
+func (c *safeConfig) GetSequenceID() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return c.sequenceID
 }

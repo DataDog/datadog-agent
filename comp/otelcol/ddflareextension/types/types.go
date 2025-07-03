@@ -12,6 +12,7 @@ type BuildInfoResponse struct {
 	AgentCommand     string `json:"command"`
 	AgentDesc        string `json:"description"`
 	ExtensionVersion string `json:"extension_version"`
+	BYOC             bool   `json:"byoc"`
 }
 
 // ConfigResponse is the response struct for Config

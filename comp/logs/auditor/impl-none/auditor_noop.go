@@ -37,6 +37,14 @@ func (a *NullAuditor) GetTailingMode(_ string) string {
 	return ""
 }
 
+// KeepAlive is a no-op
+func (a *NullAuditor) KeepAlive(_ string) {
+}
+
+// SetTailed is a no-op
+func (a *NullAuditor) SetTailed(_ string, _ bool) {
+}
+
 // Start starts the NullAuditor main loop
 func (a *NullAuditor) Start() {
 	go a.run()

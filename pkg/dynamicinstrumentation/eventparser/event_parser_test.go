@@ -169,17 +169,12 @@ func TestReadParams(t *testing.T) {
 			},
 			indicies: []uint64{0},
 			expectedResult: []*ditypes.Param{{
-				Type: "[]struct", Size: 0x2, Kind: 0x17,
+				Type: "[]struct", Size: 0x1, Kind: 0x17,
 				Fields: []*ditypes.Param{
 					{Type: "struct", Size: 0x3, Kind: 0x19, Fields: []*ditypes.Param{
 						{ValueStr: "1", Type: "uint8", Size: 0x1, Kind: 0x8},
 						{ValueStr: "2", Type: "uint16", Size: 0x2, Kind: 0x9},
 						{ValueStr: "3", Type: "uint8", Size: 0x1, Kind: 0x8},
-					}},
-					{Type: "struct", Size: 0x3, Kind: 0x19, Fields: []*ditypes.Param{
-						{ValueStr: "4", Type: "uint8", Size: 0x1, Kind: 0x8},
-						{ValueStr: "5", Type: "uint16", Size: 0x2, Kind: 0x9},
-						{ValueStr: "6", Type: "uint8", Size: 0x1, Kind: 0x8},
 					}},
 				},
 			}},
@@ -220,16 +215,8 @@ func TestParseTypeDefinition(t *testing.T) {
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			},
 			expectedResult: &ditypes.Param{
-				Type: "[]struct", Size: 0x2, Kind: 0x17,
+				Type: "[]struct", Size: 0x1, Kind: 0x17,
 				Fields: []*ditypes.Param{
-					{
-						Type: "struct", Size: 0x3, Kind: 0x19,
-						Fields: []*ditypes.Param{
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{Type: "uint16", Size: 0x2, Kind: 0x9},
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-						},
-					},
 					{
 						Type: "struct", Size: 0x3, Kind: 0x19,
 						Fields: []*ditypes.Param{
@@ -259,23 +246,8 @@ func TestParseTypeDefinition(t *testing.T) {
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			},
 			expectedResult: &ditypes.Param{
-				Type: "[]struct", Size: 0x2, Kind: 0x17,
+				Type: "[]struct", Size: 0x1, Kind: 0x17,
 				Fields: []*ditypes.Param{
-					{
-						Type: "struct", Size: 0x4, Kind: 0x19,
-						Fields: []*ditypes.Param{
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{
-								Type: "struct", Size: 0x2, Kind: 0x19,
-								Fields: []*ditypes.Param{
-									{Type: "uint8", Size: 0x1, Kind: 0x8},
-									{Type: "uint8", Size: 0x1, Kind: 0x8},
-								},
-							},
-						},
-					},
 					{
 						Type: "struct", Size: 0x4, Kind: 0x19,
 						Fields: []*ditypes.Param{
@@ -343,24 +315,12 @@ func TestParseParams(t *testing.T) {
 			ExpectedOutput: []*ditypes.Param{
 				{
 					Type: "[]uint",
-					Size: 3,
+					Size: 1,
 					Kind: byte(reflect.Slice),
 					Fields: []*ditypes.Param{
 						{
 							Kind:     byte(reflect.Uint),
 							ValueStr: "1",
-							Type:     "uint",
-							Size:     8,
-						},
-						{
-							Kind:     byte(reflect.Uint),
-							ValueStr: "2",
-							Type:     "uint",
-							Size:     8,
-						},
-						{
-							Kind:     byte(reflect.Uint),
-							ValueStr: "3",
 							Type:     "uint",
 							Size:     8,
 						},

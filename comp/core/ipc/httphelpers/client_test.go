@@ -15,24 +15,55 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func getMockServerAndConfig(t testing.TB, handler http.Handler) (ipc.HTTPClient, *httptest.Server) {
+const testToken = "test-token"
 
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=digitalSignature,keyEncipherment" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	unknownCAcert = []byte(`-----BEGIN CERTIFICATE-----
+MIIByzCCAXKgAwIBAgIUNZPpHI4XP/vz/1NCwAyJ/VxaEk8wCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTA2MTYxMTMzNTFaFw0zNTA2
+MTQxMTMzNTFaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAS2/cnezdb31wqnEzlsqCIYywWiDOoY47in1Kooh8qpn8p0
+PxCBNCmfhe6U8KomhCKlOhVAarygsvlPZKgYXwuko4GZMIGWMB0GA1UdDgQWBBQ5
+w7Z77E/8m68si1ncIkrT26MgnzAfBgNVHSMEGDAWgBQ5w7Z77E/8m68si1ncIkrT
+26MgnzAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgWgMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0cAMEQCIE5RYWT7lJ4xcezLkz23FP+vfQnK/iVGZJcJf9+pi2XOAiBp
+rLpPpGVXs5I4phPz4oD9XIJfTo5tnRGsJ4+cM3YA+A==
+-----END CERTIFICATE-----
+`)
+	unknownCAkey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNgoNHbT7PkG0FR6T
+K8v8KAngdgbh8ihjagt1zyqQbSOhRANCAAS2/cnezdb31wqnEzlsqCIYywWiDOoY
+47in1Kooh8qpn8p0PxCBNCmfhe6U8KomhCKlOhVAarygsvlPZKgYXwuk
+-----END PRIVATE KEY-----
+`)
+)
+
+func getMockServerAndConfig(t testing.TB, handler http.Handler, token string) (ipc.HTTPClient, *httptest.Server) {
 	conf := config.NewMock(t)
-	util.SetAuthTokenInMemory(t)
 
-	ts := httptest.NewUnstartedServer(handler)
-	ts.TLS = util.GetTLSServerConfig()
-	ts.StartTLS()
+	ts := httptest.NewTLSServer(handler)
 	t.Cleanup(ts.Close)
 
 	// set the cmd_host and cmd_port in the config
@@ -46,7 +77,12 @@ func getMockServerAndConfig(t testing.TB, handler http.Handler) (ipc.HTTPClient,
 		conf.UnsetForSource("cmd_port", pkgconfigmodel.SourceAgentRuntime)
 	})
 
-	return NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), conf), ts
+	// Extracting the TLS configuration from the test server client transport
+	clientTransport, ok := ts.Client().Transport.(*http.Transport)
+	require.True(t, ok, "Expected the transport to be of type *http.Transport")
+	clientTLSConfig := clientTransport.TLSClientConfig
+
+	return NewClient(token, clientTLSConfig, conf), ts
 }
 
 func TestWithInsecureTransport(t *testing.T) {
@@ -55,13 +91,18 @@ func TestWithInsecureTransport(t *testing.T) {
 	knownHandler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("secure"))
 	}
-	client, knownServer := getMockServerAndConfig(t, http.HandlerFunc(knownHandler))
+	client, knownServer := getMockServerAndConfig(t, http.HandlerFunc(knownHandler), testToken)
 
 	// Spinning up server with self-signed cert
 	unknownHandler := func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("insecure"))
 	}
-	unknownServer := httptest.NewTLSServer(http.HandlerFunc(unknownHandler))
+	unknownServer := httptest.NewUnstartedServer(http.HandlerFunc(unknownHandler))
+	// Setting up the server to use the self-signed cert
+	_, tlsServerConfig, err := cert.GetTLSConfigFromCert(unknownCAcert, unknownCAkey)
+	require.NoError(t, err, "Failed to get TLS config from self-signed cert")
+	unknownServer.TLS = tlsServerConfig
+	unknownServer.StartTLS()
 	t.Cleanup(unknownServer.Close)
 
 	t.Run("secure client with known server: must succeed", func(t *testing.T) {
@@ -83,7 +124,7 @@ func TestDoGet(t *testing.T) {
 		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("test"))
 		}
-		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
 		data, err := client.Get(ts.URL)
 		require.NoError(t, err)
 		require.Equal(t, "test", string(data))
@@ -93,19 +134,19 @@ func TestDoGet(t *testing.T) {
 		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 		}
-		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
 		_, err := client.Get(ts.URL)
 		require.Error(t, err)
 	})
 
 	t.Run("url error", func(t *testing.T) {
-		client, _ := getMockServerAndConfig(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+		client, _ := getMockServerAndConfig(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}), testToken)
 		_, err := client.Get(" http://localhost")
 		require.Error(t, err)
 	})
 
 	t.Run("request error", func(t *testing.T) {
-		client, ts := getMockServerAndConfig(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}), testToken)
 		ts.Close()
 
 		_, err := client.Get(ts.URL)
@@ -114,10 +155,10 @@ func TestDoGet(t *testing.T) {
 
 	t.Run("check auth token", func(t *testing.T) {
 		handler := func(w http.ResponseWriter, r *http.Request) {
-			require.Equal(t, "Bearer "+util.GetAuthToken(), r.Header.Get("Authorization"))
+			require.Equal(t, "Bearer "+testToken, r.Header.Get("Authorization"))
 			w.WriteHeader(http.StatusOK)
 		}
-		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
 
 		data, err := client.Get(ts.URL)
 		require.NoError(t, err)
@@ -128,13 +169,25 @@ func TestDoGet(t *testing.T) {
 		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}
-		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
 		_, err := client.Get(ts.URL, WithContext(ctx))
 		require.Error(t, err)
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
+
+		_, err := client.Get(ts.URL, WithTimeout(10*time.Millisecond))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "Client.Timeout exceeded")
 	})
 }
 
@@ -154,7 +207,7 @@ func TestPostChunk(t *testing.T) {
 			flusher.Flush()
 		}
 	}
-	client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+	client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
 
 	var receivedChunks [][]byte
 	onChunk := func(chunk []byte) {
@@ -176,7 +229,7 @@ func TestNewIPCEndpoint(t *testing.T) {
 	client, ts := getMockServerAndConfig(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
-	}))
+	}), testToken)
 	end, err := client.NewIPCEndpoint("test/api")
 	require.NoError(t, err)
 
@@ -192,7 +245,7 @@ func TestIPCEndpointDoGet(t *testing.T) {
 		gotURL = r.URL.String()
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
-	}))
+	}), testToken)
 
 	end, err := client.NewIPCEndpoint("test/api")
 	require.NoError(t, err)
@@ -210,7 +263,7 @@ func TestIPCEndpointGetWithValues(t *testing.T) {
 		gotURL = r.URL.String()
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
-	}))
+	}), testToken)
 
 	// set url values for GET request
 	v := url.Values{}
@@ -231,7 +284,7 @@ func TestIPCEndpointDeprecatedIPCAddress(t *testing.T) {
 	client, _ := getMockServerAndConfig(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
-	}))
+	}), testToken)
 
 	conf := config.NewMock(t)
 	// Use the deprecated (but still supported) option "ipc_address"
@@ -257,7 +310,7 @@ func TestIPCEndpointErrorText(t *testing.T) {
 	client, _ := getMockServerAndConfig(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(400)
 		w.Write([]byte("bad request"))
-	}))
+	}), testToken)
 
 	end, err := client.NewIPCEndpoint("test/api")
 	require.NoError(t, err)
@@ -274,7 +327,7 @@ func TestIPCEndpointErrorMap(t *testing.T) {
 			"error": "something went wrong",
 		})
 		w.Write(data)
-	}))
+	}), testToken)
 
 	end, err := client.NewIPCEndpoint("test/api")
 	require.NoError(t, err)

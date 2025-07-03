@@ -32,6 +32,11 @@ func diNS(k ...string) string {
 	return NSkey("dynamic_instrumentation", k...)
 }
 
+// swNS adds `software_inventory` namespace to configuration key
+func swNS(k ...string) string {
+	return NSkey("software_inventory", k...)
+}
+
 // secNS adds `runtime_security_config` namespace to configuration key
 func secNS(k ...string) string {
 	return NSkey("runtime_security_config", k...)

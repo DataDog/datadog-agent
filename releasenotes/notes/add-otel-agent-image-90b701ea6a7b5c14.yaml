@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Released a new `ddot-collector` container image that packages the [Datadog Distribution of OpenTelemetry Collector](https://docs.datadoghq.com/opentelemetry/setup/ddot_collector/).

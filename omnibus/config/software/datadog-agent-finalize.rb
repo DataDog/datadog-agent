@@ -26,35 +26,14 @@ build do
     block do
         # Conf files
         if windows_target?
-            conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
-            conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
-            # delete the directory if it exists, then recreate it, because
-            # move will skip/silently fail if the destination directory exists
-            delete conf_dir
-            mkdir conf_dir
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
-            end
-            if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
-              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
-              move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
-            end
-            if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-              move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
-            end
-            move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
-
-            # remove the config files for the subservices; they'll be started
-            # based on the config file
-            delete "#{conf_dir}/apm.yaml.default"
-            delete "#{conf_dir}/process_agent.yaml.default"
+            conf_dir = "#{install_dir}/etc/datadog-agent"
+            confd_dir = "#{conf_dir}/conf.d"
 
             # load isn't supported by windows
-            delete "#{conf_dir}/load.d"
+            delete "#{confd_dir}/load.d"
 
             # service_discovery isn't supported by windows
-            delete "#{conf_dir}/service_discovery.d"
+            delete "#{confd_dir}/service_discovery.d"
 
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
@@ -89,6 +68,7 @@ build do
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/application_monitoring.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             unless heroku_target?
               if sysprobe_enabled?
                 move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
@@ -101,10 +81,6 @@ build do
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
-            end
-
-            if ot_target?
-              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
             # Create the installer symlink
@@ -201,12 +177,15 @@ build do
             end
 
             if code_signing_identity
+                # Sometimes the timestamp service is not available, so we retry
+                codesign = "../tools/ci/retry.sh codesign"
+
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end
     end

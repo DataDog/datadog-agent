@@ -21,9 +21,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
@@ -37,6 +38,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// RemoteFlareProvider is a struct that contains a SecureClient
+// It is used to make secure IPC requests to the agent
+type RemoteFlareProvider struct {
+	IPC ipc.Component
+}
+
 // getProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
 func getProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
@@ -44,7 +51,7 @@ func getProcessAPIAddressPort() (string, error) {
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
 // This function should only be called by the flare component.
-func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component]) []*flaretypes.FlareFiller {
+func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc ipc.Component) []*flaretypes.FlareFiller {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -52,11 +59,15 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component]) []*
 	 * is always better to not capture data containing secrets, than to scrub that data.
 	 */
 
+	remote := &RemoteFlareProvider{
+		IPC: ipc,
+	}
+
 	providers := []*flaretypes.FlareFiller{
-		flaretypes.NewFiller(provideExtraFiles),
+		flaretypes.NewFiller(remote.provideExtraFiles),
 		flaretypes.NewFiller(provideSystemProbe),
-		flaretypes.NewFiller(provideConfigDump),
-		flaretypes.NewFiller(provideRemoteConfig),
+		flaretypes.NewFiller(remote.provideConfigDump),
+		flaretypes.NewFiller(remote.provideRemoteConfig),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
 		flaretypes.NewFiller(getWindowsData),
@@ -73,8 +84,8 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component]) []*
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":         common.GetEnvVars,
 		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
-		"telemetry.log":       func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
+		"go-routine-dump.log": func() ([]byte, error) { return remote.getHTTPCallContent(pprofURL) },
+		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 	} {
 		providers = append(providers, flaretypes.NewFiller(
 			func(fb flaretypes.FlareBuilder) error {
@@ -105,21 +116,21 @@ func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
 }
 
 func provideInstallInfo(fb flaretypes.FlareBuilder) error {
-	fb.CopyFile(installinfo.GetFilePath(pkgconfigsetup.Datadog())) //nolint:errcheck
+	fb.CopyFileTo(installinfo.GetFilePath(pkgconfigsetup.Datadog()), "install_info.log") //nolint:errcheck
 	return nil
 }
 
-func provideRemoteConfig(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideRemoteConfig(fb flaretypes.FlareBuilder) error {
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
-		if err := exportRemoteConfig(fb); err != nil {
+		if err := r.exportRemoteConfig(fb); err != nil {
 			log.Errorf("Could not export remote-config state: %s", err)
 		}
 	}
 	return nil
 }
 
-func provideConfigDump(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                //nolint:errcheck
+func (r *RemoteFlareProvider) provideConfigDump(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", r.getProcessAgentFullConfig)                                              //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
 	return nil
 }
@@ -155,17 +166,17 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func provideExtraFiles(fb flaretypes.FlareBuilder) error {
+func (r *RemoteFlareProvider) provideExtraFiles(fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
 		// Can't reach the agent, mention it in those two files
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)    //nolint:errcheck
-		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList) //nolint:errcheck
+		fb.AddFileFromFunc("tagger-list.json", r.getAgentTaggerList)    //nolint:errcheck
+		fb.AddFileFromFunc("workload-list.log", r.getAgentWorkloadList) //nolint:errcheck
 		if !pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
-			fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
-			getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
+			fb.AddFileFromFunc("process-agent_tagger-list.json", r.getProcessAgentTaggerList) //nolint:errcheck
+			r.getChecksFromProcessAgent(fb, getProcessAPIAddressPort)
 		}
 	}
 	return nil
@@ -206,7 +217,7 @@ func getSystemProbeConfig() ([]byte, error) {
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
-func getProcessAgentFullConfig() ([]byte, error) {
+func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
@@ -214,15 +225,14 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
 
-	c := apiutil.GetClient()
-	bytes, err := apiutil.DoGet(c, procStatusURL, apiutil.LeaveConnectionOpen)
+	bytes, err := r.IPC.GetClient().Get(procStatusURL, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		return []byte("error: process-agent is not running or is unreachable\n"), nil
 	}
 	return bytes, nil
 }
 
-func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
+func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
 	addressPort, err := getAddressPort()
 	if err != nil {
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())
@@ -238,8 +248,9 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 			return
 		}
 
-		c := apiutil.GetClient()
-		err := fb.AddFileFromFunc(filename, func() ([]byte, error) { return apiutil.DoGet(c, checkURL+checkName, apiutil.LeaveConnectionOpen) })
+		err := fb.AddFileFromFunc(filename, func() ([]byte, error) {
+			return r.IPC.GetClient().Get(checkURL+checkName, ipchttp.WithLeaveConnectionOpen)
+		})
 		if err != nil {
 			fb.AddFile( //nolint:errcheck
 				filename,
@@ -253,7 +264,7 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getAgentTaggerList() ([]byte, error) {
+func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
@@ -261,29 +272,22 @@ func getAgentTaggerList() ([]byte, error) {
 
 	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
-	return GetTaggerList(taggerListURL)
+	return r.GetTaggerList(taggerListURL)
 }
 
-func getProcessAgentTaggerList() ([]byte, error) {
+func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
 	}
 
-	err = apiutil.SetAuthToken(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
 	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
-	return GetTaggerList(taggerListURL)
+	return r.GetTaggerList(taggerListURL)
 }
 
 // GetTaggerList fetches the tagger list from the given URL.
-func GetTaggerList(remoteURL string) ([]byte, error) {
-	c := apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
-
-	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
+func (r *RemoteFlareProvider) GetTaggerList(remoteURL string) ([]byte, error) {
+	resp, err := r.IPC.GetClient().Get(remoteURL, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
@@ -291,40 +295,33 @@ func GetTaggerList(remoteURL string) ([]byte, error) {
 	// Pretty print JSON output
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
-	err = json.Indent(&b, r, "", "\t")
+	err = json.Indent(&b, resp, "", "\t")
 	if err != nil {
-		return r, nil
+		return resp, nil
 	}
 	writer.Flush()
 
 	return b.Bytes(), nil
 }
 
-func getAgentWorkloadList() ([]byte, error) {
+func (r *RemoteFlareProvider) getAgentWorkloadList() ([]byte, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
-	return GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), false)
+	return r.GetWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")))
 }
 
 // GetWorkloadList fetches the workload list from the given URL.
-func GetWorkloadList(url string, withInsecureClient bool) ([]byte, error) {
-	var c *http.Client
-	if withInsecureClient {
-		c = apiutil.GetClient(apiutil.WithInsecureTransport) // FIX IPC: get certificates right then remove this option
-	} else {
-		c = apiutil.GetClient()
-	}
-
-	r, err := apiutil.DoGet(c, url, apiutil.LeaveConnectionOpen)
+func (r *RemoteFlareProvider) GetWorkloadList(url string) ([]byte, error) {
+	resp, err := r.IPC.GetClient().Get(url, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		return nil, err
 	}
 
 	workload := workloadmeta.WorkloadDumpResponse{}
-	err = json.Unmarshal(r, &workload)
+	err = json.Unmarshal(resp, &workload)
 	if err != nil {
 		return nil, err
 	}
@@ -364,30 +361,21 @@ func getECSMeta() ([]byte, error) {
 // getHTTPCallContent does a GET HTTP call to the given url and
 // writes the content of the HTTP response in the given file, ready
 // to be shipped in a flare.
-func getHTTPCallContent(url string) ([]byte, error) {
+func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-
-	client := apiutil.GetClient()
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// read the entire body, so that it can be scrubbed in its entirety
-	data, err := io.ReadAll(resp.Body)
+	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
 
-	return data, nil
+	return resp, nil
 }
 
 // functionOutputToBytes runs a given function and returns its output in a byte array

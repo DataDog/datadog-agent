@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
+	"encoding/pem"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -43,20 +44,42 @@ type endpoint struct {
 }
 
 // assertAgentUseCert checks that all agents IPC server use the IPC certificate.
-func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, certPool *x509.CertPool) {
+func assertAgentUseCert(t *assert.CollectT, host *components.RemoteHost, ipcCertFileContent []byte) {
+	// Reading and decoding cert and key from file
+	var block *pem.Block
+
+	block, rest := pem.Decode(ipcCertFileContent)
+	require.NotNil(t, block)
+	require.Equal(t, block.Type, "CERTIFICATE")
+	cert := pem.EncodeToMemory(block)
+
+	block, _ = pem.Decode(rest)
+	require.NotNil(t, block)
+	require.Equal(t, block.Type, "EC PRIVATE KEY")
+	key := pem.EncodeToMemory(block)
+
+	tlsCert, err := tls.X509KeyPair(cert, key)
+	require.NoError(t, err, "Unable to generate x509 cert from PERM IPC cert and key")
+
+	CA := x509.NewCertPool()
+	ok := CA.AppendCertsFromPEM(cert)
+	require.True(t, ok)
+
 	client := host.NewHTTPClient()
 
 	tr := client.Transport.(*http.Transport).Clone()
 	// Reinitializing tlsConfig and replace transport
-	tr.TLSClientConfig = &tls.Config{}
+	tr.TLSClientConfig = &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+	}
 	client.Transport = tr
 
 	//Assert that it's not working if the IPC cert is not set as RootCA
-	_, err := client.Get(fmt.Sprintf("https://127.0.0.1:%d", coreCMDPort)) // nolint: bodyclose
+	_, err = client.Get(fmt.Sprintf("https://127.0.0.1:%d", coreCMDPort)) // nolint: bodyclose
 	require.Error(t, err)
 
 	// Setting IPC certificate as Root CA
-	tr.TLSClientConfig.RootCAs = certPool
+	tr.TLSClientConfig.RootCAs = CA
 
 	for _, endpoint := range []endpoint{
 		{"coreCMD", coreCMDPort},

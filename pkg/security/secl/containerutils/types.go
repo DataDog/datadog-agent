@@ -16,9 +16,20 @@ type CGroupID string
 type CGroupFlags uint64
 
 // CGroupManagerMask holds the bitmask for the cgroup manager
-const CGroupManagerMask CGroupFlags = 0b111
+const CGroupManagerMask CGroupFlags = 0xff
 
 // IsContainer returns whether a cgroup maps to a container
 func (f CGroupFlags) IsContainer() bool {
-	return (f&CGroupManagerMask != 0) && ((f & CGroupManagerMask) != CGroupFlags(CGroupManagerSystemd))
+	cgroupManager := f.GetCGroupManager()
+	return cgroupManager != 0 && cgroupManager != CGroupManagerSystemd
+}
+
+// IsSystemd returns whether a cgroup maps to a systemd cgroup
+func (f CGroupFlags) IsSystemd() bool {
+	return f.GetCGroupManager() == CGroupManagerSystemd
+}
+
+// GetCGroupManager returns the cgroup manager from the flags
+func (f CGroupFlags) GetCGroupManager() CGroupManager {
+	return CGroupManager(f & CGroupManagerMask)
 }

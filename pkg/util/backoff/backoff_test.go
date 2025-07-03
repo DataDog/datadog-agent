@@ -6,7 +6,6 @@
 package backoff
 
 import (
-	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -15,21 +14,21 @@ import (
 )
 
 func TestRandomBetween(t *testing.T) {
-	r := rand.New(rand.NewSource(10))
 	getRandomMinMax := func() (float64, float64) {
-		a := float64(r.Intn(10))
-		b := float64(r.Intn(10))
-		min := math.Min(a, b)
-		max := math.Max(a, b)
-		return min, max
+		a := float64(rand.Intn(10))
+		b := float64(rand.Intn(10))
+		return min(a, b), max(a, b)
 	}
 
-	for i := 1; i < 100; i++ {
+	for range 100 {
 		min, max := getRandomMinMax()
-		between := randomBetween(r, min, max)
 
-		assert.True(t, min <= between)
-		assert.True(t, max >= between)
+		for range 100 {
+			between := randomBetween(min, max)
+
+			assert.LessOrEqual(t, min, between)
+			assert.LessOrEqual(t, between, max)
+		}
 	}
 }
 

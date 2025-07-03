@@ -53,12 +53,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -109,11 +109,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					RemoteTarget: func(c config.Component) (string, error) {
 						return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 					},
-					RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-						return func() (string, error) {
-							return security.FetchAuthToken(c)
-						}
-					},
 					RemoteFilter: taggerTypes.NewMatchAllFilter(),
 				}),
 				fx.Provide(func() startstop.Stopper {
@@ -122,8 +117,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 					return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
-					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -140,14 +135,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
-					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO())
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression)
+					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -195,6 +190,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // injected instance.
 func start(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
 	defer StopAgent(log)
+
+	// prepare go runtime
+	ddruntime.SetMaxProcs()
+
+	if config.GetBool("security_agent.disable_thp") {
+		if err := ddruntime.DisableTransparentHugePages(); err != nil {
+			log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
+		}
+	}
 
 	err := RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
 	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {

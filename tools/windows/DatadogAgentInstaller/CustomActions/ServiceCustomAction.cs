@@ -409,8 +409,6 @@ namespace Datadog.CustomActions
                     // only start the main agent service. it should start any other services
                     // that should be running.
                     Constants.AgentServiceName,
-                    // TODO WINA-1322: Installer service isn't managed by Agent yet
-                    Constants.InstallerServiceName
                 };
                 foreach (var service in ddservices)
                 {

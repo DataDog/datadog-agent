@@ -269,3 +269,30 @@ func getHook(pkg string, name string) packageHook {
 	}
 	return nil
 }
+
+// PackageCommandHandler is a function that handles the execution of a package-specific command.
+//
+// Implement this function and add it to the packagesCommands map to enable package-specific commands
+// for a given package. Package commands are currently intended to be used internally by package hooks
+// and not exposed to the user.
+// For example, the Agent Windows package hooks must start some background worker processes.
+//
+// The content of the command string is entirely defined by the individual package. Do NOT include
+// private information in the command string, use environment variables instead.
+type PackageCommandHandler func(ctx context.Context, command string) error
+
+// RunPackageCommand runs a package-specific command
+func RunPackageCommand(ctx context.Context, packageName string, command string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("package.%s", packageName))
+	span.SetTag("command", command)
+	defer func() { span.Finish(err) }()
+
+	// Get the command handler for this package
+	handler, ok := packageCommands[packageName]
+	if !ok {
+		return fmt.Errorf("no command handler found for package: %s", packageName)
+	}
+
+	// Call the package-specific command handler
+	return handler(ctx, command)
+}

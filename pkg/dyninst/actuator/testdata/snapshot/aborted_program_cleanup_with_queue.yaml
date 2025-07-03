@@ -1,0 +1,74 @@
+# Tests aborted program cleanup with queued programs. When a process is removed
+# during compilation, the program gets aborted. When the compilation completes,
+# the aborted program should be cleaned up and the next program should start.
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/app1}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+    - process_id: {pid: 1002}
+      executable: {path: /usr/bin/app2}
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
+- !processes-updated {removed: [1001]}
+- !loaded {program_id: 1}
+- !loaded {program_id: 2} 
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/app1}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+    - process_id: {pid: 1002}
+      executable: {path: /usr/bin/app2}
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[] -> [2]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+    1002: <nil> -> WaitingForProgram (prog 2)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+    2: <nil> -> Queued (proc 1002)
+---
+event: !processes-updated {removed: [1001]}
+state:
+  currently_loading: "1"
+  queued_programs: '[2]'
+  processes:
+    1001: WaitingForProgram (prog 1)
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: Loading (proc 1001) -> LoadingAborted (proc 1001)
+    2: Queued (proc 1002)
+---
+event: !loaded {program_id: 1}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], program_id: 2}
+state:
+  currently_loading: 1 -> 2
+  queued_programs: '[2] -> []'
+  processes:
+    1001: WaitingForProgram (prog 1) -> <nil>
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: LoadingAborted (proc 1001) -> <nil>
+    2: Queued (proc 1002) -> Loading (proc 1002)
+---
+event: !loaded {program_id: 2}
+effects:
+  - !register-program-with-dispatcher {program_id: 2}
+  - !attach-to-process {executable: /usr/bin/app2@0.0m0.0, process_id: 1002, program_id: 2}
+state:
+  currently_loading: 2 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1002: WaitingForProgram (prog 2) -> Attaching (prog 2)
+  programs:
+    2: Loading (proc 1002) -> Loaded (proc 1002)

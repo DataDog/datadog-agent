@@ -1,0 +1,34 @@
+# Tests compilation failure. The process should move to CompilationFailed state
+# and the program should be cleaned up.
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+- !loading-failed {program_id: 1, error: "eBPF loading failed"} 
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+---
+event: !loading-failed {program_id: 1, error: "eBPF loading failed"}
+state:
+  currently_loading: 1 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 1) -> LoadingFailed
+  programs:
+    1: Loading (proc 1001) -> <nil>

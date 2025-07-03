@@ -90,5 +90,33 @@
     Status: Running
   {{- end }}
 {{- end }}
+
+{{- if .gpu }}
+
+  GPU
+  ===
+  {{- if .gpu.Error }}
+    Status: Not running
+    Error: {{ .gpu.Error }}
+  {{- else }}
+    Status: Running
+  {{- end }}
+    Discovered GPUs:
+    {{- range .gpu.active_gpus }}
+      - GPU {{ .index }}: {{ .name }} {{ .uuid }} {{ if .is_mig }}MIG{{ end }}{{ if not .in_wmeta }} (not in workloadmeta store){{ end }}
+    {{- end }}
+    CUDA Kernel Cache:
+    {{- if .gpu.kernel_cache.active }}
+      Active: {{ .gpu.kernel_cache.active }}
+      Kernels: {{ .gpu.kernel_cache.kernels }}
+    {{- else }}
+      Active: false
+    {{- end }}
+    Process Attacher:
+      Traced programs: {{ if (eq .gpu.attacher.active_processes nil) }}0{{ else }}{{ len .gpu.attacher.active_processes }}{{ end }}
+      Blocked processes: {{ if (eq .gpu.attacher.blocked_processes nil) }}0{{ else }}{{ len .gpu.attacher.blocked_processes }}{{ end }}
+    eBPF Event Consumer: {{ if .gpu.consumer_healthy }}Healthy{{ else }}Unhealthy{{ end }}
+    Last Check from Core Agent: {{ formatUnixTime .gpu.last_check }}
 {{- end }}
 
+{{- end }}

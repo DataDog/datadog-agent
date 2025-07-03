@@ -37,6 +37,7 @@ type ListenerConfig struct {
 	Loader                string                     `mapstructure:"loader"`
 	CollectDeviceMetadata bool                       `mapstructure:"collect_device_metadata"`
 	CollectTopology       bool                       `mapstructure:"collect_topology"`
+	CollectVPN            bool                       `mapstructure:"collect_vpn"`
 	MinCollectionInterval uint                       `mapstructure:"min_collection_interval"`
 	Namespace             string                     `mapstructure:"namespace"`
 	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
@@ -72,6 +73,8 @@ type Config struct {
 	CollectDeviceMetadata       bool
 	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
 	CollectTopology             bool
+	CollectVPNConfig            *bool `mapstructure:"collect_vpn"`
+	CollectVPN                  bool
 	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
 	UseDeviceIDAsHostname       bool
 	Namespace                   string   `mapstructure:"namespace"`
@@ -163,6 +166,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.CollectTopology = *config.CollectTopologyConfig
 		} else {
 			config.CollectTopology = snmpConfig.CollectTopology
+		}
+		if config.CollectVPNConfig != nil {
+			config.CollectVPN = *config.CollectVPNConfig
+		} else {
+			config.CollectVPN = snmpConfig.CollectVPN
 		}
 
 		if config.UseDeviceIDAsHostnameConfig != nil {

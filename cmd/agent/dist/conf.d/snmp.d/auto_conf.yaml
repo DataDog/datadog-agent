@@ -119,6 +119,11 @@ instances:
     #
     collect_topology: "%%extra_collect_topology%%"
 
+    ## @param collect_vpn - boolean - optional - default: false
+    ## Enable collection of VPN tunnels and route table data
+    #
+    collect_vpn: "%%extra_collect_vpn%%"
+
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.
     ## Changing namespace will cause devices being recreated in NDM app.

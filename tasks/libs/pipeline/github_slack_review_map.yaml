@@ -6,6 +6,7 @@
 # because the '@' symbol is reserved in YAML.
 '@datadog/agent-all': '#datadog-agent-pipelines'
 '@datadog/agent-apm': '#apm-agent'
+'@datadog/agent-build': '#agent-build-reviews'
 '@datadog/agent-configuration': '#agent-configuration'
 '@datadog/agent-cspm': '#security-and-compliance-agent'
 '@datadog/agent-delivery': '#agent-delivery-reviews'
@@ -27,7 +28,7 @@
 '@datadog/container-app': '#container-app'
 '@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/container-ecosystems': '#agent-onboarding'
-'@datadog/container-intake': '#process-agent-ops'
+'@datadog/container-experiences': '#process-agent-ops'
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-platform': '#container-platform'
 '@datadog/data-jobs-monitoring': '#data-jobs-monitoring'

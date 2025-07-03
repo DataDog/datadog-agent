@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func TestProcessEndpoints(t *testing.T) {
@@ -399,7 +399,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 		metricsExcluded bool
 		globalExcluded  bool
 		want            bool
-		filter          containers.FilterType
+		filterScope     filter.Scope
 	}{
 		{
 			name: "metrics excluded is true",
@@ -428,7 +428,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			},
 			metricsExcluded: true,
 			want:            true,
-			filter:          containers.MetricsFilter,
+			filterScope:     filter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is false",
@@ -458,7 +458,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            false,
-			filter:          containers.MetricsFilter,
+			filterScope:     filter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is true with logs filter",
@@ -488,7 +488,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  false,
 			want:            false,
-			filter:          containers.LogsFilter,
+			filterScope:     filter.LogsFilter,
 		},
 		{
 			name: "metrics excluded is false with logs filter",
@@ -518,7 +518,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            false,
-			filter:          containers.LogsFilter,
+			filterScope:     filter.LogsFilter,
 		},
 		{
 			name: "global excluded is true",
@@ -548,7 +548,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  true,
 			want:            true,
-			filter:          containers.GlobalFilter,
+			filterScope:     filter.GlobalFilter,
 		},
 		{
 			name: "metrics excluded is false",
@@ -578,7 +578,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  false,
 			want:            false,
-			filter:          containers.GlobalFilter,
+			filterScope:     filter.GlobalFilter,
 		},
 	}
 	for _, tt := range tests {
@@ -586,7 +586,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			svc := processService(tt.ksvc)
 			svc.metricsExcluded = tt.metricsExcluded
 			svc.globalExcluded = tt.globalExcluded
-			isFilter := svc.HasFilter(tt.filter)
+			isFilter := svc.HasFilter(tt.filterScope)
 			assert.Equal(t, isFilter, tt.want)
 		})
 	}

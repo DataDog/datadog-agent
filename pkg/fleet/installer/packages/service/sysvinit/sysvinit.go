@@ -12,6 +12,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"go.uber.org/multierr"
 )
 
 // Install installs a sys-v init script using update-rc.d
@@ -21,13 +22,12 @@ func Install(ctx context.Context, name string) error {
 
 // InstallAll installs all sys-v init scripts using update-rc.d
 func InstallAll(ctx context.Context, names ...string) error {
+	var errs error
 	for _, name := range names {
 		err := Install(ctx, name)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }
 
 // Remove removes a sys-v init script using update-rc.d
@@ -37,13 +37,12 @@ func Remove(ctx context.Context, name string) error {
 
 // RemoveAll removes all sys-v init scripts using update-rc.d
 func RemoveAll(ctx context.Context, names ...string) error {
+	var errs error
 	for _, name := range names {
 		err := Remove(ctx, name)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }
 
 // Restart restarts a sys-v init script using service
@@ -58,11 +57,10 @@ func Stop(ctx context.Context, name string) error {
 
 // StopAll stops all sys-v init scripts using service
 func StopAll(ctx context.Context, names ...string) error {
+	var errs error
 	for _, name := range names {
 		err := Stop(ctx, name)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }

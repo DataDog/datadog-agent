@@ -6,9 +6,11 @@
 package config
 
 import (
-	"github.com/DataDog/appsec-internal-go/appsec"
 	"testing"
 
+	"github.com/DataDog/appsec-internal-go/appsec"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +28,14 @@ func TestConfig(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg, err := NewConfig()
 		require.NoError(t, err)
-		require.Equal(t, expectedDefaultConfig, cfg)
+		assert.Equal(t, string(expectedDefaultConfig.Rules), string(cfg.Rules))
+		assert.Equal(t, expectedDefaultConfig.WafTimeout, cfg.WafTimeout)
+		assert.Equal(t, expectedDefaultConfig.TraceRateLimit, cfg.TraceRateLimit)
+		assert.Equal(t, expectedDefaultConfig.Obfuscator, cfg.Obfuscator)
+		assert.Equal(t, expectedDefaultConfig.APISec.Enabled, cfg.APISec.Enabled)
+		//nolint:staticcheck // SA1019 we will migrate to the new APISec sampler at a later point.
+		assert.Equal(t, expectedDefaultConfig.APISec.SampleRate, cfg.APISec.SampleRate)
+		// Not comparing the APISec sampler -- it's not comparable this way.
 	})
 
 	t.Run("appsec", func(t *testing.T) {

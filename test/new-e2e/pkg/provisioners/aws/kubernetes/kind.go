@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -115,6 +116,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		Kubeconfig:            kindCluster.KubeConfig,
 	})
 	if err != nil {
+		return err
+	}
+
+	// Deploy the datadog CSI driver
+	if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
 		return err
 	}
 
