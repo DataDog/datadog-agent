@@ -9,6 +9,7 @@ package monitor
 import (
 	"testing"
 
+	"github.com/Masterminds/semver/v3"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 type testPolicy struct {
@@ -307,12 +307,20 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 						Name:   "Policy A",
 						Source: "test",
 					},
-					Status: PolicyStatusLoaded,
+					Status: PolicyStatusPartiallyFiltered,
 					Rules: []*RuleState{
 						{
 							ID:         "rule_a",
 							Expression: `exec.file.path == "/etc/foo/bar"`,
 							Status:     "loaded",
+						},
+						{
+							ID:                     "rule_b",
+							Expression:             `exec.file.path == "/etc/foo/baz"`,
+							Status:                 "filtered",
+							Message:                "this agent version doesn't support this rule",
+							FilterType:             string(rules.FilterTypeAgentVersion),
+							AgentVersionConstraint: "< 0.0.1",
 						},
 					},
 				},
@@ -342,19 +350,40 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicyStates: nil,
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusFullyFiltered,
+					Rules: []*RuleState{
+						{
+							ID:                     "rule_a",
+							Expression:             `exec.file.path == "/etc/foo/bar"`,
+							Status:                 "filtered",
+							Message:                "this agent version doesn't support this rule",
+							FilterType:             string(rules.FilterTypeAgentVersion),
+							AgentVersionConstraint: "< 0.0.1",
+						},
+						{
+							ID:                     "rule_b",
+							Expression:             `exec.file.path == "/etc/foo/baz"`,
+							Status:                 "filtered",
+							Message:                "this agent version doesn't support this rule",
+							FilterType:             string(rules.FilterTypeAgentVersion),
+							AgentVersionConstraint: "< 0.0.2",
+						},
+					},
+				},
+			},
 		},
-	}
-
-	agentVersion, err := utils.GetAgentSemverVersion()
-	if err != nil {
-		t.Fatal("failed to get agent version:", err)
 	}
 
 	var macroFilters []rules.MacroFilter
 	var ruleFilters []rules.RuleFilter
 
-	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
+	agentVersionFilter, err := rules.NewAgentVersionFilter(semver.MustParse("7.21.0"))
 	if err != nil {
 		t.Fatal("failed to create agent version filter:", err)
 	} else {
