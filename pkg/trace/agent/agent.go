@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +56,10 @@ const (
 
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
+
+	// tagFunctionTags is a TracerPayload tag containing the FunctionTags for
+	// all of the traces.
+	tagFunctionTags = "_dd.tags.function"
 )
 
 // TraceWriter provides a way to write trace chunks
@@ -339,6 +344,8 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 	}
 
+	a.ensureFunctionTags(p.TracerPayload)
+
 	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
@@ -364,6 +371,7 @@ func (a *Agent) Process(p *api.Payload) {
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
 		setChunkAttributes(chunk, root)
+		a.ensureFunctionTagAttributes(p.TracerPayload, root)
 		if allowed, denyingRule := a.Blacklister.Allows(root); !allowed {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
 			ts.TracesFiltered.Inc()
@@ -450,6 +458,64 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.Add(statsInput)
+	}
+}
+
+func (a *Agent) ensureFunctionTags(tp *pb.TracerPayload) {
+	if a.conf.FunctionTags == nil {
+		return
+	}
+
+	if tp.Tags == nil {
+		tp.Tags = make(map[string]string)
+	}
+
+	tp.Tags[tagFunctionTags] = a.mergeFunctionTags(tp.Tags[tagFunctionTags], a.conf.FunctionTags)
+	log.Debugf("set trace function tags to %v", tp.Tags[tagFunctionTags])
+}
+
+func (a *Agent) mergeFunctionTags(existingTags string, functionTags map[string]string) string {
+	mergedTags := make(map[string]string)
+	for _, kv := range strings.Split(existingTags, ",") {
+		parts := strings.SplitN(kv, ":", 2)
+		if len(parts) != 2 {
+			log.Debugf("skipping invalid function tag: %v", kv)
+			continue
+		}
+		mergedTags[parts[0]] = parts[1]
+	}
+
+	for key, value := range functionTags {
+		mergedTags[key] = value
+	}
+
+	pairs := make([]string, 0, len(mergedTags))
+	for k, v := range mergedTags {
+		pairs = append(pairs, k+":"+v)
+	}
+
+	return strings.Join(pairs, ",")
+}
+
+func (a *Agent) ensureFunctionTagAttributes(tp *pb.TracerPayload, root *pb.Span) {
+	if tp.Tags == nil {
+		return
+	}
+
+	functionTags, ok := tp.Tags[tagFunctionTags]
+	if !ok {
+		return
+	}
+
+	log.Debugf("ensuring that function tags %v are in root span meta", functionTags)
+
+	for _, kv := range strings.Split(functionTags, ",") {
+		parts := strings.SplitN(kv, ":", 2)
+		if len(parts) != 2 {
+			log.Debugf("skipping invalid function tag: %v", kv)
+			continue
+		}
+		traceutil.SetMeta(root, parts[0], parts[1])
 	}
 }
 
