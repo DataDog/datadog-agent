@@ -389,9 +389,7 @@ def test(
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
-            recursive=not (
-                only_modified_packages or only_impacted_packages
-            ),  # Disable recursive tests when only modified packages or only impacted packages is enabled, to avoid testing a package and all its subpackages
+            recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
     # Output (only if tests ran)
