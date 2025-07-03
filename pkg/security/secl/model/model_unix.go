@@ -443,9 +443,11 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
-	MountPath   string `field:"-"`
-	MountSource uint32 `field:"-"`
-	MountOrigin uint32 `field:"-"`
+	MountPath     string `field:"-"`
+	MountSource   uint32 `field:"-"`
+	MountOrigin   uint32 `field:"-"`
+	MountVisible  bool   `field:"-"`
+	MountDetached bool   `field:"-"`
 
 	PathResolutionError error `field:"-"`
 

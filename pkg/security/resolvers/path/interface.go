@@ -21,4 +21,5 @@ type ResolverInterface interface {
 	ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error)
 	SetMountPoint(ev *model.Event, e *model.Mount) error
 	ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error)
+	ResolveMountAttributes(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (bool, bool, error)
 }

@@ -286,14 +286,6 @@ const (
 	MountEventSourceOpenTreeSyscall
 )
 
-// MountEventSources defines source syscall of the mount event
-var MountEventSources = [...]string{
-	"invalid",
-	"mount",
-	"fsmount",
-	"open_tree",
-}
-
 // MountSourceToString returns the string corresponding to a mount source
 func MountSourceToString(source MountSource) string {
 	return MountSources[source]
@@ -306,6 +298,7 @@ var MountOrigins = [...]string{
 	"event",
 	"unshare",
 	"fsmount",
+	"open_tree",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin
