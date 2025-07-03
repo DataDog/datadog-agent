@@ -180,6 +180,23 @@ func assertProcessWithoutServices(t *testing.T, store workloadmetamock.Mock, pid
 	}, 1*time.Second, 100*time.Millisecond)
 }
 
+func assertProcessesRemoved(t *testing.T, store workloadmetamock.Mock, pids []int32) {
+	if len(pids) == 0 {
+		return
+	}
+
+	// Verify that processes are completely removed from store
+	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for _, pid := range pids {
+			entity, err := store.GetProcess(pid)
+			// Entity should either not exist or be nil
+			if err == nil {
+				assert.Nil(collectT, entity, "PID %d should be completely removed from store", pid)
+			}
+		}
+	}, 2*time.Second, 100*time.Millisecond)
+}
+
 func assertProcessesExist(t *testing.T, store workloadmetamock.Mock, pids []int32) {
 	if len(pids) == 0 {
 		return
@@ -455,4 +472,37 @@ func TestServiceStoreLifetime(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProcessDeathRemovesServiceData(t *testing.T) {
+	const collectionInterval = 1 * time.Second
+
+	c := setUpCollectorTest(t, nil, nil, nil)
+	ctx := t.Context()
+
+	// Set initial state: process entity in the store, SD was tracking a service,
+	// the process collector reported no live processes.
+	existingProcess := makeProcessEntityService(pidFreshService, "existing-service")
+	c.mockStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceServiceDiscovery,
+			Entity: existingProcess,
+		},
+	})
+	c.collector.lastCollectedProcesses = make(map[int32]*procutil.Process)
+	c.collector.pidHeartbeats[pidFreshService] = baseTime
+
+	socketPath, _ := startTestServer(t, &model.ServicesEndpointResponse{}, false)
+	c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+	c.mockClock.Set(baseTime)
+
+	c.collector.store = c.mockStore
+
+	go c.collector.collectServicesCached(ctx, c.collector.clock.Ticker(collectionInterval))
+	go c.collector.stream(ctx)
+
+	c.mockClock.Add(collectionInterval)
+
+	assertProcessesRemoved(t, c.mockStore, []int32{pidFreshService})
 }

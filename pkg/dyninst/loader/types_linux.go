@@ -6,7 +6,7 @@ package loader
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 )
 
 type typeInfo struct {
@@ -25,53 +25,53 @@ type throttlerParams struct {
 	Budget int64
 }
 
-func opcodeByte(opcode sm.Opcode) uint8 {
+func opcodeByte(opcode compiler.Opcode) uint8 {
 	switch opcode {
-	case sm.OpcodeInvalid:
+	case compiler.OpcodeInvalid:
 		return 0x0
-	case sm.OpcodeCall:
+	case compiler.OpcodeCall:
 		return 0x1
-	case sm.OpcodeReturn:
+	case compiler.OpcodeReturn:
 		return 0x2
-	case sm.OpcodeIllegal:
+	case compiler.OpcodeIllegal:
 		return 0x3
-	case sm.OpcodeIncrementOutputOffset:
+	case compiler.OpcodeIncrementOutputOffset:
 		return 0x4
-	case sm.OpcodeExprPrepare:
+	case compiler.OpcodeExprPrepare:
 		return 0x5
-	case sm.OpcodeExprSave:
+	case compiler.OpcodeExprSave:
 		return 0x6
-	case sm.OpcodeExprDereferenceCfa:
+	case compiler.OpcodeExprDereferenceCfa:
 		return 0x7
-	case sm.OpcodeExprReadRegister:
+	case compiler.OpcodeExprReadRegister:
 		return 0x8
-	case sm.OpcodeExprDereferencePtr:
+	case compiler.OpcodeExprDereferencePtr:
 		return 0x9
-	case sm.OpcodeProcessPointer:
+	case compiler.OpcodeProcessPointer:
 		return 0xa
-	case sm.OpcodeProcessSlice:
+	case compiler.OpcodeProcessSlice:
 		return 0xb
-	case sm.OpcodeProcessArrayDataPrep:
+	case compiler.OpcodeProcessArrayDataPrep:
 		return 0xc
-	case sm.OpcodeProcessSliceDataPrep:
+	case compiler.OpcodeProcessSliceDataPrep:
 		return 0xd
-	case sm.OpcodeProcessSliceDataRepeat:
+	case compiler.OpcodeProcessSliceDataRepeat:
 		return 0xe
-	case sm.OpcodeProcessString:
+	case compiler.OpcodeProcessString:
 		return 0xf
-	case sm.OpcodeProcessGoEmptyInterface:
+	case compiler.OpcodeProcessGoEmptyInterface:
 		return 0x10
-	case sm.OpcodeProcessGoInterface:
+	case compiler.OpcodeProcessGoInterface:
 		return 0x11
-	case sm.OpcodeProcessGoHmap:
+	case compiler.OpcodeProcessGoHmap:
 		return 0x12
-	case sm.OpcodeProcessGoSwissMap:
+	case compiler.OpcodeProcessGoSwissMap:
 		return 0x13
-	case sm.OpcodeProcessGoSwissMapGroups:
+	case compiler.OpcodeProcessGoSwissMapGroups:
 		return 0x14
-	case sm.OpcodeChasePointers:
+	case compiler.OpcodeChasePointers:
 		return 0x15
-	case sm.OpcodePrepareEventRoot:
+	case compiler.OpcodePrepareEventRoot:
 		return 0x16
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))

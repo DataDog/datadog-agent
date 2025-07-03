@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package sm implements the eBPF program stack machine representation and generation.
-package sm
+// Package compiler supports compiling probe ir into a stack machine program.
+package compiler
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=Opcode -trimprefix=Opcode
 

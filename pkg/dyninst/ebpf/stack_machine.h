@@ -36,36 +36,12 @@ __attribute__((noinline)) bool chased_pointer_contains(chased_pointers_t* chased
   if (max >= MAX_CHASED_POINTERS) {
     return false;
   }
-  // The currently used clang compiler along with older kernel verifiers doesn't
-  // handle a direct loop well, hitting verifier complexity limits. We generate
-  // unwound loop trading code-size for portability
-  _Static_assert(MAX_CHASED_POINTERS == 128, "update static loop below when changing MAX_CHASED_POINTERS");
-#define CHECK_1(i)                                          \
-  if (i >= max) {                                           \
-    return false;                                           \
-  }                                                         \
-  if (chased->ptrs[i] == ptr && chased->types[i] == type) { \
-    return true;                                            \
+  // Iterating backwards results in simpler code that passes the verifier.
+  for (int32_t i = max-1; i >= 0; i--) {
+    if (chased->ptrs[i] == ptr && chased->types[i] == type) {
+      return true;
+    }
   }
-#define CHECK_2(i) CHECK_1(i) CHECK_1(i + 1)
-#define CHECK_4(i) CHECK_2(i) CHECK_2(i + 2)
-#define CHECK_8(i) CHECK_4(i) CHECK_4(i + 4)
-#define CHECK_16(i) CHECK_8(i) CHECK_8(i + 8)
-#define CHECK_32(i) CHECK_16(i) CHECK_16(i + 16)
-#define CHECK_64(i) CHECK_32(i) CHECK_32(i + 32)
-#define CHECK_128(i) CHECK_64(i) CHECK_64(i + 64)
-
-  CHECK_128(0);
-
-#undef CHECK_1
-#undef CHECK_2
-#undef CHECK_4
-#undef CHECK_8
-#undef CHECK_16
-#undef CHECK_32
-#undef CHECK_64
-#undef CHECK_128
-
   return false;
 }
 

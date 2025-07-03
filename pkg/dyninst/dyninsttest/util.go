@@ -21,7 +21,7 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -89,18 +89,24 @@ func PrepTmpDir(t *testing.T, prefix string) (string, func()) {
 }
 
 // GenerateIr generates an IR program based on a binary and a config files.
-func GenerateIr(t *testing.T, tempDir string, binPath string, cfgName string) (obj *object.ElfFile, irp *ir.Program) {
+func GenerateIr(
+	t *testing.T,
+	tempDir string,
+	binPath string,
+	cfgName string,
+) (*object.ElfFile, *ir.Program) {
 	binary, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
-	obj, err = object.NewElfObject(binary)
+	obj, err := object.NewElfObject(binary)
 	require.NoError(t, err)
 
-	irp, err = irgen.GenerateIR(1, obj, probes)
+	irp, err := irgen.GenerateIR(1, obj, probes)
 	require.NoError(t, err)
+	require.Empty(t, irp.Issues)
 
 	irDump, err := os.Create(filepath.Join(tempDir, "probe.ir.yaml"))
 	require.NoError(t, err)
@@ -110,7 +116,7 @@ func GenerateIr(t *testing.T, tempDir string, binPath string, cfgName string) (o
 	_, err = irDump.Write(irYaml)
 	require.NoError(t, err)
 
-	return
+	return obj, irp
 }
 
 // CompileAndLoadBPF compiles an IR program and loads it into the kernel.
@@ -123,7 +129,7 @@ func CompileAndLoadBPF(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, codeDump.Close()) }()
 
-	smProgram, err := sm.GenerateProgram(irp)
+	smProgram, err := compiler.GenerateProgram(irp)
 	require.NoError(t, err)
 
 	loader, err := loader.NewLoader()

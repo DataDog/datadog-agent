@@ -19,8 +19,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -64,13 +62,14 @@ func runTest(
 	defer func() { require.NoError(t, elfFile.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probeDefs)
 	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
-	program, err := sm.GenerateProgram(ir)
+	program, err := GenerateProgram(ir)
 	require.NoError(t, err)
 
 	var out bytes.Buffer
 	out.WriteString("// Stack machine code\n")
-	metadata, err := sm.GenerateCode(program, &codegen.DebugSerializer{Out: &out})
+	metadata, err := GenerateCode(program, &DebugSerializer{Out: &out})
 	require.NoError(t, err)
 
 	sort.Slice(program.Types, func(i, j int) bool {
@@ -79,7 +78,7 @@ func runTest(
 	out.WriteString("// Types\n")
 	for _, t := range program.Types {
 		out.WriteString(fmt.Sprintf("ID: %d Len: %d Enqueue: %d\n",
-			t.GetID(), t.GetByteSize(), metadata.FunctionLoc[sm.ProcessType{Type: t}]))
+			t.GetID(), t.GetByteSize(), metadata.FunctionLoc[ProcessType{Type: t}]))
 	}
 
 	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".sm.txt")

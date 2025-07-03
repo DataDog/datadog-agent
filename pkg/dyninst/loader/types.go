@@ -20,60 +20,60 @@ import "C"
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 )
 
 type typeInfo C.type_info_t
 type probeParams C.probe_params_t
 type throttlerParams C.throttler_params_t
 
-func opcodeByte(opcode sm.Opcode) uint8 {
+func opcodeByte(opcode compiler.Opcode) uint8 {
 	switch opcode {
-	case sm.OpcodeInvalid:
+	case compiler.OpcodeInvalid:
 		return C.SM_OP_INVALID
-	case sm.OpcodeCall:
+	case compiler.OpcodeCall:
 		return C.SM_OP_CALL
-	case sm.OpcodeReturn:
+	case compiler.OpcodeReturn:
 		return C.SM_OP_RETURN
-	case sm.OpcodeIllegal:
+	case compiler.OpcodeIllegal:
 		return C.SM_OP_ILLEGAL
-	case sm.OpcodeIncrementOutputOffset:
+	case compiler.OpcodeIncrementOutputOffset:
 		return C.SM_OP_INCREMENT_OUTPUT_OFFSET
-	case sm.OpcodeExprPrepare:
+	case compiler.OpcodeExprPrepare:
 		return C.SM_OP_EXPR_PREPARE
-	case sm.OpcodeExprSave:
+	case compiler.OpcodeExprSave:
 		return C.SM_OP_EXPR_SAVE
-	case sm.OpcodeExprDereferenceCfa:
+	case compiler.OpcodeExprDereferenceCfa:
 		return C.SM_OP_EXPR_DEREFERENCE_CFA
-	case sm.OpcodeExprReadRegister:
+	case compiler.OpcodeExprReadRegister:
 		return C.SM_OP_EXPR_READ_REGISTER
-	case sm.OpcodeExprDereferencePtr:
+	case compiler.OpcodeExprDereferencePtr:
 		return C.SM_OP_EXPR_DEREFERENCE_PTR
-	case sm.OpcodeProcessPointer:
+	case compiler.OpcodeProcessPointer:
 		return C.SM_OP_PROCESS_POINTER
-	case sm.OpcodeProcessSlice:
+	case compiler.OpcodeProcessSlice:
 		return C.SM_OP_PROCESS_SLICE
-	case sm.OpcodeProcessArrayDataPrep:
+	case compiler.OpcodeProcessArrayDataPrep:
 		return C.SM_OP_PROCESS_ARRAY_DATA_PREP
-	case sm.OpcodeProcessSliceDataPrep:
+	case compiler.OpcodeProcessSliceDataPrep:
 		return C.SM_OP_PROCESS_SLICE_DATA_PREP
-	case sm.OpcodeProcessSliceDataRepeat:
+	case compiler.OpcodeProcessSliceDataRepeat:
 		return C.SM_OP_PROCESS_SLICE_DATA_REPEAT
-	case sm.OpcodeProcessString:
+	case compiler.OpcodeProcessString:
 		return C.SM_OP_PROCESS_STRING
-	case sm.OpcodeProcessGoEmptyInterface:
+	case compiler.OpcodeProcessGoEmptyInterface:
 		return C.SM_OP_PROCESS_GO_EMPTY_INTERFACE
-	case sm.OpcodeProcessGoInterface:
+	case compiler.OpcodeProcessGoInterface:
 		return C.SM_OP_PROCESS_GO_INTERFACE
-	case sm.OpcodeProcessGoHmap:
+	case compiler.OpcodeProcessGoHmap:
 		return C.SM_OP_PROCESS_GO_HMAP
-	case sm.OpcodeProcessGoSwissMap:
+	case compiler.OpcodeProcessGoSwissMap:
 		return C.SM_OP_PROCESS_GO_SWISS_MAP
-	case sm.OpcodeProcessGoSwissMapGroups:
+	case compiler.OpcodeProcessGoSwissMapGroups:
 		return C.SM_OP_PROCESS_GO_SWISS_MAP_GROUPS
-	case sm.OpcodeChasePointers:
+	case compiler.OpcodeChasePointers:
 		return C.SM_OP_CHASE_POINTERS
-	case sm.OpcodePrepareEventRoot:
+	case compiler.OpcodePrepareEventRoot:
 		return C.SM_OP_PREPARE_EVENT_ROOT
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
