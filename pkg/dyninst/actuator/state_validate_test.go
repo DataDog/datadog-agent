@@ -93,15 +93,10 @@ func validateState(s *state, reportError func(error)) {
 					"process %v currentProgram %v does not exist",
 					procID, proc.currentProgram,
 				)
-			} else if prog.processID == nil {
-				report(
-					"process %v currentProgram %v has nil processID",
-					procID, proc.currentProgram,
-				)
-			} else if *prog.processID != procID {
+			} else if prog.processID != procID {
 				report(
 					"process %v currentProgram %v points to different process %v",
-					procID, proc.currentProgram, *prog.processID,
+					procID, proc.currentProgram, prog.processID,
 				)
 			}
 		}
@@ -217,28 +212,16 @@ func validateProgram(
 	progID := prog.id
 
 	// Check that processID references exist and are consistent.
-	if procID := prog.processID; procID != nil {
-		proc, exists := s.processes[*procID]
-		if !exists {
-			report(
-				"program %v references non-existent process %v", progID, *procID,
-			)
-		} else if proc.currentProgram != progID {
-			report(
-				"program %v is not the current program for process %v",
-				progID, *procID,
-			)
-		}
-	} else {
-		switch prog.state {
-		case programStateLoadingAborted, programStateDraining:
-			// Valid states for programs with no process.
-		default:
-			report(
-				"program %v has no process but is not in a cleanup state (%v)",
-				progID, prog.state,
-			)
-		}
+	proc, exists := s.processes[prog.processID]
+	if !exists {
+		report(
+			"program %v references non-existent process %v", progID, prog.processID,
+		)
+	} else if proc.currentProgram != progID {
+		report(
+			"program %v is not the current program for process %v",
+			progID, prog.processID,
+		)
 	}
 
 	switch prog.state {

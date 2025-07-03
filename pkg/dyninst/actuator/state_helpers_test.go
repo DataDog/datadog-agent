@@ -139,7 +139,7 @@ func TestDeepCopyState(t *testing.T) {
 		id:         programID,
 		config:     []ir.ProbeDefinition{probe},
 		executable: executable,
-		processID:  &s.processes[processID].id,
+		processID:  s.processes[processID].id,
 	}
 	s.programs[programID] = program
 

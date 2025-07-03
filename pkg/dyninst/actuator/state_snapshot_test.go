@@ -305,24 +305,16 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			var beforeState, afterState any
 
 			if beforeProg != nil {
-				if beforeProg.processID != nil {
-					beforeState = fmt.Sprintf(
-						"%s (proc %d)",
-						beforeProg.state.String(), beforeProg.processID.PID,
-					)
-				} else {
-					beforeState = beforeProg.state.String()
-				}
+				beforeState = fmt.Sprintf(
+					"%s (proc %d)",
+					beforeProg.state.String(), beforeProg.processID.PID,
+				)
 			}
 			if afterProg != nil {
-				if afterProg.processID != nil {
-					afterState = fmt.Sprintf(
-						"%s (proc %d)",
-						afterProg.state.String(), afterProg.processID.PID,
-					)
-				} else {
-					afterState = afterProg.state.String()
-				}
+				afterState = fmt.Sprintf(
+					"%s (proc %d)",
+					afterProg.state.String(), afterProg.processID.PID,
+				)
 			}
 
 			if update.Programs == nil {

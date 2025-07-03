@@ -89,7 +89,7 @@ type program struct {
 	//
 	// Note: in the future when we have multiple processes per program, this
 	// will be a set of process IDs.
-	processID *ProcessID
+	processID ProcessID
 }
 
 type process struct {
@@ -332,7 +332,7 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 		id:         sm.nextProgramID(),
 		executable: p.executable,
 		config:     probes,
-		processID:  &p.id,
+		processID:  p.id,
 	}
 	p.state = processStateWaitingForProgram
 	p.currentProgram = newProgram.id
@@ -357,10 +357,10 @@ func clearProcessProgram(
 		return fmt.Errorf("program %v not found in programs", progID)
 	}
 
-	if prog.processID != nil && *prog.processID != proc.id {
+	if prog.processID != proc.id {
 		return fmt.Errorf(
 			"program %v is associated with a different process %v",
-			progID, *prog.processID,
+			progID, prog.processID,
 		)
 	}
 
@@ -371,7 +371,6 @@ func clearProcessProgram(
 			return fmt.Errorf("program %v not found in queued programs", progID)
 		}
 		prog.state = programStateInvalid
-		prog.processID = nil
 		delete(sm.programs, progID)
 		proc.currentProgram = 0
 		if proc.state != processStateWaitingForProgram {
@@ -432,27 +431,25 @@ func handleProgramLoadingFailure(
 			progID,
 		)
 	}
-	if procID := prog.processID; procID != nil {
-		proc, ok := sm.processes[*procID]
-		if !ok {
-			return fmt.Errorf("process %v not found in processes", procID)
+	proc, ok := sm.processes[prog.processID]
+	if !ok {
+		return fmt.Errorf("process %v not found in processes", prog.processID)
+	}
+	switch proc.state {
+	case processStateWaitingForProgram:
+		// The process was already removed.
+		if len(proc.probes) == 0 {
+			delete(sm.processes, proc.id)
+		} else {
+			proc.state = processStateLoadingFailed
+			proc.currentProgram = 0
+			proc.err = failureError
 		}
-		switch proc.state {
-		case processStateWaitingForProgram:
-			// The process was already removed.
-			if len(proc.probes) == 0 {
-				delete(sm.processes, proc.id)
-			} else {
-				proc.state = processStateLoadingFailed
-				proc.currentProgram = 0
-				proc.err = failureError
-			}
-		default:
-			return fmt.Errorf(
-				"%v is in an invalid state for failure %s, expected %v",
-				procID, proc.state, processStateWaitingForProgram,
-			)
-		}
+	default:
+		return fmt.Errorf(
+			"%v is in an invalid state for failure %s, expected %v",
+			prog.processID, proc.state, processStateWaitingForProgram,
+		)
 	}
 	sm.currentlyLoading = nil
 	prog.state = programStateInvalid
@@ -477,20 +474,18 @@ func handleProgramLoaded(
 		effects.registerProgramWithDispatcher(prog.loaded.ir)
 
 		// Now attach to the processes and also register with the dispatcher.
-		if procID := prog.processID; procID != nil {
-			proc, ok := sm.processes[*procID]
-			if !ok {
-				return fmt.Errorf("process %v not found in processes", procID)
-			}
-			if proc.state != processStateWaitingForProgram {
-				return fmt.Errorf(
-					"%v is in an invalid state for loading program %v, expected %v",
-					procID, proc.state, processStateWaitingForProgram,
-				)
-			}
-			proc.state = processStateAttaching
-			effects.attachToProcess(ev.loaded, prog.executable, proc.id)
+		proc, ok := sm.processes[prog.processID]
+		if !ok {
+			return fmt.Errorf("process %v not found in processes", prog.processID)
 		}
+		if proc.state != processStateWaitingForProgram {
+			return fmt.Errorf(
+				"%v is in an invalid state for loading program %v, expected %v",
+				proc.id, proc.state, processStateWaitingForProgram,
+			)
+		}
+		proc.state = processStateAttaching
+		effects.attachToProcess(ev.loaded, prog.executable, proc.id)
 		sm.currentlyLoading = nil
 		return nil
 	case programStateLoadingAborted:
@@ -498,16 +493,14 @@ func handleProgramLoaded(
 		sm.currentlyLoading = nil
 		delete(sm.programs, progID)
 
-		if procID := prog.processID; procID != nil {
-			proc, ok := sm.processes[*procID]
-			if !ok {
-				return fmt.Errorf("process %v not found in processes", procID)
-			}
-			switch proc.state {
-			case processStateWaitingForProgram:
-				if err := enqueueProgramForProcess(sm, proc); err != nil {
-					return err
-				}
+		proc, ok := sm.processes[prog.processID]
+		if !ok {
+			return fmt.Errorf("process %v not found in processes", prog.processID)
+		}
+		switch proc.state {
+		case processStateWaitingForProgram:
+			if err := enqueueProgramForProcess(sm, proc); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -694,13 +687,11 @@ func handleShutdown(sm *state, effects effectHandler) error {
 		if !ok {
 			break
 		}
-		if procID := prog.processID; procID != nil {
-			proc, ok := sm.processes[*procID]
-			if !ok {
-				return fmt.Errorf("process %v not found in processes", procID)
-			}
-			delete(sm.processes, proc.id)
+		proc, ok := sm.processes[prog.processID]
+		if !ok {
+			return fmt.Errorf("process %v not found in processes", prog.processID)
 		}
+		delete(sm.processes, proc.id)
 		delete(sm.programs, prog.id)
 	}
 	return nil
