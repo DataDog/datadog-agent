@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import shutil
 from pathlib import Path
 
 from invoke import Context
@@ -78,6 +79,8 @@ def go_build(
     res = runner.run(cmd, env=env, hide="stderr" if check_deadcode else None)
 
     if check_deadcode:
+        if not shutil.which("whydeadcode"):
+            raise Exit("whydeadcode is not installed")
         # whydeadcode prints unexpected input on stderr (eg. build warnings), and
         # dead code call stack on stdout
         # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
