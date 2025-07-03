@@ -96,7 +96,7 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     u64 libc_libset_enabled = 0;
     LOAD_CONSTANT("libc_libset_enabled", libc_libset_enabled);
 
-    if (libc_libset_enabled && (match4chars(0, 'l', 'i', 'b', 'c'))) {
+    if (libc_libset_enabled && (match4chars(2, 'l', 'i', 'b', 'c'))) {
         bpf_perf_event_output(ctx, &libc_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
     }
 }
