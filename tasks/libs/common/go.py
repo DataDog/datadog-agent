@@ -80,7 +80,8 @@ def go_build(
 
     if check_deadcode:
         if not shutil.which("whydeadcode"):
-            raise Exit("whydeadcode is not installed")
+            with ctx.cd("internal/tools"):
+                run_command_with_retry(ctx, "go install github.com/aarzilli/whydeadcode", max_retry=3)
         # whydeadcode prints unexpected input on stderr (eg. build warnings), and
         # dead code call stack on stdout
         # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
