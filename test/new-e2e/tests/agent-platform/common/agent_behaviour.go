@@ -252,7 +252,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent")
+			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", "trace-loader")
 		}, 1*time.Minute, 500*time.Millisecond) {
 			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
 			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
@@ -282,7 +282,7 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 		// PowerShell Restart-Service may restart trace-agent if it was already running, and
 		// trace-agent will run for a bit before exiting.
 		require.Eventually(tt, func() bool {
-			return !AgentProcessIsRunning(client, "trace-agent")
+			return !AgentProcessIsRunning(client, "trace-agent") && !AgentProcessIsRunning(client, "trace-loader")
 		}, 1*time.Minute, 500*time.Millisecond, "trace-agent should not be running ", err)
 	})
 }
