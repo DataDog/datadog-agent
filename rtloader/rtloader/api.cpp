@@ -206,32 +206,66 @@ void run_shared_library(char *checkID, void *handle, const char **error)
 {
     if (!handle) {
         std::ostringstream err_msg;
-        err_msg << "Shared library not loaded: " << dlerror();
+        err_msg << "Pointer to shared library is null: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
+        return;
     }
 
     const char *dlsym_error = NULL;
 
-    // dlsym run function to get the metric payload from the shared library check
-    so_run_t *run_function = (so_run_t *)dlsym(handle, "Run");
+    // dlsym run_check function to get the metric run the custom check and get the payload
+    so_run_check_t *so_run_check = (so_run_check_t *)dlsym(handle, "RunCheck");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
-        err_msg << "Unable to run shared library: " << dlsym_error;
+        err_msg << "Unable to find RunCheck() method symbol in shared library: " << dlsym_error;
         *error = strdupe(err_msg.str().c_str());
+        return;
     }
 
-    payload_t *payload = run_function();
+    // dlsym free_payload function to avoid memory leaks
+    // this function pointer is declared here because we don't want the check to run
+    // if all required symbols haven't been found
+    so_free_payload_t *so_free_payload = (so_free_payload_t *)dlsym(handle, "FreePayload");
+    dlsym_error = dlerror();
+    if (dlsym_error) {
+        std::ostringstream err_msg;
+        err_msg << "Unable to find FreePayload() method symbol in shared library: " << dlsym_error;
+        *error = strdupe(err_msg.str().c_str());
+        return;
+    }
 
-    // test the returned payload
+    // run the shared library check and get the payload`
+    payload_t *payload = so_run_check();
+    if (!payload) {
+        std::ostringstream err_msg;
+        err_msg << "Payload returned by shared library is null: " << dlerror();
+        *error = strdupe(err_msg.str().c_str());
+        return;
+    }
+
+    // [TEST] test the returned payload
+    std::cout << "Payload metric type: " << payload->metricType << std::endl;
     std::cout << "Payload name: " << payload->name << std::endl;
     std::cout << "Payload value: " << payload->value << std::endl;
 
-    // temporary test metric submission
+    // [TEST] tags are not returned by the shared library yet
+    // so we create a dummy one
     char **tags = new char *[2];
     tags[0] = strdupe("");
 
-    submit_metric(checkID, DATADOG_AGENT_RTLOADER_GAUGE, strdupe("so.metric"), 2.15, tags, strdupe(""), false);
+    // submit the payload returned by the shared library
+    // hostname is hardcoded, don't know yet if it's needed to have it in the signature
+    submit_metric(checkID, payload->metricType, payload->name, payload->value, payload->tags, strdupe("COMP-KW702R60FR"), false);
+
+    // free the payload after using it
+    so_free_payload(payload);
+
+    // [TEST]  indicate that the payload has been freed
+    std::cout << "Payload freed." << std::endl;
+
+    // [TEST] delete temp array
+    delete[] tags;
 }
 
 void destroy(rtloader_t *rtloader)

@@ -101,10 +101,13 @@ typedef struct payload_s {
     double value;
     char **tags;
     char *hostname;
-    bool flushFirstValue;
 } payload_t;
 
-typedef payload_t *(so_run_t)(void);
+// shared library function type that returns the payload
+typedef payload_t *(so_run_check_t)(void);
+
+// shared library function type that frees the payload
+typedef void (so_free_payload_t)(payload_t *);
 
 // aggregator
 //
