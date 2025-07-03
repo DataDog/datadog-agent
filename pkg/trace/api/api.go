@@ -674,7 +674,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagProcessTags] = ptags
 	}
-
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,

@@ -350,10 +350,12 @@ func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStart
 	defer wg.Done()
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:         configUtils.IsAPMEnabled(pkgconfigsetup.Datadog()),
-		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, FunctionTags: nil, Tagger: tagger},
+		LoadConfig:      &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		LambdaSpanChan:  lambdaSpanChan,
 		ColdStartSpanID: coldStartSpanId,
 		RCService:       rcService,
+		// We have not yet wired up FunctionTags for the lambda go agent.
+		FunctionTags: "",
 	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
