@@ -51,8 +51,9 @@ type Load interface {
 
 // LoadConfig is implementing Load to retrieve the config
 type LoadConfig struct {
-	Path   string
-	Tagger tagger.Component
+	Path         string
+	FunctionTags map[string]string
+	Tagger       tagger.Component
 }
 
 // httpURLMetaKey is the key of the span meta containing the HTTP URL
@@ -93,7 +94,15 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
+
+	cfg, err := comptracecfg.LoadConfigFile(l.Path, c, l.Tagger, authtokennoneimpl.NewNoopIPC().Comp)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.FunctionTags = l.FunctionTags
+
+	return cfg, nil
 }
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method

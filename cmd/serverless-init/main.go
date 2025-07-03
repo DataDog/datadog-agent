@@ -129,9 +129,11 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
+	functionTags := serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false))
+
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)),
+			functionTags,
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -148,7 +150,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
-	traceAgent := setupTraceAgent(tags, tagger)
+	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
@@ -170,7 +172,7 @@ var azureContainerAppTags = []string{
 	"aca.replica.name",
 }
 
-func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, functionTags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
 	for _, azureContainerAppTag := range azureContainerAppTags {
 		if value, ok := tags[azureContainerAppTag]; ok {
@@ -179,7 +181,7 @@ func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.Serv
 	}
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, FunctionTags: functionTags, Tagger: tagger},
 		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
 	})

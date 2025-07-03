@@ -515,6 +515,13 @@ type AgentConfig struct {
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
 
+	// FunctionTags are applied to traces coming from serverless environments.
+	// They are included in the trace payload under the `_dd.tags.function` tag
+	// and then processed into trace tags for downstream systems. They are also
+	// included in the root span's metadata to support some backend components
+	// that still look for trace tags in span attributes.
+	FunctionTags map[string]string
+
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
 
