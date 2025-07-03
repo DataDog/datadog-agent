@@ -14,7 +14,6 @@ WORKDIR="/tmp"
 export INSTALL_DIR="$WORKDIR/datadog-agent-build/bin"
 export CONFIG_DIR="$WORKDIR/datadog-agent-build/config"
 export OMNIBUS_DIR="$WORKDIR/omnibus_build"
-export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
 
 rm -rf "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
 mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"
@@ -102,7 +101,7 @@ if [ "$SIGN" = true ]; then
     unset LATEST_DMG
 
     # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
-    for file in "$PWD/omnibus/pkg"/*.dmg; do
+    for file in "$OMNIBUS_PACKAGE_DIR/"*.dmg; do
     if [[ -z "$LATEST_DMG" || "$file" -nt "$LATEST_DMG" ]]; then LATEST_DMG="$file"; fi
     done
 

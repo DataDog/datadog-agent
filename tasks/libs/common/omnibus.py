@@ -264,15 +264,13 @@ def should_retry_bundle_install(res):
 
 def send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
-    src_dir = os.environ.get('CI_PROJECT_DIR')
-    if sys.platform == 'win32':
-        if src_dir is None:
-            src_dir = os.environ.get("REPO_ROOT", os.getcwd())
-
     job_name = os.environ.get('CI_JOB_NAME_SLUG')
     branch = os.environ.get('CI_COMMIT_REF_NAME')
     pipeline_id = os.environ.get('CI_PIPELINE_ID')
-    if not job_name or not branch or not src_dir or not pipeline_id:
+    # The build summary output folder is relative to the CWD so we use
+    # PACKAGE_SUBDIR instead of PACKAGE_DIR
+    package_subdir = os.environ.get('OMNIBUS_PACKAGE_SUBDIR')
+    if not job_name or not branch or not pipeline_id or not package_subdir:
         print(
             '''Missing required environment variables, this is probably not a CI job.
                   skipping sending build metrics'''
@@ -281,7 +279,7 @@ def send_build_metrics(ctx, overall_duration):
 
     series = []
     timestamp = int(datetime.now().timestamp())
-    with open(f'{src_dir}/omnibus/pkg/build-summary.json') as summary_json:
+    with open(f'{package_subdir}/build-summary.json') as summary_json:
         j = json.load(summary_json)
         # Various software build durations are all sent as the `datadog.agent.build.duration` metric
         # with a specific tag for each software.

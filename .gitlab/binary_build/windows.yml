@@ -23,6 +23,8 @@ build_windows_container_entrypoint:
       -e WINDOWS_BUILDER=true
       -e AWS_NETWORKING=true
       -e TARGET_ARCH="$ARCH"
+      -e OMNIBUS_PACKAGE_DIR="${OMNIBUS_PACKAGE_DIR}"
+      -e OMNIBUS_PACKAGE_SUBDIR="${OMNIBUS_PACKAGE_SUBDIR}"
       ${WINBUILDIMAGE}
       c:\mnt\Dockerfiles\agent\windows\entrypoint\build.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
