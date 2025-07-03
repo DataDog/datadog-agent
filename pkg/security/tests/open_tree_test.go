@@ -184,7 +184,7 @@ func TestOpenTree(t *testing.T) {
 				return false
 			}
 			seen++
-			
+
 			assert.Equal(t, model.MountEventSourceOpenTreeSyscall, event.Mount.Source, "Incorrect mount source")
 			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
 			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
