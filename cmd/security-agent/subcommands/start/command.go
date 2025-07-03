@@ -194,6 +194,12 @@ func start(log log.Component, config config.Component, secrets secrets.Component
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
 
+	if config.GetBool("security_agent.disable_thp") {
+		if err := ddruntime.DisableTransparentHugePages(); err != nil {
+			log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
+		}
+	}
+
 	err := RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
 	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
