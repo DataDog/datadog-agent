@@ -59,6 +59,6 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 }
 
 // NextPipelineChanWithInstance returns the next pipeline
-func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return p.msgChan, metrics.NewNoopPipelineMonitor("")
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", "")
 }

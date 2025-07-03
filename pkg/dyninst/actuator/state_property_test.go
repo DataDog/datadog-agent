@@ -323,27 +323,12 @@ func (pts *propertyTestState) completeRandomEffect() event {
 
 	switch eff := effect.(type) {
 
-	case effectSpawnEBPFCompilation:
-		if success {
-			return eventProgramCompiled{
-				programID: eff.programID,
-				compiledProgram: &CompiledProgram{
-					IR: &ir.Program{ID: eff.programID},
-				},
-			}
-		} else {
-			return eventProgramCompilationFailed{
-				programID: eff.programID,
-				err:       fmt.Errorf("mock compilation failure"),
-			}
-		}
-
 	case effectSpawnBpfLoading:
 		if success {
 			return eventProgramLoaded{
 				programID: eff.programID,
-				loadedProgram: &loadedProgram{
-					program: &ir.Program{ID: eff.programID},
+				loaded: &loadedProgram{
+					ir: &ir.Program{ID: eff.programID},
 				},
 			}
 		} else {
@@ -357,8 +342,8 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		if success {
 			return eventProgramAttached{
 				program: &attachedProgram{
-					program: &ir.Program{ID: eff.programID},
-					procID:  eff.processID,
+					ir:     &ir.Program{ID: eff.programID},
+					procID: eff.processID,
 				},
 			}
 		} else {

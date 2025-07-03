@@ -5,11 +5,12 @@
 
 //go:build linux_bpf
 
-// Package sm implements the eBPF program stack machine representation and generation.
-package sm
+package compiler
 
 import (
 	"encoding/binary"
+	"fmt"
+	"io"
 
 	"github.com/pkg/errors"
 )
@@ -29,7 +30,7 @@ type CodeSerializer interface {
 	// Optionally comment a function prior to its body.
 	CommentFunction(id FunctionID, pc uint32) error
 	// Serialize an instruction into the output stream.
-	SerializeInstruction(name string, paramBytes []byte, comment string) error
+	SerializeInstruction(opcode Opcode, paramBytes []byte, comment string) error
 }
 
 // GenerateCode generates the byte code and feeds it to CodeSerializer.
@@ -76,6 +77,84 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 	}, nil
 }
 
+// NewDispatchingSerializer creates a CodeSerializer that dispatches to a list of other CodeSerializers.
+func NewDispatchingSerializer(serializers ...CodeSerializer) CodeSerializer {
+	return &dispatchingSerializer{
+		serializers: serializers,
+	}
+}
+
+type dispatchingSerializer struct {
+	serializers []CodeSerializer
+}
+
+// CommentBlock implements CodeSerializer.
+func (s *dispatchingSerializer) CommentBlock(comment string) error {
+	for _, serializer := range s.serializers {
+		if err := serializer.CommentBlock(comment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CommentFunction implements CodeSerializer.
+func (s *dispatchingSerializer) CommentFunction(id FunctionID, pc uint32) error {
+	for _, serializer := range s.serializers {
+		if err := serializer.CommentFunction(id, pc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SerializeInstruction implements CodeSerializer.
+func (s *dispatchingSerializer) SerializeInstruction(opcode Opcode, paramBytes []byte, comment string) error {
+	for _, serializer := range s.serializers {
+		if err := serializer.SerializeInstruction(opcode, paramBytes, comment); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DebugSerializer serializes the stack machine code into human readable format.
+type DebugSerializer struct {
+	Out io.Writer
+}
+
+// CommentBlock implements CodeSerializer.
+func (s *DebugSerializer) CommentBlock(comment string) error {
+	_, err := fmt.Fprintf(s.Out, "// %s\n", comment)
+	return err
+}
+
+// CommentFunction implements CodeSerializer.
+func (s *DebugSerializer) CommentFunction(id FunctionID, pc uint32) error {
+	_, err := fmt.Fprintf(s.Out, "// 0x%x: %s\n", pc, id.String())
+	return err
+}
+
+// SerializeInstruction implements CodeSerializer.
+func (s *DebugSerializer) SerializeInstruction(opcode Opcode, paramBytes []byte, comment string) error {
+	_, err := fmt.Fprintf(s.Out, "\t%s ", opcode.String())
+	if err != nil {
+		return err
+	}
+	for _, b := range paramBytes {
+		_, err := fmt.Fprintf(s.Out, "%02x ", b)
+		if err != nil {
+			return err
+		}
+	}
+	if comment != "" {
+		_, err = fmt.Fprintf(s.Out, "// %s\n", comment)
+	} else {
+		_, err = fmt.Fprintf(s.Out, "\n")
+	}
+	return err
+}
+
 // tracker aggregates information about the final generated code,
 // before it is generated.
 type codeTracker struct {
@@ -119,7 +198,7 @@ func (f functionComment) encode(t codeTracker, out CodeSerializer) error {
 
 // staticInstruction is a code fragment encoding logical ops, with all bytes known apriori.
 type staticInstruction struct {
-	name    string
+	opcode  Opcode
 	bytes   []byte
 	comment string
 }
@@ -130,7 +209,7 @@ func (i staticInstruction) codeByteLen() uint32 {
 }
 
 func (i staticInstruction) encode(_ codeTracker, out CodeSerializer) error {
-	return out.SerializeInstruction(i.name, i.bytes, i.comment)
+	return out.SerializeInstruction(i.opcode, i.bytes, i.comment)
 }
 
 // callInstruction is a custom code fragment for logical CallOp, requiring
@@ -145,7 +224,7 @@ func (i callInstruction) codeByteLen() uint32 {
 
 func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 	si := staticInstruction{
-		name:    "SM_OP_CALL",
+		opcode:  OpcodeCall,
 		bytes:   binary.LittleEndian.AppendUint32(nil, t.functionLoc[i.target]),
 		comment: i.target.String(),
 	}
