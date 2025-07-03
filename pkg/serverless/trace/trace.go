@@ -100,8 +100,6 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 		return nil, err
 	}
 
-	cfg.FunctionTags = l.FunctionTags
-
 	return cfg, nil
 }
 
@@ -112,6 +110,7 @@ type StartServerlessTraceAgentArgs struct {
 	LambdaSpanChan        chan<- *pb.Span
 	ColdStartSpanID       uint64
 	AzureContainerAppTags string
+	FunctionTags          string
 	RCService             *remoteconfig.CoreAgentService
 }
 
@@ -141,6 +140,9 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 				coldStartSpanId: args.ColdStartSpanID,
 				lambdaSpanChan:  args.LambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
+			}
+			ta.TracerPayloadModifier = &tracerPayloadModifier{
+				functionTags: args.FunctionTags,
 			}
 
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime

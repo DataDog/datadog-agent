@@ -129,11 +129,11 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
-	functionTags := serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false))
+	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			functionTags,
+			serverlessTag.ArrayToMap(configuredTags),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -150,6 +150,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
+	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
@@ -172,7 +173,7 @@ var azureContainerAppTags = []string{
 	"aca.replica.name",
 }
 
-func setupTraceAgent(tags map[string]string, functionTags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
 	for _, azureContainerAppTag := range azureContainerAppTags {
 		if value, ok := tags[azureContainerAppTag]; ok {
@@ -181,9 +182,10 @@ func setupTraceAgent(tags map[string]string, functionTags map[string]string, tag
 	}
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, FunctionTags: functionTags, Tagger: tagger},
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {
