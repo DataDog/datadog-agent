@@ -34251,19 +34251,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "mmap.protection":
 		return ev.setUint64FieldValue("mmap.protection", &ev.MMap.Protection, value)
 	case "mmap.retval":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "mmap.retval"}
-		}
-		ev.MMap.SyscallEvent.Retval = int64(rv)
-		return nil
+		return ev.setInt64FieldValue("mmap.retval", &ev.MMap.SyscallEvent.Retval, value)
 	case "mount.detached":
-		rv, ok := value.(bool)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "mount.detached"}
-		}
-		ev.Mount.Mount.Detached = rv
-		return nil
+		return ev.setBoolFieldValue("mount.detached", &ev.Mount.Mount.Detached, value)
 	case "mount.fs_type":
 		return ev.setStringFieldValue("mount.fs_type", &ev.Mount.Mount.FSType, value)
 	case "mount.mountpoint.path":
@@ -34279,19 +34269,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "mount.syscall.mountpoint.path":
 		return ev.setStringFieldValue("mount.syscall.mountpoint.path", &ev.Mount.SyscallContext.StrArg2, value)
 	case "mount.syscall.source.path":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "mount.syscall.source.path"}
-		}
-		ev.Mount.SyscallContext.StrArg1 = rv
-		return nil
+		return ev.setStringFieldValue("mount.syscall.source.path", &ev.Mount.SyscallContext.StrArg1, value)
 	case "mount.visible":
-		rv, ok := value.(bool)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "mount.visible"}
-		}
-		ev.Mount.Mount.Visible = rv
-		return nil
+		return ev.setBoolFieldValue("mount.visible", &ev.Mount.Mount.Visible, value)
 	case "mprotect.req_protection":
 		return ev.setIntFieldValue("mprotect.req_protection", &ev.MProtect.ReqProtection, value)
 	case "mprotect.retval":
