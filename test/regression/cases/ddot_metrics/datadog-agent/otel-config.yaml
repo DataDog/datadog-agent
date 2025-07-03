@@ -35,6 +35,7 @@ processors:
     timeout: 10s
 connectors:
   datadog/connector:
+    trace:
 service:
   pipelines:
     traces:
