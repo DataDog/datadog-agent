@@ -29,8 +29,8 @@ const (
 	// A program is currently in the process of being detached.
 	processStateDetaching
 
-	// The program for this process failed to compile.
-	processStateCompilationFailed
+	// The program for this process failed to load.
+	processStateLoadingFailed
 )
 
 //go:generate go run golang.org/x/tools/cmd/stringer -type=programState -trimprefix=programState
@@ -44,9 +44,6 @@ const (
 	// The program is queued to be compiled.
 	programStateQueued
 
-	// The program IR is being compiled.
-	programStateCompiling
-
 	// The program is being loaded.
 	programStateLoading
 
@@ -57,6 +54,6 @@ const (
 	// for removal.
 	programStateDraining
 
-	// The program compilation was aborted.
-	programStateCompilationAborted
+	// The program loading was aborted.
+	programStateLoadingAborted
 )

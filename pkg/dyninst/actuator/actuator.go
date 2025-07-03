@@ -12,13 +12,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -32,10 +32,6 @@ type Actuator struct {
 	// Channel for sending events to the state machine processing goroutine
 	// This is send-only from the perspective of external API.
 	events chan<- event
-
-	// Pre-created ringbuffer for collecting probe output
-	ringbufMap    *ebpf.Map
-	ringbufReader *ringbuf.Reader
 
 	// Shutdown controls
 	wg sync.WaitGroup
@@ -51,25 +47,9 @@ type Actuator struct {
 func NewActuator(
 	options ...Option,
 ) (*Actuator, error) {
-	cfg := makeConfiguration(options...)
-
-	// Pre-create the ringbuffer that will be shared across all BPF programs.
-	ringbufMap, err := ebpf.NewMap(&ebpf.MapSpec{
-		Name:       compiler.RingbufMapName,
-		Type:       ebpf.RingBuf,
-		MaxEntries: uint32(cfg.ringBufSize),
-	})
+	cfg, err := makeConfiguration(options...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ringbuffer map: %w", err)
-	}
-	ringbufReader, err := ringbuf.NewReader(ringbufMap)
-	if err != nil {
-		if mapCloseErr := ringbufMap.Close(); mapCloseErr != nil {
-			err = fmt.Errorf(
-				"%w (also failed to close ringbuffer map %w)", err, mapCloseErr,
-			)
-		}
-		return nil, fmt.Errorf("failed to create ringbuffer reader: %w", err)
+		return nil, err
 	}
 
 	shutdownCh := make(chan struct{})
@@ -77,8 +57,6 @@ func NewActuator(
 	a := &Actuator{
 		configuration: cfg,
 		events:        eventCh,
-		ringbufMap:    ringbufMap,
-		ringbufReader: ringbufReader,
 		shuttingDown:  shutdownCh,
 	}
 
@@ -112,7 +90,7 @@ func (a *Actuator) runDispatcher() (err error) {
 		}
 
 		rec := recordPool.Get().(*ringbuf.Record)
-		if err := a.ringbufReader.ReadInto(rec); err != nil {
+		if err := a.loader.OutputReader().ReadInto(rec); err != nil {
 			if errors.Is(err, ringbuf.ErrFlushed) {
 				continue
 			}
@@ -160,7 +138,7 @@ func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
 func (a *Actuator) runEventProcessor(eventCh <-chan event, shuttingDownCh chan<- struct{}) {
-	defer a.ringbufReader.Flush()
+	defer a.loader.OutputReader().Flush()
 	state := newState()
 	for !state.isShutdown() {
 		event := <-eventCh
@@ -192,9 +170,8 @@ type effects Actuator
 
 var _ effectHandler = (*effects)(nil)
 
-// compileProgram starts eBPF compilation for an IR program in a background
-// goroutine.
-func (a *effects) compileProgram(
+// loadProgram starts BPF program loading in a background goroutine.
+func (a *effects) loadProgram(
 	programID ir.ProgramID,
 	executable Executable,
 	probes []ir.ProbeDefinition,
@@ -202,40 +179,43 @@ func (a *effects) compileProgram(
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-
-		compiled, err := compileProgram(
-			a.compiler, programID, executable, probes,
-			a.configuration.codegenWriter,
-		)
+		ir, err := generateIR(programID, executable, probes)
 		if err != nil {
-			err = fmt.Errorf("failed to compile eBPF program: %w", err)
-			a.reporter.ReportCompilationFailed(programID, err, probes)
-			a.sendEvent(eventProgramCompilationFailed{
-				programID: programID,
+			a.reporter.ReportIRGenFailed(programID, err, probes)
+			a.sendEvent(eventProgramLoadingFailed{
+				programID: ir.ID,
 				err:       err,
 			})
 			return
 		}
-		a.compiledCallback(compiled)
-		a.sendEvent(eventProgramCompiled{
-			programID:       programID,
-			compiledProgram: compiled,
+		loaded, err := loadProgram(a.loader, ir)
+		if err != nil {
+			a.reporter.ReportLoadingFailed(ir, err)
+			a.sendEvent(eventProgramLoadingFailed{
+				programID: ir.ID,
+				err:       err,
+			})
+			return
+		}
+		a.sendEvent(eventProgramLoaded{
+			programID: ir.ID,
+			loaded: &loadedProgram{
+				program: *loaded,
+				ir:      ir,
+			},
 		})
 	}()
 }
 
-func compileProgram(
-	compiler Compiler,
+func generateIR(
 	programID ir.ProgramID,
-	exe Executable,
+	executable Executable,
 	probes []ir.ProbeDefinition,
-	cwf CodegenWriterFactory,
-) (*CompiledProgram, error) {
-
-	elfFile, err := safeelf.Open(exe.Path)
+) (*ir.Program, error) {
+	elfFile, err := safeelf.Open(executable.Path)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to open executable %s: %w", exe.Path, err,
+			"failed to open executable %s: %w", executable.Path, err,
 		)
 	}
 	defer elfFile.Close()
@@ -243,93 +223,33 @@ func compileProgram(
 	objFile, err := object.NewElfObject(elfFile)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to create object interface for %s: %w", exe.Path, err,
+			"failed to create object interface for %s: %w", executable.Path, err,
 		)
 	}
 
-	irProgram, err := irgen.GenerateIR(programID, objFile, probes)
+	ir, err := irgen.GenerateIR(programID, objFile, probes)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to generate IR for %s: %w", exe.Path, err,
+			"failed to generate IR for %s: %w", executable.Path, err,
 		)
 	}
 
-	// Compile the IR to eBPF
-	extraCodeSink := cwf(irProgram)
-	compiled, err := compiler.Compile(irProgram, extraCodeSink)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to compile eBPF program: %w", err,
-		)
-	}
-
-	return &CompiledProgram{
-		IR:          irProgram,
-		Probes:      probes,
-		CompiledBPF: compiled,
-	}, nil
-}
-
-// loadProgram starts BPF program loading in a background goroutine.
-func (a *effects) loadProgram(compiled *CompiledProgram) {
-	a.wg.Add(1)
-	go func() {
-		defer a.wg.Done()
-
-		loaded, err := loadProgram(a.ringbufMap, compiled)
-		if err != nil {
-			a.reporter.ReportLoadingFailed(compiled.IR, err)
-			a.sendEvent(eventProgramCompilationFailed{
-				programID: compiled.IR.ID,
-				err:       fmt.Errorf("failed to load collection spec: %w", err),
-			})
-		} else {
-			a.sendEvent(eventProgramLoaded{
-				programID:     compiled.IR.ID,
-				loadedProgram: loaded,
-			})
-		}
-	}()
+	return ir, nil
 }
 
 func loadProgram(
-	sharedRingbufMap *ebpf.Map,
-	compiled *CompiledProgram,
-) (*loadedProgram, error) {
-	spec, err := ebpf.LoadCollectionSpecFromReader(compiled.CompiledBPF.Obj)
+	loader Loader,
+	ir *ir.Program,
+) (*loader.Program, error) {
+	program, err := compiler.GenerateProgram(ir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load collection spec: %w", err)
+		return nil, fmt.Errorf("failed to generate program: %w", err)
 	}
-
-	ringbufMapSpec, ok := spec.Maps[compiler.RingbufMapName]
-	if !ok {
-		return nil, fmt.Errorf("ringbuffer map not found in collection spec")
-	}
-	ringbufMapSpec.MaxEntries = defaultRingbufSize
-
-	mapReplacements := map[string]*ebpf.Map{
-		compiler.RingbufMapName: sharedRingbufMap,
-	}
-
-	opts := ebpf.CollectionOptions{
-		MapReplacements: mapReplacements,
-	}
-	bpfCollection, err := ebpf.NewCollectionWithOptions(spec, opts)
+	loaded, err := loader.Load(program)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create BPF collection: %w", err)
+		return nil, fmt.Errorf("failed to load program: %w", err)
 	}
-
-	bpfProg, ok := bpfCollection.Programs[compiled.CompiledBPF.ProgramName]
-	if !ok {
-		return nil, fmt.Errorf("BPF program %s not found in collection", compiled.CompiledBPF.ProgramName)
-	}
-
-	return &loadedProgram{
-		program:      compiled.IR,
-		collection:   bpfCollection,
-		bpfProgram:   bpfProg,
-		attachpoints: compiled.CompiledBPF.Attachpoints,
-	}, nil
+	return loaded, nil
 }
 
 // attachToProcess attaches a loaded program to a specific process.
@@ -344,9 +264,9 @@ func (a *effects) attachToProcess(
 			loaded, executable, processID, a.reporter,
 		)
 		if err != nil {
-			a.reporter.ReportAttachingFailed(processID, loaded.program, err)
+			a.reporter.ReportAttachingFailed(processID, loaded.ir, err)
 			a.sendEvent(eventProgramAttachingFailed{
-				programID: loaded.program.ID,
+				programID: loaded.ir.ID,
 				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 		} else {
@@ -385,12 +305,12 @@ func attachToProcess(
 		return nil, fmt.Errorf("failed to get text section: %w", err)
 	}
 
-	attached := make([]link.Link, 0, len(loaded.attachpoints))
-	for _, attachpoint := range loaded.attachpoints {
+	attached := make([]link.Link, 0, len(loaded.program.Attachpoints))
+	for _, attachpoint := range loaded.program.Attachpoints {
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset
 		l, err := linkExe.Uprobe(
 			"",
-			loaded.bpfProgram,
+			loaded.program.BpfProgram,
 			&link.UprobeOptions{
 				PID:     int(processID.PID),
 				Address: addr,
@@ -420,10 +340,10 @@ func attachToProcess(
 	// does not have any visible impact on the API, but it's still a bit of a
 	// smell. It's not, however, clear that this callback ought to be called on
 	// the state machine goroutine.
-	reporter.ReportAttached(processID, loaded.program)
+	reporter.ReportAttached(processID, loaded.ir)
 
 	return &attachedProgram{
-		program:        loaded.program,
+		ir:             loaded.ir,
 		procID:         processID,
 		executableLink: linkExe,
 		attachedLinks:  attached,
@@ -458,11 +378,11 @@ func (a *effects) detachFromProcess(ap *attachedProgram) {
 		}
 
 		if a.reporter != nil {
-			a.reporter.ReportDetached(ap.procID, ap.program)
+			a.reporter.ReportDetached(ap.procID, ap.ir)
 		}
 
 		a.sendEvent(eventProgramDetached{
-			programID: ap.program.ID,
+			programID: ap.ir.ID,
 			processID: ap.procID,
 		})
 	}()
@@ -485,11 +405,8 @@ func (a *Actuator) shutdown(err error) {
 		a.wg.Wait()
 
 		// Close resources
-		if err := a.ringbufReader.Close(); err != nil {
+		if err := a.loader.Close(); err != nil {
 			log.Errorf("Error closing ringbuffer reader: %v", err)
-		}
-		if err := a.ringbufMap.Close(); err != nil {
-			log.Errorf("Error closing ringbuffer map: %v", err)
 		}
 	})
 }
