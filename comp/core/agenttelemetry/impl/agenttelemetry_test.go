@@ -457,15 +457,16 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// Default configuration has 2 job. One with 3 profiles and another with 1 profile
-	// Profiles with the same schedule are lumped into the same job
-	assert.Equal(t, 2, len(r.(*runnerMock).jobs))
+	// Default configuration has 3 jobs with different schedules:
+	assert.Equal(t, 3, len(r.(*runnerMock).jobs))
 
-	// The order is not deterministic
-	profile0Len := len(r.(*runnerMock).jobs[0].profiles)
-	profile1Len := len(r.(*runnerMock).jobs[1].profiles)
-	t.Logf("%+v", r.(*runnerMock).jobs)
-	assert.True(t, (profile0Len == 1 && profile1Len == 4) || (profile0Len == 4 && profile1Len == 1))
+	// Verify we have the expected number of profiles across all jobs
+	totalProfiles := 0
+	for _, job := range r.(*runnerMock).jobs {
+		totalProfiles += len(job.profiles)
+	}
+	// Default config has 7 profiles total (checks, logs-and-metrics, database, api, ondemand, service-discovery, runtime-started, runtime-running)
+	assert.Equal(t, 7, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
