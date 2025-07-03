@@ -230,7 +230,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
-            check_deadcode_in_ci=True,
+            check_deadcode_in_ci=sys.platform != 'win32',
         )
 
     if embedded_path is None:
