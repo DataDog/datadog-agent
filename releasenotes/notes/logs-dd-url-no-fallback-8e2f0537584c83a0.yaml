@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    No longer have the Logs Agent fall back to TCP when configuring logs_config.logs_dd_url with a http(s):// prefix.
+    No longer have the Logs Agent fall back to TCP when configuring `logs_config.logs_dd_url` with a http(s):// prefix.
