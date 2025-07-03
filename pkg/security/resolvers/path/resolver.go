@@ -49,6 +49,10 @@ func (r *Resolver) ResolveFilePath(e *model.FileFields, _ *model.PIDContext, _ *
 
 // ResolveMountAttributes resolves the mount attributes of the mountpoint of a file
 func (r *Resolver) ResolveMountAttributes(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (bool, bool, error) {
+	if e.IsFileless() {
+		return false, false, nil
+	}
+	
 	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ContainerID)
 	if err != nil {
 		return false, false, err
