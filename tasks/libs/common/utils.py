@@ -239,7 +239,7 @@ def get_build_flags(
         # for pkg/ebpf/compiler on linux
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
     if sys.platform.startswith('linux') and "CI_JOB_NAME" in os.environ and "fips" not in os.environ["CI_JOB_NAME"]:
-        env["GOEXPERIMENT"] = "greenteagc,jsonv2"
+        env["GOEXPERIMENT"] = "jsonv2"
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
