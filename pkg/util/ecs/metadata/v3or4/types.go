@@ -28,12 +28,13 @@ type Task struct {
 	Errors                  []AwsError         `Json:"Errors,Omitempty"`
 }
 
+// AwsError represents errors returned in the payload
 type AwsError struct {
 	ErrorField   string `json:"ErrorField,omitempty"`
 	ErrorCode    string `json:"ErrorCode,omitempty"`
 	ErrorMessage string `json:"ErrorMessage,omitempty"`
 	StatusCode   int    `json:"StatusCode,omitempty"`
-	RequestId    string `json:"RequestId,omitempty"`
+	RequestID    string `json:"RequestId,omitempty"`
 	RequestARN   string `json:"RequestARN,omitempty"`
 }
 
