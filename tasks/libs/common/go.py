@@ -35,6 +35,7 @@ def go_build(
     bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
+    trimpath: bool = True,
 ) -> Result:
     cmd = "go build"
     if mod:
@@ -55,6 +56,8 @@ def go_build(
         cmd += f" -gcflags=\"{gcflags}\""
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
+    if trimpath:
+        cmd += " -trimpath"
 
     cmd += f" {entrypoint}"
 
