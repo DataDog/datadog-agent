@@ -227,7 +227,7 @@ func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
 	// Dynamic interval mode: use capacity-aware logic
 	timeSinceLastRun := start.Sub(c.lastRunTime)
 	// Add a small tolerance (250ms) to account for differences in the check interval and the guaranteed run interval
-	guaranteedIntervalWithTolerance := ConnectionsCheckDefaultInterval - (time.Millisecond * 250)
+	guaranteedIntervalWithTolerance := ConnectionsCheckDefaultInterval - (250 * time.Millisecond)
 	isTimeForGuaranteedRun := c.lastRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
 
 	isNearCapacity := false
