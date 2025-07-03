@@ -1,5 +1,6 @@
 import os
 import sys
+import tarfile
 
 from invoke import Exit
 
@@ -139,9 +140,8 @@ def show_images_content_diff(ctx, url_1, url_2):
     # The downloaded image contains some metadata files and another tar.gz file.
     for src_folder in ["image1", "image2"]:
         ctx.run(f"cd {src_folder} && tar -xf output.tar")
-        image_content = ctx.run(
-            f"tar -tvf {src_folder}/output.tar | awk -F' ' '{{print $6;}}'", hide=True
-        ).stdout.splitlines()
+        with tarfile.open(os.path.join(src_folder, "output.tar"), "r") as output_tar:
+            image_content = output_tar.getnames()
         image_tar_gz = []
         for content in image_content:
             if "tar.gz" in content:
