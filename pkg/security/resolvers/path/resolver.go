@@ -52,7 +52,7 @@ func (r *Resolver) ResolveMountAttributes(e *model.FileFields, pidCtx *model.PID
 	if e.IsFileless() {
 		return false, false, nil
 	}
-	
+
 	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ContainerID)
 	if err != nil {
 		return false, false, err
