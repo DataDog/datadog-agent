@@ -377,23 +377,42 @@ func TestGenerateContainerIDFromInode(t *testing.T) {
 
 func TestDefaultCardinality(t *testing.T) {
 	for _, tt := range []struct {
-		name                  string
-		wantChecksCardinality types.TagCardinality
-		setup                 func(cfg config.Component)
+		name                string
+		expectedCardinality types.TagCardinality
+		setup               func(cfg config.Component)
+		realCardinality     func(tagger *localTagger) types.TagCardinality
 	}{
 		{
-			name:                  "successful parse config values, use config",
-			wantChecksCardinality: types.HighCardinality,
+			name:                "Checks: successful parse config values, use config",
+			expectedCardinality: types.HighCardinality,
 			setup: func(cfg config.Component) {
 				cfg.SetWithoutSource("checks_tag_cardinality", types.HighCardinalityString)
 			},
+			realCardinality: func(tagger *localTagger) types.TagCardinality { return tagger.datadogConfig.checksCardinality },
 		},
 		{
-			name:                  "fail parse config values, use default",
-			wantChecksCardinality: types.LowCardinality,
+			name:                "Checks: fail parse config values, use default",
+			expectedCardinality: types.LowCardinality,
 			setup: func(cfg config.Component) {
 				cfg.SetWithoutSource("checks_tag_cardinality", "foo")
 			},
+			realCardinality: func(tagger *localTagger) types.TagCardinality { return tagger.datadogConfig.checksCardinality },
+		},
+		{
+			name:                "Logs: successful parse config values, use config",
+			expectedCardinality: types.OrchestratorCardinality,
+			setup: func(cfg config.Component) {
+				cfg.SetWithoutSource("logs_tag_cardinality", "orchestrator")
+			},
+			realCardinality: func(tagger *localTagger) types.TagCardinality { return tagger.datadogConfig.logsCardinality },
+		},
+		{
+			name:                "Logs: fail parse config values, use default",
+			expectedCardinality: types.HighCardinality,
+			setup: func(cfg config.Component) {
+				cfg.SetWithoutSource("logs_tag_cardinality", "foo")
+			},
+			realCardinality: func(tagger *localTagger) types.TagCardinality { return tagger.datadogConfig.logsCardinality },
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -410,7 +429,7 @@ func TestDefaultCardinality(t *testing.T) {
 			tagger, err := newLocalTagger(cfg, wmeta, logComponent, noopTelemetry.GetCompatComponent(), nil)
 			assert.NoError(t, err)
 
-			assert.Equal(t, tt.wantChecksCardinality, tagger.datadogConfig.checksCardinality)
+			assert.Equal(t, tt.expectedCardinality, tt.realCardinality(tagger))
 		})
 	}
 }

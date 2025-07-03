@@ -81,6 +81,8 @@ const (
 	NoneCardinality
 	// ChecksConfigCardinality is an internal cardinality that represents the checks_tag_cardinality setting.
 	ChecksConfigCardinality
+	// LogsConfigCardinality is an internal cardinality that represents the logs_tag_cardinality setting.
+	LogsConfigCardinality
 )
 
 // Entity is an entity ID + tags.
@@ -152,6 +154,11 @@ const (
 // StringToTagCardinality extracts a TagCardinality from a string.
 // In case of failure to parse, returns an error and defaults to Low.
 func StringToTagCardinality(c string) (TagCardinality, error) {
+	return StringToTagCardinalityWithDefault(c, LowCardinality)
+}
+
+// StringToTagCardinalityWithDefault extracts a TagCardinality from a string.
+func StringToTagCardinalityWithDefault(c string, defaultCardinality TagCardinality) (TagCardinality, error) {
 	switch strings.ToLower(c) {
 	case HighCardinalityString:
 		return HighCardinality, nil
@@ -162,7 +169,7 @@ func StringToTagCardinality(c string) (TagCardinality, error) {
 	case NoneCardinalityString:
 		return NoneCardinality, nil
 	default:
-		return LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
+		return defaultCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
 	}
 }
 
