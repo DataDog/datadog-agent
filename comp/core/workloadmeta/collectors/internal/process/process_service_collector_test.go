@@ -8,7 +8,6 @@
 package process
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -130,6 +129,14 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 	}
 }
 
+func makeProcessEntityServiceProcessCollectionDisabled(pid int32, name string) *workloadmeta.Process {
+	process := makeProcessEntityService(pid, name)
+	// When process collection is disabled, additional process fields are populated by service collection
+	process.Cmdline = []string{"python", "-m", "myservice"}
+	process.CreationTime = baseTime.Add(-1 * time.Minute)
+	return process
+}
+
 func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []*workloadmeta.Process) {
 	for _, expectedProcess := range expected {
 		if expectedProcess == nil {
@@ -229,6 +236,109 @@ func TestFilterPidsToRequest(t *testing.T) {
 	require.Nil(t, pidsToService[pidStaleService])
 }
 
+func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
+	const collectionInterval = 1 * time.Second
+
+	tests := []struct {
+		name              string
+		shouldError       bool
+		httpResponse      *model.ServicesEndpointResponse
+		alivePids         []int32
+		ignoredPids       []int32
+		existingProcesses []*workloadmeta.Process
+		expectStored      []*workloadmeta.Process
+		pidHeartbeats     map[int32]time.Time
+	}{
+		{
+			name:      "new service discovered",
+			alivePids: []int32{pidNewService},
+			httpResponse: &model.ServicesEndpointResponse{
+				Services: []model.Service{makeModelService(pidNewService, "new-service")},
+			},
+			expectStored: []*workloadmeta.Process{makeProcessEntityServiceProcessCollectionDisabled(pidNewService, "new-service")},
+		},
+		{
+			name:        "http error handled",
+			alivePids:   []int32{pidNewService},
+			shouldError: true,
+		},
+		{
+			name:        "ignored pid skipped",
+			alivePids:   []int32{pidIgnoredService},
+			ignoredPids: []int32{pidIgnoredService},
+			httpResponse: &model.ServicesEndpointResponse{
+				Services: []model.Service{makeModelService(pidIgnoredService, "ignored-service")},
+			},
+		},
+		{
+			name:      "fresh vs stale services",
+			alivePids: []int32{pidFreshService, pidStaleService},
+			existingProcesses: []*workloadmeta.Process{
+				makeProcessEntityServiceProcessCollectionDisabled(pidFreshService, "fresh-existing"),
+				makeProcessEntityServiceProcessCollectionDisabled(pidStaleService, "stale-existing"),
+			},
+			httpResponse: &model.ServicesEndpointResponse{
+				Services: []model.Service{
+					makeModelService(pidStaleService, "stale-service"),
+				},
+			},
+			expectStored: []*workloadmeta.Process{
+				makeProcessEntityServiceProcessCollectionDisabled(pidFreshService, "fresh-existing"),
+				makeProcessEntityServiceProcessCollectionDisabled(pidStaleService, "stale-service"),
+			},
+			pidHeartbeats: map[int32]time.Time{
+				pidFreshService: baseTime.Add(-5 * time.Minute),
+				pidStaleService: baseTime.Add(-20 * time.Minute),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := setUpCollectorTest(t, nil, nil, nil)
+			ctx := t.Context()
+
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
+
+			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
+			c.collector.sysProbeClient = sysprobeclient.Get(socketPath)
+
+			for _, pid := range tc.ignoredPids {
+				c.collector.ignoredPids.Add(pid)
+			}
+
+			for _, process := range tc.existingProcesses {
+				c.mockStore.Set(process)
+			}
+
+			c.mockClock.Set(baseTime)
+
+			if tc.pidHeartbeats != nil {
+				c.collector.pidHeartbeats = tc.pidHeartbeats
+			}
+
+			// TODO: we should use Start() instead of these lines below when configuration is sorted as Start() is currently
+			// by default disabled
+			// Only start collectServicesDefault and stream (not collectProcesses) since process collection is disabled
+			c.collector.containerProvider = c.mockContainerProvider
+			c.collector.store = c.mockStore
+			go c.collector.collectServicesNoCache(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.stream(ctx)
+
+			// Mock processProbe.ProcessesByPID to be called directly by collectServicesDefault
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(makeProcessMap(tc.alivePids...), nil).Maybe()
+
+			// Trigger service collection
+			c.mockClock.Add(collectionInterval)
+
+			assertStoredServices(t, c.mockStore, tc.expectStored)
+
+			// When process collection is disabled, ignored PIDs and error cases don't create process entities
+			// since they only get created when services are successfully discovered
+		})
+	}
+}
+
 func TestServiceStoreLifetime(t *testing.T) {
 	const collectionInterval = 1 * time.Second
 
@@ -292,8 +402,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Collector setup
 			c := setUpCollectorTest(t, nil, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
+			ctx := t.Context()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
 			// Create test server & override collector client
@@ -323,7 +432,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
 			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.collectServices(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectServicesCached(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(makeProcessMap(tc.alivePids...), nil).Maybe()

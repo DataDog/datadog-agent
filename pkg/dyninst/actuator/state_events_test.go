@@ -29,19 +29,6 @@ func TestEventStringer(t *testing.T) {
 			wantStr: "eventProcessesUpdated{updated: 1, removed: 1}",
 		},
 		{
-			ev: eventProgramCompiled{
-				programID: 1,
-			},
-			wantStr: "eventProgramCompiled{programID: 1}",
-		},
-		{
-			ev: eventProgramCompilationFailed{
-				programID: 1,
-				err:       errors.New("compile error"),
-			},
-			wantStr: `eventProgramCompilationFailed{programID: 1, err: compile error}`,
-		},
-		{
 			ev: eventProgramLoaded{
 				programID: 1,
 			},
@@ -57,8 +44,8 @@ func TestEventStringer(t *testing.T) {
 		{
 			ev: eventProgramAttached{
 				program: &attachedProgram{
-					program: &ir.Program{ID: 1},
-					procID:  ProcessID{PID: 100},
+					ir:     &ir.Program{ID: 1},
+					procID: ProcessID{PID: 100},
 				},
 			},
 			wantStr: "eventProgramAttached{programID: 1, processID: {PID:100}}",
