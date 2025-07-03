@@ -4,9 +4,8 @@ name: "Label analysis"
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    branches:
-      - main
-      - "[0-9]+.[0-9]+.x"
+    branches-ignore:
+      - '*'
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

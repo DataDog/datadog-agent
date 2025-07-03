@@ -2,6 +2,8 @@ name: "Serverless Binary Size"
 
 on:
   pull_request:
+    branches-ignore:
+      - '*'
     paths:
       - 'cmd/serverless/**'
       - 'cmd/serverless-init/**'
