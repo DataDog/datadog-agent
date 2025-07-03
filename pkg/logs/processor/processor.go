@@ -267,7 +267,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
-		if rule.Regex != nil {
+		if rule.Regex != nil || (rule.Regex == nil && rule.Type == config.ExcludeTruncated) {
 			switch rule.Type {
 			case config.ExcludeAtMatch:
 				// if this message matches, we ignore it
