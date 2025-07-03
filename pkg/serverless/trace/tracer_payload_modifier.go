@@ -43,7 +43,7 @@ func (t *tracerPayloadModifier) ensureFunctionTags(tp *pb.TracerPayload) {
 		tp.Tags = make(map[string]string)
 	}
 
-	if existingFunctionTags, ok := tp.Tags[tagFunctionTags]; ok {
+	if existingFunctionTags, ok := tp.Tags[tagFunctionTags]; ok && existingFunctionTags != t.functionTags {
 		log.Debugf("The trace payload already has function tags '%v'. Replacing them with '%v'.",
 			existingFunctionTags,
 			t.functionTags,
