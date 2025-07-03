@@ -262,7 +262,7 @@ const (
 type MountSource = uint32
 
 const (
-	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
 	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
@@ -274,6 +274,24 @@ var MountSources = [...]string{
 	"mount_id",
 	"device",
 	"snapshot",
+}
+
+// MountEventSource source of the mount
+type MountEventSource = uint32
+
+const (
+	MountEventSourceInvalid MountEventSource = iota
+	MountEventSourceMountSyscall
+	MountEventSourceFsmountSyscall
+	MountEventSourceOpenTreeSyscall
+)
+
+// MountEventSources defines mount sources
+var MountEventSources = [...]string{
+	"invalid",
+	"mount",
+	"fsmount",
+	"open_tree",
 }
 
 // MountSourceToString returns the string corresponding to a mount source
