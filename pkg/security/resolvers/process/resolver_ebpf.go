@@ -766,7 +766,10 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
-
+	fileEvent.MountVisible, fileEvent.MountDetached, err = p.pathResolver.ResolveMountAttributes(&fileEvent.FileFields, &pce.PIDContext, ctrCtx)
+	if err != nil {
+		return onError(pathnameStr, err)
+	}
 	return fileEvent.PathnameStr, nil
 }
 

@@ -78,6 +78,8 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		Path:          mnt.Mountpoint,
 		RootStr:       root,
 		Origin:        model.MountOriginProcfs,
+		Visible:       true,
+		Detached:      false,
 	}
 }
 
