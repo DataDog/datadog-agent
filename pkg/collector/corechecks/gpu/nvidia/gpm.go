@@ -160,7 +160,7 @@ func (c *gpmCollector) freeSamples() {
 // example: lastSample, secondToLastSample = getLastTwoSamples
 func (c *gpmCollector) getLastTwoSamples() (nvml.GpmSample, nvml.GpmSample) {
 	// Treat c.samples as a circular buffer, so we can get the last two samples by using the current index
-	// and substracting from that.
+	// and subtracting from that.
 	// add sampleBufferSize to avoid negative indices.
 	lastCollected := (c.nextSampleToCollect - 1 + sampleBufferSize) % sampleBufferSize
 	secondLastCollected := (c.nextSampleToCollect - 2 + sampleBufferSize) % sampleBufferSize
