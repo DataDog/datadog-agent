@@ -45,7 +45,7 @@ const (
 	collectorID               = "process-collector"
 	componentName             = "workloadmeta-process"
 	cacheValidityNoRT         = 2 * time.Second
-	serviceCollectionInterval = 60 * time.Second // TODO: this should be made configurable in the future
+	serviceCollectionInterval = 10 * time.Second // TODO: this should be made configurable in the future
 
 	// Service discovery constants
 	maxPortCheckTries = 10
