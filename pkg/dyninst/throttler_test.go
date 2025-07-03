@@ -19,11 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 func TestThrottler(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
@@ -53,12 +54,16 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	// Practically infinite period, with specific event count.
 	require.Equal(t, 1, len(irp.Probes))
 	expectedEvents := 7
-	irp.Probes[0].ThrottlePeriodMs = 1000 * 1000
-	irp.Probes[0].ThrottleBudget = int64(expectedEvents)
+
+	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
+		ProbeDefinition: irp.Probes[0].ProbeDefinition,
+		periodMs:        1000 * 1000,
+		budget:          int64(expectedEvents),
+	}
 
 	// Compile the IR and prepare the BPF program.
-	t.Logf("compiling BPF")
-	bpfCollection, bpfProg, attachpoints, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
+	t.Logf("loading BPF")
+	program, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
 	defer cleanup()
 
 	// Launch the sample service, inject the BPF program and collect the output.
@@ -70,7 +75,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
 	cleanup = dyninsttest.AttachBPFProbes(
-		t, busyloopPath, obj, sampleProc.Process.Pid, bpfProg, attachpoints,
+		t, busyloopPath, obj, sampleProc.Process.Pid, program,
 	)
 	defer cleanup()
 	defer func() {
@@ -80,7 +85,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	sampleStdin.Write([]byte("\n"))
 
 	// Read expected number of events.
-	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
+	rd, err := ringbuf.NewReader(program.Collection.Maps["out_ringbuf"])
 	require.NoError(t, err)
 	rd.SetDeadline(time.Now().Add(10 * time.Second))
 	for range expectedEvents {
@@ -91,9 +96,9 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Check there are no more events after a short delay.
 	rd.SetDeadline(time.Now().Add(10 * time.Millisecond))
-	_, err = rd.Read()
+	v, err := rd.Read()
 	log.Printf("err: %v", err)
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "expected deadline exceeded, got %#+v, %#+v", err, v)
 }
 
 func refreshesBudget(t *testing.T, busyloopPath string) {
@@ -107,12 +112,15 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	// Adjust throttling parameters.
 	// Small period, and budget.
 	require.Equal(t, 1, len(irp.Probes))
-	irp.Probes[0].ThrottlePeriodMs = 1
-	irp.Probes[0].ThrottleBudget = 2
+	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
+		ProbeDefinition: irp.Probes[0].ProbeDefinition,
+		periodMs:        1,
+		budget:          2,
+	}
 
 	// Compile the IR and prepare the BPF program.
 	t.Logf("compiling BPF")
-	bpfCollection, bpfProg, attachpoints, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
+	program, cleanup := dyninsttest.CompileAndLoadBPF(t, tempDir, irp)
 	defer cleanup()
 
 	// Launch the sample service, inject the BPF program and collect the output.
@@ -123,7 +131,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 		ctx, t, tempDir, busyloopPath,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
-	cleanup = dyninsttest.AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, bpfProg, attachpoints)
+	cleanup = dyninsttest.AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, program)
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
@@ -132,7 +140,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	sampleStdin.Write([]byte("\n"))
 
 	// We should be able to observe multiple events.
-	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
+	rd, err := ringbuf.NewReader(program.Collection.Maps["out_ringbuf"])
 	require.NoError(t, err)
 	rd.SetDeadline(time.Now().Add(10 * time.Second))
 	for range 12 {
@@ -140,4 +148,22 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 		_, err := rd.Read()
 		require.NoError(t, err)
 	}
+}
+
+type overriddenThrottle struct {
+	ir.ProbeDefinition
+	periodMs uint32
+	budget   int64
+}
+
+func (o *overriddenThrottle) GetThrottleConfig() ir.ThrottleConfig {
+	return o
+}
+
+func (o *overriddenThrottle) GetThrottlePeriodMs() uint32 {
+	return o.periodMs
+}
+
+func (o *overriddenThrottle) GetThrottleBudget() int64 {
+	return o.budget
 }

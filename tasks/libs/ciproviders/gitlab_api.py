@@ -1300,7 +1300,7 @@ def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comme
         yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
 
 
-def update_gitlab_config(file_path, tag, images="", test=True, update=True):
+def update_gitlab_config(file_path, tag, images="", test=True, update=True, windows=False):
     """
     Override variables in .gitlab-ci.yml file.
     """
@@ -1310,7 +1310,7 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     gitlab_ci = yaml.safe_load("".join(file_content))
     variables = gitlab_ci['variables']
     # Select the buildimages prefixed with CI_IMAGE matchins input images list
-    images_to_update = list(find_buildimages(variables, images))
+    images_to_update = list(find_buildimages(variables, images, windows=windows))
     if update:
         output = update_image_tag(file_content, tag, images_to_update, test=test)
         with open(file_path, "w") as gl:
@@ -1318,7 +1318,7 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     return images_to_update
 
 
-def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
+def find_buildimages(variables, images="", prefix="CI_IMAGE_", windows=False):
     """
     Select the buildimages variables to update.
     With default values, the former CI_IMAGE_ variables are updated.
@@ -1330,6 +1330,8 @@ def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
             and variable.endswith(suffix)
             and any(image in variable.casefold() for image in images.casefold().split(","))
         ):
+            if 'WIN' in variable and not windows:
+                continue
             yield variable.removesuffix(suffix)
 
 
