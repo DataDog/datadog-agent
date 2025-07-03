@@ -301,13 +301,14 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
+		log.Infof("Using UDS listener at %s", path)
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			var ln net.Listener
 			var err error
 			if unixFDStr, ok := os.LookupEnv("DD_APM_UNIX_RECEIVER_FD"); ok {
 				//TODO handle error properly
 				unixFD, _ := strconv.Atoi(unixFDStr)
-				log.Infof("TCP listener: using provided file descriptor %d", unixFD)
+				log.Infof("UDS listener: using provided file descriptor %d", unixFD)
 				f := os.NewFile(uintptr(unixFD), "unix_conn")
 				//TODO: handle f.Close()
 				//TODO: handle error properly
@@ -381,14 +382,14 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 		// put a new file at the same path.
 		unixLn.SetUnlinkOnClose(false)
 	}
+	if err := os.Chmod(path, 0o722); err != nil {
+		return nil, fmt.Errorf("error setting socket permissions: %v", err)
+	}
 
 	return r.listenUnixListener(path, ln)
 }
 
-func (r *HTTPReceiver) listenUnixListener(path string, ln net.Listener) (net.Listener, error) {
-	if err := os.Chmod(path, 0o722); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
+func (r *HTTPReceiver) listenUnixListener(_path string, ln net.Listener) (net.Listener, error) {
 	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections, r.statsd), nil
 }
 

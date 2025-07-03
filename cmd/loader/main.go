@@ -47,7 +47,13 @@ func main() {
 		execOrExit(os.Environ())
 	}
 
-	logparams := logdef.ForOneShot("TRACE-LOADER", cfg.GetString("log_level"), false)
+	// comp/trace/config/config*.go
+	logFile := "/var/log/datadog/trace-agent.log"
+	if runtime.GOOS == "darwin" {
+		logFile = "/opt/datadog-agent/logs/trace-agent.log"
+	}
+	// cmd/trace-agent/subcommands/run/command.go
+	logparams := logdef.ForDaemon("TRACE-LOADER", "apm_config.log_file", logFile)
 	err = pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName(logparams.LoggerName()),
 		logparams.LogLevelFn(cfg),
