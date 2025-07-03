@@ -163,6 +163,10 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
         .source = SOURCE_OPEN_TREE
     };
 
+    if (syscall->type == EVENT_FSMOUNT) {
+        event.source = SOURCE_FSMOUNT;
+    }
+
     fill_mount_fields(syscall, &event.mountfields);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
@@ -522,32 +526,8 @@ HOOK_SYSCALL_EXIT(fsmount) {
         return 0;
     }
 
-    struct mount_event_t event = {
-        .syscall.retval = SYSCALL_PARMRET(ctx),
-        .source = SOURCE_FSMOUNT,
-    };
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, true);
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
-
-    if(event.syscall.retval >= 0) {
-        struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
-        event.mountfields.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
-        event.mountfields.root_key.ino = get_dentry_ino(root_dentry);
-        update_path_id(&syscall->mount.root_key, 0);
-
-        struct super_block *sb = get_dentry_sb(root_dentry);
-        struct file_system_type *s_type = get_super_block_fs(sb);
-        bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
-
-        // populate the device of the new mount
-        event.mountfields.device = get_mount_dev(syscall->mount.newmnt);
-        event.mountfields.params.detached = true;
-        event.mountfields.params.visible = false;
-    }
-
-    send_event(ctx, EVENT_MOUNT, event);
     return 0;
 }
 
