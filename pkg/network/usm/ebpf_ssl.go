@@ -480,7 +480,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		EbpfConfig:                     &c.Config,
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
-		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 		EnableDetailedLogging:          false,
 	}
 

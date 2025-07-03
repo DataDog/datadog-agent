@@ -152,7 +152,7 @@ func checkPidExistsInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.M
 		require.NoError(t, err)
 
 		assert.Eventually(t, func() bool {
-			return findKeyInMap[uint64, any](m, key)
+			return findKeyInMap[uint64](m, key)
 		}, 1*time.Second, 100*time.Millisecond)
 		if t.Failed() {
 			t.Logf("pid '%d' not found in the map %q", pid, mapInfo.Name)
@@ -172,7 +172,7 @@ func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf
 		mapInfo, err := m.Info()
 		require.NoError(t, err)
 
-		if findKeyInMap[uint64, any](m, key) {
+		if findKeyInMap[uint64](m, key) {
 			t.Logf("pid '%d' was found in the map %q", pid, mapInfo.Name)
 			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
 			t.FailNow()
@@ -181,17 +181,9 @@ func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf
 }
 
 // findKeyInMap is a generic helper to find a key in an eBPF map.
-func findKeyInMap[K comparable, V any](m *ebpf.Map, theKey K) bool {
-	var key K
-	var value V
-	iter := m.Iterate()
-
-	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-		if key == theKey {
-			return true
-		}
-	}
-	return false
+func findKeyInMap[K comparable](m *ebpf.Map, theKey K) bool {
+	val := make([]byte, m.ValueSize())
+	return m.Lookup(unsafe.Pointer(&theKey), unsafe.Pointer(&val)) == nil
 }
 
 // startDummyProgram starts sleeping thread.
@@ -218,8 +210,6 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestSSLMapsCleanup(t *testing.T) {
-	t.Skip("Skipping a flaky test")
-
 	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
 		t.Skip("TLS not supported for this setup")
 	}
