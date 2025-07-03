@@ -452,20 +452,20 @@ func TestSequenceID(t *testing.T) {
 
 	assert.Equal(t, uint64(0), config.GetSequenceID())
 
-	config.Set("foo", "bar", model.SourceFile)
+	config.Set("foo", "bar", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(1), config.GetSequenceID())
 
-	config.Set("foo", "baz", model.SourceFile)
+	config.Set("foo", "baz", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(2), config.GetSequenceID())
 
 	// Setting the same value does not update the sequence ID
-	config.Set("foo", "baz", model.SourceFile)
+	config.Set("foo", "baz", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(2), config.GetSequenceID())
 
 	// Does not update the sequence ID since the source does not match
-	config.UnsetForSource("foo", model.SourceAgentRuntime)
+	config.UnsetForSource("foo", model.SourceCLI)
 	assert.Equal(t, uint64(2), config.GetSequenceID())
 
-	config.UnsetForSource("foo", model.SourceFile)
+	config.UnsetForSource("foo", model.SourceAgentRuntime)
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
