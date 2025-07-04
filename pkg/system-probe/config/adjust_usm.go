@@ -19,9 +19,6 @@ const (
 
 func adjustUSM(cfg model.Config) {
 	if cfg.GetBool(smNS("enabled")) {
-		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
-		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
-
 		applyDefault(cfg, discoveryNS("enabled"), true)
 	}
 
