@@ -32,10 +32,7 @@ func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerat
 
 func (node *FlowNode) evictImageTag(imageTag string) bool {
 	node.EvictImageTag(imageTag)
-	if node.IsEmpty() {
-		return true
-	}
-	return false
+	return node.IsEmpty()
 }
 
 func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTag string) {

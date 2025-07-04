@@ -58,14 +58,13 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
 		fan.AppendImageTag(imageTag, event.ResolveEventTime())
-	} 
+	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
-	
 	fan.enrichFromEvent(event)
 	return fan
 }
@@ -208,4 +207,3 @@ func (fn *FileNode) evictImageTag(imageTag string) bool {
 	}
 	return false
 }
-

@@ -68,7 +68,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
 	}
 	node.NodeBase = NewNodeBase()
-	
+
 	return node
 }
 
@@ -215,13 +215,13 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize b
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
-func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {	
+func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
 			if existingSyscall.Syscall == int(newSyscall) {
-					existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime()) //moved the verification to Record function
+				existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime()) //moved the verification to Record function
 				continue newSyscallLoop
 			}
 		}
@@ -231,7 +231,7 @@ newSyscallLoop:
 			// exit early
 			break
 		}
-		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall),e.ResolveEventTime(), imageTag, Runtime))
+		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall), e.ResolveEventTime(), imageTag, Runtime))
 		syscallMask[int(newSyscall)] = int(newSyscall)
 		stats.SyscallNodes++
 	}
@@ -371,7 +371,6 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false
 	}
-	
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
 
@@ -392,14 +391,14 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind,evt, imageTag, generationType, evt.Rules, dryRun) {
+	if sock.InsertBindEvent(&evt.Bind, evt, imageTag, generationType, evt.Rules, dryRun) {
 		newNode = true
 	}
 
 	return newNode
 }
 
-func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string,timestamp time.Time) {
+func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string, timestamp time.Time) {
 	if pn.HasImageTag(imageTag) {
 		return
 	}
@@ -412,14 +411,14 @@ func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string,timestamp 
 }
 
 // TagAllNodes tags this process, its files/dns/socks and childrens with the given image tag
-func (pn *ProcessNode) TagAllNodes(imageTag string,timestamp time.Time) {
+func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 	if imageTag == "" {
 		return
 	}
 
 	pn.AppendImageTag(imageTag, timestamp)
 	for _, file := range pn.Files {
-		file.tagAllNodes(imageTag,timestamp)
+		file.tagAllNodes(imageTag, timestamp)
 	}
 	for _, dns := range pn.DNSNames {
 		dns.AppendImageTag(imageTag, timestamp)
@@ -434,10 +433,10 @@ func (pn *ProcessNode) TagAllNodes(imageTag string,timestamp time.Time) {
 		imds.AppendImageTag(imageTag, timestamp)
 	}
 	for _, device := range pn.NetworkDevices {
-		device.appendImageTag(imageTag,timestamp) // The used appendImageTag here is a private method of NetworkDeviceNode
+		device.appendImageTag(imageTag, timestamp) // The used appendImageTag here is a private method of NetworkDeviceNode
 	}
 	for _, child := range pn.Children {
-		child.TagAllNodes(imageTag,timestamp)
+		child.TagAllNodes(imageTag, timestamp)
 	}
 }
 
