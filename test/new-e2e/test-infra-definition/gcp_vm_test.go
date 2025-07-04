@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package examples
+package testinfradefinition
 
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/gcp/host/linux"
 
@@ -27,8 +28,15 @@ func TestGCPVMSuite(t *testing.T) {
 
 func (v *gcpVMSuite) TestExecute() {
 	vm := v.Env().RemoteHost
-	uptimeMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.uptime")
-	fmt.Println(uptimeMetrics)
+	for i := 0; i < 10; i++ {
+		uptimeMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.uptime")
+		v.Require().NoError(err)
+		fmt.Println(uptimeMetrics)
+		if len(uptimeMetrics) > 0 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 	out, err := vm.Execute("whoami")
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
