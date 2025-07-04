@@ -370,7 +370,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 12 + argsEnvSize, nil
 }
 
-// UnmarshalBinary unmarshaMountEventSourceMountSyscallls the given content
+// UnmarshalBinary unmarshals the given content
 func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData

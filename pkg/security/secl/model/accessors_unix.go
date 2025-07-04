@@ -504,12 +504,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "cgroup_write.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.CgroupWrite.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "cgroup_write.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.CgroupWrite.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.CgroupWrite.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -739,12 +761,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "chdir.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Chdir.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "chdir.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Chdir.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Chdir.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1007,12 +1051,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "chmod.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Chmod.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "chmod.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Chmod.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Chmod.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1308,12 +1374,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "chown.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Chown.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "chown.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Chown.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Chown.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2246,6 +2334,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exec.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2255,6 +2357,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Exec.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exec.Process.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2590,6 +2706,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Exec.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2599,6 +2729,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Exec.Process.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3297,6 +3441,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exit.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3306,6 +3464,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Exit.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exit.Process.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3641,6 +3813,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Exit.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3650,6 +3836,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Exit.Process.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4123,12 +4323,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.destination.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Link.Target.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.destination.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Link.Target.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Link.Target.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4336,12 +4558,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Link.Source.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Link.Source.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Link.Source.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4626,12 +4870,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "load_module.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.LoadModule.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "load_module.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.LoadModule.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.LoadModule.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4905,12 +5171,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "mkdir.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Mkdir.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "mkdir.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Mkdir.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Mkdir.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5162,12 +5450,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "mmap.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.MMap.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "mmap.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.MMap.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.MMap.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6184,12 +6494,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "open.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Open.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "open.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Open.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Open.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7420,6 +7752,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -7447,6 +7811,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -8208,6 +8604,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.interpreter.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8235,6 +8663,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -9265,6 +9725,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9274,6 +9748,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Process.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9609,6 +10097,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9618,6 +10120,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -10283,6 +10799,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10295,6 +10828,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -10699,6 +11249,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10711,6 +11278,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -12079,6 +12663,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -12106,6 +12722,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -12867,6 +13515,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -12894,6 +13574,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -13924,6 +14636,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13933,6 +14659,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.PTrace.Tracee.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Process.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -14268,6 +15008,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return false
+				}
+				return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -14277,6 +15031,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return false
+				}
+				return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -14942,6 +15710,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -14954,6 +15739,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15358,6 +16160,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15370,6 +16189,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15925,12 +16761,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "removexattr.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.RemoveXAttr.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "removexattr.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.RemoveXAttr.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.RemoveXAttr.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -16171,12 +17029,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.destination.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Rename.New.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.destination.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Rename.New.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Rename.New.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -16384,12 +17264,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Rename.Old.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Rename.Old.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Rename.Old.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -16641,12 +17543,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "rmdir.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Rmdir.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "rmdir.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Rmdir.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Rmdir.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17854,6 +18778,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -17881,6 +18837,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -18642,6 +19630,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -18669,6 +19689,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -19699,6 +20751,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -19708,6 +20774,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Process.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20043,6 +21123,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20052,6 +21146,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -20717,6 +21825,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20729,6 +21854,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -21133,6 +22275,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -21145,6 +22304,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -21799,12 +22975,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setxattr.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetXAttr.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setxattr.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.SetXAttr.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetXAttr.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -22869,6 +24067,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -22896,6 +24126,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -23657,6 +24919,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.interpreter.file.mount_detached":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -23684,6 +24978,38 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
 				})
 				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.mount_visible":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return current.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible
+				})
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -24714,6 +26040,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Process.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -24723,6 +26063,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Signal.Target.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Process.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25058,6 +26412,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Signal.Target.Process.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -25067,6 +26435,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return false
+				}
+				return ev.Signal.Target.Process.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -25732,6 +27114,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Parent.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -25744,6 +27143,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Signal.Target.Parent.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Parent.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -26148,6 +27564,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.interpreter.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -26160,6 +27593,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -26704,12 +28154,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "splice.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Splice.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "splice.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Splice.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Splice.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -27049,12 +28521,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "unlink.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Unlink.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "unlink.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Unlink.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Unlink.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -27350,12 +28844,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "utimes.file.mount_detached":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Utimes.File.MountDetached
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "utimes.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Utimes.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.mount_visible":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Utimes.File.MountVisible
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -27539,7 +29055,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup_write.file.inode",
 		"cgroup_write.file.mode",
 		"cgroup_write.file.modification_time",
+		"cgroup_write.file.mount_detached",
 		"cgroup_write.file.mount_id",
+		"cgroup_write.file.mount_visible",
 		"cgroup_write.file.name",
 		"cgroup_write.file.name.length",
 		"cgroup_write.file.package.name",
@@ -27560,7 +29078,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"chdir.file.inode",
 		"chdir.file.mode",
 		"chdir.file.modification_time",
+		"chdir.file.mount_detached",
 		"chdir.file.mount_id",
+		"chdir.file.mount_visible",
 		"chdir.file.name",
 		"chdir.file.name.length",
 		"chdir.file.package.name",
@@ -27584,7 +29104,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.inode",
 		"chmod.file.mode",
 		"chmod.file.modification_time",
+		"chmod.file.mount_detached",
 		"chmod.file.mount_id",
+		"chmod.file.mount_visible",
 		"chmod.file.name",
 		"chmod.file.name.length",
 		"chmod.file.package.name",
@@ -27611,7 +29133,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.file.inode",
 		"chown.file.mode",
 		"chown.file.modification_time",
+		"chown.file.mount_detached",
 		"chown.file.mount_id",
+		"chown.file.mount_visible",
 		"chown.file.name",
 		"chown.file.name.length",
 		"chown.file.package.name",
@@ -27693,7 +29217,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.metadata.type",
 		"exec.file.mode",
 		"exec.file.modification_time",
+		"exec.file.mount_detached",
 		"exec.file.mount_id",
+		"exec.file.mount_visible",
 		"exec.file.name",
 		"exec.file.name.length",
 		"exec.file.package.name",
@@ -27719,7 +29245,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.interpreter.file.inode",
 		"exec.interpreter.file.mode",
 		"exec.interpreter.file.modification_time",
+		"exec.interpreter.file.mount_detached",
 		"exec.interpreter.file.mount_id",
+		"exec.interpreter.file.mount_visible",
 		"exec.interpreter.file.name",
 		"exec.interpreter.file.name.length",
 		"exec.interpreter.file.package.name",
@@ -27778,7 +29306,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.file.inode",
 		"exit.file.mode",
 		"exit.file.modification_time",
+		"exit.file.mount_detached",
 		"exit.file.mount_id",
+		"exit.file.mount_visible",
 		"exit.file.name",
 		"exit.file.name.length",
 		"exit.file.package.name",
@@ -27804,7 +29334,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.interpreter.file.inode",
 		"exit.interpreter.file.mode",
 		"exit.interpreter.file.modification_time",
+		"exit.interpreter.file.mount_detached",
 		"exit.interpreter.file.mount_id",
+		"exit.interpreter.file.mount_visible",
 		"exit.interpreter.file.name",
 		"exit.interpreter.file.name.length",
 		"exit.interpreter.file.package.name",
@@ -27845,7 +29377,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.destination.inode",
 		"link.file.destination.mode",
 		"link.file.destination.modification_time",
+		"link.file.destination.mount_detached",
 		"link.file.destination.mount_id",
+		"link.file.destination.mount_visible",
 		"link.file.destination.name",
 		"link.file.destination.name.length",
 		"link.file.destination.package.name",
@@ -27864,7 +29398,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.inode",
 		"link.file.mode",
 		"link.file.modification_time",
+		"link.file.mount_detached",
 		"link.file.mount_id",
+		"link.file.mount_visible",
 		"link.file.name",
 		"link.file.name.length",
 		"link.file.package.name",
@@ -27890,7 +29426,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"load_module.file.inode",
 		"load_module.file.mode",
 		"load_module.file.modification_time",
+		"load_module.file.mount_detached",
 		"load_module.file.mount_id",
+		"load_module.file.mount_visible",
 		"load_module.file.name",
 		"load_module.file.name.length",
 		"load_module.file.package.name",
@@ -27915,7 +29453,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.inode",
 		"mkdir.file.mode",
 		"mkdir.file.modification_time",
+		"mkdir.file.mount_detached",
 		"mkdir.file.mount_id",
+		"mkdir.file.mount_visible",
 		"mkdir.file.name",
 		"mkdir.file.name.length",
 		"mkdir.file.package.name",
@@ -27938,7 +29478,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.file.inode",
 		"mmap.file.mode",
 		"mmap.file.modification_time",
+		"mmap.file.mount_detached",
 		"mmap.file.mount_id",
+		"mmap.file.mount_visible",
 		"mmap.file.name",
 		"mmap.file.name.length",
 		"mmap.file.package.name",
@@ -28013,7 +29555,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.file.inode",
 		"open.file.mode",
 		"open.file.modification_time",
+		"open.file.mount_detached",
 		"open.file.mount_id",
+		"open.file.mount_visible",
 		"open.file.name",
 		"open.file.name.length",
 		"open.file.package.name",
@@ -28075,7 +29619,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.file.inode",
 		"process.ancestors.file.mode",
 		"process.ancestors.file.modification_time",
+		"process.ancestors.file.mount_detached",
 		"process.ancestors.file.mount_id",
+		"process.ancestors.file.mount_visible",
 		"process.ancestors.file.name",
 		"process.ancestors.file.name.length",
 		"process.ancestors.file.package.name",
@@ -28101,7 +29647,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.interpreter.file.inode",
 		"process.ancestors.interpreter.file.mode",
 		"process.ancestors.interpreter.file.modification_time",
+		"process.ancestors.interpreter.file.mount_detached",
 		"process.ancestors.interpreter.file.mount_id",
+		"process.ancestors.interpreter.file.mount_visible",
 		"process.ancestors.interpreter.file.name",
 		"process.ancestors.interpreter.file.name.length",
 		"process.ancestors.interpreter.file.package.name",
@@ -28158,7 +29706,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.inode",
 		"process.file.mode",
 		"process.file.modification_time",
+		"process.file.mount_detached",
 		"process.file.mount_id",
+		"process.file.mount_visible",
 		"process.file.name",
 		"process.file.name.length",
 		"process.file.package.name",
@@ -28184,7 +29734,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.interpreter.file.inode",
 		"process.interpreter.file.mode",
 		"process.interpreter.file.modification_time",
+		"process.interpreter.file.mount_detached",
 		"process.interpreter.file.mount_id",
+		"process.interpreter.file.mount_visible",
 		"process.interpreter.file.name",
 		"process.interpreter.file.name.length",
 		"process.interpreter.file.package.name",
@@ -28231,7 +29783,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.file.inode",
 		"process.parent.file.mode",
 		"process.parent.file.modification_time",
+		"process.parent.file.mount_detached",
 		"process.parent.file.mount_id",
+		"process.parent.file.mount_visible",
 		"process.parent.file.name",
 		"process.parent.file.name.length",
 		"process.parent.file.package.name",
@@ -28257,7 +29811,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.interpreter.file.inode",
 		"process.parent.interpreter.file.mode",
 		"process.parent.interpreter.file.modification_time",
+		"process.parent.interpreter.file.mount_detached",
 		"process.parent.interpreter.file.mount_id",
+		"process.parent.interpreter.file.mount_visible",
 		"process.parent.interpreter.file.name",
 		"process.parent.interpreter.file.name.length",
 		"process.parent.interpreter.file.package.name",
@@ -28324,7 +29880,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.file.inode",
 		"ptrace.tracee.ancestors.file.mode",
 		"ptrace.tracee.ancestors.file.modification_time",
+		"ptrace.tracee.ancestors.file.mount_detached",
 		"ptrace.tracee.ancestors.file.mount_id",
+		"ptrace.tracee.ancestors.file.mount_visible",
 		"ptrace.tracee.ancestors.file.name",
 		"ptrace.tracee.ancestors.file.name.length",
 		"ptrace.tracee.ancestors.file.package.name",
@@ -28350,7 +29908,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.interpreter.file.inode",
 		"ptrace.tracee.ancestors.interpreter.file.mode",
 		"ptrace.tracee.ancestors.interpreter.file.modification_time",
+		"ptrace.tracee.ancestors.interpreter.file.mount_detached",
 		"ptrace.tracee.ancestors.interpreter.file.mount_id",
+		"ptrace.tracee.ancestors.interpreter.file.mount_visible",
 		"ptrace.tracee.ancestors.interpreter.file.name",
 		"ptrace.tracee.ancestors.interpreter.file.name.length",
 		"ptrace.tracee.ancestors.interpreter.file.package.name",
@@ -28407,7 +29967,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.file.inode",
 		"ptrace.tracee.file.mode",
 		"ptrace.tracee.file.modification_time",
+		"ptrace.tracee.file.mount_detached",
 		"ptrace.tracee.file.mount_id",
+		"ptrace.tracee.file.mount_visible",
 		"ptrace.tracee.file.name",
 		"ptrace.tracee.file.name.length",
 		"ptrace.tracee.file.package.name",
@@ -28433,7 +29995,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.inode",
 		"ptrace.tracee.interpreter.file.mode",
 		"ptrace.tracee.interpreter.file.modification_time",
+		"ptrace.tracee.interpreter.file.mount_detached",
 		"ptrace.tracee.interpreter.file.mount_id",
+		"ptrace.tracee.interpreter.file.mount_visible",
 		"ptrace.tracee.interpreter.file.name",
 		"ptrace.tracee.interpreter.file.name.length",
 		"ptrace.tracee.interpreter.file.package.name",
@@ -28480,7 +30044,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.file.inode",
 		"ptrace.tracee.parent.file.mode",
 		"ptrace.tracee.parent.file.modification_time",
+		"ptrace.tracee.parent.file.mount_detached",
 		"ptrace.tracee.parent.file.mount_id",
+		"ptrace.tracee.parent.file.mount_visible",
 		"ptrace.tracee.parent.file.name",
 		"ptrace.tracee.parent.file.name.length",
 		"ptrace.tracee.parent.file.package.name",
@@ -28506,7 +30072,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.interpreter.file.inode",
 		"ptrace.tracee.parent.interpreter.file.mode",
 		"ptrace.tracee.parent.interpreter.file.modification_time",
+		"ptrace.tracee.parent.interpreter.file.mount_detached",
 		"ptrace.tracee.parent.interpreter.file.mount_id",
+		"ptrace.tracee.parent.interpreter.file.mount_visible",
 		"ptrace.tracee.parent.interpreter.file.name",
 		"ptrace.tracee.parent.interpreter.file.name.length",
 		"ptrace.tracee.parent.interpreter.file.package.name",
@@ -28549,7 +30117,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"removexattr.file.inode",
 		"removexattr.file.mode",
 		"removexattr.file.modification_time",
+		"removexattr.file.mount_detached",
 		"removexattr.file.mount_id",
+		"removexattr.file.mount_visible",
 		"removexattr.file.name",
 		"removexattr.file.name.length",
 		"removexattr.file.package.name",
@@ -28571,7 +30141,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.destination.inode",
 		"rename.file.destination.mode",
 		"rename.file.destination.modification_time",
+		"rename.file.destination.mount_detached",
 		"rename.file.destination.mount_id",
+		"rename.file.destination.mount_visible",
 		"rename.file.destination.name",
 		"rename.file.destination.name.length",
 		"rename.file.destination.package.name",
@@ -28590,7 +30162,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.inode",
 		"rename.file.mode",
 		"rename.file.modification_time",
+		"rename.file.mount_detached",
 		"rename.file.mount_id",
+		"rename.file.mount_visible",
 		"rename.file.name",
 		"rename.file.name.length",
 		"rename.file.package.name",
@@ -28613,7 +30187,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"rmdir.file.inode",
 		"rmdir.file.mode",
 		"rmdir.file.modification_time",
+		"rmdir.file.mount_detached",
 		"rmdir.file.mount_id",
+		"rmdir.file.mount_visible",
 		"rmdir.file.name",
 		"rmdir.file.name.length",
 		"rmdir.file.package.name",
@@ -28673,7 +30249,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.file.inode",
 		"setrlimit.target.ancestors.file.mode",
 		"setrlimit.target.ancestors.file.modification_time",
+		"setrlimit.target.ancestors.file.mount_detached",
 		"setrlimit.target.ancestors.file.mount_id",
+		"setrlimit.target.ancestors.file.mount_visible",
 		"setrlimit.target.ancestors.file.name",
 		"setrlimit.target.ancestors.file.name.length",
 		"setrlimit.target.ancestors.file.package.name",
@@ -28699,7 +30277,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.interpreter.file.inode",
 		"setrlimit.target.ancestors.interpreter.file.mode",
 		"setrlimit.target.ancestors.interpreter.file.modification_time",
+		"setrlimit.target.ancestors.interpreter.file.mount_detached",
 		"setrlimit.target.ancestors.interpreter.file.mount_id",
+		"setrlimit.target.ancestors.interpreter.file.mount_visible",
 		"setrlimit.target.ancestors.interpreter.file.name",
 		"setrlimit.target.ancestors.interpreter.file.name.length",
 		"setrlimit.target.ancestors.interpreter.file.package.name",
@@ -28756,7 +30336,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.file.inode",
 		"setrlimit.target.file.mode",
 		"setrlimit.target.file.modification_time",
+		"setrlimit.target.file.mount_detached",
 		"setrlimit.target.file.mount_id",
+		"setrlimit.target.file.mount_visible",
 		"setrlimit.target.file.name",
 		"setrlimit.target.file.name.length",
 		"setrlimit.target.file.package.name",
@@ -28782,7 +30364,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.interpreter.file.inode",
 		"setrlimit.target.interpreter.file.mode",
 		"setrlimit.target.interpreter.file.modification_time",
+		"setrlimit.target.interpreter.file.mount_detached",
 		"setrlimit.target.interpreter.file.mount_id",
+		"setrlimit.target.interpreter.file.mount_visible",
 		"setrlimit.target.interpreter.file.name",
 		"setrlimit.target.interpreter.file.name.length",
 		"setrlimit.target.interpreter.file.package.name",
@@ -28829,7 +30413,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.file.inode",
 		"setrlimit.target.parent.file.mode",
 		"setrlimit.target.parent.file.modification_time",
+		"setrlimit.target.parent.file.mount_detached",
 		"setrlimit.target.parent.file.mount_id",
+		"setrlimit.target.parent.file.mount_visible",
 		"setrlimit.target.parent.file.name",
 		"setrlimit.target.parent.file.name.length",
 		"setrlimit.target.parent.file.package.name",
@@ -28855,7 +30441,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.interpreter.file.inode",
 		"setrlimit.target.parent.interpreter.file.mode",
 		"setrlimit.target.parent.interpreter.file.modification_time",
+		"setrlimit.target.parent.interpreter.file.mount_detached",
 		"setrlimit.target.parent.interpreter.file.mount_id",
+		"setrlimit.target.parent.interpreter.file.mount_visible",
 		"setrlimit.target.parent.interpreter.file.name",
 		"setrlimit.target.parent.interpreter.file.name.length",
 		"setrlimit.target.parent.interpreter.file.package.name",
@@ -28907,7 +30495,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setxattr.file.inode",
 		"setxattr.file.mode",
 		"setxattr.file.modification_time",
+		"setxattr.file.mount_detached",
 		"setxattr.file.mount_id",
+		"setxattr.file.mount_visible",
 		"setxattr.file.name",
 		"setxattr.file.name.length",
 		"setxattr.file.package.name",
@@ -28954,7 +30544,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.file.inode",
 		"signal.target.ancestors.file.mode",
 		"signal.target.ancestors.file.modification_time",
+		"signal.target.ancestors.file.mount_detached",
 		"signal.target.ancestors.file.mount_id",
+		"signal.target.ancestors.file.mount_visible",
 		"signal.target.ancestors.file.name",
 		"signal.target.ancestors.file.name.length",
 		"signal.target.ancestors.file.package.name",
@@ -28980,7 +30572,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.interpreter.file.inode",
 		"signal.target.ancestors.interpreter.file.mode",
 		"signal.target.ancestors.interpreter.file.modification_time",
+		"signal.target.ancestors.interpreter.file.mount_detached",
 		"signal.target.ancestors.interpreter.file.mount_id",
+		"signal.target.ancestors.interpreter.file.mount_visible",
 		"signal.target.ancestors.interpreter.file.name",
 		"signal.target.ancestors.interpreter.file.name.length",
 		"signal.target.ancestors.interpreter.file.package.name",
@@ -29037,7 +30631,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.file.inode",
 		"signal.target.file.mode",
 		"signal.target.file.modification_time",
+		"signal.target.file.mount_detached",
 		"signal.target.file.mount_id",
+		"signal.target.file.mount_visible",
 		"signal.target.file.name",
 		"signal.target.file.name.length",
 		"signal.target.file.package.name",
@@ -29063,7 +30659,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.inode",
 		"signal.target.interpreter.file.mode",
 		"signal.target.interpreter.file.modification_time",
+		"signal.target.interpreter.file.mount_detached",
 		"signal.target.interpreter.file.mount_id",
+		"signal.target.interpreter.file.mount_visible",
 		"signal.target.interpreter.file.name",
 		"signal.target.interpreter.file.name.length",
 		"signal.target.interpreter.file.package.name",
@@ -29110,7 +30708,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.file.inode",
 		"signal.target.parent.file.mode",
 		"signal.target.parent.file.modification_time",
+		"signal.target.parent.file.mount_detached",
 		"signal.target.parent.file.mount_id",
+		"signal.target.parent.file.mount_visible",
 		"signal.target.parent.file.name",
 		"signal.target.parent.file.name.length",
 		"signal.target.parent.file.package.name",
@@ -29136,7 +30736,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.interpreter.file.inode",
 		"signal.target.parent.interpreter.file.mode",
 		"signal.target.parent.interpreter.file.modification_time",
+		"signal.target.parent.interpreter.file.mount_detached",
 		"signal.target.parent.interpreter.file.mount_id",
+		"signal.target.parent.interpreter.file.mount_visible",
 		"signal.target.parent.interpreter.file.name",
 		"signal.target.parent.interpreter.file.name.length",
 		"signal.target.parent.interpreter.file.package.name",
@@ -29178,7 +30780,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"splice.file.inode",
 		"splice.file.mode",
 		"splice.file.modification_time",
+		"splice.file.mount_detached",
 		"splice.file.mount_id",
+		"splice.file.mount_visible",
 		"splice.file.name",
 		"splice.file.name.length",
 		"splice.file.package.name",
@@ -29209,7 +30813,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"unlink.file.inode",
 		"unlink.file.mode",
 		"unlink.file.modification_time",
+		"unlink.file.mount_detached",
 		"unlink.file.mount_id",
+		"unlink.file.mount_visible",
 		"unlink.file.name",
 		"unlink.file.name.length",
 		"unlink.file.package.name",
@@ -29236,7 +30842,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.inode",
 		"utimes.file.mode",
 		"utimes.file.modification_time",
+		"utimes.file.mount_detached",
 		"utimes.file.mount_id",
+		"utimes.file.mount_visible",
 		"utimes.file.name",
 		"utimes.file.name.length",
 		"utimes.file.package.name",
@@ -29337,8 +30945,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "cgroup_write", reflect.Int, "int", nil
 	case "cgroup_write.file.modification_time":
 		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mount_detached":
+		return "cgroup_write", reflect.Bool, "bool", nil
 	case "cgroup_write.file.mount_id":
 		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mount_visible":
+		return "cgroup_write", reflect.Bool, "bool", nil
 	case "cgroup_write.file.name":
 		return "cgroup_write", reflect.String, "string", nil
 	case "cgroup_write.file.name.length":
@@ -29379,8 +30991,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chdir", reflect.Int, "int", nil
 	case "chdir.file.modification_time":
 		return "chdir", reflect.Int, "int", nil
+	case "chdir.file.mount_detached":
+		return "chdir", reflect.Bool, "bool", nil
 	case "chdir.file.mount_id":
 		return "chdir", reflect.Int, "int", nil
+	case "chdir.file.mount_visible":
+		return "chdir", reflect.Bool, "bool", nil
 	case "chdir.file.name":
 		return "chdir", reflect.String, "string", nil
 	case "chdir.file.name.length":
@@ -29427,8 +31043,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chmod", reflect.Int, "int", nil
 	case "chmod.file.modification_time":
 		return "chmod", reflect.Int, "int", nil
+	case "chmod.file.mount_detached":
+		return "chmod", reflect.Bool, "bool", nil
 	case "chmod.file.mount_id":
 		return "chmod", reflect.Int, "int", nil
+	case "chmod.file.mount_visible":
+		return "chmod", reflect.Bool, "bool", nil
 	case "chmod.file.name":
 		return "chmod", reflect.String, "string", nil
 	case "chmod.file.name.length":
@@ -29481,8 +31101,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "chown", reflect.Int, "int", nil
 	case "chown.file.modification_time":
 		return "chown", reflect.Int, "int", nil
+	case "chown.file.mount_detached":
+		return "chown", reflect.Bool, "bool", nil
 	case "chown.file.mount_id":
 		return "chown", reflect.Int, "int", nil
+	case "chown.file.mount_visible":
+		return "chown", reflect.Bool, "bool", nil
 	case "chown.file.name":
 		return "chown", reflect.String, "string", nil
 	case "chown.file.name.length":
@@ -29645,8 +31269,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", nil
 	case "exec.file.modification_time":
 		return "exec", reflect.Int, "int", nil
+	case "exec.file.mount_detached":
+		return "exec", reflect.Bool, "bool", nil
 	case "exec.file.mount_id":
 		return "exec", reflect.Int, "int", nil
+	case "exec.file.mount_visible":
+		return "exec", reflect.Bool, "bool", nil
 	case "exec.file.name":
 		return "exec", reflect.String, "string", nil
 	case "exec.file.name.length":
@@ -29697,8 +31325,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", nil
 	case "exec.interpreter.file.modification_time":
 		return "exec", reflect.Int, "int", nil
+	case "exec.interpreter.file.mount_detached":
+		return "exec", reflect.Bool, "bool", nil
 	case "exec.interpreter.file.mount_id":
 		return "exec", reflect.Int, "int", nil
+	case "exec.interpreter.file.mount_visible":
+		return "exec", reflect.Bool, "bool", nil
 	case "exec.interpreter.file.name":
 		return "exec", reflect.String, "string", nil
 	case "exec.interpreter.file.name.length":
@@ -29815,8 +31447,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", nil
 	case "exit.file.modification_time":
 		return "exit", reflect.Int, "int", nil
+	case "exit.file.mount_detached":
+		return "exit", reflect.Bool, "bool", nil
 	case "exit.file.mount_id":
 		return "exit", reflect.Int, "int", nil
+	case "exit.file.mount_visible":
+		return "exit", reflect.Bool, "bool", nil
 	case "exit.file.name":
 		return "exit", reflect.String, "string", nil
 	case "exit.file.name.length":
@@ -29867,8 +31503,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", nil
 	case "exit.interpreter.file.modification_time":
 		return "exit", reflect.Int, "int", nil
+	case "exit.interpreter.file.mount_detached":
+		return "exit", reflect.Bool, "bool", nil
 	case "exit.interpreter.file.mount_id":
 		return "exit", reflect.Int, "int", nil
+	case "exit.interpreter.file.mount_visible":
+		return "exit", reflect.Bool, "bool", nil
 	case "exit.interpreter.file.name":
 		return "exit", reflect.String, "string", nil
 	case "exit.interpreter.file.name.length":
@@ -29949,8 +31589,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "link", reflect.Int, "int", nil
 	case "link.file.destination.modification_time":
 		return "link", reflect.Int, "int", nil
+	case "link.file.destination.mount_detached":
+		return "link", reflect.Bool, "bool", nil
 	case "link.file.destination.mount_id":
 		return "link", reflect.Int, "int", nil
+	case "link.file.destination.mount_visible":
+		return "link", reflect.Bool, "bool", nil
 	case "link.file.destination.name":
 		return "link", reflect.String, "string", nil
 	case "link.file.destination.name.length":
@@ -29987,8 +31631,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "link", reflect.Int, "int", nil
 	case "link.file.modification_time":
 		return "link", reflect.Int, "int", nil
+	case "link.file.mount_detached":
+		return "link", reflect.Bool, "bool", nil
 	case "link.file.mount_id":
 		return "link", reflect.Int, "int", nil
+	case "link.file.mount_visible":
+		return "link", reflect.Bool, "bool", nil
 	case "link.file.name":
 		return "link", reflect.String, "string", nil
 	case "link.file.name.length":
@@ -30039,8 +31687,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "load_module", reflect.Int, "int", nil
 	case "load_module.file.modification_time":
 		return "load_module", reflect.Int, "int", nil
+	case "load_module.file.mount_detached":
+		return "load_module", reflect.Bool, "bool", nil
 	case "load_module.file.mount_id":
 		return "load_module", reflect.Int, "int", nil
+	case "load_module.file.mount_visible":
+		return "load_module", reflect.Bool, "bool", nil
 	case "load_module.file.name":
 		return "load_module", reflect.String, "string", nil
 	case "load_module.file.name.length":
@@ -30089,8 +31741,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mkdir", reflect.Int, "int", nil
 	case "mkdir.file.modification_time":
 		return "mkdir", reflect.Int, "int", nil
+	case "mkdir.file.mount_detached":
+		return "mkdir", reflect.Bool, "bool", nil
 	case "mkdir.file.mount_id":
 		return "mkdir", reflect.Int, "int", nil
+	case "mkdir.file.mount_visible":
+		return "mkdir", reflect.Bool, "bool", nil
 	case "mkdir.file.name":
 		return "mkdir", reflect.String, "string", nil
 	case "mkdir.file.name.length":
@@ -30135,8 +31791,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mmap", reflect.Int, "int", nil
 	case "mmap.file.modification_time":
 		return "mmap", reflect.Int, "int", nil
+	case "mmap.file.mount_detached":
+		return "mmap", reflect.Bool, "bool", nil
 	case "mmap.file.mount_id":
 		return "mmap", reflect.Int, "int", nil
+	case "mmap.file.mount_visible":
+		return "mmap", reflect.Bool, "bool", nil
 	case "mmap.file.name":
 		return "mmap", reflect.String, "string", nil
 	case "mmap.file.name.length":
@@ -30285,8 +31945,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "open", reflect.Int, "int", nil
 	case "open.file.modification_time":
 		return "open", reflect.Int, "int", nil
+	case "open.file.mount_detached":
+		return "open", reflect.Bool, "bool", nil
 	case "open.file.mount_id":
 		return "open", reflect.Int, "int", nil
+	case "open.file.mount_visible":
+		return "open", reflect.Bool, "bool", nil
 	case "open.file.name":
 		return "open", reflect.String, "string", nil
 	case "open.file.name.length":
@@ -30409,8 +32073,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.file.modification_time":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.file.mount_detached":
+		return "", reflect.Bool, "bool", nil
 	case "process.ancestors.file.mount_id":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.file.mount_visible":
+		return "", reflect.Bool, "bool", nil
 	case "process.ancestors.file.name":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.file.name.length":
@@ -30461,8 +32129,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.ancestors.interpreter.file.modification_time":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.interpreter.file.mount_detached":
+		return "", reflect.Bool, "bool", nil
 	case "process.ancestors.interpreter.file.mount_id":
 		return "", reflect.Int, "int", nil
+	case "process.ancestors.interpreter.file.mount_visible":
+		return "", reflect.Bool, "bool", nil
 	case "process.ancestors.interpreter.file.name":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.interpreter.file.name.length":
@@ -30575,8 +32247,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.file.modification_time":
 		return "", reflect.Int, "int", nil
+	case "process.file.mount_detached":
+		return "", reflect.Bool, "bool", nil
 	case "process.file.mount_id":
 		return "", reflect.Int, "int", nil
+	case "process.file.mount_visible":
+		return "", reflect.Bool, "bool", nil
 	case "process.file.name":
 		return "", reflect.String, "string", nil
 	case "process.file.name.length":
@@ -30627,8 +32303,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.interpreter.file.modification_time":
 		return "", reflect.Int, "int", nil
+	case "process.interpreter.file.mount_detached":
+		return "", reflect.Bool, "bool", nil
 	case "process.interpreter.file.mount_id":
 		return "", reflect.Int, "int", nil
+	case "process.interpreter.file.mount_visible":
+		return "", reflect.Bool, "bool", nil
 	case "process.interpreter.file.name":
 		return "", reflect.String, "string", nil
 	case "process.interpreter.file.name.length":
@@ -30721,8 +32401,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.parent.file.modification_time":
 		return "", reflect.Int, "int", nil
+	case "process.parent.file.mount_detached":
+		return "", reflect.Bool, "bool", nil
 	case "process.parent.file.mount_id":
 		return "", reflect.Int, "int", nil
+	case "process.parent.file.mount_visible":
+		return "", reflect.Bool, "bool", nil
 	case "process.parent.file.name":
 		return "", reflect.String, "string", nil
 	case "process.parent.file.name.length":
@@ -30773,8 +32457,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", nil
 	case "process.parent.interpreter.file.modification_time":
 		return "", reflect.Int, "int", nil
+	case "process.parent.interpreter.file.mount_detached":
+		return "", reflect.Bool, "bool", nil
 	case "process.parent.interpreter.file.mount_id":
 		return "", reflect.Int, "int", nil
+	case "process.parent.interpreter.file.mount_visible":
+		return "", reflect.Bool, "bool", nil
 	case "process.parent.interpreter.file.name":
 		return "", reflect.String, "string", nil
 	case "process.parent.interpreter.file.name.length":
@@ -30907,8 +32595,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.file.modification_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.file.mount_detached":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.ancestors.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.file.mount_visible":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.ancestors.file.name":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.file.name.length":
@@ -30959,8 +32651,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_detached":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_visible":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
@@ -31073,8 +32769,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.file.modification_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.file.mount_detached":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.file.mount_visible":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.file.name":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.file.name.length":
@@ -31125,8 +32825,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.interpreter.file.modification_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.interpreter.file.mount_detached":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.interpreter.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.interpreter.file.mount_visible":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.interpreter.file.name":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.interpreter.file.name.length":
@@ -31219,8 +32923,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.file.modification_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.file.mount_detached":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.parent.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.file.mount_visible":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.parent.file.name":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.file.name.length":
@@ -31271,8 +32979,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", nil
 	case "ptrace.tracee.parent.interpreter.file.modification_time":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.interpreter.file.mount_detached":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.parent.interpreter.file.mount_id":
 		return "ptrace", reflect.Int, "int", nil
+	case "ptrace.tracee.parent.interpreter.file.mount_visible":
+		return "ptrace", reflect.Bool, "bool", nil
 	case "ptrace.tracee.parent.interpreter.file.name":
 		return "ptrace", reflect.String, "string", nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
@@ -31357,8 +33069,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "removexattr", reflect.Int, "int", nil
 	case "removexattr.file.modification_time":
 		return "removexattr", reflect.Int, "int", nil
+	case "removexattr.file.mount_detached":
+		return "removexattr", reflect.Bool, "bool", nil
 	case "removexattr.file.mount_id":
 		return "removexattr", reflect.Int, "int", nil
+	case "removexattr.file.mount_visible":
+		return "removexattr", reflect.Bool, "bool", nil
 	case "removexattr.file.name":
 		return "removexattr", reflect.String, "string", nil
 	case "removexattr.file.name.length":
@@ -31401,8 +33117,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.Int, "int", nil
 	case "rename.file.destination.modification_time":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.destination.mount_detached":
+		return "rename", reflect.Bool, "bool", nil
 	case "rename.file.destination.mount_id":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.destination.mount_visible":
+		return "rename", reflect.Bool, "bool", nil
 	case "rename.file.destination.name":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.name.length":
@@ -31439,8 +33159,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.Int, "int", nil
 	case "rename.file.modification_time":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.mount_detached":
+		return "rename", reflect.Bool, "bool", nil
 	case "rename.file.mount_id":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.mount_visible":
+		return "rename", reflect.Bool, "bool", nil
 	case "rename.file.name":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.name.length":
@@ -31485,8 +33209,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rmdir", reflect.Int, "int", nil
 	case "rmdir.file.modification_time":
 		return "rmdir", reflect.Int, "int", nil
+	case "rmdir.file.mount_detached":
+		return "rmdir", reflect.Bool, "bool", nil
 	case "rmdir.file.mount_id":
 		return "rmdir", reflect.Int, "int", nil
+	case "rmdir.file.mount_visible":
+		return "rmdir", reflect.Bool, "bool", nil
 	case "rmdir.file.name":
 		return "rmdir", reflect.String, "string", nil
 	case "rmdir.file.name.length":
@@ -31605,8 +33333,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.file.modification_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.mount_detached":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.ancestors.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.mount_visible":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.ancestors.file.name":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.file.name.length":
@@ -31657,8 +33389,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.ancestors.interpreter.file.modification_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_detached":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.ancestors.interpreter.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_visible":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.ancestors.interpreter.file.name":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.ancestors.interpreter.file.name.length":
@@ -31771,8 +33507,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.file.modification_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.mount_detached":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.mount_visible":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.file.name":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.file.name.length":
@@ -31823,8 +33563,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.interpreter.file.modification_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.mount_detached":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.interpreter.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.mount_visible":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.interpreter.file.name":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.interpreter.file.name.length":
@@ -31917,8 +33661,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.file.modification_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.mount_detached":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.parent.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.mount_visible":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.parent.file.name":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.file.name.length":
@@ -31969,8 +33717,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.target.parent.interpreter.file.modification_time":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.mount_detached":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.parent.interpreter.file.mount_id":
 		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.mount_visible":
+		return "setrlimit", reflect.Bool, "bool", nil
 	case "setrlimit.target.parent.interpreter.file.name":
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.parent.interpreter.file.name.length":
@@ -32073,8 +33825,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setxattr", reflect.Int, "int", nil
 	case "setxattr.file.modification_time":
 		return "setxattr", reflect.Int, "int", nil
+	case "setxattr.file.mount_detached":
+		return "setxattr", reflect.Bool, "bool", nil
 	case "setxattr.file.mount_id":
 		return "setxattr", reflect.Int, "int", nil
+	case "setxattr.file.mount_visible":
+		return "setxattr", reflect.Bool, "bool", nil
 	case "setxattr.file.name":
 		return "setxattr", reflect.String, "string", nil
 	case "setxattr.file.name.length":
@@ -32167,8 +33923,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.file.modification_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.file.mount_detached":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.ancestors.file.mount_id":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.file.mount_visible":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.ancestors.file.name":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.file.name.length":
@@ -32219,8 +33979,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.ancestors.interpreter.file.modification_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.interpreter.file.mount_detached":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.ancestors.interpreter.file.mount_visible":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.ancestors.interpreter.file.name":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.ancestors.interpreter.file.name.length":
@@ -32333,8 +34097,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.file.modification_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.file.mount_detached":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.file.mount_id":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.file.mount_visible":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.file.name":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.file.name.length":
@@ -32385,8 +34153,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.interpreter.file.modification_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.interpreter.file.mount_detached":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.interpreter.file.mount_id":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.interpreter.file.mount_visible":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.interpreter.file.name":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.interpreter.file.name.length":
@@ -32479,8 +34251,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.file.modification_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.file.mount_detached":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.parent.file.mount_id":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.file.mount_visible":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.parent.file.name":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.file.name.length":
@@ -32531,8 +34307,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", nil
 	case "signal.target.parent.interpreter.file.modification_time":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.interpreter.file.mount_detached":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.parent.interpreter.file.mount_id":
 		return "signal", reflect.Int, "int", nil
+	case "signal.target.parent.interpreter.file.mount_visible":
+		return "signal", reflect.Bool, "bool", nil
 	case "signal.target.parent.interpreter.file.name":
 		return "signal", reflect.String, "string", nil
 	case "signal.target.parent.interpreter.file.name.length":
@@ -32615,8 +34395,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "splice", reflect.Int, "int", nil
 	case "splice.file.modification_time":
 		return "splice", reflect.Int, "int", nil
+	case "splice.file.mount_detached":
+		return "splice", reflect.Bool, "bool", nil
 	case "splice.file.mount_id":
 		return "splice", reflect.Int, "int", nil
+	case "splice.file.mount_visible":
+		return "splice", reflect.Bool, "bool", nil
 	case "splice.file.name":
 		return "splice", reflect.String, "string", nil
 	case "splice.file.name.length":
@@ -32677,8 +34461,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "unlink", reflect.Int, "int", nil
 	case "unlink.file.modification_time":
 		return "unlink", reflect.Int, "int", nil
+	case "unlink.file.mount_detached":
+		return "unlink", reflect.Bool, "bool", nil
 	case "unlink.file.mount_id":
 		return "unlink", reflect.Int, "int", nil
+	case "unlink.file.mount_visible":
+		return "unlink", reflect.Bool, "bool", nil
 	case "unlink.file.name":
 		return "unlink", reflect.String, "string", nil
 	case "unlink.file.name.length":
@@ -32731,8 +34519,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "utimes", reflect.Int, "int", nil
 	case "utimes.file.modification_time":
 		return "utimes", reflect.Int, "int", nil
+	case "utimes.file.mount_detached":
+		return "utimes", reflect.Bool, "bool", nil
 	case "utimes.file.mount_id":
 		return "utimes", reflect.Int, "int", nil
+	case "utimes.file.mount_visible":
+		return "utimes", reflect.Bool, "bool", nil
 	case "utimes.file.name":
 		return "utimes", reflect.String, "string", nil
 	case "utimes.file.name.length":
@@ -32893,8 +34685,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("cgroup_write.file.mode", &ev.CgroupWrite.File.FileFields.Mode, value)
 	case "cgroup_write.file.modification_time":
 		return ev.setUint64FieldValue("cgroup_write.file.modification_time", &ev.CgroupWrite.File.FileFields.MTime, value)
+	case "cgroup_write.file.mount_detached":
+		return ev.setBoolFieldValue("cgroup_write.file.mount_detached", &ev.CgroupWrite.File.MountDetached, value)
 	case "cgroup_write.file.mount_id":
 		return ev.setUint32FieldValue("cgroup_write.file.mount_id", &ev.CgroupWrite.File.FileFields.PathKey.MountID, value)
+	case "cgroup_write.file.mount_visible":
+		return ev.setBoolFieldValue("cgroup_write.file.mount_visible", &ev.CgroupWrite.File.MountVisible, value)
 	case "cgroup_write.file.name":
 		return ev.setStringFieldValue("cgroup_write.file.name", &ev.CgroupWrite.File.BasenameStr, value)
 	case "cgroup_write.file.name.length":
@@ -32935,8 +34731,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("chdir.file.mode", &ev.Chdir.File.FileFields.Mode, value)
 	case "chdir.file.modification_time":
 		return ev.setUint64FieldValue("chdir.file.modification_time", &ev.Chdir.File.FileFields.MTime, value)
+	case "chdir.file.mount_detached":
+		return ev.setBoolFieldValue("chdir.file.mount_detached", &ev.Chdir.File.MountDetached, value)
 	case "chdir.file.mount_id":
 		return ev.setUint32FieldValue("chdir.file.mount_id", &ev.Chdir.File.FileFields.PathKey.MountID, value)
+	case "chdir.file.mount_visible":
+		return ev.setBoolFieldValue("chdir.file.mount_visible", &ev.Chdir.File.MountVisible, value)
 	case "chdir.file.name":
 		return ev.setStringFieldValue("chdir.file.name", &ev.Chdir.File.BasenameStr, value)
 	case "chdir.file.name.length":
@@ -32983,8 +34783,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("chmod.file.mode", &ev.Chmod.File.FileFields.Mode, value)
 	case "chmod.file.modification_time":
 		return ev.setUint64FieldValue("chmod.file.modification_time", &ev.Chmod.File.FileFields.MTime, value)
+	case "chmod.file.mount_detached":
+		return ev.setBoolFieldValue("chmod.file.mount_detached", &ev.Chmod.File.MountDetached, value)
 	case "chmod.file.mount_id":
 		return ev.setUint32FieldValue("chmod.file.mount_id", &ev.Chmod.File.FileFields.PathKey.MountID, value)
+	case "chmod.file.mount_visible":
+		return ev.setBoolFieldValue("chmod.file.mount_visible", &ev.Chmod.File.MountVisible, value)
 	case "chmod.file.name":
 		return ev.setStringFieldValue("chmod.file.name", &ev.Chmod.File.BasenameStr, value)
 	case "chmod.file.name.length":
@@ -33037,8 +34841,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("chown.file.mode", &ev.Chown.File.FileFields.Mode, value)
 	case "chown.file.modification_time":
 		return ev.setUint64FieldValue("chown.file.modification_time", &ev.Chown.File.FileFields.MTime, value)
+	case "chown.file.mount_detached":
+		return ev.setBoolFieldValue("chown.file.mount_detached", &ev.Chown.File.MountDetached, value)
 	case "chown.file.mount_id":
 		return ev.setUint32FieldValue("chown.file.mount_id", &ev.Chown.File.FileFields.PathKey.MountID, value)
+	case "chown.file.mount_visible":
+		return ev.setBoolFieldValue("chown.file.mount_visible", &ev.Chown.File.MountVisible, value)
 	case "chown.file.name":
 		return ev.setStringFieldValue("chown.file.name", &ev.Chown.File.BasenameStr, value)
 	case "chown.file.name.length":
@@ -33236,8 +35044,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("exec.file.mode", &ev.Exec.Process.FileEvent.FileFields.Mode, value)
 	case "exec.file.modification_time":
 		return ev.setUint64FieldValue("exec.file.modification_time", &ev.Exec.Process.FileEvent.FileFields.MTime, value)
+	case "exec.file.mount_detached":
+		return ev.setBoolFieldValue("exec.file.mount_detached", &ev.Exec.Process.FileEvent.MountDetached, value)
 	case "exec.file.mount_id":
 		return ev.setUint32FieldValue("exec.file.mount_id", &ev.Exec.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "exec.file.mount_visible":
+		return ev.setBoolFieldValue("exec.file.mount_visible", &ev.Exec.Process.FileEvent.MountVisible, value)
 	case "exec.file.name":
 		return ev.setStringFieldValue("exec.file.name", &ev.Exec.Process.FileEvent.BasenameStr, value)
 	case "exec.file.name.length":
@@ -33324,12 +35136,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("exec.interpreter.file.modification_time", &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "exec.interpreter.file.mount_detached":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("exec.interpreter.file.mount_detached", &ev.Exec.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "exec.interpreter.file.mount_id":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.mount_id", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exec.interpreter.file.mount_id", &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "exec.interpreter.file.mount_visible":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("exec.interpreter.file.mount_visible", &ev.Exec.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "exec.interpreter.file.name":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.name", value)
 		if err != nil || !cont {
@@ -33587,11 +35411,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setUint64FieldValue("exit.file.modification_time", &ev.Exit.Process.FileEvent.FileFields.MTime, value)
+	case "exit.file.mount_detached":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("exit.file.mount_detached", &ev.Exit.Process.FileEvent.MountDetached, value)
 	case "exit.file.mount_id":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setUint32FieldValue("exit.file.mount_id", &ev.Exit.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "exit.file.mount_visible":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setBoolFieldValue("exit.file.mount_visible", &ev.Exit.Process.FileEvent.MountVisible, value)
 	case "exit.file.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -33753,6 +35587,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.modification_time", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "exit.interpreter.file.mount_detached":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("exit.interpreter.file.mount_detached", &ev.Exit.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "exit.interpreter.file.mount_id":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -33762,6 +35605,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.mount_id", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "exit.interpreter.file.mount_visible":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("exit.interpreter.file.mount_visible", &ev.Exit.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "exit.interpreter.file.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -33940,8 +35792,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("link.file.destination.mode", &ev.Link.Target.FileFields.Mode, value)
 	case "link.file.destination.modification_time":
 		return ev.setUint64FieldValue("link.file.destination.modification_time", &ev.Link.Target.FileFields.MTime, value)
+	case "link.file.destination.mount_detached":
+		return ev.setBoolFieldValue("link.file.destination.mount_detached", &ev.Link.Target.MountDetached, value)
 	case "link.file.destination.mount_id":
 		return ev.setUint32FieldValue("link.file.destination.mount_id", &ev.Link.Target.FileFields.PathKey.MountID, value)
+	case "link.file.destination.mount_visible":
+		return ev.setBoolFieldValue("link.file.destination.mount_visible", &ev.Link.Target.MountVisible, value)
 	case "link.file.destination.name":
 		return ev.setStringFieldValue("link.file.destination.name", &ev.Link.Target.BasenameStr, value)
 	case "link.file.destination.name.length":
@@ -33978,8 +35834,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("link.file.mode", &ev.Link.Source.FileFields.Mode, value)
 	case "link.file.modification_time":
 		return ev.setUint64FieldValue("link.file.modification_time", &ev.Link.Source.FileFields.MTime, value)
+	case "link.file.mount_detached":
+		return ev.setBoolFieldValue("link.file.mount_detached", &ev.Link.Source.MountDetached, value)
 	case "link.file.mount_id":
 		return ev.setUint32FieldValue("link.file.mount_id", &ev.Link.Source.FileFields.PathKey.MountID, value)
+	case "link.file.mount_visible":
+		return ev.setBoolFieldValue("link.file.mount_visible", &ev.Link.Source.MountVisible, value)
 	case "link.file.name":
 		return ev.setStringFieldValue("link.file.name", &ev.Link.Source.BasenameStr, value)
 	case "link.file.name.length":
@@ -34030,8 +35890,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("load_module.file.mode", &ev.LoadModule.File.FileFields.Mode, value)
 	case "load_module.file.modification_time":
 		return ev.setUint64FieldValue("load_module.file.modification_time", &ev.LoadModule.File.FileFields.MTime, value)
+	case "load_module.file.mount_detached":
+		return ev.setBoolFieldValue("load_module.file.mount_detached", &ev.LoadModule.File.MountDetached, value)
 	case "load_module.file.mount_id":
 		return ev.setUint32FieldValue("load_module.file.mount_id", &ev.LoadModule.File.FileFields.PathKey.MountID, value)
+	case "load_module.file.mount_visible":
+		return ev.setBoolFieldValue("load_module.file.mount_visible", &ev.LoadModule.File.MountVisible, value)
 	case "load_module.file.name":
 		return ev.setStringFieldValue("load_module.file.name", &ev.LoadModule.File.BasenameStr, value)
 	case "load_module.file.name.length":
@@ -34080,8 +35944,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("mkdir.file.mode", &ev.Mkdir.File.FileFields.Mode, value)
 	case "mkdir.file.modification_time":
 		return ev.setUint64FieldValue("mkdir.file.modification_time", &ev.Mkdir.File.FileFields.MTime, value)
+	case "mkdir.file.mount_detached":
+		return ev.setBoolFieldValue("mkdir.file.mount_detached", &ev.Mkdir.File.MountDetached, value)
 	case "mkdir.file.mount_id":
 		return ev.setUint32FieldValue("mkdir.file.mount_id", &ev.Mkdir.File.FileFields.PathKey.MountID, value)
+	case "mkdir.file.mount_visible":
+		return ev.setBoolFieldValue("mkdir.file.mount_visible", &ev.Mkdir.File.MountVisible, value)
 	case "mkdir.file.name":
 		return ev.setStringFieldValue("mkdir.file.name", &ev.Mkdir.File.BasenameStr, value)
 	case "mkdir.file.name.length":
@@ -34126,8 +35994,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("mmap.file.mode", &ev.MMap.File.FileFields.Mode, value)
 	case "mmap.file.modification_time":
 		return ev.setUint64FieldValue("mmap.file.modification_time", &ev.MMap.File.FileFields.MTime, value)
+	case "mmap.file.mount_detached":
+		return ev.setBoolFieldValue("mmap.file.mount_detached", &ev.MMap.File.MountDetached, value)
 	case "mmap.file.mount_id":
 		return ev.setUint32FieldValue("mmap.file.mount_id", &ev.MMap.File.FileFields.PathKey.MountID, value)
+	case "mmap.file.mount_visible":
+		return ev.setBoolFieldValue("mmap.file.mount_visible", &ev.MMap.File.MountVisible, value)
 	case "mmap.file.name":
 		return ev.setStringFieldValue("mmap.file.name", &ev.MMap.File.BasenameStr, value)
 	case "mmap.file.name.length":
@@ -34335,8 +36207,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("open.file.mode", &ev.Open.File.FileFields.Mode, value)
 	case "open.file.modification_time":
 		return ev.setUint64FieldValue("open.file.modification_time", &ev.Open.File.FileFields.MTime, value)
+	case "open.file.mount_detached":
+		return ev.setBoolFieldValue("open.file.mount_detached", &ev.Open.File.MountDetached, value)
 	case "open.file.mount_id":
 		return ev.setUint32FieldValue("open.file.mount_id", &ev.Open.File.FileFields.PathKey.MountID, value)
+	case "open.file.mount_visible":
+		return ev.setBoolFieldValue("open.file.mount_visible", &ev.Open.File.MountVisible, value)
 	case "open.file.name":
 		return ev.setStringFieldValue("open.file.name", &ev.Open.File.BasenameStr, value)
 	case "open.file.name.length":
@@ -34479,8 +36355,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("process.ancestors.file.mode", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode, value)
 	case "process.ancestors.file.modification_time":
 		return ev.setUint64FieldValue("process.ancestors.file.modification_time", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime, value)
+	case "process.ancestors.file.mount_detached":
+		return ev.setBoolFieldValue("process.ancestors.file.mount_detached", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.MountDetached, value)
 	case "process.ancestors.file.mount_id":
 		return ev.setUint32FieldValue("process.ancestors.file.mount_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "process.ancestors.file.mount_visible":
+		return ev.setBoolFieldValue("process.ancestors.file.mount_visible", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.MountVisible, value)
 	case "process.ancestors.file.name":
 		return ev.setStringFieldValue("process.ancestors.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.ancestors.file.name.length":
@@ -34567,12 +36447,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("process.ancestors.interpreter.file.modification_time", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "process.ancestors.interpreter.file.mount_detached":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("process.ancestors.interpreter.file.mount_detached", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "process.ancestors.interpreter.file.mount_id":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_id", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("process.ancestors.interpreter.file.mount_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "process.ancestors.interpreter.file.mount_visible":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("process.ancestors.interpreter.file.mount_visible", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "process.ancestors.interpreter.file.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.name", value)
 		if err != nil || !cont {
@@ -34727,8 +36619,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("process.file.mode", &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode, value)
 	case "process.file.modification_time":
 		return ev.setUint64FieldValue("process.file.modification_time", &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.MTime, value)
+	case "process.file.mount_detached":
+		return ev.setBoolFieldValue("process.file.mount_detached", &ev.BaseEvent.ProcessContext.Process.FileEvent.MountDetached, value)
 	case "process.file.mount_id":
 		return ev.setUint32FieldValue("process.file.mount_id", &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "process.file.mount_visible":
+		return ev.setBoolFieldValue("process.file.mount_visible", &ev.BaseEvent.ProcessContext.Process.FileEvent.MountVisible, value)
 	case "process.file.name":
 		return ev.setStringFieldValue("process.file.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.file.name.length":
@@ -34815,12 +36711,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("process.interpreter.file.modification_time", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "process.interpreter.file.mount_detached":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("process.interpreter.file.mount_detached", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "process.interpreter.file.mount_id":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.mount_id", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("process.interpreter.file.mount_id", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "process.interpreter.file.mount_visible":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("process.interpreter.file.mount_visible", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "process.interpreter.file.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.name", value)
 		if err != nil || !cont {
@@ -34955,8 +36863,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("process.parent.file.mode", &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode, value)
 	case "process.parent.file.modification_time":
 		return ev.setUint64FieldValue("process.parent.file.modification_time", &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.MTime, value)
+	case "process.parent.file.mount_detached":
+		return ev.setBoolFieldValue("process.parent.file.mount_detached", &ev.BaseEvent.ProcessContext.Parent.FileEvent.MountDetached, value)
 	case "process.parent.file.mount_id":
 		return ev.setUint32FieldValue("process.parent.file.mount_id", &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID, value)
+	case "process.parent.file.mount_visible":
+		return ev.setBoolFieldValue("process.parent.file.mount_visible", &ev.BaseEvent.ProcessContext.Parent.FileEvent.MountVisible, value)
 	case "process.parent.file.name":
 		return ev.setStringFieldValue("process.parent.file.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr, value)
 	case "process.parent.file.name.length":
@@ -35043,12 +36955,24 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("process.parent.interpreter.file.modification_time", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "process.parent.interpreter.file.mount_detached":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("process.parent.interpreter.file.mount_detached", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.MountDetached, value)
 	case "process.parent.interpreter.file.mount_id":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.mount_id", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("process.parent.interpreter.file.mount_id", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "process.parent.interpreter.file.mount_visible":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("process.parent.interpreter.file.mount_visible", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.MountVisible, value)
 	case "process.parent.interpreter.file.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.name", value)
 		if err != nil || !cont {
@@ -35421,6 +37345,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.file.modification_time", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime, value)
+	case "ptrace.tracee.ancestors.file.mount_detached":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.file.mount_detached", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.MountDetached, value)
 	case "ptrace.tracee.ancestors.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -35429,6 +37361,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.file.mount_id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "ptrace.tracee.ancestors.file.mount_visible":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.file.mount_visible", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.MountVisible, value)
 	case "ptrace.tracee.ancestors.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -35665,6 +37605,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.interpreter.file.modification_time", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "ptrace.tracee.ancestors.interpreter.file.mount_detached":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.interpreter.file.mount_detached", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -35677,6 +37629,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.interpreter.file.mount_id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "ptrace.tracee.ancestors.interpreter.file.mount_visible":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.interpreter.file.mount_visible", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "ptrace.tracee.ancestors.interpreter.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36068,11 +38032,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.file.modification_time", &ev.PTrace.Tracee.Process.FileEvent.FileFields.MTime, value)
+	case "ptrace.tracee.file.mount_detached":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.file.mount_detached", &ev.PTrace.Tracee.Process.FileEvent.MountDetached, value)
 	case "ptrace.tracee.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("ptrace.tracee.file.mount_id", &ev.PTrace.Tracee.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "ptrace.tracee.file.mount_visible":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.file.mount_visible", &ev.PTrace.Tracee.Process.FileEvent.MountVisible, value)
 	case "ptrace.tracee.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36234,6 +38208,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.interpreter.file.modification_time", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "ptrace.tracee.interpreter.file.mount_detached":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.interpreter.file.mount_detached", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "ptrace.tracee.interpreter.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36243,6 +38226,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("ptrace.tracee.interpreter.file.mount_id", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "ptrace.tracee.interpreter.file.mount_visible":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.interpreter.file.mount_visible", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "ptrace.tracee.interpreter.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36614,6 +38606,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.parent.file.modification_time", &ev.PTrace.Tracee.Parent.FileEvent.FileFields.MTime, value)
+	case "ptrace.tracee.parent.file.mount_detached":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.parent.file.mount_detached", &ev.PTrace.Tracee.Parent.FileEvent.MountDetached, value)
 	case "ptrace.tracee.parent.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36622,6 +38622,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setUint32FieldValue("ptrace.tracee.parent.file.mount_id", &ev.PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.MountID, value)
+	case "ptrace.tracee.parent.file.mount_visible":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.parent.file.mount_visible", &ev.PTrace.Tracee.Parent.FileEvent.MountVisible, value)
 	case "ptrace.tracee.parent.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36858,6 +38866,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("ptrace.tracee.parent.interpreter.file.modification_time", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "ptrace.tracee.parent.interpreter.file.mount_detached":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.parent.interpreter.file.mount_detached", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.MountDetached, value)
 	case "ptrace.tracee.parent.interpreter.file.mount_id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36870,6 +38890,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("ptrace.tracee.parent.interpreter.file.mount_id", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "ptrace.tracee.parent.interpreter.file.mount_visible":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("ptrace.tracee.parent.interpreter.file.mount_visible", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.MountVisible, value)
 	case "ptrace.tracee.parent.interpreter.file.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -37145,8 +39177,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("removexattr.file.mode", &ev.RemoveXAttr.File.FileFields.Mode, value)
 	case "removexattr.file.modification_time":
 		return ev.setUint64FieldValue("removexattr.file.modification_time", &ev.RemoveXAttr.File.FileFields.MTime, value)
+	case "removexattr.file.mount_detached":
+		return ev.setBoolFieldValue("removexattr.file.mount_detached", &ev.RemoveXAttr.File.MountDetached, value)
 	case "removexattr.file.mount_id":
 		return ev.setUint32FieldValue("removexattr.file.mount_id", &ev.RemoveXAttr.File.FileFields.PathKey.MountID, value)
+	case "removexattr.file.mount_visible":
+		return ev.setBoolFieldValue("removexattr.file.mount_visible", &ev.RemoveXAttr.File.MountVisible, value)
 	case "removexattr.file.name":
 		return ev.setStringFieldValue("removexattr.file.name", &ev.RemoveXAttr.File.BasenameStr, value)
 	case "removexattr.file.name.length":
@@ -37189,8 +39225,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("rename.file.destination.mode", &ev.Rename.New.FileFields.Mode, value)
 	case "rename.file.destination.modification_time":
 		return ev.setUint64FieldValue("rename.file.destination.modification_time", &ev.Rename.New.FileFields.MTime, value)
+	case "rename.file.destination.mount_detached":
+		return ev.setBoolFieldValue("rename.file.destination.mount_detached", &ev.Rename.New.MountDetached, value)
 	case "rename.file.destination.mount_id":
 		return ev.setUint32FieldValue("rename.file.destination.mount_id", &ev.Rename.New.FileFields.PathKey.MountID, value)
+	case "rename.file.destination.mount_visible":
+		return ev.setBoolFieldValue("rename.file.destination.mount_visible", &ev.Rename.New.MountVisible, value)
 	case "rename.file.destination.name":
 		return ev.setStringFieldValue("rename.file.destination.name", &ev.Rename.New.BasenameStr, value)
 	case "rename.file.destination.name.length":
@@ -37227,8 +39267,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("rename.file.mode", &ev.Rename.Old.FileFields.Mode, value)
 	case "rename.file.modification_time":
 		return ev.setUint64FieldValue("rename.file.modification_time", &ev.Rename.Old.FileFields.MTime, value)
+	case "rename.file.mount_detached":
+		return ev.setBoolFieldValue("rename.file.mount_detached", &ev.Rename.Old.MountDetached, value)
 	case "rename.file.mount_id":
 		return ev.setUint32FieldValue("rename.file.mount_id", &ev.Rename.Old.FileFields.PathKey.MountID, value)
+	case "rename.file.mount_visible":
+		return ev.setBoolFieldValue("rename.file.mount_visible", &ev.Rename.Old.MountVisible, value)
 	case "rename.file.name":
 		return ev.setStringFieldValue("rename.file.name", &ev.Rename.Old.BasenameStr, value)
 	case "rename.file.name.length":
@@ -37273,8 +39317,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("rmdir.file.mode", &ev.Rmdir.File.FileFields.Mode, value)
 	case "rmdir.file.modification_time":
 		return ev.setUint64FieldValue("rmdir.file.modification_time", &ev.Rmdir.File.FileFields.MTime, value)
+	case "rmdir.file.mount_detached":
+		return ev.setBoolFieldValue("rmdir.file.mount_detached", &ev.Rmdir.File.MountDetached, value)
 	case "rmdir.file.mount_id":
 		return ev.setUint32FieldValue("rmdir.file.mount_id", &ev.Rmdir.File.FileFields.PathKey.MountID, value)
+	case "rmdir.file.mount_visible":
+		return ev.setBoolFieldValue("rmdir.file.mount_visible", &ev.Rmdir.File.MountVisible, value)
 	case "rmdir.file.name":
 		return ev.setStringFieldValue("rmdir.file.name", &ev.Rmdir.File.BasenameStr, value)
 	case "rmdir.file.name.length":
@@ -37601,6 +39649,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.ancestors.file.modification_time", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime, value)
+	case "setrlimit.target.ancestors.file.mount_detached":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.file.mount_detached", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.MountDetached, value)
 	case "setrlimit.target.ancestors.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -37609,6 +39665,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.ancestors.file.mount_id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "setrlimit.target.ancestors.file.mount_visible":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.file.mount_visible", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.MountVisible, value)
 	case "setrlimit.target.ancestors.file.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -37845,6 +39909,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("setrlimit.target.ancestors.interpreter.file.modification_time", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "setrlimit.target.ancestors.interpreter.file.mount_detached":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.interpreter.file.mount_detached", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "setrlimit.target.ancestors.interpreter.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -37857,6 +39933,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("setrlimit.target.ancestors.interpreter.file.mount_id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "setrlimit.target.ancestors.interpreter.file.mount_visible":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.interpreter.file.mount_visible", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "setrlimit.target.ancestors.interpreter.file.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -38248,11 +40336,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.file.modification_time", &ev.Setrlimit.Target.Process.FileEvent.FileFields.MTime, value)
+	case "setrlimit.target.file.mount_detached":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.file.mount_detached", &ev.Setrlimit.Target.Process.FileEvent.MountDetached, value)
 	case "setrlimit.target.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.file.mount_id", &ev.Setrlimit.Target.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "setrlimit.target.file.mount_visible":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.file.mount_visible", &ev.Setrlimit.Target.Process.FileEvent.MountVisible, value)
 	case "setrlimit.target.file.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -38414,6 +40512,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("setrlimit.target.interpreter.file.modification_time", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "setrlimit.target.interpreter.file.mount_detached":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("setrlimit.target.interpreter.file.mount_detached", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "setrlimit.target.interpreter.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -38423,6 +40530,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("setrlimit.target.interpreter.file.mount_id", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "setrlimit.target.interpreter.file.mount_visible":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("setrlimit.target.interpreter.file.mount_visible", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "setrlimit.target.interpreter.file.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -38794,6 +40910,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.parent.file.modification_time", &ev.Setrlimit.Target.Parent.FileEvent.FileFields.MTime, value)
+	case "setrlimit.target.parent.file.mount_detached":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.file.mount_detached", &ev.Setrlimit.Target.Parent.FileEvent.MountDetached, value)
 	case "setrlimit.target.parent.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -38802,6 +40926,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setUint32FieldValue("setrlimit.target.parent.file.mount_id", &ev.Setrlimit.Target.Parent.FileEvent.FileFields.PathKey.MountID, value)
+	case "setrlimit.target.parent.file.mount_visible":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.file.mount_visible", &ev.Setrlimit.Target.Parent.FileEvent.MountVisible, value)
 	case "setrlimit.target.parent.file.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -39038,6 +41170,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("setrlimit.target.parent.interpreter.file.modification_time", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "setrlimit.target.parent.interpreter.file.mount_detached":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.interpreter.file.mount_detached", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.MountDetached, value)
 	case "setrlimit.target.parent.interpreter.file.mount_id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -39050,6 +41194,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("setrlimit.target.parent.interpreter.file.mount_id", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "setrlimit.target.parent.interpreter.file.mount_visible":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.interpreter.file.mount_visible", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.MountVisible, value)
 	case "setrlimit.target.parent.interpreter.file.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -39343,8 +41499,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("setxattr.file.mode", &ev.SetXAttr.File.FileFields.Mode, value)
 	case "setxattr.file.modification_time":
 		return ev.setUint64FieldValue("setxattr.file.modification_time", &ev.SetXAttr.File.FileFields.MTime, value)
+	case "setxattr.file.mount_detached":
+		return ev.setBoolFieldValue("setxattr.file.mount_detached", &ev.SetXAttr.File.MountDetached, value)
 	case "setxattr.file.mount_id":
 		return ev.setUint32FieldValue("setxattr.file.mount_id", &ev.SetXAttr.File.FileFields.PathKey.MountID, value)
+	case "setxattr.file.mount_visible":
+		return ev.setBoolFieldValue("setxattr.file.mount_visible", &ev.SetXAttr.File.MountVisible, value)
 	case "setxattr.file.name":
 		return ev.setStringFieldValue("setxattr.file.name", &ev.SetXAttr.File.BasenameStr, value)
 	case "setxattr.file.name.length":
@@ -39645,6 +41805,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("signal.target.ancestors.file.modification_time", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime, value)
+	case "signal.target.ancestors.file.mount_detached":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.file.mount_detached", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.MountDetached, value)
 	case "signal.target.ancestors.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39653,6 +41821,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint32FieldValue("signal.target.ancestors.file.mount_id", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "signal.target.ancestors.file.mount_visible":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.file.mount_visible", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.MountVisible, value)
 	case "signal.target.ancestors.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39889,6 +42065,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("signal.target.ancestors.interpreter.file.modification_time", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "signal.target.ancestors.interpreter.file.mount_detached":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.interpreter.file.mount_detached", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39901,6 +42089,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("signal.target.ancestors.interpreter.file.mount_id", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "signal.target.ancestors.interpreter.file.mount_visible":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.interpreter.file.mount_visible", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "signal.target.ancestors.interpreter.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40292,11 +42492,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("signal.target.file.modification_time", &ev.Signal.Target.Process.FileEvent.FileFields.MTime, value)
+	case "signal.target.file.mount_detached":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("signal.target.file.mount_detached", &ev.Signal.Target.Process.FileEvent.MountDetached, value)
 	case "signal.target.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint32FieldValue("signal.target.file.mount_id", &ev.Signal.Target.Process.FileEvent.FileFields.PathKey.MountID, value)
+	case "signal.target.file.mount_visible":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("signal.target.file.mount_visible", &ev.Signal.Target.Process.FileEvent.MountVisible, value)
 	case "signal.target.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40458,6 +42668,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("signal.target.interpreter.file.modification_time", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "signal.target.interpreter.file.mount_detached":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("signal.target.interpreter.file.mount_detached", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "signal.target.interpreter.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40467,6 +42686,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("signal.target.interpreter.file.mount_id", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "signal.target.interpreter.file.mount_visible":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("signal.target.interpreter.file.mount_visible", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "signal.target.interpreter.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40838,6 +43066,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("signal.target.parent.file.modification_time", &ev.Signal.Target.Parent.FileEvent.FileFields.MTime, value)
+	case "signal.target.parent.file.mount_detached":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("signal.target.parent.file.mount_detached", &ev.Signal.Target.Parent.FileEvent.MountDetached, value)
 	case "signal.target.parent.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40846,6 +43082,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setUint32FieldValue("signal.target.parent.file.mount_id", &ev.Signal.Target.Parent.FileEvent.FileFields.PathKey.MountID, value)
+	case "signal.target.parent.file.mount_visible":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("signal.target.parent.file.mount_visible", &ev.Signal.Target.Parent.FileEvent.MountVisible, value)
 	case "signal.target.parent.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -41082,6 +43326,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint64FieldValue("signal.target.parent.interpreter.file.modification_time", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime, value)
+	case "signal.target.parent.interpreter.file.mount_detached":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.mount_detached", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("signal.target.parent.interpreter.file.mount_detached", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.MountDetached, value)
 	case "signal.target.parent.interpreter.file.mount_id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -41094,6 +43350,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setUint32FieldValue("signal.target.parent.interpreter.file.mount_id", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
+	case "signal.target.parent.interpreter.file.mount_visible":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.mount_visible", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setBoolFieldValue("signal.target.parent.interpreter.file.mount_visible", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.MountVisible, value)
 	case "signal.target.parent.interpreter.file.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -41367,8 +43635,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("splice.file.mode", &ev.Splice.File.FileFields.Mode, value)
 	case "splice.file.modification_time":
 		return ev.setUint64FieldValue("splice.file.modification_time", &ev.Splice.File.FileFields.MTime, value)
+	case "splice.file.mount_detached":
+		return ev.setBoolFieldValue("splice.file.mount_detached", &ev.Splice.File.MountDetached, value)
 	case "splice.file.mount_id":
 		return ev.setUint32FieldValue("splice.file.mount_id", &ev.Splice.File.FileFields.PathKey.MountID, value)
+	case "splice.file.mount_visible":
+		return ev.setBoolFieldValue("splice.file.mount_visible", &ev.Splice.File.MountVisible, value)
 	case "splice.file.name":
 		return ev.setStringFieldValue("splice.file.name", &ev.Splice.File.BasenameStr, value)
 	case "splice.file.name.length":
@@ -41429,8 +43701,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("unlink.file.mode", &ev.Unlink.File.FileFields.Mode, value)
 	case "unlink.file.modification_time":
 		return ev.setUint64FieldValue("unlink.file.modification_time", &ev.Unlink.File.FileFields.MTime, value)
+	case "unlink.file.mount_detached":
+		return ev.setBoolFieldValue("unlink.file.mount_detached", &ev.Unlink.File.MountDetached, value)
 	case "unlink.file.mount_id":
 		return ev.setUint32FieldValue("unlink.file.mount_id", &ev.Unlink.File.FileFields.PathKey.MountID, value)
+	case "unlink.file.mount_visible":
+		return ev.setBoolFieldValue("unlink.file.mount_visible", &ev.Unlink.File.MountVisible, value)
 	case "unlink.file.name":
 		return ev.setStringFieldValue("unlink.file.name", &ev.Unlink.File.BasenameStr, value)
 	case "unlink.file.name.length":
@@ -41483,8 +43759,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("utimes.file.mode", &ev.Utimes.File.FileFields.Mode, value)
 	case "utimes.file.modification_time":
 		return ev.setUint64FieldValue("utimes.file.modification_time", &ev.Utimes.File.FileFields.MTime, value)
+	case "utimes.file.mount_detached":
+		return ev.setBoolFieldValue("utimes.file.mount_detached", &ev.Utimes.File.MountDetached, value)
 	case "utimes.file.mount_id":
 		return ev.setUint32FieldValue("utimes.file.mount_id", &ev.Utimes.File.FileFields.PathKey.MountID, value)
+	case "utimes.file.mount_visible":
+		return ev.setBoolFieldValue("utimes.file.mount_visible", &ev.Utimes.File.MountVisible, value)
 	case "utimes.file.name":
 		return ev.setStringFieldValue("utimes.file.name", &ev.Utimes.File.BasenameStr, value)
 	case "utimes.file.name.length":

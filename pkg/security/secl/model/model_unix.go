@@ -446,8 +446,8 @@ type FileEvent struct {
 	MountPath     string `field:"-"`
 	MountSource   uint32 `field:"-"`
 	MountOrigin   uint32 `field:"-"`
-	MountVisible  bool   `field:"-"`
-	MountDetached bool   `field:"-"`
+	MountVisible  bool   `field:"mount_visible"`  // SECLDoc[mount_visible] Definition:`Indicates whether the file's mount is visible in the VFS`
+	MountDetached bool   `field:"mount_detached"` // SECLDoc[mount_detached] Definition:`Indicates whether the file's mount is detached from the VFS`
 
 	PathResolutionError error `field:"-"`
 
