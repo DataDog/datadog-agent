@@ -22,30 +22,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-type method string
-
-const (
-	head method = "HEAD"
-	get  method = "GET"
-	post method = "POST"
-)
-
 func sendHead(ctx context.Context, client *http.Client, url string) (statusCode int, logURL string, err error) {
-	status, _, logURL, err := sendRequest(ctx, client, url, head, nil, nil)
+	status, _, logURL, err := sendRequest(ctx, client, url, http.MethodHead, nil, nil)
 	return status, logURL, err
 }
 
 func sendGet(ctx context.Context, client *http.Client, url string, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
-	return sendRequest(ctx, client, url, get, nil, headers)
+	return sendRequest(ctx, client, url, http.MethodGet, nil, headers)
 }
 
-// sendHTTPRequestToEndpoint sends an HTTP Request with the method and payload inside the endpoint information
 func sendPost(ctx context.Context, client *http.Client, url string, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
-	return sendRequest(ctx, client, url, post, payload, headers)
+	return sendRequest(ctx, client, url, http.MethodPost, payload, headers)
 }
 
-// sendRequest
-func sendRequest(ctx context.Context, client *http.Client, url string, method method, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
+// sendRequest sends a generic HTTP Request with the method and payload inside the endpoint information
+func sendRequest(ctx context.Context, client *http.Client, url string, method string, payload []byte, headers map[string]string) (statusCode int, body []byte, logURL string, err error) {
 	logURL = scrubber.ScrubLine(url)
 
 	var reader io.Reader
@@ -53,7 +44,7 @@ func sendRequest(ctx context.Context, client *http.Client, url string, method me
 	if payload != nil {
 		reader = bytes.NewReader(payload)
 	}
-	req, err := http.NewRequestWithContext(ctx, string(method), url, reader)
+	req, err := http.NewRequestWithContext(ctx, method, url, reader)
 
 	if err != nil {
 		return 0, nil, logURL, fmt.Errorf("cannot create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))

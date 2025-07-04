@@ -25,55 +25,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-type separator string
-
-// URL types for different services
-const (
-	dot  separator = "."
-	dash separator = "-"
-)
-
 type endpointDescription struct {
-	method        method
+	method        string
 	route         string
-	routePrefix   string
+	prefix        string
+	dashPrefix    string
 	routePath     string
 	configPrefix  string
-	separator     separator
 	limitRedirect bool
 	versioned     bool
 }
 
 func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
 	return []endpointDescription{
-		{route: "https://install.datadoghq.com", method: head},
-		{route: "https://yum.datadoghq.com", method: head},
-		{route: "https://apt.datadoghq.com", method: head},
-		{route: "https://keys.datadoghq.com", method: head},
-		{routePrefix: "process", routePath: "probe", method: get},
-		{route: helpers.GetFlareEndpoint(cfg), method: head, limitRedirect: true},
-		{routePrefix: "orchestrator", routePath: "probe", method: get},
-		{routePrefix: "llmobs-intake.", routePath: "probe", method: get},
-		{routePrefix: "intake.synthetics.", routePath: "probe", method: get},
-		{routePrefix: "ndm-intake.", routePath: "probe", method: get, configPrefix: "network_devices.metadata."},
-		{routePrefix: "snmp-traps-intake.", routePath: "probe", method: get, configPrefix: "network_devices.snmp_traps.forwarder."},
-		{routePrefix: "ndmflow-intake.", routePath: "probe", method: get, configPrefix: "network_devices.netflow.forwarder."},
-		{routePrefix: "netpath-intake.", routePath: "probe", method: get, configPrefix: "network_path.forwarder."},
-		{routePrefix: "contlcycle-intake.", routePath: "probe", method: get, configPrefix: "container_lifecycle.forwarder."},
-		{routePrefix: "browser-intake-", routePath: "probe", method: get, separator: dash},
-		{routePrefix: "agent-http-intake.logs.", routePath: "probe", method: get, configPrefix: "logs_config."},
-		{routePrefix: "trace.agent", routePath: "_health", method: get},
-		{routePrefix: "config", routePath: "_health", method: get},
-		{routePrefix: "instrumentation-telemetry-intake", routePath: "probe", method: get, configPrefix: "service_discovery.forwarder."},
-		{routePrefix: "intake.profile", routePath: "probe", method: get},
-		{routePrefix: "app", routePath: "probe", versioned: true, method: get},
+		{route: "https://install.datadoghq.com", method: http.MethodHead},
+		{route: "https://yum.datadoghq.com", method: http.MethodHead},
+		{route: "https://apt.datadoghq.com", method: http.MethodHead},
+		{route: "https://keys.datadoghq.com", method: http.MethodHead},
+		{prefix: "process", routePath: "probe", method: http.MethodGet},
+		{route: helpers.GetFlareEndpoint(cfg), method: http.MethodHead, limitRedirect: true},
+		{prefix: "orchestrator", routePath: "probe", method: http.MethodGet},
+		{prefix: "llmobs-intake", routePath: "probe", method: http.MethodGet},
+		{prefix: "intake.synthetics", routePath: "probe", method: http.MethodGet},
+		{prefix: "ndm-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.metadata"},
+		{prefix: "snmp-traps-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.snmp_traps.forwarder"},
+		{prefix: "ndmflow-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.netflow.forwarder"},
+		{prefix: "netpath-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_path.forwarder"},
+		{prefix: "contlcycle-intake", routePath: "probe", method: http.MethodGet, configPrefix: "container_lifecycle.forwarder"},
+		{dashPrefix: "browser-intake", routePath: "probe", method: http.MethodGet},
+		{prefix: "agent-http-intake.logs", routePath: "probe", method: http.MethodGet, configPrefix: "logs_config"},
+		{prefix: "trace.agent", routePath: "_health", method: http.MethodGet},
+		{prefix: "config", routePath: "_health", method: http.MethodGet},
+		{prefix: "instrumentation-telemetry-intake", routePath: "probe", method: http.MethodGet, configPrefix: "service_discovery.forwarder"},
+		{prefix: "intake.profile", routePath: "probe", method: http.MethodGet},
+		{prefix: "app", routePath: "probe", versioned: true, method: http.MethodGet},
 	}
 }
 
 type resolvedEndpoint struct {
 	url           string
 	base          string
-	method        method
+	method        string
 	apiKey        string
 	limitRedirect bool
 }
@@ -92,9 +84,6 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[strin
 		}
 	}
 	routes := []resolvedEndpoint{}
-	if e.separator == "" {
-		e.separator = dot
-	}
 
 	for _, domain := range domains {
 		base, url := e.buildRoute(domain)
@@ -102,7 +91,7 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[strin
 			url:           url,
 			base:          base,
 			method:        e.method,
-			apiKey:        getAPIKey(cfg, e.configPrefix, domain.mainAPIKey, domain.useCustomAPIKey),
+			apiKey:        getAPIKey(cfg, e.configPrefix, domain.mainAPIKey, domain.useAltAPIKey),
 			limitRedirect: e.limitRedirect,
 		})
 	}
@@ -113,6 +102,9 @@ func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, useC
 	if !useCustomAPIKey {
 		return defaultAPIKey
 	}
+	if !strings.HasSuffix(configPrefix, ".") {
+		configPrefix = configPrefix + "."
+	}
 	if apiKey := cfg.GetString(configPrefix + "api_key"); apiKey != "" {
 		return apiKey
 	}
@@ -120,10 +112,10 @@ func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, useC
 }
 
 type domain struct {
-	site            string
-	mainAPIKey      string
-	infraEndpoint   string
-	useCustomAPIKey bool
+	site          string
+	mainAPIKey    string
+	infraEndpoint string
+	useAltAPIKey  bool
 }
 
 func getDomains(cfg model.Reader) map[string]domain {
@@ -136,19 +128,19 @@ func getDomains(cfg model.Reader) map[string]domain {
 	}
 
 	domains["main"] = domain{
-		site:            site,
-		mainAPIKey:      cfg.GetString("api_key"),
-		infraEndpoint:   utils.GetInfraEndpoint(cfg),
-		useCustomAPIKey: true,
+		site:          site,
+		mainAPIKey:    cfg.GetString("api_key"),
+		infraEndpoint: utils.GetInfraEndpoint(cfg),
+		useAltAPIKey:  true,
 	}
 
 	if cfg.GetBool("multi_region_failover.enabled") {
 		if mrfEndpoint, err := utils.GetMRFEndpoint(cfg, utils.InfraURLPrefix, "multi_region_failover.dd_url"); err == nil {
 			domains["MRF"] = domain{
-				site:            cfg.GetString("multi_region_failover.site"),
-				mainAPIKey:      cfg.GetString("multi_region_failover.api_key"),
-				infraEndpoint:   mrfEndpoint,
-				useCustomAPIKey: false,
+				site:          cfg.GetString("multi_region_failover.site"),
+				mainAPIKey:    cfg.GetString("multi_region_failover.api_key"),
+				infraEndpoint: mrfEndpoint,
+				useAltAPIKey:  false,
 			}
 		}
 	}
@@ -156,25 +148,28 @@ func getDomains(cfg model.Reader) map[string]domain {
 	return domains
 }
 
-func (e *endpointDescription) buildRoute(domain domain) (string, string) {
-	prefix := e.routePrefix
-	path := e.routePath
-	separator := e.separator
-
-	base := ""
+func (e *endpointDescription) buildRoute(domain domain) (baseURL string, route string) {
 	if e.versioned {
-		base, _ = utils.AddAgentVersionToDomain(domain.infraEndpoint, e.routePrefix)
+		baseURL, _ = utils.AddAgentVersionToDomain(domain.infraEndpoint, e.prefix)
 	} else {
-		if !strings.HasSuffix(prefix, string(separator)) {
-			prefix = prefix + string(separator)
+		if e.dashPrefix != "" {
+			baseURL = fmt.Sprintf("https://%s", joinPrefix(e.dashPrefix, "-", domain.site))
+		} else {
+			baseURL = fmt.Sprintf("https://%s", joinPrefix(e.prefix, ".", domain.site))
 		}
-		base = fmt.Sprintf("https://%s%s", prefix, domain.site)
 	}
 
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
+	if !strings.HasPrefix(e.routePath, "/") {
+		e.routePath = "/" + e.routePath
 	}
-	return base, base + path
+	return baseURL, baseURL + e.routePath
+}
+
+func joinPrefix(prefix, separator, domain string) string {
+	if !strings.HasSuffix(prefix, separator) {
+		prefix = prefix + separator
+	}
+	return prefix + domain
 }
 
 const (
@@ -288,9 +283,9 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 
 func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *http.Client) (string, error) {
 	switch e.method {
-	case head:
+	case http.MethodHead:
 		return e.checkHead(ctx, client)
-	case get:
+	case http.MethodGet:
 		return e.checkGet(ctx, client)
 	default:
 		return "Unknown Method", fmt.Errorf("unknown Method for service %s", e.url)
@@ -331,13 +326,8 @@ func validateStatusCode(endpoint resolvedEndpoint, statusCode int) (string, erro
 }
 
 func isSuccessStatusCode(endpoint resolvedEndpoint, statusCode int) bool {
-	switch endpoint.method {
-	case head:
-		if statusCode == http.StatusTemporaryRedirect || statusCode == http.StatusPermanentRedirect {
-			return endpoint.limitRedirect
-		}
-		return statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
-	default:
-		return statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
+	if statusCode == http.StatusTemporaryRedirect || statusCode == http.StatusPermanentRedirect {
+		return endpoint.limitRedirect
 	}
+	return statusCode >= 200 && statusCode < 300
 }
