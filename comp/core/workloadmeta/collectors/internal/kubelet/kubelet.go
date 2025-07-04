@@ -121,9 +121,9 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 		// Validate allocation size.
 		// Limits hardcoded here are huge enough to never be hit.
 		if len(pod.Spec.Containers) > 10000 ||
-			len(pod.Spec.InitContainers) > 10000 {
-			log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
-				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			len(pod.Spec.InitContainers) > 10000 || len(pod.Spec.EphemeralContainers) > 10000 {
+			log.Errorf("pod %s has a crazy number of containers: %d, init containers: %d or ephemeral containers: %d. Skipping it!",
+				podMeta.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers), len(pod.Spec.EphemeralContainers))
 			continue
 		}
 
@@ -143,6 +143,13 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			pod,
 			pod.Spec.Containers,
 			pod.Status.Containers,
+			&podID,
+		)
+
+		podEphemeralContainers, ephemeralContainerEvents := parsePodContainers(
+			pod,
+			pod.Spec.EphemeralContainers,
+			pod.Status.EphemeralContainers,
 			&podID,
 		)
 
@@ -173,6 +180,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 			PersistentVolumeClaimNames: pod.GetPersistentVolumeClaimNames(),
 			InitContainers:             podInitContainers,
 			Containers:                 podContainers,
+			EphemeralContainers:        podEphemeralContainers,
 			Ready:                      kubelet.IsPodReady(pod),
 			Phase:                      pod.Status.Phase,
 			IP:                         pod.Status.PodIP,
@@ -185,6 +193,7 @@ func parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent {
 
 		events = append(events, initContainerEvents...)
 		events = append(events, containerEvents...)
+		events = append(events, ephemeralContainerEvents...)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
 			Type:   workloadmeta.EventTypeSet,
@@ -444,6 +453,12 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
+
+	if spec.Resources == nil {
+		// Ephemeral containers do not have resources defined
+		return resources
+	}
+
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
 		resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
 	}
