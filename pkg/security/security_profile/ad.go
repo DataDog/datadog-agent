@@ -11,7 +11,6 @@ package securityprofile
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -117,7 +116,8 @@ func (m *Manager) cleanup() {
 		if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 			if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-			} else if m.config.RuntimeSecurity.SecurityProfileEnabled { // drop the profile if we don't care about using it as a security profile
+			} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.CGroupContext.CGroupFlags.IsContainer() {
+				// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
 				select {
 				case m.newProfiles <- ad.Profile:
 				default:
@@ -198,8 +198,6 @@ func (m *Manager) insertActivityDump(newDump *dump.ActivityDump) error {
 	return nil
 }
 
-const systemdSystemDir = "/usr/lib/systemd/system"
-
 // resolveTags thread unsafe version ot ResolveTags
 func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 	selector := ad.Profile.GetWorkloadSelector()
@@ -207,33 +205,23 @@ func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 		return nil
 	}
 
+	var workloadID interface{}
 	if len(ad.Profile.Metadata.ContainerID) > 0 {
-
-		tags, err := m.resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(ad.Profile.Metadata.ContainerID))
-		if err != nil {
-			return fmt.Errorf("failed to resolve %s: %w", ad.Profile.Metadata.ContainerID, err)
-		}
-
-		ad.Profile.AddTags(tags)
+		workloadID = containerutils.ContainerID(ad.Profile.Metadata.ContainerID)
 	} else if len(ad.Profile.Metadata.CGroupContext.CGroupID) > 0 {
-		systemdService := filepath.Base(string(ad.Profile.Metadata.CGroupContext.CGroupID))
-		serviceVersion := ""
-		servicePath := filepath.Join(systemdSystemDir, systemdService)
+		workloadID = ad.Profile.Metadata.CGroupContext.CGroupID
+	}
 
-		if m.resolvers.SBOMResolver != nil {
-			if pkg := m.resolvers.SBOMResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
-				serviceVersion = pkg.Version
-			}
+	if workloadID != nil {
+		tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve %v: %w", workloadID, err)
 		}
-
-		ad.Profile.AddTags([]string{
-			"service:" + systemdService,
-			"version:" + serviceVersion,
-		})
+		ad.Profile.AddTags(tags)
 	}
 
 	ad.Profile.AddTags([]string{
-		"cgroup_manager:" + containerutils.CGroupManager(ad.Profile.Metadata.CGroupContext.CGroupFlags&containerutils.CGroupManagerMask).String(),
+		"cgroup_manager:" + ad.Profile.Metadata.CGroupContext.CGroupFlags.GetCGroupManager().String(),
 	})
 
 	return nil
@@ -492,9 +480,9 @@ workloadLoop:
 			continue
 		}
 
-		defaultConfig, found := defaultConfigs[containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags)]
+		defaultConfig, found := defaultConfigs[workloads[0].CGroupContext.CGroupFlags.GetCGroupManager()]
 		if !found {
-			seclog.Errorf("Failed to find default activity dump config for cgroup %s managed by %s", string(workloads[0].CGroupContext.CGroupID), containerutils.CGroupManager(workloads[0].CGroupContext.CGroupFlags).String())
+			seclog.Errorf("Failed to find default activity dump config for cgroup %s managed by %s", string(workloads[0].CGroupContext.CGroupID), workloads[0].CGroupContext.CGroupFlags.GetCGroupManager().String())
 			continue
 		}
 

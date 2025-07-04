@@ -280,15 +280,6 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
-  - name: status
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: status.dce_render_errors
-          aggregate_tags:
-            - kind
-            - template_name
   - name: service-discovery
     metric:
       metrics:
@@ -297,6 +288,21 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: runtime-started
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.started
+    schedule:
+      start_after: 5
+      iterations: 1
+  - name: runtime-running
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.running
 `
 
 func compileMetricsExclude(p *Profile) error {

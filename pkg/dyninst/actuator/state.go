@@ -12,23 +12,22 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // state represents the state of an Actuator.
 //
 // This is an event-driven state machine that manages dynamic instrumentation
-// for processes by coordinating IR generation, eBPF compilation, program loading,
-// and process attachment. The state machine processes events sequentially in a
-// dedicated goroutine to maintain consistency.
+// for processes by coordinating IR generation, program loading, and process
+// attachment. The state machine processes events sequentially in a dedicated
+// goroutine to maintain consistency.
 //
 // The instigating event is ProcessesUpdate, which informs the actuator of the
 // probes intended for processes. This triggers a pipeline of asynchronous
-// operations coordinated through effects and completion events.
+// operations coordinated through effects and events.
 //
 // The state machine manages processes (with states like WaitingForProgram, Attaching, Attached)
-// and programs (with states like Queued, GeneratingIR, Compiling, Loading, Loaded).
+// and programs (with states like Queued, GeneratingIR, Loading, Loaded).
 //
 // State transitions emit effects that execute asynchronously. The effectHandler interface
 // defines all available effects that coordinate the instrumentation pipeline from IR
@@ -45,8 +44,8 @@ type state struct {
 	processes map[ProcessID]*process
 	programs  map[ir.ProgramID]*program
 
-	queuedCompilations queue[*program, ir.ProgramID]
-	currentlyCompiling *program
+	queuedLoading    queue[*program, ir.ProgramID]
+	currentlyLoading *program
 
 	// If true, the state machine is shutting down.
 	shuttingDown bool
@@ -55,8 +54,8 @@ type state struct {
 // isShutdown returns true if the state machine is fully shut down.
 func (s *state) isShutdown() bool {
 	return s.shuttingDown &&
-		s.currentlyCompiling == nil &&
-		s.queuedCompilations.len() == 0 &&
+		s.currentlyLoading == nil &&
+		s.queuedLoading.len() == 0 &&
 		len(s.processes) == 0 &&
 		len(s.programs) == 0
 }
@@ -71,7 +70,7 @@ func newState() *state {
 		programIDAlloc: 0,
 		processes:      make(map[ProcessID]*process),
 		programs:       make(map[ir.ProgramID]*program),
-		queuedCompilations: makeQueue(func(p *program) ir.ProgramID {
+		queuedLoading: makeQueue(func(p *program) ir.ProgramID {
 			return p.id
 		}),
 	}
@@ -80,14 +79,11 @@ func newState() *state {
 type program struct {
 	state      programState
 	id         ir.ProgramID
-	config     []config.Probe
+	config     []ir.ProbeDefinition
 	executable Executable
 
-	// Populated after the program has been compiled.
-	compiledProgram *CompiledProgram
-
 	// Populated after the program has been loaded.
-	loadedProgram *loadedProgram
+	loaded *loadedProgram
 
 	// The process with which this program is associated.
 	//
@@ -101,7 +97,7 @@ type process struct {
 
 	id         ProcessID
 	executable Executable
-	probes     map[probeKey]config.Probe
+	probes     map[probeKey]ir.ProbeDefinition
 
 	// The currently installed program, if there is one. Will be 0 if the
 	// process's program creation failed.
@@ -132,24 +128,20 @@ func (pk probeKey) cmp(other probeKey) int {
 // pipeline. Most effects generate completion events; register/unregister are
 // fire-and-forget.
 type effectHandler interface {
-
-	// Compile IR to eBPF bytecode.
-	compileProgram(ir.ProgramID, Executable, []config.Probe) // -> ProgramCompiled/Failed
+	// Register program with event dispatcher.
+	registerProgramWithDispatcher(*ir.Program)
 
 	// Load eBPF program into kernel.
-	loadProgram(*CompiledProgram)
+	loadProgram(ir.ProgramID, Executable, []ir.ProbeDefinition)
 
 	// Attach program to process via uprobes.
 	attachToProcess(*loadedProgram, Executable, ProcessID) // -> ProgramAttached/Failed
 
-	// Register program with event dispatcher.
-	registerProgramWithDispatcher(*ir.Program)
+	// Detach program from process.
+	detachFromProcess(*attachedProgram) // -> ProgramDetached
 
 	// Unregister program from event dispatcher.
 	unregisterProgramWithDispatcher(ir.ProgramID)
-
-	// Detach program from process.
-	detachFromProcess(*attachedProgram) // -> ProgramDetached
 }
 
 // handleEvent updates the state given the event, triggering the relevant
@@ -169,17 +161,11 @@ func handleEvent(
 	case eventProcessesUpdated:
 		err = handleProcessesUpdated(sm, effects, ev)
 
-	case eventProgramCompiled:
-		err = handleProgramCompiled(sm, effects, ev)
-
-	case eventProgramCompilationFailed:
-		err = handleCompilationFailure(sm, ev.programID, ev.err)
-
 	case eventProgramLoaded:
 		err = handleProgramLoaded(sm, effects, ev)
 
 	case eventProgramLoadingFailed:
-		err = handleCompilationFailure(sm, ev.programID, ev.err)
+		err = handleProgramLoadingFailure(sm, ev.programID, ev.err)
 
 	case eventProgramAttached:
 		err = handleProgramAttached(sm, effects, ev)
@@ -217,7 +203,7 @@ func handleProcessesUpdated(
 	var before, after []probeKey
 	anythingChanged := func(
 		p *process,
-		probesAfterUpdate []config.Probe,
+		probesAfterUpdate []ir.ProbeDefinition,
 	) bool {
 		before = before[:0]
 		for k := range p.probes {
@@ -256,7 +242,7 @@ func handleProcessesUpdated(
 			p = &process{
 				id:         pu.ProcessID,
 				executable: pu.Executable,
-				probes:     make(map[probeKey]config.Probe),
+				probes:     make(map[probeKey]ir.ProbeDefinition),
 			}
 			sm.processes[pu.ProcessID] = p
 		}
@@ -279,7 +265,7 @@ func handleProcessesUpdated(
 		// we have no probes, or enqueue the new program with the new probes.
 		if len(p.probes) == 0 {
 			switch p.state {
-			case processStateInvalid, processStateCompilationFailed:
+			case processStateInvalid, processStateLoadingFailed:
 				delete(sm.processes, p.id)
 			case processStateWaitingForProgram:
 				// We're waiting for an aborted compilation to finish.
@@ -293,7 +279,7 @@ func handleProcessesUpdated(
 			}
 		} else {
 			switch p.state {
-			case processStateInvalid, processStateCompilationFailed:
+			case processStateInvalid, processStateLoadingFailed:
 				if err := enqueueProgramForProcess(sm, p); err != nil {
 					return err
 				}
@@ -331,11 +317,11 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 		delete(sm.processes, p.id)
 		return nil
 	}
-	probes := make([]config.Probe, 0, len(p.probes))
+	probes := make([]ir.ProbeDefinition, 0, len(p.probes))
 	for _, probe := range p.probes {
 		probes = append(probes, probe)
 	}
-	slices.SortFunc(probes, func(a, b config.Probe) int {
+	slices.SortFunc(probes, func(a, b ir.ProbeDefinition) int {
 		return cmp.Or(
 			cmp.Compare(a.GetID(), b.GetID()),
 			cmp.Compare(a.GetVersion(), b.GetVersion()),
@@ -351,7 +337,7 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 	p.state = processStateWaitingForProgram
 	p.currentProgram = newProgram.id
 	sm.programs[newProgram.id] = newProgram
-	_, havePrev := sm.queuedCompilations.pushBack(newProgram)
+	_, havePrev := sm.queuedLoading.pushBack(newProgram)
 	if havePrev {
 		return fmt.Errorf("program %v already in queue", newProgram.id)
 	}
@@ -380,7 +366,7 @@ func clearProcessProgram(
 
 	switch prog.state {
 	case programStateQueued:
-		_, ok := sm.queuedCompilations.remove(progID)
+		_, ok := sm.queuedLoading.remove(progID)
 		if !ok {
 			return fmt.Errorf("program %v not found in queued programs", progID)
 		}
@@ -396,8 +382,8 @@ func clearProcessProgram(
 		proc.state = processStateInvalid
 		return nil
 
-	case programStateCompiling, programStateLoading:
-		prog.state = programStateCompilationAborted
+	case programStateLoading:
+		prog.state = programStateLoadingAborted
 		return nil
 
 	case programStateLoaded:
@@ -423,7 +409,7 @@ func clearProcessProgram(
 	case programStateDraining:
 		return nil
 
-	case programStateCompilationAborted:
+	case programStateLoadingAborted:
 		return nil
 
 	default:
@@ -433,43 +419,16 @@ func clearProcessProgram(
 	}
 }
 
-func handleProgramCompiled(
-	sm *state, effects effectHandler, ev eventProgramCompiled,
-) error {
-	progID := ev.programID
-	prog, ok := sm.programs[progID]
-	if !ok {
-		return fmt.Errorf("program %v not found in programs", progID)
-	}
-	switch prog.state {
-	case programStateCompilationAborted:
-		return handleAbortedCompilation(sm, progID)
-
-	case programStateCompiling:
-		// Nothing to do here.
-		prog.state = programStateLoading
-		prog.compiledProgram = ev.compiledProgram
-		effects.loadProgram(ev.compiledProgram)
-		return nil
-
-	default:
-		return fmt.Errorf(
-			"%v is in an invalid state for eventProgramCompiled: %v",
-			progID, prog.state,
-		)
-	}
-}
-
-func handleCompilationFailure(
+func handleProgramLoadingFailure(
 	sm *state, progID ir.ProgramID, failureError error,
 ) error {
 	prog, ok := sm.programs[progID]
 	if !ok {
 		return fmt.Errorf("program %v not found in programs", progID)
 	}
-	if sm.currentlyCompiling == nil {
+	if sm.currentlyLoading == nil {
 		return fmt.Errorf(
-			"currentlyCompiling is nil when program %v failed to compile",
+			"currentlyLoading is nil when program %v failed to load",
 			progID,
 		)
 	}
@@ -484,7 +443,7 @@ func handleCompilationFailure(
 			if len(proc.probes) == 0 {
 				delete(sm.processes, proc.id)
 			} else {
-				proc.state = processStateCompilationFailed
+				proc.state = processStateLoadingFailed
 				proc.currentProgram = 0
 				proc.err = failureError
 			}
@@ -495,7 +454,7 @@ func handleCompilationFailure(
 			)
 		}
 	}
-	sm.currentlyCompiling = nil
+	sm.currentlyLoading = nil
 	prog.state = programStateInvalid
 	delete(sm.programs, progID)
 	return nil
@@ -512,10 +471,10 @@ func handleProgramLoaded(
 	switch prog.state {
 	case programStateLoading:
 		prog.state = programStateLoaded
-		prog.loadedProgram = ev.loadedProgram
+		prog.loaded = ev.loaded
 
 		// Tell the dispatcher about the program.
-		effects.registerProgramWithDispatcher(prog.compiledProgram.IR)
+		effects.registerProgramWithDispatcher(prog.loaded.ir)
 
 		// Now attach to the processes and also register with the dispatcher.
 		if procID := prog.processID; procID != nil {
@@ -530,13 +489,13 @@ func handleProgramLoaded(
 				)
 			}
 			proc.state = processStateAttaching
-			effects.attachToProcess(ev.loadedProgram, prog.executable, proc.id)
+			effects.attachToProcess(ev.loaded, prog.executable, proc.id)
 		}
-		sm.currentlyCompiling = nil
+		sm.currentlyLoading = nil
 		return nil
-	case programStateCompilationAborted:
-		ev.loadedProgram.close()
-		sm.currentlyCompiling = nil
+	case programStateLoadingAborted:
+		ev.loaded.program.Close()
+		sm.currentlyLoading = nil
 		delete(sm.programs, progID)
 
 		if procID := prog.processID; procID != nil {
@@ -579,9 +538,9 @@ func handleProgramAttachingFailed(
 
 	// TODO: Who unloads the program? This should also be done
 	// asynchronously -- right?
-	prog.loadedProgram.close()
+	prog.loaded.program.Close()
 	effects.unregisterProgramWithDispatcher(ev.programID)
-	prog.loadedProgram = nil
+	prog.loaded = nil
 	delete(sm.programs, ev.programID)
 	switch proc.state {
 	case processStateDetaching:
@@ -596,7 +555,7 @@ func handleProgramAttachingFailed(
 		if len(proc.probes) == 0 {
 			delete(sm.processes, proc.id)
 		} else {
-			proc.state = processStateCompilationFailed
+			proc.state = processStateLoadingFailed
 			proc.currentProgram = 0
 			proc.err = ev.err
 		}
@@ -665,7 +624,7 @@ func handleProgramDetached(
 		prog.state = programStateInvalid
 		delete(sm.programs, ev.programID)
 		effects.unregisterProgramWithDispatcher(ev.programID)
-		prog.loadedProgram.close()
+		prog.loaded.program.Close()
 		return nil
 	default:
 		return fmt.Errorf(
@@ -675,64 +634,20 @@ func handleProgramDetached(
 	}
 }
 
-func handleAbortedCompilation(
-	sm *state,
-	progID ir.ProgramID,
-) error {
-	prog, ok := sm.programs[progID]
-	if !ok {
-		return fmt.Errorf("program %v not found in programs", progID)
-	}
-	if sm.currentlyCompiling == nil {
-		return fmt.Errorf(
-			"currentlyCompiling is nil when program %v failed to compile",
-			progID,
-		)
-	}
-	if sm.currentlyCompiling.id != progID {
-		return fmt.Errorf(
-			"currentlyCompiling is %v when program %v failed to compile",
-			sm.currentlyCompiling.id, progID,
-		)
-	}
-	sm.currentlyCompiling = nil
-	prog.loadedProgram = nil
-	prog.state = programStateInvalid
-	if procID := prog.processID; procID != nil {
-		proc, ok := sm.processes[*procID]
-		if !ok {
-			return fmt.Errorf("process %v not found in processes", procID)
-		}
-		switch proc.state {
-		case processStateWaitingForProgram:
-			if err := enqueueProgramForProcess(sm, proc); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf(
-				"%v is in an invalid state for aborted compilation: %v",
-				procID, proc.state,
-			)
-		}
-	}
-	delete(sm.programs, progID)
-	return nil
-}
-
 func maybeDequeueProgram(sm *state, effects effectHandler) error {
-	if sm.currentlyCompiling != nil {
+	if sm.currentlyLoading != nil {
 		return nil
 	}
-	p, ok := sm.queuedCompilations.popFront()
+	p, ok := sm.queuedLoading.popFront()
 	if !ok {
 		return nil
 	}
-	sm.currentlyCompiling = p
+	sm.currentlyLoading = p
 	if p.state != programStateQueued {
 		return fmt.Errorf("program %v in invalid state: %v", p.id, p.state)
 	}
-	p.state = programStateCompiling
-	effects.compileProgram(p.id, p.executable, p.config)
+	p.state = programStateLoading
+	effects.loadProgram(p.id, p.executable, p.config)
 	return nil
 }
 
@@ -763,19 +678,19 @@ func handleShutdown(sm *state, effects effectHandler) error {
 			prog := sm.programs[proc.currentProgram]
 			prog.state = programStateDraining
 			proc.state = processStateDetaching
-		case processStateCompilationFailed:
+		case processStateLoadingFailed:
 			delete(sm.processes, proc.id)
 		}
 	}
 
-	// 2. Abort currently compiling program, if any.
-	if sm.currentlyCompiling != nil {
-		sm.currentlyCompiling.state = programStateCompilationAborted
+	// 2. Abort currently loading program, if any.
+	if sm.currentlyLoading != nil {
+		sm.currentlyLoading.state = programStateLoadingAborted
 	}
 
-	// 3. Clear the compilation queue.
+	// 3. Clear the loading queue.
 	for {
-		prog, ok := sm.queuedCompilations.popFront()
+		prog, ok := sm.queuedLoading.popFront()
 		if !ok {
 			break
 		}

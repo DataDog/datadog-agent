@@ -61,6 +61,7 @@ func (h *RoleBindingHandlers) BuildMessageBody(ctx processors.ProcessorContext, 
 		GroupSize:    int32(groupSize),
 		RoleBindings: models,
 		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 

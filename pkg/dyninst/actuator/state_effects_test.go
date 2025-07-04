@@ -13,7 +13,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -25,17 +24,17 @@ type effect interface {
 
 // Effect implementations
 
-type effectSpawnEBPFCompilation struct {
+type effectSpawnBpfLoading struct {
 	programID  ir.ProgramID
 	executable Executable
-	probes     []config.Probe
+	probes     []ir.ProbeDefinition
 }
 
-func (e effectSpawnEBPFCompilation) yamlTag() string {
-	return "!spawn-ebpf-compilation"
+func (e effectSpawnBpfLoading) yamlTag() string {
+	return "!spawn-bpf-loading"
 }
 
-func (e effectSpawnEBPFCompilation) yamlData() map[string]any {
+func (e effectSpawnBpfLoading) yamlData() map[string]any {
 	var probeKeys []string
 	for _, probe := range e.probes {
 		probeKeys = append(probeKeys, probe.GetID())
@@ -45,20 +44,6 @@ func (e effectSpawnEBPFCompilation) yamlData() map[string]any {
 		"program_id": int(e.programID),
 		"executable": e.executable.String(),
 		"probes":     probeKeys,
-	}
-}
-
-type effectSpawnBpfLoading struct {
-	programID ir.ProgramID
-}
-
-func (e effectSpawnBpfLoading) yamlTag() string {
-	return "!spawn-bpf-loading"
-}
-
-func (e effectSpawnBpfLoading) yamlData() map[string]any {
-	return map[string]any{
-		"program_id": int(e.programID),
 	}
 }
 
@@ -151,21 +136,15 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 
 // Implementation of effectHandler interface using the unified system
 
-func (er *effectRecorder) compileProgram(
+func (er *effectRecorder) loadProgram(
 	programID ir.ProgramID,
 	executable Executable,
-	probes []config.Probe,
+	probes []ir.ProbeDefinition,
 ) {
-	er.recordEffect(effectSpawnEBPFCompilation{
+	er.recordEffect(effectSpawnBpfLoading{
 		programID:  programID,
 		executable: executable,
 		probes:     probes,
-	})
-}
-
-func (er *effectRecorder) loadProgram(compiled *CompiledProgram) {
-	er.recordEffect(effectSpawnBpfLoading{
-		programID: compiled.IR.ID,
 	})
 }
 
@@ -175,7 +154,7 @@ func (er *effectRecorder) attachToProcess(
 	processID ProcessID,
 ) {
 	er.recordEffect(effectAttachToProcess{
-		programID:  loaded.id,
+		programID:  loaded.ir.ID,
 		processID:  processID,
 		executable: executable,
 	})
@@ -183,7 +162,7 @@ func (er *effectRecorder) attachToProcess(
 
 func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	er.recordEffect(effectDetachFromProcess{
-		programID: attached.progID,
+		programID: attached.ir.ID,
 		processID: attached.procID,
 	})
 }

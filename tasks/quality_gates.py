@@ -210,7 +210,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.send_metrics_to_datadog()
 
-    metric_handler.generate_metric_reports(ctx, branch=branch)
+    metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
@@ -305,7 +305,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         current_branch.name,
         branch_name,
         milestone_version,
-        ["team/agent-delivery", "qa/skip-qa", "changelog/no-changelog"],
+        ["team/agent-build", "qa/skip-qa", "changelog/no-changelog"],
     )
 
 
@@ -316,7 +316,7 @@ def notify_threshold_update(pr_url):
     emojis = client.emoji_list()
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
     message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
-    client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
+    client.chat_postMessage(channel='#agent-build-reviews', text=message)
 
 
 @task
@@ -401,7 +401,7 @@ def exception_threshold_bump(ctx):
             metric_handler = GateMetricHandler(
                 git_ref=current_branch_name, bucket_branch="dev", filename=static_gate_report_path
             )
-            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, filename=static_gate_report_path)
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, report_path=static_gate_report_path)
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 

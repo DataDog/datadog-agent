@@ -15,8 +15,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
@@ -88,17 +88,6 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 
 		return encodeNodeTag("!processes-updated", eventData)
 
-	case eventProgramCompiled:
-		return encodeNodeTag("!compiled", map[string]int{
-			"program_id": int(ev.programID),
-		})
-
-	case eventProgramCompilationFailed:
-		return encodeNodeTag("!compilation-failed", map[string]any{
-			"program_id": int(ev.programID),
-			"error":      ev.err.Error(),
-		})
-
 	case eventProgramLoaded:
 		return encodeNodeTag("!loaded", map[string]int{
 			"program_id": int(ev.programID),
@@ -112,7 +101,7 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.progID),
+			"program_id": int(ev.program.ir.ID),
 			"process_id": int(ev.program.procID.PID),
 		})
 
@@ -175,18 +164,17 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		// Convert updated processes
 		var updated []ProcessUpdate
 		for _, proc := range eventData.Updated {
-			var probes []config.Probe
+			var probes []ir.ProbeDefinition
 			for _, p := range proc.Probes {
-				// Convert string type to config.Type
 				probeJSON, err := json.Marshal(p)
 				if err != nil {
 					return fmt.Errorf("failed to marshal probe: %w", err)
 				}
-				probe, err := config.UnmarshalProbe(probeJSON)
+				rcProbe, err := rcjson.UnmarshalProbe(probeJSON)
 				if err != nil {
 					return fmt.Errorf("failed to unmarshal probe: %w", err)
 				}
-				probes = append(probes, probe)
+				probes = append(probes, rcProbe)
 			}
 
 			updated = append(updated, ProcessUpdate{
@@ -219,33 +207,6 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			removed: removedProcessIDs,
 		}
 
-	case "compiled":
-		var eventData struct {
-			ProgramID int `yaml:"program_id"`
-		}
-		if err := node.Decode(&eventData); err != nil {
-			return fmt.Errorf("failed to decode compiled event: %w", err)
-		}
-		ye.event = eventProgramCompiled{
-			programID: ir.ProgramID(eventData.ProgramID),
-			compiledProgram: &CompiledProgram{
-				IR: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
-			},
-		}
-
-	case "compilation-failed":
-		var eventData struct {
-			ProgramID int    `yaml:"program_id"`
-			Error     string `yaml:"error"`
-		}
-		if err := node.Decode(&eventData); err != nil {
-			return fmt.Errorf("failed to decode compilation-failed event: %w", err)
-		}
-		ye.event = eventProgramCompilationFailed{
-			programID: ir.ProgramID(eventData.ProgramID),
-			err:       errors.New(eventData.Error),
-		}
-
 	case "loaded":
 		var eventData struct {
 			ProgramID int `yaml:"program_id"`
@@ -255,8 +216,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
-			loadedProgram: &loadedProgram{
-				id: ir.ProgramID(eventData.ProgramID),
+			loaded: &loadedProgram{
+				ir: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
 			},
 		}
 
@@ -283,7 +244,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				progID: ir.ProgramID(eventData.ProgramID),
+				ir:     &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
 				procID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}

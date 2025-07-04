@@ -117,7 +117,7 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 		}
 		return convert, nil
 	}
-	return nil, fmt.Errorf("invalid type from configuration for key '%s'", path)
+	return nil, fmt.Errorf("invalid type from configuration for key '%s': %v", path, v)
 }
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
@@ -164,6 +164,10 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		childValue, err := toMapStringInterface(value, currPath)
 		if err != nil {
 			warnings = append(warnings, err)
+			// Insert child node here as a leaf. It has the wrong type, but this maintains better
+			// compatibility with how viper works.
+			dest.InsertChildNode(key, newLeafNode(value, source))
+			continue
 		}
 
 		if !dest.HasChild(key) {
