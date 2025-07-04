@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !serverless
+//go:build linux && !serverless
 
 package providers
 
@@ -18,6 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// isRootUser checks if the current user is root
+func isRootUser() bool {
+	return os.Geteuid() == 0
+}
 
 func TestProcessLogProviderEvents(t *testing.T) {
 	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
@@ -1135,6 +1140,11 @@ func TestFileReadabilityVerification(t *testing.T) {
 
 // TestFileReadabilityWithPermissionDenied tests the case where a file exists but is not readable
 func TestFileReadabilityWithPermissionDenied(t *testing.T) {
+	// Skip this test if running as root since root can read any file
+	if isRootUser() {
+		t.Skip("Skipping permission test when running as root")
+	}
+
 	provider, err := NewProcessLogConfigProvider(nil, nil, nil)
 	require.NoError(t, err)
 
@@ -1236,20 +1246,24 @@ func TestIsFileReadable(t *testing.T) {
 	assert.True(t, isFileReadable(emptyFile.Name()), "Empty file should return true")
 
 	// Test 5: File with permission denied
-	permissionFile, err := os.CreateTemp("", "permission_test_*.log")
-	require.NoError(t, err)
-	defer os.Remove(permissionFile.Name())
-	defer permissionFile.Close()
+	if !isRootUser() {
+		permissionFile, err := os.CreateTemp("", "permission_test_*.log")
+		require.NoError(t, err)
+		defer os.Remove(permissionFile.Name())
+		defer permissionFile.Close()
 
-	_, err = permissionFile.WriteString("test content")
-	require.NoError(t, err)
+		_, err = permissionFile.WriteString("test content")
+		require.NoError(t, err)
 
-	// Change permissions to make it non-readable
-	err = os.Chmod(permissionFile.Name(), 0000)
-	require.NoError(t, err)
-	defer os.Chmod(permissionFile.Name(), 0644) // Restore permissions for cleanup
+		// Change permissions to make it non-readable
+		err = os.Chmod(permissionFile.Name(), 0000)
+		require.NoError(t, err)
+		defer os.Chmod(permissionFile.Name(), 0644) // Restore permissions for cleanup
 
-	assert.False(t, isFileReadable(permissionFile.Name()), "File with permission denied should return false")
+		assert.False(t, isFileReadable(permissionFile.Name()), "File with permission denied should return false")
+	} else {
+		t.Log("Skipping permission denied test when running as root")
+	}
 
 	// Test 6: Directory (should fail to open as file)
 	tempDir, err := os.MkdirTemp("", "dir_test_*")
