@@ -75,7 +75,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		stop:              make(chan struct{}, 1),
 		done:              make(chan struct{}, 1),
 		processRawMessage: processRawMessage,
-		tagProvider:       tag.NewLocalProvider([]string{}),
+		tagProvider:       tag.NewLocalProvider(source.Config.Tags),
 		tagger:            tagger,
 		registry:          registry,
 	}
@@ -203,6 +203,8 @@ func (t *Tailer) forwardMessages() {
 
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
+			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
+			// The decodedMessage already has the proper origin with tags set
 			t.outputChan <- decodedMessage
 		}
 	}
@@ -411,7 +413,10 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	applicationName := t.getApplicationName(entry, tags)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
-	origin.SetTags(append(tags, t.tagProvider.GetTags()...))
+
+	// Combine tags from multiple sources: entry tags, tag provider, and global config
+	allTags := append(tags, t.tagProvider.GetTags()...)
+	origin.SetTags(allTags)
 	return origin
 }
 

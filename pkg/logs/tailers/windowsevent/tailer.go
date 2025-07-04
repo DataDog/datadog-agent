@@ -126,7 +126,14 @@ func (t *Tailer) forwardMessages() {
 
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
-			t.outputChan <- decodedMessage
+			origin := message.NewOrigin(t.source)
+			// Combine tags from multiple sources: parsing extra tags and source config tags
+			tags := append(decodedMessage.ParsingExtra.Tags, t.source.Config.Tags...)
+			origin.SetTags(tags)
+			msg := message.NewMessage(decodedMessage.GetContent(), origin, decodedMessage.Status, decodedMessage.IngestionTimestamp)
+			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
+			msg.ParsingExtra = decodedMessage.ParsingExtra
+			t.outputChan <- msg
 		}
 	}
 }
