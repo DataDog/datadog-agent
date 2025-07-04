@@ -73,3 +73,9 @@ func (k *Version) HasSKStorageInTracingPrograms() bool {
 func (k *Version) HasTracingHelpersInCgroupSysctlPrograms() bool {
 	return false
 }
+
+// HasBpfGetCurrentPidTgidForSchedCLS returns true if the kernel supports bpf_get_current_pid_tgid for Sched CLS program type
+// https://github.com/torvalds/linux/commit/eb166e522c77699fc19bfa705652327a1e51a117
+func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
+	return false
+}

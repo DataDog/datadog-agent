@@ -2332,6 +2332,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "raw_packet_filter",
 			Value: utils.BoolTouint64(p.config.Probe.NetworkRawPacketFilter != "none"),
 		},
+		manager.ConstantEditor{
+			Name:  "sched_cls_has_current_pid_tgid_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {

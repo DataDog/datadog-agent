@@ -26,6 +26,14 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
+    u64 sched_cls_has_current_pid_tgid_helper = 0;
+    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+    if (sched_cls_has_current_pid_tgid_helper) {
+        // reset and fill span context
+        reset_span_context(&evt->span);
+        fill_span_context(&evt->span);
+    }
+
     // network context
     fill_network_context(&evt->network, skb, pkt);
 
