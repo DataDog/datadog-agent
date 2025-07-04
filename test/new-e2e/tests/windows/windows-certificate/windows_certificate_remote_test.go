@@ -187,6 +187,55 @@ instances:
 
 }
 
+func (v *multiVMSuite) TestGetRemoteCertificateWithCrl() {
+	agentHost := v.Env().AgentHost
+	certificateHost := v.Env().CertificateHost
+	checkConfig := fmt.Sprintf(`
+init_config:
+instances:
+  - certificate_store: CA
+    server: %s
+    username: %s
+    password: %s
+    enable_crl_monitoring: true`, certificateHost.HostOutput.Address, TestUser, TestPassword)
+	v.T().Logf("Check config: %s", checkConfig)
+
+	_, err := agentHost.WriteFile("C:\\ProgramData\\Datadog\\conf.d\\windows_certificate.d\\conf.yaml", []byte(checkConfig))
+	v.Require().NoError(err)
+
+	err = windowsCommon.RestartService(agentHost, "datadogagent")
+	v.Require().NoError(err)
+
+	agent := `C:\Program Files\Datadog\Datadog Agent\bin\agent.exe`
+	cmd := fmt.Sprintf(`&'%s' status`, agent)
+
+	// Wait for the agent to be running and check that the windows_certificate check is running
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		output, err := agentHost.Execute(cmd)
+		assert.NoError(c, err)
+		assert.Contains(c, output, "windows_certificate")
+		v.T().Logf("Agent status: %s", output)
+	}, 5*time.Minute, 10*time.Second)
+
+	cmdCheck := fmt.Sprintf(`&'%s' check windows_certificate`, agent)
+	certStoreTag := `"certificate_store:CA"`
+	serverTag := fmt.Sprintf(`"server:%s"`, certificateHost.HostOutput.Address)
+	issuerOUTag := `"crl_issuer_OU:VeriSign Commercial Software Publishers CA"`
+	output, err := agentHost.Execute(cmdCheck)
+	v.Require().NoError(err)
+	v.T().Logf("Check output: %s", output)
+
+	// Assert that the check output returns the metric and service check
+	v.Require().Contains(output, "windows_certificate.crl_days_remaining")
+	v.Require().Contains(output, "windows_certificate.crl_expiration")
+
+	// Assert that the check output returns the correct metric tags
+	v.Require().Contains(output, certStoreTag)
+	v.Require().Contains(output, serverTag)
+	v.Require().Contains(output, issuerOUTag)
+
+}
+
 func RebootHost(host *components.RemoteHost) error {
 	_, err := powershell.PsHost().Reboot().Execute(host)
 	if err != nil {

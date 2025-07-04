@@ -274,6 +274,23 @@ def run(
         env_vars["E2E_PROFILE"] = profile
 
     parsed_params = {}
+
+    # Outside of CI try to automatically configure the secret to pull agent image
+    if not running_in_ci():
+        # Authentication against agent-qa is required for all kubernetes tests, to use the cache
+        parsed_params["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
+        ).stdout.strip()
+        parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+        parsed_params["ddagent:imagePullUsername"] = "AWS"
+        # If we use an agent image from sandbox registry we need to authenticate against it
+        if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
+            parsed_params["ddagent:imagePullPassword"] += (
+                f",{ctx.run('aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password', hide=True).stdout.strip()}"
+            )
+            parsed_params["ddagent:imagePullRegistry"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
+            parsed_params["ddagent:imagePullUsername"] += ",AWS"
+
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
