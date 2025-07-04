@@ -768,7 +768,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountOrigin = origin
 	fileEvent.MountVisible, fileEvent.MountDetached, err = p.pathResolver.ResolveMountAttributes(&fileEvent.FileFields, &pce.PIDContext, ctrCtx)
 	if err != nil {
-		return onError(pathnameStr, err)
+		seclog.Errorf("Failed to resolve mount attributes: %s", err)
 	}
 	return fileEvent.PathnameStr, nil
 }
