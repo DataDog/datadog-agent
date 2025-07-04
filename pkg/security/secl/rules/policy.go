@@ -47,24 +47,30 @@ func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
 
 // PolicyRule represents a rule loaded from a policy
 type PolicyRule struct {
-	Def        *RuleDefinition
-	Actions    []*Action
-	Accepted   bool
-	Error      error
+	Def      *RuleDefinition
+	Actions  []*Action
+	Accepted bool
+	Error    error
+	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
+	FilterType FilterType
 	Policy     PolicyInfo
 	ModifiedBy []PolicyInfo
 	UsedBy     []PolicyInfo
 }
 
 // Policies returns an iterator over the policies that this rule is part of.
-func (r *PolicyRule) Policies() iter.Seq[*PolicyInfo] {
+func (r *PolicyRule) Policies(includeInternalPolicies bool) iter.Seq[*PolicyInfo] {
 	return func(yield func(*PolicyInfo) bool) {
-		if !yield(&r.Policy) {
-			return
+		if !r.Policy.IsInternal || includeInternalPolicies {
+			if !yield(&r.Policy) {
+				return
+			}
 		}
 		for _, policy := range r.UsedBy {
-			if !yield(&policy) {
-				return
+			if !policy.IsInternal || includeInternalPolicies {
+				if !yield(&policy) {
+					return
+				}
 			}
 		}
 	}
@@ -72,6 +78,10 @@ func (r *PolicyRule) Policies() iter.Seq[*PolicyInfo] {
 
 func (r *PolicyRule) isAccepted() bool {
 	return r.Accepted && r.Error == nil
+}
+
+func (r *PolicyRule) isFiltered() bool {
+	return !r.Accepted && r.Error == nil
 }
 
 func applyOverride(rd1, rd2 *PolicyRule) {
@@ -223,6 +233,19 @@ func (p *Policy) GetAcceptedRules() []*PolicyRule {
 	return acceptedRules
 }
 
+// GetFilteredRules returns the list of filtered rules that are part of the policy
+func (p *Policy) GetFilteredRules() []*PolicyRule {
+	var filteredRules []*PolicyRule
+	for _, rules := range p.rules {
+		for _, rule := range rules {
+			if rule.isFiltered() {
+				filteredRules = append(filteredRules, rule)
+			}
+		}
+	}
+	return filteredRules
+}
+
 // SetInternalCallbackAction adds an internal callback action for the given rule IDs
 func (p *Policy) SetInternalCallbackAction(ruleID ...RuleID) {
 	for _, id := range ruleID {
@@ -288,6 +311,7 @@ RULES:
 			}
 
 			if !rule.Accepted {
+				rule.FilterType = filter.GetType()
 				continue RULES
 			}
 		}
