@@ -28,6 +28,8 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -38,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultReceiverBufferSize is used as a default for the initial size of http body buffer
