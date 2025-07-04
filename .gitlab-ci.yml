@@ -1083,6 +1083,13 @@ workflow:
         - pkg/config/autodiscovery/autodiscovery.go
       compare_to: $COMPARE_TO_BRANCH
 
+.on_agent_onboarding_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-onboarding/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_installer_systemd_changes:
   - <<: *if_main_branch
   - !reference [.except_mergequeue]

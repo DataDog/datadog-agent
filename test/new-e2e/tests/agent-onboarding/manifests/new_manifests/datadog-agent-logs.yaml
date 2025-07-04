@@ -1,0 +1,20 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog-agent-logs
+  namespace: e2e-operator
+  labels:
+    agent.datadoghq.com/e2e-test: datadog-agent-logs
+spec:
+  global:
+    kubelet:
+      tlsVerify: false
+  features:
+    clusterChecks:
+      enabled: true
+      useClusterChecksRunners: false
+    logCollection:
+      enabled: true
+      containerCollectAll: true
+    liveContainerCollection:
+      enabled: true
