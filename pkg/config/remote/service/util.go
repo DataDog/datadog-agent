@@ -93,6 +93,30 @@ func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string, url strin
 	})
 }
 
+func getMetadata(db *bbolt.DB) (AgentMetadata, error) {
+	var metadata AgentMetadata
+	var err error
+	err = db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(metaBucket))
+		if bucket == nil {
+			log.Infof("Missing meta bucket")
+			return fmt.Errorf("could not get RC metadata: missing bucket")
+		}
+		metadataBytes := bucket.Get([]byte(metaFile))
+		if metadataBytes == nil {
+			log.Infof("Missing meta file in meta bucket")
+			return fmt.Errorf("could not get RC metadata: missing meta file")
+		}
+		err = json.Unmarshal(metadataBytes, &metadata)
+		if err != nil {
+			log.Infof("Invalid metadata")
+			return err
+		}
+		return nil
+	})
+	return metadata, err
+}
+
 func openCacheDB(path string, agentVersion string, apiKey string, url string) (*bbolt.DB, error) {
 	apiKeyHash := hashAPIKey(apiKey)
 
@@ -107,25 +131,7 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 		return recreate(path, agentVersion, apiKeyHash, url)
 	}
 
-	var metadata AgentMetadata
-	err = db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(metaBucket))
-		if bucket == nil {
-			log.Infof("Missing meta bucket")
-			return fmt.Errorf("Could not get RC metadata: missing bucket")
-		}
-		metadataBytes := bucket.Get([]byte(metaFile))
-		if metadataBytes == nil {
-			log.Infof("Missing meta file in meta bucket")
-			return fmt.Errorf("Could not get RC metadata: missing meta file")
-		}
-		err = json.Unmarshal(metadataBytes, &metadata)
-		if err != nil {
-			log.Infof("Invalid metadata")
-			return err
-		}
-		return nil
-	})
+	metadata, err := getMetadata(db)
 	if err != nil {
 		_ = db.Close()
 		log.Infof("Failed to validate remote configuration database %s", err)
