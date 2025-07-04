@@ -556,7 +556,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.157
+	github.com/DataDog/agent-payload/v5 v5.0.158-0.20250704141941-ac460dc9bc56
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0
@@ -1036,7 +1036,6 @@ replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
-	github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.157-0.20250630083248-5d7bbafc3e9d
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
