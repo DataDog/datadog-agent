@@ -366,7 +366,7 @@ type NetworkFilterDefinition struct {
 	DefaultActionDefinition
 	BPFFilter string `yaml:"filter" json:"filter,omitempty"`
 	Policy    string `yaml:"policy" json:"policy,omitempty"`
-	Scope     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Scope     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=cgroup"`
 }
 
 // PreCheck returns an error if the network filter action is invalid
@@ -376,7 +376,7 @@ func (n *NetworkFilterDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	// default scope to process
-	if n.Scope != "" && n.Scope != "process" && n.Scope != "container" {
+	if n.Scope != "" && n.Scope != "process" && n.Scope != "cgroup" {
 		return fmt.Errorf("invalid scope '%s'", n.Scope)
 	}
 

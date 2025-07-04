@@ -3063,12 +3063,19 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			policy.Parse(action.Def.NetworkFilter.Policy)
 
 			if policy == rawpacket.PolicyDrop {
-				p.rawPacketDropActionFilters = append(p.rawPacketDropActionFilters, rawpacket.Filter{
+				dropActionFilter := rawpacket.Filter{
 					RuleID:    rule.ID,
 					BPFFilter: action.Def.NetworkFilter.BPFFilter,
 					Policy:    policy,
-					Pid:       527826, //ev.ProcessContext.Pid,
-				})
+				}
+
+				if action.Def.NetworkFilter.Scope == "cgroup" {
+					dropActionFilter.CGroupPathKey = ev.CGroupContext.CGroupPathKey
+				} else {
+					dropActionFilter.Pid = ev.ProcessContext.Pid
+				}
+
+				p.rawPacketDropActionFilters = append(p.rawPacketDropActionFilters, dropActionFilter)
 
 				// trigger rule reload
 				if err := p.setupRawPacketDropActions(); err != nil {
