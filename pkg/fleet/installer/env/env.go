@@ -121,6 +121,8 @@ const (
 	APMInstrumentationEnabledIIS = "iis"
 	// APMInstrumentationEnabledDotnet enables APM instrumentation for .NET applications running on Windows
 	APMInstrumentationEnabledDotnet = "dotnet"
+	// APMInstrumentationDisabled disables all APM instrumentation
+	APMInstrumentationDisabled = "disabled"
 	// APMInstrumentationNotSet is the default value when the environment variable is not set.
 	APMInstrumentationNotSet = "not_set"
 )

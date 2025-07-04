@@ -60,7 +60,7 @@ func postInstallAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable", ctx.Upgrade)
 }
 
 // postStartExperimentAPMLibraryDotnet starts a .NET APM library experiment.
@@ -78,7 +78,7 @@ func postStartExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	return instrumentDotnetLibraryIfNeeded(ctx, "experiment")
+	return instrumentDotnetLibraryIfNeeded(ctx, "experiment", true)
 }
 
 // preStopExperimentAPMLibraryDotnet stops a .NET APM library experiment.
@@ -96,7 +96,7 @@ func preStopExperimentAPMLibraryDotnet(ctx HookContext) (err error) {
 	if err != nil {
 		return err
 	}
-	return instrumentDotnetLibraryIfNeeded(ctx, "stable")
+	return instrumentDotnetLibraryIfNeeded(ctx, "stable", true)
 }
 
 // preRemoveAPMLibraryDotnet uninstalls the .NET APM library
@@ -133,19 +133,29 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 	return true, nil
 }
 
-func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
+func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, upgrade bool) (err error) {
 	envInst := env.FromEnv()
 	method := envInst.InstallScript.APMInstrumentationEnabled
-	return updateInstrumentation(ctx, method, target)
+	return updateInstrumentation(ctx, method, target, upgrade)
 }
 
-func updateInstrumentation(ctx context.Context, newMethod, target string) (err error) {
+func updateInstrumentation(ctx context.Context, newMethod, target string, upgrade bool) (err error) {
 	// TODO What if it's a reinstall and the instrumentation method config was not properly cleaned up by the previous installation?
 	// Check if a an instrumentation method was set during a previous installation
 	var currentMethod string
 	currentMethod, err = getAPMInstrumentationMethod()
 	if err != nil {
 		return fmt.Errorf("could not get current instrumentation method: %w", err)
+	}
+
+	// The first version of SSI for IIS did not store the configured instrumentation
+	// So if it's an upgrade and not a reinstall, we assume it's IIS instrumentation
+	if currentMethod == env.APMInstrumentationNotSet {
+		if upgrade {
+			currentMethod = env.APMInstrumentationEnabledIIS
+		} else {
+			currentMethod = env.APMInstrumentationDisabled
+		}
 	}
 
 	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
@@ -155,11 +165,11 @@ func updateInstrumentation(ctx context.Context, newMethod, target string) (err e
 		newMethod = currentMethod
 	}
 
-	if newMethod == env.APMInstrumentationNotSet {
-		return nil
+	if newMethod == env.APMInstrumentationDisabled {
+		return setAPMInstrumentationMethod(env.APMInstrumentationDisabled)
 	}
 
-	if currentMethod != env.APMInstrumentationNotSet && currentMethod != newMethod {
+	if currentMethod != env.APMInstrumentationDisabled && currentMethod != newMethod {
 		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
 		// TODO show an error but do not fail the installation
 		if err != nil {
