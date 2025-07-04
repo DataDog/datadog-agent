@@ -9,8 +9,6 @@
 package activitytree
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -22,22 +20,16 @@ type IMDSNode struct {
 	Event          model.IMDSEvent
 }
 
-func NewIMDSNode(event *model.IMDSEvent, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *IMDSNode {
+func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *IMDSNode {
 	node := &IMDSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Event:          *event,
 	}
 	node.NodeBase = NewNodeBase()
+	node.AppendImageTag(imageTag, evt.ResolveEventTime())
 	
-	if imageTag != "" {
-		node.Record(imageTag, time.Now())
-	}
 	return node
-}
-
-func (imds *IMDSNode) appendImageTag(imageTag string) {
-	imds.Record(imageTag, time.Now())
 }
 
 func (imds *IMDSNode) evictImageTag(imageTag string) bool {
@@ -47,7 +39,3 @@ func (imds *IMDSNode) evictImageTag(imageTag string) bool {
 	}
 	return false
 }
-
-
-	
-

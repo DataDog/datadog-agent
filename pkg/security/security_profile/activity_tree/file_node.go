@@ -55,12 +55,10 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
 	}
-
 	fan.NodeBase = NewNodeBase()
-
-	if imageTag != "" {
-		fan.Record(imageTag, time.Now())
-	}
+	if event != nil {
+		fan.AppendImageTag(imageTag, event.ResolveEventTime())
+	} 
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
@@ -169,7 +167,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.Record(imageTag, time.Now())
+			currentFn.AppendImageTag(imageTag, event.ResolveEventTime())
 			continue
 		}
 
@@ -191,10 +189,10 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 	return newEntry
 }
 
-func (fn *FileNode) tagAllNodes(imageTag string) {
-	fn.Record(imageTag, time.Now())
+func (fn *FileNode) tagAllNodes(imageTag string, timestamp time.Time) {
+	fn.AppendImageTag(imageTag, timestamp)
 	for _, child := range fn.Children {
-		child.tagAllNodes(imageTag)
+		child.tagAllNodes(imageTag, timestamp)
 	}
 }
 

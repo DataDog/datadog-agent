@@ -419,6 +419,7 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 	socketNode := &SocketNode{
 		Family: sn.Family,
 	}
+	socketNode.NodeBase = NewNodeBase()
 
 	for _, bindNode := range sn.GetBind() {
 		psn := &BindNode{
@@ -436,11 +437,6 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 				lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
 				psn.RecordWithTimestamps(tag, firstSeen, lastSeen)
 			}
-		}
-
-		// Fallback to deprecated ImageTags field for backward compatibility
-		for _, imageTag := range bindNode.ImageTags {
-			psn.Record(imageTag, time.Now())
 		}
 
 		for _, rule := range bindNode.MatchedRules {

@@ -10,7 +10,6 @@ package activitytree
 
 import (
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -25,15 +24,14 @@ type DNSNode struct {
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
-	now := time.Now()
+func NewDNSNode(event *model.DNSEvent,evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
 	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Requests:       []model.DNSEvent{*event},
 	}
 	node.NodeBase = NewNodeBase()
-	node.Record(imageTag, now)
+	node.AppendImageTag(imageTag, evt.ResolveEventTime())
 	return node
 }
 
@@ -50,10 +48,6 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 		result = tab[len(tab)-i-1] + result
 	}
 	return result
-}
-
-func (dn *DNSNode) appendImageTag(imageTag string) {
-	dn.Record(imageTag, time.Now())
 }
 
 func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {

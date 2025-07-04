@@ -9,8 +9,6 @@
 package activitytree
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -22,20 +20,14 @@ type FlowNode struct {
 }
 
 // NewFlowNode returns a new FlowNode instance
-func NewFlowNode(flow model.Flow, generationType NodeGenerationType, imageTag string) *FlowNode {
-	now := time.Now()
+func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerationType, imageTag string) *FlowNode {
 	node := &FlowNode{
 		GenerationType: generationType,
 		Flow:           flow,
 	}
 	node.NodeBase = NewNodeBase()
-	node.Record(imageTag, now)
-	node.appendImageTag(imageTag)
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 	return node
-}
-
-func (node *FlowNode) appendImageTag(imageTag string) {
-	node.Record(imageTag, time.Now())
 }
 
 func (node *FlowNode) evictImageTag(imageTag string) bool {
@@ -46,10 +38,8 @@ func (node *FlowNode) evictImageTag(imageTag string) bool {
 	return false
 }
 
-func (node *FlowNode) addFlow(flow model.Flow, imageTag string) {
-	if imageTag != "" {
-		node.Record(imageTag, time.Now())
-	}
+func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTag string) {
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 
 	// add metrics
 	node.Flow.Egress.Add(flow.Egress)
