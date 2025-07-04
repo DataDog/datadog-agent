@@ -9,13 +9,12 @@
 package model
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"math"
 	"net"
 	"reflect"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // to always require the math package
@@ -39369,43 +39368,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.k8s_username"}
-		}
-		ev.Setrlimit.Target.Process.UserSession.K8SUsername = rv
-		return nil
+		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_username", &ev.Setrlimit.Target.Process.UserSession.K8SUsername, value)
 	case "setsockopt.filter_hash":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_hash"}
-		}
-		ev.SetSockOpt.FilterHash = rv
-		return nil
+		return ev.setStringFieldValue("setsockopt.filter_hash", &ev.SetSockOpt.FilterHash, value)
 	case "setsockopt.filter_instructions":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_instructions"}
-		}
-		ev.SetSockOpt.FilterInstructions = rv
-		return nil
+		return ev.setStringFieldValue("setsockopt.filter_instructions", &ev.SetSockOpt.FilterInstructions, value)
 	case "setsockopt.filter_len":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_len"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "setsockopt.filter_len"}
-		}
-		ev.SetSockOpt.FilterLen = uint16(rv)
-		return nil
+		return ev.setUint16FieldValue("setsockopt.filter_len", &ev.SetSockOpt.FilterLen, value)
 	case "setsockopt.is_filter_truncated":
-		rv, ok := value.(bool)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.is_filter_truncated"}
-		}
-		ev.SetSockOpt.IsFilterTruncated = rv
-		return nil
+		return ev.setBoolFieldValue("setsockopt.is_filter_truncated", &ev.SetSockOpt.IsFilterTruncated, value)
 	case "setsockopt.level":
 		return ev.setUint32FieldValue("setsockopt.level", &ev.SetSockOpt.Level, value)
 	case "setsockopt.optname":
@@ -39413,35 +39384,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "setsockopt.retval":
 		return ev.setInt64FieldValue("setsockopt.retval", &ev.SetSockOpt.SyscallEvent.Retval, value)
 	case "setsockopt.socket_family":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket_family"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "setsockopt.socket_family"}
-		}
-		ev.SetSockOpt.SocketFamily = uint16(rv)
-		return nil
+		return ev.setUint16FieldValue("setsockopt.socket_family", &ev.SetSockOpt.SocketFamily, value)
 	case "setsockopt.socket_protocol":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket_protocol"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "setsockopt.socket_protocol"}
-		}
-		ev.SetSockOpt.SocketProtocol = uint16(rv)
-		return nil
+		return ev.setUint16FieldValue("setsockopt.socket_protocol", &ev.SetSockOpt.SocketProtocol, value)
 	case "setsockopt.socket_type":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket_type"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "setsockopt.socket_type"}
-		}
-		ev.SetSockOpt.SocketType = uint16(rv)
-		return nil
+		return ev.setUint16FieldValue("setsockopt.socket_type", &ev.SetSockOpt.SocketType, value)
 	case "setuid.euid":
 		return ev.setUint32FieldValue("setuid.euid", &ev.SetUID.EUID, value)
 	case "setuid.euser":
