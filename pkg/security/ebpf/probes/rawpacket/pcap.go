@@ -125,14 +125,24 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 	mismatchLabel := fmt.Sprintf("mismatch_%d_", index)
 
 	if filter.Pid != 0 {
-		fmt.Printf("!!!!!!!!!!!!!! filter.Pid: %d\n", filter.Pid)
-
 		insts = append(insts,
 			// == 0, no match
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// check the pid
 			asm.JEq.Imm(opts.target, int32(filter.Pid), opts.onMatchLabel),
+			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
+		)
+	} else if !filter.CGroupPathKey.IsNull() {
+		// use the cgroup id which the inode of the cgroup path
+		insts = append(insts,
+			// == 0, no match
+			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
+
+			// check the cgroup id
+			asm.Mov.Reg(asm.R1, opts.ctxSave),
+			asm.FnSkbCgroupId.Call(),
+			asm.JEq.Imm(asm.R0, int32(filter.CGroupPathKey.Inode), opts.onMatchLabel),
 			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
 		)
 	} else {
