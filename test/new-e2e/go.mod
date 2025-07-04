@@ -5,9 +5,6 @@ go 1.24.0
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
-
-replace github.com/DataDog/dd-trace-go/v2 => github.com/DataDog/dd-trace-go/v2 v2.2.0-dev.0.20250703163407-fe576a157e21 // TODO: Remove, only to test a fix for orchestrion
-
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.155
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
@@ -243,7 +240,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.66.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/dd-trace-go/v2 v2.0.0
+	github.com/DataDog/dd-trace-go/v2 v2.2.0-dev.0.20250703163407-fe576a157e21
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.81.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
