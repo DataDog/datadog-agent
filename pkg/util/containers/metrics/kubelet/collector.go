@@ -103,15 +103,20 @@ func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName str
 		}
 		return "", err
 	}
-	containers := pod.Containers
+
+	var containers []workloadmeta.OrchestratorContainer
 	if initCont {
 		containers = pod.InitContainers
+	} else {
+		containers = append(pod.Containers, pod.EphemeralContainers...)
 	}
+
 	for _, container := range containers {
 		if container.Name == contName {
 			return container.ID, nil
 		}
 	}
+
 	return "", nil
 }
 
