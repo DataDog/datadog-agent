@@ -52,6 +52,7 @@ type PayloadAggregationKey struct {
 	ContainerID     string
 	GitCommitSha    string
 	ImageTag        string
+	Lang            string
 	ProcessTagsHash uint64
 }
 

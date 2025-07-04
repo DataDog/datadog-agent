@@ -98,7 +98,7 @@ func (c *cudaEventConsumer) Start() {
 	if c == nil {
 		return
 	}
-	health := health.RegisterLiveness("gpu-tracer-cuda-events")
+	health := health.RegisterLiveness(consts.GpuConsumerHealthName)
 	processMonitor := monitor.GetProcessMonitor()
 	cleanupExit := processMonitor.SubscribeExit(c.handleProcessExit)
 

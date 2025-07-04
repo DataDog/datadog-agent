@@ -1,46 +1,46 @@
-pc: 0x4a8060
-	main.intArg@*/main.go:41
-pc: 0x4a8091
-	fmt.Println@*/print.go:314
+pc: 0x4a80a0
 	main.intArg@*/main.go:42
-pc: 0x4a80e0
-	main.stringArg@*/main.go:46
-pc: 0x4a8118
+pc: 0x4a80d1
 	fmt.Println@*/print.go:314
+	main.intArg@*/main.go:43
+pc: 0x4a8120
 	main.stringArg@*/main.go:47
-pc: 0x4a8160
-	main.intSliceArg@*/main.go:51
-pc: 0x4a819d
+pc: 0x4a8158
 	fmt.Println@*/print.go:314
+	main.stringArg@*/main.go:48
+pc: 0x4a81a0
 	main.intSliceArg@*/main.go:52
-pc: 0x4a81e0
-	main.intArrayArg@*/main.go:56
-pc: 0x4a8213
+pc: 0x4a81dd
+	fmt.Println@*/print.go:314
+	main.intSliceArg@*/main.go:53
+pc: 0x4a8220
 	main.intArrayArg@*/main.go:57
-pc: 0x4a8260
-	main.stringSliceArg@*/main.go:61
-pc: 0x4a829d
-	fmt.Println@*/print.go:314
+pc: 0x4a8253
+	main.intArrayArg@*/main.go:58
+pc: 0x4a82a0
 	main.stringSliceArg@*/main.go:62
-pc: 0x4a82e0
-	main.stringArrayArg@*/main.go:66
-pc: 0x4a8313
+pc: 0x4a82dd
+	fmt.Println@*/print.go:314
+	main.stringSliceArg@*/main.go:63
+pc: 0x4a8320
 	main.stringArrayArg@*/main.go:67
-pc: 0x4a8360
-	main.stringArrayArgFrameless@*/main.go:72
-pc: 0x4a8360
-	main.stringArrayArgFrameless@*/main.go:72
-pc: 0x4a8440
-	main.mapArg@*/main.go:84
-pc: 0x4a846b
-	fmt.Println@*/print.go:314
+pc: 0x4a8353
+	main.stringArrayArg@*/main.go:68
+pc: 0x4a83a0
+	main.stringArrayArgFrameless@*/main.go:73
+pc: 0x4a83a0
+	main.stringArrayArgFrameless@*/main.go:73
+pc: 0x4a8480
 	main.mapArg@*/main.go:85
-pc: 0x4a84a0
-	main.bigMapArg@*/main.go:101
-pc: 0x4a84fd
-	main.bigMapArg@*/main.go:106
-pc: 0x4a8380
-	main.inlined@*/main.go:74
-pc: 0x4a83b1
+pc: 0x4a84ab
 	fmt.Println@*/print.go:314
+	main.mapArg@*/main.go:86
+pc: 0x4a84e0
+	main.bigMapArg@*/main.go:102
+pc: 0x4a853d
+	main.bigMapArg@*/main.go:107
+pc: 0x4a83c0
 	main.inlined@*/main.go:75
+pc: 0x4a83f1
+	fmt.Println@*/print.go:314
+	main.inlined@*/main.go:76
