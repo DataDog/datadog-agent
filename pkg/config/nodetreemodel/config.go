@@ -103,6 +103,7 @@ type ntmConfig struct {
 	envTransform   map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
+	sequenceID            uint64
 
 	// Proxy settings
 	proxies *model.Proxy
@@ -222,16 +223,19 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	receivers := slices.Clone(c.notificationReceivers)
-	c.Unlock()
 
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
+		c.Unlock()
 		return
 	}
 
+	c.sequenceID++
+	c.Unlock()
+
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
+		receiver(key, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -290,6 +294,9 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
 	defer c.Unlock()
 
+	key = strings.ToLower(key)
+	previousValue := c.leafAtPathFromNode(key, c.root).Get()
+
 	// Remove it from the original source tree
 	tree, err := c.getTreeBySource(source)
 	if err != nil {
@@ -332,6 +339,21 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 
 	// Replace the child with the node from the previous layer
 	parentNode.InsertChildNode(childName, prevNode.Clone())
+
+	newValue := c.leafAtPathFromNode(key, c.root).Get()
+
+	// Value has not changed, do not notify
+	if reflect.DeepEqual(previousValue, newValue) {
+		return
+	}
+
+	c.sequenceID++
+	receivers := slices.Clone(c.notificationReceivers)
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue, c.sequenceID)
+	}
 }
 
 func (c *ntmConfig) parentOfNode(node Node, key string) (InnerNode, string, error) {
@@ -942,6 +964,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 	config := ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
+		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]struct{}{},
 		allSettings:        []string{},
@@ -974,4 +997,10 @@ func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	res := make([]string, len(c.extraConfigFilePaths))
 	copy(res, c.extraConfigFilePaths)
 	return res
+}
+
+func (c *ntmConfig) GetSequenceID() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	return c.sequenceID
 }
