@@ -76,7 +76,7 @@ func DefaultProgOpts() ProgOpts {
 		target:       asm.R8,
 		onMatchLabel: "on_match",
 		ctxSave:      asm.R9,
-		MaxTailCalls: probes.RawPacketFilterMaxTailCall,
+		MaxTailCalls: probes.RawPacketMaxTailCall,
 		MaxProgSize:  4000,
 	}
 }
@@ -258,12 +258,6 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
-		// chain with shooters
-		asm.Mov.Reg(asm.R1, opts.ctxSave),
-		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
-		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketShooterKey)),
-		asm.FnTailCall.Call(),
-		// otherwise accept the packet
 		asm.Mov.Imm(asm.R0, int32(TCActUnspec)),
 		asm.Return(),
 	}, senderInsts...)
@@ -295,8 +289,8 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 	return progSpecs, mErr.ErrorOrNil()
 }
 
-// ShootersToProgramSpecs returns list of program spec from raw packet filters definitions
-func ShootersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Filter, opts ProgOpts) ([]*ebpf.ProgramSpec, error) {
+// DropActionsToProgramSpecs returns list of program spec from raw packet filters definitions
+func DropActionsToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Filter, opts ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	var mErr *multierror.Error
 
 	if opts.ProgPrefix == "" {
@@ -307,10 +301,10 @@ func ShootersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []F
 
 	headerInsts := getHeaderInsts(rawPacketEventMapFd, opts)
 
-	resultInsts := asm.Instructions{
+	shotInsts := asm.Instructions{
 		asm.Mov.Reg(asm.R1, opts.ctxSave).WithSymbol(opts.onMatchLabel),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
-		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketShooterResultKey)),
+		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketDropActionShotKey)),
 		asm.FnTailCall.Call(),
 		asm.Mov.Imm(asm.R0, int32(TCActUnspec)),
 		asm.Return(),
@@ -318,10 +312,15 @@ func ShootersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []F
 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
+		// chain with regular filter
+		asm.Mov.Reg(asm.R1, opts.ctxSave),
+		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
+		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey)),
+		asm.FnTailCall.Call(),
 		// otherwise accept the packet
 		asm.Mov.Imm(asm.R0, int32(TCActUnspec)),
 		asm.Return(),
-	}, resultInsts...)
+	}, shotInsts...)
 
 	// compile and convert to eBPF progs
 	progInsts, err := filtersToProgs(filters, opts, headerInsts, footerInsts)

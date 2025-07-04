@@ -31,7 +31,7 @@ func DefaultProgOpts() ProgOpts {
 }
 
 // WithAction sets the action to take when a filter matches
-func (opts *ProgOpts) WithProgPrefix(prefix string) *ProgOpts {
+func (opts *ProgOpts) WithProgPrefix(_ string) *ProgOpts {
 	return opts
 }
 
@@ -45,7 +45,7 @@ func FiltersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpe
 	return nil, errors.New("not supported")
 }
 
-// ShootersToProgramSpecs returns list of program spec from raw packet filters definitions
-func ShootersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
+// DropActionsToProgramSpecs returns list of program spec from raw packet filters definitions
+func DropActionsToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	return nil, errors.New("not supported")
 }

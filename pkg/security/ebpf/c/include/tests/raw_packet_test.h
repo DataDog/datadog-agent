@@ -27,10 +27,10 @@ int raw_packet_tail_calls(struct __sk_buff *skb) {
     return 1;
 }
 
-SEC("test/raw_packet_shooter")
-int raw_packet_tail_calls(struct __sk_buff *skb) {
+SEC("test/raw_packet_drop_action")
+int raw_packet_drop_action(struct __sk_buff *skb) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
-    ev.process.pid = 123;
+    evt->process.pid = 123;
     
     // assert_not_null(evt, "unable to get raw packet event")
     assert_not_null(evt, "unable to get raw packet event")
@@ -48,7 +48,7 @@ int raw_packet_tail_calls(struct __sk_buff *skb) {
     };
     baloum_memcpy(evt->data, data, sizeof(data));
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_SHOOTER);
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_DROP_ACTION);
 
     return 1;
 }
