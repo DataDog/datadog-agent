@@ -137,6 +137,10 @@ func TestReadlinkatBufferFull(t *testing.T) {
 	target := strings.Repeat("A", readlinkBufferSize+1)
 	symlinkPath := filepath.Join(tmpDir, "testlink")
 	err := os.Symlink(target, symlinkPath)
+	if err != nil {
+		// Fails on some distros, so skip the test there
+		t.Skipf("skipping test due to filename length limit: %v", err)
+	}
 	require.NoError(t, err)
 
 	dir, err := os.Open(tmpDir)
