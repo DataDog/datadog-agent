@@ -442,6 +442,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 
+	// Privileged Logs config
+	cfg.BindEnvAndSetDefault(join("privileged_logs", "enabled"), false)
+
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")
 
