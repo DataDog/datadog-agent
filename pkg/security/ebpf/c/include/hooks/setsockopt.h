@@ -116,9 +116,9 @@ int hook_release_sock(ctx_t *ctx) {
     if (socket_protocol == 0) {
         // The socket protocol is imposed by the socket type
         if (syscall->setsockopt.socket_type == SOCK_STREAM) {
-            syscall->connect.protocol = IPPROTO_TCP;
+            socket_protocol = IPPROTO_TCP;
         } else if (syscall->setsockopt.socket_type == SOCK_DGRAM) {
-            syscall->connect.protocol = IPPROTO_UDP;
+            socket_protocol = IPPROTO_UDP;
         }
     }
     syscall->setsockopt.socket_protocol = socket_protocol;
