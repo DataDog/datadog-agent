@@ -185,7 +185,7 @@ type EBPFProbe struct {
 	BPFFilterTruncated *atomic.Uint64
 
 	// raw packet filter for actions
-	rawPacketShooterFilters []rawpacket.Filter
+	rawPacketDropActionFilters []rawpacket.Filter
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -593,7 +593,7 @@ func (p *EBPFProbe) getRawPacketMaps() (rawPacketEventMap, routerMap *lib.Map, e
 	return rawPacketEventMap, routerMap, nil
 }
 
-func (p *EBPFProbe) setupRawPacketFilterProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
+func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
 	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
 	if err != nil {
 		return err
@@ -706,12 +706,12 @@ func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 		return nil
 	}
 
-	return p.setupRawPacketFilterProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketFilterMaxTailCall, &p.rawPacketFilterCollection)
+	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketMaxTailCall, &p.rawPacketFilterCollection)
 }
 
-func (p *EBPFProbe) setupRawPacketShooters() error {
+func (p *EBPFProbe) setupRawPacketDropActions() error {
 	opts := rawpacket.DefaultProgOpts()
-	opts.WithProgPrefix("raw_packet_shooter_")
+	opts.WithProgPrefix("raw_packet_drop_action_")
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
@@ -726,7 +726,7 @@ func (p *EBPFProbe) setupRawPacketShooters() error {
 	}
 
 	// compile the filters
-	progSpecs, err := rawpacket.ShootersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketShooterFilters, opts)
+	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketDropActionFilters, opts)
 	if err != nil {
 		return err
 	}
@@ -735,7 +735,7 @@ func (p *EBPFProbe) setupRawPacketShooters() error {
 		return nil
 	}
 
-	return p.setupRawPacketFilterProgs(progSpecs, probes.TCRawPacketShooterKey, probes.RawPacketFilterMaxTailCall, &p.rawPacketShooterCollection)
+	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketShooterCollection)
 }
 
 // Start the probe
@@ -3063,15 +3063,15 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			policy.Parse(action.Def.NetworkFilter.Policy)
 
 			if policy == rawpacket.PolicyDrop {
-				p.rawPacketShooterFilters = append(p.rawPacketShooterFilters, rawpacket.Filter{
+				p.rawPacketDropActionFilters = append(p.rawPacketDropActionFilters, rawpacket.Filter{
 					RuleID:    rule.ID,
 					BPFFilter: action.Def.NetworkFilter.BPFFilter,
 					Policy:    policy,
-					Pid:       1321173, //ev.ProcessContext.Pid,
+					Pid:       527826, //ev.ProcessContext.Pid,
 				})
 
 				// trigger rule reload
-				if err := p.setupRawPacketShooters(); err != nil {
+				if err := p.setupRawPacketDropActions(); err != nil {
 					seclog.Errorf("failed to setup raw packet shooter programs: %s", err)
 				}
 
