@@ -7,7 +7,6 @@ package serializers
 
 import (
 	json "encoding/json"
-
 	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
@@ -1124,12 +1123,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 		switch key {
 		case "socket_type":
 			out.SocketType = uint16(in.Uint16())
-		case "socket_protocol":
-			out.SocketProtocol = uint16(in.Uint16())
 		case "socket_family":
 			out.SocketFamily = uint16(in.Uint16())
 		case "filter_len":
 			out.FilterLen = uint16(in.Uint16())
+		case "socket_protocol":
+			out.SocketProtocol = uint16(in.Uint16())
 		case "level":
 			out.Level = uint32(in.Uint32())
 		case "optname":
@@ -1160,11 +1159,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		out.Uint16(uint16(in.SocketType))
 	}
 	{
-		const prefix string = ",\"socket_protocol\":"
-		out.RawString(prefix)
-		out.Uint16(uint16(in.SocketProtocol))
-	}
-	{
 		const prefix string = ",\"socket_family\":"
 		out.RawString(prefix)
 		out.Uint16(uint16(in.SocketFamily))
@@ -1173,6 +1167,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		const prefix string = ",\"filter_len\":"
 		out.RawString(prefix)
 		out.Uint16(uint16(in.FilterLen))
+	}
+	{
+		const prefix string = ",\"socket_protocol\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.SocketProtocol))
 	}
 	{
 		const prefix string = ",\"level\":"
