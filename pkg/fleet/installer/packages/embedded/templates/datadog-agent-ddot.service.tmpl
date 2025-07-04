@@ -1,0 +1,26 @@
+f[Unit]
+{{- if .Stable}}
+Description=Datadog Distribution of OpenTelemetry Collector
+After=datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-ddot-exp.service
+{{- else}}
+Description=Datadog Distribution of OpenTelemetry Collector Experiment
+After=datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-ddot.service
+{{- end}}
+
+[Service]
+Type=simple
+PIDFile={{.InstallDir}}/run/otel-agent.pid
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+ExecStart={{.InstallDir}}/embedded/bin/otel-agent --config {{.EtcDir}}/datadog.yaml --pidfile {{.InstallDir}}/run/otel-agent.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
