@@ -14,7 +14,6 @@ import textwrap
 import traceback
 from collections import defaultdict
 from collections.abc import Iterable
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from invoke import task
@@ -69,55 +68,21 @@ def run_golangci_lint(
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
     verbosity = "-v" if verbose else ""
-    # we split targets to reduce memory usage
-    results = []
-    time_results = []
-
-    def lint_module(target):
-        if not headless_mode:
-            print(f"running golangci on {target}")
-        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(sorted(set(tags)))
-        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-        res = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {target}{"/..." if recursive else ""}',
-            env=env,
-            warn=True,
-        )
-        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-        # for some reason this becomes -2 here
-        if res is not None and (res.exited == -2 or res.exited == 130):
-            raise KeyboardInterrupt()
-        return res
-
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_target = {
-            executor.submit(
-                TimedOperationResult.run,
-                lint_module,
-                Path(base_path) / target,
-                'Lint ' + (Path(base_path) / target).as_posix(),
-                target=target,
-            ): i
-            for i, target in enumerate(targets)
-        }
-        # Prepare result lists with correct size
-        results = [None] * len(targets)
-        time_results = [None] * len(targets)
-        try:
-            for future in as_completed(future_to_target):
-                i = future_to_target[future]
-                try:
-                    result, time_result = future.result()
-                    results[i] = result
-                    time_results[i] = time_result
-                except KeyboardInterrupt:
-                    executor.shutdown(wait=False, cancel_futures=True)
-                    raise
-        except KeyboardInterrupt:
-            raise
-
-    return results, time_results
+    concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+    tags_arg = " ".join(sorted(set(tags)))
+    timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
+    # Compose the targets string for the command
+    targets_str = " ".join(f"{target}{'/...' if recursive else ''}" for target in targets)
+    cmd = (
+        f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} '
+        f'--build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {targets_str}'
+    )
+    if not headless_mode:
+        print(f"running golangci-lint on: {targets_str}")
+    result, time_result = TimedOperationResult.run(
+        lambda: ctx.run(cmd, env=env, warn=True), "golangci-lint", f"Lint {targets_str}"
+    )
+    return [result], [time_result]
 
 
 @task
