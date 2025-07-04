@@ -60,3 +60,10 @@ probes:
     methodName: main.PointerChainArg
   capture:
     maxReferenceDepth: 3
+- id: PointerSmallChainArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.PointerSmallChainArg
+  capture:
+    maxReferenceDepth: 5
