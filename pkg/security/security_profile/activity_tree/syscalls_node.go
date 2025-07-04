@@ -19,10 +19,6 @@ type SyscallNode struct {
 	Syscall        int
 }
 
-func (sn *SyscallNode) appendImageTag(imageTag string) {
-	sn.Record(imageTag, time.Now())
-}
-
 func (sn *SyscallNode) evictImageTag(imageTag string) bool {
 	sn.EvictImageTag(imageTag)
 	if sn.IsEmpty() {
@@ -32,16 +28,12 @@ func (sn *SyscallNode) evictImageTag(imageTag string) bool {
 }
 
 // NewSyscallNode returns a new SyscallNode instance
-func NewSyscallNode(syscall int, imageTag string, generationType NodeGenerationType) *SyscallNode {
-	
-	now := time.Now()
+func NewSyscallNode(syscall int, timestamp time.Time, imageTag string, generationType NodeGenerationType) *SyscallNode {
 	node := &SyscallNode{
 		Syscall:        syscall,
 		GenerationType: generationType,
 	}
 	node.NodeBase = NewNodeBase()
-	if len(imageTag) != 0 {
-		node.Record(imageTag, now)
-	}
+	node.AppendImageTag(imageTag, timestamp)
 	return node
 }

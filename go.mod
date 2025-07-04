@@ -1036,6 +1036,7 @@ replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.157-0.20250630083248-5d7bbafc3e9d
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
@@ -1190,4 +1191,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
+
 )

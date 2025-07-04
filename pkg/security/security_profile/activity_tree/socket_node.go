@@ -9,8 +9,6 @@
 package activitytree
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -44,16 +42,6 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 	return sn.Family == toMatch.Family
 }
 
-func (bn *BindNode) appendImageTag(imageTag string) {
-	bn.Record(imageTag, time.Now())
-}
-
-func (sn *SocketNode) appendImageTag(imageTag string) {
-	for _, bn := range sn.Bind {
-		bn.appendImageTag(imageTag)
-	}
-}
-
 func (bn *BindNode) evictImageTag(imageTag string) bool {
 	bn.EvictImageTag(imageTag)
 	if bn.IsEmpty() {
@@ -77,19 +65,18 @@ func (sn *SocketNode) evictImageTag(imageTag string) bool {
 }
 
 // InsertBindEvent inserts a bind even inside a socket node
-func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
+func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTag string, generationType NodeGenerationType, rules []*model.MatchedRule, dryRun bool) bool {
 	evtIP := evt.Addr.IPNet.IP.String()
 
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
-				sn.Record(imageTag, time.Now())
 			}
 			if imageTag == "" || n.HasImageTag(imageTag) {
 				return false
 			}
-			n.Record(imageTag, time.Now())
+			n.AppendImageTag(imageTag, event.ResolveEventTime())
 			return false
 		}
 	}
@@ -103,9 +90,9 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 			IP:             evtIP,
 			Protocol:       evt.Protocol,
 		}
-		if imageTag != "" {
-			node.Record(imageTag, time.Now())
-		}
+		node.NodeBase = NewNodeBase()
+
+		node.AppendImageTag(imageTag, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
 	}
 	return true

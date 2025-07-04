@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -30,7 +29,7 @@ type ProcessNodeParent interface {
 	GetChildren() *[]*ProcessNode
 	GetSiblings() *[]*ProcessNode
 	AppendChild(node *ProcessNode)
-	AppendImageTag(imageTag string)
+	AppendImageTag(imageTag string, timestamp time.Time)
 }
 
 // ProcessNode holds the activity of a process
@@ -95,11 +94,6 @@ func (pn *ProcessNode) GetParent() ProcessNodeParent {
 func (pn *ProcessNode) AppendChild(node *ProcessNode) {
 	pn.Children = append(pn.Children, node)
 	node.Parent = pn
-}
-
-// AppendImageTag appends the given image tag to the list
-func (pn *ProcessNode) AppendImageTag(imageTag string) {
-	pn.Record(imageTag, time.Now())
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
@@ -227,7 +221,7 @@ newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
 			if existingSyscall.Syscall == int(newSyscall) {
-					existingSyscall.Record(imageTag, e.ResolveEventTime())
+					existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime()) //moved the verification to Record function
 				continue newSyscallLoop
 			}
 		}
@@ -237,7 +231,7 @@ newSyscallLoop:
 			// exit early
 			break
 		}
-		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall), imageTag, Runtime))
+		pn.Syscalls = append(pn.Syscalls, NewSyscallNode(int(newSyscall),e.ResolveEventTime(), imageTag, Runtime))
 		syscallMask[int(newSyscall)] = int(newSyscall)
 		stats.SyscallNodes++
 	}
@@ -321,7 +315,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		// update matched rules
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
-		dnsNode.Record(imageTag, evt.ResolveEventTime())
+		dnsNode.AppendImageTag(imageTag, evt.ResolveEventTime())
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -335,7 +329,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		return true
 	}
 
-	pn.DNSNames[evt.DNS.Question.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType, imageTag)
+	pn.DNSNames[evt.DNS.Question.Name] = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTag)
 	stats.DNSNodes++
 	return true
 }
@@ -345,13 +339,13 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, genera
 	imdsNode, ok := pn.IMDSEvents[evt.IMDS]
 	if ok {
 		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
-		imdsNode.appendImageTag(imageTag)
+		imdsNode.AppendImageTag(imageTag, evt.ResolveEventTime())
 		return false
 	}
 
 	if !dryRun {
 		// create new node
-		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt.Rules, generationType, imageTag)
+		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTag)
 		stats.IMDSNodes++
 	}
 	return true
@@ -361,12 +355,12 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, genera
 func (pn *ProcessNode) InsertNetworkFlowMonitorEvent(evt *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
 	deviceNode, ok := pn.NetworkDevices[evt.NetworkFlowMonitor.Device]
 	if ok {
-		return deviceNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, dryRun, evt.Rules, generationType, imageTag, stats)
+		return deviceNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTag, stats)
 	}
 
 	if !dryRun {
 		newNode := NewNetworkDeviceNode(&evt.NetworkFlowMonitor.Device, generationType)
-		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, dryRun, evt.Rules, generationType, imageTag, stats)
+		newNode.insertNetworkFlowMonitorEvent(&evt.NetworkFlowMonitor, evt, dryRun, evt.Rules, generationType, imageTag, stats)
 		pn.NetworkDevices[evt.NetworkFlowMonitor.Device] = newNode
 	}
 	return true
@@ -398,67 +392,53 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind, imageTag, generationType, evt.Rules, dryRun) {
+	if sock.InsertBindEvent(&evt.Bind,evt, imageTag, generationType, evt.Rules, dryRun) {
 		newNode = true
 	}
 
 	return newNode
 }
 
-func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
+func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string,timestamp time.Time) {
 	if pn.HasImageTag(imageTag) {
 		return
 	}
-	pn.AppendImageTag(imageTag)
+	pn.AppendImageTag(imageTag, timestamp)
 	parent := pn.GetParent()
 	for parent != nil {
-		parent.AppendImageTag(imageTag)
+		parent.AppendImageTag(imageTag, timestamp)
 		parent = parent.GetParent()
 	}
 }
 
 // TagAllNodes tags this process, its files/dns/socks and childrens with the given image tag
-func (pn *ProcessNode) TagAllNodes(imageTag string) {
+func (pn *ProcessNode) TagAllNodes(imageTag string,timestamp time.Time) {
 	if imageTag == "" {
 		return
 	}
 
-	pn.Record(imageTag, time.Now())
+	pn.AppendImageTag(imageTag, timestamp)
 	for _, file := range pn.Files {
-		file.tagAllNodes(imageTag)
+		file.tagAllNodes(imageTag,timestamp)
 	}
 	for _, dns := range pn.DNSNames {
-		dns.appendImageTag(imageTag)
+		dns.AppendImageTag(imageTag, timestamp)
 	}
 	for _, sock := range pn.Sockets {
-		sock.appendImageTag(imageTag)
+		sock.AppendImageTag(imageTag, timestamp)
 	}
 	for _, scall := range pn.Syscalls {
-		scall.appendImageTag(imageTag)
+		scall.AppendImageTag(imageTag, timestamp)
 	}
 	for _, imds := range pn.IMDSEvents {
-		imds.appendImageTag(imageTag)
+		imds.AppendImageTag(imageTag, timestamp)
 	}
 	for _, device := range pn.NetworkDevices {
-		device.appendImageTag(imageTag)
+		device.appendImageTag(imageTag,timestamp) // The used appendImageTag here is a private method of NetworkDeviceNode
 	}
 	for _, child := range pn.Children {
-		child.TagAllNodes(imageTag)
+		child.TagAllNodes(imageTag,timestamp)
 	}
-}
-
-func removeImageTagFromList(imageTags []string, imageTag string) ([]string, bool) {
-	if imageTag == "" {
-		return imageTags, false
-	}
-	removed := false
-	return slices.DeleteFunc(imageTags, func(tag string) bool {
-		if tag == imageTag {
-			removed = true
-			return true
-		}
-		return false
-	}), removed
 }
 
 // EvictImageTag will remmove every trace of this image tag, and returns true if the process node should be removed

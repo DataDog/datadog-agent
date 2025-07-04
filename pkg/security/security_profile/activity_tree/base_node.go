@@ -18,13 +18,16 @@ func NewNodeBase() NodeBase {
 	return NodeBase{Seen: make(map[string]*ImageTagTimes)}
 }
 
-// Record updates FirstSeen/LastSeen for the given imageTag at time 'now'.
-func (b *NodeBase) Record(imageTag string, now time.Time) {
-	if vt, ok := b.Seen[imageTag]; ok {
-		vt.LastSeen = now
+// Add new entry in the map or update the LastSeen for the given imageTag at time 'now'.
+func (b *NodeBase) AppendImageTag (imageTag string, timestamp time.Time) {
+	if imageTag == "" {
 		return
 	}
-	b.Seen[imageTag] = &ImageTagTimes{FirstSeen: now, LastSeen: now}
+	if vt, ok := b.Seen[imageTag]; ok {
+		vt.LastSeen = timestamp
+		return
+	}
+	b.Seen[imageTag] = &ImageTagTimes{FirstSeen: timestamp, LastSeen: timestamp}
 }
 
 // RecordWithTimestamps sets both FirstSeen and LastSeen for the given imageTag with the provided timestamps.
@@ -32,7 +35,7 @@ func (b *NodeBase) RecordWithTimestamps(imageTag string, firstSeen, lastSeen tim
 	b.Seen[imageTag] = &ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}
 }
 
-// EvictImageTag removes the stored timestamps for an imageTag.
+// EvictImageTag removes the stored timestamps for an imageTag returns true if the imageTag was present
 func (b *NodeBase) EvictImageTag(imageTag string) bool {
 	_, exists := b.Seen[imageTag]
 	delete(b.Seen, imageTag)
