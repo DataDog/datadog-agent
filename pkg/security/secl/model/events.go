@@ -119,6 +119,8 @@ const (
 	SetSockOptEventType
 	// FileFsmountEventType Mount event
 	FileFsmountEventType
+	// FileOpenTreeEventType Open Tree event
+	FileOpenTreeEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -183,6 +185,10 @@ func (t EventType) String() string {
 		return "utimes"
 	case FileMountEventType:
 		return "mount"
+	case FileOpenTreeEventType:
+		return "open_tree"
+	case FileFsmountEventType:
+		return "fsmount"
 	case FileUmountEventType:
 		return "umount"
 	case FileSetXAttrEventType:

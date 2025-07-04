@@ -152,7 +152,6 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
-	Fsmount          FsmountEvent          `field:"-"`
 }
 
 var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
@@ -444,9 +443,11 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
-	MountPath   string `field:"-"`
-	MountSource uint32 `field:"-"`
-	MountOrigin uint32 `field:"-"`
+	MountPath     string `field:"-"`
+	MountSource   uint32 `field:"-"`
+	MountOrigin   uint32 `field:"-"`
+	MountVisible  bool   `field:"mount_visible"`  // SECLDoc[mount_visible] Definition:`Indicates whether the file's mount is visible in the VFS`
+	MountDetached bool   `field:"mount_detached"` // SECLDoc[mount_detached] Definition:`Indicates whether the file's mount is detached from the VFS`
 
 	PathResolutionError error `field:"-"`
 
@@ -514,6 +515,8 @@ type Mount struct {
 	RootStr        string  `field:"-"`
 	Path           string  `field:"-"`
 	Origin         uint32  `field:"-"`
+	Detached       bool    `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible        bool    `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
 }
 
 // MountEvent represents a mount event
@@ -532,19 +535,6 @@ type MountEvent struct {
 	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
 	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
-}
-
-// FsmountEvent represents an fsmount event
-type FsmountEvent struct {
-	SyscallEvent
-
-	Fd         int32  `field:"-"`
-	Flags      uint32 `field:"-"`
-	MountAttrs uint32 `field:"-"`
-
-	MountID     uint32  `field:"-"`
-	Device      uint32  `field:"-"`
-	RootPathKey PathKey `field:"-"`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace

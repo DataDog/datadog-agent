@@ -442,7 +442,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -466,53 +466,33 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
-	m.Origin = MountOriginEvent
 
-	return 56, nil
+	bitfield := binary.NativeEndian.Uint32(data[24:28])
+	m.Visible = bitfield&0b01 > 0
+	m.Detached = bitfield&0b10 > 0
+
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
-}
-
-// ToMount transforms an fsmount event to be used with the mount resolver
-func (e *FsmountEvent) ToMount() *Mount {
-	return &Mount{
-		Origin:      MountOriginFsmount,
-		MountID:     e.MountID,
-		Device:      e.Device,
-		RootPathKey: e.RootPathKey,
-		RootStr:     "/",
-	}
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *FsmountEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := e.SyscallEvent.UnmarshalBinary(data)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 	if err != nil {
-		return 0, err
+		return n, err
 	}
-	data = data[read:]
-	n, err := e.RootPathKey.UnmarshalBinary(data)
-	if err != nil {
-		return read, err
-	}
-
-	read += n
 	data = data[n:]
+	origin := binary.NativeEndian.Uint32(data[0:4])
 
-	if len(data) < 16 {
-		return n, ErrNotEnoughData
+	switch origin {
+	case MountEventSourceMountSyscall:
+		e.Origin = MountOriginEvent
+	case MountEventSourceOpenTreeSyscall:
+		e.Origin = MountOriginOpenTree
+	case MountEventSourceFsmountSyscall:
+		e.Origin = MountOriginFsmount
 	}
 
-	e.Fd = int32(binary.NativeEndian.Uint32(data[0:4]))
-	e.Flags = binary.NativeEndian.Uint32(data[4:8])
-	e.Device = binary.NativeEndian.Uint32(data[8:12])
-	e.MountAttrs = binary.NativeEndian.Uint32(data[12:16])
-	e.MountID = e.RootPathKey.MountID
-	read += 16
-	return read, nil
+	return n + 4, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
