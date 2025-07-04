@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Remote Agent management operations on Windows now attempt to force stop the
+    Agent services if they do not respond to Service Control Manager requests.
+fixes:
+  - |
+    Remote Agent management operations on Windows now attempt to restart the
+    Agent services after failing to stop the services or uninstall the Agent.
