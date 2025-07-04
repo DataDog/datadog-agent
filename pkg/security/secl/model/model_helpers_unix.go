@@ -281,9 +281,9 @@ type MountEventSource = uint32
 
 const (
 	MountEventSourceInvalid         MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
-	MountEventSourceMountSyscall                            // MountEventSourceInvalid the source of the mount event is the `mount` syscall
-	MountEventSourceFsmountSyscall                          // MountEventSourceInvalid the source of the mount event is the `fsmount` syscall
-	MountEventSourceOpenTreeSyscall                         // MountEventSourceInvalid the source of the mount event is the `open_tree` syscall
+	MountEventSourceMountSyscall                            // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
+	MountEventSourceFsmountSyscall                          // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
+	MountEventSourceOpenTreeSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
 )
 
 // MountSourceToString returns the string corresponding to a mount source
