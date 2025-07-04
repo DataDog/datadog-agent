@@ -263,6 +263,18 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 					Name: "cipSecTunRemoteAddr",
 				},
 			},
+			"life_size": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.8",
+					Name: "cipSecTunLifeSize",
+				},
+			},
+			"life_time": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.9",
+					Name: "cipSecTunLifeTime",
+				},
+			},
 		},
 	},
 }
