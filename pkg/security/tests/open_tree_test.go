@@ -80,7 +80,7 @@ func TestOpenTree(t *testing.T) {
 		t.Skip("OpenTree is not supported on this platform")
 	}
 
-	ruleDefs := []*rules.RuleDefinition{
+	execRules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule1",
 			Expression: `exec.file.name == "true" && exec.file.mount_visible == false && exec.file.mount_detached == true`,
@@ -89,17 +89,18 @@ func TestOpenTree(t *testing.T) {
 			ID:         "test_rule2",
 			Expression: `exec.file.name == "false" && exec.file.mount_visible == true && exec.file.mount_detached == false`,
 		},
+	}
+
+	mountRules := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule3",
 			Expression: `mount.detached == true && mount.visible == false`,
 		},
 	}
-
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, mountRules)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
 
 	// Mount the following directory struct in /tmp:
 	// + /tmp/<somedir>/001        (tmpfs, 1MB)
@@ -218,6 +219,26 @@ func TestOpenTree(t *testing.T) {
 		assert.Equal(t, 1, seen)
 	})
 
+	t.Run("detached-event-captured", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer unix.Close(fd)
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
+			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
+		})
+	})
+
+	test.Close()
+	test, err = newTestModule(t, nil, execRules)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("execution-from-detached-mount", func(t *testing.T) {
 		srcPath := which(t, "true")
 		pid := os.Getpid()
@@ -248,17 +269,4 @@ func TestOpenTree(t *testing.T) {
 		})
 	})
 
-	t.Run("detached-event-captured", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
-			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer unix.Close(fd)
-			return nil
-		}, func(event *model.Event, _ *rules.Rule) {
-			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
-			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
-		})
-	})
 }
