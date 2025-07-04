@@ -8,39 +8,40 @@
 // Package activitytree holds activitytree related files
 package activitytree
 
+import (
+	"time"
+)
+
 // SyscallNode is used to store a syscall node
 type SyscallNode struct {
-	ImageTags      []string
+	NodeBase
 	GenerationType NodeGenerationType
-
-	Syscall int
+	Syscall        int
 }
 
 func (sn *SyscallNode) appendImageTag(imageTag string) {
-	sn.ImageTags, _ = AppendIfNotPresent(sn.ImageTags, imageTag)
+	sn.Record(imageTag, time.Now())
 }
 
 func (sn *SyscallNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(sn.ImageTags, imageTag)
-	if !removed {
-		return false
-	}
-	if len(imageTags) == 0 {
+	sn.EvictImageTag(imageTag)
+	if sn.IsEmpty() {
 		return true
 	}
-	sn.ImageTags = imageTags
 	return false
 }
 
 // NewSyscallNode returns a new SyscallNode instance
 func NewSyscallNode(syscall int, imageTag string, generationType NodeGenerationType) *SyscallNode {
-	var imageTags []string
-	if len(imageTag) != 0 {
-		imageTags = append(imageTags, imageTag)
-	}
-	return &SyscallNode{
+	
+	now := time.Now()
+	node := &SyscallNode{
 		Syscall:        syscall,
 		GenerationType: generationType,
-		ImageTags:      imageTags,
 	}
+	node.NodeBase = NewNodeBase()
+	if len(imageTag) != 0 {
+		node.Record(imageTag, now)
+	}
+	return node
 }
