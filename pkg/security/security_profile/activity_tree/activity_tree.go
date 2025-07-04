@@ -482,7 +482,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 //   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
 //   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
 //     "GetNextAncestorBinaryOrArgv0" and that match the tree selector.
-func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry,timestamp time.Time, imageTag string) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
+func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTag string) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
 	var cs cookieSelector
 	var fastMatch *ProcessNode
 	var found bool
@@ -495,7 +495,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 		if cs.isSet() {
 			fastMatch, found = at.CookieToProcessNode.Get(cs)
 			if found {
-				fastMatch.applyImageTagOnLineageIfNeeded(imageTag,timestamp)
+				fastMatch.applyImageTagOnLineageIfNeeded(imageTag,fastMatch.Process.ExecTime)
 				return branch, fastMatch, nil
 			}
 		}
@@ -541,7 +541,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageT
 
 	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
 	// insert.
-	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, entry.ExecTime, imageTag)
+	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTag)
 	if err != nil {
 		return nil, false, err
 	}
@@ -605,13 +605,13 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		}
 
 		// if we reach this point, we can safely return the last inserted entry and indicate that the tree was modified
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag,branchToInsert[len(branchToInsert)-1].ExecTime)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTag,matchingNode.Process.ExecTime)
 		return matchingNode, true, nil
 	}
 
 	// if we reach this point, we've successfully found the matching node in the tree without modifying the tree
 	if matchingNode != nil {
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag,branchToInsert[len(branchToInsert)-1].ExecTime)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTag,matchingNode.Process.ExecTime)
 	}
 	return matchingNode, newNode, nil
 }
