@@ -1,5 +1,17 @@
 use std::ffi::{c_char, c_double, CString};
 
+// utility functions to convert Rust types to C-compatible types
+pub fn to_cstring_ptr(string: &String) -> *mut c_char {
+    CString::new(string.as_str()).unwrap().into_raw()
+}
+
+pub fn _to_cstring_array_ptr(vec: &Vec<String>) -> *mut *mut c_char {
+    let mut c_vec: Vec<*mut c_char> = vec.iter().map(|s| to_cstring_ptr(s)).collect();
+    c_vec.push(std::ptr::null_mut()); // null pointer to terminate the array
+    c_vec.as_mut_ptr()
+}
+
+// Replica of the Agent metric type enum
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub enum MetricType {
@@ -25,14 +37,13 @@ pub struct Payload {
 }
 
 impl Payload {
-    // tags not used yet because it's not used by RTLoader
     pub fn new(name: &String, metric_type: &MetricType, value: &f64, _tags: &Vec<String>, hostname: &String) -> Payload {
         Payload {
-            name: CString::new(name.as_str()).unwrap().into_raw(),
+            name: to_cstring_ptr(name),
             metric_type: *metric_type,
             value: *value,
-            tags: std::ptr::null_mut(),
-            hostname: CString::new(hostname.as_str()).unwrap().into_raw(),
+            tags: std::ptr::null_mut(), // TODO: convert tags to C-compatible format
+            hostname: to_cstring_ptr(hostname),
         }        
     }
 }
