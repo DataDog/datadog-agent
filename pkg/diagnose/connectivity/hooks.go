@@ -26,6 +26,7 @@ import (
 // During a request, the http.Client will call the functions of the ClientTrace at specific moments
 // This is useful to get extra information about what is happening and if there are errors during
 // connection establishment, DNS resolution or TLS handshake for instance
+// errorOnly is used to only collect information when there is an error
 func createDiagnoseTraces(httpTraces *[]string, errorOnly bool) *httptrace.ClientTrace {
 
 	hooks := &httpTraceContext{

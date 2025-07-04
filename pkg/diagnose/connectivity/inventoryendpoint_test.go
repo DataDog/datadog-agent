@@ -22,13 +22,13 @@ import (
 
 func TestBuildRoute(t *testing.T) {
 	tests := []struct {
-		name      string
-		prefix    string
-		domain    domain
-		path      string
-		separator separator
-		versioned bool
-		expected  string
+		name       string
+		prefix     string
+		dashPrefix string
+		domain     domain
+		path       string
+		versioned  bool
+		expected   string
 	}{
 		{
 			name:   "basic route with dot separator",
@@ -37,20 +37,18 @@ func TestBuildRoute(t *testing.T) {
 				site:          "datadoghq.com",
 				infraEndpoint: "https://app.datadoghq.com",
 			},
-			path:      "api/v1/validate",
-			separator: dot,
-			expected:  "https://install.datadoghq.com/api/v1/validate",
+			path:     "api/v1/validate",
+			expected: "https://install.datadoghq.com/api/v1/validate",
 		},
 		{
-			name:   "route with dash separator",
-			prefix: "browser-intake",
+			name:       "route with dash separator",
+			dashPrefix: "browser-intake",
 			domain: domain{
 				site:          "datadoghq.com",
 				infraEndpoint: "https://app.datadoghq.com",
 			},
-			path:      "api/v2/logs",
-			separator: dash,
-			expected:  "https://browser-intake-datadoghq.com/api/v2/logs",
+			path:     "api/v2/logs",
+			expected: "https://browser-intake-datadoghq.com/api/v2/logs",
 		},
 		{
 			name:   "prefix already has separator",
@@ -59,9 +57,8 @@ func TestBuildRoute(t *testing.T) {
 				site:          "datadoghq.com",
 				infraEndpoint: "https://app.datadoghq.com",
 			},
-			path:      "api/v2/llmobs",
-			separator: dot,
-			expected:  "https://llmobs-intake.datadoghq.com/api/v2/llmobs",
+			path:     "api/v2/llmobs",
+			expected: "https://llmobs-intake.datadoghq.com/api/v2/llmobs",
 		},
 		{
 			name:   "path without leading slash",
@@ -70,9 +67,8 @@ func TestBuildRoute(t *testing.T) {
 				site:          "datadoghq.com",
 				infraEndpoint: "https://app.datadoghq.com",
 			},
-			path:      "api/v1/validate",
-			separator: dot,
-			expected:  "https://install.datadoghq.com/api/v1/validate",
+			path:     "api/v1/validate",
+			expected: "https://install.datadoghq.com/api/v1/validate",
 		},
 		{
 			name:   "path with leading slash",
@@ -81,9 +77,8 @@ func TestBuildRoute(t *testing.T) {
 				site:          "datadoghq.com",
 				infraEndpoint: "https://app.datadoghq.com",
 			},
-			path:      "/api/v1/validate",
-			separator: dot,
-			expected:  "https://install.datadoghq.com/api/v1/validate",
+			path:     "/api/v1/validate",
+			expected: "https://install.datadoghq.com/api/v1/validate",
 		},
 		{
 			name:   "custom domain",
@@ -92,9 +87,8 @@ func TestBuildRoute(t *testing.T) {
 				site:          "datadoghq.eu",
 				infraEndpoint: "https://app.datadoghq.eu",
 			},
-			path:      "api/v1/validate",
-			separator: dot,
-			expected:  "https://install.datadoghq.eu/api/v1/validate",
+			path:     "api/v1/validate",
+			expected: "https://install.datadoghq.eu/api/v1/validate",
 		},
 		{
 			name:   "versioned route",
@@ -105,7 +99,6 @@ func TestBuildRoute(t *testing.T) {
 			},
 			path:      "api/v1/validate",
 			versioned: true,
-			separator: dot,
 			expected:  "https://6-0-0-app.agent.datadoghq.com/api/v1/validate",
 		},
 	}
@@ -113,10 +106,10 @@ func TestBuildRoute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			endpointDescription := endpointDescription{
-				routePrefix: tt.prefix,
-				routePath:   tt.path,
-				separator:   tt.separator,
-				versioned:   tt.versioned,
+				prefix:     tt.prefix,
+				dashPrefix: tt.dashPrefix,
+				routePath:  tt.path,
+				versioned:  tt.versioned,
 			}
 			version.AgentVersion = "6.0.0"
 			_, url := endpointDescription.buildRoute(tt.domain)
@@ -137,7 +130,7 @@ func TestBuildEndpoints(t *testing.T) {
 			name: "endpoint with route",
 			endpointDescription: endpointDescription{
 				route:  "https://custom.endpoint.com",
-				method: head,
+				method: http.MethodHead,
 			},
 			domains: map[string]domain{
 				"main": {
@@ -155,8 +148,8 @@ func TestBuildEndpoints(t *testing.T) {
 		{
 			name: "endpoint with prefix and multiple domains",
 			endpointDescription: endpointDescription{
-				routePrefix: "install",
-				method:      head,
+				prefix: "install",
+				method: http.MethodHead,
 			},
 			domains: map[string]domain{
 				"main": {
@@ -182,10 +175,9 @@ func TestBuildEndpoints(t *testing.T) {
 		{
 			name: "endpoint with prefix, path and separator",
 			endpointDescription: endpointDescription{
-				routePrefix: "browser-intake",
-				routePath:   "api/v2/logs",
-				method:      get,
-				separator:   dash,
+				dashPrefix: "browser-intake",
+				routePath:  "api/v2/logs",
+				method:     http.MethodGet,
 			},
 			domains: map[string]domain{
 				"main": {
@@ -203,8 +195,8 @@ func TestBuildEndpoints(t *testing.T) {
 		{
 			name: "endpoint with config prefix",
 			endpointDescription: endpointDescription{
-				routePrefix:  "ndm.metadata.",
-				method:       get,
+				prefix:       "ndm.metadata.",
+				method:       http.MethodGet,
 				configPrefix: "service.metadata.",
 			},
 			config: map[string]string{
@@ -212,14 +204,14 @@ func TestBuildEndpoints(t *testing.T) {
 			},
 			domains: map[string]domain{
 				"main": {
-					site:            "datadoghq.com",
-					mainAPIKey:      "api-key-main",
-					useCustomAPIKey: true,
+					site:         "datadoghq.com",
+					mainAPIKey:   "api-key-main",
+					useAltAPIKey: true,
 				},
 				"MRF": {
-					site:            "datadoghq.mrf.com",
-					mainAPIKey:      "api-key-mrf",
-					useCustomAPIKey: false,
+					site:         "datadoghq.mrf.com",
+					mainAPIKey:   "api-key-mrf",
+					useAltAPIKey: false,
 				},
 			},
 			expectedEndpoints: []resolvedEndpoint{
@@ -236,8 +228,8 @@ func TestBuildEndpoints(t *testing.T) {
 		{
 			name: "endpoint with config prefix and no api key",
 			endpointDescription: endpointDescription{
-				routePrefix:  "ndm.metadata.",
-				method:       get,
+				prefix:       "ndm.metadata.",
+				method:       http.MethodGet,
 				configPrefix: "service.metadata.",
 			},
 			domains: map[string]domain{
@@ -300,10 +292,10 @@ func TestGetDomainInfo(t *testing.T) {
 			expected: "datadOg.com",
 			expectedKeys: map[string]domain{
 				"main": {
-					site:            "datadOg.com",
-					mainAPIKey:      "test-api-key",
-					infraEndpoint:   "https://app.datadOg.com",
-					useCustomAPIKey: true,
+					site:          "datadOg.com",
+					mainAPIKey:    "test-api-key",
+					infraEndpoint: "https://app.datadOg.com",
+					useAltAPIKey:  true,
 				},
 			},
 		},
@@ -313,10 +305,10 @@ func TestGetDomainInfo(t *testing.T) {
 			expected: "datadoghq.com",
 			expectedKeys: map[string]domain{
 				"main": {
-					site:            "datadoghq.com",
-					mainAPIKey:      "test-api-key",
-					infraEndpoint:   "https://app.datadoghq.com.",
-					useCustomAPIKey: true,
+					site:          "datadoghq.com",
+					mainAPIKey:    "test-api-key",
+					infraEndpoint: "https://app.datadoghq.com.",
+					useAltAPIKey:  true,
 				},
 			},
 		},
@@ -330,16 +322,16 @@ func TestGetDomainInfo(t *testing.T) {
 			expected:                  "datadoghq.com",
 			expectedKeys: map[string]domain{
 				"main": {
-					site:            "datadoghq.eu",
-					mainAPIKey:      "test-api-key",
-					infraEndpoint:   "https://app.datadoghq.eu.",
-					useCustomAPIKey: true,
+					site:          "datadoghq.eu",
+					mainAPIKey:    "test-api-key",
+					infraEndpoint: "https://app.datadoghq.eu.",
+					useAltAPIKey:  true,
 				},
 				"MRF": {
-					site:            "datadoghq.com",
-					mainAPIKey:      "test-api-key",
-					infraEndpoint:   "https://app.datadoghq.com.",
-					useCustomAPIKey: false,
+					site:          "datadoghq.com",
+					mainAPIKey:    "test-api-key",
+					infraEndpoint: "https://app.datadoghq.com.",
+					useAltAPIKey:  false,
 				},
 			},
 		},
@@ -378,7 +370,7 @@ func TestCheckGet(t *testing.T) {
 	endpoint := resolvedEndpoint{
 		url:    ts.URL,
 		base:   ts.URL,
-		method: get,
+		method: http.MethodGet,
 		apiKey: "test-api-key",
 	}
 
@@ -402,7 +394,7 @@ func TestCheckGetConnectionFailure(t *testing.T) {
 	endpoint := resolvedEndpoint{
 		url:    "http://invalid-url-that-does-not-exist.com",
 		base:   "http://invalid-url-that-does-not-exist.com",
-		method: get,
+		method: http.MethodGet,
 		apiKey: "test-api-key",
 	}
 
@@ -434,7 +426,7 @@ func TestCheckHeadWithRedirectLimit(t *testing.T) {
 	endpoint := resolvedEndpoint{
 		url:           ts.URL,
 		base:          ts.URL,
-		method:        head,
+		method:        http.MethodHead,
 		apiKey:        "irrelevant",
 		limitRedirect: true,
 	}
@@ -468,18 +460,18 @@ func TestRun(t *testing.T) {
 		{
 			url:    ts.URL,
 			base:   ts.URL,
-			method: head,
+			method: http.MethodHead,
 		},
 		{
 			url:    ts.URL,
 			base:   ts.URL,
-			method: get,
+			method: http.MethodGet,
 			apiKey: "test-api-key",
 		},
 		{
 			url:    ts.URL,
 			base:   ts.URL,
-			method: get,
+			method: http.MethodGet,
 			apiKey: "wrong-api-key",
 		},
 	}
