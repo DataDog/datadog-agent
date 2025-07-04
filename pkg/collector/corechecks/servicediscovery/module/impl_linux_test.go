@@ -10,6 +10,7 @@
 package module
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -136,17 +137,25 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
 }
 
-// makeRequest wraps the request to the discovery module, setting the query params if provided,
+// makeRequest wraps the request to the discovery module, setting the JSON body if provided,
 // and returning the response as the given type.
 func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err, "failed to create request")
-
+	var body *bytes.Buffer
 	if params != nil {
-		qp := req.URL.Query()
-		params.UpdateQuery(qp)
-		req.URL.RawQuery = qp.Encode()
+		jsonData, err := params.ToJSON()
+		require.NoError(t, err, "failed to serialize params to JSON")
+		body = bytes.NewBuffer(jsonData)
 	}
+
+	var req *http.Request
+	var err error
+	if body != nil {
+		req, err = http.NewRequest(http.MethodGet, url, body)
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		req, err = http.NewRequest(http.MethodGet, url, nil)
+	}
+	require.NoError(t, err, "failed to create request")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err, "failed to send request")
