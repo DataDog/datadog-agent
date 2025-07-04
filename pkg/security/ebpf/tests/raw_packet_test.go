@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 )
 
+const (
+	instLen = 60
+)
+
 func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {
 	var ctx baloum.StdContext
 
@@ -70,7 +74,57 @@ func testRawPacketFilter(t *testing.T, filters []rawpacket.Filter, progName stri
 	assert.Equal(t, expRetCode, code, "return code error: %v", err)
 }
 
-func TestRawPacketTailCalls(t *testing.T) {
+func testRawPacketDropAction(t *testing.T, filters []rawpacket.Filter, progName string, expRetCode int64, expProgNum int, opts rawpacket.ProgOpts, catchCompilerError bool) {
+	var ctx baloum.StdContext
+
+	vm := newVM(t)
+
+	rawPacketEventMap, err := vm.LoadMap("raw_packet_event")
+	assert.Nil(t, err, "map not found")
+
+	routerMap, err := vm.LoadMap("raw_packet_classifier_router")
+	assert.Nil(t, err, "map not found")
+
+	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), filters, opts)
+	if err != nil {
+		if catchCompilerError {
+			t.Fatal(err)
+		} else {
+			t.Log(err)
+		}
+	}
+
+	assert.Equal(t, expProgNum, len(progSpecs), "number of expected programs")
+
+	for i, progSpec := range progSpecs {
+		fd := vm.AddProgram(progSpec)
+
+		_, err := routerMap.Update(probes.TCRawPacketDropActionKey+uint32(i), fd, baloum.BPF_ANY)
+		assert.Nil(t, err, "map update error")
+	}
+
+	// override the TCRawPacketParserSenderKey program with a test program
+	shotProgSpec := ebpf.ProgramSpec{
+		Type: ebpf.SchedCLS,
+		Instructions: asm.Instructions{
+			asm.Mov.Imm(asm.R0, 255), // put 2 as a success return value
+			asm.Return(),
+		},
+		License: "GPL",
+	}
+	shotProgFD := vm.AddProgram(&shotProgSpec)
+
+	_, err = routerMap.Update(probes.TCRawPacketDropActionShotKey, shotProgFD, baloum.BPF_ANY)
+	assert.Nil(t, err, "map update error")
+
+	code, err := vm.RunProgram(&ctx, progName, ebpf.SchedCLS)
+	if expRetCode != -1 {
+		assert.Nil(t, err, "program execution error")
+	}
+	assert.Equal(t, expRetCode, code, "return code error: %v", err)
+}
+
+func TestRawPacketFilters(t *testing.T) {
 	t.Run("syn-port-std-ok", func(t *testing.T) {
 		filters := []rawpacket.Filter{
 			{
@@ -102,7 +156,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 		opts := rawpacket.DefaultProgOpts()
 		opts.NopInstLen = opts.MaxProgSize
 
-		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", -1, 0, opts, false)
+		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", probes.TCActUnspec, 0, opts, false)
 	})
 
 	t.Run("syn-port-std-syntax-err", func(t *testing.T) {
@@ -112,7 +166,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 				BPFFilter: "tcp dst port number and tcp[tcpflags] == tcp-syn",
 			},
 		}
-		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", -1, 0, rawpacket.DefaultProgOpts(), false)
+		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", probes.TCActUnspec, 0, rawpacket.DefaultProgOpts(), false)
 	})
 
 	t.Run("syn-port-multi-ok", func(t *testing.T) {
@@ -128,7 +182,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 		}
 
 		opts := rawpacket.DefaultProgOpts()
-		opts.NopInstLen = opts.MaxProgSize - 50
+		opts.NopInstLen = opts.MaxProgSize - instLen
 
 		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", 255, 2, opts, true)
 	})
@@ -146,7 +200,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 		}
 
 		opts := rawpacket.DefaultProgOpts()
-		opts.NopInstLen = opts.MaxProgSize - 50
+		opts.NopInstLen = opts.MaxProgSize - instLen
 
 		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", probes.TCActUnspec, 2, opts, true)
 	})
@@ -164,7 +218,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 		}
 
 		opts := rawpacket.DefaultProgOpts()
-		opts.NopInstLen = opts.MaxProgSize - 50
+		opts.NopInstLen = opts.MaxProgSize - instLen
 
 		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", 255, 1, opts, false)
 	})
@@ -187,7 +241,7 @@ func TestRawPacketTailCalls(t *testing.T) {
 
 		opts := rawpacket.DefaultProgOpts()
 		opts.MaxTailCalls = 0
-		opts.NopInstLen = opts.MaxProgSize - 50
+		opts.NopInstLen = opts.MaxProgSize - instLen
 
 		testRawPacketFilter(t, filters, "test/raw_packet_tail_calls", 255, 2, opts, false)
 	})
@@ -210,5 +264,31 @@ func TestRawPacketTailCalls(t *testing.T) {
 			},
 		}
 		testRawPacketFilter(t, filters, "test/raw_packet_bpfdoor_magic_number", 255, 1, rawpacket.DefaultProgOpts(), true)
+	})
+}
+
+func TestRawPacketShooters(t *testing.T) {
+	t.Run("syn-port-std-ok", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+				Policy:    rawpacket.PolicyDrop,
+				Pid:       uint32(123),
+			},
+		}
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true)
+	})
+
+	t.Run("syn-port-std-ko", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ko",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+				Policy:    rawpacket.PolicyDrop,
+				Pid:       uint32(567),
+			},
+		}
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
 	})
 }

@@ -28,12 +28,14 @@ int classifier_egress(struct __sk_buff *skb) {
     return route_pkt(skb, pkt, EGRESS);
 };
 
-__attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *skb) {
+__attribute__((always_inline)) int prepare_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     if (evt == NULL) {
         // should never happen
         return TC_ACT_UNSPEC;
     }
+
+    evt->process.pid = pkt->pid;
 
     bpf_skb_pull_data(skb, 0);
 
@@ -90,7 +92,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
 
-    if (prepare_raw_packet_event(skb) != TC_ACT_UNSPEC) {
+    if (prepare_raw_packet_event(skb, pkt) != TC_ACT_UNSPEC) {
         return TC_ACT_UNSPEC;
     }
 
@@ -112,13 +114,20 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     resolve_pid(pkt);
 
     if (!is_raw_packet_allowed(pkt)) {
+        // call the drop action any way
+        bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_DROP_ACTION);
+
         return TC_ACT_UNSPEC;
     }
 
-    if (prepare_raw_packet_event(skb) != TC_ACT_UNSPEC) {
+    if (prepare_raw_packet_event(skb, pkt) != TC_ACT_UNSPEC) {
         return TC_ACT_UNSPEC;
     }
 
+    // call the drop action
+    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_DROP_ACTION);
+
+    // call regular filter
     bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return TC_ACT_UNSPEC;
