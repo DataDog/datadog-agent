@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
+from pathlib import Path
 from typing import Any, Literal
 
 import gitlab
@@ -1298,6 +1299,18 @@ def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comme
         # Add explicit_start=True to keep the document start marker ---
         # See "Document Start" in https://www.yaml.info/learn/document.html for more details
         yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
+
+
+def get_test_infra_def_version():
+    """
+    Get TEST_INFRA_DEFINITIONS_BUILDIMAGES from `.gitlab/common/test_infra_version.yml` file
+    """
+    try:
+        with open(Path(".gitlab/common/test_infra_version.yml")) as test_infra_version_file:
+            test_infra_def = yaml.safe_load(test_infra_version_file)
+            return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
+    except Exception:
+        return "main"
 
 
 def update_gitlab_config(file_path, tag, images="", test=True, update=True, windows=False):
