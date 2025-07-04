@@ -83,11 +83,15 @@ func TestOpenTree(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule1",
-			Expression: `exec.file.mount_visible == false && exec.file.mount_detached == true`,
+			Expression: `exec.file.name == "true" && exec.file.mount_visible == false && exec.file.mount_detached == true`,
 		},
 		{
 			ID:         "test_rule2",
-			Expression: `exec.file.mount_visible == false && exec.file.mount_detached == false`,
+			Expression: `exec.file.name == "false" && exec.file.mount_visible == true && exec.file.mount_detached == false`,
+		},
+		{
+			ID:         "test_rule3",
+			Expression: `mount.detached == true && mount.visible == false`,
 		},
 	}
 
@@ -225,23 +229,36 @@ func TestOpenTree(t *testing.T) {
 		_ = exec.Command("cp", srcPath, destPath).Run()
 		defer unix.Close(fd)
 		test.WaitSignal(t, func() error {
-			_ = exec.Command(destPath).Run()
+			err = exec.Command(destPath).Run()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, true, event.Exec.FileEvent.MountDetached, "Mount should be detached")
 			assert.Equal(t, false, event.Exec.FileEvent.MountVisible, "Mount shouldn't be visible")
 		})
 	})
 
 	t.Run("execution-from-visible-mount", func(t *testing.T) {
+		exePath, _ := exec.LookPath("false")
 		test.WaitSignal(t, func() error {
-			exePath := which(t, "true")
 			_ = exec.Command(exePath).Run()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, false, event.Exec.FileEvent.MountDetached, "Mount should be detached")
 			assert.Equal(t, true, event.Exec.FileEvent.MountVisible, "Mount shouldn't be visible")
 		})
 	})
 
+	t.Run("detached-event-captured", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			fd, err := unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer unix.Close(fd)
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
+			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
+		})
+	})
 }

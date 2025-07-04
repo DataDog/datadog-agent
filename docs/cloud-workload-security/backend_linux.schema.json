@@ -1055,6 +1055,10 @@
         "detached": {
           "type": "boolean",
           "description": "Mount is not attached to the VFS tree"
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "Mount is not visible in the VFS tree"
         }
       },
       "additionalProperties": false,
