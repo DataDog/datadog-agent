@@ -24,6 +24,22 @@ def calculate_package_size(ctx, package_os, package_path, gate_name, metric_hand
     return package_on_wire_size, package_on_disk_size
 
 
+def format_package_os_and_arch(arch, sys_os):
+    package_arch = arch
+    if sys_os == "centos" or sys_os == "suse":
+        if arch == "arm64":
+            package_arch = "aarch64"
+        elif arch == "amd64":
+            package_arch = "x86_64"
+        elif arch == "armhf":
+            package_arch = "armv7hl"
+
+    package_os = sys_os
+    if sys_os == "heroku":
+        package_os = "debian"
+    return package_arch, package_os
+
+
 def check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size):
     error_message = ""
     if package_on_wire_size > max_on_wire_size:
@@ -65,18 +81,7 @@ def generic_package_agent_quality_gate(gate_name, arch, sys_os, flavor, **kwargs
 
     metric_handler.register_metric(gate_name, "max_on_wire_size", max_on_wire_size)
     metric_handler.register_metric(gate_name, "max_on_disk_size", max_on_disk_size)
-    package_arch = arch
-    if sys_os == "centos" or sys_os == "suse":
-        if arch == "arm64":
-            package_arch = "aarch64"
-        elif arch == "amd64":
-            package_arch = "x86_64"
-        elif arch == "armhf":
-            package_arch = "armv7hl"
-
-    package_os = sys_os
-    if sys_os == "heroku":
-        package_os = "debian"
+    package_arch, package_os = format_package_os_and_arch(arch, sys_os)
 
     package_path = find_package_path(flavor, package_os, package_arch)
 
@@ -124,18 +129,7 @@ def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
     ctx = arguments.ctx
     build_job_name = arguments.build_job_name
 
-    package_arch = arch
-    if sys_os == "centos" or sys_os == "suse":
-        if arch == "arm64":
-            package_arch = "aarch64"
-        elif arch == "amd64":
-            package_arch = "x86_64"
-        elif arch == "armhf":
-            package_arch = "armv7hl"
-
-    package_os = sys_os
-    if sys_os == "heroku":
-        package_os = "debian"
+    package_arch, package_os = format_package_os_and_arch(arch, sys_os)
 
     with tempfile.TemporaryDirectory() as ancestor_download_dir, tempfile.TemporaryDirectory() as current_download_dir:
         ancestor_sha = get_common_ancestor(ctx, "HEAD")
