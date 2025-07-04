@@ -13,6 +13,7 @@ import (
 // Service represents a listening process.
 type Service struct {
 	PID                        int                             `json:"pid"`
+	LogFiles                   []string                        `json:"log_files,omitempty"`
 	GeneratedName              string                          `json:"generated_name"`
 	GeneratedNameSource        string                          `json:"generated_name_source"`
 	AdditionalGeneratedNames   []string                        `json:"additional_generated_names"`
