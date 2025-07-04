@@ -107,14 +107,14 @@ func (c *SharedLibraryCheck) Loader() string {
 	return SharedLibraryCheckLoaderName
 }
 func (c *SharedLibraryCheck) Interval() time.Duration {
-	return 0 // Shared library checks typically do not have a defined interval
+	return 15 * time.Second
 }
 
 func (c *SharedLibraryCheck) Version() string {
-	return "" // Versioning is not applicable for shared library checks
+	return ""
 }
 func (c *SharedLibraryCheck) GetWarnings() []error {
-	return nil // No warnings to return for shared library checks
+	return nil
 }
 
 func (c *SharedLibraryCheck) Stop() {

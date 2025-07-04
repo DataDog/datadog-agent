@@ -162,8 +162,6 @@ func (w *Worker) Run() {
 		utilizationTracker.Started()
 
 		// Run the check
-		// prints when a check is run to help debugging
-		//fmt.Println("[pkg/collector/worker/worker.go] RUNNING CHECK:", check.String())
 		checkErr := check.Run()
 
 		utilizationTracker.Finished()

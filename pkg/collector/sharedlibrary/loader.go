@@ -52,6 +52,10 @@ func (*SharedLibraryCheckLoader) Name() string {
 	return SharedLibraryCheckLoaderName
 }
 
+func (gl *SharedLibraryCheckLoader) String() string {
+	return "Shared Library Loader"
+}
+
 // Load returns a Shared Library check
 func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	if pkgconfigsetup.Datadog().GetBool("shared_library_lazy_loading") {
@@ -90,8 +94,4 @@ func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	}
 
 	return c, nil
-}
-
-func (gl *SharedLibraryCheckLoader) String() string {
-	return "Shared Library Loader"
 }

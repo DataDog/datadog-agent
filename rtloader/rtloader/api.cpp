@@ -196,8 +196,6 @@ void *load_shared_library(const char *lib_name, const char **error)
         return NULL;
     }
 
-    std::cout << "Shared library loaded: " << lib_name << std::endl;
-
     return shared_library;
 }
 
@@ -244,28 +242,12 @@ void run_shared_library(char *checkID, void *handle, const char **error)
         return;
     }
 
-    // [TEST] test the returned payload
-    std::cout << "Payload metric type: " << payload->metricType << std::endl;
-    std::cout << "Payload name: " << payload->name << std::endl;
-    std::cout << "Payload value: " << payload->value << std::endl;
-
-    // [TEST] tags are not returned by the shared library yet
-    // so we create a dummy one
-    char **tags = new char *[2];
-    tags[0] = strdupe("");
-
     // submit the payload returned by the shared library
     // hostname is hardcoded, don't know yet if it's needed to have it in the signature
     submit_metric(checkID, payload->metricType, payload->name, payload->value, payload->tags, strdupe("COMP-KW702R60FR"), false);
 
     // free the payload after using it
     so_free_payload(payload);
-
-    // [TEST]  indicate that the payload has been freed
-    std::cout << "Payload freed." << std::endl;
-
-    // [TEST] delete temp array
-    delete[] tags;
 }
 
 void destroy(rtloader_t *rtloader)
