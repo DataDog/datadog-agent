@@ -2581,6 +2581,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 			out.MountSourcePathResolutionError = string(in.String())
 		case "detached":
 			out.Detached = bool(in.Bool())
+		case "visible":
+			out.Visible = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -2665,6 +2667,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		const prefix string = ",\"detached\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.Detached))
+	}
+	if in.Visible {
+		const prefix string = ",\"visible\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.Visible))
 	}
 	out.RawByte('}')
 }

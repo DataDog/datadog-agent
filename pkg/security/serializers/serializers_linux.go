@@ -499,6 +499,8 @@ type MountEventSerializer struct {
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 	// Mount is not attached to the VFS tree
 	Detached bool `json:"detached,omitempty"`
+	// Mount is not visible in the VFS tree
+	Visible bool `json:"visible,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -1118,6 +1120,8 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		FSType:          e.Mount.GetFSType(),
 		MountPointPath:  mountPointPath,
 		MountSourcePath: mountSourcePath,
+		Detached:        e.Mount.Detached,
+		Visible:         e.Mount.Visible,
 	}
 
 	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
