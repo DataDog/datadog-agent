@@ -1,27 +1,21 @@
 {
   "Cluster": "ecs-cluster",
-  "TaskARN": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/7d2dae60ad844c608fb2d44215a46f6f",
-  "Family": "datadog-agent",
-  "Revision": "15",
+  "TaskARN": "arn:aws:ecs:us-east-1:123457279990:task/ecs-cluster/e39c666b3b134c2ca2241c4c3c64e6ac",
+  "Family": "nginx",
+  "Revision": "3",
   "DesiredStatus": "RUNNING",
   "KnownStatus": "RUNNING",
   "PullStartedAt": "2023-10-18T19:00:40.015762747Z",
   "PullStoppedAt": "2023-10-18T19:00:40.229561055Z",
   "AvailabilityZone": "us-east-1a",
   "LaunchType": "EC2",
-  "TaskTags": {
-    "tag-test": "task-test-value"
-  },
-  "ContainerInstanceTags": {
-    "tag_key": "tag_value"
-  },
   "Containers": [
     {
-      "DockerId": "749d28eb7145ff3b6c52b71c59b381c70a884c1615e9f99516f027492679496e",
-      "Name": "datadog-agent",
-      "DockerName": "datadog-agent-15-datadog-agent-b2bb99c4dda5b2b25000",
-      "Image": "datadog/datadog-agent:7.50.0",
-      "ImageID": "sha256:e4c58958181a5925816faa528ce959e487632f4cfc192f8132f71b32df2744b4",
+      "DockerId": "2ad9e753a0dfbba1c91e0e7bebaaf3a0918d3ef304b7549b1ced5f573bc05645",
+      "Name": "my-nginx",
+      "DockerName": "nginx-my-nginx-aa9883f7f3d6c5f73e00",
+      "Image": "ghcr.io/nginx/my-nginx:main",
+      "ImageID": "sha256:5365aa84ac82631670d111e43553ae75285d0335dd2fcca143cf0e9d6f88cd185",
       "Ports": [
         {
           "ContainerPort": 8125,
@@ -40,9 +34,9 @@
         "baseimage.name": "ubuntu:",
         "baseimage.os": "ubuntu ",
         "com.amazonaws.ecs.cluster": "ecs-cluster",
-        "com.amazonaws.ecs.container-name": "datadog-agent",
+        "com.amazonaws.ecs.container-name": "nginx",
         "org.opencontainers.image.ref.name": "ubuntu",
-        "org.opencontainers.image.source": "https://github.com/DataDog/datadog-agent",
+        "org.opencontainers.image.source": "https://github.com/DataDog/datadog-nginx",
         "org.opencontainers.image.version": "23.04"
       },
       "DesiredStatus": "RUNNING",
@@ -57,7 +51,7 @@
       "Health": {
         "status": "HEALTHY",
         "statusSince": "2023-12-27T15:39:53.043973594Z",
-        "output": "Agent health: PASS"
+        "output": "Nginx health: PASS"
       },
       "Volumes": [
         {
@@ -75,21 +69,21 @@
       ],
       "LogDriver": "awslogs",
       "LogOptions": {
-        "awslogs-group": "datadog-agent",
+        "awslogs-group": "nginx",
         "awslogs-region": "us-east-1",
-        "awslogs-stream": "log_router/datadog-agent"
+        "awslogs-stream": "log_router/nginx"
       },
-      "ContainerARN": "arn:aws:ecs:us-east-1:601427279990:container/ecs-cluster/14d5ab87e06f/52ff1eab-fb19",
+      "ContainerARN": "arn:aws:ecs:us-east-1:601427279990:container/ecs-cluster/14d5ab87e06f/52ff1eab-fb20",
       "Networks": [
         {
           "NetworkMode": "bridge",
           "IPv4Addresses": [
-            "172.17.0.2"
+            "172.17.0.3"
           ]
         }
       ]
     }
   ],
-  "VPCID": "vpc-123",
-  "ServiceName": "agent-ec2"
+  "VPCID": "vpc-124",
+  "ServiceName": "nginx-ec2"
 }
