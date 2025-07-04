@@ -215,7 +215,6 @@ func (at *ActivityTree) AppendChild(node *ProcessNode) {
 
 // AppendImageTag appends the given image tag
 func (at *ActivityTree) AppendImageTag(_ string, _ time.Time) {
-	
 }
 
 // GetParent returns nil for the ActivityTree
@@ -495,7 +494,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 		if cs.isSet() {
 			fastMatch, found = at.CookieToProcessNode.Get(cs)
 			if found {
-				fastMatch.applyImageTagOnLineageIfNeeded(imageTag,fastMatch.Process.ExecTime)
+				fastMatch.applyImageTagOnLineageIfNeeded(imageTag, fastMatch.Process.ExecTime)
 				return branch, fastMatch, nil
 			}
 		}
@@ -605,13 +604,13 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		}
 
 		// if we reach this point, we can safely return the last inserted entry and indicate that the tree was modified
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag,matchingNode.Process.ExecTime)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTag, matchingNode.Process.ExecTime)
 		return matchingNode, true, nil
 	}
 
 	// if we reach this point, we've successfully found the matching node in the tree without modifying the tree
 	if matchingNode != nil {
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag,matchingNode.Process.ExecTime)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTag, matchingNode.Process.ExecTime)
 	}
 	return matchingNode, newNode, nil
 }
@@ -844,9 +843,9 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 }
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
-func (at *ActivityTree) TagAllNodes(imageTag string,timestamp time.Time) {
+func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
-		rootNode.TagAllNodes(imageTag,timestamp)
+		rootNode.TagAllNodes(imageTag, timestamp)
 	}
 }
 

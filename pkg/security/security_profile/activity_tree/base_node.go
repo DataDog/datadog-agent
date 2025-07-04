@@ -18,16 +18,18 @@ type ImageTagTimes struct {
 	LastSeen  time.Time
 }
 
+// NodeBase provides the base functionality for all nodes in the activity tree
 type NodeBase struct {
 	Seen map[string]*ImageTagTimes // imageTag → timestamps
 }
 
+// NewNodeBase creates a new NodeBase instance
 func NewNodeBase() NodeBase {
 	return NodeBase{Seen: make(map[string]*ImageTagTimes)}
 }
 
-// Add new entry in the map or update the LastSeen for the given imageTag at time 'now'.
-func (b *NodeBase) AppendImageTag (imageTag string, timestamp time.Time) {
+// AppendImageTag adds a new entry in the map or updates the LastSeen for the given imageTag at time 'now'.
+func (b *NodeBase) AppendImageTag(imageTag string, timestamp time.Time) {
 	if imageTag == "" {
 		return
 	}
@@ -69,7 +71,7 @@ func (b *NodeBase) HasImageTag(imageTag string) bool {
 	return exists
 }
 
-//add a function that checks if the seen map is empty
+// IsEmpty checks if the seen map is empty
 func (b *NodeBase) IsEmpty() bool {
 	return len(b.Seen) == 0
 }

@@ -144,8 +144,8 @@ func syscallNodeToProto(sysc *SyscallNode) *adproto.SyscallNode {
 	}
 
 	return &adproto.SyscallNode{
-		NodeBase:  nodeBaseToProto(&sysc.NodeBase),
-		Syscall:   int32(sysc.Syscall),
+		NodeBase: nodeBaseToProto(&sysc.NodeBase),
+		Syscall:  int32(sysc.Syscall),
 	}
 }
 
@@ -446,5 +446,3 @@ func nodeBaseToProto(nb *NodeBase) *adproto.NodeBase {
 
 	return pnb
 }
-
-

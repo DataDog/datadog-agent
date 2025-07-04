@@ -44,10 +44,7 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 
 func (bn *BindNode) evictImageTag(imageTag string) bool {
 	bn.EvictImageTag(imageTag)
-	if bn.IsEmpty() {
-		return true
-	}
-	return false
+	return bn.IsEmpty()
 }
 
 func (sn *SocketNode) evictImageTag(imageTag string) bool {

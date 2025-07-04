@@ -20,6 +20,7 @@ type IMDSNode struct {
 	Event          model.IMDSEvent
 }
 
+// NewIMDSNode creates a new IMDSNode instance
 func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *IMDSNode {
 	node := &IMDSNode{
 		MatchedRules:   rules,
@@ -28,14 +29,11 @@ func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.Matche
 	}
 	node.NodeBase = NewNodeBase()
 	node.AppendImageTag(imageTag, evt.ResolveEventTime())
-	
+
 	return node
 }
 
 func (imds *IMDSNode) evictImageTag(imageTag string) bool {
 	imds.EvictImageTag(imageTag)
-	if imds.IsEmpty() {
-		return true
-	}
-	return false
+	return imds.IsEmpty()
 }

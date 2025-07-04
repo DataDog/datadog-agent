@@ -24,7 +24,7 @@ type DNSNode struct {
 }
 
 // NewDNSNode returns a new DNSNode instance
-func NewDNSNode(event *model.DNSEvent,evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
+func NewDNSNode(event *model.DNSEvent, evt *model.Event, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
 	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
@@ -61,4 +61,3 @@ func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bo
 	}
 	return false
 }
-

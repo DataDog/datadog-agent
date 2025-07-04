@@ -20,7 +20,7 @@ type NetworkDeviceNode struct {
 	GenerationType NodeGenerationType
 	Context        model.NetworkDeviceContext
 	// FlowNodes are indexed by source IPPortContexts
-	FlowNodes      map[model.FiveTuple]*FlowNode
+	FlowNodes map[model.FiveTuple]*FlowNode
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
@@ -33,9 +33,9 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 	return node
 }
 
-func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string,timestamp time.Time) {
+func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string, timestamp time.Time) {
 	for _, flow := range netdevice.FlowNodes {
-		flow.AppendImageTag(imageTag,timestamp)
+		flow.AppendImageTag(imageTag, timestamp)
 	}
 }
 
