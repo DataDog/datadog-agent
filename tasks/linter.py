@@ -107,6 +107,10 @@ def go(
         only_modified_packages=only_modified_packages,
         lint=True,
     )
+    
+    if not modules:
+        print(color_message("No modules to lint", "yellow"))
+        return
 
     lint_result, execution_times = run_lint_go(
         ctx=ctx,
