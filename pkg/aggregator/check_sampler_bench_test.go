@@ -22,7 +22,7 @@ import (
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl/resolver"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"

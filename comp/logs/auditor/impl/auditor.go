@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"

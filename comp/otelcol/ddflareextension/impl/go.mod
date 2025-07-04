@@ -139,7 +139,7 @@ require (
 
 require (
 	cloud.google.com/go/compute v1.37.0 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0 // indirect
@@ -194,9 +194,6 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.64.1 // indirect
@@ -520,7 +517,6 @@ replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types

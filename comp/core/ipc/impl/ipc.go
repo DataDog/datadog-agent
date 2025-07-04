@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"net/http"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 

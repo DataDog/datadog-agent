@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"

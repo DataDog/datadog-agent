@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"

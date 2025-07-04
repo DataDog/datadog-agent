@@ -11,13 +11,13 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter

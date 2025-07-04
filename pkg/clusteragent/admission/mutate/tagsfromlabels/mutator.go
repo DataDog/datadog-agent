@@ -14,7 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"

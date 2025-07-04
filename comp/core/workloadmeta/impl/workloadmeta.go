@@ -13,7 +13,7 @@ import (
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

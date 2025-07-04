@@ -10,7 +10,7 @@ package snmpscanimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"

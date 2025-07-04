@@ -18,8 +18,8 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl/endpoints"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 

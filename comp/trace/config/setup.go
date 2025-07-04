@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
-	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"

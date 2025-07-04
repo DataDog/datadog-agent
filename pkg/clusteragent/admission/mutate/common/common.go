@@ -19,7 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

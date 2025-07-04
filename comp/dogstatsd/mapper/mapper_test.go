@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 

@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector
 
-go 1.23.0
+go 1.23.8
+
+toolchain go1.24.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1
@@ -58,7 +60,7 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
@@ -120,6 +122,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.62.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.64.1 // indirect
@@ -333,7 +336,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types

@@ -11,7 +11,7 @@ import (
 	"expvar"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

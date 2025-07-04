@@ -44,7 +44,6 @@ retract v0.4.0 // see #107
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
@@ -123,7 +122,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../../pkg/linters/components/pkgconfigusage
-	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message

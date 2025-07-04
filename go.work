@@ -8,7 +8,6 @@ godebug tlsmlkem=0
 use (
 	.
 	comp/api/api/def
-	comp/core/config
 	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types

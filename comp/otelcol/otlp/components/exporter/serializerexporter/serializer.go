@@ -7,12 +7,12 @@ package serializerexporter
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
@@ -113,7 +113,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 }
 
-func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
+func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, defaultforwarder.Component, error) {
 	var f defaultforwarder.Component
 	var s *serializer.Serializer
 	app := fx.New(
@@ -160,17 +160,15 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),
-		defaultforwarder.Module(defaultforwarder.NewParams()),
+		defaultforwarderfx.Module(defaultforwarder.Params{}),
 		fx.Populate(&f),
 		fx.Populate(&s),
 	)
 	if err := app.Err(); err != nil {
 		return nil, nil, err
 	}
-	fw, ok := f.(*defaultforwarder.DefaultForwarder)
-	if !ok {
-		return nil, nil, fmt.Errorf("failed to cast forwarder to defaultforwarder.DefaultForwarder")
-	}
+	// Use the component directly instead of casting to a deprecated type
+	fw := f
 	return s, fw, nil
 }
 

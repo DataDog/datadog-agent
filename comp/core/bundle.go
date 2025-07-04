@@ -15,7 +15,8 @@ package core
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configdef "github.com/DataDog/datadog-agent/comp/core/config/def"
+	configfx "github.com/DataDog/datadog-agent/comp/core/config/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -34,8 +35,8 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
-		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-		config.Module(),
+		fx.Provide(func(params BundleParams) configdef.Params { return params.ConfigParams }),
+		configfx.Module(),
 		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 		logfx.Module(),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),

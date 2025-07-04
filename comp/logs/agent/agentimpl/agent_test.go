@@ -22,7 +22,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -35,12 +35,12 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"

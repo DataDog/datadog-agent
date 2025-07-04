@@ -18,9 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -37,7 +36,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -46,8 +45,8 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
@@ -144,9 +143,9 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		metricscompressionfx.Module(),
 		logscompressionfx.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
-			demultiplexerimpl.WithContinueOnMissingHostname(),
-			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
+		demultiplexerfx.Module(demultiplexer.NewDefaultParams(
+			demultiplexer.WithContinueOnMissingHostname(),
+			demultiplexer.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
@@ -163,7 +162,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		metadatarunnerimpl.Module(),
 		resourcesimpl.Module(),
 		hostimpl.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),

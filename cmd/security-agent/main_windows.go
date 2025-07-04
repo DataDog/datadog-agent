@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"

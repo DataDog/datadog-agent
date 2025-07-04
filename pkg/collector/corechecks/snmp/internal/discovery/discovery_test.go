@@ -15,7 +15,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )

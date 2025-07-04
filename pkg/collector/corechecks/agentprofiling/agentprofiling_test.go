@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	configmock "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaremock "github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )

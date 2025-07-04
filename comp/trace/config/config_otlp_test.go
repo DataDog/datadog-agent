@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	corecomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 func TestFullYamlConfigWithOTLP(t *testing.T) {

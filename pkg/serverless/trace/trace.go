@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config/def"
 	authtokennoneimpl "github.com/DataDog/datadog-agent/comp/core/ipc/impl-none"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"

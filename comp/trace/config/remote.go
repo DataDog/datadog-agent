@@ -10,7 +10,7 @@ package config
 import (
 	"time"
 
-	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

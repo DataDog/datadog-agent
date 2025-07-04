@@ -6,7 +6,7 @@
 // Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 package orchestratorinterface
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+import def "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 
 // team: agent-metric-pipelines
 
@@ -14,5 +14,5 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 // The main method of this component is `Get` which returns the forwarder instance only if it enabled.
 type Component interface {
 	// Get the forwarder instance if it exists.
-	Get() (defaultforwarder.Forwarder, bool)
+	Get() (def.Forwarder, bool)
 }

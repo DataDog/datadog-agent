@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
@@ -43,7 +43,7 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Config specifies the Datadog Agent's configuration component.
-	Config config.Component
+	Config coreconfig.Component
 
 	// Log specifies the logging component.
 	Log log.Component
@@ -76,7 +76,7 @@ type Provides struct {
 
 type collectorImpl struct {
 	col            *otlp.Pipeline
-	config         config.Component
+	config         coreconfig.Component
 	log            log.Component
 	serializer     serializer.MetricSerializer
 	logsAgent      option.Option[logsagentpipeline.Component]

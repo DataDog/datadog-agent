@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	rarproto "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/proto"
@@ -34,7 +34,7 @@ import (
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

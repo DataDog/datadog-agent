@@ -21,9 +21,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
@@ -105,7 +102,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types

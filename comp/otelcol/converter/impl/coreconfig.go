@@ -9,8 +9,9 @@ package converterimpl
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"go.opentelemetry.io/collector/confmap"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 // addCoreAgentConfig enhances the configuration with information about the core agent.

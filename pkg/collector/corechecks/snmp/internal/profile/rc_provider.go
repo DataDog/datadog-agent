@@ -8,7 +8,7 @@ package profile
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

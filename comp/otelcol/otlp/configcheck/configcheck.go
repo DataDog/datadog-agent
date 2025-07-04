@@ -14,7 +14,7 @@ import (
 	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 

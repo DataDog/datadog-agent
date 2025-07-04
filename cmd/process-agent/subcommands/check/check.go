@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"

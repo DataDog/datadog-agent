@@ -13,10 +13,10 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

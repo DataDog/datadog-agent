@@ -9,7 +9,7 @@ package processdiscoverycheckimpl
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"

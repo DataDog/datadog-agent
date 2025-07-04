@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/i
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.64.1
@@ -59,7 +58,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.37.0 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.0.0-00010101000000-000000000000 // indirect
@@ -87,6 +86,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0 // indirect
@@ -196,7 +196,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types

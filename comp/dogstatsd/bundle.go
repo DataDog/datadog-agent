@@ -8,7 +8,8 @@ package dogstatsd //nolint:revive // TODO(AML) Fix revive linter
 import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	serverfx "github.com/DataDog/datadog-agent/comp/dogstatsd/server/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -21,5 +22,5 @@ func Bundle(params server.Params) fxutil.BundleOptions {
 		serverdebugimpl.Module(),
 		replayfx.Module(),
 		pidmapimpl.Module(),
-		server.Module(params))
+		serverfx.Module(params))
 }

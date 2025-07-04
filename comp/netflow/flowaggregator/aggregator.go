@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 

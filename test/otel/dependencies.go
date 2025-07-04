@@ -9,7 +9,6 @@ package otel
 import (
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"

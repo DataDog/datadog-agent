@@ -8,7 +8,7 @@
 package stream
 
 import (
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 

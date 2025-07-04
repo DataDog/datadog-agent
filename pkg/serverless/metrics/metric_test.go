@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

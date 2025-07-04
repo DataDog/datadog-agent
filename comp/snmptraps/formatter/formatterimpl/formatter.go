@@ -15,7 +15,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"

@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"

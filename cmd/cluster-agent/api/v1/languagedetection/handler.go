@@ -16,7 +16,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

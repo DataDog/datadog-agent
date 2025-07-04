@@ -7,10 +7,11 @@ package collectors
 
 import (
 	"context"
-	"github.com/gobwas/glob"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/gobwas/glob"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"

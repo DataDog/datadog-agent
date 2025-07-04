@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

@@ -8,7 +8,7 @@ package workloadmetaimpl
 // team: container-platform
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 )

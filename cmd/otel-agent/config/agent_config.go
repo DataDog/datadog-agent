@@ -23,8 +23,8 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )

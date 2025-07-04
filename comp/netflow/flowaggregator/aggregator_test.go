@@ -39,7 +39,7 @@ import (
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"

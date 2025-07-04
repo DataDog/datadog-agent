@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/process/processeventscheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-go/v5/statsd"

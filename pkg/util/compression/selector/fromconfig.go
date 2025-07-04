@@ -7,7 +7,7 @@
 package selector
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	common "github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 

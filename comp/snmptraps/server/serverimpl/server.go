@@ -9,14 +9,14 @@ package serverimpl
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coreStatus "github.com/DataDog/datadog-agent/comp/core/status"
 
 	"go.uber.org/fx"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
@@ -40,7 +40,7 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Conf      config.Component
+	Conf      coreconfig.Component
 	HNService hostname.Component
 	Demux     demultiplexer.Component
 	Logger    log.Component
@@ -49,7 +49,7 @@ type dependencies struct {
 // injections bundles the injectables passed from the main app to the subapp.
 type injections struct {
 	fx.Out
-	Conf      config.Component
+	Conf      coreconfig.Component
 	HNService hostname.Component
 	Demux     demultiplexer.Component
 	Logger    log.Component

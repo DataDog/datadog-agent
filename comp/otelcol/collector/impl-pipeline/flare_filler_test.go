@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"

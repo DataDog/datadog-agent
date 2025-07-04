@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"

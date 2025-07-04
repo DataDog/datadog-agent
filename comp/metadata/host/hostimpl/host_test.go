@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

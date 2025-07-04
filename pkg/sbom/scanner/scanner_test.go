@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	compConfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

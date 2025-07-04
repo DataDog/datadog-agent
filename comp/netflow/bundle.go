@@ -8,8 +8,8 @@
 package netflow
 
 import (
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
-	"github.com/DataDog/datadog-agent/comp/netflow/server"
+	configfx "github.com/DataDog/datadog-agent/comp/netflow/config/fx"
+	serverfx "github.com/DataDog/datadog-agent/comp/netflow/server/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,6 +18,6 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		server.Module(),
-		config.Module())
+		serverfx.Module(),
+		configfx.Module())
 }

@@ -12,7 +12,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

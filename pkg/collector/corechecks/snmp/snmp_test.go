@@ -20,11 +20,11 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"

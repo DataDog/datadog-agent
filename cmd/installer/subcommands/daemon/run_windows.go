@@ -12,15 +12,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/judwhite/go-svc"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/judwhite/go-svc"
-	"go.uber.org/fx"
 )
 
 type windowsService struct {

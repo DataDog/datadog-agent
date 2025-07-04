@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	// We need to include this to make sure the Dogstatsd expvars are initialized
-	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 )
 
 func TestStatusOut(t *testing.T) {

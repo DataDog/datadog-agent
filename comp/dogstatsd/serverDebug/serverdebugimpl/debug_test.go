@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"

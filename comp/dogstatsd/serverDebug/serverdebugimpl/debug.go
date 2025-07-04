@@ -19,7 +19,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"

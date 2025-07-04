@@ -322,6 +322,8 @@
 /comp/core/filter @DataDog/container-platform
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
+/comp/core/config/impl @DataDog/agent-configuration
+/comp/core/flare/impl @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
 /comp/core/secrets @DataDog/agent-configuration
 /comp/core/settings @DataDog/agent-configuration

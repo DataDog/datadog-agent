@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	fleettelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"

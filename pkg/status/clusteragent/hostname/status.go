@@ -15,10 +15,10 @@ import (
 	"expvar"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 )
 
 // Provider provides the functionality to populate the status output

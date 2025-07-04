@@ -19,7 +19,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"

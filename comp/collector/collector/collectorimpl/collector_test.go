@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"

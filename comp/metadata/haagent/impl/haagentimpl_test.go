@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"

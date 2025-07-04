@@ -12,7 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cloudfoundrycontainertagger "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/config/env"

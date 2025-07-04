@@ -14,7 +14,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -109,7 +110,7 @@ type statsd struct {
 }
 
 type forwarders struct {
-	containerLifecycle *forwarder.DefaultForwarder
+	containerLifecycle *forwarderimpl.DefaultForwarder
 }
 
 type dataOutputs struct {

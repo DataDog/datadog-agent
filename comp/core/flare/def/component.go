@@ -1,0 +1,32 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package flare implements a component to generate flares from the agent.
+//
+// A flare is a archive containing all the information necessary to troubleshoot the Agent. When openeing a support
+// ticket a flare might be requested. Flares contain the Agent logs, configurations and much more.
+package flare
+
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+)
+
+// team: agent-configuration
+
+// Component is the component type.
+type Component interface {
+	// Create creates a new flare locally and returns the path to the flare file.
+	//
+	// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
+	Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
+	// CreateWithArgs creates a new flare locally and returns the path to the flare file.
+	// This function is used to create a flare with specific arguments.
+	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
+	// Send sends a flare archive to Datadog.
+	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
+}

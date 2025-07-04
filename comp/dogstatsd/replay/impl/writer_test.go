@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"

@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -26,7 +26,7 @@ func (cs *configService) Get() *trapsconf.TrapsConfig {
 	return cs.conf
 }
 
-func newService(conf config.Component, hnService hostname.Component) (trapsconf.Component, error) {
+func newService(conf coreconfig.Component, hnService hostname.Component) (trapsconf.Component, error) {
 	name, err := hnService.Get(context.Background())
 	if err != nil {
 		return nil, err

@@ -7,7 +7,7 @@
 package filterimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/filter/catalog"
 	filterdef "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/comp/core/filter/program"

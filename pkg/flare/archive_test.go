@@ -23,7 +23,7 @@ import (
 	procmodel "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
+	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

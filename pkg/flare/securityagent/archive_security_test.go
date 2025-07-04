@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	// Required to initialize the "dogstatsd" expvar
-	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 )
 

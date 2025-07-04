@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 

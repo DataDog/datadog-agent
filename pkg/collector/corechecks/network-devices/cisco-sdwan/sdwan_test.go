@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

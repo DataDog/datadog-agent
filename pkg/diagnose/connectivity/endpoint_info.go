@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/gogo/protobuf/proto"
 )

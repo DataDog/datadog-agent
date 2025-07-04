@@ -14,8 +14,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"

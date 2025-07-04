@@ -20,7 +20,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -33,7 +33,7 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"

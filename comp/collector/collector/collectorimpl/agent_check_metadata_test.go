@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer"

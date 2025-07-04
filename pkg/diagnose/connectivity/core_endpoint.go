@@ -18,11 +18,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -99,7 +99,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 		}
 	}
 	numberOfWorkers := 1
-	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
+	client := forwarderimpl.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
 	// Create diagnosis for logs
 	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
@@ -302,7 +302,7 @@ func clientWithOneRedirects(config config.Component, numberOfWorkers int, log lo
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: forwarder.NewHTTPTransport(
+		Transport: forwarderimpl.NewHTTPTransport(
 			config,
 			numberOfWorkers,
 			log),

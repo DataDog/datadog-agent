@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

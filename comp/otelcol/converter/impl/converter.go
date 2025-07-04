@@ -13,7 +13,7 @@ import (
 
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 )
 

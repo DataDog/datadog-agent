@@ -162,6 +162,18 @@ Package hostname exposes hostname.Get() as a component.
 
 Package hostnameinterface describes the interface for hostname methods
 
+### [comp/core/config/impl](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config/impl)
+
+*Datadog Team*: agent-configuration
+
+
+
+### [comp/core/flare/impl](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/impl)
+
+*Datadog Team*: agent-configuration
+
+
+
 ### [comp/core/ipc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/ipc)
 
 Package ipc takes care of the IPC artifacts lifecycle (creation, loading, deletion of auth_token, IPC certificate, IPC key).

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"

@@ -7,7 +7,7 @@
 package catalog
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

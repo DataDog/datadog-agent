@@ -12,9 +12,10 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/shirou/gopsutil/v4/process"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 const (

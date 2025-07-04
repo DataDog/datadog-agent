@@ -23,7 +23,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"

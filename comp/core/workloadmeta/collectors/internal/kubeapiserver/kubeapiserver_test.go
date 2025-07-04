@@ -18,7 +18,7 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

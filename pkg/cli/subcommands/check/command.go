@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -182,7 +182,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
+				demultiplexerfx.Module(demultiplexer.NewDefaultParams(demultiplexer.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
 				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),

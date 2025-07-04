@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -44,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"

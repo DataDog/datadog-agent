@@ -18,9 +18,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -98,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 				snmpscanfx.Module(),
-				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+				demultiplexerfx.Module(demultiplexer.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
@@ -163,7 +164,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
-				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
+				aggregator.Bundle(demultiplexer.NewDefaultParams()),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),

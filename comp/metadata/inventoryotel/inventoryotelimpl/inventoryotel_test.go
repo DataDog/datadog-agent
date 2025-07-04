@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"

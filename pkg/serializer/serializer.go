@@ -16,11 +16,11 @@ import (
 	"strconv"
 	"time"
 
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"

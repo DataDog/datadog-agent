@@ -13,7 +13,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -31,7 +31,7 @@ type ServerlessDemultiplexer struct {
 	metricSamplePool *metrics.MetricSamplePool
 
 	serializer    *serializer.Serializer
-	forwarder     *forwarder.SyncForwarder
+	forwarder     *forwarderimpl.SyncForwarder
 	statsdSampler *TimeSampler
 	statsdWorker  *timeSamplerWorker
 
@@ -48,7 +48,7 @@ type ServerlessDemultiplexer struct {
 func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	forwarder, err := forwarderimpl.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
 	if err != nil {
 		return nil, err
 	}

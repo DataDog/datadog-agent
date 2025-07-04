@@ -12,13 +12,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -74,12 +75,13 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	log := sender.deps.Log
 	config := sender.deps.Config
 	haAgent := sender.deps.HaAgent
-	options, err := defaultforwarder.NewOptions(config, log, nil)
+	options, err := defaultforwarderimpl.NewOptions(config, log, nil)
 	if err != nil {
 		return nil, err
 	}
-	forwarder := defaultforwarder.NewDefaultForwarder(config, log, options)
-	orchestratorForwarder := option.NewPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	forwarder := defaultforwarderimpl.NewDefaultForwarder(config, log, options)
+	// Create a noop orchestrator forwarder (nil for diagnose use case)
+	var orchestratorForwarder orchestrator.Component = nil
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.LogsCompressor))
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,

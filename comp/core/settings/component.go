@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"go.uber.org/fx"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // team: agent-configuration

@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
 )

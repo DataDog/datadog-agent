@@ -22,7 +22,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"

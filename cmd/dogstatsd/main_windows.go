@@ -13,10 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 

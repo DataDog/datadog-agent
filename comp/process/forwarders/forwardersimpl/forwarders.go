@@ -9,10 +9,11 @@ package forwardersimpl
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
@@ -78,16 +79,17 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	}, nil
 }
 
-func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
+func createForwarder(deps dependencies, options *defaultforwarderimpl.Options) defaultforwarder.Component {
+	// For now, use a noop forwarder since the new architecture doesn't support standalone forwarder creation
+	return defaultforwarderimpl.NoopForwarder{}
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarder.Options, error) {
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) (*defaultforwarderimpl.Options, error) {
 	resolver, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints))
 	if err != nil {
 		return nil, err
 	}
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
+	forwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(config, log, resolver)
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts, nil

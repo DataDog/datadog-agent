@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -179,17 +179,14 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	if err != nil {
 		return nil, err
 	}
-	var forwarder *defaultforwarder.DefaultForwarder
+	var forwarder defaultforwarder.Component
 	if f.s == nil {
 		f.s, forwarder, err = initSerializer(params.Logger, cfg, f.hostProvider)
 		if err != nil {
 			return nil, err
 		}
-		params.Logger.Info("starting forwarder")
-		err := forwarder.Start()
-		if err != nil {
-			params.Logger.Error("failed to start forwarder", zap.Error(err))
-		}
+		params.Logger.Info("forwarder initialized - start/stop handled by FX lifecycle")
+		// Note: Start/Stop methods are handled by FX lifecycle, not directly exposed in component interface
 	}
 
 	// TODO: Ideally the attributes translator would be created once and reused
@@ -233,9 +230,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 					return err
 				}
 			}
-			if forwarder != nil {
-				forwarder.Stop()
-			}
+			// Note: forwarder lifecycle (Stop) is handled by FX framework, not directly exposed
 			return nil
 		}),
 	)

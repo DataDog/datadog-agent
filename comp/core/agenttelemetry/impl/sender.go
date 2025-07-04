@@ -20,14 +20,15 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/zstd"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd"
 )
 
 const (

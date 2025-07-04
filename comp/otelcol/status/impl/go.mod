@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/status/impl
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock v0.0.0-00010101000000-000000000000
@@ -57,7 +56,6 @@ require (
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -73,7 +71,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
@@ -96,7 +93,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types

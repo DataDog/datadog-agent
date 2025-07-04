@@ -10,7 +10,7 @@ package agentimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/stretchr/testify/assert"
 )
 

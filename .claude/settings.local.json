@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(cp:*)",
+      "Bash(go build:*)",
+      "Bash(mv:*)",
+      "Bash(rg:*)",
+      "Bash(for:*)",
+      "Bash(do sed -i '' 's/^package server$/package serverimpl/' \"$file\")",
+      "Bash(done)",
+      "Bash(chmod:*)",
+      "Bash(./update_flare_imports.sh)",
+      "Bash(do sed -i '' 's|\"\"github.com/DataDog/datadog-agent/comp/netflow/config\"\"|\"\"github.com/DataDog/datadog-agent/comp/netflow/config/def\"\"|g' \"$file\")",
+      "Bash(do sed -i '' 's|github.com/DataDog/datadog-agent/comp/dogstatsd/server\"\"|github.com/DataDog/datadog-agent/comp/dogstatsd/server/def\"\"|g' \"$file\")",
+      "Bash(true)",
+      "Bash(sed:*)",
+      "Bash(ls:*)",
+      "Bash(go list:*)",
+      "Bash(go run:*)",
+      "Bash(go test:*)",
+      "Bash(inv:*)",
+      "Bash(timeout:*)",
+      "Bash(go work:*)"
+    ],
+    "deny": []
+  }
+}

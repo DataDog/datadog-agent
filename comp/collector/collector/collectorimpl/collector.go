@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"

@@ -22,7 +22,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"

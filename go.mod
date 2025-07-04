@@ -558,7 +558,6 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.157
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000
@@ -1037,7 +1036,6 @@ replace github.com/open-policy-agent/opa => github.com/paulcacheux/opa v0.0.0-20
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types

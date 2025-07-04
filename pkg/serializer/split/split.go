@@ -9,7 +9,7 @@ package split
 import (
 	"expvar"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"

@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"

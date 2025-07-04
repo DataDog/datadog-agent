@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

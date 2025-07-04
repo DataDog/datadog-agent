@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -52,8 +51,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	rcclientfx "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -105,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.Module(),
 				telemetryimpl.Module(),
 				sysprobeconfigimpl.Module(),
-				rcclientimpl.Module(),
+				rcclientfx.Module(),
 				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
 					return healthprobe.Options{
 						Port:           sysprobeconfig.SysProbeObject().HealthPort,

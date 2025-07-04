@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	configcomponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"

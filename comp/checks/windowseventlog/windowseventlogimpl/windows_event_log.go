@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

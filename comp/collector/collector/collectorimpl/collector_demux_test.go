@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -27,7 +27,7 @@ import (
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

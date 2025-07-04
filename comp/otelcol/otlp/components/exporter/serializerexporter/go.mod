@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.23.0
+go 1.23.8
+
+toolchain go1.24.4
 
 require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6
@@ -29,9 +31,6 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.6 // indirect
@@ -236,7 +235,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types

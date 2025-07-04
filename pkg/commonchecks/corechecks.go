@@ -7,12 +7,12 @@
 package commonchecks
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"

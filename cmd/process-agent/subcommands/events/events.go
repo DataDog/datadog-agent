@@ -20,10 +20,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"

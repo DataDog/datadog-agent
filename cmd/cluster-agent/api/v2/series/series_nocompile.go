@@ -10,8 +10,9 @@ package series
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/gorilla/mux"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 // InstallNodeMetricsEndpoints installs node metrics collection endpoints

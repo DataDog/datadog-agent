@@ -21,7 +21,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"

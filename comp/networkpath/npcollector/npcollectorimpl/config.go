@@ -8,7 +8,7 @@ package npcollectorimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )

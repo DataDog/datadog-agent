@@ -21,7 +21,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"

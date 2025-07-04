@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"

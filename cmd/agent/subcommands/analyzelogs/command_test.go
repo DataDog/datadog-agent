@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

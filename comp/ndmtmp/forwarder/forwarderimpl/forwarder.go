@@ -7,7 +7,7 @@
 package forwarderimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"

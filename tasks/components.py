@@ -62,17 +62,8 @@ def has_type_component(content) -> bool:
 # The migration of these components is in progresss.
 # Please do not add a new component to this list.
 components_to_migrate = [
-    "comp/aggregator/demultiplexer/component.go",
-    "comp/core/config/component.go",
-    "comp/core/flare/component.go",
-    "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
-    "comp/metadata/inventoryagent/component.go",
-    "comp/netflow/config/component.go",
-    "comp/netflow/server/component.go",
-    "comp/remote-config/rcclient/component.go",
     "comp/trace/config/component.go",
-    "comp/process/apiserver/component.go",
 ]
 
 

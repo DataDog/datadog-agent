@@ -32,6 +32,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -50,8 +51,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/fx"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -63,11 +64,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
+	flarefx "github.com/DataDog/datadog-agent/comp/core/flare/fx"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
@@ -98,7 +99,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
@@ -117,7 +118,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
@@ -127,7 +128,7 @@ import (
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -138,7 +139,7 @@ import (
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -358,7 +359,8 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		flare.Module(flare.NewParams(
+		flarefx.Module(),
+		fx.Supply(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
 			defaultpaths.LogFile,
@@ -410,7 +412,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
+		demultiplexerfx.Module(demultiplexer.NewDefaultParams(demultiplexer.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent option.Option[logsAgent.Component]) option.Option[logsagentpipeline.Component] {

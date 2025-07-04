@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 func TestBuildServerlessEndpoints(t *testing.T) {

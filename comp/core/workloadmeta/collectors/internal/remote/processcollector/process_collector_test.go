@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

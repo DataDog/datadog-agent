@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"

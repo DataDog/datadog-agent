@@ -31,7 +31,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	corecomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"

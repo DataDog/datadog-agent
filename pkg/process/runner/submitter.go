@@ -19,13 +19,10 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-
-	//nolint:revive // TODO(PROC) Fix revive linter
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -56,10 +53,10 @@ type CheckSubmitter struct {
 	connectionsResults *api.WeightedQueue
 
 	// Forwarders
-	processForwarder     defaultforwarder.Component
-	rtProcessForwarder   defaultforwarder.Component
-	connectionsForwarder defaultforwarder.Component
-	eventForwarder       defaultforwarder.Component
+	processForwarder     forwarder.Component
+	rtProcessForwarder   forwarder.Component
+	connectionsForwarder forwarder.Component
+	eventForwarder       forwarder.Component
 
 	// Endpoints for logging purposes
 	processAPIEndpoints       []apicfg.Endpoint

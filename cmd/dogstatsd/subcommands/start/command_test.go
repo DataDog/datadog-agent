@@ -8,7 +8,7 @@ package start
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"

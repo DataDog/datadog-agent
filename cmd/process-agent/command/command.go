@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"

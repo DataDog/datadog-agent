@@ -10,7 +10,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"

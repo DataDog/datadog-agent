@@ -14,7 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"

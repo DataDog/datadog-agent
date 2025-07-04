@@ -8,7 +8,7 @@
 package podtagprovider
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"

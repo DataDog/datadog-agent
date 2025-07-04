@@ -8,7 +8,7 @@ package goflowlib
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"

@@ -8,7 +8,6 @@ require github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types

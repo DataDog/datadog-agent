@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 func Test_filterMapStringKey(t *testing.T) {

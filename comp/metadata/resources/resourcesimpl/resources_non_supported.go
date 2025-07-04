@@ -8,10 +8,11 @@
 package resourcesimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"go.uber.org/fx"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"go.uber.org/fx"
 )
 
 type resourcesImpl struct{}

@@ -20,7 +20,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"

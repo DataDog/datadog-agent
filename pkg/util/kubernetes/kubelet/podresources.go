@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 )
 
 // PodResourcesClient is a small wrapper for the PodResources kubernetes API

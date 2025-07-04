@@ -17,7 +17,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"

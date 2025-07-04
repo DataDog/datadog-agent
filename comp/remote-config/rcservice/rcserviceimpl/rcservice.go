@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"

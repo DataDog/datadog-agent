@@ -10,9 +10,10 @@ package languagedetection
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/gorilla/mux"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints

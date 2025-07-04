@@ -14,11 +14,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"

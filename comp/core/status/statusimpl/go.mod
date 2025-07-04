@@ -4,7 +4,6 @@ go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
@@ -29,7 +28,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
@@ -91,7 +89,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types

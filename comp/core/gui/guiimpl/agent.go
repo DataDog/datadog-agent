@@ -19,8 +19,8 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"

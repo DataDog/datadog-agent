@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"

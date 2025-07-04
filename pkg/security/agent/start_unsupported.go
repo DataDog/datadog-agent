@@ -11,12 +11,13 @@ package agent
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // StartRuntimeSecurity starts runtime security

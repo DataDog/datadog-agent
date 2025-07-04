@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/comp/core/configsync
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock v0.0.0-00010101000000-000000000000
@@ -20,8 +19,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.61.0 // indirect
@@ -95,7 +92,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface

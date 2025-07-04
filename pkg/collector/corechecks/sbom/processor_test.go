@@ -25,7 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"

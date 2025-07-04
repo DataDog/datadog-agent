@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
@@ -135,7 +135,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	return fxutil.Run(
 		ForwarderBundle(),
 		logtracefx.Module(),
-		inventoryagentimpl.Module(),
+		inventoryagentfx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)

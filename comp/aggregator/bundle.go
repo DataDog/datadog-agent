@@ -7,14 +7,15 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerdef "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexerfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-metric-pipelines
 
 // Bundle defines the fx options for this bundle.
-func Bundle(params demultiplexerimpl.Params) fxutil.BundleOptions {
+func Bundle(params demultiplexerdef.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		demultiplexerimpl.Module(params))
+		demultiplexerfx.Module(params))
 }

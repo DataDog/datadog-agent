@@ -8,7 +8,7 @@ package settings
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"

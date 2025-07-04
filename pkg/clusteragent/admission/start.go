@@ -11,9 +11,9 @@ package admission
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"

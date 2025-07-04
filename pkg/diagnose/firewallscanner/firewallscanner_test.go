@@ -11,7 +11,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

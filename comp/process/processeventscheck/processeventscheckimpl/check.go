@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/process/processeventscheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"

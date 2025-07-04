@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

@@ -26,8 +26,8 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"

@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

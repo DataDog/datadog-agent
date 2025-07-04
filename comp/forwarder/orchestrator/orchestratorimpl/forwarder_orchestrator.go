@@ -13,12 +13,13 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -37,7 +38,7 @@ func Module(params Params) fxutil.Module {
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func newOrchestratorForwarder(log log.Component, config config.Component, tagger tagger.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
 	if params.useNoopOrchestratorForwarder {
-		return createComponent(defaultforwarder.NoopForwarder{})
+		return createComponent(defaultforwarderimpl.NoopForwarder{})
 	}
 	if params.useOrchestratorForwarder {
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
@@ -57,10 +58,10 @@ func newOrchestratorForwarder(log log.Component, config config.Component, tagger
 		if err != nil {
 			log.Errorf("Error creating domain resolver: %s", err)
 		}
-		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
+		orchestratorForwarderOpts := defaultforwarderimpl.NewOptionsWithResolvers(config, log, resolver)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
+		forwarder := defaultforwarderimpl.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
 		lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				_ = forwarder.Start()

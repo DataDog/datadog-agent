@@ -9,7 +9,7 @@ package checkconfig
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"hash/fnv"
 	"net"
 	"sort"

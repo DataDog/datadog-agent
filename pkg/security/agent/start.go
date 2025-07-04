@@ -13,7 +13,7 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"

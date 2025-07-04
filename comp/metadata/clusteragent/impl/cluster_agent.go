@@ -18,7 +18,7 @@ import (
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"

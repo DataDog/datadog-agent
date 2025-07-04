@@ -18,9 +18,9 @@ import (
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

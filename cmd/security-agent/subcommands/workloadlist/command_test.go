@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"

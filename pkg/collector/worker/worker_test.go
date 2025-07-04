@@ -17,7 +17,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"

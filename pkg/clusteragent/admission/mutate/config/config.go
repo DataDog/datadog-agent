@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"

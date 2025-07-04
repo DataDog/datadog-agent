@@ -6,7 +6,7 @@
 package haagentimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	helpers "github.com/DataDog/datadog-agent/comp/haagent/helpers"
 )
 

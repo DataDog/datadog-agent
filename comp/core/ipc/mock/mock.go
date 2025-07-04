@@ -17,13 +17,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )

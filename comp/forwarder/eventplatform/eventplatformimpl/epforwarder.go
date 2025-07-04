@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/fx"
 
-	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"

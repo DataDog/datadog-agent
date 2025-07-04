@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.23.0
+go 1.23.8
+
+toolchain go1.24.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3
@@ -71,9 +73,6 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
@@ -93,7 +92,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
@@ -275,7 +273,6 @@ replace github.com/golang/mock => github.com/golang/mock v1.6.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types

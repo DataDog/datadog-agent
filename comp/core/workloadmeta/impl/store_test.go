@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

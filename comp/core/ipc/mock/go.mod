@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/comp/core/ipc/mock
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/api v0.61.0
@@ -13,10 +12,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
@@ -28,7 +24,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
@@ -48,7 +43,6 @@ require (
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
@@ -59,17 +53,12 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.5 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/fx v1.24.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
@@ -82,7 +71,6 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types

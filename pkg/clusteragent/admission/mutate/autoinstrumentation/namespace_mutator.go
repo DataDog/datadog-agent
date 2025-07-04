@@ -17,7 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

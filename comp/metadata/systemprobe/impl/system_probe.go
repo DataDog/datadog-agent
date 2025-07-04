@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"

@@ -12,13 +12,14 @@ import (
 	"net/netip"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"go.uber.org/multierr"
+
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
-	"go.uber.org/multierr"
 )
 
 // Requires defines the dependencies for the rdnsquerier component

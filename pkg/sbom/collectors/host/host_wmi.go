@@ -12,13 +12,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 
+	"github.com/DataDog/gopsutil/host"
+
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/gopsutil/host"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	host2 "github.com/shirou/gopsutil/v4/host"

@@ -26,14 +26,15 @@ import (
 	"golang.org/x/sys/unix"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/safchain/ethtool"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	config "github.com/DataDog/datadog-agent/comp/core/config/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/safchain/ethtool"
 )
 
 const (
