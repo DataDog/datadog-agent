@@ -28,7 +28,7 @@ __attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
         bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);
         }
         return protocol & 0xff;
-    return 444; // Default value if protocol cannot be determined
+    return 0; // Default value if protocol cannot be determined
 
 }
 
