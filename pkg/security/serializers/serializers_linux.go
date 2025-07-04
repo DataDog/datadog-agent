@@ -552,10 +552,25 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
+	// Socket file descriptor
+	SocketType uint16 `json:"socket_type"`
+	// Socket family
+	SocketFamily uint16 `json:"socket_family"`
+	// Length of the filter
+	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Socket protocol
+	SocketProtocol uint16 `json:"socket_protocol"`
+
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set
 	OptName uint32 `json:"optname"`
+	// Filter truncated
+	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
+	// Filter instructions
+	FilterInstructions string `json:"filter,omitempty"`
+	//Filter hash
+	FilterHash string `json:"filter_hash,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -1309,10 +1324,19 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 }
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
-	return &SetSockOptEventSerializer{
-		Level:   e.SetSockOpt.Level,
-		OptName: e.SetSockOpt.OptName,
+	s := &SetSockOptEventSerializer{
+		SocketType:         e.SetSockOpt.SocketType,
+		SocketProtocol:     e.SetSockOpt.SocketProtocol,
+		SocketFamily:       e.SetSockOpt.SocketFamily,
+		Level:              e.SetSockOpt.Level,
+		OptName:            e.SetSockOpt.OptName,
+		IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+		FilterLen:          e.SetSockOpt.FilterLen,
+		FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+		FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
 	}
+	return s
+
 }
 
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {

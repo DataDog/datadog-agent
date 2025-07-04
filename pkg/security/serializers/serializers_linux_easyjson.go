@@ -1121,10 +1121,24 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 			continue
 		}
 		switch key {
+		case "socket_type":
+			out.SocketType = uint16(in.Uint16())
+		case "socket_family":
+			out.SocketFamily = uint16(in.Uint16())
+		case "filter_len":
+			out.FilterLen = uint16(in.Uint16())
+		case "socket_protocol":
+			out.SocketProtocol = uint16(in.Uint16())
 		case "level":
 			out.Level = uint32(in.Uint32())
 		case "optname":
 			out.OptName = uint32(in.Uint32())
+		case "is_filter_truncated":
+			out.IsFilterTruncated = bool(in.Bool())
+		case "filter":
+			out.FilterInstructions = string(in.String())
+		case "filter_hash":
+			out.FilterHash = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1140,14 +1154,49 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"level\":"
+		const prefix string = ",\"socket_type\":"
 		out.RawString(prefix[1:])
+		out.Uint16(uint16(in.SocketType))
+	}
+	{
+		const prefix string = ",\"socket_family\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.SocketFamily))
+	}
+	if in.FilterLen != 0 {
+		const prefix string = ",\"filter_len\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.FilterLen))
+	}
+	{
+		const prefix string = ",\"socket_protocol\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.SocketProtocol))
+	}
+	{
+		const prefix string = ",\"level\":"
+		out.RawString(prefix)
 		out.Uint32(uint32(in.Level))
 	}
 	{
 		const prefix string = ",\"optname\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.OptName))
+	}
+	if in.IsFilterTruncated {
+		const prefix string = ",\"is_filter_truncated\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsFilterTruncated))
+	}
+	if in.FilterInstructions != "" {
+		const prefix string = ",\"filter\":"
+		out.RawString(prefix)
+		out.String(string(in.FilterInstructions))
+	}
+	if in.FilterHash != "" {
+		const prefix string = ",\"filter_hash\":"
+		out.RawString(prefix)
+		out.String(string(in.FilterHash))
 	}
 	out.RawByte('}')
 }
