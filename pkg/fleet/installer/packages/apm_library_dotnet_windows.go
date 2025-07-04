@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -140,6 +141,9 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string, upgrade
 }
 
 func updateInstrumentation(ctx context.Context, newMethod, target string, upgrade bool) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "update_instrumentation")
+	defer func() { span.Finish(err) }()
+
 	// TODO What if it's a reinstall and the instrumentation method config was not properly cleaned up by the previous installation?
 	// Check if a an instrumentation method was set during a previous installation
 	var currentMethod string
@@ -173,7 +177,8 @@ func updateInstrumentation(ctx context.Context, newMethod, target string, upgrad
 		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
 		// TODO show an error but do not fail the installation
 		if err != nil {
-			return fmt.Errorf("could not uninstrument dotnet library: %w", err)
+			log.Errorf("could not uninstrument dotnet library: %w", err)
+			span.SetTag("uninstrumentation_error", err.Error())
 		}
 	}
 
