@@ -250,9 +250,14 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
+		apmProcessName := "trace-loader"
+		if client.Host.OSFamily == componentos.WindowsFamily {
+			apmProcessName = "trace-agent"
+		}
+
 		var boundPort boundport.BoundPort
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", "trace-loader")
+			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
 			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
 			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
