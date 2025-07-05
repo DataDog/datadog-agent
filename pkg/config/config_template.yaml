@@ -202,6 +202,18 @@ api_key:
 #
 # dogstatsd_tag_cardinality: low
 
+## @param logs_tag_cardinality - string - optional - default: high
+## @env DD_LOGS_TAG_CARDINALITY - string - optional - default: high
+## Configure the level of granularity of tags to send for logs. Choices are:
+##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
+##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
+##
+## WARNING: sending container tags for logs may create larger payloads.
+## This may impact your logs ingestion billing.
+#
+# logs_tag_cardinality: high
+
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
 ## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
 ## Configure which aggregated value to compute.
