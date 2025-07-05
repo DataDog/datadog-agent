@@ -124,10 +124,13 @@ func (v *multiVMSuite) SetupSuite() {
 	// Wait for the LanmanServer service to be running
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := windowsCommon.GetServiceStatus(certificateHost, "LanmanServer")
+		if err != nil {
+			v.T().Logf("Getting LanmanServer status failed %v", err)
+		}
 		assert.NoError(c, err)
 		assert.Contains(c, output, "Running")
 		v.T().Logf("LanmanServer status: %s", output)
-	}, 5*time.Minute, 10*time.Second)
+	}, 10*time.Minute, 10*time.Second)
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	v.Require().NoError(err)
