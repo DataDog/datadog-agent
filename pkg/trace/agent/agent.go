@@ -118,6 +118,9 @@ type Agent struct {
 	// subsequent SpanModifier calls.
 	SpanModifier SpanModifier
 
+	// TracerPayloadModifier will be called on all tracer payloads.
+	TracerPayloadModifier TracerPayloadModifier
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -136,6 +139,10 @@ type Agent struct {
 // processed by the agent.
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
+}
+
+type TracerPayloadModifier interface {
+	ModifyTracerPayload(*pb.TracerPayload)
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -337,6 +344,10 @@ func (a *Agent) Process(p *api.Payload) {
 		} else {
 			p.ContainerTags = cTags
 		}
+	}
+
+	if a.TracerPayloadModifier != nil {
+		a.TracerPayloadModifier.ModifyTracerPayload(p.TracerPayload)
 	}
 
 	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
