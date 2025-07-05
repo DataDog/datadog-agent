@@ -14,19 +14,16 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.61.0
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
-	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.155 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
@@ -51,6 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
@@ -59,7 +57,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/DataDog/zstd v1.5.6 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -73,7 +70,6 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

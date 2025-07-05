@@ -12,12 +12,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 // deepCopyState creates a deep copy of the state struct, though note that
-// some things are not deep copied like the config.Probe objects because they
+// some things are not deep copied like the rcjson.Probe objects because they
 // are considered immutable.
 func deepCopyState(original *state) *state {
 	if original == nil {
@@ -41,13 +41,13 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Set currentlyCompiling to point to the copied program if it exists.
-	if original.currentlyCompiling != nil {
-		copied.currentlyCompiling = copied.programs[original.currentlyCompiling.id]
+	if original.currentlyLoading != nil {
+		copied.currentlyLoading = copied.programs[original.currentlyLoading.id]
 	}
 
 	// Copy queued compilations.
-	for prog := range original.queuedCompilations.items() {
-		copied.queuedCompilations.pushBack(copied.programs[prog.id])
+	for prog := range original.queuedLoading.items() {
+		copied.queuedLoading.pushBack(copied.programs[prog.id])
 	}
 
 	return copied
@@ -60,24 +60,23 @@ func deepCopyProgram(original *program) *program {
 	}
 
 	// Shallow copy probes slice (probes themselves are shared).
-	copiedConfig := make([]config.Probe, len(original.config))
+	copiedConfig := make([]ir.ProbeDefinition, len(original.config))
 	copy(copiedConfig, original.config)
 
 	copied := &program{
-		state:           original.state,
-		id:              original.id,
-		config:          copiedConfig,
-		executable:      original.executable,
-		compiledProgram: original.compiledProgram,
-		processID:       original.processID,
+		state:      original.state,
+		id:         original.id,
+		config:     copiedConfig,
+		executable: original.executable,
+		processID:  original.processID,
 	}
 
 	// Note: loadedProgram interface is more complex to copy and represents
 	// external resources, so we'll handle it conservatively.
-	if original.loadedProgram != nil {
+	if original.loaded != nil {
 		// For testing purposes, we'll assume the loadedProgram is immutable
 		// or represents a resource that can be shared safely.
-		copied.loadedProgram = original.loadedProgram
+		copied.loaded = original.loaded
 	}
 
 	return copied
@@ -90,7 +89,7 @@ func deepCopyProcess(original *process) *process {
 	}
 
 	// Shallow copy probes map (probes themselves are shared).
-	copiedProbes := make(map[probeKey]config.Probe)
+	copiedProbes := make(map[probeKey]ir.ProbeDefinition)
 	for key, probe := range original.probes {
 		copiedProbes[key] = probe
 	}
@@ -112,17 +111,24 @@ func TestDeepCopyState(t *testing.T) {
 	s := newState()
 	processID := ProcessID{PID: 123}
 	executable := Executable{Path: "/test/path"}
-	probe := &config.LogProbe{
-		ID:      "test-probe",
-		Version: 1,
-		Where:   &config.Where{MethodName: "testMethod"},
+	probe := &rcjson.SnapshotProbe{
+		LogProbeCommon: rcjson.LogProbeCommon{
+			ProbeCommon: rcjson.ProbeCommon{
+				ID:         "test-probe",
+				Version:    1,
+				Where:      &rcjson.Where{MethodName: "testMethod"},
+				Tags:       []string{"test-tag"},
+				EvaluateAt: "test-evaluate-at",
+			},
+			CaptureSnapshot: true,
+		},
 	}
 	s.programIDAlloc = 5
 	s.processes[processID] = &process{
 		state:      processStateWaitingForProgram,
 		id:         processID,
 		executable: executable,
-		probes: map[probeKey]config.Probe{
+		probes: map[probeKey]ir.ProbeDefinition{
 			{id: "test-probe", version: 1}: probe,
 		},
 		currentProgram: 1,
@@ -131,7 +137,7 @@ func TestDeepCopyState(t *testing.T) {
 	program := &program{
 		state:      programStateQueued,
 		id:         programID,
-		config:     []config.Probe{probe},
+		config:     []ir.ProbeDefinition{probe},
 		executable: executable,
 		processID:  &s.processes[processID].id,
 	}

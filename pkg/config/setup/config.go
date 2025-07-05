@@ -318,7 +318,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
 
 	// If true, then the go loader will be prioritized over the python loader.
-	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
@@ -656,6 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
+	config.BindEnvAndSetDefault("jmx_java_tool_options", "")
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
@@ -953,6 +954,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.disable_thp", false)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
@@ -1477,6 +1479,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control dogstatsd shutdown behaviors
+	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic

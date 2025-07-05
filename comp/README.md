@@ -220,6 +220,12 @@ Package tagger provides the tagger interface for the Datadog Agent
 
 Package telemetry implements a component for all agent telemetry.
 
+### [comp/core/workloadfilter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadfilter)
+
+*Datadog Team*: container-platform
+
+Package workloadfilter provides the interface for the filter component
+
 ### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadmeta)
 
 *Datadog Team*: container-platform

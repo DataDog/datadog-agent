@@ -58,9 +58,10 @@ type Check struct {
 }
 
 type checkTelemetry struct {
-	metricsSent     telemetry.Counter
-	collectorErrors telemetry.Counter
-	activeMetrics   telemetry.Gauge
+	metricsSent      telemetry.Counter
+	duplicateMetrics telemetry.Counter
+	collectorErrors  telemetry.Counter
+	activeMetrics    telemetry.Gauge
 }
 
 // Factory creates a new check factory
@@ -84,9 +85,10 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
-		metricsSent:     tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
-		collectorErrors: tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
-		activeMetrics:   tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		metricsSent:      tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
+		collectorErrors:  tm.NewCounter(CheckName, "collector_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		activeMetrics:    tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		duplicateMetrics: tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 	}
 }
 
@@ -306,7 +308,9 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 		fmt.Sprintf("pid:%d", key.PID),
 	}
 
-	tags = append(tags, c.getContainerTags(key.ContainerID)...)
+	if key.ContainerID != "" {
+		tags = append(tags, c.getContainerTags(key.ContainerID)...)
+	}
 
 	return tags
 }
@@ -346,6 +350,8 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
+	perDeviceMetrics := make(map[string][]nvidia.Metric)
+
 	var multiErr error
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
@@ -355,32 +361,41 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
+		if len(metrics) > 0 {
+			perDeviceMetrics[collector.DeviceUUID()] = append(perDeviceMetrics[collector.DeviceUUID()], metrics...)
+		}
+
+		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
+	}
+
+	for deviceUUID, metrics := range perDeviceMetrics {
+		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(metrics)
+		c.telemetry.duplicateMetrics.Add(float64(len(metrics)-len(deduplicatedMetrics)), deviceUUID)
+
 		var extraTags []string
-		for _, container := range gpuToContainersMap[collector.DeviceUUID()] {
+		for _, container := range gpuToContainersMap[deviceUUID] {
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
 			tags, err := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 			if err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", collector.DeviceUUID(), err))
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
 				continue
 			}
 
 			extraTags = append(extraTags, tags...)
 		}
 
-		for _, metric := range metrics {
+		for _, metric := range deduplicatedMetrics {
 			metricName := gpuMetricsNs + metric.Name
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
+				snd.Count(metricName, metric.Value, "", append(c.deviceTags[deviceUUID], extraTags...))
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[collector.DeviceUUID()], extraTags...))
+				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[deviceUUID], extraTags...))
 			default:
 				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
 				continue
 			}
 		}
-
-		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
 	return multiErr

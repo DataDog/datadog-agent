@@ -77,8 +77,6 @@ enum TC_RAWPACKET_KEYS {
 
 #define EGRESS 1
 #define INGRESS 2
-#define ACT_OK TC_ACT_UNSPEC
-#define ACT_SHOT TC_ACT_SHOT
 #define PACKET_KEY 0
 #define IMDS_EVENT_KEY 0
 #define IMDS_MAX_LENGTH 2048
@@ -191,6 +189,7 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     return imds_ip;
 };
 
+#define CGROUP_MANAGER_UNDEFINED 0
 #define CGROUP_MANAGER_DOCKER 1
 #define CGROUP_MANAGER_CRIO 2
 #define CGROUP_MANAGER_PODMAN 3
