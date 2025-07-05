@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -313,10 +314,11 @@ func (a *APIServer) start(ctx context.Context) {
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
 				m := &api.SecurityEventMessage{
-					RuleID:  msg.ruleID,
-					Data:    data,
-					Service: msg.service,
-					Tags:    msg.tags,
+					RuleID:    msg.ruleID,
+					Data:      data,
+					Service:   msg.service,
+					Tags:      msg.tags,
+					Timestamp: timestamppb.New(msg.timestamp),
 				}
 				a.updateMsgService(m)
 
@@ -447,11 +449,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
+		// for custom events, we can use the current time as timestamp
+		timestamp := time.Now()
+
 		m := &api.SecurityEventMessage{
-			RuleID:  ruleID,
-			Data:    data,
-			Service: service,
-			Tags:    tags,
+			RuleID:    ruleID,
+			Data:      data,
+			Service:   service,
+			Tags:      tags,
+			Timestamp: timestamppb.New(timestamp),
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
