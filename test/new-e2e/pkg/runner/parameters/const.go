@@ -69,6 +69,8 @@ const (
 	DevMode StoreKey = "dev_mode"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"
+	// TeardownOnly config flag parameter name
+	TeardownOnly StoreKey = "teardown_only"
 	// PreInitialized config flag parameter name
 	PreInitialized StoreKey = "pre_initialized"
 	// MajorVersion config flag parameter name
