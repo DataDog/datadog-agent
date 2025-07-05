@@ -197,7 +197,6 @@ struct mmap_event_t {
 struct dns_event_t {
     struct kevent_t event;
     struct process_context_t process;
-    struct span_context_t span;
     struct container_context_t container;
     struct network_context_t network;
 
@@ -219,7 +218,6 @@ struct short_dns_response_event_t {
 struct full_dns_response_event_t {
     struct kevent_t event;
     struct process_context_t process;
-    struct span_context_t span;
     struct container_context_t container;
     struct network_context_t network;
 
@@ -235,7 +233,6 @@ union dns_responses_t {
 struct imds_event_t {
     struct kevent_t event;
     struct process_context_t process;
-    struct span_context_t span;
     struct container_context_t container;
     struct network_context_t network;
 
@@ -493,7 +490,6 @@ struct on_demand_event_t {
 struct raw_packet_event_t {
     struct kevent_t event;
     struct process_context_t process;
-    struct span_context_t span;
     struct container_context_t container;
     struct network_device_context_t device;
 
@@ -504,7 +500,6 @@ struct raw_packet_event_t {
 struct network_flow_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
-    struct span_context_t span;
     struct container_context_t container;
     struct network_device_context_t device;
 

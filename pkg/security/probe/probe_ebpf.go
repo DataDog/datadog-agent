@@ -791,7 +791,16 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
+	var read int
+	var err error
+
+	if model.GetEventTypeCategory(event.GetEventType().String()) == model.NetworkCategory {
+		// network events don't have a span context
+		read, err = model.UnmarshalBinary(data, &event.PIDContext, event.ContainerContext, event.CGroupContext)
+	} else {
+		read, err = model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, event.CGroupContext)
+	}
+
 	if err != nil {
 		return 0, err
 	}
