@@ -1003,7 +1003,7 @@ func TestConntrackMonotonicCount(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: ""
+conntrack_path: "/usr/bin/conntrack"
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -1041,7 +1041,7 @@ func TestConntrackGaugeBlacklist(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: ""
+conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "count"]
 blacklist_conntrack_metrics: ["count", "entries", "max"]
 `)
@@ -1083,7 +1083,7 @@ func TestConntrackGaugeWhitelist(t *testing.T) {
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
 collect_conntrack_metrics: true
-conntrack_path: ""
+conntrack_path: "/usr/bin/conntrack"
 whitelist_conntrack_metrics: ["max", "include"]
 `)
 
@@ -1143,7 +1143,7 @@ func TestFetchQueueStatsSS(t *testing.T) {
 
 	networkCheck := createTestNetworkCheck(net)
 
-	fakeInstanceConfig := []byte(`conntrack_path: "None"
+	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -1189,7 +1189,7 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
 	networkCheck := createTestNetworkCheck(net)
-	fakeInstanceConfig := []byte(`conntrack_path: "None"
+	fakeInstanceConfig := []byte(`conntrack_path: ""
 collect_connection_state: true
 collect_connection_queues: true`)
 	mockSender := mocksender.NewMockSender(networkCheck.ID())

@@ -45,19 +45,62 @@ func (v *networkCheckSuite) TestNetworkCheck() {
 		name        string
 		checkConfig string
 		agentConfig string
+		onlyLinux   bool
 	}{
 		{
 			"default",
 			`init_config:
 instances:
-  - use_mount: false
+  - collect_connection_state: false
 `,
 			``,
+			false,
+		},
+		{
+			"collect connection state",
+			`init_config:
+instances:
+  - collect_connection_state: true
+`,
+			``,
+			false,
+		},
+		{
+			"collect connection queues",
+			`init_config:
+instances:
+  - collect_connection_state: true
+    collect_connection_queues: true
+`,
+			``,
+			true,
+		},
+		{
+			"collect ethtool stats",
+			`init_config:
+instances:
+  - collect_ethtool_stats: true
+`,
+			``,
+			true,
+		},
+		{
+			"collect conntrack stats",
+			`init_config:
+instances:
+  - conntrack_path: true
+`,
+			``,
+			true,
 		},
 	}
 
 	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
+		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
+			continue
+		}
+
 		v.Run(testCase.name, func() {
 			v.T().Log("run the network check using old version")
 			pythonMetrics := v.runNetworkCheck(testCase.agentConfig, testCase.checkConfig, false)
