@@ -97,6 +97,26 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
+	// Add the new endpoint for checking closed connection buffer capacity
+	httpMux.HandleFunc("/connections/check_capacity", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		clientID := utils.GetClientID(req)
+		if clientID == "" {
+			log.Warn("Received capacity check request with no client ID.")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		isNearCapacity := nt.tracer.IsClosedConnectionsNearCapacity(clientID)
+
+		if isNearCapacity {
+			log.Debugf("Responding to capacity check request for client %s: Near capacity (200 OK)", clientID)
+			w.WriteHeader(http.StatusOK)
+		} else {
+			log.Tracef("Responding to capacity check request for client %s: Not near capacity (204 No Content)", clientID)
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+
 	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		id, err := nt.tracer.GetNetworkID(req.Context())
 		if err != nil {

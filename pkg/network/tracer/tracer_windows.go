@@ -330,6 +330,11 @@ func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
 	return "", ebpf.ErrNotImplemented
 }
 
+// IsClosedConnectionsNearCapacity is not implemented on this OS for Tracer
+func (t *Tracer) IsClosedConnectionsNearCapacity(_ string) bool {
+	return false
+}
+
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil

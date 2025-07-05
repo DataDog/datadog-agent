@@ -47,8 +47,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
-const tracerModuleName = "network_tracer"
+const (
+	defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
+	tracerModuleName                 = "network_tracer"
+)
 
 // Telemetry
 // Will track the count of expired TCP connections
@@ -916,4 +918,10 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 	})
 
 	return mapCleaner, nil
+}
+
+// IsClosedConnectionsNearCapacity checks if the closed connections buffer is near capacity for a specific client.
+// It returns true if near capacity, false otherwise.
+func (t *Tracer) IsClosedConnectionsNearCapacity(clientID string) bool {
+	return t.state.IsClosedConnectionsNearCapacity(clientID)
 }
