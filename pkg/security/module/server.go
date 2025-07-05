@@ -65,6 +65,7 @@ type pendingMsg struct {
 	tags            []string
 	actionReports   []model.ActionReport
 	service         string
+	timestamp       time.Time
 	extTagsCb       func() []string
 	sendAfter       time.Time
 	retry           int
@@ -397,12 +398,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		}
 
+		timestamp := ev.Timestamp
+		if timestamp.IsZero() {
+			timestamp = time.Now()
+		}
+
 		msg := &pendingMsg{
 			ruleID:          ruleID,
 			backendEvent:    backendEvent,
 			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
+			timestamp:       timestamp,
 			sendAfter:       time.Now().Add(retention),
 			tags:            tags,
 			actionReports:   actionReports,
