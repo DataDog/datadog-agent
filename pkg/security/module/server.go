@@ -225,7 +225,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
-	a.queue = slices.DeleteFunc(a.queue, func(msg *pendingMsg) bool {
+	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
 		if msg.sendAfter.After(now) {
 			return false
 		}
@@ -245,6 +245,17 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 
 		return false
 	})
+}
+
+// slicesDeleteUntilFalse deletes elements from the slice until the function f returns false.
+func slicesDeleteUntilFalse(s []*pendingMsg, f func(*pendingMsg) bool) []*pendingMsg {
+	for i, v := range s {
+		if !f(v) {
+			return s[i:]
+		}
+	}
+
+	return nil
 }
 
 func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
