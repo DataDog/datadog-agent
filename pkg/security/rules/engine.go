@@ -678,7 +678,7 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		for _, pInfo := range rule.UsedBy {
+		for pInfo := range rule.Policies() {
 			if rule.Policy.IsInternal && !includeInternalPolicies {
 				continue
 			}

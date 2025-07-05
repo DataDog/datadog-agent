@@ -9,6 +9,7 @@ package rules
 import (
 	"fmt"
 	"io"
+	"iter"
 	"reflect"
 	"slices"
 
@@ -53,6 +54,20 @@ type PolicyRule struct {
 	Policy     PolicyInfo
 	ModifiedBy []PolicyInfo
 	UsedBy     []PolicyInfo
+}
+
+// Policies returns an iterator over the policies that this rule is part of.
+func (r *PolicyRule) Policies() iter.Seq[*PolicyInfo] {
+	return func(yield func(*PolicyInfo) bool) {
+		if !yield(&r.Policy) {
+			return
+		}
+		for _, policy := range r.UsedBy {
+			if !yield(&policy) {
+				return
+			}
+		}
+	}
 }
 
 func (r *PolicyRule) isAccepted() bool {
