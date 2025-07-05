@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package http
 
 import (
@@ -82,7 +84,7 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""))
+	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test")
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

@@ -37,6 +37,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/datastreams"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -353,6 +354,24 @@ func run(log log.Component,
 		return err
 	}
 
+	agentStarted := telemetry.NewCounter(
+		"runtime",
+		"started",
+		[]string{},
+		"Establish if the agent has started",
+	)
+	agentRunning := telemetry.NewGauge(
+		"runtime",
+		"running",
+		[]string{},
+		"Establish if the agent is running",
+	)
+
+	// agentStarted and agentRunning are metrics used for Cross-org Agent Telemetry (COAT)
+	// for more details on the scheduling config check comp/core/agenttelemetry/impl/config.go
+	agentStarted.Inc()
+	agentRunning.Set(1)
+
 	return <-stopCh
 }
 
@@ -472,8 +491,8 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		snmpscanfx.Module(),
 		collectorimpl.Module(),
-		fx.Provide(func(demux demultiplexer.Component) (ddgostatsd.ClientInterface, error) {
-			return aggregator.NewStatsdDirect(demux)
+		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
+			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
 		process.Bundle(),
 		guiimpl.Module(),
@@ -590,6 +609,8 @@ func startAgent(
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
+		controller := datastreams.NewController(ac, rcclient)
+		ac.AddConfigProvider(controller, false, 0)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config

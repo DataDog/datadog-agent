@@ -1,0 +1,61 @@
+{"Time": "2025-06-27T11:28:21.4693584+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage1, action: start", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.4693754+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.4693774+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.4693814+01:00", "Action": "run", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage1, action: run", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.4693834+01:00", "Action": "fail", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.5636324+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_2 in github.com/DataDog/datadog-agent/testpackage1, action: start", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.5636934+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_2 in github.com/DataDog/datadog-agent/testpackage1, action: pause", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.5636974+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_2 in github.com/DataDog/datadog-agent/testpackage1, action: cont", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.5636994+01:00", "Action": "pass", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.7477684+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_3"}
+{"Time": "2025-06-27T11:28:21.7478204+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_3 in github.com/DataDog/datadog-agent/testpackage1, action: pause", "Test": "test_3"}
+{"Time": "2025-06-27T11:28:21.7478264+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_3"}
+{"Time": "2025-06-27T11:28:21.7478304+01:00", "Action": "fail", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for test_3 in github.com/DataDog/datadog-agent/testpackage1, action: fail", "Test": "test_3"}
+{"Time": "2025-06-27T11:28:21.7767834+01:00", "Action": "skip", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Test": "test_4"}
+{"Time": "2025-06-27T11:28:21.7768074+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage1"}
+{"Time": "2025-06-27T11:28:21.7768234+01:00", "Action": "run", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage1, action: run"}
+{"Time": "2025-06-27T11:28:21.7768314+01:00", "Action": "output", "Package": "github.com/DataDog/datadog-agent/testpackage1"}
+{"Time": "2025-06-27T11:28:21.7768374+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage1, action: pause"}
+{"Time": "2025-06-27T11:28:21.7768404+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage1, action: cont"}
+{"Time": "2025-06-27T11:28:21.7768444+01:00", "Action": "fail", "Package": "github.com/DataDog/datadog-agent/testpackage1", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage1, action: fail"}
+{"Time": "2025-06-27T11:28:21.9620364+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.9621304+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage2, action: pause", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.9621434+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage2, action: cont", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.9621504+01:00", "Action": "fail", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage2, action: fail", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:21.9878384+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for test_2 in github.com/DataDog/datadog-agent/testpackage2, action: start", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.9878984+01:00", "Action": "output", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.9879114+01:00", "Action": "run", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:21.9879204+01:00", "Action": "output", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Test": "test_2"}
+{"ImportPath":"./pkg","Action":"build-output","Output":"# ./pkg\n"}
+{"ImportPath":"./pkg","Action":"build-output","Output":"no Go files in /go/src/github.com/DataDog/datadog-agent/pkg\n"}
+{"ImportPath":"./pkg","Action":"build-fail"}
+{"Time":"2025-07-03T09:06:11.435628558Z","Action":"start","Package":"./pkg"}
+{"Time":"2025-07-03T09:06:11.435649694Z","Action":"output","Package":"./pkg","Output":"FAIL\t./pkg [setup failed]\n"}
+{"Time":"2025-07-03T09:06:11.435654498Z","Action":"fail","Package":"./pkg","Elapsed":0,"FailedBuild":"./pkg"}
+{"ImportPath":"./cmd","Action":"build-output","Output":"# ./cmd\n"}
+{"ImportPath":"./cmd","Action":"build-output","Output":"no Go files in /go/src/github.com/DataDog/datadog-agent/cmd\n"}
+{"ImportPath":"./cmd","Action":"build-fail"}
+{"Time":"2025-07-03T09:06:11.43566373Z","Action":"start","Package":"./cmd"}
+{"Time":"2025-07-03T09:06:11.435665677Z","Action":"output","Package":"./cmd","Output":"FAIL\t./cmd [setup failed]\n"}
+{"Time":"2025-07-03T09:06:11.435667411Z","Action":"fail","Package":"./cmd","Elapsed":0,"FailedBuild":"./cmd"}
+{"ImportPath":"./comp","Action":"build-output","Output":"# ./comp\n"}
+{"ImportPath":"./comp","Action":"build-output","Output":"no Go files in /go/src/github.com/DataDog/datadog-agent/comp\n"}
+{"ImportPath":"./comp","Action":"build-fail"}
+{"Time":"2025-07-03T09:06:11.435673747Z","Action":"start","Package":"./comp"}
+{"Time":"2025-07-03T09:06:11.435675467Z","Action":"output","Package":"./comp","Output":"FAIL\t./comp [setup failed]\n"}
+{"Time":"2025-07-03T09:06:11.43567705Z","Action":"fail","Package":"./comp","Elapsed":0,"FailedBuild":"./comp"}
+{"Time": "2025-06-27T11:28:21.9879264+01:00", "Action": "pass", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for test_2 in github.com/DataDog/datadog-agent/testpackage2, action: pass", "Test": "test_2"}
+{"Time": "2025-06-27T11:28:22.0718944+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage2, action: start"}
+{"Time": "2025-06-27T11:28:22.0720984+01:00", "Action": "run", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage2, action: run"}
+{"Time": "2025-06-27T11:28:22.0721314+01:00", "Action": "run", "Package": "github.com/DataDog/datadog-agent/testpackage2"}
+{"Time": "2025-06-27T11:28:22.0721504+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage2, action: pause"}
+{"Time": "2025-06-27T11:28:22.0721604+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage2", "Output": "Dummy output for _ in github.com/DataDog/datadog-agent/testpackage2, action: cont"}
+{"Time": "2025-06-27T11:28:22.0721774+01:00", "Action": "output", "Package": "github.com/DataDog/datadog-agent/testpackage2"}
+{"Time": "2025-06-27T11:28:22.0721884+01:00", "Action": "fail", "Package": "github.com/DataDog/datadog-agent/testpackage2"}
+{"Time": "2025-06-27T11:28:22.1033644+01:00", "Action": "start", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:22.1034464+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:22.1034584+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:22.1034744+01:00", "Action": "output", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage3/inner_package, action: output", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:22.1034924+01:00", "Action": "pause", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage3/inner_package, action: pause", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:22.1035014+01:00", "Action": "cont", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Output": "Dummy output for test_1 in github.com/DataDog/datadog-agent/testpackage3/inner_package, action: cont", "Test": "test_1"}
+{"Time": "2025-06-27T11:28:22.1035104+01:00", "Action": "pass", "Package": "github.com/DataDog/datadog-agent/testpackage3/inner_package", "Test": "test_1"}

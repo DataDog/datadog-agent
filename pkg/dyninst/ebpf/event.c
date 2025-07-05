@@ -1,9 +1,9 @@
 #ifndef __EVENT_H__
 #define __EVENT_H__
 
+#include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
-#include "kconfig.h"
 #include "compiler.h"
 #include "context.h"
 #include "framing.h"
@@ -13,9 +13,6 @@
 #include "throttler.h"
 
 char _license[] SEC("license") = "GPL";
-
-extern const probe_params_t probe_params[];
-extern const uint32_t num_probe_params;
 
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -31,7 +28,10 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   if (cookie >= num_probe_params) {
     return 0;
   }
-  const probe_params_t* params = &probe_params[cookie];
+  const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);
+  if (!params) {
+    return 0;
+  }
 
   if (should_throttle(params->throttler_idx, start_ns)) {
     uint32_t zero = 0;
@@ -61,12 +61,12 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
-  event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
+  di_event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
   if (!header) {
     return 0;
   }
-  *header = (event_header_t){
-      .data_byte_len = sizeof(event_header_t),
+  *header = (di_event_header_t){
+      .data_byte_len = sizeof(di_event_header_t),
       .stack_byte_len = 0, // set this if we collect stacks
       .ktime_ns = start_ns,
       .prog_id = prog_id,

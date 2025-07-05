@@ -290,6 +290,7 @@ new-e2e-windows-fips-compliance-test:
     - !reference [.needs_new_e2e_template]
     - qa_agent_fips
     - windows_msi_and_bosh_zip_x64-a7-fips
+    - deploy_windows_testing-a7-fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
@@ -644,6 +645,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
