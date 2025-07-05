@@ -165,6 +165,26 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 			Keys:              []string{c.GetString("multi_region_failover.api_key")},
 		}}
 	}
+
+	// Populate preaggregation endpoint (only if unique)
+	//
+	// TODO(?): This assumes we wouldn't have a unique preaggregation API key
+	// without a unique preaggregation URL, but we should validate that.
+	if c.GetBool("enable_preaggr_pipeline") {
+		preaggURL := c.GetString("preaggr_dd_url")
+		// Check that it's not the same as the primary URL
+		if preaggURL != "" && preaggURL != ddURL {
+			// Check if preaggregation URL already exists in additional endpoints
+			if _, exists := additionalEndpoints[preaggURL]; !exists {
+				// Unique URL - create new domain resolver with preaggregation API key
+				additionalEndpoints[preaggURL] = []APIKeys{{
+					ConfigSettingPath: "preaggr_api_key",
+					Keys:              []string{c.GetString("preaggr_api_key")},
+				}}
+			}
+		}
+	}
+
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 

@@ -8,17 +8,22 @@ package serializer
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -342,54 +347,75 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API && s.enableJSONStream {
-		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
-	} else if useV1API && !s.enableJSONStream {
-		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
-	} else {
-		failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-		failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-		failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-		if failoverActive {
-			var filtered transaction.BytesPayloads
-			var localAutoscalingFaioverPayloads transaction.BytesPayloads
-			seriesBytesPayloads, filtered, localAutoscalingFaioverPayloads, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy,
-				func(s *metrics.Serie) bool { // Filter for MRF
-					_, allowed := allowlistForMRF[s.Name]
-					return allowed
-				},
-				func(s *metrics.Serie) bool { // Filter for Autoscaling
-					_, allowed := allowlistForAutoscaling[s.Name]
-					return allowed
-				})
-
-			for _, seriesBytesPayload := range seriesBytesPayloads {
-				seriesBytesPayload.Destination = transaction.PrimaryOnly
-			}
-			for _, seriesBytesPayload := range filtered {
-				seriesBytesPayload.Destination = transaction.SecondaryOnly
-			}
-			for _, seriesBytesPayload := range localAutoscalingFaioverPayloads {
-				seriesBytesPayload.Destination = transaction.LocalOnly
-			}
-			seriesBytesPayloads = append(seriesBytesPayloads, filtered...)
-			seriesBytesPayloads = append(seriesBytesPayloads, localAutoscalingFaioverPayloads...)
+	if useV1API {
+		if s.enableJSONStream {
+			seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 		} else {
-			seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
-			for _, seriesBytesPayload := range seriesBytesPayloads {
-				seriesBytesPayload.Destination = transaction.AllRegions
-			}
+			seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 		}
-		extraHeaders = s.protobufExtraHeadersWithCompression
+		if err != nil {
+			return fmt.Errorf("dropping series payload: %s", err)
+		}
+		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
+
+	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
+	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
+	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
+	pipelines := make([]metricsserializer.Pipeline, 0, 4)
+	if failoverActive {
+		// Default behavior, primary region only
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc:  func(series *metrics.Serie) bool { return true },
+			Destination: transaction.PrimaryOnly,
+		})
+
+		// Filter for MRF
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(s *metrics.Serie) bool {
+				_, allowed := allowlistForMRF[s.Name]
+				return allowed
+			},
+			Destination: transaction.SecondaryOnly,
+		})
+
+		// Filter for Autoscaling
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(s *metrics.Serie) bool {
+				_, allowed := allowlistForAutoscaling[s.Name]
+				return allowed
+			},
+			Destination: transaction.LocalOnly,
+		})
+	} else {
+		// Default behavior, all regions
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc:  func(series *metrics.Serie) bool { return true },
+			Destination: transaction.AllRegions,
+		})
+	}
+
+	// We are modifying the series in this filter, so it must always be the last
+	// pipeline in the list to avoid affecting other pipelines.
+	if s.config.GetBool("enable_preaggr_pipeline") {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(s *metrics.Serie) bool {
+				// TODO: don't add host tags if they were already added because of `expected_tags_duration` being set
+				hostTags := slices.Clone(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System)
+				s.Tags = tagset.CombineCompositeTagsAndSlice(s.Tags, hostTags)
+				return true
+			},
+			Destination: transaction.PreaggrOnly,
+		})
+	}
+
+	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
+	extraHeaders = s.protobufExtraHeadersWithCompression
 
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
-	}
 	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
 }
 
