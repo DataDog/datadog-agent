@@ -5,7 +5,9 @@
 
 package common
 
+import "time"
+
 // RawReporter defines an interface for reporting raw rule events
 type RawReporter interface {
-	ReportRaw(content []byte, service string, tags ...string)
+	ReportRaw(content []byte, service string, timestamp time.Time, tags ...string)
 }
