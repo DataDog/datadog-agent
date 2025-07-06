@@ -65,7 +65,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device ddnvml.SafeDevice) (Collector, error)
+type subsystemBuilder func(device ddnvml.Device) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
