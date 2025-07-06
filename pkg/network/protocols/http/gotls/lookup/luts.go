@@ -205,3 +205,75 @@ func GetLimitListenerConn_NetConnOffset(version goversion.GoVersion, goarch stri
 		return 0, fmt.Errorf("unsupported architecture %q", goarch)
 	}
 }
+
+// GetTCPConnLocalAddrOffset gets the offset of the "laddr" field in the "net.TCPConn" struct
+func GetTCPConnLocalAddrOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x8, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x8, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPConnRemoteAddrOffset gets the offset of the "raddr" field in the "net.TCPConn" struct
+func GetTCPConnRemoteAddrOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x10, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x10, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPAddrIPOffset gets the offset of the "IP" field in the "net.TCPAddr" struct
+func GetTCPAddrIPOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x0, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x0, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPAddrPortOffset gets the offset of the "Port" field in the "net.TCPAddr" struct
+func GetTCPAddrPortOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x10, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x10, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}

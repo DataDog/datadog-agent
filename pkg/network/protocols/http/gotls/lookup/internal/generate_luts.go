@@ -49,6 +49,10 @@ var (
 		bininspect.StructOffsetNetFdPfd,
 		bininspect.StructOffsetPollFdSysfd,
 		bininspect.StructOffsetLimitListenerConnNetConn,
+		bininspect.StructOffsetTCPConnLocalAddr,
+		bininspect.StructOffsetTCPConnRemoteAddr,
+		bininspect.StructOffsetTCPAddrIP,
+		bininspect.StructOffsetTCPAddrPort,
 	}
 )
 
@@ -216,6 +220,42 @@ func run(
 				DocComment:      `GetLimitListenerConn_NetConnOffset gets the offset of the "net.Conn" field in the "netutil/limitListenerConn" struct`,
 				ExtractValue: func(r interface{}) interface{} {
 					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetLimitListenerConnNetConn]
+				},
+			},
+			{
+				Name:            "GetTCPConnLocalAddrOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetTCPConnLocalAddrOffset gets the offset of the "laddr" field in the "net.TCPConn" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetTCPConnLocalAddr]
+				},
+			},
+			{
+				Name:            "GetTCPConnRemoteAddrOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetTCPConnRemoteAddrOffset gets the offset of the "raddr" field in the "net.TCPConn" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetTCPConnRemoteAddr]
+				},
+			},
+			{
+				Name:            "GetTCPAddrIPOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetTCPAddrIPOffset gets the offset of the "IP" field in the "net.TCPAddr" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetTCPAddrIP]
+				},
+			},
+			{
+				Name:            "GetTCPAddrPortOffset",
+				OutputType:      "uint64",
+				OutputZeroValue: "0",
+				DocComment:      `GetTCPAddrPortOffset gets the offset of the "Port" field in the "net.TCPAddr" struct`,
+				ExtractValue: func(r interface{}) interface{} {
+					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetTCPAddrPort]
 				},
 			},
 		},

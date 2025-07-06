@@ -63,6 +63,30 @@ var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
 	FieldName:  "Conn",
 }
 
+// StructOffsetTCPConnLocalAddr is the offset of the `laddr` field within `net.TCPConn`.
+var StructOffsetTCPConnLocalAddr = FieldIdentifier{
+	StructName: "net.TCPConn",
+	FieldName:  "laddr",
+}
+
+// StructOffsetTCPConnRemoteAddr is the offset of the `raddr` field within `net.TCPConn`.
+var StructOffsetTCPConnRemoteAddr = FieldIdentifier{
+	StructName: "net.TCPConn",
+	FieldName:  "raddr",
+}
+
+// StructOffsetTCPAddrIP is the offset of the `IP` field within `net.TCPAddr`.
+var StructOffsetTCPAddrIP = FieldIdentifier{
+	StructName: "net.TCPAddr",
+	FieldName:  "IP",
+}
+
+// StructOffsetTCPAddrPort is the offset of the `Port` field within `net.TCPAddr`.
+var StructOffsetTCPAddrPort = FieldIdentifier{
+	StructName: "net.TCPAddr",
+	FieldName:  "Port",
+}
+
 type elfMetadata struct {
 	file *safeelf.File
 	arch GoArch

@@ -8,38 +8,72 @@
 
 #include "protocols/http/maps.h"
 #include "protocols/tls/go-tls-types.h"
+#include "protocols/sockfd.h"
+#include "sock.h"
 
-static __always_inline conn_tuple_t* __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tcp_conn_ptr, pid_fd_t* pid_fd) {
-    void* tcp_conn_inner_conn_ptr = tcp_conn_ptr + cl->tcp_conn_inner_conn_offset;
-    // the net.conn struct is embedded in net.TCPConn, so just add the offset again
-    void* conn_fd_ptr_ptr = tcp_conn_inner_conn_ptr + cl->conn_fd_offset;
-
-    void* conn_fd_ptr;
-    if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr), conn_fd_ptr_ptr)) {
+static __always_inline conn_tuple_t* __tuple_via_tcp_conn_direct(tls_conn_layout_t* cl, void* tcp_conn_ptr, uint64_t pid_tgid) {
+    log_debug("[go-tls-conn] Extracting tuple from TCPConn at %p", tcp_conn_ptr);
+    
+    // Navigate through the Go struct hierarchy to get the file descriptor
+    // TCPConn -> conn -> fd -> netFD -> pfd -> Sysfd
+    
+    // Get the inner conn from TCPConn
+    void* conn_ptr;
+    if (bpf_probe_read_user(&conn_ptr, sizeof(conn_ptr), tcp_conn_ptr + cl->tcp_conn_inner_conn_offset)) {
+        log_debug("[go-tls-conn] Failed to read conn from TCPConn");
         return NULL;
     }
-
-    void* net_fd_pfd_ptr = conn_fd_ptr + cl->net_fd_pfd_offset;
-    // the internal/poll.FD struct is embedded in net.netFD, so just add the offset again
-    void* fd_sysfd_ptr = net_fd_pfd_ptr + cl->fd_sysfd_offset;
-
-    // dereference the pointer to get the file descriptor
-    if (bpf_probe_read_user(&pid_fd->fd, sizeof(pid_fd->fd), fd_sysfd_ptr)) {
+    
+    // Get the netFD from conn
+    void* netfd_ptr;
+    if (bpf_probe_read_user(&netfd_ptr, sizeof(netfd_ptr), conn_ptr + cl->conn_fd_offset)) {
+        log_debug("[go-tls-conn] Failed to read netFD from conn");
         return NULL;
     }
-
-    return bpf_map_lookup_elem(&tuple_by_pid_fd, pid_fd);
+    
+    // Get the poll.FD from netFD
+    void* pfd_ptr = netfd_ptr + cl->net_fd_pfd_offset;
+    
+    // Get the system file descriptor
+    int sysfd;
+    if (bpf_probe_read_user(&sysfd, sizeof(sysfd), pfd_ptr + cl->fd_sysfd_offset)) {
+        log_debug("[go-tls-conn] Failed to read sysfd from pfd");
+        return NULL;
+    }
+    
+    log_debug("[go-tls-conn] Extracted sysfd: %d", sysfd);
+    
+    // Create pid_fd key for lookup
+    pid_fd_t pid_fd = {\n        .pid = GET_USER_MODE_PID(pid_tgid),\n        .fd = sysfd,\n    };
+    
+    // Look up the connection tuple from the socket file descriptor
+    conn_tuple_t* tuple = bpf_map_lookup_elem(&tuple_by_pid_fd, &pid_fd);
+    if (!tuple) {
+        log_debug("[go-tls-conn] Failed to get tuple from socket fd");
+        return NULL;
+    }
+    
+    log_debug("[go-tls-conn] Successfully extracted tuple");
+    
+    // Store the tuple in the map
+    bpf_map_update_elem(&conn_tup_by_go_tls_conn, tuple, tuple, BPF_ANY);
+    return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, tuple);
 }
 
-static __always_inline conn_tuple_t* __tuple_via_limited_conn(tls_conn_layout_t* cl, void* limited_conn_ptr, pid_fd_t* pid_fd) {
-    void *net_conn_ptr = limited_conn_ptr + cl->limited_conn_inner_conn_offset;
+static __always_inline conn_tuple_t* __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tcp_conn_ptr, uint64_t pid_tgid) {
+    return __tuple_via_tcp_conn_direct(cl, tcp_conn_ptr, pid_tgid);
+}
 
-    interface_t inner_conn_iface;
-    if (bpf_probe_read_user(&inner_conn_iface, sizeof(inner_conn_iface), net_conn_ptr)) {
+static __always_inline conn_tuple_t* __tuple_via_go_tls_conn(tls_conn_layout_t* cl, void* go_tls_conn_ptr, uint64_t pid_tgid) {
+    // Get the inner net.Conn from crypto/tls.Conn
+    void* inner_conn_ptr;
+    if (bpf_probe_read_user(&inner_conn_ptr, sizeof(inner_conn_ptr), go_tls_conn_ptr + cl->tls_conn_inner_conn_offset)) {
+        log_debug("[go-tls-conn] Failed to read inner conn from tls.Conn");
         return NULL;
     }
-
-    return __tuple_via_tcp_conn(cl, (void *)inner_conn_iface.ptr, pid_fd);
+    
+    // The inner conn should be a *net.TCPConn, so we can use our TCPConn extraction
+    return __tuple_via_tcp_conn_direct(cl, inner_conn_ptr, pid_tgid);
 }
 
 static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* pd, void* conn, uint64_t pid_tgid) {
@@ -47,13 +81,6 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
     if (tup != NULL) {
         return tup;
     }
-
-    // The code path below should be executed only once during the lifecycle of a TLS connection
-    pid_fd_t pid_fd = {
-        .pid = GET_USER_MODE_PID(pid_tgid),
-        // fd is populated by the code downstream
-        .fd = 0,
-    };
 
     // The tls.Conn struct has a `conn` field of type `net.Conn` (interface)
     // Here we obtain the pointer to the concrete type behind this interface.
@@ -63,14 +90,14 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         return NULL;
     }
 
-    conn_tuple_t *tuple = __tuple_via_tcp_conn(&pd->conn_layout, (void *)inner_conn_iface.ptr, &pid_fd);
-    if (!tuple) {
-        tuple = __tuple_via_limited_conn(&pd->conn_layout, (void *)inner_conn_iface.ptr, &pid_fd);
-    }
-
+    // Extract connection tuple from TCPConn
+    conn_tuple_t *tuple = __tuple_via_tcp_conn(&pd->conn_layout, (void *)inner_conn_iface.ptr, pid_tgid);
     if (!tuple) {
         return NULL;
     }
+
+    // Set the PID from the current context
+    tuple->pid = GET_USER_MODE_PID(pid_tgid);
 
     // Copy tuple to stack before inserting it in another map (necessary for older Kernels)
     conn_tuple_t tuple_copy;
