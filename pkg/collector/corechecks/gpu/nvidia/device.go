@@ -41,17 +41,17 @@ var allDeviceMetrics = []deviceMetric{
 }
 
 type deviceCollector struct {
-	device        ddnvml.SafeDevice
+	device        ddnvml.Device
 	metricGetters []deviceMetric
 }
 
-func newDeviceCollector(device ddnvml.SafeDevice) (Collector, error) {
+func newDeviceCollector(device ddnvml.Device) (Collector, error) {
 	c := &deviceCollector{
 		device: device,
 	}
 	c.metricGetters = append(c.metricGetters, allDeviceMetrics...) // copy all metrics to avoid modifying the original slice
 
-	c.removeUnsupportedGetters()
+	c.removeUnsupportedMetrics()
 	if len(c.metricGetters) == 0 {
 		return nil, errUnsupportedDevice
 	}
@@ -60,11 +60,10 @@ func newDeviceCollector(device ddnvml.SafeDevice) (Collector, error) {
 }
 
 func (c *deviceCollector) DeviceUUID() string {
-	uuid, _ := c.device.GetUUID()
-	return uuid
+	return c.device.GetDeviceInfo().UUID
 }
 
-func (c *deviceCollector) removeUnsupportedGetters() {
+func (c *deviceCollector) removeUnsupportedMetrics() {
 	metricsToRemove := common.StringSet{}
 
 	for _, metric := range c.metricGetters {
@@ -83,7 +82,7 @@ func (c *deviceCollector) removeUnsupportedGetters() {
 }
 
 // deviceMetricGetter is a function type that receives a NVML device and returns one or more values
-type deviceMetricGetter func(ddnvml.SafeDevice) (float64, error)
+type deviceMetricGetter func(ddnvml.Device) (float64, error)
 
 // deviceMetric represents a metric that can be collected from an NVML device, using the NVML
 // API on that specific device.
@@ -121,95 +120,95 @@ func (c *deviceCollector) Name() CollectorName {
 	return device
 }
 
-func getRxPciThroughput(dev ddnvml.SafeDevice) (float64, error) {
+func getRxPciThroughput(dev ddnvml.Device) (float64, error) {
 	// Output in KB/s
 	tput, err := dev.GetPcieThroughput(nvml.PCIE_UTIL_RX_BYTES)
 	// Convert to B/S
 	return float64(tput) * 1024, err
 }
 
-func getTxPciThroughput(dev ddnvml.SafeDevice) (float64, error) {
+func getTxPciThroughput(dev ddnvml.Device) (float64, error) {
 	// Output in KB/s
 	tput, err := dev.GetPcieThroughput(nvml.PCIE_UTIL_TX_BYTES)
 	// Convert to B/S
 	return float64(tput) * 1024, err
 }
 
-func getFanSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getFanSpeed(dev ddnvml.Device) (float64, error) {
 	// returns percentage from 0-100 (0 = fan off)
 	speed, err := dev.GetFanSpeed()
 	return float64(speed), err
 }
 
-func getPowerManagementLimit(dev ddnvml.SafeDevice) (float64, error) {
+func getPowerManagementLimit(dev ddnvml.Device) (float64, error) {
 	// returns power limit in milliwatts
 	limit, err := dev.GetPowerManagementLimit()
 	return float64(limit), err
 }
 
-func getPowerUsage(dev ddnvml.SafeDevice) (float64, error) {
+func getPowerUsage(dev ddnvml.Device) (float64, error) {
 	// returns power usage in milliwatts
 	power, err := dev.GetPowerUsage()
 	return float64(power), err
 }
 
-func getPerformanceState(dev ddnvml.SafeDevice) (float64, error) {
+func getPerformanceState(dev ddnvml.Device) (float64, error) {
 	state, err := dev.GetPerformanceState()
 	return float64(state), err
 }
 
-func getCurrentSMClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getCurrentSMClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetClockInfo(nvml.CLOCK_SM)
 	return float64(speed), err
 }
 
-func getCurrentMemoryClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getCurrentMemoryClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetClockInfo(nvml.CLOCK_MEM)
 	return float64(speed), err
 }
 
-func getCurrentGraphicsClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getCurrentGraphicsClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetClockInfo(nvml.CLOCK_GRAPHICS)
 	return float64(speed), err
 }
 
-func getCurrentVideoClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getCurrentVideoClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetClockInfo(nvml.CLOCK_VIDEO)
 	return float64(speed), err
 }
 
-func getMaxSMClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getMaxSMClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetMaxClockInfo(nvml.CLOCK_SM)
 	return float64(speed), err
 }
 
-func getMaxMemoryClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getMaxMemoryClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetMaxClockInfo(nvml.CLOCK_MEM)
 	return float64(speed), err
 }
 
-func getMaxGraphicsClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getMaxGraphicsClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetMaxClockInfo(nvml.CLOCK_GRAPHICS)
 	return float64(speed), err
 }
 
-func getMaxVideoClockSpeed(dev ddnvml.SafeDevice) (float64, error) {
+func getMaxVideoClockSpeed(dev ddnvml.Device) (float64, error) {
 	speed, err := dev.GetMaxClockInfo(nvml.CLOCK_VIDEO)
 	return float64(speed), err
 }
 
-func getTemperature(dev ddnvml.SafeDevice) (float64, error) {
+func getTemperature(dev ddnvml.Device) (float64, error) {
 	temp, err := dev.GetTemperature(nvml.TEMPERATURE_GPU)
 	return float64(temp), err
 }
 
-func getTotalEnergyConsumption(dev ddnvml.SafeDevice) (float64, error) {
+func getTotalEnergyConsumption(dev ddnvml.Device) (float64, error) {
 	// returns energy in millijoules
 	energy, err := dev.GetTotalEnergyConsumption()
 	return float64(energy), err
 }
 
-func getDeviceCount(dev ddnvml.SafeDevice) (float64, error) {
+func getDeviceCount(dev ddnvml.Device) (float64, error) {
 	r, err := dev.IsMigDeviceHandle()
 	if r || err != nil {
 		return float64(0), err
