@@ -28,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ ddnvml.SafeDevice) (Collector, error) {
+	factory := func(_ ddnvml.Device) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
