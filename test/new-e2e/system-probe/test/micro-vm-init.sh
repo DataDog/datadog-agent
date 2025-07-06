@@ -20,6 +20,8 @@ fi
 # Start tests
 code=0
 
+echo "Running tests with commit SHA: ${CI_COMMIT_SHA}"
+
 /opt/testing-tools/test-runner "$@" || code=$?
 
 if [[ -f "/job_env.txt" ]]; then
