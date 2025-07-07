@@ -222,6 +222,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	key = strings.ToLower(key)
 
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.leafAtPathFromNode(key, c.root).Get()
 
 	parts := splitKey(key)
@@ -238,19 +239,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
-		c.Unlock()
 		return
 	}
 
 	c.sequenceID++
-	seqID := c.sequenceID
-	c.Unlock()
 
 	c.notificationChannel <- model.ConfigChangeNotification{
 		Key:           key,
 		PreviousValue: previousValue,
 		NewValue:      newValue,
-		SequenceID:    seqID,
+		SequenceID:    c.sequenceID,
 	}
 
 }
@@ -364,12 +362,11 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
-	seqID := c.sequenceID
 	c.notificationChannel <- model.ConfigChangeNotification{
 		Key:           key,
 		PreviousValue: previousValue,
 		NewValue:      newValue,
-		SequenceID:    seqID,
+		SequenceID:    c.sequenceID,
 	}
 
 }

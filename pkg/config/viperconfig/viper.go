@@ -108,15 +108,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
-	seqID := c.sequenceID
-	c.Unlock()
-
 	c.notificationChannel <- model.ConfigChangeNotification{
 		Key:           key,
 		PreviousValue: oldValue,
 		NewValue:      latestValue,
-		SequenceID:    seqID,
+		SequenceID:    c.sequenceID,
 	}
+	c.Unlock()
 
 }
 
@@ -136,25 +134,20 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 // UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	c.Lock()
+	defer c.Unlock()
 	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue == nil || reflect.DeepEqual(previousValue, newValue) {
-		c.Unlock()
-		return
+	if previousValue != nil && reflect.DeepEqual(previousValue, newValue) {
+		c.sequenceID++
+		c.notificationChannel <- model.ConfigChangeNotification{
+			Key:           key,
+			PreviousValue: previousValue,
+			NewValue:      newValue,
+			SequenceID:    c.sequenceID,
+		}
 	}
-
-	seqID := c.sequenceID
-	c.Unlock()
-
-	c.notificationChannel <- model.ConfigChangeNotification{
-		Key:           key,
-		PreviousValue: previousValue,
-		NewValue:      newValue,
-		SequenceID:    seqID,
-	}
-
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
