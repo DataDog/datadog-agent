@@ -95,9 +95,9 @@ type defaultNetworkStats struct {
 }
 
 type connectionStateEntry struct {
-	count int64
-	recvQ []int64
-	sendQ []int64
+	count uint64
+	recvQ []uint64
+	sendQ []uint64
 }
 
 func (n defaultNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
@@ -434,7 +434,7 @@ func checkSSExecutable() error {
 	return nil
 }
 
-func getSocketStateMetrics(protocol string, procfsPath string) (map[string][]uint64, error) {
+func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*connectionStateEntry, error) {
 	env := []string{"PROC_ROOT=" + procfsPath}
 	// Pass the IP version to `ss` because there's no built-in way of distinguishing between the IP versions in the output
 	// Also calls `ss` for each protocol, because on some systems (e.g. Ubuntu 14.04), there is a bug that print `tcp` even if it's `udp`
@@ -447,19 +447,19 @@ func getSocketStateMetrics(protocol string, procfsPath string) (map[string][]uin
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
-	return parseQueueMetrics(output)
+	return parseSocketStatsMetrics(output)
 }
 
-func getNetstatStateMetrics(protocol string, _ string) (map[string][]uint64, error) {
+func getNetstatStateMetrics(protocol string, _ string) (map[string]*connectionStateEntry, error) {
 	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
 	}
-	return parseQueueMetricsNetstat(protocol, output)
+	return parseNetstatMetrics(protocol, output)
 }
 
 // why not sum here
-func parseQueueMetrics(output string) (map[string]*connectionStateEntry, error) {
+func parseSocketStatsMetrics(output string) (map[string]*connectionStateEntry, error) {
 	results := make(map[string]*connectionStateEntry)
 	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
 
@@ -507,7 +507,7 @@ func parseQueueMetrics(output string) (map[string]*connectionStateEntry, error) 
 		recvQ := parseQueue(fields[2])
 		sendQ := parseQueue(fields[3])
 		if entry, existingState := results[state]; existingState {
-			entry.count = entry.Count + 1
+			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
 			entry.sendQ = append(entry.sendQ, sendQ)
 		} else {
@@ -521,8 +521,8 @@ func parseQueueMetrics(output string) (map[string]*connectionStateEntry, error) 
 	return results, nil
 }
 
-func parseQueueMetricsNetstat(protocol, output string) (map[string]*connectionStateEntry, error) {
-	protocol = strings.Replace("4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
+func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEntry, error) {
+	protocol = strings.ReplaceAll(protocol, "4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
 	results := make(map[string]*connectionStateEntry)
 	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
 
@@ -569,7 +569,7 @@ func parseQueueMetricsNetstat(protocol, output string) (map[string]*connectionSt
 		recvQ := parseQueue(fields[1])
 		sendQ := parseQueue(fields[2])
 		if entry, existingState := results[state]; existingState {
-			entry.count = entry.Count + 1
+			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
 			entry.sendQ = append(entry.sendQ, sendQ)
 		} else {
