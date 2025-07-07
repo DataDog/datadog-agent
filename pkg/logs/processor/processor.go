@@ -151,7 +151,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	// Filter out rules with invalid regex that require it
-	rules = validateAndFilterRules(rules)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -218,23 +217,4 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 		hname = "unknown"
 	}
 	return hname
-}
-
-func validateAndFilterRules(rules []*config.ProcessingRule) []*config.ProcessingRule {
-	var validRules []*config.ProcessingRule
-
-	for _, rule := range rules {
-		// Rules that require regex
-		if rule.Type == config.ExcludeAtMatch ||
-			rule.Type == config.IncludeAtMatch ||
-			rule.Type == config.MaskSequences {
-			if rule.Regex == nil {
-				log.Warnf("Processing rule '%s' of type '%s' has nil regex - rule will be excluded", rule.Name, rule.Type)
-				continue
-			}
-		}
-		validRules = append(validRules, rule)
-	}
-
-	return validRules
 }
