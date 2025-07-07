@@ -335,7 +335,9 @@ def attach_gdb(ctx: Context, vm: str, stack: str | None = None, dry=True):
 -ex \"set pagination off\" \
 "
 
-    if not dry:
+    if dry:
+        info(f"[+] Run the following command: {cmd}")
+    else:
         ctx.run(cmd)
 
 
