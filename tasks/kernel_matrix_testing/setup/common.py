@@ -7,6 +7,7 @@ from pathlib import Path
 
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.compiler import get_compiler
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 
@@ -14,8 +15,6 @@ from .requirement import Requirement, RequirementState
 
 
 class Pulumi(Requirement):
-    name: str = "pulumi"
-
     def _is_user_logged_in(self, pulumi_about_output: str) -> bool:
         match = re.search(r"^User +(.*)", pulumi_about_output, re.MULTILINE)
         return match is not None and match.group(1) != "Unknown"
@@ -53,7 +52,6 @@ class Pulumi(Requirement):
 
 
 class TestInfraDefinitionsRepo(Requirement):
-    name: str = "test-infra-definitions-repo"
     _candidate_paths = [
         get_repo_root().parent / "test-infra-definitions",
         Path("~/go/src/github.com/DataDog/test-infra-definitions").expanduser(),
@@ -88,7 +86,6 @@ class TestInfraDefinitionsRepo(Requirement):
 
 
 class PulumiPlugin(Requirement):
-    name: str = "pulumi-plugin"
     dependencies: list[type[Requirement]] = [Pulumi, TestInfraDefinitionsRepo]
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
@@ -115,8 +112,6 @@ class PulumiPlugin(Requirement):
 
 
 class DDA(Requirement):
-    name: str = "dda"
-
     def check(self, ctx: Context, _: bool) -> RequirementState:
         import semver
 
@@ -131,7 +126,7 @@ class DDA(Requirement):
             return RequirementState(Status.FAIL, "dda is not installed correctly, cannot get version.")
 
         min_version = semver.VersionInfo.parse("0.18.0")
-        version_parsed = semver.VersionInfo.parse(dda_version.stdout.strip())
+        version_parsed = semver.VersionInfo.parse(dda_version.stdout.strip().split(" ")[-1])
 
         if version_parsed < min_version:
             return RequirementState(
@@ -143,11 +138,10 @@ class DDA(Requirement):
 
 
 class PythonDependenciesRequirement(Requirement):
-    name: str = "python-dependencies"
     dependencies: list[type[Requirement]] = [DDA]
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        installed_dependencies = ctx.run("dda self dep show --invoke", warn=True)
+        installed_dependencies = ctx.run("dda self dep show --legacy", warn=True)
         if installed_dependencies is None or not installed_dependencies.ok:
             return RequirementState(
                 Status.FAIL, "dda is too old or not installed correctly, cannot get installed dependencies."
@@ -168,8 +162,6 @@ class PythonDependenciesRequirement(Requirement):
 
 
 class KMTDirectoriesRequirement(Requirement):
-    name: str = "kmt-directories"
-
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
         import getpass
 
@@ -204,7 +196,7 @@ class KMTDirectoriesRequirement(Requirement):
                     states.append(RequirementState(Status.OK, f"Created missing KMT directory: {d}"))
 
             perms = d.stat().st_mode
-            if perms != 0o755:
+            if perms & 0o777 != 0o755:  # Check only the permission bits
                 if not fix:
                     states.append(
                         RequirementState(
@@ -234,8 +226,6 @@ class KMTDirectoriesRequirement(Requirement):
 
 
 class KMTSSHKey(Requirement):
-    name: str = "kmt-ssh-key"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 
@@ -248,10 +238,23 @@ class KMTSSHKey(Requirement):
             ctx.run(f"cp {ddvm_rsa_key} {kmt_os.kmt_dir}")
 
         perms = kmt_os.ddvm_rsa.stat().st_mode
-        if perms != 0o600:
+        if (perms & 0o777) != 0o600:
             if not fix:
                 return RequirementState(Status.FAIL, "KMT SSH key has incorrect permissions.", fixable=True)
 
             ctx.run(f"chmod 600 {kmt_os.kmt_dir}/ddvm_rsa")
 
         return RequirementState(Status.OK, "KMT SSH key created and with correct permissions.")
+
+
+class Compiler(Requirement):
+    def check(self, ctx: Context, fix: bool) -> RequirementState:
+        compiler = get_compiler(ctx)
+        if compiler.is_running:
+            return RequirementState(Status.OK, "Compiler is running.")
+
+        if not fix:
+            return RequirementState(Status.FAIL, "Compiler is not running.", fixable=True)
+
+        compiler.start()
+        return RequirementState(Status.OK, "Compiler started.")

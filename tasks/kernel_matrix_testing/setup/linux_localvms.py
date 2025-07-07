@@ -10,8 +10,6 @@ from .requirement import Requirement, RequirementState
 
 
 class LinuxPackages(Requirement):
-    name: str = "linux-packages"
-
     @property
     def _packages(self) -> list[str]:
         packages = [
@@ -59,8 +57,6 @@ class LinuxPackages(Requirement):
 
 
 class NFSKernelServer(Requirement):
-    name: str = "nfs-kernel-server"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         service_name = "nfs-kernel-server.service"
         res = ctx.run(f"systemctl is-active {service_name}", warn=True, hide=True)
@@ -74,8 +70,6 @@ class NFSKernelServer(Requirement):
 
 
 class LinuxQemuConfig(Requirement):
-    name: str = "qemu-config"
-
     def check(self, ctx: Context, fix: bool):
         from tasks.kernel_matrix_testing.kmt_os import Linux
         from tasks.kernel_matrix_testing.tool import is_root
@@ -108,8 +102,6 @@ class LinuxQemuConfig(Requirement):
 
 
 class NFSExport(Requirement):
-    name: str = "nfs-export"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         export_line = "/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)"
         with open("/etc/exports") as f:

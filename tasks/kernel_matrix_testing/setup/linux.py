@@ -7,8 +7,6 @@ from tasks.libs.common.status import Status
 
 
 class UserInDockerGroup(Requirement):
-    name: str = "user-in-docker-group"
-
     def check(self, ctx: Context, _: bool) -> RequirementState:
         ret = ctx.run(
             "cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep 'docker:' | cut -d ':' -f 3)",

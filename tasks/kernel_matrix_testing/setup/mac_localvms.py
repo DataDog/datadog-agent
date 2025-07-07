@@ -12,8 +12,6 @@ from .requirement import Requirement, RequirementState
 
 
 class MacPackages(Requirement):
-    name: str = "mac-packages"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget"]
 
@@ -38,8 +36,6 @@ class MacPackages(Requirement):
 
 
 class MacLibvirtConfig(Requirement):
-    name: str = "mac-libvirt-config"
-
     def check(self, ctx: Context, fix: bool):
         from tasks.kernel_matrix_testing.kmt_os import MacOS
 
@@ -64,12 +60,14 @@ class MacLibvirtConfig(Requirement):
         if fix:
             return RequirementState(Status.OK, "Libvirt config fixed.")
 
-        return RequirementState(Status.FAIL, f"Libvirt config is incorrect. {incorrect_options}", fixable=True)
+        return RequirementState(
+            Status.FAIL,
+            f"Libvirt config is incorrect, options {incorrect_options} do not have expected values",
+            fixable=True,
+        )
 
 
 class MacVirtlogdConfig(Requirement):
-    name: str = "mac-virtlogd-config"
-
     def check(self, ctx: Context, fix: bool):
         from tasks.kernel_matrix_testing.kmt_os import MacOS
 
@@ -98,8 +96,6 @@ class MacVirtlogdConfig(Requirement):
 
 
 class MacVirtlogdService(Requirement):
-    name: str = "virtlogd-service"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         import plistlib
 
@@ -138,19 +134,21 @@ class MacVirtlogdService(Requirement):
             except Exception as e:
                 return RequirementState(Status.FAIL, f"Failed to create virtlogd plist: {e}")
 
-        return check_launchctl_service(ctx, "org.libvirt.virtlogd", fix)
+        return check_launchctl_service(ctx, "system/org.libvirt.virtlogd", fix)
 
 
 class MacLibvirtService(Requirement):
-    name: str = "mac-libvirt-service"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         service_name = "libvirt"
         res = ctx.run(f"sudo brew services info {service_name} --json", warn=True)
         if res is None or not res.ok:
             return RequirementState(Status.FAIL, f"Failed to check libvirt service: {res}")
 
-        service_info = json.loads(res.stdout)
+        services_info = json.loads(res.stdout)
+        if len(services_info) == 0:
+            return RequirementState(Status.FAIL, "Libvirt service is not installed.")
+
+        service_info = services_info[0]
         if not service_info.get("running", False):
             if not fix:
                 return RequirementState(Status.FAIL, "Libvirt service is not running.", fixable=True)
@@ -160,34 +158,18 @@ class MacLibvirtService(Requirement):
         return RequirementState(Status.OK, "Libvirt service is running.")
 
 
-class EnableServices(Requirement):
-    name: str = "enable-services"
-
-    def check(self, ctx: Context, fix: bool):
-        # Always enable/start if fix is requested
-        if not fix:
-            return [RequirementState(Status.OK, "Service enable/start not required.")]
-        ctx.run("sudo launchctl enable system/org.libvirt.virtlogd")
-        ctx.run("sudo launchctl start system/org.libvirt.virtlogd || true")
-        ctx.run("sudo brew services start libvirt")
-        ctx.run("sudo sysctl -w net.inet.ip.forwarding=1")
-        ctx.run("sudo launchctl load -w /System/Library/LaunchDaemons/bootps.plist || true")
-        ctx.run("sudo launchctl start com.apple.bootpd || true")
-        return [RequirementState(Status.OK, "Services enabled/started.", fixable=True)]
-
-
 class BootPService(Requirement):
-    name: str = "bootp-service"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         return check_launchctl_service(
-            ctx, "com.apple.bootpd", fix, service_install_file="/System/Library/LaunchDaemons/bootps.plist"
+            ctx,
+            "system/com.apple.bootpd",
+            fix,
+            service_install_file="/System/Library/LaunchDaemons/bootps.plist",
+            run_at_boot=False,  # Bootp is not run at boot, it's run when needed
         )
 
 
 class MacNFSService(Requirement):
-    name: str = "mac-nfs-service"
-
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
         res = ctx.run("sudo nfsd status", warn=True)
         if res is None or not res.ok:
@@ -216,7 +198,6 @@ class MacNFSService(Requirement):
 
 
 class MacNFSExport(Requirement):
-    name: str = "mac-nfs-export"
     dependencies: list[type[Requirement]] = [MacNFSService]
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
@@ -240,8 +221,6 @@ class MacNFSExport(Requirement):
 
 
 class MacIPForwarding(Requirement):
-    name: str = "mac-ip-forwarding"
-
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         res = ctx.run("sudo sysctl net.inet.ip.forwarding", warn=True)
         if res is None or not res.ok:

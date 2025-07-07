@@ -4,7 +4,9 @@ Utility functions for the setup requirements
 
 import io
 import re
+import tempfile
 from pathlib import Path
+from typing import Any
 
 from invoke.context import Context
 
@@ -13,7 +15,7 @@ from tasks.libs.common.status import Status
 
 
 def ensure_options_in_config(
-    ctx: Context, config_file: Path, options: dict[str, str], change: bool, write_with_sudo: bool = False
+    ctx: Context, config_file: Path, options: dict[str, Any], change: bool, write_with_sudo: bool = False
 ) -> list[str]:
     """
     Ensure that the given options are present in the config file.
@@ -31,34 +33,72 @@ def ensure_options_in_config(
     with open(config_file) as f:
         content = f.read().splitlines()
 
-    incorrect_options: list[str] = []
-    for option, value in options.items():
-        line_regex = re.compile(f"^{option} *=")
-        comment_regex = re.compile(f"^# *{option} *=")
+    incorrect_options, updated_lines = _patch_config_lines(content, options, change)
 
-        for line_number, line in enumerate(content):
-            if line_regex.match(line):
-                configured_value = line.split("=")[1].strip()
-                if configured_value != value:
-                    incorrect_options.append(option)
-                    if change:
-                        content[line_number] = f"{option} = \"{value}\""
-                    break
-            elif comment_regex.match(line):
-                incorrect_options.append(option)
-                if change:
-                    content[line_number] = f"{option} = \"{value}\""
-                break
+    if len(incorrect_options) > 0 and change:
+        with tempfile.NamedTemporaryFile(delete_on_close=False) as temp_file:
+            temp_file.write("\n".join(updated_lines).encode("utf-8"))
+            temp_file.close()
 
-    if change:
-        sudo = "sudo" if write_with_sudo else ""
-        ctx.run(f"{sudo} sh -c 'cat > {config_file}'", hide=True, in_stream=io.BytesIO("\n".join(content).encode()))
+            sudo = "sudo " if write_with_sudo else ""
+            ctx.run(f"{sudo}mv {temp_file.name} {config_file}")
 
     return incorrect_options
 
 
+def _patch_config_lines(lines: list[str], options: dict[str, Any], change: bool) -> tuple[list[str], list[str]]:
+    """
+    Patch the config lines to ensure the given options are present. Split from ensure_options_in_config to make it easier to test.
+
+    Args:
+        lines: list of lines to patch
+        options: dict of options to ensure
+        change: if True, the config file will be changed
+
+    Returns:
+        tuple[list[str], list[str]]: list of incorrect options and list of updated lines
+    """
+    incorrect_options: list[str] = []
+    updated_lines: list[str] = []
+
+    line_regexes = {option: re.compile(f"^{option} *=") for option in options.keys()}
+    comment_regexes = {option: re.compile(f"^# *{option} *=") for option in options.keys()}
+
+    for line in lines:
+        changed_line = False
+
+        for option in options.keys():
+            if line_regexes[option].match(line):
+                configured_value = line.split("=")[1].strip()
+                formatted_value = _get_formatted_value(options[option])
+                if configured_value != formatted_value:
+                    incorrect_options.append(option)
+                    if change:
+                        updated_lines.append(f"{option} = {formatted_value}")
+                        changed_line = True
+                    break
+            elif comment_regexes[option].match(line):
+                incorrect_options.append(option)
+                if change:
+                    updated_lines.append(f"{option} = {_get_formatted_value(options[option])}")
+                    changed_line = True
+                break
+
+        if not changed_line:
+            updated_lines.append(line)
+
+    return incorrect_options, updated_lines
+
+
+def _get_formatted_value(value: Any) -> str:
+    if isinstance(value, str):
+        return f"\"{value}\""
+
+    return str(value)
+
+
 def check_launchctl_service(
-    ctx: Context, service_name: str, fix: bool, service_install_file: str | None = None
+    ctx: Context, service_name: str, fix: bool, service_install_file: str | None = None, run_at_boot: bool = True
 ) -> RequirementState:
     """Checks that a launchctl macos service is loaded, started and enabled
 
@@ -104,7 +144,7 @@ def check_launchctl_service(
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to enable launchctl service: {e}")
 
-    if "state = running" not in service_info:
+    if run_at_boot and "state = running" not in service_info:
         if not fix:
             return RequirementState(Status.FAIL, f"launchctl service {service_name} not running", fixable=True)
 
