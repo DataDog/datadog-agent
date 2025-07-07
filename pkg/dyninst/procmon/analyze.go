@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -60,7 +59,7 @@ func analyzeProcess(
 		return processAnalysis{interesting: false}, nil
 	}
 
-	exe := actuator.Executable{Path: exePath}
+	exe := Executable{Path: exePath}
 	st, err := os.Stat(exeLink)
 	if err != nil {
 		return processAnalysis{}, fmt.Errorf(
@@ -68,12 +67,12 @@ func analyzeProcess(
 		)
 	}
 	if st, ok := st.Sys().(*syscall.Stat_t); ok {
-		exe.Key = actuator.FileKey{
-			FileHandle: actuator.FileHandle{
+		exe.Key = FileKey{
+			FileHandle: FileHandle{
 				Dev: uint64(st.Dev),
 				Ino: st.Ino,
 			},
-			FileCookie: actuator.FileCookie(st.Mtim),
+			LastModified: st.Mtim,
 		}
 	}
 

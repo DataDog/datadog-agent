@@ -80,7 +80,6 @@ state:
 ---
 event: !loaded {program_id: 1}
 effects:
-  - !register-program-with-dispatcher {program_id: 1}
   - !attach-to-process {executable: /usr/bin/app1@0.0m0.0, process_id: 1001, program_id: 1}
   - !spawn-bpf-loading {executable: /usr/bin/app3@0.0m0.0, probes: [probe3], program_id: 3}
 state:
@@ -130,7 +129,7 @@ state:
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !unregister-program-with-dispatcher {program_id: 1}
+  - !close-sink {program_id: 1}
 state:
   currently_loading: "3"
   queued_programs: '[4] -> [4 5]'
@@ -146,7 +145,6 @@ state:
 ---
 event: !loaded {program_id: 3}
 effects:
-  - !register-program-with-dispatcher {program_id: 3}
   - !attach-to-process {executable: /usr/bin/app3@0.0m0.0, process_id: 1003, program_id: 3}
   - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], program_id: 4}
 state:
