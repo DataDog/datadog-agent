@@ -103,6 +103,7 @@ class LibvirtDomain:
         arch: KMTArchNameOrLocal | None,
         instance: HostInstance,
         user: str = "root",
+        gdb_port: int = 0,
     ):
         self.ip = ip
         self.name = domain_id
@@ -112,6 +113,7 @@ class LibvirtDomain:
         self.instance = instance
         self.arch = arch
         self.user = user
+        self.gdb_port = gdb_port
 
     def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
         if timeout_sec is not None:
@@ -214,7 +216,14 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
             # location in the local machine.
             instance.add_microvm(
                 LibvirtDomain(
-                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), arch, instance
+                    vm["ip"],
+                    vm["id"],
+                    vm["tag"],
+                    vm["vmset-tags"],
+                    os.fspath(get_kmt_os().ddvm_rsa),
+                    arch,
+                    instance,
+                    gdb_port=vm["gdb-port"],
                 )
             )
 

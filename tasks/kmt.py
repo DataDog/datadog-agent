@@ -30,6 +30,7 @@ from tasks.kernel_matrix_testing.ci import KMTPipeline, KMTTestRunJob, get_test_
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
+from tasks.kernel_matrix_testing.gdb import GDBPaths, setup_gdb_debugging
 from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
@@ -298,6 +299,40 @@ def gen_config_from_ci_pipeline(
 
 
 @task
+def attach_gdb(ctx: Context, vm: str, stack: str | None = None, dry=True):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+
+    domains = get_target_domains(ctx, stack, None, None, vm, None)
+    assert len(domains) > 0, f"no running VM discovered for the provided vm {vm}"
+    assert len(domains) == 1, "GDB can only be attached to one VM at a time"
+
+    domain = domains[0]
+    if domain.gdb_port == 0:
+        raise Exit(
+            "VM was not launched with GDB debugging support. To use this feature specify the `--gdb` flag when invoke the `kmt.launch-stack` task"
+        )
+
+    platforms = get_platforms()
+    kmt_arch = Arch.from_str(domain.arch).kmt_arch
+    platinfo = platforms[kmt_arch][domain.tag]
+    gdb_paths = GDBPaths(domain.tag, platinfo['image_version'], stack, domain.arch)
+
+    cmd = f"gdb \
+-ex \"add-auto-load-safe-path {gdb_paths.kernel_source}\" \
+-ex \"file {gdb_paths.vmlinux}\" \
+-ex \"set arch i386:x86-64:intel\" -ex \"target remote localhost:{domain.gdb_port}\" \
+-ex \"source {gdb_paths.kernel_source}/vmlinux-gdb.py\" \
+-ex \"set disassembly-flavor intel\" \
+-ex \"set pagination off\" \
+"
+
+    if not dry:
+        ctx.run(cmd)
+
+
+@task
 def launch_stack(
     ctx: Context,
     stack: str | None = None,
@@ -306,14 +341,24 @@ def launch_stack(
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
     provision_script: str | None = None,
+    gdb: bool = False,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
-    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+    if gdb and get_kmt_os().name != "linux":
+        # TODO: add kernel debugging support for MacOS
+        raise Exit("GDB attached to guest VM is only supported for linux systems")
+
+    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms, gdb)
+
     if provision_script is not None:
         provision_stack(ctx, provision_script, stack, ssh_key)
+
+    if gdb:
+        setup_gdb_debugging(ctx, stack)
+        info("[+] GDB setup complete")
 
 
 @task
