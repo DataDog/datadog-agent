@@ -500,7 +500,7 @@ def set_gitconfig_in_ci(ctx):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False, echo=False):
+def gitlab_section_old(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
@@ -519,6 +519,32 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     finally:
         if in_ci:
             print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
+
+
+@contextmanager
+def gitlab_section(section_name, collapsed=False, echo=False):
+    """
+    - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
+    """
+    section_id = str(uuid.uuid4())
+    in_ci = running_in_gitlab_ci()
+    try:
+        if in_ci:
+            collapsed = '[collapsed=true]' if collapsed else ''
+            middle = bytes(f"section_start:{int(time.time())}:{section_id}{collapsed}", 'utf-8')
+            end = bytes(section_name + '...', 'utf-8')
+            sys.stdout.flush()
+            sys.stdout.write(b"\033[0K" + middle + b"\r\033[0K" + end)
+            sys.stdout.flush()
+        elif echo:
+            print(color_message(f"> {section_name}...", 'bold'))
+        yield
+    finally:
+        if in_ci:
+            sys.stdout.flush()
+            middle = bytes(f'section_end:{int(time.time())}:{section_id}')
+            sys.stdout.flush()
+            print(b"\033[0K" + middle + b"\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
