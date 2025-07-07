@@ -12,10 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -185,12 +187,12 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 				ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
 				Executable: Executable{
 					Path: proc.Executable.Path,
-					Key: FileKey{
-						FileHandle: FileHandle{
+					Key: procmon.FileKey{
+						FileHandle: procmon.FileHandle{
 							Dev: proc.Executable.Key.FileHandle.Dev,
 							Ino: proc.Executable.Key.FileHandle.Ino,
 						},
-						FileCookie: FileCookie{
+						LastModified: syscall.Timespec{
 							Sec:  proc.Executable.Key.FileCookie.Sec,
 							Nsec: proc.Executable.Key.FileCookie.Nsec,
 						},

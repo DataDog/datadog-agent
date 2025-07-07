@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -125,8 +126,8 @@ func testDyninst(
 	fileInfo := stat.Sys().(*syscall.Stat_t)
 	exe := actuator.Executable{
 		Path: sampleServicePath,
-		Key: actuator.FileKey{
-			FileHandle: actuator.FileHandle{
+		Key: procmon.FileKey{
+			FileHandle: procmon.FileHandle{
 				Dev: uint64(fileInfo.Dev),
 				Ino: fileInfo.Ino,
 			},
