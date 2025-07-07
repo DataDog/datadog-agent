@@ -195,6 +195,27 @@ func TestFIMPermError(t *testing.T) {
 	})
 
 	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		// Ensure the test file is in the expected state before running the test
+		if _, err := os.Stat(testFile); os.IsNotExist(err) {
+			// Recreate the file if it doesn't exist
+			f, err := os.Create(testFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.Close()
+		}
+
+		// Set the expected permissions and ownership
+		err := os.Chmod(testFile, 0o400)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = os.Chown(testFile, 2002, 2002)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"unlink", testFile,
