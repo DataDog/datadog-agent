@@ -12,16 +12,16 @@ import (
 	"syscall"
 )
 
-// CmdRunner interface wraps the functionality we need from exec.Cmd for testing
-type CmdRunner interface {
+// cmdRunner interface wraps the functionality we need from exec.Cmd for testing
+type cmdRunner interface {
 	Run(path string, cmdLine string) error
 }
 
-// RealCmdRunner wraps exec.Cmd for production use
-type RealCmdRunner struct{}
+// realCmdRunner wraps exec.Cmd for production use
+type realCmdRunner struct{}
 
 // Run executes the command, creating a new exec.Cmd each time
-func (r *RealCmdRunner) Run(path string, cmdLine string) error {
+func (r *realCmdRunner) Run(path string, cmdLine string) error {
 	cmd := &exec.Cmd{
 		Path: path,
 		SysProcAttr: &syscall.SysProcAttr{
@@ -31,7 +31,7 @@ func (r *RealCmdRunner) Run(path string, cmdLine string) error {
 	return cmd.Run()
 }
 
-// NewRealCmdRunner creates a real CmdRunner
-func NewRealCmdRunner() CmdRunner {
-	return &RealCmdRunner{}
+// newRealCmdRunner creates a cmdRunner that will execute commands using exec.Cmd
+func newRealCmdRunner() cmdRunner {
+	return &realCmdRunner{}
 }

@@ -20,71 +20,71 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// MockCmdRunner for testing using testify/mock
-type MockCmdRunner struct {
+// mockCmdRunner for testing using testify/mock
+type mockCmdRunner struct {
 	mock.Mock
 }
 
 // Run executes the mock function
-func (m *MockCmdRunner) Run(path string, cmdLine string) error {
+func (m *mockCmdRunner) Run(path string, cmdLine string) error {
 	args := m.Called(path, cmdLine)
 	return args.Error(0)
 }
 
-// MockExitError simulates exit errors for testing and implements ExitCodeError
-type MockExitError struct {
+// mockExitError simulates exit errors for testing and implements ExitCodeError
+type mockExitError struct {
 	code int
 }
 
-func (m *MockExitError) Error() string {
+func (m *mockExitError) Error() string {
 	return fmt.Sprintf("exit status %d", m.code)
 }
 
-func (m *MockExitError) ExitCode() int {
+func (m *mockExitError) ExitCode() int {
 	return m.code
 }
 
-// Verify MockExitError implements ExitCodeError
-var _ ExitCodeError = (*MockExitError)(nil)
+// Verify mockExitError implements exitCodeError
+var _ exitCodeError = (*mockExitError)(nil)
 
-// Test isRetryableExitCode function
+// Test isRetryableExitCode function and the exitCodeError interface
 func TestIsRetryableExitCode(t *testing.T) {
 	mockExitCodeTests := []struct {
-		name     string
-		err      error
-		expected bool
+		name        string
+		err         error
+		isRetryable bool
 	}{
 		{
-			name:     "nil error",
-			err:      nil,
-			expected: false,
+			name:        "nil error",
+			err:         nil,
+			isRetryable: false,
 		},
 		{
-			name:     "retryable exit code 1618",
-			err:      &MockExitError{code: int(windows.ERROR_INSTALL_ALREADY_RUNNING)},
-			expected: true,
+			name:        "retryable exit code 1618",
+			err:         &mockExitError{code: int(windows.ERROR_INSTALL_ALREADY_RUNNING)},
+			isRetryable: true,
 		},
 		{
-			name:     "non-retryable exit code 1603",
-			err:      &MockExitError{code: 1603},
-			expected: false,
+			name:        "non-retryable exit code 1603",
+			err:         &mockExitError{code: 1603},
+			isRetryable: false,
 		},
 		{
-			name:     "non-retryable exit code 1",
-			err:      &MockExitError{code: 1},
-			expected: false,
+			name:        "non-retryable exit code 1",
+			err:         &mockExitError{code: 1},
+			isRetryable: false,
 		},
 		{
-			name:     "generic error",
-			err:      errors.New("generic error"),
-			expected: false,
+			name:        "generic error",
+			err:         errors.New("generic error"),
+			isRetryable: false,
 		},
 	}
 
 	for _, tt := range mockExitCodeTests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := isRetryableExitCode(tt.err)
-			assert.Equal(t, tt.expected, result, "Test case: %s", tt.name)
+			assert.Equal(t, tt.isRetryable, result, "Test case: %s", tt.name)
 		})
 	}
 
@@ -95,29 +95,29 @@ func TestIsRetryableExitCode(t *testing.T) {
 		}
 
 		realExitCodeTests := []struct {
-			name     string
-			exitCode int
-			expected bool
+			name        string
+			exitCode    int
+			isRetryable bool
 		}{
 			{
-				name:     "retryable exit code 1618 (ERROR_INSTALL_ALREADY_RUNNING)",
-				exitCode: int(windows.ERROR_INSTALL_ALREADY_RUNNING), // 1618
-				expected: true,
+				name:        "retryable exit code 1618 (ERROR_INSTALL_ALREADY_RUNNING)",
+				exitCode:    int(windows.ERROR_INSTALL_ALREADY_RUNNING), // 1618
+				isRetryable: true,
 			},
 			{
-				name:     "non-retryable exit code 1603",
-				exitCode: 1603,
-				expected: false,
+				name:        "non-retryable exit code 1603",
+				exitCode:    1603,
+				isRetryable: false,
 			},
 			{
-				name:     "non-retryable exit code 1",
-				exitCode: 1,
-				expected: false,
+				name:        "non-retryable exit code 1",
+				exitCode:    1,
+				isRetryable: false,
 			},
 			{
-				name:     "non-retryable exit code 0 (success)",
-				exitCode: 0,
-				expected: false, // Success shouldn't be retried
+				name:        "non-retryable exit code 0 (success)",
+				exitCode:    0,
+				isRetryable: false, // Success shouldn't be retried
 			},
 		}
 
@@ -131,7 +131,7 @@ func TestIsRetryableExitCode(t *testing.T) {
 					// Exit code 0 should not produce an error
 					assert.NoError(t, err)
 					result := isRetryableExitCode(err)
-					assert.Equal(t, tt.expected, result)
+					assert.Equal(t, tt.isRetryable, result)
 				} else {
 					// Non-zero exit codes should produce exec.ExitError
 					assert.Error(t, err)
@@ -142,33 +142,33 @@ func TestIsRetryableExitCode(t *testing.T) {
 					assert.Equal(t, tt.exitCode, exitError.ExitCode())
 
 					// Verify exec.ExitError implements our ExitCodeError interface
-					var interfaceError ExitCodeError
+					var interfaceError exitCodeError
 					assert.ErrorAs(t, err, &interfaceError, "exec.ExitError should implement ExitCodeError")
 					assert.Equal(t, tt.exitCode, interfaceError.ExitCode())
 
 					// Test our retry logic with the real error
 					result := isRetryableExitCode(err)
-					assert.Equal(t, tt.expected, result, "isRetryableExitCode should correctly identify retryable codes")
+					assert.Equal(t, tt.isRetryable, result, "isRetryableExitCode should correctly identify retryable codes")
 				}
 			})
 		}
 	})
 }
 
-// Test retry behavior with retryable error followed by success
+// Test Msiexec.Run retry behavior with retryable error followed by success
 func TestMsiexec_Run_RetryThenSuccess(t *testing.T) {
-	mockRunner := &MockCmdRunner{}
+	mockRunner := &mockCmdRunner{}
 	// First call fails with retryable error, second succeeds
-	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&MockExitError{code: int(windows.ERROR_INSTALL_ALREADY_RUNNING)}).Once()
+	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: int(windows.ERROR_INSTALL_ALREADY_RUNNING)}).Once()
 	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(nil).Once()
 
 	cmd, err := Cmd(
 		Install(),
 		WithMsi("test.msi"),
 		WithLogFile("test.log"),
-		WithCmdRunner(mockRunner),
+		withCmdRunner(mockRunner),
 		// retry immediately for fast testing
-		WithBackOff(&backoff.ZeroBackOff{}),
+		withBackOff(&backoff.ZeroBackOff{}),
 	)
 	require.NoError(t, err)
 
@@ -179,16 +179,16 @@ func TestMsiexec_Run_RetryThenSuccess(t *testing.T) {
 	mockRunner.AssertExpectations(t)
 }
 
-// Test non-retryable error
+// Test Msiexec.Run non-retryable error
 func TestMsiexec_Run_NonRetryableError(t *testing.T) {
-	mockRunner := &MockCmdRunner{}
-	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&MockExitError{code: 1603}).Once()
+	mockRunner := &mockCmdRunner{}
+	mockRunner.On("Run", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&mockExitError{code: 1603}).Once()
 
 	cmd, err := Cmd(
 		Install(),
 		WithMsi("test.msi"),
 		WithLogFile("test.log"),
-		WithCmdRunner(mockRunner),
+		withCmdRunner(mockRunner),
 	)
 	require.NoError(t, err)
 
@@ -202,7 +202,7 @@ func TestMsiexec_Run_NonRetryableError(t *testing.T) {
 
 // Test command line construction
 func TestMsiexec_CommandLineConstruction(t *testing.T) {
-	mockRunner := &MockCmdRunner{}
+	mockRunner := &mockCmdRunner{}
 
 	expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2=value2 MSIFASTINSTALL=7`, msiexecPath)
 	mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
@@ -212,7 +212,7 @@ func TestMsiexec_CommandLineConstruction(t *testing.T) {
 		WithMsi("test.msi"),
 		WithLogFile("test.log"),
 		WithAdditionalArgs([]string{"ARG1=value1", "ARG2=value2"}),
-		WithCmdRunner(mockRunner),
+		withCmdRunner(mockRunner),
 	)
 	require.NoError(t, err)
 

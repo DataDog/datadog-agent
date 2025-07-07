@@ -30,8 +30,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// ExitCodeError interface for errors that have an exit code
-type ExitCodeError interface {
+// exitCodeError interface for errors that have an exit code
+//
+// Used in place of exec.ExitError to enable mocks for testing.
+type exitCodeError interface {
 	error
 	ExitCode() int
 }
@@ -64,7 +66,7 @@ type msiexecArgs struct {
 	additionalArgs []string
 
 	// cmdRunner allows injecting a custom command runner for testing
-	cmdRunner CmdRunner
+	cmdRunner cmdRunner
 
 	// backoff allows injecting a custom backoff strategy for testing
 	backoff backoff.BackOff
@@ -176,16 +178,20 @@ func HideControlPanelEntry() MsiexecOption {
 	}
 }
 
-// WithCmdRunner specifies a custom command runner for msiexec
-func WithCmdRunner(cmdRunner CmdRunner) MsiexecOption {
+// withCmdRunner overrides how msiexec commands are executed.
+//
+// Note: intended only for testing.
+func withCmdRunner(cmdRunner cmdRunner) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.cmdRunner = cmdRunner
 		return nil
 	}
 }
 
-// WithBackOff specifies a custom backoff strategy for msiexec retry logic
-func WithBackOff(backoffStrategy backoff.BackOff) MsiexecOption {
+// withBackOff overrides the default backoff strategy for msiexec retry logic
+//
+// Note: intended only for testing.
+func withBackOff(backoffStrategy backoff.BackOff) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.backoff = backoffStrategy
 		return nil
@@ -203,8 +209,12 @@ type Msiexec struct {
 	// args saved for use in telemetry
 	args *msiexecArgs
 
-	// cmdRunner for executing commands (can be injected for testing)
-	cmdRunner CmdRunner
+	// cmdRunner runs the execPath+cmdLine
+	cmdRunner cmdRunner
+
+	// backoff provides the retry strategy, for example for exit code 1618.
+	// See isRetryableExitCode for more details.
+	backoff backoff.BackOff
 
 	// Command execution options
 	execPath string
@@ -299,13 +309,13 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 		})
 }
 
-// isRetryableExitCode checks if the exit code should trigger a retry
+// isRetryableExitCode returns true if the exit code indicates the msiexec operation should be retried
 func isRetryableExitCode(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	var exitError ExitCodeError
+	var exitError exitCodeError
 	if errors.As(err, &exitError) {
 		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
 			return true
@@ -313,23 +323,6 @@ func isRetryableExitCode(err error) bool {
 	}
 
 	return false
-}
-
-// createBackoffStrategy creates a backoff strategy with hardcoded parameters for MSI retry
-func (m *Msiexec) createBackoffStrategy() backoff.BackOff {
-	// Use provided backoff strategy if available
-	if m.args.backoff != nil {
-		return m.args.backoff
-	}
-
-	// Otherwise use default hardcoded parameters
-	exponentialBackoff := backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(10*time.Second),
-		backoff.WithMaxInterval(120*time.Second),
-		backoff.WithMaxElapsedTime(10*time.Minute),
-	)
-
-	return exponentialBackoff
 }
 
 // Run runs msiexec synchronously with retry logic for exit code 1618 using backoff package
@@ -367,7 +360,7 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 	}
 
 	// Execute with retry
-	backoffStrategy := backoff.WithContext(m.createBackoffStrategy(), ctx)
+	backoffStrategy := backoff.WithContext(m.backoff, ctx)
 	err = backoff.Retry(operation, backoffStrategy)
 
 	// Process log file once after all retries are complete
@@ -444,7 +437,18 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	if a.cmdRunner != nil {
 		cmd.cmdRunner = a.cmdRunner
 	} else {
-		cmd.cmdRunner = NewRealCmdRunner()
+		cmd.cmdRunner = newRealCmdRunner()
+	}
+
+	// Set backoff strategy (use provided one or default)
+	if a.backoff != nil {
+		cmd.backoff = a.backoff
+	} else {
+		cmd.backoff = backoff.NewExponentialBackOff(
+			backoff.WithInitialInterval(10*time.Second),
+			backoff.WithMaxInterval(120*time.Second),
+			backoff.WithMaxElapsedTime(10*time.Minute),
+		)
 	}
 
 	return cmd, nil
