@@ -17,10 +17,6 @@ dependency 'cacerts'
 # External agents
 dependency 'jmxfetch'
 
-if linux_target?
-  dependency 'sds'
-end
-
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 

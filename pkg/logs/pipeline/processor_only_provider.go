@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -27,14 +26,14 @@ type processorOnlyProvider struct {
 }
 
 // NewProcessorOnlyProvider is used by the logs check subcommand as the feature does not require the functionalities of the log pipeline other then the processor.
-func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, cfg pkgconfigmodel.Reader, hostname hostnameinterface.Component) Provider {
+func NewProcessorOnlyProvider(diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, hostname hostnameinterface.Component) Provider {
 	chanSize := pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size")
 	outputChan := make(chan *message.Message, chanSize)
 	encoder := processor.JSONEncoder
 	inputChan := make(chan *message.Message, chanSize)
 	pipelineID := "0"
 	pipelineMonitor := metrics.NewNoopPipelineMonitor(pipelineID)
-	processor := processor.New(cfg, inputChan, outputChan, processingRules,
+	processor := processor.New(inputChan, outputChan, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineMonitor, pipelineID)
 
 	p := &processorOnlyProvider{
@@ -53,18 +52,6 @@ func (p *processorOnlyProvider) Start() {
 
 func (p *processorOnlyProvider) Stop() {
 	p.processor.Stop()
-}
-
-func (p *processorOnlyProvider) ReconfigureSDSStandardRules(_ []byte) (bool, error) {
-	return false, nil
-}
-
-func (p *processorOnlyProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
-	return false, nil
-}
-
-func (p *processorOnlyProvider) StopSDSProcessing() error {
-	return nil
 }
 
 func (p *processorOnlyProvider) NextPipelineChan() chan *message.Message {
