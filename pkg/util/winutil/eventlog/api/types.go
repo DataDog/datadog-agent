@@ -119,6 +119,16 @@ const (
 	EvtRpcLoginAuthNTLM
 )
 
+// EVT_QUERY_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_query_flags
+const (
+	EvtQueryChannelPath         = 0x1
+	EvtQueryFilePath            = 0x2
+	EvtQueryForwardDirection    = 0x100
+	EvtQueryReverseDirection    = 0x200
+	EvtQueryTolerateQueryErrors = 0x1000
+)
+
 //revive:enable:var-naming
 
 // EventSessionHandle is a typed windows.Handle returned from EvtOpenSession
