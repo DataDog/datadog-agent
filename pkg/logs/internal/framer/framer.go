@@ -164,11 +164,7 @@ func (fr *Framer) Process(input *message.Message) {
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
-				// Only mark as truncated if not already marked by line handler
-				// This prevents double truncation detection for file tailers
-				if !input.ParsingExtra.IsTruncated {
-					input.ParsingExtra.IsTruncated = true
-				}
+				input.ParsingExtra.IsTruncated = true
 			} else {
 				// matcher didn't find a frame, so leave the remainder in
 				// buffer
