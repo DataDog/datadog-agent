@@ -1552,7 +1552,7 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	data = data[read:]
-	if len(data) < 8 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
