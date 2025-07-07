@@ -87,6 +87,11 @@ var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
 		},
 		Symbols: []profiledefinition.SymbolConfig{
 			{
+				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.10",
+				Name:       "cipSecTunActiveTime",
+				MetricType: profiledefinition.ProfileMetricTypeGauge,
+			},
+			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.27",
 				Name:       "cipSecTunHcInOctets",
 				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
@@ -129,6 +134,10 @@ var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
 		},
 		MetricTags: profiledefinition.MetricTagConfigList{
 			{
+				Tag:   "tunnel_index",
+				Index: 1,
+			},
+			{
 				Tag: "local_outside_ip",
 				Symbol: profiledefinition.SymbolConfigCompat{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
@@ -148,10 +157,6 @@ var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
 
 func updateMetricsDefinitionWithDefaults(metrics []profiledefinition.MetricsConfig, collectVPN bool) []profiledefinition.MetricsConfig {
 	if collectVPN {
-		metrics = append(metrics, VPNTunnelMetrics...)
-		metrics = append(metrics, VPNTunnelMetrics...)
-		metrics = append(metrics, VPNTunnelMetrics...)
-		metrics = append(metrics, VPNTunnelMetrics...)
 		metrics = append(metrics, VPNTunnelMetrics...)
 	}
 	return metrics
