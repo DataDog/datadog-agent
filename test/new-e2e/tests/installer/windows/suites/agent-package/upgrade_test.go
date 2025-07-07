@@ -463,6 +463,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
 	)
 	// sanity check that the agent is running as the custom user
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
 	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
 	s.Require().NoError(err)
 	s.Require().Host(s.Env().RemoteHost).
@@ -480,6 +482,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	// Wait for service to fully stabilize before checking identity
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(consts.RegistryKeyPath).
