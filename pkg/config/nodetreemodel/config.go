@@ -243,12 +243,19 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
-
-	c.notificationChannel <- model.ConfigChangeNotification{
+	notification := model.ConfigChangeNotification{
 		Key:           key,
 		PreviousValue: previousValue,
 		NewValue:      newValue,
 		SequenceID:    c.sequenceID,
+	}
+
+	select {
+	case c.notificationChannel <- notification:
+		// notification sent
+	default:
+		// channel is full, drop the notification
+		log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
 	}
 
 }
@@ -362,11 +369,19 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
-	c.notificationChannel <- model.ConfigChangeNotification{
+	notification := model.ConfigChangeNotification{
 		Key:           key,
 		PreviousValue: previousValue,
 		NewValue:      newValue,
 		SequenceID:    c.sequenceID,
+	}
+
+	select {
+	case c.notificationChannel <- notification:
+		// notification sent
+	default:
+		// channel is full, drop the notification
+		log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
 	}
 
 }
@@ -1004,7 +1019,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		cli:                 newInnerNode(nil),
 		envTransform:        make(map[string]func(string) interface{}),
 		configName:          "datadog",
-		notificationChannel: make(chan model.ConfigChangeNotification, 10),
+		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
 	}
 
 	config.SetConfigName(name)

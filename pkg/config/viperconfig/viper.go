@@ -108,11 +108,19 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
-	c.notificationChannel <- model.ConfigChangeNotification{
+	notification := model.ConfigChangeNotification{
 		Key:           key,
 		PreviousValue: oldValue,
 		NewValue:      latestValue,
 		SequenceID:    c.sequenceID,
+	}
+
+	select {
+	case c.notificationChannel <- notification:
+		// notification sent
+	default:
+		// channel is full, drop the notification
+		log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
 	}
 	c.Unlock()
 
@@ -141,11 +149,19 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
 	if previousValue != nil && reflect.DeepEqual(previousValue, newValue) {
 		c.sequenceID++
-		c.notificationChannel <- model.ConfigChangeNotification{
+		notification := model.ConfigChangeNotification{
 			Key:           key,
 			PreviousValue: previousValue,
 			NewValue:      newValue,
 			SequenceID:    c.sequenceID,
+		}
+
+		select {
+		case c.notificationChannel <- notification:
+			// notification sent
+		default:
+			// channel is full, drop the notification
+			log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
 		}
 	}
 }
@@ -808,7 +824,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		sequenceID:          0,
 		configEnvVars:       map[string]struct{}{},
 		unknownKeys:         map[string]struct{}{},
-		notificationChannel: make(chan model.ConfigChangeNotification, 10),
+		notificationChannel: make(chan model.ConfigChangeNotification, 1000),
 	}
 
 	// load one Viper instance per source of setting change
