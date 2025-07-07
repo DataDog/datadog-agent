@@ -9,6 +9,7 @@ package sharedlibrary
 #include <stdlib.h>
 
 #include "datadog_agent_rtloader.h"
+#include "rtloader_types.h"
 #include "rtloader_mem.h"
 */
 import "C"
@@ -66,22 +67,19 @@ func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	defer C._free(unsafe.Pointer(cErr))
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	name := "libdatadog-agent-" + config.Name
-
-	cName := C.CString(name)
+	cName := C.CString("libdatadog-agent-" + config.Name)
 	defer C._free(unsafe.Pointer(cName))
 
-	// Get the shared library pointer
-	handle := C.load_shared_library(cName, &cErr)
-	if handle == nil {
-		if cErr != nil {
-			errMsg := fmt.Sprintf("failed to load shared library %q", name)
-			return nil, errors.New(errMsg)
-		}
+	// Get the shared library handles
+	libHandles := C.load_shared_library(cName, &cErr)
+	if cErr != nil {
+		err := C.GoString(cErr)
+		errMsg := fmt.Sprintf("failed to load shared library %q: %s", config.Name, err)
+		return nil, errors.New(errMsg)
 	}
 
 	// Create the check
-	c, err := NewSharedLibraryCheck(senderManager, config.Name, handle)
+	c, err := NewSharedLibraryCheck(senderManager, config.Name, libHandles.lib, libHandles.run, libHandles.free)
 	if err != nil {
 		return c, err
 	}

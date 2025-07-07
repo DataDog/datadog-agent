@@ -9,6 +9,7 @@ package sharedlibrary
 #include <stdlib.h>
 
 #include "datadog_agent_rtloader.h"
+#include "rtloader_types.h"
 #include "rtloader_mem.h"
 */
 import "C"
@@ -29,14 +30,18 @@ type SharedLibraryCheck struct {
 	senderManager sender.SenderManager
 	id            checkid.ID
 	libName       string
-	handle        unsafe.Pointer
+	libHandle     unsafe.Pointer       // handle to the shared library
+	libRunHandle  *C.so_run_check_t    // handle to the function symbol that runs the check
+	libFreeHandle *C.so_free_payload_t // handle to the function symbol that frees the check payload
 }
 
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, handle unsafe.Pointer) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libHandle unsafe.Pointer, libRunHandle *C.so_run_check_t, libFreeHandle *C.so_free_payload_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		libName:       name,
-		handle:        handle,
+		libHandle:     libHandle,
+		libRunHandle:  libRunHandle,
+		libFreeHandle: libFreeHandle,
 	}
 
 	return check, nil
@@ -51,7 +56,7 @@ func (c *SharedLibraryCheck) Run() error {
 	defer C._free(unsafe.Pointer(cID))
 
 	// execute the Run function of the shared library pointed by c.handle
-	C.run_shared_library(cID, c.handle, &err)
+	C.run_shared_library(cID, c.libRunHandle, c.libFreeHandle, &err)
 	if err != nil {
 		defer C._free(unsafe.Pointer(err))
 		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(err))

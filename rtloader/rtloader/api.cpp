@@ -56,7 +56,7 @@ static HMODULE rtloader_backend = NULL;
 static void *rtloader_backend = NULL;
 #endif
 
-// temporary pointer to store the callback of pkg/collect/aggregator.go
+// pointer to store the callback of pkg/collect/aggregator.go
 static cb_submit_metric_t submit_metric_cb = NULL;
 
 #ifdef _WIN32
@@ -172,15 +172,9 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
 }
 
-// it uses the python rtloader initialization because the subclass for shared library checks is not yet implemented
-// it should only use methods for this future subclass
-rtloader_t *init_shared_library() {
-    return make3("", "", NULL);
-}
-
 // those methods should be in SharedLibrary.cpp, but we need to keep them here until the pure virtual python specific
 // methods are moved to the Three class
-void *load_shared_library(const char *lib_name, const char **error)
+shared_library_handle_t load_shared_library(const char *lib_name, const char **error)
 {
     // resolve the library full name
     char lib_full_name[256];
@@ -188,55 +182,61 @@ void *load_shared_library(const char *lib_name, const char **error)
     strcat(lib_full_name, LIB_EXTENSION);
 
     // load the library
-    void *shared_library = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
-    if (!shared_library) {
+    void *lib_handle = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
+    if (!lib_handle) {
         std::ostringstream err_msg;
         err_msg << "Unable to open shared library: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
-        return NULL;
-    }
-
-    // TODO: load the shared library symbols and check if they exist and have the right signature
-
-    return shared_library; // return other symbols too
-}
-
-void run_shared_library(char *checkID, void *handle, const char **error)
-{
-    // checks if the library was loaded
-    if (!handle) {
-        std::ostringstream err_msg;
-        err_msg << "Pointer to shared library is null: " << dlerror();
-        *error = strdupe(err_msg.str().c_str());
-        return;
+        return shared_library_handle_t{NULL, NULL, NULL};
     }
 
     const char *dlsym_error = NULL;
 
     // dlsym run_check function to get the metric run the custom check and get the payload
-    so_run_check_t *so_run_check = (so_run_check_t *)dlsym(handle, "RunCheck");
+    so_run_check_t *so_run_check = (so_run_check_t *)dlsym(lib_handle, "RunCheck");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to find RunCheck() method symbol in shared library: " << dlsym_error;
         *error = strdupe(err_msg.str().c_str());
-        return;
+        return shared_library_handle_t{NULL, NULL, NULL};
     }
 
     // dlsym free_payload function to avoid memory leaks
     // this function pointer is declared here because we don't want the check to run
     // if all required symbols haven't been found
-    so_free_payload_t *so_free_payload = (so_free_payload_t *)dlsym(handle, "FreePayload");
+    so_free_payload_t *so_free_payload = (so_free_payload_t *)dlsym(lib_handle, "FreePayload");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
         err_msg << "Unable to find FreePayload() method symbol in shared library: " << dlsym_error;
         *error = strdupe(err_msg.str().c_str());
+        return shared_library_handle_t{NULL, NULL, NULL};
+    }
+    
+    return shared_library_handle_t{lib_handle, so_run_check, so_free_payload};
+}
+
+void run_shared_library(char *checkID, so_run_check_t *run_handle, so_free_payload_t *free_handle, const char **error)
+{
+    // verify the run function pointer
+    if (!run_handle) {
+        std::ostringstream err_msg;
+        err_msg << "Pointer to shared library run function is null: " << dlerror();
+        *error = strdupe(err_msg.str().c_str());
         return;
     }
 
-    // run the shared library check and get the payload`
-    payload_t *payload = so_run_check();
+    // verify the free function pointer
+    if (!free_handle) {
+        std::ostringstream err_msg;
+        err_msg << "Pointer to shared library run function is null: " << dlerror();
+        *error = strdupe(err_msg.str().c_str());
+        return;
+    }
+
+    // run the shared library check and check the returned payload`
+    payload_t *payload = run_handle();
     if (!payload) {
         std::ostringstream err_msg;
         err_msg << "Payload returned by shared library is null: " << dlerror();
@@ -249,7 +249,7 @@ void run_shared_library(char *checkID, void *handle, const char **error)
     submit_metric(checkID, payload->metricType, payload->name, payload->value, payload->tags, strdupe("COMP-KW702R60FR"), false);
 
     // free the payload after using it
-    so_free_payload(payload);
+    free_handle(payload);
 }
 
 void destroy(rtloader_t *rtloader)

@@ -109,6 +109,13 @@ typedef payload_t *(so_run_check_t)(void);
 // shared library function type that frees the payload
 typedef void (so_free_payload_t)(payload_t *);
 
+// shared library handles struct to pass it to the go check
+typedef struct shared_library_handle_s {
+    void *lib; // handle to the shared library
+    so_run_check_t *run; // handle to the run function
+    so_free_payload_t *free; // handle to the free function
+} shared_library_handle_t;
+
 // aggregator
 //
 // (id, metric_type, metric_name, value, tags, hostname, flush_first_value)
