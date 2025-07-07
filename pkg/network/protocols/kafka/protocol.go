@@ -51,10 +51,11 @@ const (
 	produceResponsePartitionParserV0TailCall  = "socket__kafka_produce_response_partition_parser_v0"
 	produceResponsePartitionParserV9TailCall  = "socket__kafka_produce_response_partition_parser_v9"
 
-	dispatcherTailCall = "socket__protocol_dispatcher_kafka"
-	kafkaHeapMap       = "kafka_heap"
-	inFlightMap        = "kafka_in_flight"
-	responseMap        = "kafka_response"
+	dispatcher1TailCall = "socket__protocol_dispatcher_kafka2"
+	dispatcher2TailCall = "socket__protocol_dispatcher_kafka2"
+	kafkaHeapMap        = "kafka_heap"
+	inFlightMap         = "kafka_in_flight"
+	responseMap         = "kafka_response"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
@@ -175,7 +176,14 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: dispatcherTailCall,
+				EBPFFuncName: dispatcher1TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: dispatcher2TailCall,
 			},
 		},
 		{

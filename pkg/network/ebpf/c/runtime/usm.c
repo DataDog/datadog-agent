@@ -42,9 +42,15 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-SEC("socket/protocol_dispatcher_kafka")
-int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
-    dispatch_kafka(skb, FLAG_ALL);
+SEC("socket/protocol_dispatcher_kafka1")
+int socket__protocol_dispatcher_kafka1(struct __sk_buff *skb) {
+    dispatch_kafka(skb);
+    return 0;
+}
+
+SEC("socket/protocol_dispatcher_kafka2")
+int socket__protocol_dispatcher_kafka2(struct __sk_buff *skb) {
+    dispatch_kafka_api_versions(skb);
     return 0;
 }
 
@@ -52,13 +58,13 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
 // from the regular TLS dispatch entrypoint.
 SEC("uprobe/tls_protocol_dispatcher_kafka1")
 int uprobe__tls_protocol_dispatcher_kafka1(struct pt_regs *ctx) {
-    tls_dispatch_kafka(ctx, FLAG_PRODUCE | FLAG_FETCH);
+    tls_dispatch_kafka(ctx);
     return 0;
 };
 
 SEC("uprobe/tls_protocol_dispatcher_kafka2")
 int uprobe__tls_protocol_dispatcher_kafka2(struct pt_regs *ctx) {
-    tls_dispatch_kafka(ctx, FLAG_API_VERSIONS);
+    tls_dispatch_kafka_api_versions(ctx);
     return 0;
 };
 

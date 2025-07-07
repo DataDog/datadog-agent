@@ -180,7 +180,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx, __u32 classification_flags)
+static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 {
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -199,7 +199,40 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx, __u32 classi
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
-    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER, classification_flags);
+    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    if (!is_kafka) {
+        return;
+    }
+
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
+    if (!stack) {
+        return;
+    }
+
+    set_protocol(stack, PROTOCOL_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA);
+}
+
+static __always_inline void tls_dispatch_kafka_api_versions(struct pt_regs *ctx)
+{
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return;
+    }
+
+    char *request_fragment = bpf_map_lookup_elem(&tls_classification_heap, &zero);
+    if (request_fragment == NULL) {
+        return;
+    }
+
+    conn_tuple_t normalized_tuple = args->tup;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
+    bool is_kafka = tls_is_kafka_api_versions(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
     if (!is_kafka) {
         return;
     }

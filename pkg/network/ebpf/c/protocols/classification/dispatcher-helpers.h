@@ -204,7 +204,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     }
 }
 
-static __always_inline void dispatch_kafka(struct __sk_buff *skb, __u32 classification_flags) {
+static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
     // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
@@ -218,7 +218,47 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb, __u32 classifi
     const size_t payload_length = skb_info.data_end - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-    if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size, classification_flags)) {
+    if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
+        cur_fragment_protocol = PROTOCOL_KAFKA;
+        update_protocol_stack(&skb_tup, cur_fragment_protocol);
+    }
+
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // We need to make sure we don't dispatch the same packet multiple times.
+        cache_tcp_seq(&skb_tup, &skb_info);
+        // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+
+        // dispatch if possible
+        log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
+        bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
+    }
+    return;
+}
+
+static __always_inline void dispatch_kafka_api_versions(struct __sk_buff *skb) {
+    skb_info_t skb_info = {0};
+    conn_tuple_t skb_tup = {0};
+    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
+    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
+        return;
+    }
+
+    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
+    const size_t payload_length = skb_info.data_end - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+    protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+    if (is_kafka_api_versions(skb, &skb_info, request_fragment, final_fragment_size)) {
         cur_fragment_protocol = PROTOCOL_KAFKA;
         update_protocol_stack(&skb_tup, cur_fragment_protocol);
     }
