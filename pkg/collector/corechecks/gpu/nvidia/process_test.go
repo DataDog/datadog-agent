@@ -148,10 +148,10 @@ func TestProcessScenarios(t *testing.T) {
 				for _, metric := range metrics {
 					switch metric.Name {
 					case "memory.usage", "memory.limit", "core.limit":
-						assert.Equal(t, "2001", metric.Tags["pid"])
+						assert.Contains(t, metric.Tags, "pid:2001")
 						computeMetrics++
 					case "core.utilization", "dram_active", "encoder_utilization", "decoder_utilization":
-						assert.Equal(t, "3001", metric.Tags["pid"])
+						assert.Contains(t, metric.Tags, "pid:3001")
 						utilizationMetrics++
 					}
 				}
@@ -208,7 +208,14 @@ func TestProcessScenarios(t *testing.T) {
 			if len(tt.expectedPIDCounts) > 0 {
 				pidCounts := make(map[string]int)
 				for _, metric := range metrics {
-					pidCounts[metric.Tags["pid"]]++
+					// Extract PID from tags slice
+					for _, tag := range metric.Tags {
+						if len(tag) > 4 && tag[:4] == "pid:" {
+							pid := tag[4:]
+							pidCounts[pid]++
+							break
+						}
+					}
 				}
 				for expectedPID, expectedCount := range tt.expectedPIDCounts {
 					assert.Equal(t, expectedCount, pidCounts[expectedPID], "PID %s metric count mismatch", expectedPID)
