@@ -10,13 +10,14 @@ package dns
 
 import (
 	"fmt"
+	"net/netip"
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
-	"net/netip"
-	"slices"
 )
 
 // CacheStats defines metrics for the LRU
@@ -68,7 +69,7 @@ func NewDNSResolver(cfg *config.Config, statsdClient statsd.ClientInterface) (*R
 }
 
 // fillWithCnames Recursively fills the set with all the cname aliases for the hostname
-func (r *Resolver) fillWithCnames(hostname string, hostnames *[]string, depth int) {
+func (r *Resolver) fillWithCnames(hostname string, hostnames map[string]struct{}, depth int) {
 	if depth == 0 {
 		return
 	}
@@ -77,9 +78,7 @@ func (r *Resolver) fillWithCnames(hostname string, hostnames *[]string, depth in
 	if ok {
 		r.cnameStats.cacheHits.Inc()
 		for _, hostname := range c {
-			if !slices.Contains(*hostnames, hostname) {
-				*hostnames = append(*hostnames, hostname)
-			}
+			hostnames[hostname] = struct{}{}
 			r.fillWithCnames(hostname, hostnames, depth-1)
 		}
 	} else {
@@ -93,13 +92,17 @@ func (r *Resolver) HostListFromIP(addr netip.Addr) []string {
 	if ok {
 		r.resolverStats.cacheHits.Inc()
 
-		var allHosts []string
+		allHosts := make(map[string]struct{})
 		for _, hostname := range hostnames {
-			allHosts = append(allHosts, hostname)
-			r.fillWithCnames(hostname, &allHosts, 2)
+			allHosts[hostname] = struct{}{}
+			r.fillWithCnames(hostname, allHosts, 2)
 		}
 
-		return allHosts
+		allHostsList := make([]string, 0, len(allHosts))
+		for hostname := range allHosts {
+			allHostsList = append(allHostsList, hostname)
+		}
+		return allHostsList
 	}
 
 	r.resolverStats.cacheMisses.Inc()
