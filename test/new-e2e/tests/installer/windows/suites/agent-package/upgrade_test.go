@@ -423,6 +423,9 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 	// Assert
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
+	// wait for the watchdog to complete the reversion to the stable version
+	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	s.Require().NoError(err)
 	// original version should now be running
 	s.Require().Host(s.Env().RemoteHost).
 		HasDatadogInstaller().
