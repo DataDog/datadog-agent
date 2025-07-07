@@ -610,25 +610,12 @@ func submitConnectionStateMetrics(
 	procfsPath string,
 ) {
 	var getStateMetrics func(ipVersion string, procfsPath string) (map[string]*connectionStateEntry, error)
-	useSS := ssAvailableFunction()
-	if useSS {
+	if ssAvailableFunction() {
 		log.Debug("Using `ss` for connection state metrics")
 		getStateMetrics = getSocketStateMetrics
 	} else {
 		log.Debug("Using `netstat` for connection state metrics")
 		getStateMetrics = getNetstatStateMetrics
-	}
-
-	var stateMetricSuffixMapping map[string]string
-	switch protocolName {
-	case "udp4", "udp6":
-		stateMetricSuffixMapping = udpStateMetricsSuffixMapping
-	case "tcp4", "tcp6":
-		if useSS {
-			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["ss"]
-		} else {
-			stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["netstat"]
-		}
 	}
 
 	results, err := getStateMetrics(protocolName, procfsPath)
