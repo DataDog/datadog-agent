@@ -393,11 +393,13 @@ func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(r
 	})
 	defer tm.RegisterSendEventHandler(nil)
 
+	// Send Continue message before executing action to avoid race condition
+	message <- Continue
+
 	if err := action(); err != nil {
 		message <- Skip
 		return err
 	}
-	message <- Continue
 
 	select {
 	case <-time.After(timeout):
