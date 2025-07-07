@@ -409,6 +409,10 @@ func TestNetworkCheck(t *testing.T) {
 
 	ssAvailableFunction = func() bool { return false }
 
+	mockCommandRunner := new(MockCommandRunner)
+	runCommandFunction = mockCommandRunner.FakeRunCommand
+	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
+
 	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`

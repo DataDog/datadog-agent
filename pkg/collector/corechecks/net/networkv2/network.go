@@ -551,7 +551,7 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 	// udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 	// udp6       0      0 :::41458                :::*
 	lines := strings.Split(output, "\n")
-	for i, line := range lines {
+	for _, line := range lines {
 		fields := strings.Fields(line)
 
 		if len(fields) < 5 {
@@ -572,7 +572,7 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 			stateField = fields[5]
 		}
 		// skip connection states we do not have mappings for
-		state, ok = suffixMapping[stateField]
+		state, ok := suffixMapping[stateField]
 		if !ok {
 			continue
 		}
