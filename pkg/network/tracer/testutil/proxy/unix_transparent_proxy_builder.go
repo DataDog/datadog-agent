@@ -24,7 +24,7 @@ const (
 	serverSrcPath = "external_unix_proxy_server"
 )
 
-func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS, useControl bool) (*exec.Cmd, context.CancelFunc) {
+func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS, useControl, useIPv6 bool) (*exec.Cmd, context.CancelFunc) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, serverSrcPath)
@@ -36,6 +36,9 @@ func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 	}
 	if useControl {
 		args = append(args, "-control")
+	}
+	if useIPv6 {
+		args = append(args, "-ipv6")
 	}
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	commandLine := strings.Join(args, " ")
@@ -51,12 +54,12 @@ func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 }
 
 // NewExternalUnixTransparentProxyServer triggers an external unix transparent proxy (plaintext or TLS) server.
-func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
-	return newExternalUnixTransparentProxyServer(t, unixPath, remoteAddr, useTLS, false)
+func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS, useIPv6 bool) (*exec.Cmd, context.CancelFunc) {
+	return newExternalUnixTransparentProxyServer(t, unixPath, remoteAddr, useTLS, false, useIPv6)
 }
 
 // NewExternalUnixControlProxyServer triggers an external unix proxy (plaintext or TLS) server with control
 // messages.
-func NewExternalUnixControlProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
-	return newExternalUnixTransparentProxyServer(t, unixPath, remoteAddr, useTLS, true)
+func NewExternalUnixControlProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS, useIPv6 bool) (*exec.Cmd, context.CancelFunc) {
+	return newExternalUnixTransparentProxyServer(t, unixPath, remoteAddr, useTLS, true, useIPv6)
 }
