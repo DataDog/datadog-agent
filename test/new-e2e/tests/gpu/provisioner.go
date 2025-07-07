@@ -108,7 +108,7 @@ agents:
           value: "/host/root/proc"
     agent:
       env:
-        - name: DD_ENABLE_NVML_DETECTION
+        - name: DD_GPUM_ENABLED
           value: "true"
 `
 
@@ -126,7 +126,7 @@ func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
-			agentparams.WithAgentConfig("enable_nvml_detection: true"),
+			agentparams.WithAgentConfig("gpum:\n  enabled: true"),
 		},
 		kubernetesAgentOptions: nil,
 		instanceType:           gpuInstanceType,

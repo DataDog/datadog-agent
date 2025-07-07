@@ -77,13 +77,12 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:     core.NewCheckBase(CheckName),
-		config:        &CheckConfig{},
-		activeMetrics: make(map[model.StatsKey]bool),
-		tagger:        tagger,
-		telemetry:     newCheckTelemetry(telemetry),
-		wmeta:         wmeta,
-		deviceTags:    make(map[string][]string),
+		CheckBase:  core.NewCheckBase(CheckName),
+		config:     &CheckConfig{},
+		tagger:     tagger,
+		telemetry:  newCheckTelemetry(telemetry),
+		wmeta:      wmeta,
+		deviceTags: make(map[string][]string),
 	}
 }
 
@@ -98,6 +97,11 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 
 // Configure parses the check configuration and init the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	// Check if GPU check is enabled (follows SBOM pattern)
+	if !pkgconfigsetup.Datadog().GetBool("gpum.enabled") {
+		return fmt.Errorf("GPU check is disabled")
+	}
+
 	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
@@ -106,7 +110,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
-	c.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	// Initialize system-probe related fields only if GPU monitoring is enabled in system-probe
+	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
+		c.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+		c.activeMetrics = make(map[model.StatsKey]bool)
+	}
+
 	return nil
 }
 
@@ -186,6 +195,11 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
+	// Skip system-probe metrics if client is not initialized (GPU monitoring disabled in system-probe)
+	if c.sysProbeClient == nil {
+		return nil
+	}
+
 	if err := c.ensureInitDeviceCache(); err != nil {
 		return err
 	}
