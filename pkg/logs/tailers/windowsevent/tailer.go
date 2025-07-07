@@ -126,13 +126,17 @@ func (t *Tailer) forwardMessages() {
 
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
-			origin := message.NewOrigin(t.source)
-			// Combine tags from multiple sources: parsing extra tags and source config tags
-			tags := append(decodedMessage.ParsingExtra.Tags, t.source.Config.Tags...)
-			origin.SetTags(tags)
-			msg := message.NewMessage(decodedMessage.GetContent(), origin, decodedMessage.Status, decodedMessage.IngestionTimestamp)
-			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-			msg.ParsingExtra = decodedMessage.ParsingExtra
+			// Leverage the existing message instead of creating a new one
+			// This preserves all bookmark information and is more efficient
+			msg := decodedMessage
+
+			// Update tags to include source config tags
+			if msg.Origin != nil {
+				// Combine tags from multiple sources: parsing extra tags and source config tags
+				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
+				msg.Origin.SetTags(tags)
+			}
+
 			t.outputChan <- msg
 		}
 	}
