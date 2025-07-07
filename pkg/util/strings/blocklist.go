@@ -9,6 +9,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Blocklist is a strings blocklist.
@@ -16,11 +18,13 @@ import (
 type Blocklist struct {
 	data        []string
 	matchPrefix bool
+	tlmCounter  telemetry.SimpleCounter
 }
 
 // NewBlocklist creates a new strings blocklist.
 // Use `matchPrefix` to  create a prefixes blocklist.
-func NewBlocklist(data []string, matchPrefix bool) Blocklist {
+// Optional `tlmCounter` to count every time a string is matching.
+func NewBlocklist(data []string, matchPrefix bool, tlmCounter telemetry.SimpleCounter) Blocklist {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -44,6 +48,7 @@ func NewBlocklist(data []string, matchPrefix bool) Blocklist {
 	return Blocklist{
 		data:        data,
 		matchPrefix: matchPrefix,
+		tlmCounter:  tlmCounter,
 	}
 }
 
@@ -75,10 +80,19 @@ func (b *Blocklist) Test(name string) bool {
 	//
 	// Thus j must be i - 1.
 	if b.matchPrefix && i > 0 && strings.HasPrefix(name, b.data[i-1]) {
+		if b.tlmCounter != nil {
+			b.tlmCounter.Inc()
+		}
 		return true
 	}
 	if i < len(b.data) {
-		return name == b.data[i]
+		if name == b.data[i] {
+			if b.tlmCounter != nil {
+				b.tlmCounter.Inc()
+			}
+			return true
+		}
+		return false
 	}
 
 	return false

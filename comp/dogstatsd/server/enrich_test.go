@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -991,7 +992,10 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 
 func TestMetricBlocklistShouldBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.a", "custom.metric.b"}, false)
+
+	cnt := telemetry.NewSimpleCounter("hello", "world", "doc")
+
+	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.a", "custom.metric.b"}, false, cnt)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1004,6 +1008,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &blocklist)
 
+	assert.Equal(t, cnt.Get(), float64(1))
 	assert.Equal(t, 0, len(samples))
 }
 
@@ -1028,7 +1033,10 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.b", "custom.metric.c"}, false)
+
+	cnt := telemetry.NewSimpleCounter("hello", "world", "doc")
+
+	blocklist := utilstrings.NewBlocklist([]string{"custom.metric.b", "custom.metric.c"}, false, cnt)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1040,6 +1048,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &blocklist)
 
+	assert.Equal(t, cnt.Get(), float64(0))
 	assert.Equal(t, 1, len(samples))
 }
 

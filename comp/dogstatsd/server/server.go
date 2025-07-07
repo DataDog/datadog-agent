@@ -176,6 +176,7 @@ type server struct {
 	tlmProcessed            telemetry.Counter
 	tlmProcessedOk          telemetry.SimpleCounter
 	tlmProcessedError       telemetry.SimpleCounter
+	tlmPointsBlocked        telemetry.SimpleCounter
 	tlmChannel              telemetry.Histogram
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
@@ -317,6 +318,7 @@ func newServerCompat(cfg model.Reader, log log.Component, hostname hostnameinter
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
+		tlmPointsBlocked:        telemetrycomp.NewSimpleCounter("dogstatsd", "points_blocked", "Count of points blocked in the listener"),
 		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
 
@@ -523,12 +525,12 @@ func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 
 	// send the complete blocklist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		blocklist := utilstrings.NewBlocklist(metricNames, matchPrefix)
+		blocklist := utilstrings.NewBlocklist(metricNames, matchPrefix, s.tlmPointsBlocked)
 		worker.BlocklistUpdate <- blocklist
 	}
 
 	// send the histogram blocklist used right before flushing to the serializer
-	histoBlocklist := utilstrings.NewBlocklist(histoMetricNames, matchPrefix)
+	histoBlocklist := utilstrings.NewBlocklist(histoMetricNames, matchPrefix, s.tlmPointsBlocked)
 	s.demultiplexer.SetTimeSamplersBlocklist(&histoBlocklist)
 }
 
