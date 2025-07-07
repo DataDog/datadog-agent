@@ -434,6 +434,14 @@ func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 }
 
+func (t *teeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	base, baseSequenceID := t.baseline.AllSettingsWithSequenceID()
+	compare, compareSequenceID := t.compare.AllSettingsWithSequenceID()
+	t.compareResult("", "AllSettingsWithSequenceID (settings)", base, compare)
+	t.compareResult("", "AllSettingsWithSequenceID (sequenceID)", baseSequenceID, compareSequenceID)
+	return base, baseSequenceID
+}
+
 // AddConfigPath wraps Viper for concurrent access
 func (t *teeConfig) AddConfigPath(in string) {
 	t.baseline.AddConfigPath(in)

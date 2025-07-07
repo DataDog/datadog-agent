@@ -103,6 +103,7 @@ type ntmConfig struct {
 	envTransform   map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
+	notificationChannel   chan model.ConfigChangeNotification
 	sequenceID            uint64
 
 	// Proxy settings
@@ -139,6 +140,19 @@ type ntmConfig struct {
 // NodeTreeConfig is an interface that gives access to nodes
 type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
+}
+
+func (c *ntmConfig) processNotifications() {
+	for notification := range c.notificationChannel {
+		c.RLock()
+		receivers := slices.Clone(c.notificationReceivers)
+		c.RUnlock()
+
+		// notifying all receivers about the updated setting
+		for _, receiver := range receivers {
+			receiver(notification.Key, notification.PreviousValue, notification.NewValue, notification.SequenceID)
+		}
+	}
 }
 
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
@@ -222,8 +236,6 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		log.Errorf("could not set '%s' invalid key: %s", key, err)
 	}
 
-	receivers := slices.Clone(c.notificationReceivers)
-
 	// if no value has changed we don't notify
 	if !updated || reflect.DeepEqual(previousValue, newValue) {
 		c.Unlock()
@@ -231,11 +243,15 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
+	seqID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue, c.sequenceID)
+	c.notificationChannel <- model.ConfigChangeNotification{
+		Key:           key,
+		PreviousValue: previousValue,
+		NewValue:      newValue,
+		SequenceID:    seqID,
 	}
 }
 
@@ -348,11 +364,13 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
-	receivers := slices.Clone(c.notificationReceivers)
+	seqID := c.sequenceID
 
-	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue, c.sequenceID)
+	c.notificationChannel <- model.ConfigChangeNotification{
+		Key:           key,
+		PreviousValue: previousValue,
+		NewValue:      newValue,
+		SequenceID:    seqID,
 	}
 }
 
@@ -865,6 +883,13 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 }
 
+func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	c.RLock()
+	defer c.RUnlock()
+	c.maybeRebuild()
+	return c.root.DumpSettings(func(model.Source) bool { return true }), c.sequenceID
+}
+
 // AddConfigPath adds another config for the given path
 func (c *ntmConfig) AddConfigPath(in string) {
 	c.Lock()
@@ -962,30 +987,34 @@ func (c *ntmConfig) Object() model.Reader {
 // NewNodeTreeConfig returns a new Config object.
 func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
 	config := ntmConfig{
-		ready:              atomic.NewBool(false),
-		allowDynamicSchema: atomic.NewBool(false),
-		sequenceID:         0,
-		configEnvVars:      map[string][]string{},
-		knownKeys:          map[string]struct{}{},
-		allSettings:        []string{},
-		unknownKeys:        map[string]struct{}{},
-		schema:             newInnerNode(nil),
-		defaults:           newInnerNode(nil),
-		file:               newInnerNode(nil),
-		unknown:            newInnerNode(nil),
-		envs:               newInnerNode(nil),
-		runtime:            newInnerNode(nil),
-		localConfigProcess: newInnerNode(nil),
-		remoteConfig:       newInnerNode(nil),
-		fleetPolicies:      newInnerNode(nil),
-		cli:                newInnerNode(nil),
-		envTransform:       make(map[string]func(string) interface{}),
-		configName:         "datadog",
+		ready:                 atomic.NewBool(false),
+		allowDynamicSchema:    atomic.NewBool(false),
+		sequenceID:            0,
+		configEnvVars:         map[string][]string{},
+		knownKeys:             map[string]struct{}{},
+		allSettings:           []string{},
+		unknownKeys:           map[string]struct{}{},
+		schema:                newInnerNode(nil),
+		defaults:              newInnerNode(nil),
+		file:                  newInnerNode(nil),
+		unknown:               newInnerNode(nil),
+		envs:                  newInnerNode(nil),
+		runtime:               newInnerNode(nil),
+		localConfigProcess:    newInnerNode(nil),
+		remoteConfig:          newInnerNode(nil),
+		fleetPolicies:         newInnerNode(nil),
+		cli:                   newInnerNode(nil),
+		envTransform:          make(map[string]func(string) interface{}),
+		configName:            "datadog",
+		notificationChannel:   make(chan model.ConfigChangeNotification, 10),
+		notificationReceivers: []model.NotificationReceiver{},
 	}
 
 	config.SetConfigName(name)
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
+
+	go config.processNotifications()
 
 	return &config
 }

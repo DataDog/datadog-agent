@@ -126,6 +126,13 @@ type Proxy struct {
 // 'NotificationReceiver' should not be blocking.
 type NotificationReceiver func(setting string, oldValue, newValue any, sequenceID uint64)
 
+type ConfigChangeNotification struct {
+	Key           string
+	PreviousValue any
+	NewValue      any
+	SequenceID    uint64
+}
+
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
 	Get(key string) interface{}
@@ -157,6 +164,7 @@ type Reader interface {
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
+	AllSettingsWithSequenceID() (map[string]interface{}, uint64)
 
 	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
 	// This lets tests use the config is more flexible ways (can add to the schema at any point,

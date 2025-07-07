@@ -184,6 +184,18 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 	)
 }
 
+func TestAllSettingsWithSequenceID(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.Set("foo", "bar", model.SourceFile)
+	config.Set("baz", "qux", model.SourceFile)
+	config.UnsetForSource("foo", model.SourceFile)
+	settings, sequenceID := config.AllSettingsWithSequenceID()
+	assert.Equal(t, map[string]interface{}{
+		"baz": "qux",
+	}, settings)
+	assert.Equal(t, uint64(3), sequenceID)
+}
+
 func TestSourceFileReadConfig(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	yamlExample := []byte(`

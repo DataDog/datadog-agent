@@ -329,6 +329,30 @@ func TestAllSettingsBySource(t *testing.T) {
 	assert.Equal(t, expected, cfg.AllSettingsBySource())
 }
 
+func TestAllSettingsWithSequenceID(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.SetDefault("a", 1)
+	cfg.SetDefault("b", 2)
+	cfg.SetDefault("c.d", 3)
+	cfg.BuildSchema()
+
+	settings, sequenceID := cfg.AllSettingsWithSequenceID()
+	assert.Equal(t, uint64(0), sequenceID)
+
+	cfg.Set("a", 4, model.SourceAgentRuntime)
+	cfg.Set("b", 5, model.SourceAgentRuntime)
+	cfg.Set("c.d", 6, model.SourceAgentRuntime)
+	settings, sequenceID = cfg.AllSettingsWithSequenceID()
+	assert.Equal(t, uint64(3), sequenceID)
+	assert.Equal(t, map[string]interface{}{
+		"a": 4,
+		"b": 5,
+		"c": map[string]interface{}{
+			"d": 6,
+		},
+	}, settings)
+}
+
 func TestIsSet(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 0)
