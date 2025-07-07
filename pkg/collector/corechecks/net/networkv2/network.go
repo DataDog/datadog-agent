@@ -462,7 +462,17 @@ func getNetstatStateMetrics(protocol string, _ string) (map[string]*connectionSt
 // why not sum here
 func parseSocketStatsMetrics(output string) (map[string]*connectionStateEntry, error) {
 	results := make(map[string]*connectionStateEntry)
+
 	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
+	for _, state := range suffixMapping {
+		if _, exists := results[state]; !exists {
+			results[state] = &connectionStateEntry{
+				count: 0,
+				recvQ: []uint64{},
+				sendQ: []uint64{},
+			}
+		}
+	}
 
 	// State       Recv-Q   Send-Q     Local Address:Port          Peer Address:Port
 	// LISTEN      0        4096       127.0.0.53%lo:53                 0.0.0.0:*
@@ -511,12 +521,6 @@ func parseSocketStatsMetrics(output string) (map[string]*connectionStateEntry, e
 			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
 			entry.sendQ = append(entry.sendQ, sendQ)
-		} else {
-			results[state] = &connectionStateEntry{
-				count: 1,
-				recvQ: []uint64{recvQ},
-				sendQ: []uint64{sendQ},
-			}
 		}
 	}
 	return results, nil
@@ -526,6 +530,15 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 	protocol = strings.ReplaceAll(protocol, "4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
 	results := make(map[string]*connectionStateEntry)
 	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
+	for _, state := range suffixMapping {
+		if _, exists := results[state]; !exists {
+			results[state] = &connectionStateEntry{
+				count: 0,
+				recvQ: []uint64{},
+				sendQ: []uint64{},
+			}
+		}
+	}
 
 	// Active Internet connections (w/o servers)
 	// Proto Recv-Q Send-Q Local Address           Foreign Address         State
@@ -545,6 +558,10 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 		}
 
 		fields := strings.Fields(line)
+
+		if len(fields) < 5 {
+			continue
+		}
 
 		// filter out the rows that do not match the current protocol enumeration
 		entryProtocol := fields[0]
@@ -572,12 +589,6 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
 			entry.sendQ = append(entry.sendQ, sendQ)
-		} else {
-			results[state] = &connectionStateEntry{
-				count: 1,
-				recvQ: []uint64{recvQ},
-				sendQ: []uint64{sendQ},
-			}
 		}
 	}
 	return results, nil
