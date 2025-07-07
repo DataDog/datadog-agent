@@ -13,5 +13,4 @@ const CheckName = "gpu"
 
 // CheckConfig holds the configuration for the GPU check
 type CheckConfig struct {
-	NVMLLibraryPath string `yaml:"nvml_library_path"`
 }
