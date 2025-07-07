@@ -16,21 +16,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/sys/windows"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/cenkalti/backoff/v4"
+	"golang.org/x/sys/windows"
 )
+
+// ExitCodeError interface for errors that have an exit code
+type ExitCodeError interface {
+	error
+	ExitCode() int
+}
 
 var (
 	msiexecPath = `C:\Windows\System32\msiexec.exe`
@@ -58,6 +62,12 @@ type msiexecArgs struct {
 
 	// additionalArgs are further args that can be passed to msiexec
 	additionalArgs []string
+
+	// cmdRunner allows injecting a custom command runner for testing
+	cmdRunner CmdRunner
+
+	// backoff allows injecting a custom backoff strategy for testing
+	backoff backoff.BackOff
 }
 
 // MsiexecOption is an option type for creating msiexec command lines
@@ -166,10 +176,24 @@ func HideControlPanelEntry() MsiexecOption {
 	}
 }
 
+// WithCmdRunner specifies a custom command runner for msiexec
+func WithCmdRunner(cmdRunner CmdRunner) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.cmdRunner = cmdRunner
+		return nil
+	}
+}
+
+// WithBackOff specifies a custom backoff strategy for msiexec retry logic
+func WithBackOff(backoffStrategy backoff.BackOff) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.backoff = backoffStrategy
+		return nil
+	}
+}
+
 // Msiexec is a type wrapping msiexec
 type Msiexec struct {
-	*exec.Cmd
-
 	// logFile is the path to the MSI log file
 	logFile string
 
@@ -178,6 +202,13 @@ type Msiexec struct {
 
 	// args saved for use in telemetry
 	args *msiexecArgs
+
+	// cmdRunner for executing commands (can be injected for testing)
+	cmdRunner CmdRunner
+
+	// Command execution options
+	execPath string
+	cmdLine  string
 }
 
 func (m *Msiexec) openAndProcessLogFile() ([]byte, error) {
@@ -274,7 +305,7 @@ func isRetryableExitCode(err error) bool {
 		return false
 	}
 
-	var exitError *exec.ExitError
+	var exitError ExitCodeError
 	if errors.As(err, &exitError) {
 		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
 			return true
@@ -286,6 +317,12 @@ func isRetryableExitCode(err error) bool {
 
 // createBackoffStrategy creates a backoff strategy with hardcoded parameters for MSI retry
 func (m *Msiexec) createBackoffStrategy() backoff.BackOff {
+	// Use provided backoff strategy if available
+	if m.args.backoff != nil {
+		return m.args.backoff
+	}
+
+	// Otherwise use default hardcoded parameters
 	exponentialBackoff := backoff.NewExponentialBackOff(
 		backoff.WithInitialInterval(10*time.Second),
 		backoff.WithMaxInterval(120*time.Second),
@@ -318,12 +355,8 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 
 		attemptCount++
 
-		// Create a new command for each attempt since exec.Cmd can only be run once
-		cmd := &exec.Cmd{
-			Path:        m.Path,
-			SysProcAttr: m.SysProcAttr,
-		}
-		err := cmd.Run()
+		// Execute the command
+		err := m.cmdRunner.Run(m.execPath, m.cmdLine)
 
 		// Return permanent error for non-retryable exit codes
 		if err != nil && !isRetryableExitCode(err) {
@@ -385,6 +418,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
 	}
 
+	cmd.logFile = a.logFile
+
+	// Create command line for the MSI execution after all options are processed
 	// Do NOT pass the args to msiexec in exec.Command as it will apply some quoting algorithm (CommandLineToArgvW) that is
 	// incompatible with msiexec. It will make arguments like `TARGETDIR` fail because they will be quoted.
 	// Instead, we use the SysProcAttr.CmdLine option and do the quoting ourselves.
@@ -396,17 +432,20 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		"/log", fmt.Sprintf(`"%s"`, a.logFile),
 	}, a.additionalArgs...)
 
-	cmd.Cmd = &exec.Cmd{
-		// Don't call exec.Command("msiexec") to create the exec.Cmd struct
-		// as it will try to lookup msiexec.exe using %PATH%.
-		// Alternatively we could pass the full path of msiexec.exe to exec.Command(...)
-		// but it's much simpler to create the struct manually.
-		Path: msiexecPath,
-		SysProcAttr: &syscall.SysProcAttr{
-			CmdLine: strings.Join(args, " "),
-		},
+	// Set command execution options
+	// Don't call exec.Command("msiexec") to create the exec.Cmd struct
+	// as it will try to lookup msiexec.exe using %PATH%.
+	// Alternatively we could pass the full path of msiexec.exe to exec.Command(...)
+	// but it's much simpler to create the struct manually.
+	cmd.execPath = msiexecPath
+	cmd.cmdLine = strings.Join(args, " ")
+
+	// Set command runner (use provided one or default)
+	if a.cmdRunner != nil {
+		cmd.cmdRunner = a.cmdRunner
+	} else {
+		cmd.cmdRunner = NewRealCmdRunner()
 	}
-	cmd.logFile = a.logFile
 
 	return cmd, nil
 }
