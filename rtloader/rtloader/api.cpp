@@ -196,12 +196,14 @@ void *load_shared_library(const char *lib_name, const char **error)
         return NULL;
     }
 
-    return shared_library;
+    // TODO: load the shared library symbols and check if they exist and have the right signature
+
+    return shared_library; // return other symbols too
 }
 
-// checks if the library was loaded (ie. handle is not nullptr) and runs the Run function from the shared library
 void run_shared_library(char *checkID, void *handle, const char **error)
 {
+    // checks if the library was loaded
     if (!handle) {
         std::ostringstream err_msg;
         err_msg << "Pointer to shared library is null: " << dlerror();

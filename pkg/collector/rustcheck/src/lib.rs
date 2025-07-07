@@ -1,10 +1,10 @@
-mod base_check;
-use base_check::{BaseCheck, Payload};
+mod metric;
+use metric::{Metric, Payload};
 
 // function run by RTLoader
 #[unsafe(no_mangle)]
 pub extern "C" fn RunCheck() -> *mut Payload {
-    let mut check = BaseCheck::new("UNUSED");
+    let mut check = Metric::new("UNUSED");
 
     // run the custom implementation
     check.check();
@@ -13,7 +13,7 @@ pub extern "C" fn RunCheck() -> *mut Payload {
     check.send_payload()
 }
 
-impl BaseCheck {
+impl Metric {
     pub fn check(&mut self) {
         /* check implementation goes here */
 
