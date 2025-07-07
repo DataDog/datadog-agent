@@ -613,7 +613,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		return buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes, deviceID, store)
 	}
 
-	log.Debugf("Unable to build VPN tunnels metadata: no cisco_ipsec_tunnel.local_outside_ip found")
+	log.Debugf("Unable to build VPN tunnels metadata: no indexes found")
 	return nil
 }
 
