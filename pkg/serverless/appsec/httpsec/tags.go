@@ -194,7 +194,7 @@ func setWAFMonitoringTags(span span, mRes *MonitorResult) {
 	span.SetMetaTag("_dd.appsec.event_rules.version", mRes.Diagnostics.Version)
 
 	// Report the stats sent by the Feature
-	for k, v := range mRes.Result.TimerStats {
+	for k, v := range mRes.Timings {
 		span.SetMetaTag("_dd.appsec."+string(k), fmt.Sprintf("%v", v))
 	}
 }
