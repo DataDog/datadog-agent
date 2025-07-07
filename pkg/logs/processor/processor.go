@@ -150,33 +150,29 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	// ---------------------------
 
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+	rules = validateAndFilterRules(rules)
 	for _, rule := range rules {
-		if rule.Regex != nil {
-			switch rule.Type {
-			case config.ExcludeAtMatch:
-				// if this message matches, we ignore it
-				if rule.Regex.Match(content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-					return false
-				}
-			case config.IncludeAtMatch:
-				// if this message doesn't match, we ignore it
-				if !rule.Regex.Match(content) {
-					return false
-				}
+		switch rule.Type {
+		case config.ExcludeAtMatch:
+			// if this message matches, we ignore it
+			if rule.Regex.Match(content) {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
-			case config.MaskSequences:
-				if isMatchingLiteralPrefix(rule.Regex, content) {
-					originalContent := content
-					content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-					if !bytes.Equal(originalContent, content) {
-						msg.RecordProcessingRule(rule.Type, rule.Name)
-					}
+				return false
+			}
+		case config.IncludeAtMatch:
+			// if this message doesn't match, we ignore it
+			if !rule.Regex.Match(content) {
+				return false
+			}
+			msg.RecordProcessingRule(rule.Type, rule.Name)
+		case config.MaskSequences:
+			if isMatchingLiteralPrefix(rule.Regex, content) {
+				originalContent := content
+				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+				if !bytes.Equal(originalContent, content) {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
 			}
-		} else {
-			// Log a warning for rules with nil regex - this indicates a configuration issue
-			log.Warnf("Processing rule '%s' of type '%s' has nil regex - rule will be skipped", rule.Name, rule.Type)
 		}
 	}
 
@@ -215,4 +211,23 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 		hname = "unknown"
 	}
 	return hname
+}
+
+func validateAndFilterRules(rules []*config.ProcessingRule) []*config.ProcessingRule {
+	var validRules []*config.ProcessingRule
+
+	for _, rule := range rules {
+		// Rules that require regex
+		if rule.Type == config.ExcludeAtMatch ||
+			rule.Type == config.IncludeAtMatch ||
+			rule.Type == config.MaskSequences {
+			if rule.Regex == nil {
+				log.Warnf("Processing rule '%s' of type '%s' has nil regex - rule will be excluded", rule.Name, rule.Type)
+				continue
+			}
+		}
+		validRules = append(validRules, rule)
+	}
+
+	return validRules
 }
