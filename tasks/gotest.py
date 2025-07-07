@@ -119,6 +119,7 @@ def test_flavor(
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
+    recursive: bool = True,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -150,7 +151,7 @@ def test_flavor(
         args["junit_file_flag"] = junit_file_flag
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(modules)
+    packages = compute_gotestsum_cli_args(modules, recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -388,6 +389,7 @@ def test(
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
+            recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
     # Output (only if tests ran)
@@ -871,7 +873,7 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule]):
+def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
     targets = []
     for module in modules:
         if not module.should_test():
@@ -881,8 +883,10 @@ def compute_gotestsum_cli_args(modules: list[GoModule]):
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    if recursive:
+        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    else:
+        packages = ' '.join(targets)
     return packages
 
 

@@ -69,6 +69,26 @@ func (suite *ecsSuite) TestECSFargateTask() {
 	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 }
 
+func (suite *ecsSuite) TestAgentVersion() {
+	expectAtLeastOneResource{
+		filter: &fakeintake.PayloadFilter{ResourceType: process.TypeCollectorECSTask},
+		test: func(payload *aggregator.OrchestratorPayload) bool {
+			return payload.ECSTask.LaunchType == "fargate" && payload.ECSTaskParentCollector.AgentVersion != nil
+		},
+		message: "receive ecs fargate task payload with agent version",
+		timeout: 20 * time.Minute,
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
+
+	expectAtLeastOneResource{
+		filter: &fakeintake.PayloadFilter{ResourceType: process.TypeCollectorECSTask},
+		test: func(payload *aggregator.OrchestratorPayload) bool {
+			return payload.ECSTask.LaunchType == "ec2" && payload.ECSTaskParentCollector.AgentVersion != nil
+		},
+		message: "receive ecs ec2 task payload with agent version",
+		timeout: 20 * time.Minute,
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
+}
+
 func commonTest(payload *aggregator.OrchestratorPayload) bool {
 	if payload == nil || payload.ECSTaskParentCollector == nil || payload.ECSTask == nil {
 		return false

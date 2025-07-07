@@ -45,6 +45,7 @@ type batchStrategy struct {
 	compressor      compression.StreamCompressor
 	writeCounter    *writerCounter
 	encodedPayload  *bytes.Buffer
+	instanceID      string
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -58,8 +59,10 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	compression compression.Compressor,
-	pipelineMonitor metrics.PipelineMonitor) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor)
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string,
+) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression, pipelineMonitor, instanceID)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -73,7 +76,9 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	pipelineName string,
 	clock clock.Clock,
 	compression compression.Compressor,
-	pipelineMonitor metrics.PipelineMonitor) Strategy {
+	pipelineMonitor metrics.PipelineMonitor,
+	instanceID string,
+) Strategy {
 
 	bs := &batchStrategy{
 		inputChan:       inputChan,
@@ -88,7 +93,8 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		pipelineName:    pipelineName,
 		clock:           clock,
 		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("strategy"),
+		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.StrategyTlmName, instanceID),
+		instanceID:      instanceID,
 	}
 	bs.MakeCompressor()
 	return bs
@@ -240,8 +246,8 @@ func (s *batchStrategy) sendMessages(messagesMetadata []*message.MessageMetadata
 
 	s.utilization.Stop()
 	outputChan <- p
-	s.pipelineMonitor.ReportComponentEgress(p, "strategy")
-	s.pipelineMonitor.ReportComponentIngress(p, "sender")
+	s.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, s.instanceID)
+	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 }
 
 // writerCounter is a simple io.Writer that counts the number of bytes written to it

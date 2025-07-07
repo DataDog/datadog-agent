@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -252,7 +252,7 @@ func (s *CloudFoundryService) IsReady() bool {
 }
 
 // HasFilter returns false on CF
-func (s *CloudFoundryService) HasFilter(_ containers.FilterType) bool {
+func (s *CloudFoundryService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 

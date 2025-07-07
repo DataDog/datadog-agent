@@ -31,7 +31,7 @@ checks:
   - name: simple_check run
     description: Ensure the agent properly detected the containers
     bounds:
-      series: target.simple_check.run
+      series: target/simple_check.run
       # This is a counter metric incremented by one each time the check is run.
       # There are 200 containers with 2 instances of the check per container.
       # The metric should reach 400 as soon as the all 200 containers have been discovered

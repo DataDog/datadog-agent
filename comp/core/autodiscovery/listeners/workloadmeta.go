@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,10 +31,6 @@ type workloadmetaListener interface {
 	// passed, the service will be deleted when the parent service is
 	// removed.
 	AddService(svcID string, svc Service, parentSvcID string)
-
-	// IsExcluded returns whether a container should be excluded according
-	// to the chosen ft filter.
-	IsExcluded(ft containers.FilterType, annotations map[string]string, name, image, ns string) bool
 }
 
 // workloadmetaListenerImpl implements workloadmetaListener.
@@ -45,9 +40,8 @@ type workloadmetaListenerImpl struct {
 
 	processFn func(workloadmeta.Entity)
 
-	store            workloadmeta.Component
-	workloadFilters  *workloadmeta.Filter
-	containerFilters *containerFilters
+	store           workloadmeta.Component
+	workloadFilters *workloadmeta.Filter
 
 	services map[string]Service
 	children map[string]map[string]struct{}
@@ -73,16 +67,13 @@ func newWorkloadmetaListener(
 	wmeta workloadmeta.Component,
 	telemetryStore *telemetry.Store,
 ) (workloadmetaListener, error) {
-	containerFilters := newContainerFilters()
-
 	return &workloadmetaListenerImpl{
 		name: name,
 		stop: make(chan struct{}),
 
-		processFn:        processFn,
-		store:            wmeta,
-		workloadFilters:  workloadFilters,
-		containerFilters: containerFilters,
+		processFn:       processFn,
+		store:           wmeta,
+		workloadFilters: workloadFilters,
 
 		services: make(map[string]Service),
 		children: make(map[string]map[string]struct{}),
@@ -123,10 +114,6 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	if l.telemetryStore != nil {
 		l.telemetryStore.WatchedResources.Inc(l.name, kind)
 	}
-}
-
-func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, annotations map[string]string, name, image, ns string) bool {
-	return l.containerFilters.IsExcluded(ft, annotations, name, image, ns)
 }
 
 func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- Service) {

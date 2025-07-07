@@ -176,7 +176,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.send_metrics_to_datadog()
 
-    metric_handler.generate_metric_reports(ctx, branch=branch)
+    metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
 
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):

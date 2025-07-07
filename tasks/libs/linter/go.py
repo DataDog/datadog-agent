@@ -24,6 +24,7 @@ def run_lint_go(
     headless_mode=False,
     include_sds=False,
     verbose=False,
+    recursive=True,
 ):
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
@@ -44,6 +45,7 @@ def run_lint_go(
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
         verbose=verbose,
+        recursive=recursive,
     )
 
     return lint_result, execution_times
@@ -60,6 +62,7 @@ def lint_flavor(
     golangci_lint_kwargs: str = "",
     headless_mode: bool = False,
     verbose: bool = False,
+    recursive: bool = True,
 ):
     """Runs linters for given flavor, build tags, and modules."""
 
@@ -88,6 +91,7 @@ def lint_flavor(
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
         verbose=verbose,
+        recursive=recursive,
     )
     for lint_result in lint_results:
         result.lint_outputs.append(lint_result)

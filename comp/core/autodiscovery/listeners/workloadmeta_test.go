@@ -20,7 +20,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,7 +30,6 @@ type wlmListenerSvc struct {
 
 type testWorkloadmetaListener struct {
 	t        *testing.T
-	filters  *containerFilters
 	store    workloadmeta.Component
 	services map[string]wlmListenerSvc
 }
@@ -59,11 +57,6 @@ func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentS
 	}
 }
 
-// IsExcluded returns if a container should be excluded
-func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, annotations map[string]string, name string, image string, ns string) bool {
-	return l.filters.IsExcluded(ft, annotations, name, image, ns)
-}
-
 func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wlmListenerSvc) {
 	for svcID, expectedSvc := range expectedServices {
 		actualSvc, ok := l.services[svcID]
@@ -83,11 +76,6 @@ func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wl
 }
 
 func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
-	filters := newContainerFilters()
-	if filters == nil {
-		t.Fatal("got nil containers filter")
-	}
-
 	w := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
@@ -99,7 +87,6 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 
 	return &testWorkloadmetaListener{
 		t:        t,
-		filters:  filters,
 		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}

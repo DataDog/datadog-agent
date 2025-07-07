@@ -5,5 +5,5 @@
 
 //go:build linux_bpf
 
-// Package compiler supports compiling probe ir into an eBPF program.
+// Package compiler supports compiling probe ir into a stack machine program.
 package compiler

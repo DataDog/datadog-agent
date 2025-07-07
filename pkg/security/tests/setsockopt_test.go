@@ -49,8 +49,6 @@ func TestSetSockOpt(t *testing.T) {
 			Filter *SockFilter
 		}
 
-		defer func() {}()
-
 		test.WaitSignal(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)

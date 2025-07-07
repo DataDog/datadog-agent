@@ -158,7 +158,7 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 	var injectedVolNames []string
 	var injectedVolumeMount bool
 
-	if i.config.typeSocketVolumes {
+	if shouldUseSocketVolumeType(pod, i.config.typeSocketVolumes) {
 		volumes := map[string]struct {
 			socketpath    string
 			csiVolumeType csiInjectionType
@@ -242,6 +242,22 @@ func injectionMode(pod *corev1.Pod, globalMode string, csiEnabled bool) string {
 	}
 
 	return decidedMode
+}
+
+// shouldUseSocketVolumeType determines if socket volume type should be used for the pod under mutation.
+func shouldUseSocketVolumeType(pod *corev1.Pod, globalTypeSocketVolumes bool) bool {
+	if val, found := pod.GetLabels()[common.TypeSocketVolumesLabelKey]; found {
+		normalisedValue := strings.ToLower(val)
+
+		if normalisedValue != "true" && normalisedValue != "false" {
+			log.Warnf("Invalid value for %q: %q. Expected values are `true` and `false`.", common.TypeSocketVolumesLabelKey, normalisedValue)
+			return globalTypeSocketVolumes
+		}
+
+		return normalisedValue == "true"
+	}
+
+	return globalTypeSocketVolumes
 }
 
 // buildExternalEnv generate an External Data environment variable.

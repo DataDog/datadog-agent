@@ -6,6 +6,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 
 BIN_NAME = "otel-agent"
@@ -53,9 +54,15 @@ def build(ctx, byoc=False):
     ldflags = get_version_ldflags(ctx, major_version='7')
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
 
-    cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
-
-    ctx.run(cmd, env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/otel-agent",
+        mod="readonly",
+        build_tags=build_tags,
+        ldflags=ldflags,
+        bin_path=BIN_PATH,
+        env=env,
+    )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):

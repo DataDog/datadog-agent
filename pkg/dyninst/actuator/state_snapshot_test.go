@@ -27,10 +27,10 @@ import (
 // stateUpdate is a struct that represents the changes to the state after an
 // event is processed. It's used to generate the output document.
 type stateUpdate struct {
-	CurrentlyCompiling string         `yaml:"currently_compiling,omitempty"`
-	QueuedPrograms     string         `yaml:"queued_programs,omitempty"`
-	Processes          map[int]string `yaml:"processes,omitempty"`
-	Programs           map[int]string `yaml:"programs,omitempty"`
+	CurrentlyLoading string         `yaml:"currently_loading,omitempty"`
+	QueuedPrograms   string         `yaml:"queued_programs,omitempty"`
+	Processes        map[int]string `yaml:"processes,omitempty"`
+	Programs         map[int]string `yaml:"programs,omitempty"`
 }
 
 func TestSnapshot(t *testing.T) {
@@ -205,24 +205,24 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	update := &stateUpdate{}
 
 	{
-		var beforeCompiling, afterCompiling any
-		if before.currentlyCompiling != nil {
-			beforeCompiling = int(before.currentlyCompiling.id)
+		var beforeLoading, afterLoading any
+		if before.currentlyLoading != nil {
+			beforeLoading = int(before.currentlyLoading.id)
 		}
-		if after.currentlyCompiling != nil {
-			afterCompiling = int(after.currentlyCompiling.id)
+		if after.currentlyLoading != nil {
+			afterLoading = int(after.currentlyLoading.id)
 		}
-		if beforeCompiling != afterCompiling {
-			update.CurrentlyCompiling = fmt.Sprintf(
-				"%v -> %v", beforeCompiling, afterCompiling,
+		if beforeLoading != afterLoading {
+			update.CurrentlyLoading = fmt.Sprintf(
+				"%v -> %v", beforeLoading, afterLoading,
 			)
 		} else {
-			update.CurrentlyCompiling = fmt.Sprintf("%v", afterCompiling)
+			update.CurrentlyLoading = fmt.Sprintf("%v", afterLoading)
 		}
 	}
 	getQueuedProgramIDs := func(s *state) []int {
 		var ids []int
-		for p := range s.queuedCompilations.items() {
+		for p := range s.queuedLoading.items() {
 			ids = append(ids, int(p.id))
 		}
 		return ids

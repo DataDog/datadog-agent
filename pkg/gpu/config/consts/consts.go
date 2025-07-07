@@ -19,3 +19,6 @@ const GpuTelemetryModule = GpuModuleName
 
 // GpuModuleName is the name of the GPU monitoring module, used for identifying it in the registry debuggers
 const GpuModuleName = "gpu"
+
+// GpuConsumerHealthName is the name of the health check for the CUDA event consumer.
+const GpuConsumerHealthName = "gpu-consumer-cuda-events"

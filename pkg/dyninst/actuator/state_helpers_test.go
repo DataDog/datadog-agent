@@ -41,13 +41,13 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Set currentlyCompiling to point to the copied program if it exists.
-	if original.currentlyCompiling != nil {
-		copied.currentlyCompiling = copied.programs[original.currentlyCompiling.id]
+	if original.currentlyLoading != nil {
+		copied.currentlyLoading = copied.programs[original.currentlyLoading.id]
 	}
 
 	// Copy queued compilations.
-	for prog := range original.queuedCompilations.items() {
-		copied.queuedCompilations.pushBack(copied.programs[prog.id])
+	for prog := range original.queuedLoading.items() {
+		copied.queuedLoading.pushBack(copied.programs[prog.id])
 	}
 
 	return copied
@@ -64,20 +64,19 @@ func deepCopyProgram(original *program) *program {
 	copy(copiedConfig, original.config)
 
 	copied := &program{
-		state:           original.state,
-		id:              original.id,
-		config:          copiedConfig,
-		executable:      original.executable,
-		compiledProgram: original.compiledProgram,
-		processID:       original.processID,
+		state:      original.state,
+		id:         original.id,
+		config:     copiedConfig,
+		executable: original.executable,
+		processID:  original.processID,
 	}
 
 	// Note: loadedProgram interface is more complex to copy and represents
 	// external resources, so we'll handle it conservatively.
-	if original.loadedProgram != nil {
+	if original.loaded != nil {
 		// For testing purposes, we'll assume the loadedProgram is immutable
 		// or represents a resource that can be shared safely.
-		copied.loadedProgram = original.loadedProgram
+		copied.loaded = original.loaded
 	}
 
 	return copied

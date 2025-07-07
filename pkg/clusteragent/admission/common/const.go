@@ -30,6 +30,9 @@ const (
 	// InjectionModeLabelKey pod label to choose the config injection at the pod level.
 	InjectionModeLabelKey = "admission.datadoghq.com/config.mode"
 
+	// TypeSocketVolumesLabelKey pod label to decide if socket volume type should be used.
+	TypeSocketVolumesLabelKey = "admission.datadoghq.com/config.type_socket_volumes"
+
 	// LibVersionAnnotKeyFormat is the format of the library version annotation
 	LibVersionAnnotKeyFormat = "admission.datadoghq.com/%s-lib.version"
 

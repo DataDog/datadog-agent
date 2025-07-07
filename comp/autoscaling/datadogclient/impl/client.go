@@ -10,12 +10,13 @@ import (
 	"fmt"
 	"sync"
 
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 // Requires defines the dependencies for the datadogclient component
@@ -65,7 +66,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 	}
 	// Register a callback to refresh the client when the api_key or app_key changes
-	reqs.Config.OnUpdate(func(setting string, _, _ any) {
+	reqs.Config.OnUpdate(func(setting string, _, _ any, _ uint64) {
 		if setting == "api_key" || setting == "app_key" {
 			dc.refreshClient()
 		}

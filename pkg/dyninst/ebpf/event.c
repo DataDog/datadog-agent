@@ -1,9 +1,9 @@
 #ifndef __EVENT_H__
 #define __EVENT_H__
 
+#include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
-#include "kconfig.h"
 #include "compiler.h"
 #include "context.h"
 #include "framing.h"
@@ -13,9 +13,6 @@
 #include "throttler.h"
 
 char _license[] SEC("license") = "GPL";
-
-extern const probe_params_t probe_params[];
-extern const uint32_t num_probe_params;
 
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -31,7 +28,10 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   if (cookie >= num_probe_params) {
     return 0;
   }
-  const probe_params_t* params = &probe_params[cookie];
+  const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);
+  if (!params) {
+    return 0;
+  }
 
   if (should_throttle(params->throttler_idx, start_ns)) {
     uint32_t zero = 0;
@@ -61,12 +61,12 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
-  event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
+  di_event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
   if (!header) {
     return 0;
   }
-  *header = (event_header_t){
-      .data_byte_len = sizeof(event_header_t),
+  *header = (di_event_header_t){
+      .data_byte_len = sizeof(di_event_header_t),
       .stack_byte_len = 0, // set this if we collect stacks
       .ktime_ns = start_ns,
       .prog_id = prog_id,
@@ -77,10 +77,10 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t stack_hash = 0;
   global_ctx.stack_walk->regs = *regs;
   global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG;
+#if defined(bpf_target_x86)
+  bool frameless = *(volatile bool *)&params->frameless;
   global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
-  // TODO: For arm64 we need to use the link register to properly set up the
-  // stack trace.
-  if (params->frameless) {
+  if (frameless) {
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
                             (void*)(regs->sp))) {
@@ -89,6 +89,16 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
     global_ctx.stack_walk->idx_shift = 1;
   }
+#elif defined(bpf_target_arm64)
+  // Use the link register to populate the next frame's pc.
+  global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
+  // For reasons explained below when setting up the cfa, the BP register is
+  // pointing to the caller's frame pointer at this point.
+  global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
+  global_ctx.stack_walk->idx_shift = 1;
+#else
+  #error "Unsupported architecture"
+#endif
   global_ctx.stack_walk->stack.pcs.len =
       bpf_loop(STACK_DEPTH, populate_stack_frame, &global_ctx.stack_walk, 0) +
       1;
@@ -141,7 +151,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
 // return pc, so one word above that is our CFA. If it's not frameless, then the
 // base pointer is pointing to our frame pointer which is 16 bytes less than our
 // CFA.
-    if (params->frameless) {
+    if (frameless) {
       *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_SP_REG + 8;
     } else {
       *(volatile uint64_t*)(&frame_data.cfa) = global_ctx.regs->DWARF_BP_REG + 16;

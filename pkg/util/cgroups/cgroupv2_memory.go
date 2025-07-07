@@ -59,6 +59,9 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 			kernelStack = &intVal
 		case "slab":
 			slab = &intVal
+			// Requires Kernel >= 5.18
+		case "kernel":
+			stats.KernelMemory = &intVal
 		}
 
 		return nil
@@ -66,7 +69,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 		reportError(err)
 	}
 
-	if kernelStack != nil && slab != nil {
+	if stats.KernelMemory == nil && kernelStack != nil && slab != nil {
 		stats.KernelMemory = pointer.Ptr(*kernelStack + *slab)
 	}
 
@@ -94,6 +97,7 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 	}
 	nilIfZero(&stats.Limit)
 
+	// Requires Kernel >= 5.19
 	if err := parseSingleUnsignedStat(c.fr, c.pathFor("memory.peak"), &stats.Peak); err != nil {
 		reportError(err)
 	}

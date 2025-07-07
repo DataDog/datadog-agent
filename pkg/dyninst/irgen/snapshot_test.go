@@ -60,6 +60,7 @@ func runTest(
 	defer func() { require.NoError(t, elfFile.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
 	marshaled, err := irprinter.PrintYAML(ir)
 	require.NoError(t, err)

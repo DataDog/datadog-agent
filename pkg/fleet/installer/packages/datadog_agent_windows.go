@@ -343,7 +343,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 	if env.MsiParams.AgentUserPassword != "" {
 		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
-	additionalArgs := []string{"FLEET_INSTALL=1", dataDir, projectLocation}
+	additionalArgs := []string{"FLEET_INSTALL=1", "SKIP_INSTALL_INFO=1", dataDir, projectLocation}
 
 	// append input args last so they can take precedence
 	additionalArgs = append(additionalArgs, args...)
