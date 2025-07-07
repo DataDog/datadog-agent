@@ -557,7 +557,7 @@ func testFlushBlocklist(t *testing.T, store *tags.Store) {
 	bl := utilstrings.NewBlocklist([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
-	}, false)
+	}, false, nil)
 
 	metrics, sketches := flushSerieWithBlocklist(sampler, 1100, &bl, false)
 
