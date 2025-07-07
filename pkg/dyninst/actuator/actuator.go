@@ -54,15 +54,18 @@ type Actuator struct {
 
 // Tenant is a tenant of the Actuator.
 type Tenant struct {
-	name     string
-	id       tenantID
-	a        *Actuator
-	reporter Reporter
+	name       string
+	id         tenantID
+	a          *Actuator
+	reporter   Reporter
+	genOptions []irgen.Option
 }
 
 // NewTenant creates a new tenant of the Actuator.
-func (a *Actuator) NewTenant(name string, reporter Reporter) *Tenant {
-	t := &Tenant{a: a, name: name, reporter: reporter}
+func (a *Actuator) NewTenant(
+	name string, reporter Reporter, options ...irgen.Option,
+) *Tenant {
+	t := &Tenant{a: a, name: name, reporter: reporter, genOptions: options}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.mu.maxTenantID++
@@ -231,7 +234,7 @@ func (a *effects) loadProgram(
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		ir, err := generateIR(programID, executable, probes)
+		ir, err := generateIR(programID, executable, probes, tenant.genOptions...)
 		if err != nil {
 			tenant.reporter.ReportIRGenFailed(programID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
@@ -286,6 +289,7 @@ func generateIR(
 	programID ir.ProgramID,
 	executable Executable,
 	probes []ir.ProbeDefinition,
+	options ...irgen.Option,
 ) (*ir.Program, error) {
 	elfFile, err := safeelf.Open(executable.Path)
 	if err != nil {
@@ -302,7 +306,7 @@ func generateIR(
 		)
 	}
 
-	ir, err := irgen.GenerateIR(programID, objFile, probes)
+	ir, err := irgen.GenerateIR(programID, objFile, probes, options...)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to generate IR for %s: %w", executable.Path, err,
