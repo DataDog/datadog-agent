@@ -144,12 +144,8 @@ type NodeTreeConfig interface {
 
 func (c *ntmConfig) processNotifications() {
 	for notification := range c.notificationChannel {
-		c.RLock()
-		receivers := slices.Clone(c.notificationReceivers)
-		c.RUnlock()
-
 		// notifying all receivers about the updated setting
-		for _, receiver := range receivers {
+		for _, receiver := range notification.Receivers {
 			receiver(notification.Key, notification.PreviousValue, notification.NewValue, notification.SequenceID)
 		}
 	}
@@ -248,15 +244,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		PreviousValue: previousValue,
 		NewValue:      newValue,
 		SequenceID:    c.sequenceID,
+		Receivers:     slices.Clone(c.notificationReceivers),
 	}
 
-	select {
-	case c.notificationChannel <- notification:
-		// notification sent
-	default:
-		// channel is full, drop the notification
-		log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
-	}
+	c.notificationChannel <- notification
 
 }
 
@@ -374,15 +365,10 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		PreviousValue: previousValue,
 		NewValue:      newValue,
 		SequenceID:    c.sequenceID,
+		Receivers:     slices.Clone(c.notificationReceivers),
 	}
 
-	select {
-	case c.notificationChannel <- notification:
-		// notification sent
-	default:
-		// channel is full, drop the notification
-		log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
-	}
+	c.notificationChannel <- notification
 
 }
 

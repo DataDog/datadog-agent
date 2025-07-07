@@ -82,6 +82,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 
 	c.Lock()
+	defer c.Unlock()
 	oldValue := c.Viper.Get(key)
 
 	// First we check if the layer changed
@@ -92,7 +93,6 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	} else {
 		// nothing changed:w
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
-		c.Unlock()
 		return
 	}
 
@@ -103,7 +103,6 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 		log.Debugf("Updating setting '%s' for source '%s' with new value. notifying %d listeners", key, source, len(c.notificationReceivers))
 	} else {
 		log.Debugf("Updating setting '%s' for source '%s' with the same value, skipping notification", key, source)
-		c.Unlock()
 		return
 	}
 	// Increment the sequence ID only if the value has changed
@@ -113,17 +112,10 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 		PreviousValue: oldValue,
 		NewValue:      latestValue,
 		SequenceID:    c.sequenceID,
+		Receivers:     slices.Clone(c.notificationReceivers),
 	}
 
-	select {
-	case c.notificationChannel <- notification:
-		// notification sent
-	default:
-		// channel is full, drop the notification
-		log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
-	}
-	c.Unlock()
-
+	c.notificationChannel <- notification
 }
 
 // SetWithoutSource sets the given value using source Unknown
@@ -154,15 +146,10 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 			PreviousValue: previousValue,
 			NewValue:      newValue,
 			SequenceID:    c.sequenceID,
+			Receivers:     slices.Clone(c.notificationReceivers),
 		}
 
-		select {
-		case c.notificationChannel <- notification:
-			// notification sent
-		default:
-			// channel is full, drop the notification
-			log.Warnf("Configuration notification channel is full. Dropping update for key: %s", key)
-		}
+		c.notificationChannel <- notification
 	}
 }
 
@@ -889,12 +876,8 @@ func (c *safeConfig) GetSequenceID() uint64 {
 
 func (c *safeConfig) processNotifications() {
 	for notification := range c.notificationChannel {
-		c.RLock()
-		receivers := slices.Clone(c.notificationReceivers)
-		c.RUnlock()
-
 		// notifying all receivers about the updated setting
-		for _, receiver := range receivers {
+		for _, receiver := range notification.Receivers {
 			receiver(notification.Key, notification.PreviousValue, notification.NewValue, notification.SequenceID)
 		}
 	}

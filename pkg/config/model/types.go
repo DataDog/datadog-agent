@@ -132,6 +132,7 @@ type ConfigChangeNotification struct {
 	PreviousValue any
 	NewValue      any
 	SequenceID    uint64
+	Receivers     []NotificationReceiver
 }
 
 // Reader is a subset of Config that only allows reading of configuration
