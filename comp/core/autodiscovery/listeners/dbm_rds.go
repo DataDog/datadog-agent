@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/rds"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -225,7 +225,7 @@ func (d *DBMRdsService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns false on DBMRdsService
-func (d *DBMRdsService) HasFilter(containers.FilterType) bool {
+func (d *DBMRdsService) HasFilter(filter.Scope) bool {
 	return false
 }
 

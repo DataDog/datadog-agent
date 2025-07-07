@@ -73,8 +73,9 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
+    MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
   script:
-    - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -120,8 +121,6 @@ go_e2e_test_binaries:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-
-
 
 .new_e2e_template_needs_windows_x64:
   extends: .new_e2e_template
@@ -290,6 +289,7 @@ new-e2e-windows-fips-compliance-test:
     - !reference [.needs_new_e2e_template]
     - qa_agent_fips
     - windows_msi_and_bosh_zip_x64-a7-fips
+    - deploy_windows_testing-a7-fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
@@ -321,6 +321,19 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -462,6 +475,7 @@ new-e2e-cws:
     - qa_dca
   variables:
     TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
   parallel:
@@ -558,6 +572,7 @@ new-e2e-installer-script:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
     E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer:
   extends: .new_e2e_template
@@ -580,7 +595,7 @@ new-e2e-installer:
     FLEET_INSTALL_METHOD: "install_script"
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
-  retry: 1  # Force retry on this specific job to limit flakiness
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -606,6 +621,7 @@ new-e2e-installer-windows:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
     E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
   parallel:
     matrix:
       # agent-package
@@ -630,10 +646,14 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
       # agent config experiment
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
@@ -656,7 +676,6 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
-  retry: 1  # Force retry on this specific job to limit flakiness
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -678,7 +697,7 @@ new-e2e-installer-ansible:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
-  retry: 1  # Force retry on this specific job to limit flakiness
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template

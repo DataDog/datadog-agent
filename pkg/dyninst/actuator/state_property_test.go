@@ -225,10 +225,10 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 							Tags:     []string{"test"},
 							Language: "go",
 						},
-					},
-					Template: "test log message",
-					Segments: []json.RawMessage{
-						json.RawMessage("test log message"),
+						Template: "test log message",
+						Segments: []json.RawMessage{
+							json.RawMessage("test log message"),
+						},
 					},
 				}
 				probes = append(probes, probe)
@@ -266,14 +266,13 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 
 								Language: "go",
 							},
-							CaptureSnapshot: true,
 						},
 					}
 					probes = append(probes, probe)
 				}
 
 				updates = append(updates, ProcessUpdate{
-					ProcessID:  processID,
+					ProcessID:  processID.ProcessID,
 					Executable: existingProcess.executable,
 					Probes:     probes,
 				})
@@ -284,7 +283,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			existingProcesses := pts.existingProcesses()
 			if len(existingProcesses) > 0 {
 				toRemove := existingProcesses[pts.rng.Intn(len(existingProcesses))]
-				removals = append(removals, toRemove)
+				removals = append(removals, toRemove.ProcessID)
 			}
 		}
 	}
@@ -295,13 +294,17 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 	}
 }
 
-func (pts *propertyTestState) existingProcesses() []ProcessID {
-	existingProcesses := make([]ProcessID, 0, len(pts.sm.processes))
-	for pid := range pts.sm.processes {
-		existingProcesses = append(existingProcesses, pid)
+func (pts *propertyTestState) existingProcesses() []processKey {
+	existingProcesses := make([]processKey, 0, len(pts.sm.processes))
+	for key := range pts.sm.processes {
+		existingProcesses = append(existingProcesses, key)
 	}
-	slices.SortFunc(existingProcesses, func(a, b ProcessID) int {
-		return cmp.Compare(a.PID, b.PID)
+	slices.SortFunc(existingProcesses, func(a, b processKey) int {
+		return cmp.Or(
+			cmp.Compare(a.tenantID, b.tenantID),
+			cmp.Compare(a.PID, b.PID),
+			cmp.Compare(a.Service, b.Service),
+		)
 	})
 	return existingProcesses
 }
@@ -323,27 +326,12 @@ func (pts *propertyTestState) completeRandomEffect() event {
 
 	switch eff := effect.(type) {
 
-	case effectSpawnEBPFCompilation:
-		if success {
-			return eventProgramCompiled{
-				programID: eff.programID,
-				compiledProgram: &CompiledProgram{
-					IR: &ir.Program{ID: eff.programID},
-				},
-			}
-		} else {
-			return eventProgramCompilationFailed{
-				programID: eff.programID,
-				err:       fmt.Errorf("mock compilation failure"),
-			}
-		}
-
 	case effectSpawnBpfLoading:
 		if success {
 			return eventProgramLoaded{
 				programID: eff.programID,
-				loadedProgram: &loadedProgram{
-					program: &ir.Program{ID: eff.programID},
+				loaded: &loadedProgram{
+					ir: &ir.Program{ID: eff.programID},
 				},
 			}
 		} else {
@@ -357,8 +345,8 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		if success {
 			return eventProgramAttached{
 				program: &attachedProgram{
-					program: &ir.Program{ID: eff.programID},
-					procID:  eff.processID,
+					ir:     &ir.Program{ID: eff.programID},
+					procID: eff.processID,
 				},
 			}
 		} else {

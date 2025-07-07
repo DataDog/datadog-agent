@@ -60,7 +60,6 @@ func testAllProbes(t *testing.T, sampleServicePath string) {
 					ID:    fmt.Sprintf("probe_%d", i),
 					Where: &rcjson.Where{MethodName: s.Name},
 				},
-				CaptureSnapshot: true,
 			},
 		})
 	}
