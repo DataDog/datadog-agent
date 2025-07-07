@@ -691,10 +691,9 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 		if bs.IsWithinCI() {
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			// We need to rename the stack to mark it as stale
-			// TODO : Use stackcleaner/job endpoint
+			fullStackName := fmt.Sprintf("organization/e2eci/%s", bs.params.stackName)
 			bs.T().Logf("CELIAN: Trying to trigger API")
-			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,debug_job_name=%s,debug_job_id=%s,debug_pipeline_id=%s,debug_ref=%s", bs.params.stackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,debug_job_name=%s,debug_job_id=%s,debug_pipeline_id=%s,debug_ref=%s", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Errorf("Unable to destroy stack %s: %s", bs.params.stackName, out)
