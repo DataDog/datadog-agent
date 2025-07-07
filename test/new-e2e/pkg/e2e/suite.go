@@ -549,15 +549,6 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
-	bs.T().Logf("CELIAN: Trying to trigger API (setup)")
-	cmd := exec.Command("dda", "inv", "--", "-e", "api", "hello", "--env", "prod")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		bs.T().Errorf("Unable to call api: %s: %s", err.Error(), out)
-	} else {
-		bs.T().Logf("API output: %s", out)
-	}
-
 	bs.startTime = time.Now()
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
@@ -703,7 +694,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			// We need to rename the stack to mark it as stale
 			// TODO : Use stackcleaner/job endpoint
 			bs.T().Logf("CELIAN: Trying to trigger API")
-			cmd := exec.Command("dda", "inv", "api", "hello", "--env", "prod")
+			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,debug_job_name=%s,debug_job_id=%s,debug_pipeline_id=%s,debug_ref=%s", bs.params.stackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Errorf("Unable to destroy stack %s: %s", bs.params.stackName, out)
