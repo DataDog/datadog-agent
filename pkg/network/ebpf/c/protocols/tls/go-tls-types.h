@@ -37,6 +37,11 @@ typedef struct {
     __u64 conn_fd_offset;
     __u64 net_fd_pfd_offset;
     __u64 fd_sysfd_offset;
+    __u64 conn_fd_family_offset;
+    __u64 conn_fd_laddr_offset;
+    __u64 conn_fd_raddr_offset;
+    __u64 tcp_addr_port_offset;
+    __u64 tcp_addr_ip_offset;
 } tls_conn_layout_t;
 
 typedef struct {

@@ -63,6 +63,36 @@ var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
 	FieldName:  "Conn",
 }
 
+// StructOffsetFamilyInNetFD bla.
+var StructOffsetFamilyInNetFD = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "family",
+}
+
+// StructOffsetLaddrInNetFD bla.
+var StructOffsetLaddrInNetFD = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "laddr",
+}
+
+// StructOffsetRaddrInNetFD bla.
+var StructOffsetRaddrInNetFD = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "raddr",
+}
+
+// StructOffsetPortInTCPAddr bla.
+var StructOffsetPortInTCPAddr = FieldIdentifier{
+	StructName: "net.TCPAddr",
+	FieldName:  "Port",
+}
+
+// StructOffsetIPInTCPAddr bla.
+var StructOffsetIPInTCPAddr = FieldIdentifier{
+	StructName: "net.TCPAddr",
+	FieldName:  "IP",
+}
+
 type elfMetadata struct {
 	file *safeelf.File
 	arch GoArch

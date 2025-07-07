@@ -212,6 +212,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
+    log_debug("[go-tls-read-return] uprobe called");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = GET_USER_MODE_PID(pid_tgid);
     tls_offsets_data_t* od = get_offsets_data();
