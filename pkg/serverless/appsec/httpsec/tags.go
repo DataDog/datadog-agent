@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
@@ -23,9 +24,6 @@ import (
 const envClientIPHeader = "DD_TRACE_CLIENT_IP_HEADER"
 
 var (
-	//nolint:unused // TODO(ASM) Fix unused linter
-	clientIPHeader string
-
 	defaultIPHeaders = []string{
 		"x-forwarded-for",
 		"x-real-ip",
@@ -183,8 +181,8 @@ func setRulesMonitoringTags(span span, wafDiags libddwaf.Diagnostics) {
 		log.Error("appsec: could not marshal the waf ruleset info errors to json")
 	}
 	span.SetMetaTag("_dd.appsec.event_rules.errors", string(rulesetErrors))
-	span.SetMetaTag("_dd.appsec.event_rules.loaded", fmt.Sprintf("%d", len(rInfo.Loaded)))
-	span.SetMetaTag("_dd.appsec.event_rules.error_count", fmt.Sprintf("%d", len(rInfo.Failed)))
+	span.SetMetaTag("_dd.appsec.event_rules.loaded", strconv.Itoa(len(rInfo.Loaded)))
+	span.SetMetaTag("_dd.appsec.event_rules.error_count", strconv.Itoa(len(rInfo.Failed)))
 	span.SetMetaTag("_dd.appsec.waf.version", libddwaf.Version())
 }
 
