@@ -751,6 +751,7 @@ func appendMessages(messages []Message, correlationID int, req kmsg.Request, res
 type CannedClientServer struct {
 	control  chan []Message
 	done     chan bool
+	ready    chan bool
 	unixPath string
 	address  string
 	tls      bool
@@ -761,6 +762,7 @@ func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
 	return &CannedClientServer{
 		control:  make(chan []Message, 100),
 		done:     make(chan bool, 1),
+		ready:    make(chan bool, 1),
 		unixPath: "/tmp/transparent.sock",
 		// Use a different port than 9092 since the docker support code doesn't wait
 		// for the container with the real Kafka server used in previous tests to terminate,
@@ -801,6 +803,7 @@ func (can *CannedClientServer) runServer() {
 
 	can.t.Cleanup(func() {
 		close(can.control)
+		close(can.ready)
 		<-can.done
 	})
 
@@ -814,6 +817,9 @@ func (can *CannedClientServer) runServer() {
 		conn, err := listener.Accept()
 		require.NoError(can.t, err)
 		conn.Close()
+
+		// Signal that the server is ready to accept test connections
+		can.ready <- true
 
 		// Delay close of connections to work around the known issue of races
 		// between `tcp_close()` and the uprobes.  On the client side, the
@@ -857,6 +863,9 @@ func (can *CannedClientServer) runProxy() int {
 }
 
 func (can *CannedClientServer) runClient(msgs []Message) {
+	// Wait for server to be ready to accept test connections
+	<-can.ready
+
 	can.control <- msgs
 
 	conn, err := net.Dial("unix", can.unixPath)
