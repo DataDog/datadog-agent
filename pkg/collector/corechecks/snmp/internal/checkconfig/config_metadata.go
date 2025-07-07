@@ -247,8 +247,8 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
-// VPNMetadataConfig contains VPN tunnels metadata
-var VPNMetadataConfig = profiledefinition.MetadataConfig{
+// VPNTunnelMetadataConfig contains VPN tunnels metadata
+var VPNTunnelMetadataConfig = profiledefinition.MetadataConfig{
 	"cisco_ipsec_tunnel": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"local_outside_ip": {
@@ -349,7 +349,7 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
 	if collectVPN {
-		mergeMetadata(newConfig, VPNMetadataConfig)
+		mergeMetadata(newConfig, VPNTunnelMetadataConfig)
 		mergeMetadata(newConfig, RouteMetadataConfig)
 		mergeMetadata(newConfig, TunnelMetadataConfig)
 	}
