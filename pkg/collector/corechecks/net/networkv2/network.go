@@ -530,12 +530,23 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 	protocol = strings.ReplaceAll(protocol, "4", "") // the output entry is tcp, tcp6, udp, udp6 so we need to strip the 4
 	results := make(map[string]*connectionStateEntry)
 	suffixMapping := tcpStateMetricsSuffixMapping["netstat"]
-	for _, state := range suffixMapping {
-		if _, exists := results[state]; !exists {
-			results[state] = &connectionStateEntry{
-				count: 0,
-				recvQ: []uint64{},
-				sendQ: []uint64{},
+	if protocol == "udp" {
+		results["connections"] = &connectionStateEntry{
+			count: 0,
+			recvQ: []uint64{},
+			sendQ: []uint64{},
+		}
+	} else {
+		for _, state := range suffixMapping {
+			if state == "connections" {
+				continue
+			}
+			if _, exists := results[state]; !exists {
+				results[state] = &connectionStateEntry{
+					count: 0,
+					recvQ: []uint64{},
+					sendQ: []uint64{},
+				}
 			}
 		}
 	}
@@ -565,7 +576,7 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 		}
 
 		var stateField string
-		if entryProtocol[:3] == "udp" {
+		if protocol[:3] == "udp" {
 			// all UDP suffixes resolve to connections but
 			stateField = "NONE"
 		} else {
