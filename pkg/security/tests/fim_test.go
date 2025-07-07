@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -175,6 +176,13 @@ func TestFIMPermError(t *testing.T) {
 	// make sure the correct value is set before the test starts
 	if err := writeSysctlValue(fsProcHardlinks, "1"); err != nil {
 		t.Fatalf("couldn't set %s: %v", fsProcHardlinks, err)
+	}
+
+	// Verify the sysctl change is effective by reading it back
+	if currentValue, err := readSysctlValue(fsProcHardlinks); err != nil {
+		t.Fatalf("couldn't read %s after setting: %v", fsProcHardlinks, err)
+	} else if strings.TrimSpace(currentValue) != "1" {
+		t.Fatalf("sysctl %s not set properly: expected '1', got '%s'", fsProcHardlinks, strings.TrimSpace(currentValue))
 	}
 
 	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
