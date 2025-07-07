@@ -35,7 +35,6 @@ func TestSetSockOpt(t *testing.T) {
 	defer test.Close()
 
 	t.Run("setsockopt", func(t *testing.T) {
-		var fd int
 		type SockFilter struct {
 			Code uint16
 			Jt   uint8
@@ -50,9 +49,13 @@ func TestSetSockOpt(t *testing.T) {
 		}
 
 		test.WaitSignal(t, func() error {
-			var err error
-			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+			fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
 			if err != nil {
+				// If the raw socket creation fails due to insufficient privileges,
+				// skip the test as it requires CAP_NET_RAW capability
+				if err == syscall.EPERM {
+					return fmt.Errorf("insufficient privileges to create raw socket (CAP_NET_RAW required): %v", err)
+				}
 				return err
 			}
 			defer syscall.Close(fd)
