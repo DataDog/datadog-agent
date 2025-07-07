@@ -433,25 +433,29 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 		HasARunningDatadogAgentService()
 }
 
-// WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
+// WaitForDaemonToStop waits for the daemon service to restart after the function is called.
+// It waits for the service to stop and then start again, which is more reliable than PID comparison.
 func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.T().Helper()
 
-	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
-	s.Require().NoError(err)
-	s.Require().Greater(originalPID, 0)
-
+	// Execute the function that should trigger the daemon restart
 	f()
 
-	err = backoff.Retry(func() error {
-		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	// Wait for the service to stop (or be in a transitional state)
+	err := backoff.Retry(func() error {
+		status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, consts.ServiceName)
 		if err != nil {
 			return err
 		}
-		if newPID == originalPID {
-			return fmt.Errorf("daemon PID %d is still running", newPID)
+		// Service is considered "stopped" if it's not running
+		if strings.Contains(status, "Running") {
+			return fmt.Errorf("service %s is still running: %s", consts.ServiceName, status)
 		}
 		return nil
 	}, b)
-	s.Require().NoError(err)
+	s.Require().NoError(err, "daemon should have stopped")
+
+	// Wait for the service to start again
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err, "daemon should have restarted")
 }
