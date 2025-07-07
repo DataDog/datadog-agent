@@ -15,13 +15,13 @@ jobs:
     if: github.event.schedule == '0 6 2 * * *'
     strategy:
       matrix:
-        value: ['datadog-agent', 'datadog-agent-buildimages', 'datadog-agent-macos-build', 'omnibus-ruby', 'agent-release-management']
+        value: ['datadog-agent', 'datadog-agent-buildimages', 'omnibus-ruby', 'agent-release-management']
       fail-fast: false
     environment:
       name: main
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           sparse-checkout: |
             .dda
@@ -48,7 +48,7 @@ jobs:
       name: main
     steps:
       - name: Checkout repository
-        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           sparse-checkout: |
             .dda

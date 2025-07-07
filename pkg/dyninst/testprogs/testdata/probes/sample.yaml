@@ -1,0 +1,448 @@
+binary: sample
+probes:
+- id: testSingleByte
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleByte
+  captureSnapshot: true
+- id: testSingleRune
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleRune
+  captureSnapshot: true
+- id: testSingleBool
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleBool
+  captureSnapshot: true
+- id: testSingleInt
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleInt
+  captureSnapshot: true
+- id: testSingleInt8
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleInt8
+  captureSnapshot: true
+- id: testSingleInt16
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleInt16
+  captureSnapshot: true
+- id: testSingleInt32
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleInt32
+  captureSnapshot: true
+- id: testSingleInt64
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleInt64
+  captureSnapshot: true
+- id: testSingleUint
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleUint
+  captureSnapshot: true
+- id: testSingleUint8
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleUint8
+  captureSnapshot: true
+- id: testSingleUint16
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleUint16
+  captureSnapshot: true
+- id: testSingleUint32
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleUint32
+  captureSnapshot: true
+- id: testSingleUint64
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleUint64
+  captureSnapshot: true
+- id: testSingleFloat32
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleFloat32
+  captureSnapshot: true
+- id: testSingleFloat64
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleFloat64
+  captureSnapshot: true
+- id: testTypeAlias
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testTypeAlias
+  captureSnapshot: true
+- id: testSingleString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSingleString
+  captureSnapshot: true
+- id: testThreeStrings
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testThreeStrings
+  captureSnapshot: true
+- id: testThreeStringsInStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testThreeStringsInStruct
+  captureSnapshot: true
+- id: testThreeStringsInStructPointer
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testThreeStringsInStructPointer
+  captureSnapshot: true
+- id: testOneStringInStructPointer
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testOneStringInStructPointer
+  captureSnapshot: true
+- id: testByteArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testByteArray
+  captureSnapshot: true
+- id: testRuneArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testRuneArray
+  captureSnapshot: true
+- id: testStringArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testStringArray
+  captureSnapshot: true
+- id: testBoolArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testBoolArray
+  captureSnapshot: true
+- id: testIntArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testIntArray
+  captureSnapshot: true
+- id: testInt8Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInt8Array
+  captureSnapshot: true
+- id: testInt16Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInt16Array
+  captureSnapshot: true
+- id: testInt32Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInt32Array
+  captureSnapshot: true
+- id: testInt64Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInt64Array
+  captureSnapshot: true
+- id: testUintArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUintArray
+  captureSnapshot: true
+- id: testUint8Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUint8Array
+  captureSnapshot: true
+- id: testUint16Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUint16Array
+  captureSnapshot: true
+- id: testUint32Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUint32Array
+  captureSnapshot: true
+- id: testUint64Array
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUint64Array
+  captureSnapshot: true
+- id: testArrayOfArrays
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testArrayOfArrays
+  captureSnapshot: true
+- id: testArrayOfStrings
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testArrayOfStrings
+  captureSnapshot: true
+- id: testArrayOfArraysOfArrays
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+     methodName: main.testArrayOfArraysOfArrays
+  captureSnapshot: true
+# - id: testArrayOfStructs
+#   type: LOG_PROBE
+#   where:
+#     methodName: main.testArrayOfStructs
+#   captureSnapshot: true
+- id: testUintSlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUintSlice
+  captureSnapshot: true
+- id: testEmptySlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEmptySlice
+  captureSnapshot: true
+- id: testSliceOfSlices
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testSliceOfSlices
+  captureSnapshot: true
+- id: testStructSlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testStructSlice
+  captureSnapshot: true
+- id: testEmptySliceOfStructs
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEmptySliceOfStructs
+  captureSnapshot: true
+- id: testNilSliceOfStructs
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testNilSliceOfStructs
+  captureSnapshot: true
+- id: testStringSlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testStringSlice
+  captureSnapshot: true
+- id: testNilSliceWithOtherParams
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testNilSliceWithOtherParams
+  captureSnapshot: true
+- id: testNilSlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testNilSlice
+  captureSnapshot: true
+- id: testStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testStruct
+  captureSnapshot: true
+- id: testEmptyStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testEmptyStruct
+  captureSnapshot: true
+- id: testUintPointer
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUintPointer
+  captureSnapshot: true
+- id: testStringPointer
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testStringPointer
+  captureSnapshot: true
+- id: testNilPointer
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testNilPointer
+  captureSnapshot: true
+- id: testCombinedByte
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testCombinedByte
+  captureSnapshot: true
+- id: testMultipleSimpleParams
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMultipleSimpleParams
+  captureSnapshot: true
+- id: testMapStringToInt
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapStringToInt
+  captureSnapshot: true
+- id: testInterface
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testInterface
+  captureSnapshot: true
+- id: testError
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testError
+  captureSnapshot: true
+- id: testBigStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testBigStruct
+  captureSnapshot: true
+- id: stackC
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.stackC
+  captureSnapshot: true
+- id: testChannel
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testChannel
+  captureSnapshot: true
+- id: testLinkedList
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testLinkedList
+  captureSnapshot: true
+- id: testPointerLoop
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testPointerLoop
+  captureSnapshot: true
+- id: testPointerToSimpleStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testPointerToSimpleStruct
+  captureSnapshot: true

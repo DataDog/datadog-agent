@@ -56,12 +56,13 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx processors.ProcessorContext, re
 	}
 
 	return &model.CollectorNamespace{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		Namespaces:  models,
-		Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		Namespaces:   models,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 

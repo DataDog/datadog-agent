@@ -395,9 +395,9 @@ type AgentConfig struct {
 	// them for another retry.
 	MaxSenderRetries int
 	// HTTP client used in writer connections. If nil, default client values will be used.
-	HTTPClientFunc func() *http.Client `json:"-" yaml:"-"`
+	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
-	HTTPTransportFunc func() *http.Transport `json:"-" yaml:"-"`
+	HTTPTransportFunc func() *http.Transport `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -482,22 +482,22 @@ type AgentConfig struct {
 
 	// Proxy specifies a function to return a proxy for a given Request.
 	// See (net/http.Transport).Proxy for more details.
-	Proxy func(*http.Request) (*url.URL, error) `json:"-" yaml:"-"`
+	Proxy func(*http.Request) (*url.URL, error) `json:"-"`
 
 	// MaxCatalogEntries specifies the maximum number of services to be added to the priority sampler's
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
-	RemoteConfigClient RemoteClient `json:"-" yaml:"-"`
+	RemoteConfigClient RemoteClient `json:"-"`
 	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
-	MRFRemoteConfigClient RemoteClient `json:"-" yaml:"-"`
+	MRFRemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
-	ContainerTags func(cid string) ([]string, error) `json:"-" yaml:"-"`
+	ContainerTags func(cid string) ([]string, error) `json:"-"`
 
 	// ContainerIDFromOriginInfo ...
-	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-" yaml:"-"`
+	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
@@ -519,10 +519,10 @@ type AgentConfig struct {
 	AuthToken string `json:"-"`
 
 	// IPC TLS client config
-	IPCTLSClientConfig *tls.Config `json:"-" yaml:"-"`
+	IPCTLSClientConfig *tls.Config `json:"-"`
 
 	// IPC TLS server config
-	IPCTLSServerConfig *tls.Config `json:"-" yaml:"-"`
+	IPCTLSServerConfig *tls.Config `json:"-"`
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured

@@ -10,16 +10,15 @@ func _() {
 	var x [1]struct{}
 	_ = x[programStateInvalid-0]
 	_ = x[programStateQueued-1]
-	_ = x[programStateCompiling-2]
-	_ = x[programStateLoading-3]
-	_ = x[programStateLoaded-4]
-	_ = x[programStateDraining-5]
-	_ = x[programStateCompilationAborted-6]
+	_ = x[programStateLoading-2]
+	_ = x[programStateLoaded-3]
+	_ = x[programStateDraining-4]
+	_ = x[programStateLoadingAborted-5]
 }
 
-const _programState_name = "InvalidQueuedCompilingLoadingLoadedDrainingCompilationAborted"
+const _programState_name = "InvalidQueuedLoadingLoadedDrainingLoadingAborted"
 
-var _programState_index = [...]uint8{0, 7, 13, 22, 29, 35, 43, 61}
+var _programState_index = [...]uint8{0, 7, 13, 20, 26, 34, 48}
 
 func (i programState) String() string {
 	if i >= programState(len(_programState_index)-1) {

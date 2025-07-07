@@ -44,6 +44,7 @@
     if (!shard) {                                                              \
       return NULL;                                                             \
     }                                                                          \
+    barrier_var(shard_idx);                                                    \
     uint32_t entry_idx = queue_idx % prefix##_queue_entries_per_shard;         \
     if (entry_idx >= prefix##_queue_entries_per_shard) {                       \
       return NULL;                                                             \
