@@ -149,7 +149,7 @@ class PulumiPlugin(Requirement):
 
 
 class DDA(Requirement):
-    def check(self, ctx: Context, _: bool) -> RequirementState:
+    def check(self, ctx: Context, fix: bool) -> RequirementState:
         import semver
 
         if not is_installed("dda"):
@@ -162,7 +162,8 @@ class DDA(Requirement):
         if dda_version is None or not dda_version.ok:
             return RequirementState(Status.FAIL, "dda is not installed correctly, cannot get version.")
 
-        min_version = semver.VersionInfo.parse("0.18.0")
+        dda_version_file = get_repo_root() / ".dda/version"
+        min_version = semver.VersionInfo.parse(dda_version_file.read_text().strip())
         version_parsed = semver.VersionInfo.parse(dda_version.stdout.strip().split(" ")[-1])
 
         if version_parsed < min_version:
