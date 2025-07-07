@@ -504,21 +504,22 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = str(uuid.uuid4()).replace('-', '_')
+    section_id = str(uuid.uuid4())
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
-                flush=True,
+            sys.stdout.buffer.write(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}\n".encode()
             )
+            sys.stdout.flush()
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
+            sys.stdout.buffer.write(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K\n".encode())
+            sys.stdout.flush()
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
