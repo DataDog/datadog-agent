@@ -2,15 +2,13 @@
 # e2e_deploy stage
 # Contains jobs which deploy Agent package to testing repsoitories that are used in e2e tests.
 
-.setup_rpm_signing_key: &setup_rpm_signing_key
-  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
+.setup_rpm_test_signing_key: &setup_rpm_test_signing_key
+  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $TEST_GPG_KEY)" | gpg --import --batch
   - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-  - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?
 
-.setup_apt_signing_key: &setup_apt_signing_key
-  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY)" | gpg --import --batch
+.setup_apt_test_signing_key: &setup_apt_test_signing_key
+  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $TEST_GPG_KEY)" | gpg --import --batch
   - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE) || exit $?
 
 .setup_signing_keys_package:
   &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package
@@ -59,17 +57,15 @@ deploy_deb_testing-a7_x64:
       "lint_linux-x64",
     ]
   script:
-    - *setup_apt_signing_key
+    - *setup_apt_test_signing_key
     - set +x # make sure we don't output the creds to the build log
 
     - *setup_signing_keys_package
 
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - DEB_GPG_KEY_ID=58FB522F
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a7_arm64:
   rules:
@@ -80,15 +76,13 @@ deploy_deb_testing-a7_arm64:
     - .deploy_deb_testing-a7
   needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64"]
   script:
-    - *setup_apt_signing_key
+    - *setup_apt_test_signing_key
     - set +x # make sure we don't output the creds to the build log
 
     - *setup_signing_keys_package
 
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - DEB_GPG_KEY_ID=58FB522F
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
@@ -116,11 +110,9 @@ deploy_rpm_testing-a7_x64:
       "lint_linux-x64",
     ]
   script:
-    - *setup_rpm_signing_key
+    - *setup_rpm_test_signing_key
     - set +x
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - RPM_GPG_KEY_ID=58FB522F
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $TEST_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
 
 deploy_rpm_testing-a7_arm64:
   rules:
@@ -131,10 +123,7 @@ deploy_rpm_testing-a7_arm64:
     - .deploy_rpm_testing-a7
   needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-arm64"]
   script:
-    - *setup_rpm_signing_key
-    - set +x
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - RPM_GPG_KEY_ID=58FB522F
+    - *setup_rpm_test_signing_key
     - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
 
 deploy_suse_rpm_testing_x64-a7:
@@ -159,11 +148,9 @@ deploy_suse_rpm_testing_x64-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - *setup_rpm_signing_key
+    - *setup_rpm_test_signing_key
     - set +x
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - RPM_GPG_KEY_ID=58FB522F
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $TEST_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
 
 deploy_suse_rpm_testing_arm64-a7:
   rules:
@@ -179,11 +166,9 @@ deploy_suse_rpm_testing_arm64-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
-    - *setup_rpm_signing_key
+    - *setup_rpm_test_signing_key
     - set +x
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - RPM_GPG_KEY_ID=58FB522F
-    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*aarch64.rpm
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $TEST_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*aarch64.rpm
 
 deploy_windows_testing-a7:
   rules:
