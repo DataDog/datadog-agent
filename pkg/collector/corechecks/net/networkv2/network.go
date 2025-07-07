@@ -552,11 +552,6 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 	// udp6       0      0 :::41458                :::*
 	lines := strings.Split(output, "\n")
 	for i, line := range lines {
-		// skip the two line header
-		if i < 2 {
-			continue
-		}
-
 		fields := strings.Fields(line)
 
 		if len(fields) < 5 {
@@ -569,18 +564,17 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 			continue
 		}
 
-		var ok bool
-		var state string
-
+		var stateField string
 		if entryProtocol[:3] == "udp" {
 			// all UDP suffixes resolve to connections but
-			state = "connections"
+			stateField = "NONE"
 		} else {
-			// skip connection states we do not have mappings for
-			state, ok = suffixMapping[fields[5]]
-			if !ok {
-				continue
-			}
+			stateField = fields[5]
+		}
+		// skip connection states we do not have mappings for
+		state, ok = suffixMapping[stateField]
+		if !ok {
+			continue
 		}
 
 		recvQ := parseQueue(fields[1])
