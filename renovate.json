@@ -15,8 +15,14 @@
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
       },
       {
-        "matchDepNames": ["linux-images", "windows-images"],
-        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main"
+        "matchDepNames": ["linux-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
+        "matchDepNames": ["windows-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 2 * *"]
       },
       {
         "matchDepNames": ["DataDog/datadog-agent-dev"],
