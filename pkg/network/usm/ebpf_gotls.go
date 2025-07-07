@@ -35,6 +35,7 @@ const (
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
+	goTLSConnByTupleMap       = "go_tls_conn_by_tuple"
 
 	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
 	// and lowering it might cause constant cpu usage.
@@ -68,6 +69,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 		{Name: goTLSReadArgsMap},
 		{Name: goTLSWriteArgsMap},
 		{Name: connectionTupleByGoTLSMap},
+		{Name: goTLSConnByTupleMap},
 	},
 	Probes: []*manager.Probe{
 		{
@@ -181,6 +183,10 @@ func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
 // ConfigureOptions changes map attributes to the given options.
 func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[goTLSConnByTupleMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
