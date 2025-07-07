@@ -402,14 +402,14 @@ def selfcheck(
     ctx: Context,
     remote_setup_only: bool = False,
     fix: bool = False,
-    filter_requirements: list[str] | None = None,
+    exclude_requirements: list[str] | None = None,
 ):
     requirements = get_requirements(remote_setup_only)
-    if filter_requirements is not None:
-        requirements = [r for r in requirements if r.__class__.__name__ in filter_requirements]
+    if exclude_requirements is not None:
+        requirements = [r for r in requirements if r.__class__.__name__ not in exclude_requirements]
 
     if check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"]):
-        error("[-] KMT setup incorrect")
+        raise Exit("[-] KMT setup incorrect")
     else:
         info("[+] KMT setup correct")
 
