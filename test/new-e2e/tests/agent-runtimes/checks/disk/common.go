@@ -8,6 +8,7 @@ package checkdisk
 
 import (
 	"math"
+	"slices"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
@@ -25,9 +26,10 @@ import (
 
 type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor            e2eos.Descriptor
-	metricCompareFraction float64
-	metricCompareDecimals int
+	descriptor                  e2eos.Descriptor
+	metricCompareFraction       float64
+	metricCompareDecimals       int
+	excludedFromValueComparison []string
 }
 
 func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
@@ -134,6 +136,9 @@ instances:
 				gocmp.Comparer(func(a, b check.Metric) bool {
 					if !checkUtils.EqualMetrics(a, b) {
 						return false
+					}
+					if slices.Contains(v.excludedFromValueComparison, a.Metric) {
+						return true
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]

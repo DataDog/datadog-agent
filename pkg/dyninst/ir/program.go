@@ -38,6 +38,8 @@ type Program struct {
 	Types map[TypeID]Type
 	// MaxTypeID is the maximum type ID that has been assigned.
 	MaxTypeID TypeID
+	// Issues is a list of probes that could not be created.
+	Issues []ProbeIssue
 }
 
 // Subprogram represents a function or method in the program.
