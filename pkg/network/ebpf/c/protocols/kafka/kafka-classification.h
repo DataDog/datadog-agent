@@ -43,6 +43,11 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_CLIENT_STRING(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
+// The client ID actually allows any UTF-8 chars but we restrict it to printable ASCII characters
+// for now to avoid false positives.
+#define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
+    CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
+
 // The UUID must be v4 and its variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
 #define IS_UUID_V4(topic_id) \
     (topic_id[6] >> 4) == 4 && \
@@ -52,12 +57,18 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 //PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(kafka_client_string, CLIENT_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
-// Reads the client id (up to CLIENT_STRING_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
+// Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 real_client_id_size) {
     if (real_client_id_size == 0) {
         return true;
     }
+
+    // Explicitly check to lower verifier instruction count.
+    if (real_client_id_size > CLIENT_STRING_MAX_ALLOWED_SIZE) {
+        return false;
+    }
+
     const u32 key = 0;
     // Fetch the client id buffer from per-cpu array, which gives us the ability to extend the size of the buffer,
     // as the stack is limited with the number of bytes we can allocate on.
@@ -65,11 +76,11 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
     if (client_id == NULL) {
         return false;
     }
-    bpf_memset(client_id, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
-    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_STRING_SIZE_TO_VALIDATE);
+    bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
-    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_STRING_SIZE_TO_VALIDATE, real_client_id_size, client_id);
+    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
 }
 
 // Used to validate the client_id, software name and software version.
@@ -97,7 +108,7 @@ static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16
 // * Correlation ID is not negative.
 // * The client ID size if not negative.
 static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *kafka_header) {
-    if (kafka_header->message_size < sizeof(kafka_header_t) || kafka_header->message_size  <= 0) {
+    if (kafka_header->message_size < sizeof(kafka_header_t) || kafka_header->message_size <= 0) {
         return false;
     }
 
@@ -165,7 +176,7 @@ static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offs
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, bytes, sizeof(bytes));
 
     *offset += 1;
     if (isMSBSet(bytes[0])) {
@@ -199,7 +210,7 @@ static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, bytes, max_bytes);
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, bytes, max_bytes);
 
     #pragma unroll
     for (u32 i = 0; i < max_bytes; i++) {
@@ -317,7 +328,7 @@ static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset
 
     u8 num_tagged_fields = 0;
 
-    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
     *offset += sizeof(num_tagged_fields);
 
     // We don't support parsing tagged fields for now.
