@@ -246,24 +246,30 @@ func TestSSLMapsCleanup(t *testing.T) {
 
 	client.CloseIdleConnections()
 
-	time.Sleep(1 * time.Second)
+	// Wait for cleanup to complete by polling map counts
+	var ctxMapCountAfter, tupleMapCountAfter int
 
-	ctxMapCountAfter := countMapEntries(t, sslSockMap)
-	tupleMapCountAfter := countMapEntries(t, sslTupleMap)
-	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountAfter)
-	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCountAfter)
-
-	// We expect that one entry will be removed from each map, if that map was populated to begin with.
+	// Calculate expected counts after cleanup
 	expectedCtxCount := ctxMapCountBefore
 	if expectedCtxCount > 0 {
 		expectedCtxCount--
 	}
-	assert.Equal(t, expectedCtxCount, ctxMapCountAfter, "ssl_sock_by_ctx map count after cleanup is not what we expect")
 
 	expectedTupleCount := tupleMapCountBefore
 	if expectedTupleCount > 0 {
 		expectedTupleCount--
 	}
+
+	require.Eventually(t, func() bool {
+		ctxMapCountAfter = countMapEntries(t, sslSockMap)
+		tupleMapCountAfter = countMapEntries(t, sslTupleMap)
+		t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d (expected: %d)", sslSockByCtxMap, ctxMapCountAfter, expectedCtxCount)
+		t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d (expected: %d)", sslCtxByTupleMap, tupleMapCountAfter, expectedTupleCount)
+
+		return ctxMapCountAfter == expectedCtxCount && tupleMapCountAfter == expectedTupleCount
+	}, 5*time.Second, 100*time.Millisecond, "SSL maps cleanup did not complete within expected time")
+
+	assert.Equal(t, expectedCtxCount, ctxMapCountAfter, "ssl_sock_by_ctx map count after cleanup is not what we expect")
 	assert.Equal(t, expectedTupleCount, tupleMapCountAfter, "ssl_ctx_by_tuple map count after cleanup is not what we expect")
 
 	requestsExist := make([]bool, len(requests))
