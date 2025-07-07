@@ -35,7 +35,6 @@ func TestSetSockOpt(t *testing.T) {
 	defer test.Close()
 
 	t.Run("setsockopt", func(t *testing.T) {
-		var fd int
 		type SockFilter struct {
 			Code uint16
 			Jt   uint8
@@ -49,14 +48,14 @@ func TestSetSockOpt(t *testing.T) {
 			Filter *SockFilter
 		}
 
-		test.WaitSignal(t, func() error {
-			var err error
-			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
-			if err != nil {
-				return err
-			}
-			defer syscall.Close(fd)
+		// Create socket outside the action function to ensure it persists during event processing
+		fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
+		if err != nil {
+			t.Fatalf("failed to create raw socket: %v", err)
+		}
+		defer syscall.Close(fd)
 
+		test.WaitSignal(t, func() error {
 			filter := []SockFilter{
 				{Code: 0x06, Jt: 0, Jf: 0, K: 0xFFFFFFFF}, // BPF_RET | BPF_K
 			}
