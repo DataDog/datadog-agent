@@ -13,12 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	waf "github.com/DataDog/go-libddwaf/v3"
-	json "github.com/json-iterator/go"
-
 	"github.com/DataDog/appsec-internal-go/httpsec"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/go-libddwaf/v4"
+	json "github.com/json-iterator/go"
 )
 
 // envClientIPHeader is the name of the env var used to specify the IP header to be used for client IP collection.
@@ -172,7 +170,7 @@ func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]strin
 // setRulesMonitoringTags adds the tags related to security rules monitoring
 // It's only needed once per handle initialization as the ruleset data does not
 // change over time.
-func setRulesMonitoringTags(span span, wafDiags waf.Diagnostics) {
+func setRulesMonitoringTags(span span, wafDiags libddwaf.Diagnostics) {
 	rInfo := wafDiags.Rules
 	if rInfo == nil {
 		return
@@ -187,7 +185,7 @@ func setRulesMonitoringTags(span span, wafDiags waf.Diagnostics) {
 	span.SetMetaTag("_dd.appsec.event_rules.errors", string(rulesetErrors))
 	span.SetMetaTag("_dd.appsec.event_rules.loaded", fmt.Sprintf("%d", len(rInfo.Loaded)))
 	span.SetMetaTag("_dd.appsec.event_rules.error_count", fmt.Sprintf("%d", len(rInfo.Failed)))
-	span.SetMetaTag("_dd.appsec.waf.version", waf.Version())
+	span.SetMetaTag("_dd.appsec.waf.version", libddwaf.Version())
 }
 
 // setWAFMonitoringTags adds the tags related to the monitoring of the WAF performances
@@ -196,7 +194,7 @@ func setWAFMonitoringTags(span span, mRes *MonitorResult) {
 	span.SetMetaTag("_dd.appsec.event_rules.version", mRes.Diagnostics.Version)
 
 	// Report the stats sent by the Feature
-	for k, v := range mRes.Stats.Metrics() {
-		span.SetMetaTag("_dd.appsec."+k, fmt.Sprintf("%v", v))
+	for k, v := range mRes.Result.TimerStats {
+		span.SetMetaTag("_dd.appsec."+string(k), fmt.Sprintf("%v", v))
 	}
 }
