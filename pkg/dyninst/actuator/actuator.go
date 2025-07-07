@@ -238,6 +238,9 @@ func (a *effects) loadProgram(
 		ir, err := generateIR(
 			programID, executable, probes, tenant.genOptions...,
 		)
+		if err == nil && len(ir.Probes) == 0 {
+			err = &NoSuccessfulProbesError{Issues: ir.Issues}
+		}
 		if err != nil {
 			tenant.reporter.ReportIRGenFailed(processID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
