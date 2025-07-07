@@ -393,6 +393,9 @@ func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(r
 	})
 	defer tm.RegisterSendEventHandler(nil)
 
+	// Small delay to ensure event handler is fully registered and ready
+	time.Sleep(100 * time.Millisecond)
+
 	if err := action(); err != nil {
 		message <- Skip
 		return err
