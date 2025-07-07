@@ -40,7 +40,7 @@ def go_build(
 ) -> Result:
     cmd = "go build"
     if coverage:
-        cmd += " -cover"
+        cmd += " -cover -covermode=atomic"
         build_tags.append("e2ecoverage")
     if mod:
         cmd += f" -mod={mod}"
