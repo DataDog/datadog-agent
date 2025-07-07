@@ -166,6 +166,80 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 	}
 }
 
+// SendLinkExtendedMetrics sends link extended metrics retrieved from Versa Analytics
+func (s *Sender) SendLinkExtendedMetrics(linkExtendedMetrics []client.LinkExtendedMetrics, deviceNameToIDMap map[string]string) {
+	for _, linkMetric := range linkExtendedMetrics {
+		var tags = []string{
+			"interface:" + linkMetric.Site,
+			"site:" + linkMetric.Site,
+			"access_circuit:" + linkMetric.AccessCircuit,
+			"type:" + linkMetric.Type,
+			"media:" + linkMetric.Media,
+			"ip:" + linkMetric.IP,
+			"isp:" + linkMetric.ISP,
+		}
+		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"link.volume_tx", linkMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"link.volume_rx", linkMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"link.bandwidth_tx", linkMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"link.bandwidth_rx", linkMetric.BandwidthRx, "", tags)
+	}
+}
+
+// SendInterfaceMetrics sends interface metrics
+func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
+	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {
+		deviceTags := s.GetDeviceTags(defaultIPTag, deviceIP)
+
+		for _, metric := range interfaceMetrics {
+			interfaceTags := []string{
+				"interface:" + metric.Interface,
+				"vrf:" + metric.VRF,
+				"host_inf:" + metric.HostInf,
+			}
+
+			tags := append(deviceTags, interfaceTags...)
+
+			// Convert string values to float64 for metrics
+			// RX metrics
+			if rxPackets, err := parseMetricValue(metric.RxPackets); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.rx_packets", rxPackets, "", tags)
+			}
+			if rxErrors, err := parseMetricValue(metric.RxErrors); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.rx_errors", rxErrors, "", tags)
+			}
+			if rxBytes, err := parseMetricValue(metric.RxBytes); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.rx_bytes", rxBytes, "", tags)
+			}
+			if rxBps, err := parseMetricValue(metric.RxBps); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.rx_bps", rxBps, "", tags)
+			}
+			if rxPps, err := parseMetricValue(metric.RxPps); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.rx_pps", rxPps, "", tags)
+			}
+
+			// TX metrics
+			if txPackets, err := parseMetricValue(metric.TxPackets); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.tx_packets", txPackets, "", tags)
+			}
+			if txErrors, err := parseMetricValue(metric.TxErrors); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.tx_errors", txErrors, "", tags)
+			}
+			if txBytes, err := parseMetricValue(metric.TxBytes); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.tx_bytes", txBytes, "", tags)
+			}
+			if txBps, err := parseMetricValue(metric.TxBps); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.tx_bps", txBps, "", tags)
+			}
+			if txPps, err := parseMetricValue(metric.TxPps); err == nil {
+				s.Gauge(versaMetricPrefix+"interface.tx_pps", txPps, "", tags)
+			}
+		}
+	}
+}
+
 // SendDirectorUptimeMetrics sends director uptime metrics
 func (s *Sender) SendDirectorUptimeMetrics(director *client.DirectorStatus) {
 	ipAddress, err := director.IPAddress()
@@ -417,4 +491,12 @@ func parseDiskUsage(diskUsage string) ([]partition, error) {
 	}
 
 	return partitions, partialParseErrs
+}
+
+// parseMetricValue parses a string metric value to float64
+func parseMetricValue(value string) (float64, error) {
+	if value == "" {
+		return 0, fmt.Errorf("empty metric value")
+	}
+	return strconv.ParseFloat(value, 64)
 }

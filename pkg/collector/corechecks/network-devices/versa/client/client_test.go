@@ -402,3 +402,79 @@ func TestGetSLAMetrics(t *testing.T) {
 	require.Equal(t, len(slaMetrics), 1)
 	require.Equal(t, expectedSLAMetrics, slaMetrics)
 }
+
+func TestGetLinkExtendedMetrics(t *testing.T) {
+	expectedLinkExtendedMetrics := []LinkExtendedMetrics{
+		{
+			DrillKey:          "test-branch-2B,INET-1",
+			Site:              "test-branch-2B",
+			AccessCircuit:     "INET-1",
+			UplinkBandwidth:   "10000000000",
+			DownlinkBandwidth: "10000000000",
+			Type:              "Unknown",
+			Media:             "Unknown",
+			IP:                "10.231.20.7",
+			ISP:               "",
+			VolumeTx:          757144.0,
+			VolumeRx:          457032.0,
+			BandwidthTx:       6730.168888888889,
+			BandwidthRx:       4062.5066666666667,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	linkExtendedMetrics, err := client.GetLinkExtendedMetrics()
+	require.NoError(t, err)
+
+	require.Equal(t, len(linkExtendedMetrics), 1)
+	require.Equal(t, expectedLinkExtendedMetrics, linkExtendedMetrics)
+}
+
+func TestParseLinkExtendedMetrics(t *testing.T) {
+	testData := [][]interface{}{
+		{
+			"test-branch-2B,INET-1",
+			"test-branch-2B",
+			"INET-1",
+			"10000000000",
+			"10000000000",
+			"Unknown",
+			"Unknown",
+			"10.231.20.7",
+			"",
+			757144.0,
+			457032.0,
+			6730.168888888889,
+			4062.5066666666667,
+		},
+	}
+
+	expected := []LinkExtendedMetrics{
+		{
+			DrillKey:          "test-branch-2B,INET-1",
+			Site:              "test-branch-2B",
+			AccessCircuit:     "INET-1",
+			UplinkBandwidth:   "10000000000",
+			DownlinkBandwidth: "10000000000",
+			Type:              "Unknown",
+			Media:             "Unknown",
+			IP:                "10.231.20.7",
+			ISP:               "",
+			VolumeTx:          757144.0,
+			VolumeRx:          457032.0,
+			BandwidthTx:       6730.168888888889,
+			BandwidthRx:       4062.5066666666667,
+		},
+	}
+
+	result, err := parseLinkExtendedMetrics(testData)
+	require.NoError(t, err)
+	require.Equal(t, expected, result)
+}

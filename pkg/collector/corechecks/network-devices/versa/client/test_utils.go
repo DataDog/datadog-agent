@@ -96,8 +96,8 @@ func setupCommonServerMux() *http.ServeMux {
 // 	return mux, handler
 // }
 
-// SLAMetricsURL holds the API endpoint for Versa Analytics SLA metrics
-var SLAMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
+// AnalyticsMetricsURL holds the API endpoint for Versa Analytics SLA metrics
+var AnalyticsMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
 
 // SetupMockAPIServer starts a mock API server
 func SetupMockAPIServer() *httptest.Server {
@@ -106,7 +106,18 @@ func SetupMockAPIServer() *httptest.Server {
 	mux.HandleFunc("/vnms/organization/orgs", fixtureHandler(fixtures.GetOrganizations))
 	//mux.HandleFunc("/vnms/dashboard/childAppliancesDetail/", fixtureHandler(fixtures.GetChildAppliancesDetail))
 	mux.HandleFunc("/vnms/dashboard/vdStatus", fixtureHandler(fixtures.GetDirectorStatus))
-	mux.HandleFunc(SLAMetricsURL, fixtureHandler(fixtures.GetSLAMetrics))
+	mux.HandleFunc(AnalyticsMetricsURL, func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a SLA metrics request or Link Extended metrics request
+		queryParams := r.URL.Query()
+		query := queryParams.Get("q")
+		if strings.Contains(query, "slam(") {
+			fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+		} else if strings.Contains(query, "linkusage(") {
+			fixtureHandler(fixtures.GetLinkExtendedMetrics)(w, r)
+		} else {
+			http.Error(w, "Unknown query type", http.StatusBadRequest)
+		}
+	})
 
 	// mock session auth
 	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))

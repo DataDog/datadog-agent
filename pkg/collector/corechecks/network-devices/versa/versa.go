@@ -67,6 +67,7 @@ type checkCfg struct {
 	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
 	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
 	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
+	CollectLinkExtendedMetrics      *bool    `yaml:"collect_link_extended_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -116,6 +117,10 @@ func (v *VersaCheck) Run() error {
 		}
 		appliances = append(appliances, orgAppliances...)
 	}
+	// appliances, err = c.GetAppliances()
+	// if err != nil {
+	// 	return fmt.Errorf("error getting appliances from Versa client: %w", err)
+	// }
 
 	// Get director status
 	directorStatus, err := c.GetDirectorStatus()
@@ -146,9 +151,33 @@ func (v *VersaCheck) Run() error {
 	}
 	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
+	deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
+
+	// Grab interfaces for each organization
+	var interfaces []client.Interface
+	for _, org := range organizations {
+		orgInterfaces, err := c.GetInterfaces(org.Name)
+		if err != nil {
+			// not getting interfaces shouldn't stop the rest of the check
+			log.Errorf("error getting interfaces from Versa client: %v", err)
+			continue
+		}
+		interfaces = append(interfaces, orgInterfaces...)
+	}
+	interfaceMetadata, err := payload.GetInterfaceMetadata(v.config.Namespace, deviceNameToIDMap, interfaces)
+	if err != nil {
+		if len(interfaceMetadata) == 0 {
+			log.Errorf("failed to parse all interface metadata: %v", err)
+		} else {
+			log.Errorf("partial failure in parsing interface metadata: %v", err)
+		}
+	}
+
+	log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
+
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
-		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
+		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil)
 	}
 
 	// Send hardware metrics to the metrics sender
@@ -166,13 +195,61 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
+	if *v.config.CollectInterfaceMetrics {
+		type deviceID struct {
+			ApplianceName string
+			TenantName    string
+		}
+		deviceWithInterfaceMap := make(map[string]deviceID)
+		for _, iface := range interfaces {
+			deviceWithInterfaceMap[iface.TenantName+":"+iface.DeviceName] = deviceID{
+				ApplianceName: iface.DeviceName,
+				TenantName:    iface.TenantName,
+			}
+		}
+
+		// Collect interface metrics for each device
+		interfaceMetricsByDevice := make(map[string][]client.InterfaceMetrics)
+
+		for _, id := range deviceWithInterfaceMap {
+			interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
+			if err != nil {
+				log.Warnf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
+				continue
+			}
+
+			// Get device IP from the deviceNameToIDMap
+			if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
+				interfaceMetricsByDevice[deviceIP] = interfaceMetrics
+			} else {
+				log.Warnf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
+			}
+		}
+
+		// Send interface metrics
+		v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
+	}
+
 	if *v.config.CollectSLAMetrics {
-		deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
 		slaMetrics, err := c.GetSLAMetrics()
 		if err != nil {
 			log.Warnf("error getting SLA metrics from Versa client: %v", err)
 		}
 		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+	}
+
+	if *v.config.CollectLinkExtendedMetrics {
+		linkExtendedMetrics, err := c.GetLinkExtendedMetrics()
+		if err != nil {
+			log.Warnf("error getting link extended metrics from Versa client: %v", err)
+		} else {
+			v.metricsSender.SendLinkExtendedMetrics(linkExtendedMetrics, deviceNameToIDMap)
+		}
+	}
+
+	err = c.GetLinkMetrics()
+	if err != nil {
+		log.Warnf("error getting link metrics: %v", err)
 	}
 
 	// Commit
@@ -213,6 +290,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
+	instanceConfig.CollectLinkExtendedMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {

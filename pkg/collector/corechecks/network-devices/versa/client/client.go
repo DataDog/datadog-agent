@@ -265,6 +265,166 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	return appliances, nil
 }
 
+// GetAppliances retrieves a list of appliances using the general appliance endpoint
+func (client *Client) GetAppliances() ([]Appliance, error) {
+	var allAppliances []Appliance
+	params := map[string]string{
+		"limit":  client.maxCount,
+		"offset": "0",
+	}
+
+	// Make the first request to get the first page and total count
+	resp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get appliances: %v", err)
+	}
+	if resp == nil {
+		return nil, errors.New("failed to get appliances: returned nil")
+	}
+
+	// Add the first page of appliances
+	allAppliances = append(allAppliances, resp.Appliances...)
+
+	// Calculate remaining pages needed
+	maxCount, _ := strconv.Atoi(client.maxCount)
+	if maxCount <= 0 {
+		return nil, fmt.Errorf("invalid max count: %d", maxCount)
+	}
+
+	totalPages := (resp.TotalCount + maxCount - 1) / maxCount // calculate total pages, rounding up
+
+	// Paginate through the remaining pages
+	for i := 1; i < totalPages; i++ {
+		params["offset"] = strconv.Itoa(i * maxCount)
+
+		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get appliances page %d: %v", i+1, err)
+		}
+		if pageResp == nil {
+			return nil, fmt.Errorf("failed to get appliances page %d: returned nil", i+1)
+		}
+
+		allAppliances = append(allAppliances, pageResp.Appliances...)
+	}
+
+	// Verify we got the expected number of appliances
+	if len(allAppliances) != resp.TotalCount {
+		return nil, fmt.Errorf("failed to get all appliances: expected %d, got %d", resp.TotalCount, len(allAppliances))
+	}
+
+	return allAppliances, nil
+}
+
+// GetInterfaces retrieves a list of interfaces for a specific tenant
+func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
+	if tenantName == "" {
+		return nil, fmt.Errorf("tenantName cannot be empty")
+	}
+
+	params := map[string]string{
+		"tenantName": tenantName,
+	}
+
+	resp, err := get[InterfaceListResponse](client, "/vnms/dashboard/health/interface", params, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get interfaces: %v", err)
+	}
+	if resp == nil {
+		return nil, errors.New("failed to get interfaces: returned nil")
+	}
+
+	return resp.List.Value, nil
+}
+
+// GetInterfaceMetrics retrieves interface metrics for a specific appliance and tenant using pagination
+func (client *Client) GetInterfaceMetrics(applianceName string, tenantName string) ([]InterfaceMetrics, error) {
+	if applianceName == "" {
+		return nil, fmt.Errorf("applianceName cannot be empty")
+	}
+	if tenantName == "" {
+		return nil, fmt.Errorf("tenantName cannot be empty")
+	}
+
+	var allMetrics []InterfaceMetrics
+
+	// Step 1: Make the initial request to get the first page and query-id
+	initialEndpoint := fmt.Sprintf("/vnms/dashboard/appliance/%s/pageable_interfaces", applianceName)
+	params := map[string]string{
+		"orgName": tenantName,
+		"limit":   client.maxCount,
+	}
+
+	resp, err := get[InterfaceMetricsResponse](client, initialEndpoint, params, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get interface metrics (initial request): %v", err)
+	}
+	if resp == nil {
+		return nil, errors.New("failed to get interface metrics: initial response was nil")
+	}
+
+	queryID := resp.QueryID
+	if queryID == "" {
+		return nil, errors.New("failed to get interface metrics: no query-id returned")
+	}
+
+	// Add the first page of data
+	allMetrics = append(allMetrics, resp.Collection.Interfaces...)
+
+	// Step 2: Paginate through remaining data using the query-id
+	nextPageEndpoint := "/vnms/dashboard/appliance/next_page_data"
+	for {
+		pageParams := map[string]string{
+			"query-id": queryID,
+		}
+
+		pageResp, err := get[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams, false)
+		if err != nil {
+			// Clean up the query before returning the error
+			_ = client.closeQuery(queryID)
+			return nil, fmt.Errorf("failed to get interface metrics (pagination): %v", err)
+		}
+		if pageResp == nil {
+			// Clean up the query before returning the error
+			_ = client.closeQuery(queryID)
+			return nil, errors.New("failed to get interface metrics: page response was nil")
+		}
+
+		// If we get an empty response, we're done with pagination
+		if len(pageResp.Collection.Interfaces) == 0 {
+			break
+		}
+
+		// Add the page data to our results
+		allMetrics = append(allMetrics, pageResp.Collection.Interfaces...)
+	}
+
+	// Step 3: Close the query to clean up resources
+	err = client.closeQuery(queryID)
+	if err != nil {
+		log.Warnf("Failed to close query %s: %v", queryID, err)
+		// Don't return an error here since we have the data, just log the warning
+	}
+
+	return allMetrics, nil
+}
+
+// closeQuery closes a pageable query to clean up resources
+func (client *Client) closeQuery(queryID string) error {
+	closeEndpoint := "/vnms/dashboard/appliance/close_query"
+	params := map[string]string{
+		"query-id": queryID,
+	}
+
+	// We don't expect any meaningful response from the close endpoint
+	_, err := get[interface{}](client, closeEndpoint, params, false)
+	if err != nil {
+		return fmt.Errorf("failed to close query %s: %v", queryID, err)
+	}
+
+	return nil
+}
+
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false)
@@ -340,6 +500,96 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 	metrics, err := parseAaData(aaData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse SLA metrics: %v", err)
+	}
+	return metrics, nil
+}
+
+// GetLinkMetrics retrieves link metrics from the Versa Analytics API
+func (client *Client) GetLinkMetrics() error {
+	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "linkstatus(site,accckt)", "table", []string{
+		"availability",
+	})
+
+	resp, err := client.get(analyticsURL, nil, true)
+	if err != nil {
+		return fmt.Errorf("failed to get Link Metrics: %v", err)
+	}
+
+	log.Tracef("Link Metrics Response: %s", string(resp))
+
+	return nil
+}
+
+// parseLinkExtendedMetrics parses the raw AaData response into LinkExtendedMetrics structs
+func parseLinkExtendedMetrics(data [][]interface{}) ([]LinkExtendedMetrics, error) {
+	var rows []LinkExtendedMetrics
+	for _, row := range data {
+		m := LinkExtendedMetrics{}
+		if len(row) != 13 {
+			return nil, fmt.Errorf("expected 13 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.AccessCircuit, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for AccessCircuit")
+		}
+		if m.UplinkBandwidth, ok = row[3].(string); !ok {
+			return nil, fmt.Errorf("expected string for UplinkBandwidth")
+		}
+		if m.DownlinkBandwidth, ok = row[4].(string); !ok {
+			return nil, fmt.Errorf("expected string for DownlinkBandwidth")
+		}
+		if m.Type, ok = row[5].(string); !ok {
+			return nil, fmt.Errorf("expected string for Type")
+		}
+		if m.Media, ok = row[6].(string); !ok {
+			return nil, fmt.Errorf("expected string for Media")
+		}
+		if m.IP, ok = row[7].(string); !ok {
+			return nil, fmt.Errorf("expected string for IP")
+		}
+		if m.ISP, ok = row[8].(string); !ok {
+			return nil, fmt.Errorf("expected string for ISP")
+		}
+
+		// Floats from index 9–12
+		floatFields := []*float64{
+			&m.VolumeTx, &m.VolumeRx, &m.BandwidthTx, &m.BandwidthRx,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+9].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+9)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
+func (client *Client) GetLinkExtendedMetrics() ([]LinkExtendedMetrics, error) {
+	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
+		"volume-tx",
+		"volume-rx",
+		"bw-tx",
+		"bw-rx",
+	})
+
+	resp, err := get[LinkExtendedMetricsResponse](client, analyticsURL, nil, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get link extended metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseLinkExtendedMetrics(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse link extended metrics: %v", err)
 	}
 	return metrics, nil
 }
