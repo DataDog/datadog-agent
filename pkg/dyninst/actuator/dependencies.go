@@ -32,9 +32,6 @@ type Sink interface {
 // Reporter is an interface for reporting events related to attachment and
 // detachment of programs to processes.
 type Reporter interface {
-	// ReportAttaching is called when a program is about to be attached to a
-	// process. This is strictly before the program has been attached.
-	ReportAttaching(ProcessID, Executable, *ir.Program)
 
 	// ReportAttachingFailed is called when a program fails to attach to a
 	// process.
@@ -49,13 +46,17 @@ type Reporter interface {
 
 	// ReportLoaded is called after a program has been loaded. It is used
 	// by the Reporter to initialize the Sink for this program.
-	ReportLoaded(*ir.Program) (Sink, error)
+	ReportLoaded(ProcessID, Executable, *ir.Program) (Sink, error)
 
 	// ReportIRGenFailed is called when generating the IR for the binary fails.
-	ReportIRGenFailed(ir.ProgramID, error, []ir.ProbeDefinition)
+	//
+	// Note that if the IR generation succeeds, but the program has no
+	// successful probes, this will be called with an error that contains
+	//
+	ReportIRGenFailed(ProcessID, error, []ir.ProbeDefinition)
 
 	// ReportLoadingFailed is called when a program fails to load.
-	ReportLoadingFailed(*ir.Program, error)
+	ReportLoadingFailed(ProcessID, *ir.Program, error)
 }
 
 // Loader is an interface that abstracts ebpf program loader.
