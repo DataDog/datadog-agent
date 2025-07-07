@@ -27,7 +27,7 @@ func (t *tracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	// the spans in our serverless traces, so we do not need to do anything
 	// about that for now. Eventually the stats computation will either move to
 	// the tracer and agent or use trace tag on the backend, so so we will not
-	// need to worry about. it.
+	// need to worry about it.
 	t.ensureFunctionTags(tp)
 }
 
