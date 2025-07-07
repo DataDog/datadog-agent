@@ -304,6 +304,13 @@ def attach_gdb(ctx: Context, vm: str, stack: str | None = None, dry=True):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
+    if not os.path.exists(f"{os.path.expanduser()}/.gdbinit-gef.py"):
+        resp = ask(
+            "It is recommended to use gdb with the bata24 extension (https://github.com/bata24/gef) which greatly enhances the kernel debugging experience. You can install the extension with `inv -e kmt.install_bata24_gef`. Continue without installing? (y/N)"
+        )
+        if resp.lower().strip() != "y":
+            raise Exit("Aborted by user")
+
     domains = get_target_domains(ctx, stack, None, None, vm, None)
     assert len(domains) > 0, f"no running VM discovered for the provided vm {vm}"
     assert len(domains) == 1, "GDB can only be attached to one VM at a time"
@@ -2589,3 +2596,8 @@ def start_microvms(
             agent_version=agent_version,
         )
     )
+
+
+@task
+def install_bata24_gef(ctx):
+    ctx.run("tasks/kernel_matrix_testing/provision/bata24.sh")
