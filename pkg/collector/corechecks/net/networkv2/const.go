@@ -371,7 +371,8 @@ var (
 	}
 
 	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
+		"NONE":        "connections",
+		"ESTABLISHED": "connections",
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}
