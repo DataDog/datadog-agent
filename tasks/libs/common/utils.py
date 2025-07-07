@@ -534,7 +534,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
             middle = bytes(f"section_start:{int(time.time())}:{section_id}{collapsed}", 'utf-8')
             end = bytes(section_name + '...', 'utf-8')
             sys.stdout.flush()
-            sys.stdout.write(b"\033[0K" + middle + b"\r\033[0K" + end)
+            sys.stdout.buffer.write(b"\033[0K" + middle + b"\r\033[0K" + end)
             sys.stdout.flush()
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
@@ -543,8 +543,8 @@ def gitlab_section(section_name, collapsed=False, echo=False):
         if in_ci:
             sys.stdout.flush()
             middle = bytes(f'section_end:{int(time.time())}:{section_id}', 'utf-8')
+            sys.stdout.buffer.write(b"\033[0K" + middle + b"\r\033[0K")
             sys.stdout.flush()
-            print(b"\033[0K" + middle + b"\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
