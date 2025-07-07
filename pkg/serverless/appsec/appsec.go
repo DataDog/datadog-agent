@@ -158,13 +158,13 @@ func handleDiagnostics(diag libddwaf.Diagnostics) {
 	}
 	diag.EachFeature(func(name string, feat *libddwaf.Feature) {
 		if feat.Error != "" {
-			log.Warnf("appsec: %s feature reported error: %s", feat.Error)
+			log.Warnf("appsec: %s feature reported error: %s", name, feat.Error)
 		}
 		for msg, ids := range feat.Errors {
-			log.Warnf("appsec: %s feature reported error: %q %s", ids, msg)
+			log.Warnf("appsec: %s feature reported error: %q %s", name, ids, msg)
 		}
 		for msg, ids := range feat.Warnings {
-			log.Warnf("appsec: %s feature reported warning: %q %s", ids, msg)
+			log.Warnf("appsec: %s feature reported warning: %q %s", name, ids, msg)
 		}
 	})
 }
