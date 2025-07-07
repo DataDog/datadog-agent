@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
@@ -430,7 +429,7 @@ func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats
 func checkSSExecutable() bool {
 	_, err := exec.LookPath("ss")
 	if err != nil {
-		logs.Debug("`ss` executable not found in system PATH")
+		log.Debug("`ss` executable not found in system PATH")
 		return false
 	}
 	return true
@@ -599,7 +598,7 @@ func submitConnectionStateMetrics(
 	collectConnectionQueues bool,
 	procfsPath string,
 ) {
-	var getStateMetrics func(ipVersion string, procfsPath string) (map[string][]uint64, error)
+	var getStateMetrics func(ipVersion string, procfsPath string) (map[string]*connectionStateEntry, error)
 	useSS := ssAvailableFunction()
 	if useSS {
 		log.Debug("Using `ss` for connection state metrics")
@@ -635,10 +634,10 @@ func submitConnectionStateMetrics(
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), metrics.count, "", nil)
 		if collectConnectionQueues && protocolName[:3] == "tcp" {
 			for _, point := range metrics.recvQ {
-				sender.Histogram("system.net.tcp.recv_q", float64(queue), "", []string{"state:" + state})
+				sender.Histogram("system.net.tcp.recv_q", float64(point), "", []string{"state:" + suffix})
 			}
 			for _, point := range metrics.sendQ {
-				sender.Histogram("system.net.tcp.send_q", float64(queue), "", []string{"state:" + state})
+				sender.Histogram("system.net.tcp.send_q", float64(point), "", []string{"state:" + suffix})
 			}
 		}
 	}
