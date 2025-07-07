@@ -542,7 +542,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     finally:
         if in_ci:
             sys.stdout.flush()
-            middle = bytes(f'section_end:{int(time.time())}:{section_id}')
+            middle = bytes(f'section_end:{int(time.time())}:{section_id}', 'utf-8')
             sys.stdout.flush()
             print(b"\033[0K" + middle + b"\r\033[0K", flush=True)
 
