@@ -174,6 +174,14 @@ type API interface {
 
 	EvtClose(h windows.Handle)
 
+	// EvtQuery queries an event log for events that match specified criteria
+	// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtquery
+	EvtQuery(
+		Session EventSessionHandle,
+		Path string,
+		Query string,
+		Flags uint) (EventResultSetHandle, error)
+
 	EvtRenderEventXml(Fragment EventRecordHandle) ([]uint16, error)
 
 	EvtRenderBookmark(Fragment EventBookmarkHandle) ([]uint16, error)

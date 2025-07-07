@@ -22,10 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	"golang.org/x/sys/windows"
 )
 
 func (c *Check) getChannelPath() (string, error) {
@@ -90,13 +91,21 @@ func (c *Check) initSubscription() error {
 		}
 	}
 	if bookmark == nil {
-		// new bookmark
-		bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
+		// Create initial bookmark from most recent event
+		bookmark, err = c.createInitialBookmark(channelPath, query)
 		if err != nil {
-			return err
-		}
-		if startMode == "oldest" {
-			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
+			log.Warnf("Failed to create initial bookmark from recent events: %v. Creating empty bookmark.", err)
+			// Fall back to creating an empty bookmark
+			bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
+			if err != nil {
+				return err
+			}
+			if startMode == "oldest" {
+				opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
+			}
+		} else {
+			// Successfully created bookmark from recent event, use it
+			opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
 		}
 	}
 
@@ -146,6 +155,75 @@ func (c *Check) initSubscription() error {
 	}
 
 	return nil
+}
+
+// createInitialBookmark queries for the most recent event(s) and creates a bookmark from them
+func (c *Check) createInitialBookmark(channelPath, query string) (evtbookmark.Bookmark, error) {
+	// Determine if this is a multi-channel query
+	isMultiChannel := strings.HasPrefix(query, "<QueryList>")
+
+	// Set up query parameters
+	var path string
+	var flags uint
+
+	if isMultiChannel {
+		// For multi-channel queries, path is ignored and query contains the XML QueryList
+		path = ""
+		flags = evtapi.EvtQueryFilePath | evtapi.EvtQueryReverseDirection
+	} else {
+		// Single channel query
+		path = channelPath
+		flags = evtapi.EvtQueryChannelPath | evtapi.EvtQueryReverseDirection
+	}
+
+	// Query for the most recent event
+	resultSetHandle, err := c.evtapi.EvtQuery(0, path, query, flags)
+	if err != nil {
+		return nil, fmt.Errorf("EvtQuery failed: %w", err)
+	}
+	defer evtapi.EvtCloseResultSet(c.evtapi, resultSetHandle)
+
+	// Get the first event (most recent due to reverse direction)
+	eventHandles := make([]evtapi.EventRecordHandle, 1)
+	returnedHandles, err := c.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
+	if err != nil {
+		if err == windows.ERROR_NO_MORE_ITEMS {
+			// No events in the log, return nil to indicate empty bookmark should be created
+			return nil, fmt.Errorf("no events found in log")
+		}
+		return nil, fmt.Errorf("EvtNext failed: %w", err)
+	}
+
+	if len(returnedHandles) == 0 {
+		return nil, fmt.Errorf("no events returned")
+	}
+
+	// Create bookmark and update it with the event
+	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
+	if err != nil {
+		// Clean up event handle before returning
+		evtapi.EvtCloseRecord(c.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to create bookmark: %w", err)
+	}
+
+	err = bookmark.Update(returnedHandles[0])
+	if err != nil {
+		bookmark.Close()
+		evtapi.EvtCloseRecord(c.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to update bookmark: %w", err)
+	}
+
+	// Clean up event handle
+	evtapi.EvtCloseRecord(c.evtapi, returnedHandles[0])
+
+	// Log the bookmark creation for debugging
+	bookmarkXML, err := bookmark.Render()
+	if err == nil {
+		log.Infof("Created initial bookmark for channel '%s' with query '%s'. Bookmark length: %d",
+			channelPath, query, len(bookmarkXML))
+	}
+
+	return bookmark, nil
 }
 
 func (c *Check) startSubscription() error {

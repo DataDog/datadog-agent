@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 	"text/template" //nolint:depguard
 
 	"golang.org/x/sys/windows"
@@ -103,6 +104,69 @@ func (api *API) EvtSubscribe(
 	return sub.handle, nil
 }
 
+// EvtQuery fake
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtquery
+func (api *API) EvtQuery(
+	Session evtapi.EventSessionHandle,
+	Path string,
+	Query string,
+	Flags uint) (evtapi.EventResultSetHandle, error) {
+
+	// For the fake implementation, we'll reuse the subscription logic
+	// but return immediately instead of setting up event notification
+	if Query != "" && Query != "*" && !strings.HasPrefix(Query, "<QueryList>") {
+		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support query syntax")
+	}
+
+	if Session != evtapi.EventSessionHandle(0) {
+		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support remote sessions")
+	}
+
+	// For multi-channel queries (XML QueryList), just use the first channel for now
+	channelPath := Path
+	if strings.HasPrefix(Query, "<QueryList>") {
+		// Extract first channel from QueryList - simple implementation
+		start := strings.Index(Query, `Path="`)
+		if start == -1 {
+			start = strings.Index(Query, `Path='`)
+		}
+		if start != -1 {
+			start += 6 // len(`Path="`)
+			end := strings.IndexAny(Query[start:], `"'`)
+			if end != -1 {
+				channelPath = Query[start : start+end]
+			}
+		}
+	}
+
+	// ensure channel exists
+	evtlog, err := api.getEventLog(channelPath)
+	if err != nil {
+		return evtapi.EventResultSetHandle(0), err
+	}
+	evtlog.mu.Lock()
+	defer evtlog.mu.Unlock()
+
+	// create a subscription-like object for query results
+	sub := newSubscription(channelPath, Query)
+
+	// Position at the end for reverse queries, beginning for forward
+	if Flags&evtapi.EvtQueryReverseDirection != 0 {
+		// Start from the end
+		sub.nextEvent = uint(len(evtlog.events))
+		sub.isReverse = true
+	} else {
+		// Start from the beginning
+		sub.nextEvent = 0
+		sub.isReverse = false
+	}
+
+	// add to subscriptions map
+	api.addSubscription(sub)
+
+	return evtapi.EventResultSetHandle(sub.handle), nil
+}
+
 // EvtNext fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtnext
 func (api *API) EvtNext(
@@ -129,6 +193,38 @@ func (api *API) EvtNext(
 	if len(eventLog.events) == 0 {
 		return nil, windows.ERROR_NO_MORE_ITEMS
 	}
+
+	// Handle reverse queries differently
+	if sub.isReverse {
+		// For reverse queries, we go backwards from nextEvent
+		if sub.nextEvent == 0 {
+			return nil, windows.ERROR_NO_MORE_ITEMS
+		}
+
+		// Calculate start position for this batch
+		start := int(sub.nextEvent) - int(EventsSize)
+		if start < 0 {
+			start = 0
+		}
+		end := int(sub.nextEvent)
+
+		// Get events in reverse order
+		events := eventLog.events[start:end]
+		eventHandles := make([]evtapi.EventRecordHandle, 0, len(events))
+
+		// Add events in reverse order (newest first)
+		for i := len(events) - 1; i >= 0; i-- {
+			api.addEventRecord(events[i])
+			eventHandles = append(eventHandles, events[i].handle)
+		}
+
+		// Update position
+		sub.nextEvent = uint(start)
+
+		return eventHandles, nil
+	}
+
+	// Forward query logic (existing)
 	// if we are at end
 	if sub.nextEvent >= uint(len(eventLog.events)) {
 		return nil, windows.ERROR_NO_MORE_ITEMS

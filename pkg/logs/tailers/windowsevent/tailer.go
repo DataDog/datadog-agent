@@ -11,6 +11,7 @@ package windowsevent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -172,12 +173,20 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		}
 	}
 	if t.bookmark == nil {
-		// new bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		// Create initial bookmark from most recent event
+		t.bookmark, err = t.createInitialBookmark()
 		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
-			return
+			log.Warnf("Failed to create initial bookmark from recent events: %v. Creating empty bookmark.", err)
+			// Fall back to creating an empty bookmark
+			t.bookmark, err = evtbookmark.New(
+				evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+			if err != nil {
+				t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
+				return
+			}
+		} else {
+			// Successfully created bookmark from recent event, use it
+			opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
 		}
 	}
 
@@ -199,6 +208,75 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 
 	// wait for stop signal
 	t.eventLoop(ctx)
+}
+
+// createInitialBookmark queries for the most recent event(s) and creates a bookmark from them
+func (t *Tailer) createInitialBookmark() (evtbookmark.Bookmark, error) {
+	// Determine if this is a multi-channel query
+	isMultiChannel := strings.HasPrefix(t.config.Query, "<QueryList>")
+
+	// Set up query parameters
+	var path string
+	var flags uint
+
+	if isMultiChannel {
+		// For multi-channel queries, path is ignored and query contains the XML QueryList
+		path = ""
+		flags = evtapi.EvtQueryFilePath | evtapi.EvtQueryReverseDirection
+	} else {
+		// Single channel query
+		path = t.config.ChannelPath
+		flags = evtapi.EvtQueryChannelPath | evtapi.EvtQueryReverseDirection
+	}
+
+	// Query for the most recent event
+	resultSetHandle, err := t.evtapi.EvtQuery(0, path, t.config.Query, flags)
+	if err != nil {
+		return nil, fmt.Errorf("EvtQuery failed: %w", err)
+	}
+	defer evtapi.EvtCloseResultSet(t.evtapi, resultSetHandle)
+
+	// Get the first event (most recent due to reverse direction)
+	eventHandles := make([]evtapi.EventRecordHandle, 1)
+	returnedHandles, err := t.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
+	if err != nil {
+		if err == windows.ERROR_NO_MORE_ITEMS {
+			// No events in the log, return nil to indicate empty bookmark should be created
+			return nil, fmt.Errorf("no events found in log")
+		}
+		return nil, fmt.Errorf("EvtNext failed: %w", err)
+	}
+
+	if len(returnedHandles) == 0 {
+		return nil, fmt.Errorf("no events returned")
+	}
+
+	// Create bookmark and update it with the event
+	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	if err != nil {
+		// Clean up event handle before returning
+		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to create bookmark: %w", err)
+	}
+
+	err = bookmark.Update(returnedHandles[0])
+	if err != nil {
+		bookmark.Close()
+		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to update bookmark: %w", err)
+	}
+
+	// Clean up event handle
+	evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+
+	// Log the bookmark creation for debugging
+	bookmarkXML, err := bookmark.Render()
+	if err == nil {
+		log.Infof("Created initial bookmark for channel '%s' with query '%s'. Bookmark length: %d",
+			t.config.ChannelPath, t.config.Query, len(bookmarkXML))
+	}
+
+	return bookmark, nil
 }
 
 func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
