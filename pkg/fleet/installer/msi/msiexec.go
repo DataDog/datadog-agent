@@ -325,7 +325,7 @@ func isRetryableExitCode(err error) bool {
 	return false
 }
 
-// Run runs msiexec synchronously with retry logic for exit code 1618 using backoff package
+// Run runs msiexec synchronously with retry logic
 func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 	var err error
 	var attemptCount int
