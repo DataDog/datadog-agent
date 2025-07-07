@@ -15,7 +15,6 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -82,12 +81,6 @@ func (c *safeConfig) sendNotification(key string, oldValue, newValue interface{}
 	}
 
 	c.notificationChannel <- notification
-}
-
-func getCallerLocation(nbStack int) string {
-	_, file, line, _ := runtime.Caller(nbStack + 1)
-	fileParts := strings.Split(file, "DataDog/datadog-agent/")
-	return fmt.Sprintf("%s:%d", fileParts[len(fileParts)-1], line)
 }
 
 // Set wraps Viper for concurrent access
