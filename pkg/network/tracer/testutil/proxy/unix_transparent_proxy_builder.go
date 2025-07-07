@@ -10,13 +10,11 @@ package proxy
 import (
 	"context"
 	"os/exec"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
@@ -30,7 +28,7 @@ func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, serverSrcPath)
 	require.NoError(t, err)
 
-	args := []string{serverBin, "-unix", unixPath, "-remote", remoteAddr}
+	args := []string{"-unix", unixPath, "-remote", remoteAddr}
 	if useTLS {
 		args = append(args, "-tls")
 	}
@@ -41,10 +39,8 @@ func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 		args = append(args, "-ipv6")
 	}
 	cancelCtx, cancel := context.WithCancel(context.Background())
-	commandLine := strings.Join(args, " ")
-	c, _, err := nettestutil.StartCommandCtx(cancelCtx, commandLine)
-
-	require.NoError(t, err)
+	c := exec.CommandContext(cancelCtx, serverBin, args...)
+	require.NoError(t, c.Start())
 	return c, func() {
 		cancel()
 		if c.Process != nil {
