@@ -136,19 +136,6 @@ type NetworkContextSerializer struct {
 	NetworkDirection string `json:"network_direction"`
 }
 
-// BPFFilterSerializer serializes a BPF filter to JSON
-// easyjson:json
-type BPFFilterSerializer struct {
-	// code is the BPF filter code
-	Code uint16 `json:"code"`
-	// jt is the BPF filter jmp true
-	Jt uint8 `json:"jt"`
-	// jf is the BPF filter jmp false
-	Jf uint8 `json:"jf"`
-	// k is the BPF filter k value
-	K uint32 `json:"k"`
-}
-
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
 // easyjson:json
 type AWSSecurityCredentialsSerializer struct {
