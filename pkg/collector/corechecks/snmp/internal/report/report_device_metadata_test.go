@@ -772,6 +772,29 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 				},
 			},
 
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.8": {
+				"1": valuestore.ResultValue{
+					Value: "4608000",
+				},
+				"2": valuestore.ResultValue{
+					Value: "123456",
+				},
+				"3": valuestore.ResultValue{
+					Value: "654321",
+				},
+			},
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.9": {
+				"1": valuestore.ResultValue{
+					Value: "3600",
+				},
+				"2": valuestore.ResultValue{
+					Value: "7200",
+				},
+				"3": valuestore.ResultValue{
+					Value: "1800",
+				},
+			},
+
 			// Route Table (Current)
 			"1.3.6.1.2.1.4.24.7.1.7": { // Interface Index
 				"1.4.100.0.0.0.16.2.0.0.0.0": valuestore.ResultValue{
@@ -876,6 +899,18 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 							Name: "cipSecTunRemoteAddr",
 						},
 					},
+					"life_size": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.8",
+							Name: "cipSecTunLifeSize",
+						},
+					},
+					"life_time": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.9",
+							Name: "cipSecTunLifeTime",
+						},
+					},
 				},
 			},
 			"ipforward_deprecated": {
@@ -964,7 +999,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "route_addresses": [
                 "100.0.0.0/16",
                 "100.1.0.0/16"
-            ]
+            ],
+            "config": {
+                "life_size": "4608000",
+                "life_time": "3600"
+            }
         },
         {
             "device_id": "1234",
@@ -974,7 +1013,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "route_addresses": [
                 "110.0.0.0/24",
                 "110.1.0.0/24"
-            ]
+            ],
+            "config": {
+                "life_size": "123456",
+                "life_time": "7200"
+            }
         },
         {
             "device_id": "1234",
@@ -985,7 +1028,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "route_addresses": [
                 "120.0.0.0/16",
                 "120.0.0.0/24"
-            ]
+            ],
+            "config": {
+                "life_size": "654321",
+                "life_time": "1800"
+            }
         }
     ],
     "collect_timestamp":1415792726

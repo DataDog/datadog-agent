@@ -77,6 +77,7 @@ func GetMappedValue(index string, mapping map[string]string) (string, error) {
 	return index, nil
 }
 
+// VPNTunnelMetrics contains VPN tunnels metrics
 var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
 	{
 		MIB: "CISCO-IPSEC-FLOW-MONITOR-MIB",
@@ -147,6 +148,10 @@ var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
 
 func updateMetricsDefinitionWithDefaults(metrics []profiledefinition.MetricsConfig, collectVPN bool) []profiledefinition.MetricsConfig {
 	if collectVPN {
+		metrics = append(metrics, VPNTunnelMetrics...)
+		metrics = append(metrics, VPNTunnelMetrics...)
+		metrics = append(metrics, VPNTunnelMetrics...)
+		metrics = append(metrics, VPNTunnelMetrics...)
 		metrics = append(metrics, VPNTunnelMetrics...)
 	}
 	return metrics
