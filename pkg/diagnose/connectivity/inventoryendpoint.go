@@ -26,59 +26,69 @@ import (
 )
 
 type endpointDescription struct {
-	method        string
-	route         string
-	prefix        string
-	dashPrefix    string
-	routePath     string
-	configPrefix  string
-	limitRedirect bool
-	versioned     bool
+	name              string
+	method            string
+	route             string
+	prefix            string
+	routePath         string
+	configPrefix      string
+	limitRedirect     bool
+	versioned         bool
+	altURLOverrideKey string
+	handlesFailover   bool
 }
 
 func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
 	return []endpointDescription{
-		{route: "https://install.datadoghq.com", method: http.MethodHead},
-		{route: "https://yum.datadoghq.com", method: http.MethodHead},
-		{route: "https://apt.datadoghq.com", method: http.MethodHead},
-		{route: "https://keys.datadoghq.com", method: http.MethodHead},
-		{prefix: "process", routePath: "probe", method: http.MethodGet},
-		{route: helpers.GetFlareEndpoint(cfg), method: http.MethodHead, limitRedirect: true},
-		{prefix: "orchestrator", routePath: "probe", method: http.MethodGet},
-		{prefix: "llmobs-intake", routePath: "probe", method: http.MethodGet},
-		{prefix: "intake.synthetics", routePath: "probe", method: http.MethodGet},
-		{prefix: "ndm-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.metadata"},
-		{prefix: "snmp-traps-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.snmp_traps.forwarder"},
-		{prefix: "ndmflow-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.netflow.forwarder"},
-		{prefix: "netpath-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_path.forwarder"},
-		{prefix: "contlcycle-intake", routePath: "probe", method: http.MethodGet, configPrefix: "container_lifecycle.forwarder"},
-		{dashPrefix: "browser-intake", routePath: "probe", method: http.MethodGet},
-		{prefix: "agent-http-intake.logs", routePath: "probe", method: http.MethodGet, configPrefix: "logs_config"},
-		{prefix: "trace.agent", routePath: "_health", method: http.MethodGet},
-		{prefix: "config", routePath: "_health", method: http.MethodGet},
-		{prefix: "instrumentation-telemetry-intake", routePath: "probe", method: http.MethodGet, configPrefix: "service_discovery.forwarder"},
-		{prefix: "intake.profile", routePath: "probe", method: http.MethodGet},
-		{prefix: "app", routePath: "probe", versioned: true, method: http.MethodGet},
+		{name: "Agent installation", route: "https://install.datadoghq.com", method: http.MethodHead, altURLOverrideKey: "installer.registry.url"},
+		{name: "Agent package yum", route: "https://yum.datadoghq.com", method: http.MethodHead},
+		{name: "Agent package apt", route: "https://apt.datadoghq.com", method: http.MethodHead},
+		{name: "Agent keys", route: "https://keys.datadoghq.com", method: http.MethodHead},
+		{name: "APM traces", prefix: "trace.agent", routePath: "_health", method: http.MethodGet, altURLOverrideKey: "apm_config.apm_dd_url"},
+		{name: "APM telemetry", prefix: "instrumentation-telemetry-intake", routePath: "probe", method: http.MethodGet, configPrefix: "service_discovery.forwarder", altURLOverrideKey: "apm_config.telemetry.dd_url"},
+		{name: "LLM obs", prefix: "llmobs-intake", routePath: "probe", method: http.MethodGet},
+		{name: "Container image", prefix: "contimage-intake", routePath: "probe", method: http.MethodGet, configPrefix: "container_image"},
+		{name: "Live container/process/USM", prefix: "process", configPrefix: "process_config", altURLOverrideKey: "process_config.process_dd_url", routePath: "probe", method: http.MethodGet},
+		{name: "Network device monitoring metadata", prefix: "ndm-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.metadata", altURLOverrideKey: "network_devices.metadata_dd_url"},
+		{name: "Network device monitoring netflow", prefix: "ndmflow-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.netflow.forwarder"},
+		{name: "Network device monitoring snmp", prefix: "snmp-traps-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_devices.snmp_traps.forwarder", altURLOverrideKey: "network_devices.snmp_traps_dd_url"},
+		{name: "Network path", prefix: "netpath-intake", routePath: "probe", method: http.MethodGet, configPrefix: "network_path.forwarder"},
+		{name: "Orchestrator ", prefix: "orchestrator", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "orchestrator_explorer.orchestrator_dd_url"},
+		{name: "Orchestrator container lifecycle", prefix: "contlcycle-intake", routePath: "probe", method: http.MethodGet, configPrefix: "container_lifecycle.forwarder"},
+		{name: "Profiling", prefix: "intake.profile", routePath: "probe", method: http.MethodGet, altURLOverrideKey: "apm_config.profiling_dd_url"},
+		{name: "Remote configuration", prefix: "config", configPrefix: "remote_configuration", altURLOverrideKey: "remote_configuration.rc_dd_url", handlesFailover: true, routePath: "_health", method: http.MethodGet},
+		{name: "Database monitoring metrics", prefix: "dbm-metrics-intake", routePath: "probe", method: http.MethodGet, configPrefix: "database_monitoring.samples", altURLOverrideKey: "database_monitoring.metrics.dd_url"},
+		{name: "Agent flare", route: helpers.GetFlareEndpoint(cfg), method: http.MethodHead, limitRedirect: true},
+		{name: "Logs", prefix: "agent-http-intake.logs", routePath: "probe", method: http.MethodGet, configPrefix: "logs_config", altURLOverrideKey: "logs_config.logs_dd_url", handlesFailover: true},
+		{name: "Metrics/events/agent metadata", prefix: "app", routePath: "probe", versioned: true, method: http.MethodGet, altURLOverrideKey: "dd_url", handlesFailover: true},
 	}
 }
 
 type resolvedEndpoint struct {
+	name          string
 	url           string
-	base          string
 	method        string
 	apiKey        string
 	limitRedirect bool
+	isFailover    bool
 }
 
-func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[string]domain) []resolvedEndpoint {
+func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains []domain) []resolvedEndpoint {
 	// if route is set -> There's only one possible url
 	if e.route != "" {
+		mainDomain := domains[0]
+		route := e.route
+		urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, false)
+		if overrideRoute := cfg.GetString(urlOverrideKey); overrideRoute != "" {
+			route = overrideRoute
+		}
+
 		return []resolvedEndpoint{
 			{
-				url:           e.route,
-				base:          e.route,
+				name:          e.name,
+				url:           route,
 				method:        e.method,
-				apiKey:        getAPIKey(cfg, e.configPrefix, domains["main"].mainAPIKey, false),
+				apiKey:        getAPIKey(cfg, e.configPrefix, mainDomain.defaultAPIKey, false),
 				limitRedirect: e.limitRedirect,
 			},
 		}
@@ -86,26 +96,28 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[strin
 	routes := []resolvedEndpoint{}
 
 	for _, domain := range domains {
-		base, url := e.buildRoute(domain)
+		if domain.isFailover && !e.handlesFailover {
+			continue
+		}
+
+		url := e.buildRoute(cfg, domain)
 		routes = append(routes, resolvedEndpoint{
+			name:          e.name,
 			url:           url,
-			base:          base,
 			method:        e.method,
-			apiKey:        getAPIKey(cfg, e.configPrefix, domain.mainAPIKey, domain.useAltAPIKey),
+			apiKey:        getAPIKey(cfg, e.configPrefix, domain.defaultAPIKey, domain.useAltAPIKey),
 			limitRedirect: e.limitRedirect,
+			isFailover:    domain.isFailover,
 		})
 	}
 	return routes
 }
 
-func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, useCustomAPIKey bool) string {
-	if !useCustomAPIKey {
+func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, altAPIKey bool) string {
+	if !altAPIKey {
 		return defaultAPIKey
 	}
-	if !strings.HasSuffix(configPrefix, ".") {
-		configPrefix = configPrefix + "."
-	}
-	if apiKey := cfg.GetString(configPrefix + "api_key"); apiKey != "" {
+	if apiKey := cfg.GetString(joinSuffix(configPrefix, ".") + "api_key"); apiKey != "" {
 		return apiKey
 	}
 	return defaultAPIKey
@@ -113,63 +125,76 @@ func getAPIKey(cfg model.Reader, configPrefix string, defaultAPIKey string, useC
 
 type domain struct {
 	site          string
-	mainAPIKey    string
+	defaultAPIKey string
 	infraEndpoint string
 	useAltAPIKey  bool
+	isFailover    bool
 }
 
-func getDomains(cfg model.Reader) map[string]domain {
-	domains := map[string]domain{}
+func getDomains(cfg model.Reader) []domain {
+	domains := []domain{}
 
-	site := pkgconfigsetup.DefaultSite
-
+	mainSite := pkgconfigsetup.DefaultSite
 	if cfg.GetString("site") != "" {
-		site = cfg.GetString("site")
+		mainSite = cfg.GetString("site")
 	}
 
-	domains["main"] = domain{
-		site:          site,
-		mainAPIKey:    cfg.GetString("api_key"),
+	domains = append(domains, domain{
+		site:          mainSite,
+		defaultAPIKey: cfg.GetString("api_key"),
 		infraEndpoint: utils.GetInfraEndpoint(cfg),
 		useAltAPIKey:  true,
-	}
+		isFailover:    false,
+	})
 
 	if cfg.GetBool("multi_region_failover.enabled") {
 		if mrfEndpoint, err := utils.GetMRFEndpoint(cfg, utils.InfraURLPrefix, "multi_region_failover.dd_url"); err == nil {
-			domains["MRF"] = domain{
+			domains = append(domains, domain{
 				site:          cfg.GetString("multi_region_failover.site"),
-				mainAPIKey:    cfg.GetString("multi_region_failover.api_key"),
+				defaultAPIKey: cfg.GetString("multi_region_failover.api_key"),
 				infraEndpoint: mrfEndpoint,
 				useAltAPIKey:  false,
-			}
+				isFailover:    true,
+			})
 		}
 	}
 
 	return domains
 }
 
-func (e *endpointDescription) buildRoute(domain domain) (baseURL string, route string) {
+func (e *endpointDescription) buildRoute(cfg model.Reader, domain domain) string {
+	baseURL := ""
 	if e.versioned {
 		baseURL, _ = utils.AddAgentVersionToDomain(domain.infraEndpoint, e.prefix)
 	} else {
-		if e.dashPrefix != "" {
-			baseURL = fmt.Sprintf("https://%s", joinPrefix(e.dashPrefix, "-", domain.site))
+		urlOverrideKey := getURLOverrideKey(e.altURLOverrideKey, domain.isFailover)
+		schemedPrefix := fmt.Sprintf("https://%s", joinSuffix(e.prefix, "."))
+		if domain.isFailover {
+			baseURL, _ = utils.GetMRFEndpoint(cfg, schemedPrefix, urlOverrideKey)
 		} else {
-			baseURL = fmt.Sprintf("https://%s", joinPrefix(e.prefix, ".", domain.site))
+			baseURL = utils.GetMainEndpoint(cfg, schemedPrefix, urlOverrideKey)
 		}
 	}
 
-	if !strings.HasPrefix(e.routePath, "/") {
-		e.routePath = "/" + e.routePath
+	path := e.routePath
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
 	}
-	return baseURL, baseURL + e.routePath
+	return baseURL + path
 }
 
-func joinPrefix(prefix, separator, domain string) string {
-	if !strings.HasSuffix(prefix, separator) {
-		prefix = prefix + separator
+func getURLOverrideKey(altKey string, isFailover bool) string {
+	if !isFailover {
+		return altKey
 	}
-	return prefix + domain
+	return "multi_region_failover." + altKey
+}
+
+func joinSuffix(prefix, separator string) string {
+	if strings.HasSuffix(prefix, separator) {
+		return prefix
+	}
+	return prefix + separator
 }
 
 const (
@@ -216,7 +241,10 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 				default:
 				}
 
-				description := "Ping: " + endpoint.base
+				description := endpoint.name
+				if endpoint.isFailover {
+					description += " - failover"
+				}
 				diagnosis, err := endpoint.checkServiceConnectivity(ctx, client)
 
 				var result diagnose.Diagnosis

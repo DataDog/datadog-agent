@@ -22,13 +22,13 @@ import (
 
 func TestBuildRoute(t *testing.T) {
 	tests := []struct {
-		name       string
-		prefix     string
-		dashPrefix string
-		domain     domain
-		path       string
-		versioned  bool
-		expected   string
+		name           string
+		prefix         string
+		domain         domain
+		path           string
+		urlOverrideKey string
+		versioned      bool
+		expected       string
 	}{
 		{
 			name:   "basic route with dot separator",
@@ -38,17 +38,7 @@ func TestBuildRoute(t *testing.T) {
 				infraEndpoint: "https://app.datadoghq.com",
 			},
 			path:     "api/v1/validate",
-			expected: "https://install.datadoghq.com/api/v1/validate",
-		},
-		{
-			name:       "route with dash separator",
-			dashPrefix: "browser-intake",
-			domain: domain{
-				site:          "datadoghq.com",
-				infraEndpoint: "https://app.datadoghq.com",
-			},
-			path:     "api/v2/logs",
-			expected: "https://browser-intake-datadoghq.com/api/v2/logs",
+			expected: "https://install.datadoghq.com./api/v1/validate",
 		},
 		{
 			name:   "prefix already has separator",
@@ -58,37 +48,17 @@ func TestBuildRoute(t *testing.T) {
 				infraEndpoint: "https://app.datadoghq.com",
 			},
 			path:     "api/v2/llmobs",
-			expected: "https://llmobs-intake.datadoghq.com/api/v2/llmobs",
+			expected: "https://llmobs-intake.datadoghq.com./api/v2/llmobs",
 		},
 		{
-			name:   "path without leading slash",
-			prefix: "install",
-			domain: domain{
-				site:          "datadoghq.com",
-				infraEndpoint: "https://app.datadoghq.com",
-			},
-			path:     "api/v1/validate",
-			expected: "https://install.datadoghq.com/api/v1/validate",
-		},
-		{
-			name:   "path with leading slash",
-			prefix: "install",
-			domain: domain{
-				site:          "datadoghq.com",
-				infraEndpoint: "https://app.datadoghq.com",
-			},
-			path:     "/api/v1/validate",
-			expected: "https://install.datadoghq.com/api/v1/validate",
-		},
-		{
-			name:   "custom domain",
+			name:   "path with leading slash and custom site",
 			prefix: "install",
 			domain: domain{
 				site:          "datadoghq.eu",
 				infraEndpoint: "https://app.datadoghq.eu",
 			},
-			path:     "api/v1/validate",
-			expected: "https://install.datadoghq.eu/api/v1/validate",
+			path:     "/api/v1/validate",
+			expected: "https://install.datadoghq.eu./api/v1/validate",
 		},
 		{
 			name:   "versioned route",
@@ -101,18 +71,36 @@ func TestBuildRoute(t *testing.T) {
 			versioned: true,
 			expected:  "https://6-0-0-app.agent.datadoghq.com/api/v1/validate",
 		},
+		{
+			name:   "with url override",
+			prefix: "intake.profile",
+			domain: domain{
+				site:          "datadoghq.eu",
+				infraEndpoint: "https://app.datadoghq.eu",
+			},
+			urlOverrideKey: "dd_url",
+			path:           "validate",
+			expected:       "http://myproxy.com/validate",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			endpointDescription := endpointDescription{
-				prefix:     tt.prefix,
-				dashPrefix: tt.dashPrefix,
-				routePath:  tt.path,
-				versioned:  tt.versioned,
+				prefix:            tt.prefix,
+				routePath:         tt.path,
+				versioned:         tt.versioned,
+				altURLOverrideKey: tt.urlOverrideKey,
 			}
 			version.AgentVersion = "6.0.0"
-			_, url := endpointDescription.buildRoute(tt.domain)
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("site", tt.domain.site)
+			mockConfig.SetWithoutSource("multi_region_failover.enabled", tt.domain.isFailover)
+			mockConfig.SetWithoutSource("multi_region_failover.site", tt.domain.site)
+			if tt.urlOverrideKey != "" {
+				mockConfig.SetWithoutSource(tt.urlOverrideKey, "http://myproxy.com")
+			}
+			url := endpointDescription.buildRoute(mockConfig, tt.domain)
 			assert.Equal(t, tt.expected, url)
 		})
 	}
@@ -123,7 +111,7 @@ func TestBuildEndpoints(t *testing.T) {
 		name                string
 		endpointDescription endpointDescription
 		config              map[string]string
-		domains             map[string]domain
+		domains             []domain
 		expectedEndpoints   []resolvedEndpoint
 	}{
 		{
@@ -132,10 +120,15 @@ func TestBuildEndpoints(t *testing.T) {
 				route:  "https://custom.endpoint.com",
 				method: http.MethodHead,
 			},
-			domains: map[string]domain{
-				"main": {
-					site:       "datadoghq.com",
-					mainAPIKey: "api-key-1",
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+				{
+					site:          "datadoghq.eu",
+					defaultAPIKey: "api-key-2",
+					isFailover:    true,
 				},
 			},
 			expectedEndpoints: []resolvedEndpoint{
@@ -148,76 +141,60 @@ func TestBuildEndpoints(t *testing.T) {
 		{
 			name: "endpoint with prefix and multiple domains",
 			endpointDescription: endpointDescription{
-				prefix: "install",
-				method: http.MethodHead,
+				prefix:          "install",
+				method:          http.MethodHead,
+				handlesFailover: true,
 			},
-			domains: map[string]domain{
-				"main": {
-					site:       "datadoghq.com",
-					mainAPIKey: "api-key-1",
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
 				},
-				"mrf": {
-					site:       "datadoghq.eu",
-					mainAPIKey: "api-key-2",
+				{
+					site:          "datadoghq.eu",
+					defaultAPIKey: "api-key-2",
+					isFailover:    true,
 				},
 			},
 			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-1",
-					url:    "https://install.datadoghq.com/",
+					url:    "https://install.datadoghq.com./",
 				},
 				{
 					apiKey: "api-key-2",
-					url:    "https://install.datadoghq.eu/",
-				},
-			},
-		},
-		{
-			name: "endpoint with prefix, path and separator",
-			endpointDescription: endpointDescription{
-				dashPrefix: "browser-intake",
-				routePath:  "api/v2/logs",
-				method:     http.MethodGet,
-			},
-			domains: map[string]domain{
-				"main": {
-					site:       "datadoghq.com",
-					mainAPIKey: "api-key-1",
-				},
-			},
-			expectedEndpoints: []resolvedEndpoint{
-				{
-					apiKey: "api-key-1",
-					url:    "https://browser-intake-datadoghq.com/api/v2/logs",
+					url:    "https://install.datadoghq.eu./",
 				},
 			},
 		},
 		{
 			name: "endpoint with config prefix",
 			endpointDescription: endpointDescription{
-				prefix:       "ndm.metadata.",
-				method:       http.MethodGet,
-				configPrefix: "service.metadata.",
+				prefix:          "ndm.metadata.",
+				method:          http.MethodGet,
+				configPrefix:    "service.metadata.",
+				handlesFailover: true,
 			},
 			config: map[string]string{
 				"service.metadata.api_key": "api-key-custom",
 			},
-			domains: map[string]domain{
-				"main": {
-					site:         "datadoghq.com",
-					mainAPIKey:   "api-key-main",
-					useAltAPIKey: true,
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-main",
+					useAltAPIKey:  true,
 				},
-				"MRF": {
-					site:         "datadoghq.mrf.com",
-					mainAPIKey:   "api-key-mrf",
-					useAltAPIKey: false,
+				{
+					site:          "datadoghq.mrf.com",
+					defaultAPIKey: "api-key-mrf",
+					useAltAPIKey:  false,
+					isFailover:    true,
 				},
 			},
 			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-custom",
-					url:    "https://ndm.metadata.datadoghq.com/",
+					url:    "https://ndm.metadata.datadoghq.com./",
 				},
 				{
 					apiKey: "api-key-mrf",
@@ -232,16 +209,40 @@ func TestBuildEndpoints(t *testing.T) {
 				method:       http.MethodGet,
 				configPrefix: "service.metadata.",
 			},
-			domains: map[string]domain{
-				"main": {
-					site:       "datadoghq.com",
-					mainAPIKey: "api-key-1",
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
 				},
 			},
 			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-1",
-					url:    "https://ndm.metadata.datadoghq.com/",
+					url:    "https://ndm.metadata.datadoghq.com./",
+				},
+			},
+		},
+		{
+			name: "route with url override key",
+			endpointDescription: endpointDescription{
+				name:              "install",
+				route:             "https://install.datadoghq.com",
+				method:            http.MethodHead,
+				altURLOverrideKey: "installer.registry.url",
+			},
+			config: map[string]string{
+				"installer.registry.url": "https://override.com",
+			},
+			domains: []domain{
+				{
+					site:          "datadoghq.com",
+					defaultAPIKey: "api-key-1",
+				},
+			},
+			expectedEndpoints: []resolvedEndpoint{
+				{
+					apiKey: "api-key-1",
+					url:    "https://override.com",
 				},
 			},
 		},
@@ -254,6 +255,13 @@ func TestBuildEndpoints(t *testing.T) {
 			for key, value := range tt.config {
 				mockConfig.SetWithoutSource(key, value)
 			}
+
+			mockConfig.SetWithoutSource("site", tt.domains[0].site)
+			if len(tt.domains) > 1 {
+				mockConfig.SetWithoutSource("multi_region_failover.enabled", true)
+				mockConfig.SetWithoutSource("multi_region_failover.site", tt.domains[1].site)
+			}
+
 			endpoints := tt.endpointDescription.buildEndpoints(mockConfig, tt.domains)
 
 			assert.Len(t, endpoints, len(tt.expectedEndpoints))
@@ -268,7 +276,7 @@ func TestBuildEndpoints(t *testing.T) {
 						break
 					}
 				}
-				assert.True(t, found, "Expected URL %s not found in endpoints", expectedEndpoint.url)
+				assert.True(t, found, "Expected URL %s not found in endpoints - found %v", expectedEndpoint.url, endpoints)
 			}
 		})
 	}
@@ -283,17 +291,17 @@ func TestGetDomainInfo(t *testing.T) {
 		multiRegionFailover       bool
 		multiRegionFailoverSite   string
 		multiRegionFailoverAPIKey string
-		expectedKeys              map[string]domain
+		expectedKeys              []domain
 	}{
 		{
 			name:     "main site",
 			apiKey:   "test-api-key",
 			site:     "datadOg.com",
 			expected: "datadOg.com",
-			expectedKeys: map[string]domain{
-				"main": {
+			expectedKeys: []domain{
+				{
 					site:          "datadOg.com",
-					mainAPIKey:    "test-api-key",
+					defaultAPIKey: "test-api-key",
 					infraEndpoint: "https://app.datadOg.com",
 					useAltAPIKey:  true,
 				},
@@ -303,10 +311,10 @@ func TestGetDomainInfo(t *testing.T) {
 			name:     "default site",
 			apiKey:   "test-api-key",
 			expected: "datadoghq.com",
-			expectedKeys: map[string]domain{
-				"main": {
+			expectedKeys: []domain{
+				{
 					site:          "datadoghq.com",
-					mainAPIKey:    "test-api-key",
+					defaultAPIKey: "test-api-key",
 					infraEndpoint: "https://app.datadoghq.com.",
 					useAltAPIKey:  true,
 				},
@@ -320,18 +328,19 @@ func TestGetDomainInfo(t *testing.T) {
 			multiRegionFailoverSite:   "datadoghq.com",
 			multiRegionFailoverAPIKey: "test-api-key",
 			expected:                  "datadoghq.com",
-			expectedKeys: map[string]domain{
-				"main": {
+			expectedKeys: []domain{
+				{
 					site:          "datadoghq.eu",
-					mainAPIKey:    "test-api-key",
+					defaultAPIKey: "test-api-key",
 					infraEndpoint: "https://app.datadoghq.eu.",
 					useAltAPIKey:  true,
 				},
-				"MRF": {
+				{
 					site:          "datadoghq.com",
-					mainAPIKey:    "test-api-key",
+					defaultAPIKey: "test-api-key",
 					infraEndpoint: "https://app.datadoghq.com.",
 					useAltAPIKey:  false,
+					isFailover:    true,
 				},
 			},
 		},
@@ -369,7 +378,6 @@ func TestCheckGet(t *testing.T) {
 	// Create a resolvedEndpoint with GET method
 	endpoint := resolvedEndpoint{
 		url:    ts.URL,
-		base:   ts.URL,
 		method: http.MethodGet,
 		apiKey: "test-api-key",
 	}
@@ -393,7 +401,6 @@ func TestCheckGetConnectionFailure(t *testing.T) {
 	// Create a resolvedEndpoint with an invalid URL
 	endpoint := resolvedEndpoint{
 		url:    "http://invalid-url-that-does-not-exist.com",
-		base:   "http://invalid-url-that-does-not-exist.com",
 		method: http.MethodGet,
 		apiKey: "test-api-key",
 	}
@@ -425,7 +432,6 @@ func TestCheckHeadWithRedirectLimit(t *testing.T) {
 
 	endpoint := resolvedEndpoint{
 		url:           ts.URL,
-		base:          ts.URL,
 		method:        http.MethodHead,
 		apiKey:        "irrelevant",
 		limitRedirect: true,
@@ -459,18 +465,15 @@ func TestRun(t *testing.T) {
 	testEndpoints := []resolvedEndpoint{
 		{
 			url:    ts.URL,
-			base:   ts.URL,
 			method: http.MethodHead,
 		},
 		{
 			url:    ts.URL,
-			base:   ts.URL,
 			method: http.MethodGet,
 			apiKey: "test-api-key",
 		},
 		{
 			url:    ts.URL,
-			base:   ts.URL,
 			method: http.MethodGet,
 			apiKey: "wrong-api-key",
 		},
