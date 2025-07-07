@@ -95,7 +95,7 @@ func (g *LookupTableGenerator) Run(ctx context.Context, writer io.Writer) error 
 	// against each combination of Go version and architecture.
 	matrixRunner := &matrix.Runner{
 		Parallelism:      g.CompilationParallelism,
-		Versions:         versions,
+		Versions:         sortedVersions,
 		Architectures:    g.Architectures,
 		InstallDirectory: g.InstallDirectory,
 		GetCommand:       g.getCommand,
