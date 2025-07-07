@@ -4,7 +4,6 @@ package nvidia
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -98,7 +97,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	devInfo := c.device.GetDeviceInfo()
 	var processMetrics []Metric
 	for _, proc := range procs {
-		pidTag := map[string]string{"pid": strconv.Itoa(int(proc.Pid))}
+		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
 		processMetrics = append(processMetrics,
 			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Tags: pidTag},
@@ -116,7 +115,7 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 
 	var utilizationMetrics []Metric
 	for _, sample := range processSamples {
-		pidTag := map[string]string{"pid": strconv.Itoa(int(sample.Pid))}
+		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
 		utilizationMetrics = append(utilizationMetrics,
 			Metric{Name: "core.utilization", Value: float64(sample.SmUtil), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
