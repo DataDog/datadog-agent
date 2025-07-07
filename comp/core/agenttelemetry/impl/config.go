@@ -232,7 +232,6 @@ var defaultProfiles = `
         - name: transactions.retries
         - name: transactions.errors
           aggregate_tags:
-            - domain
             - error_type
             - endpoint
     schedule:
