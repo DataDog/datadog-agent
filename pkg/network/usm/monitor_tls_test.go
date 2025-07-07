@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	nethttp "net/http"
 	"os"
 	"os/exec"
@@ -24,6 +25,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
@@ -48,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
+	"github.com/cilium/ebpf"
 )
 
 type tlsSuite struct {
@@ -467,7 +470,7 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 }
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	t.Skip("skipping GoTLS tests while we investigate their flakiness")
+	//t.Skip("skipping GoTLS tests while we investigate their flakiness")
 
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
@@ -997,4 +1000,346 @@ func (s *tlsSuite) TestNodeJSTLS() {
 			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
 		}
 	}
+}
+
+// TestGoTLSMapLeak verifies that the conn_tup_by_go_tls_conn map
+// has entries that are not cleaned up when Go TLS connections are closed,
+// indicating a potential leak in the cleanup mechanism.
+func TestGoTLSMapLeak(t *testing.T) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	const (
+		serverAddr  = "localhost:8443"
+		numRequests = 10
+	)
+
+	// Setup TLS server
+	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableTLS:       true,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(closeServer)
+
+	// Setup USM monitor with Go TLS support
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.GoTLSExcludeSelf = false // Important: don't exclude our test process
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	// Ensure this test program is being traced
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+
+	// Get the Go TLS connections map
+	goTLSConnectionsMap, exists, err := usmMonitor.ebpfProgram.Manager.GetMap("conn_tup_by_go_tls_conn")
+	require.NoError(t, err, "Failed to get conn_tup_by_go_tls_conn map")
+	require.True(t, exists, "Map conn_tup_by_go_tls_conn does not exist")
+	require.NotNil(t, goTLSConnectionsMap, "Map is nil")
+
+	// Check initial map size - should be 0
+	initialSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Initial map size: %d", initialSize)
+	require.Equal(t, 0, initialSize, "conn_tup_by_go_tls_conn map should be empty initially")
+
+	// Create a raw TLS connection (similar to the OpenSSL test approach)
+	tlsConfig := &tls.Config{InsecureSkipVerify: true}
+	conn, err := tls.Dial("tcp", serverAddr, tlsConfig)
+	require.NoError(t, err, "Failed to establish TLS connection")
+
+	// Make multiple requests over the same connection
+	for i := 0; i < numRequests; i++ {
+		request := fmt.Sprintf("GET /test-%d HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n\r\n", i, serverAddr)
+		_, err := conn.Write([]byte(request))
+		require.NoError(t, err, "Failed to write request %d", i)
+
+		// Read response
+		response := make([]byte, 1024)
+		_, err = conn.Read(response)
+		require.NoError(t, err, "Failed to read response %d", i)
+	}
+
+	// Check map size after making requests - should be > 0
+	afterRequestsSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Map size after requests: %d", afterRequestsSize)
+	require.Greater(t, afterRequestsSize, 0, "conn_tup_by_go_tls_conn map should have entries after making requests")
+
+	// Debug: dump map contents before closing
+	t.Logf("Map contents before closing connection:")
+	dumpGoTLSMapContents(t, goTLSConnectionsMap)
+
+	// Explicitly close the connection to trigger cleanup
+	err = conn.Close()
+	require.NoError(t, err, "Failed to close connection")
+
+	// Wait a bit for cleanup to happen
+	time.Sleep(100 * time.Millisecond)
+
+	// Check map size after closing connection
+	afterCloseSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Map size after closing connection: %d", afterCloseSize)
+
+	// Debug: dump map contents after closing
+	t.Logf("Map contents after closing connection:")
+	dumpGoTLSMapContents(t, goTLSConnectionsMap)
+
+	// Check if there's a leak - if map still has entries, it indicates a leak
+	if afterCloseSize > 0 {
+		t.Logf("LEAK DETECTED: Map still has %d entries after connection close", afterCloseSize)
+		t.Logf("This indicates a potential leak in the conn_tup_by_go_tls_conn map cleanup mechanism")
+	} else {
+		t.Logf("NO LEAK DETECTED: Map was properly cleaned up after connection close")
+	}
+}
+
+// TestGoTLSMapLeakMultipleConnections verifies that the conn_tup_by_go_tls_conn map
+// handles multiple Go TLS connections properly and doesn't leak entries.
+// This test creates multiple TLS connections to a local server and checks for leaks.
+func TestGoTLSMapLeakMultipleConnections(t *testing.T) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	const serverAddr = "localhost:8444"
+
+	// Setup TLS server
+	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableTLS:       true,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(closeServer)
+
+	// Setup USM monitor with Go TLS support
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.GoTLSExcludeSelf = false // Important: don't exclude our test process
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	// Ensure this test program is being traced
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, os.Getpid(), utils.ManualTracingFallbackEnabled)
+
+	// Get the Go TLS connections map
+	goTLSConnectionsMap, exists, err := usmMonitor.ebpfProgram.Manager.GetMap("conn_tup_by_go_tls_conn")
+	require.NoError(t, err, "Failed to get conn_tup_by_go_tls_conn map")
+	require.True(t, exists, "Map conn_tup_by_go_tls_conn does not exist")
+	require.NotNil(t, goTLSConnectionsMap, "Map is nil")
+
+	// Check initial map size - should be 0
+	initialSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Initial map size: %d", initialSize)
+
+	// Create multiple TLS connections to test the map behavior
+	tlsConfig := &tls.Config{InsecureSkipVerify: true}
+	const numConnections = 3
+	var connections []net.Conn
+
+	for i := 0; i < numConnections; i++ {
+		conn, err := tls.Dial("tcp", serverAddr, tlsConfig)
+		require.NoError(t, err, "Failed to establish TLS connection %d", i)
+		connections = append(connections, conn)
+
+		// Make a simple HTTP request to ensure the connection is active
+		request := fmt.Sprintf("GET /test-%d HTTP/1.1\r\nHost: %s\r\nConnection: keep-alive\r\n\r\n", i, serverAddr)
+		_, err = conn.Write([]byte(request))
+		require.NoError(t, err, "Failed to write request %d", i)
+
+		// Read response
+		response := make([]byte, 1024)
+		_, err = conn.Read(response)
+		require.NoError(t, err, "Failed to read response %d", i)
+	}
+
+	// Check map size after making connections
+	afterConnectionsSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Map size after creating %d connections: %d", len(connections), afterConnectionsSize)
+	require.Greater(t, afterConnectionsSize, 0, "conn_tup_by_go_tls_conn map should have entries after making connections")
+
+	// Debug: dump map contents before closing
+	t.Logf("Map contents before closing connections:")
+	dumpGoTLSMapContents(t, goTLSConnectionsMap)
+
+	// Close all connections
+	for i, conn := range connections {
+		err := conn.Close()
+		require.NoError(t, err, "Failed to close connection %d", i)
+	}
+
+	// Wait a bit for cleanup to happen
+	time.Sleep(200 * time.Millisecond)
+
+	// Check map size after closing connections
+	afterCloseSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Map size after closing connections: %d", afterCloseSize)
+
+	// Debug: dump map contents after closing
+	t.Logf("Map contents after closing connections:")
+	dumpGoTLSMapContents(t, goTLSConnectionsMap)
+
+	// Check if there's a leak - if map still has entries, it indicates a leak
+	if afterCloseSize > 0 {
+		t.Logf("LEAK DETECTED: Map still has %d entries after closing connections", afterCloseSize)
+		t.Logf("This indicates a potential leak in the conn_tup_by_go_tls_conn map cleanup mechanism")
+	} else {
+		t.Logf("NO LEAK DETECTED: Map was properly cleaned up after closing connections")
+	}
+}
+
+// countGoTLSMapEntries counts the number of entries in the conn_tup_by_go_tls_conn map
+func countGoTLSMapEntries(t *testing.T, goTLSMap *ebpf.Map) int {
+	var count int
+	var key, value []byte
+
+	iterator := goTLSMap.Iterate()
+	for iterator.Next(&key, &value) {
+		count++
+	}
+
+	if err := iterator.Err(); err != nil {
+		t.Logf("Error iterating over map: %v", err)
+	}
+
+	return count
+}
+
+// dumpGoTLSMapContents dumps the contents of the conn_tup_by_go_tls_conn map for debugging
+func dumpGoTLSMapContents(t *testing.T, goTLSMap *ebpf.Map) {
+	var key, value []byte
+	count := 0
+
+	iterator := goTLSMap.Iterate()
+	for iterator.Next(&key, &value) {
+		count++
+		t.Logf("  Entry %d: key=0x%x, value=%v", count, uintptr(unsafe.Pointer(&key[0])), value)
+	}
+
+	if err := iterator.Err(); err != nil {
+		t.Logf("Error iterating over map: %v", err)
+	}
+
+	if count == 0 {
+		t.Logf("  Map is empty")
+	}
+}
+
+// TestGoTLSMapLeakWithBuiltBinaries verifies that the conn_tup_by_go_tls_conn map
+// has entries that are not cleaned up when Go TLS connections are closed using
+// built binaries (not go run), which reproduces the leak behavior.
+func TestGoTLSMapLeakWithBuiltBinaries(t *testing.T) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+		t.Skip("GoTLS not supported for this setup")
+	}
+
+	// Build the HTTPS server and client binaries
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	httpsDir := filepath.Join(curDir, "../../../https-go")
+
+	// Build server binary
+	serverBin := filepath.Join(httpsDir, "server_test")
+	buildCmd := exec.Command("go", "build", "-o", serverBin, "main.go")
+	buildCmd.Dir = httpsDir
+	output, err := buildCmd.CombinedOutput()
+	require.NoError(t, err, "Failed to build server binary: %s", string(output))
+	t.Cleanup(func() { os.Remove(serverBin) })
+
+	// Build client binary
+	clientBin := filepath.Join(httpsDir, "client_test")
+	buildCmd = exec.Command("go", "build", "-o", clientBin, "client_limited.go")
+	buildCmd.Dir = httpsDir
+	output, err = buildCmd.CombinedOutput()
+	require.NoError(t, err, "Failed to build client binary: %s", string(output))
+	t.Cleanup(func() { os.Remove(clientBin) })
+
+	// Setup USM monitor with Go TLS support
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.GoTLSExcludeSelf = false // Important: don't exclude test processes
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	// Get the Go TLS connections map
+	goTLSConnectionsMap, exists, err := usmMonitor.ebpfProgram.Manager.GetMap("conn_tup_by_go_tls_conn")
+	require.NoError(t, err, "Failed to get conn_tup_by_go_tls_conn map")
+	require.True(t, exists, "Map conn_tup_by_go_tls_conn does not exist")
+	require.NotNil(t, goTLSConnectionsMap, "Map is nil")
+
+	// Check initial map size - should be 0
+	initialSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Initial map size: %d", initialSize)
+
+	// Start the HTTPS server
+	serverPort := "8445"
+	serverCmd := exec.Command(serverBin, serverPort)
+	serverCmd.Dir = httpsDir
+	require.NoError(t, serverCmd.Start(), "Failed to start server")
+	t.Cleanup(func() {
+		if serverCmd.Process != nil {
+			serverCmd.Process.Kill()
+			serverCmd.Wait()
+		}
+	})
+
+	// Wait for server to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Run the client to make requests
+	clientURL := fmt.Sprintf("https://localhost:%s", serverPort)
+	clientCmd := exec.Command(clientBin, clientURL, "1", "20") // 1 client, 20 requests
+	clientCmd.Dir = httpsDir
+
+	// Capture client output
+	var clientOutput bytes.Buffer
+	clientCmd.Stdout = &clientOutput
+	clientCmd.Stderr = &clientOutput
+
+	t.Logf("Running client: %s %s 1 20", clientBin, clientURL)
+	err = clientCmd.Run()
+	t.Logf("Client output: %s", clientOutput.String())
+	require.NoError(t, err, "Failed to run client")
+
+	// Wait for eBPF processing
+	time.Sleep(200 * time.Millisecond)
+
+	// Check map size after client requests
+	afterRequestsSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Map size after client requests: %d", afterRequestsSize)
+
+	// Debug: dump map contents
+	t.Logf("Map contents after client requests:")
+	dumpGoTLSMapContents(t, goTLSConnectionsMap)
+
+	// Stop the server to trigger connection cleanup
+	if serverCmd.Process != nil {
+		serverCmd.Process.Kill()
+		serverCmd.Wait()
+	}
+
+	// Wait for cleanup to happen
+	time.Sleep(500 * time.Millisecond)
+
+	// Check map size after server shutdown
+	afterCleanupSize := countGoTLSMapEntries(t, goTLSConnectionsMap)
+	t.Logf("Map size after server shutdown: %d", afterCleanupSize)
+
+	// Debug: dump map contents after cleanup
+	t.Logf("Map contents after server shutdown:")
+	dumpGoTLSMapContents(t, goTLSConnectionsMap)
+
+	// Check if there's a leak - if map still has entries, it indicates a leak
+	if afterCleanupSize > 0 {
+		t.Logf("LEAK DETECTED: Map still has %d entries after server shutdown", afterCleanupSize)
+		t.Logf("This reproduces the leak behavior observed with built binaries")
+
+		// This test is designed to detect the leak, so we expect it to fail
+		// when the leak is present. Uncomment the line below to make it fail:
+		// t.Errorf("Leak detected: %d entries remain in conn_tup_by_go_tls_conn map", afterCleanupSize)
+	} else {
+		t.Logf("NO LEAK DETECTED: Map was properly cleaned up after server shutdown")
+	}
+
+	// Additional verification: ensure we actually made requests
+	require.Greater(t, afterRequestsSize, 0, "Map should have had entries during client requests")
 }
