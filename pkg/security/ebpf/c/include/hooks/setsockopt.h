@@ -148,6 +148,10 @@ int rethook_release_sock(ctx_t *ctx) {
         bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter); 
         syscall->setsockopt.truncated = 0;
     }
+    else {
+        syscall->setsockopt.truncated = 0;
+        syscall->setsockopt.filter_size_to_send = 0;
+    }
 
     return 0;
 }
