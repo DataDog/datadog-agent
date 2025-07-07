@@ -129,8 +129,8 @@ type NotificationReceiver func(setting string, oldValue, newValue any, sequenceI
 // ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
 type ConfigChangeNotification struct {
 	Key           string
-	PreviousValue any
-	NewValue      any
+	PreviousValue interface{}
+	NewValue      interface{}
 	SequenceID    uint64
 	Receivers     []NotificationReceiver
 }
