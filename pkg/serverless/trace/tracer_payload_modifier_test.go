@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
 // Test that tracerPayloadModifier implements TracerPayloadModifier interface
@@ -19,24 +19,24 @@ var _ agent.TracerPayloadModifier = (*tracerPayloadModifier)(nil)
 
 func TestTracerPayloadModifier_Modify(t *testing.T) {
 	tests := []struct {
-		name         string
-		functionTags string
-		inputTags    map[string]string
-		expectedTags map[string]string
+		name                   string
+		functionTags           string
+		inputTags              map[string]string
+		expectedTags           map[string]string
 		shouldHaveFunctionTags bool
 	}{
 		{
-			name:         "empty function tags",
-			functionTags: "",
-			inputTags:    map[string]string{"existing": "tag"},
-			expectedTags: map[string]string{"existing": "tag"},
+			name:                   "empty function tags",
+			functionTags:           "",
+			inputTags:              map[string]string{"existing": "tag"},
+			expectedTags:           map[string]string{"existing": "tag"},
 			shouldHaveFunctionTags: false,
 		},
 		{
-			name:         "nil tags and empty function tags - should stay nil",
-			functionTags: "",
-			inputTags:    nil,
-			expectedTags: nil,
+			name:                   "nil tags and empty function tags - should stay nil",
+			functionTags:           "",
+			inputTags:              nil,
+			expectedTags:           nil,
 			shouldHaveFunctionTags: false,
 		},
 		{
@@ -44,7 +44,7 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 			functionTags: "env:production,service:my-service,version:1.0",
 			inputTags:    map[string]string{"existing": "tag"},
 			expectedTags: map[string]string{
-				"existing": "tag",
+				"existing":      "tag",
 				tagFunctionTags: "env:production,service:my-service,version:1.0",
 			},
 			shouldHaveFunctionTags: true,
@@ -54,11 +54,11 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 			functionTags: "env:staging,service:new-service",
 			inputTags: map[string]string{
 				tagFunctionTags: "env:production,service:old-service",
-				"other": "tag",
+				"other":         "tag",
 			},
 			expectedTags: map[string]string{
 				tagFunctionTags: "env:staging,service:new-service",
-				"other": "tag",
+				"other":         "tag",
 			},
 			shouldHaveFunctionTags: true,
 		},
@@ -67,11 +67,11 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 			functionTags: "env:test,service:test-service",
 			inputTags: map[string]string{
 				tagFunctionTags: "",
-				"other": "tag",
+				"other":         "tag",
 			},
 			expectedTags: map[string]string{
 				tagFunctionTags: "env:test,service:test-service",
-				"other": "tag",
+				"other":         "tag",
 			},
 			shouldHaveFunctionTags: true,
 		},
@@ -80,11 +80,11 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 			functionTags: "env:production,service:same-service",
 			inputTags: map[string]string{
 				tagFunctionTags: "env:production,service:same-service",
-				"other": "tag",
+				"other":         "tag",
 			},
 			expectedTags: map[string]string{
 				tagFunctionTags: "env:production,service:same-service",
-				"other": "tag",
+				"other":         "tag",
 			},
 			shouldHaveFunctionTags: true,
 		},
