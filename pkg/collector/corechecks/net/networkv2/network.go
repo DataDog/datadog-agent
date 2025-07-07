@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
@@ -426,12 +427,13 @@ func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats
 }
 
 // Try using `ss` for increased performance over `netstat`
-func checkSSExecutable() error {
+func checkSSExecutable() bool {
 	_, err := exec.LookPath("ss")
 	if err != nil {
-		return errors.New("`ss` executable not found in system PATH")
+		logs.Debug("`ss` executable not found in system PATH")
+		return false
 	}
-	return nil
+	return true
 }
 
 func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*connectionStateEntry, error) {
@@ -506,15 +508,15 @@ func parseSocketStatsMetrics(output string) (map[string]*connectionStateEntry, e
 
 		recvQ := parseQueue(fields[2])
 		sendQ := parseQueue(fields[3])
-		if entry, existingState := results[state]; existingState {
+		if entry, exists := results[state]; exists {
 			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
 			entry.sendQ = append(entry.sendQ, sendQ)
 		} else {
 			results[state] = &connectionStateEntry{
 				count: 1,
-				recvQ: []int64{recvQ},
-				sendQ: []int64{sendQ},
+				recvQ: []uint64{recvQ},
+				sendQ: []uint64{sendQ},
 			}
 		}
 	}
@@ -544,10 +546,6 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 		}
 
 		fields := strings.Fields(line)
-		// skip malformed netstat entry result
-		if len(fields) < 6 {
-			continue
-		}
 
 		// filter out the rows that do not match the current protocol enumeration
 		entryProtocol := fields[0]
@@ -555,12 +553,15 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 			continue
 		}
 
+		var ok bool
 		var state string
-		if protocol[:3] == "udp" {
+
+		if entryProtocol[:3] == "udp" {
+			// all UDP suffixes resolve to connections but
 			state = "connections"
 		} else {
 			// skip connection states we do not have mappings for
-			state, ok := suffixMapping[fields[5]]
+			state, ok = suffixMapping[fields[5]]
 			if !ok {
 				continue
 			}
@@ -568,15 +569,15 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 
 		recvQ := parseQueue(fields[1])
 		sendQ := parseQueue(fields[2])
-		if entry, existingState := results[state]; existingState {
+		if entry, exists := results[state]; exists {
 			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
 			entry.sendQ = append(entry.sendQ, sendQ)
 		} else {
 			results[state] = &connectionStateEntry{
 				count: 1,
-				recvQ: []int64{recvQ},
-				sendQ: []int64{sendQ},
+				recvQ: []uint64{recvQ},
+				sendQ: []uint64{sendQ},
 			}
 		}
 	}
