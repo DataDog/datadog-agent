@@ -1623,6 +1623,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return false;
     }
 
+    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
+        return false;
+    }
+
     // Check if the api key and version are supported
     switch (kafka_header.api_key) {
         case KAFKA_PRODUCE:
@@ -1647,15 +1651,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
-        const u32 key = 0;
-        // Use a buffer from per-cpu array as the stack is limited.
-        char *client_string = bpf_map_lookup_elem(&kafka_client_string, &key);
-        if (client_string == NULL) {
-            return false;
-        }
-        bpf_memset(client_string, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
-
-        if (!is_valid_client_string(pkt, offset, kafka_header.client_id_size, client_string)) {
+        if (!is_valid_client_id(pkt, offset, kafka_header.client_id_size)) {
             return false;
         }
         offset += kafka_header.client_id_size;

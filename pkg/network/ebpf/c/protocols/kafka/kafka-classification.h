@@ -60,15 +60,6 @@ PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 real_client_id_size) {
-    if (real_client_id_size == 0) {
-        return true;
-    }
-
-    // Explicitly check to lower verifier instruction count.
-    if (real_client_id_size > CLIENT_STRING_MAX_ALLOWED_SIZE) {
-        return false;
-    }
-
     const u32 key = 0;
     // Fetch the client id buffer from per-cpu array, which gives us the ability to extend the size of the buffer,
     // as the stack is limited with the number of bytes we can allocate on.
@@ -80,7 +71,7 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
     pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
-    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
+    CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
 }
 
 // Used to validate the client_id, software name and software version.
@@ -108,7 +99,7 @@ static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16
 // * Correlation ID is not negative.
 // * The client ID size if not negative.
 static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *kafka_header) {
-    if (kafka_header->message_size < sizeof(kafka_header_t) || kafka_header->message_size <= 0) {
+    if (kafka_header->message_size < sizeof(kafka_header_t) || kafka_header->message_size < 0) {
         return false;
     }
 
@@ -124,15 +115,32 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 }
 
 // Checks the given kafka api key (= operation) and api version is supported and wanted by us.
-// Filters out operations which are not "on" in the classification flags.
 static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version) {
-    // Optimized for verifier instruction count.
-    return (api_key == KAFKA_FETCH &&
-            api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION &&
-            api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) ||
-           (api_key == KAFKA_PRODUCE &&
-            api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION &&
-            api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION);
+    switch (api_key) {
+    case KAFKA_FETCH:
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+            return false;
+        }
+        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+            return false;
+        }
+        break;
+    case KAFKA_PRODUCE:
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+            // We have seen some false positives when both request_api_version and request_api_key are 0,
+            // so dropping support for this case
+            return false;
+        } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+            return false;
+        }
+        break;
+    default:
+        // We are only interested in fetch and produce requests
+        return false;
+}
+
+    // if we didn't hit any of the above checks, we are good to go.
+    return true;
 }
 
 static __always_inline bool isMSBSet(uint8_t byte) {
@@ -176,7 +184,7 @@ static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offs
         return false;
     }
 
-    pktbuf_load_bytes_with_telemetry(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
 
     *offset += 1;
     if (isMSBSet(bytes[0])) {
@@ -210,7 +218,7 @@ static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset
         return false;
     }
 
-    pktbuf_load_bytes_with_telemetry(pkt, *offset, bytes, max_bytes);
+    pktbuf_load_bytes(pkt, *offset, bytes, max_bytes);
 
     #pragma unroll
     for (u32 i = 0; i < max_bytes; i++) {
@@ -239,7 +247,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
         return 0;
     }
 
-    pktbuf_load_bytes(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
 
     s16 topic_name_size = 0;
     if (flexible) {
@@ -328,7 +336,7 @@ static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset
 
     u8 num_tagged_fields = 0;
 
-    pktbuf_load_bytes_with_telemetry(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
+    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
     *offset += sizeof(num_tagged_fields);
 
     // We don't support parsing tagged fields for now.
@@ -420,7 +428,6 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
     bool flexible = false;
     bool topic_id_instead_of_name = false;
-
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
@@ -482,22 +489,6 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     }
 
     return is_kafka_request(&kafka_header, pkt, offset);
-//    if (!is_fetch_or_produce) {
-//        pktbuf_tail_call_option_t process_parse_tail_call_array[] = {
-//            [PKTBUF_SKB] = {
-//                .prog_array_map = &protocols_progs,
-//                .index = PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
-//            },
-//            [PKTBUF_TLS] = {
-//                .prog_array_map = &tls_process_progs,
-//                .index = PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
-//            },
-//        };
-//        pktbuf_tail_call_compact(pkt, process_parse_tail_call_array);
-//        return
-//    }
-
-//    return is_fetch_or_produce;
 }
 
 // Checks if the packet represents a kafka request.

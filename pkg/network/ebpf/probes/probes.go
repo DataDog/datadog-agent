@@ -230,7 +230,9 @@ const (
 	TCPRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
 	// ProtocolClassificationBufMap is the map storing the classification buffer
 	ProtocolClassificationBufMap BPFMapName = "classification_buf"
-	// KafkaClientStringBufMap is the map storing the kafka client strings (client_id, client_software_name, client_software_version)
+	// KafkaClientIDBufMap is the map storing the kafka client ID
+	KafkaClientIDBufMap BPFMapName = "kafka_client_id"
+	// KafkaClientStringBufMap is the map storing the kafka client strings (client_software_name, client_software_version)
 	KafkaClientStringBufMap BPFMapName = "kafka_client_string"
 	// KafkaTopicNameBufMap is the map storing the kafka topic name
 	KafkaTopicNameBufMap BPFMapName = "kafka_topic_name"
