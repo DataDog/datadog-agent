@@ -5177,7 +5177,7 @@ SetSockopt Levels are the supported levels for the setsockopt event.
 | `IPPROTO_ICMPV6` | all |
 
 ### `SetSockopt Options` {#setsockopt-options}
-SetSockopt Options are the supported options for the setsockopt event.
+SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.
 
 | Name | Architectures |
 | ---- |---------------|

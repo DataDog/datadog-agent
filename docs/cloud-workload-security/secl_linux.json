@@ -17361,7 +17361,7 @@
     {
       "name": "SetSockopt Options",
       "link": "setsockopt-options",
-      "description": "SetSockopt Options are the supported options for the setsockopt event.",
+      "description": "SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.",
       "all": [
         {
           "name": "IP_TOS",

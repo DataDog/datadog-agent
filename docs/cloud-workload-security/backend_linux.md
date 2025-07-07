@@ -1727,11 +1727,11 @@ Workload Protection events for Linux systems have the following JSON schema:
         "SetSockOptEvent": {
             "properties": {
                 "socket_type": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Socket file descriptor"
                 },
                 "socket_family": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Socket family"
                 },
                 "filter_len": {
@@ -1739,15 +1739,15 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "Length of the filter"
                 },
                 "socket_protocol": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Socket protocol"
                 },
                 "level": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Level at which the option is defined"
                 },
                 "optname": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Name of the option being set"
                 },
                 "is_filter_truncated": {
@@ -4757,11 +4757,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 {
     "properties": {
         "socket_type": {
-            "type": "integer",
+            "type": "string",
             "description": "Socket file descriptor"
         },
         "socket_family": {
-            "type": "integer",
+            "type": "string",
             "description": "Socket family"
         },
         "filter_len": {
@@ -4769,15 +4769,15 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "Length of the filter"
         },
         "socket_protocol": {
-            "type": "integer",
+            "type": "string",
             "description": "Socket protocol"
         },
         "level": {
-            "type": "integer",
+            "type": "string",
             "description": "Level at which the option is defined"
         },
         "optname": {
-            "type": "integer",
+            "type": "string",
             "description": "Name of the option being set"
         },
         "is_filter_truncated": {
