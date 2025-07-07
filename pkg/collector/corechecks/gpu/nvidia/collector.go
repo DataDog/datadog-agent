@@ -47,7 +47,8 @@ type Metric struct {
 	Name     string  // Name holds the name of the metric.
 	Value    float64 // Value holds the value of the metric.
 	Type     metrics.MetricType
-	Priority int // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Priority int               // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Tags     map[string]string // Tags holds optional metric-specific tags (e.g., process ID).
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
