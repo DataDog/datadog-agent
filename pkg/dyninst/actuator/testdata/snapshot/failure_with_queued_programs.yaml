@@ -51,7 +51,6 @@ state:
 ---
 event: !loaded {program_id: 2}
 effects:
-  - !register-program-with-dispatcher {program_id: 2}
   - !attach-to-process {executable: /usr/bin/app2@0.0m0.0, process_id: 1002, program_id: 2}
 state:
   currently_loading: 2 -> <nil>

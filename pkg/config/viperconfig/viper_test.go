@@ -209,12 +209,12 @@ func TestNotification(t *testing.T) {
 	updatedKeyCB1 := []string{}
 	updatedKeyCB2 := []string{}
 
-	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+	config.OnUpdate(func(key string, _, _ any, _ uint64) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", model.SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 
-	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+	config.OnUpdate(func(key string, _, _ any, _ uint64) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
 	config.Set("foo", "bar2", model.SourceFile)
 	config.Set("foo2", "bar2", model.SourceFile)
@@ -227,7 +227,9 @@ func TestNotificationNoChange(t *testing.T) {
 
 	updatedKeyCB1 := []string{}
 
-	config.OnUpdate(func(key string, _, newValue any) { updatedKeyCB1 = append(updatedKeyCB1, key+":"+newValue.(string)) })
+	config.OnUpdate(func(key string, _, newValue any, _ uint64) {
+		updatedKeyCB1 = append(updatedKeyCB1, key+":"+newValue.(string))
+	})
 
 	config.Set("foo", "bar", model.SourceFile)
 	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
@@ -372,7 +374,7 @@ func TestListenersUnsetForSource(t *testing.T) {
 
 	// Create a listener that will keep track of the changes
 	logLevels := []string{}
-	config.OnUpdate(func(_ string, _, next any) {
+	config.OnUpdate(func(_ string, _, next any, _ uint64) {
 		nextString := next.(string)
 		logLevels = append(logLevels, nextString)
 	})
@@ -443,4 +445,27 @@ func TestSetWithEnvTransformer(t *testing.T) {
 	cfg.Set("setting", []string{"runtime"}, model.SourceAgentRuntime)
 
 	assert.Equal(t, []string{"runtime"}, cfg.GetStringSlice("setting"))
+}
+
+func TestSequenceID(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	assert.Equal(t, uint64(0), config.GetSequenceID())
+
+	config.Set("foo", "bar", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(1), config.GetSequenceID())
+
+	config.Set("foo", "baz", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	// Setting the same value does not update the sequence ID
+	config.Set("foo", "baz", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	// Does not update the sequence ID since the source does not match
+	config.UnsetForSource("foo", model.SourceCLI)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	config.UnsetForSource("foo", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(3), config.GetSequenceID())
 }

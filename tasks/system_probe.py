@@ -445,7 +445,6 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
-        "pkg/dyninst/compiler/compile.go": "dyninst_event",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -856,6 +855,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
 
