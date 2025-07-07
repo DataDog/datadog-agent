@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -212,14 +213,20 @@ func TestNotification(t *testing.T) {
 	config.OnUpdate(func(key string, _, _ any, _ uint64) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", model.SourceFile)
-	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+	}, 5*time.Second, 1*time.Second)
 
 	config.OnUpdate(func(key string, _, _ any, _ uint64) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
 	config.Set("foo", "bar2", model.SourceFile)
 	config.Set("foo2", "bar2", model.SourceFile)
-	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
-	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
+	}, 5*time.Second, 1*time.Second)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
+	}, 5*time.Second, 1*time.Second)
 }
 
 func TestNotificationNoChange(t *testing.T) {
@@ -232,16 +239,24 @@ func TestNotificationNoChange(t *testing.T) {
 	})
 
 	config.Set("foo", "bar", model.SourceFile)
-	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
+	}, 5*time.Second, 1*time.Second)
 
 	config.Set("foo", "bar", model.SourceFile)
-	assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo:bar"}, updatedKeyCB1)
+	}, 5*time.Second, 1*time.Second)
 
 	config.Set("foo", "baz", model.SourceAgentRuntime)
-	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
+	}, 5*time.Second, 1*time.Second)
 
 	config.Set("foo", "bar2", model.SourceFile)
-	assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"foo:bar", "foo:baz"}, updatedKeyCB1)
+	}, 5*time.Second, 1*time.Second)
 }
 
 func TestCheckKnownKey(t *testing.T) {
@@ -383,7 +398,9 @@ func TestListenersUnsetForSource(t *testing.T) {
 	config.Set("log_level", "debug", model.SourceRC)
 	config.UnsetForSource("log_level", model.SourceRC)
 
-	assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
+	}, 5*time.Second, 1*time.Second)
 }
 
 func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {

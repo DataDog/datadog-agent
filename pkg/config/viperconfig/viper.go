@@ -68,6 +68,22 @@ func (c *safeConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
+func (c *safeConfig) sendNotification(key string, oldValue, newValue interface{}, sequenceID uint64) {
+	if len(c.notificationReceivers) == 0 {
+		return
+	}
+
+	notification := model.ConfigChangeNotification{
+		Key:           key,
+		PreviousValue: oldValue,
+		NewValue:      newValue,
+		SequenceID:    sequenceID,
+		Receivers:     slices.Clone(c.notificationReceivers),
+	}
+
+	c.notificationChannel <- notification
+}
+
 func getCallerLocation(nbStack int) string {
 	_, file, line, _ := runtime.Caller(nbStack + 1)
 	fileParts := strings.Split(file, "DataDog/datadog-agent/")
@@ -107,15 +123,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
-	notification := model.ConfigChangeNotification{
-		Key:           key,
-		PreviousValue: oldValue,
-		NewValue:      latestValue,
-		SequenceID:    c.sequenceID,
-		Receivers:     slices.Clone(c.notificationReceivers),
-	}
-
-	c.notificationChannel <- notification
+	c.sendNotification(key, oldValue, latestValue, c.sequenceID)
 }
 
 // SetWithoutSource sets the given value using source Unknown
@@ -141,15 +149,7 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
 	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		c.sequenceID++
-		notification := model.ConfigChangeNotification{
-			Key:           key,
-			PreviousValue: previousValue,
-			NewValue:      newValue,
-			SequenceID:    c.sequenceID,
-			Receivers:     slices.Clone(c.notificationReceivers),
-		}
-
-		c.notificationChannel <- notification
+		c.sendNotification(key, previousValue, newValue, c.sequenceID)
 	}
 }
 

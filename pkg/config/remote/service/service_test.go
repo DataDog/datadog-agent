@@ -948,12 +948,16 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
-	assert.Equal(t, "updated", updatedKey)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, "updated", updatedKey)
+	}, 5*time.Second, 1*time.Second)
 
 	// We still use the new key even if the new org doesn't match the old org.
 	orgResponse.Uuid = "badUuid"
 	cfg.SetWithoutSource("api_key", "BAD_ORG")
-	assert.Equal(t, "BAD_ORG", updatedKey)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, "BAD_ORG", updatedKey)
+	}, 5*time.Second, 1*time.Second)
 
 }
 

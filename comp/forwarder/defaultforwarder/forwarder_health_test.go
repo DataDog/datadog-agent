@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -262,7 +263,9 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	require.NoError(t, err)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
 	fh.init()
-	assert.True(t, fh.checkValidAPIKey(), description)
+	assert.Eventually(t, func() bool {
+		return assert.True(t, fh.checkValidAPIKey(), description)
+	}, 5*time.Second, 1*time.Second)
 
 	expectBeforeFmt := quoteList(expectBefore)
 	expectAfterFmt := quoteList(expectAfter)
@@ -273,7 +276,9 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts1Port, ts2Port,
 		expectBeforeFmt)
 
-	assert.Equal(t, expect, string(data), description)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, expect, string(data), description)
+	}, 5*time.Second, 1*time.Second)
 
 	endpoints := map[string][]string{
 		ts2.URL: keysAfter,
@@ -286,17 +291,23 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectAfterFmt)
-	assert.Equal(t, expect, string(data), description)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, expect, string(data), description)
+	}, 5*time.Second, 1*time.Second)
 
 	// Check the new keys are now valid
 	for _, key := range expectAfter {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Eventually(t, func() bool {
+			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		}, 5*time.Second, 1*time.Second)
 	}
 
 	// Check removed keys are not valid
 	for _, key := range expectBefore {
 		if !slices.Contains(expectAfter, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Eventually(t, func() bool {
+				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			}, 5*time.Second, 1*time.Second)
 		}
 	}
 
@@ -312,17 +323,23 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
-	assert.Equal(t, expect, string(data), description)
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, expect, string(data), description)
+	}, 5*time.Second, 1*time.Second)
 
 	// Check the old keys are now valid again
 	for _, key := range expectBefore {
-		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		assert.Eventually(t, func() bool {
+			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		}, 5*time.Second, 1*time.Second)
 	}
 
 	// Check added keys are now not valid
 	for _, key := range expectAfter {
 		if !slices.Contains(expectBefore, key) {
-			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			assert.Eventually(t, func() bool {
+				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+			}, 5*time.Second, 1*time.Second)
 		}
 	}
 }

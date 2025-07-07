@@ -160,6 +160,22 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
+func (c *ntmConfig) sendNotification(key string, oldValue, newValue interface{}, sequenceID uint64) {
+	if len(c.notificationReceivers) == 0 {
+		return
+	}
+
+	notification := model.ConfigChangeNotification{
+		Key:           key,
+		PreviousValue: oldValue,
+		NewValue:      newValue,
+		SequenceID:    sequenceID,
+		Receivers:     slices.Clone(c.notificationReceivers),
+	}
+
+	c.notificationChannel <- notification
+}
+
 func (c *ntmConfig) addToSchema(key string, source model.Source) {
 	parts := splitKey(key)
 	_, _ = c.schema.SetAt(parts, nil, source)
@@ -239,15 +255,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 
 	c.sequenceID++
-	notification := model.ConfigChangeNotification{
-		Key:           key,
-		PreviousValue: previousValue,
-		NewValue:      newValue,
-		SequenceID:    c.sequenceID,
-		Receivers:     slices.Clone(c.notificationReceivers),
-	}
-
-	c.notificationChannel <- notification
+	c.sendNotification(key, previousValue, newValue, c.sequenceID)
 
 }
 
@@ -360,15 +368,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	c.sequenceID++
-	notification := model.ConfigChangeNotification{
-		Key:           key,
-		PreviousValue: previousValue,
-		NewValue:      newValue,
-		SequenceID:    c.sequenceID,
-		Receivers:     slices.Clone(c.notificationReceivers),
-	}
-
-	c.notificationChannel <- notification
+	c.sendNotification(key, previousValue, newValue, c.sequenceID)
 
 }
 
