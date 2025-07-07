@@ -43,15 +43,7 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 		}
 
 		switch rule.Type {
-		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine, ExcludeTruncated:
-			break
-		case "":
-			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
-		default:
-			return fmt.Errorf("type %s is not supported for processing rule `%s`", rule.Type, rule.Name)
-		}
-
-		if rule.Type != ExcludeTruncated {
+		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
 			if rule.Pattern == "" {
 				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
 			}
@@ -59,6 +51,12 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 			}
+		case ExcludeTruncated:
+			break
+		case "":
+			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
+		default:
+			return fmt.Errorf("type %s is not supported for processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
 	return nil

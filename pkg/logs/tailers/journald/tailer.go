@@ -413,10 +413,8 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	applicationName := t.getApplicationName(entry, tags)
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
+	origin.SetTags(append(tags, t.tagProvider.GetTags()...))
 
-	// Combine tags from multiple sources: entry tags, tag provider, and global config
-	allTags := append(tags, t.tagProvider.GetTags()...)
-	origin.SetTags(allTags)
 	return origin
 }
 
