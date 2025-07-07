@@ -28,6 +28,9 @@ func TestGCPVMSuite(t *testing.T) {
 func (v *gcpVMSuite) TestExecute() {
 	vm := v.Env().RemoteHost
 	uptimeMetrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.uptime")
+	if err != nil {
+		v.Require().NoError(err)
+	}
 	fmt.Println(uptimeMetrics)
 	out, err := vm.Execute("whoami")
 	v.Require().NoError(err)
