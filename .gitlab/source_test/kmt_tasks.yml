@@ -1,0 +1,22 @@
+# This file contain jobs that tests the KMT tasks code. This doesn't launch any KMT tests themselves,
+# that's done in .gitlab/kernel_matrix_testing
+
+.test_kmt_local_setup:
+  stage: source_test
+  needs: []
+  rules:
+    - !reference [.on_invoke_tasks_changes]
+  script:
+    - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup
+    - dda inv -- kmt.selfcheck --remote-setup-only
+
+test_kmt_local_setup_linux:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  tags: ["arch:amd64"]
+  extends: .test_kmt_local_setup
+
+test_kmt_local_setup_macos:
+  extends:
+    - .macos_gitlab
+    - .test_kmt_local_setup
+  tags: ["macos:ventura-amd64", "specific:true"]

@@ -413,7 +413,7 @@ def selfcheck(
         requirements = [r for r in requirements if r.__class__.__name__ in filter_requirements]
 
     if check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"]):
-        error("[-] KMT setup incorrect")
+        raise Exit("[-] KMT setup incorrect")
     else:
         info("[+] KMT setup correct")
 
