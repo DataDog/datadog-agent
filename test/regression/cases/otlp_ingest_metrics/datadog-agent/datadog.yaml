@@ -23,11 +23,6 @@ telemetry:
 otelcollector:
   enabled: false
 
-agent_ipc:
-  config_refresh_interval: 60
-  host: localhost
-  port: 5678
-
 otlp_config:
   receiver:
     protocols:

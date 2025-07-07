@@ -25,8 +25,3 @@ otelcollector:
   extension_timeout: 0
   flare:
     timeout: 60
-
-agent_ipc:
-  config_refresh_interval: 60
-  host: localhost
-  port: 5009
