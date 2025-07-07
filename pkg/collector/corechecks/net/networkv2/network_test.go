@@ -11,7 +11,6 @@ package networkv2
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"slices"
 	"testing"
 
@@ -127,18 +126,6 @@ func (m *MockCommandRunner) FakeRunCommand(cmd []string, _ []string) (string, er
 	}
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
-}
-
-type MockSS struct {
-	mock.Mock
-}
-
-func (m *MockSS) SSCommand() error {
-	return nil
-}
-
-func (m *MockSS) NetstatCommand() error {
-	return errors.New("forced to use netstat")
 }
 
 func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
@@ -385,8 +372,7 @@ func TestNetworkCheck(t *testing.T) {
 	getEthtoolDrvInfo = mockEthtool.DriverInfo
 	getEthtoolStats = mockEthtool.Stats
 
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
+	ssAvailableFunction = func() bool { return false }
 
 	networkCheck := createTestNetworkCheck(net)
 
@@ -1134,8 +1120,7 @@ func TestFetchQueueStatsSS(t *testing.T) {
 		},
 	}
 
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.SSCommand
+	ssAvailableFunction = func() bool { return true }
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
 
@@ -1181,8 +1166,7 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 		},
 	}
 
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
+	ssAvailableFunction = func() bool { return false }
 	mockCommandRunner := new(MockCommandRunner)
 	runCommandFunction = mockCommandRunner.FakeRunCommand
 

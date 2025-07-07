@@ -631,7 +631,7 @@ func submitConnectionStateMetrics(
 		metricCount[suffix] = 0
 	}
 	for suffix, metrics := range results {
-		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), metrics.count, "", nil)
+		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), float64(metrics.count), "", nil)
 		if collectConnectionQueues && protocolName[:3] == "tcp" {
 			for _, point := range metrics.recvQ {
 				sender.Histogram("system.net.tcp.recv_q", float64(point), "", []string{"state:" + suffix})
