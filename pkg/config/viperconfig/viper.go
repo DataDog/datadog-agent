@@ -147,7 +147,7 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue != nil && reflect.DeepEqual(previousValue, newValue) {
+	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		c.sequenceID++
 		notification := model.ConfigChangeNotification{
 			Key:           key,
