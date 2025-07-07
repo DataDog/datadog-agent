@@ -238,6 +238,7 @@ func TestOpenTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("execution-from-detached-mount", func(t *testing.T) {
 		srcPath := which(t, "true")
