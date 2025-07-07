@@ -26,6 +26,7 @@ type effect interface {
 // Effect implementations
 
 type effectSpawnBpfLoading struct {
+	processID  ProcessID
 	programID  ir.ProgramID
 	executable Executable
 	probes     []ir.ProbeDefinition
@@ -42,6 +43,7 @@ func (e effectSpawnBpfLoading) yamlData() map[string]any {
 	}
 	slices.Sort(probeKeys)
 	return map[string]any{
+		"process_id": int(e.processID.PID),
 		"program_id": int(e.programID),
 		"executable": e.executable.String(),
 		"probes":     probeKeys,
@@ -157,9 +159,11 @@ func (er *effectRecorder) loadProgram(
 	_ tenantID,
 	programID ir.ProgramID,
 	executable Executable,
+	processID ProcessID,
 	probes []ir.ProbeDefinition,
 ) {
 	er.recordEffect(effectSpawnBpfLoading{
+		processID:  processID,
 		programID:  programID,
 		executable: executable,
 		probes:     probes,

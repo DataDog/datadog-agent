@@ -49,13 +49,17 @@ type Reporter interface {
 
 	// ReportLoaded is called after a program has been loaded. It is used
 	// by the Reporter to initialize the Sink for this program.
-	ReportLoaded(*ir.Program) (Sink, error)
+	ReportLoaded(ProcessID, *ir.Program) (Sink, error)
 
 	// ReportIRGenFailed is called when generating the IR for the binary fails.
-	ReportIRGenFailed(ir.ProgramID, error, []ir.ProbeDefinition)
+	//
+	// Note that if the IR generation succeeds, but the program has no
+	// successful probes, this will be called with an error that contains
+	//
+	ReportIRGenFailed(ProcessID, error, []ir.ProbeDefinition)
 
 	// ReportLoadingFailed is called when a program fails to load.
-	ReportLoadingFailed(*ir.Program, error)
+	ReportLoadingFailed(ProcessID, *ir.Program, error)
 }
 
 // Loader is an interface that abstracts ebpf program loader.

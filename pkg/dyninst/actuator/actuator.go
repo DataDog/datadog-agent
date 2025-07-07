@@ -228,15 +228,18 @@ func (a *effects) loadProgram(
 	tenantID tenantID,
 	programID ir.ProgramID,
 	executable Executable,
+	processID ProcessID,
 	probes []ir.ProbeDefinition,
 ) {
 	tenant := a.getTenant(tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		ir, err := generateIR(programID, executable, probes, tenant.genOptions...)
+		ir, err := generateIR(
+			programID, executable, probes, tenant.genOptions...,
+		)
 		if err != nil {
-			tenant.reporter.ReportIRGenFailed(programID, err, probes)
+			tenant.reporter.ReportIRGenFailed(processID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
@@ -245,14 +248,14 @@ func (a *effects) loadProgram(
 		}
 		loaded, err := loadProgram(a.loader, ir)
 		if err != nil {
-			tenant.reporter.ReportLoadingFailed(ir, err)
+			tenant.reporter.ReportLoadingFailed(processID, ir, err)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
 			})
 			return
 		}
-		sink, err := tenant.reporter.ReportLoaded(ir)
+		sink, err := tenant.reporter.ReportLoaded(processID, ir)
 		if err != nil {
 			loaded.Close()
 			a.sendEvent(eventProgramLoadingFailed{
