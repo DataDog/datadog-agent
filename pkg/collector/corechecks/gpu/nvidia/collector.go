@@ -94,7 +94,8 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.All() {
+	//For now build collectors only for physical devices, as we don't support MIG devices yet.
+	for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
