@@ -131,6 +131,8 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		returnTask = *taskWithTags
 	}
 
+	log.Infof("Task info %+v\n", returnTask)
+
 	// Tasks might contain errors behind the scenes in ecs agent
 	if len(returnTask.Errors) > 0 {
 		for _, err := range returnTask.Errors {

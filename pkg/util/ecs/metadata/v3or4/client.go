@@ -159,6 +159,7 @@ func (c *client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task,
 	if err := c.get(ctx, path, &t); err != nil {
 		return nil, err
 	}
+	log.Infof("Retrieved task metadata from ECS agent %+v", t)
 	return &t, nil
 }
 
