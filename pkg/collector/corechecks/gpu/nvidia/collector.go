@@ -38,6 +38,7 @@ const (
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	nvlink       CollectorName = "nvlink"
+	gpm          CollectorName = "gpm"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -73,6 +74,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
 	nvlink:       newNVLinkCollector,
+	gpm:          newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
