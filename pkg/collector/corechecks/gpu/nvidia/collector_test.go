@@ -36,13 +36,15 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions()
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	collectorsFactory := map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}
+	collectors, err := buildCollectors(deps, collectorsFactory)
 	require.NotNil(t, collectors)
+	require.Len(t, collectors, len(deviceCache.AllPhysicalDevices())*len(collectorsFactory))
 	require.NoError(t, err)
 }
 

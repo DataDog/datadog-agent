@@ -91,7 +91,7 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.All() {
+	for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
