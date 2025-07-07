@@ -20,7 +20,7 @@ type tracerPayloadModifier struct {
 	functionTags string
 }
 
-func (t *tracerPayloadModifier) ModifyTracerPayload(tp *pb.TracerPayload) {
+func (t *tracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	// NOTE: our backend stats computation expects to find these function tags,
 	// and more importantly the host group, i.e. primary tags, as attributes in
 	// the root span meta. These tags are already being injected into all of
