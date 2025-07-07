@@ -1306,9 +1306,9 @@ def get_test_infra_def_version():
     Get TEST_INFRA_DEFINITIONS_BUILDIMAGES from `.gitlab/common/test_infra_version.yml` file
     """
     try:
-        with open(Path(".gitlab/common/test_infra_version.yml")) as test_infra_version_file:
-            test_infra_def = yaml.safe_load(test_infra_version_file)
-            return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
+        version_file = Path.cwd() / ".gitlab" / "common" / "test_infra_version.yml"
+        test_infra_def = yaml.safe_loads(version_file.read_text(encoding="utf-8"))
+        return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
     except Exception:
         return "main"
 
