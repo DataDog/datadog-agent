@@ -5,10 +5,15 @@
 
 //go:build windows
 
-// Package msi contains helper functions to work with msi packages
+// Package msi contains helper functions to work with msi packages.
+//
+// The package provides automatic retry functionality for MSI operations using exponential backoff
+// to handle transient errors, particularly exit code 1618 (ERROR_INSTALL_ALREADY_RUNNING)
+// which occurs when another MSI installation is in progress.
 package msi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/windows"
@@ -20,8 +25,11 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/cenkalti/backoff/v4"
 )
 
 var (
@@ -167,6 +175,9 @@ type Msiexec struct {
 
 	// postExecActions is a list of actions to be executed after msiexec has run
 	postExecActions []func()
+
+	// args saved for use in telemetry
+	args *msiexecArgs
 }
 
 func (m *Msiexec) openAndProcessLogFile() ([]byte, error) {
@@ -257,42 +268,87 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 		})
 }
 
-// Run runs msiexec synchronously
-func (m *Msiexec) Run() ([]byte, error) {
-	err := m.Cmd.Run()
-	// The log file *should not* be too big. Avoid verbose log files.
-	logFileBytes, err2 := m.openAndProcessLogFile()
-	err = errors.Join(err, err2)
+// isRetryableExitCode checks if the exit code should trigger a retry
+func isRetryableExitCode(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) {
+		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// createBackoffStrategy creates a backoff strategy with hardcoded parameters for MSI retry
+func (m *Msiexec) createBackoffStrategy() backoff.BackOff {
+	exponentialBackoff := backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(10*time.Second),
+		backoff.WithMaxInterval(120*time.Second),
+		backoff.WithMaxElapsedTime(10*time.Minute),
+	)
+
+	return exponentialBackoff
+}
+
+// Run runs msiexec synchronously with retry logic for exit code 1618 using backoff package
+func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
+	var err error
+	var attemptCount int
+
+	operation := func() error {
+		span, _ := telemetry.StartSpanFromContext(ctx, "msiexec")
+		defer func() {
+			// Add telemetry metadata about the msiexec operation
+			// Don't artibrarily add MSI parameters to the span, as they may
+			// contain sensitive information like DDAGENTUSER_PASSWORD.
+			span.SetTag("params.action", m.args.msiAction)
+			span.SetTag("params.target", m.args.target)
+			span.SetTag("params.logfile", m.args.logFile)
+			span.SetTag("attempt_count", attemptCount)
+			if err != nil {
+				span.SetTag("is_error_retryable", isRetryableExitCode(err))
+			}
+			span.Finish(err)
+		}()
+
+		attemptCount++
+
+		// Create a new command for each attempt since exec.Cmd can only be run once
+		cmd := &exec.Cmd{
+			Path:        m.Path,
+			SysProcAttr: m.SysProcAttr,
+		}
+		err := cmd.Run()
+
+		// Return permanent error for non-retryable exit codes
+		if err != nil && !isRetryableExitCode(err) {
+			return backoff.Permanent(err)
+		}
+
+		return err
+	}
+
+	// Execute with retry
+	backoffStrategy := backoff.WithContext(m.createBackoffStrategy(), ctx)
+	err = backoff.Retry(operation, backoffStrategy)
+
+	// Process log file once after all retries are complete
+	logFileBytes, logErr := m.openAndProcessLogFile()
+	if logErr != nil {
+		err = errors.Join(err, logErr)
+	}
+
+	// Execute post-execution actions
 	for _, p := range m.postExecActions {
 		p()
 	}
 
 	return logFileBytes, err
-}
-
-// RunAsync runs msiexec asynchronously
-func (m *Msiexec) RunAsync(done func([]byte, error)) error {
-	err := m.Cmd.Start()
-	if err != nil {
-		return err
-	}
-	go func() {
-		err := m.Cmd.Wait()
-		// The log file *should not* be too big. Avoid verbose log files.
-		logFileBytes, err2 := m.openAndProcessLogFile()
-		err = errors.Join(err, err2)
-		for _, p := range m.postExecActions {
-			p()
-		}
-		done(logFileBytes, err)
-	}()
-	return nil
-}
-
-// FireAndForget starts msiexec and doesn't wait for it to finish.
-// The log file won't be read at the end and post execution actions will not be executed.
-func (m *Msiexec) FireAndForget() error {
-	return m.Cmd.Start()
 }
 
 // Cmd creates a new Msiexec wrapper around cmd.Exec that will call msiexec
@@ -306,8 +362,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	if a.msiAction == "" || a.target == "" {
 		return nil, fmt.Errorf("argument error")
 	}
-
-	cmd := &Msiexec{}
+	cmd := &Msiexec{
+		args: a,
+	}
 	if len(a.logFile) == 0 {
 		tempDir, err := os.MkdirTemp("", "datadog-installer-tmp")
 		if err != nil {
