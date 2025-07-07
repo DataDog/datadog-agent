@@ -1488,7 +1488,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		seclog.Debugf("setsockopt event truncated")
-		if p.BPFFilterTruncated != nil {
+		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}
 	case model.SetrlimitEventType:
