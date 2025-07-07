@@ -185,7 +185,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container) error {
+func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
 	if err := c.ensureInitDeviceCache(); err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func addToActiveEntitiesPerDevice(activeEntitiesPerDevice map[string]common.Stri
 	}
 }
 
-func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gpuToContainersMap map[string][]*workloadmeta.Container) error {
+func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gpuToContainersMap map[string]*workloadmeta.Container) error {
 	sentMetrics := 0
 
 	// Always send telemetry metrics
@@ -290,10 +290,10 @@ func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gp
 			activeEntitiesTags = common.NewStringSet()
 		}
 
-		// Also, add the tags for all containers that have this GPU allocated. Add to the set to avoid repetitions.
-		// Adding this ensures we correctly report utilization even if some of the GPUs allocated to the container
-		// are not being used.
-		for _, container := range gpuToContainersMap[devInfo.UUID] {
+		// Also, add the tags for the container that has this GPU allocated. Add to the set to avoid repetitions.
+		// Adding this ensures we correctly report utilization even if the GPU allocated to the container
+		// is not being used.
+		if container := gpuToContainersMap[devInfo.UUID]; container != nil {
 			for _, tag := range c.getContainerTags(container.EntityID.ID) {
 				activeEntitiesTags.Add(tag)
 			}
@@ -337,8 +337,8 @@ func (c *Check) getContainerTags(containerID string) []string {
 	return containerTags
 }
 
-func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
-	gpuToContainers := make(map[string][]*workloadmeta.Container)
+func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
+	gpuToContainers := make(map[string]*workloadmeta.Container)
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.All())
@@ -348,14 +348,14 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 
 		// despite an error, we still might have some devices assigned to the container
 		for _, device := range containerDevices {
-			gpuToContainers[device.GetDeviceInfo().UUID] = append(gpuToContainers[device.GetDeviceInfo().UUID], container)
+			gpuToContainers[device.GetDeviceInfo().UUID] = container
 		}
 	}
 
 	return gpuToContainers
 }
 
-func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container) error {
+func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
@@ -379,32 +379,48 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
+	// Cache container tags to avoid repeated tagger calls for the same container
+	containerTagsCache := make(map[string][]string)
+
+	//iterate through devices to emit its metrics
 	for deviceUUID, metrics := range perDeviceMetrics {
+		//filter out same metric with lower priority
 		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(metrics)
 		c.telemetry.duplicateMetrics.Add(float64(len(metrics)-len(deduplicatedMetrics)), deviceUUID)
 
-		var extraTags []string
-		for _, container := range gpuToContainersMap[deviceUUID] {
-			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
+		var containerTags []string
+		if container := gpuToContainersMap[deviceUUID]; container != nil {
+			containerID := container.EntityID.ID
 
-			// we use orchestrator cardinality here to ensure we get the pod_name tag
-			// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
-			tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
-			if err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
-				continue
+			// Check cache first
+			if cachedTags, exists := containerTagsCache[containerID]; exists {
+				containerTags = cachedTags // Direct reference, no copy
+			} else {
+				// Fetch and cache container tags
+				entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+				// we use orchestrator cardinality here to ensure we get the pod_name tag
+				// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
+				tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
+				if err != nil {
+					multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
+					containerTagsCache[containerID] = nil // Cache the error state to avoid repeated calls
+				} else {
+					containerTagsCache[containerID] = tags
+					containerTags = tags // Direct reference, no copy
+				}
 			}
-
-			extraTags = append(extraTags, tags...)
 		}
 
+		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
 			metricName := gpuMetricsNs + metric.Name
+			allTags := append(append(c.deviceTags[deviceUUID], containerTags...), metric.Tags...)
+
 			switch metric.Type {
 			case ddmetrics.CountType:
-				snd.Count(metricName, metric.Value, "", append(c.deviceTags[deviceUUID], extraTags...))
+				snd.Count(metricName, metric.Value, "", allTags)
 			case ddmetrics.GaugeType:
-				snd.Gauge(metricName, metric.Value, "", append(c.deviceTags[deviceUUID], extraTags...))
+				snd.Gauge(metricName, metric.Value, "", allTags)
 			default:
 				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
 				continue
