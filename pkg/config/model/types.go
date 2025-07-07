@@ -126,6 +126,7 @@ type Proxy struct {
 // 'NotificationReceiver' should not be blocking.
 type NotificationReceiver func(setting string, oldValue, newValue any, sequenceID uint64)
 
+// ConfigChangeNotification stores the information about a change in the configuration and is sent to the listeners.
 type ConfigChangeNotification struct {
 	Key           string
 	PreviousValue any
