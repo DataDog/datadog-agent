@@ -637,10 +637,6 @@ func submitConnectionStateMetrics(
 		return
 	}
 
-	metricCount := map[string]float64{}
-	for _, suffix := range stateMetricSuffixMapping {
-		metricCount[suffix] = 0
-	}
 	for suffix, metrics := range results {
 		sender.Gauge(fmt.Sprintf("system.net.%s.%s", protocolName, suffix), float64(metrics.count), "", nil)
 		if collectConnectionQueues && protocolName[:3] == "tcp" {
