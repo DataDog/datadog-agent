@@ -350,16 +350,10 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 		// the service could stop and then restart before we check the status again.
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 100))
 
-	// wait for upgrade to restart the service
-	// this is racy, we'll either catch the new service running briefly before MSI rollback
-	// triggers, or we'll catch the previous service running after MSI rollback completes
-	// The next set of checks quiesce the race.
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
-
-	// Now that the service is running, we know that the stable version has been removed,
-	// so we can wait for the stable version to be placed on disk once again via MSI rollback
-	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	// Wait directly for the stable version to be restored via MSI rollback
+	// This eliminates the race condition where WaitForInstallerService could return
+	// success when the experimental version is briefly running before rollback triggers
+	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
 	s.Require().NoError(err)
 	// and wait again to ensure the stable service is running
 	err = s.WaitForInstallerService("Running")
