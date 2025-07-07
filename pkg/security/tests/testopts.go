@@ -76,6 +76,7 @@ type testOpts struct {
 	enableSelfTests                            bool
 	networkFlowMonitorEnabled                  bool
 	dnsPort                                    uint16
+	cgroupManagers                             []string
 }
 
 type dynamicTestOpts struct {

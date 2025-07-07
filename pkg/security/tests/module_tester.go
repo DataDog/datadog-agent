@@ -762,6 +762,10 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		opts.activityDumpSyscallMonitorPeriod = 60 * time.Second
 	}
 
+	if len(opts.cgroupManagers) == 0 {
+		opts.cgroupManagers = []string{"docker", "podman", "containerd", "cri-o"}
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                            cfgDir,
@@ -777,6 +781,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
 		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
+		"CgroupManagers":                             opts.cgroupManagers,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,

@@ -1026,3 +1026,14 @@ type SetSockOptEvent struct {
 	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
 	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
 }
+
+// GetWorkloadID returns an ID that represents the workload
+func (pc *ProcessCacheEntry) GetWorkloadID() interface{} {
+	if pc.ContainerID != "" {
+		return pc.ContainerID
+	}
+	if pc.CGroup.CGroupID != "" {
+		return pc.CGroup.CGroupID
+	}
+	return nil
+}

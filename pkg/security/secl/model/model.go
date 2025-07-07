@@ -429,17 +429,6 @@ type ProcessCacheEntry struct {
 	onRelease   []func()                   `field:"-"`
 }
 
-// GetWorkloadID returns an ID that represents the workload
-func (pc *ProcessCacheEntry) GetWorkloadID() interface{} {
-	if pc.ContainerID != "" {
-		return pc.ContainerID
-	}
-	if pc.CGroup.CGroupID != "" {
-		return pc.CGroup.CGroupID
-	}
-	return nil
-}
-
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""

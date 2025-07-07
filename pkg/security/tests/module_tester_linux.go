@@ -145,6 +145,9 @@ runtime_security_config:
     {{if .ActivityDumpLoadControllerTimeout }}
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
+    cgroup_managers: {{range .CgroupManagers}}
+    - {{. -}}
+    {{- end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     auto_suppression:
@@ -1301,6 +1304,138 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
+}
+
+// Systemd service helper functions
+
+type systemdServiceWrapper struct {
+	serviceName string
+	test        *testModule
+	cgroupID    string
+}
+
+func (s *systemdServiceWrapper) ExecCommand(binary string, args []string) error {
+	// Execute command within the systemd service context
+	cmd := []string{"systemd-run", "--scope", "--slice=" + s.serviceName, binary}
+	cmd = append(cmd, args...)
+
+	execCmd := exec.Command(cmd[0], cmd[1:]...)
+	return execCmd.Run()
+}
+
+func (s *systemdServiceWrapper) stop() {
+	// Stop the systemd service
+	exec.Command("systemctl", "stop", s.serviceName).Run()
+	exec.Command("systemctl", "disable", s.serviceName).Run()
+	os.Remove("/etc/systemd/system/" + s.serviceName + ".service")
+	exec.Command("systemctl", "daemon-reload").Run()
+}
+
+func (tm *testModule) StartSystemdService(serviceName string) (*systemdServiceWrapper, error) {
+	// Create a systemd service unit file
+	serviceUnit := fmt.Sprintf(`[Unit]
+Description=CWS Test Service %s
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sleep 3600
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
+`, serviceName)
+
+	serviceFile := "/etc/systemd/system/" + serviceName + ".service"
+	if err := os.WriteFile(serviceFile, []byte(serviceUnit), 0644); err != nil {
+		return nil, fmt.Errorf("failed to create service file: %v", err)
+	}
+
+	// Reload systemd and start the service
+	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+		return nil, fmt.Errorf("failed to reload systemd: %v", err)
+	}
+
+	if err := exec.Command("systemctl", "enable", serviceName).Run(); err != nil {
+		return nil, fmt.Errorf("failed to enable service: %v", err)
+	}
+
+	if err := exec.Command("systemctl", "start", serviceName).Run(); err != nil {
+		return nil, fmt.Errorf("failed to start service: %v", err)
+	}
+
+	// Wait for the service to be running
+	time.Sleep(2 * time.Second)
+
+	// Get the cgroup ID for the service
+	cgroupID := "/system.slice/" + serviceName + ".service"
+
+	return &systemdServiceWrapper{
+		serviceName: serviceName,
+		test:        tm,
+		cgroupID:    cgroupID,
+	}, nil
+}
+
+func (tm *testModule) StartSystemdServiceGetDump(serviceName string) (*systemdServiceWrapper, *activityDumpIdentifier, error) {
+	fmt.Printf("=========== Starting systemd service: %s\n", serviceName)
+	service, err := tm.StartSystemdService(serviceName)
+	if err != nil {
+		fmt.Printf("=========== Failed to start service: %v\n", err)
+		return nil, nil, err
+	}
+
+	fmt.Printf("=========== Service started, waiting for detection\n")
+	// Wait a moment for the service to be detected and dump to start
+	time.Sleep(5 * time.Second)
+
+	// Look for an existing activity dump for this systemd service
+	var activityDump *activityDumpIdentifier
+	if err := retry.Do(func() error {
+		dumps, err := tm.ListActivityDumps()
+		if err != nil {
+			fmt.Printf("=========== Failed to list dumps: %v\n", err)
+			return err
+		}
+
+		fmt.Printf("=========== Found %d dumps\n", len(dumps))
+		// Look for a dump with matching cgroup ID
+		for _, dump := range dumps {
+			fmt.Printf("=========== Checking dump with cgroup: %s\n", dump.CGroupID)
+			if string(dump.CGroupID) == service.cgroupID {
+				fmt.Printf("=========== Found matching dump\n")
+				activityDump = dump
+				return nil
+			}
+		}
+		fmt.Printf("=========== No matching dump found for cgroup: %s\n", service.cgroupID)
+		return fmt.Errorf("no dump found for systemd service %s with cgroup %s", serviceName, service.cgroupID)
+	}, retry.Delay(2*time.Second), retry.Attempts(5)); err != nil {
+		fmt.Printf("=========== Failed to find dump after retries: %v\n", err)
+		service.stop()
+		return nil, nil, err
+	}
+
+	fmt.Printf("=========== Successfully found dump for service\n")
+	return service, activityDump, nil
+}
+
+func isSystemdAvailable() bool {
+	// Check if systemd is available and we have the necessary permissions
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return false
+	}
+
+	// Check if we can access systemd and it's in a usable state
+	// Accept both "running" and "degraded" states as valid for testing
+	cmd := exec.Command("systemctl", "is-system-running")
+	output, err := cmd.Output()
+	if err != nil {
+		state := strings.TrimSpace(string(output))
+		return state == "running" || state == "degraded"
+	}
+	return true
 }
 
 //nolint:deadcode,unused

@@ -257,6 +257,7 @@ func fillProfileContextFromProfile(ctx *model.SecurityProfileContext, p *profile
 	}
 }
 
+// FillProfileContextFromWorkloadID fills the given ctx with workload id infos
 func (m *Manager) FillProfileContextFromWorkloadID(id interface{}, ctx *model.SecurityProfileContext, imageTag string) {
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
 		return
@@ -381,11 +382,6 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
 	if workload.Deleted.Load() {
 		// this workload was deleted before we had time to apply its profile, ignore
-		return
-	}
-
-	// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
-	if !workload.CGroupFlags.IsContainer() {
 		return
 	}
 
