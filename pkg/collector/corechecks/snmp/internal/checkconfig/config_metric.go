@@ -88,42 +88,42 @@ var VPNTunnelMetrics = []profiledefinition.MetricsConfig{
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.27",
 				Name:       "cipSecTunHcInOctets",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.40",
 				Name:       "cipSecTunHcOutOctets",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.32",
 				Name:       "cipSecTunInPkts",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.45",
 				Name:       "cipSecTunOutPkts",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.36",
 				Name:       "cipSecTunInAuthFails",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.48",
 				Name:       "cipSecTunOutAuthFails",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.38",
 				Name:       "cipSecTunInDecryptFails",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 			{
 				OID:        "1.3.6.1.4.1.9.9.171.1.3.2.1.50",
 				Name:       "cipSecTunOutEncryptFails",
-				MetricType: profiledefinition.ProfileMetricTypeRate,
+				MetricType: profiledefinition.ProfileMetricTypeMonotonicCount,
 			},
 		},
 		MetricTags: profiledefinition.MetricTagConfigList{
