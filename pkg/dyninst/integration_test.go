@@ -216,8 +216,16 @@ func testDyninst(
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
+		ev := msg.Event()
+		// Validate that the header has the correct program ID.
+		{
+			header, err := ev.Header()
+			require.NoError(t, err)
+			require.Equal(t, ir.ProgramID(header.Prog_id), sink.irp.ID)
+		}
+
 		event := decode.Event{
-			Event:       msg.Event(),
+			Event:       ev,
 			ServiceName: service,
 		}
 		err = decoder.Decode(event, decodeOut)
