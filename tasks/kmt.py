@@ -304,7 +304,7 @@ def attach_gdb(ctx: Context, vm: str, stack: str | None = None, dry=True):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
 
-    if not os.path.exists(f"{os.path.expanduser()}/.gdbinit-gef.py"):
+    if not os.path.exists(f"{Path.home()}/.gdbinit-gef.py"):
         resp = ask(
             "It is recommended to use gdb with the bata24 extension (https://github.com/bata24/gef) which greatly enhances the kernel debugging experience. You can install the extension with `inv -e kmt.install_bata24_gef`. Continue without installing? (y/N)"
         )
