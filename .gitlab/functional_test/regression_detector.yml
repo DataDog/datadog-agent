@@ -1,4 +1,4 @@
-regression_detector_merge_base_check:
+single_machine_performance-regression_detector-merge_base_check:
   stage: .pre
   timeout: 10m
   rules:
@@ -78,7 +78,7 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
-    - job: regression_detector_merge_base_check
+    - job: single_machine_performance-regression_detector-merge_base_check
       artifacts: true
   artifacts:
     expire_in: 1 weeks
