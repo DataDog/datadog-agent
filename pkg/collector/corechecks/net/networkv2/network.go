@@ -448,7 +448,7 @@ func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*conn
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
-	return parseSocketStatsMetrics(output)
+	return parseSocketStatsMetrics(protocol, output)
 }
 
 func getNetstatStateMetrics(protocol string, _ string) (map[string]*connectionStateEntry, error) {
@@ -460,16 +460,24 @@ func getNetstatStateMetrics(protocol string, _ string) (map[string]*connectionSt
 }
 
 // why not sum here
-func parseSocketStatsMetrics(output string) (map[string]*connectionStateEntry, error) {
+func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionStateEntry, error) {
 	results := make(map[string]*connectionStateEntry)
 
 	suffixMapping := tcpStateMetricsSuffixMapping["ss"]
-	for _, state := range suffixMapping {
-		if _, exists := results[state]; !exists {
-			results[state] = &connectionStateEntry{
-				count: 0,
-				recvQ: []uint64{},
-				sendQ: []uint64{},
+	if protocol[:3] == "udp" {
+		results["connections"] = &connectionStateEntry{
+			count: 0,
+			recvQ: []uint64{},
+			sendQ: []uint64{},
+		}
+	} else {
+		for _, state := range suffixMapping {
+			if _, exists := results[state]; !exists {
+				results[state] = &connectionStateEntry{
+					count: 0,
+					recvQ: []uint64{},
+					sendQ: []uint64{},
+				}
 			}
 		}
 	}
@@ -509,14 +517,21 @@ func parseSocketStatsMetrics(output string) (map[string]*connectionStateEntry, e
 			continue
 		}
 
-		state, ok := suffixMapping[fields[1]]
+		var stateField string
+		if protocol[:3] == "udp" {
+			// all UDP suffixes resolve to connections
+			stateField = "NONE"
+		} else {
+			stateField = fields[0]
+		}
 		// skip connection states we do not have mappings for
+		state, ok := suffixMapping[stateField]
 		if !ok {
 			continue
 		}
 
-		recvQ := parseQueue(fields[2])
-		sendQ := parseQueue(fields[3])
+		recvQ := parseQueue(fields[1])
+		sendQ := parseQueue(fields[2])
 		if entry, exists := results[state]; exists {
 			entry.count = entry.count + 1
 			entry.recvQ = append(entry.recvQ, recvQ)
@@ -577,7 +592,7 @@ func parseNetstatMetrics(protocol, output string) (map[string]*connectionStateEn
 
 		var stateField string
 		if protocol[:3] == "udp" {
-			// all UDP suffixes resolve to connections but
+			// all UDP suffixes resolve to connections
 			stateField = "NONE"
 		} else {
 			stateField = fields[5]
