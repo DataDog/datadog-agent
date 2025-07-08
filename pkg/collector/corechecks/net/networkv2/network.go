@@ -444,7 +444,8 @@ func getSocketStateMetrics(protocol string, procfsPath string) (map[string]*conn
 	ipFlag := fmt.Sprintf("--ipv%s", protocol[len(protocol)-1:])
 	protocolFlag := fmt.Sprintf("--%s", protocol[:len(protocol)-1])
 	// Go's exec.Command environment is the same as the running process unlike python so we do not need to adjust the PATH
-	output, err := runCommandFunction([]string{"sh", "-c", "ss", "--numeric", protocolFlag, "--all", ipFlag}, env)
+	cmd := fmt.Sprintf("ss --numeric %s --all %s", protocolFlag, ipFlag)
+	output, err := runCommandFunction([]string{"sh", "-c", cmd}, env)
 	if err != nil {
 		return nil, fmt.Errorf("error executing ss command: %v", err)
 	}
@@ -508,7 +509,7 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 	// SYN-SENT    0        1           192.168.64.6:53594      100.100.100.200:80
 
 	lines := strings.Split(output, "\n")
-	for i, line := range lines {
+	for _, line := range lines {
 		fields := strings.Fields(line)
 		// skip malformed ss entry result
 		if len(fields) < 3 {

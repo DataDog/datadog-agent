@@ -156,9 +156,9 @@ udp6        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED
 udp6        0      0 46.105.75.4:143         90.56.111.177:56867
 `, nil
 	} else if slices.Contains(cmd, "ss") {
-		return `Netid   State     Recv-Q    Send-Q    Local Address           Foreign Address
-				tcp     ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
-				tcp     TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
+		return `State     Recv-Q    Send-Q    Local Address           Foreign Address
+				ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
+				TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
 	}
 	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
 	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
