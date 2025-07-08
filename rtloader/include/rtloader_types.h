@@ -100,6 +100,7 @@ typedef struct payload_s {
     metric_type_t metricType;
     double value;
     char **tags;
+    size_t tags_length;
     char *hostname;
 } payload_t;
 

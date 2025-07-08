@@ -36,6 +36,7 @@ pub struct Payload {
     metric_type: MetricType,
     value: c_double,
     tags: *mut *mut c_char,
+    tags_length: usize,
     hostname: *mut c_char,
 }
 
@@ -46,6 +47,7 @@ impl Payload {
             metric_type: *metric_type,
             value: *value,
             tags: to_cstring_array(tags),
+            tags_length: tags.len(),
             hostname: to_cstring(hostname),
         }
     }

@@ -18,6 +18,6 @@ impl Metric {
     pub fn check(&mut self) {
         /* check implementation goes here */
 
-        self.gauge("so.metric", 3.14, vec!(String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing")));
+        self.gauge("so.metric", 3.14, vec!(String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing"), String::from("tag3:its-a-tag")));
     }
 }
