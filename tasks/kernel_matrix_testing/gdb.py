@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import semver
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing import stacks
@@ -17,39 +18,6 @@ if TYPE_CHECKING:
         Component,  # noqa: F401
         KMTArchNameOrLocal,
     )
-
-
-class KernelVersion:
-    def __init__(self, kv: str):
-        self.major = kv.split(".")[0]
-        self.minor = kv.split(".")[1]
-        self.patch = kv.split(".")[2]
-
-    def __str__(self):
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    def __eq__(self, other: object):
-        if isinstance(other, KernelVersion):
-            return self.major == other.major and self.minor == other.minor and self.patch == other.patch
-
-        raise NotImplementedError
-
-    def __lt__(self, other: KernelVersion) -> bool:
-        if not isinstance(other, KernelVersion):
-            raise NotImplementedError
-
-        if self.major < other.major:
-            return True
-        if self.major == other.major and self.minor < other.minor:
-            return True
-
-        return self.minor == other.minor and self.patch < other.patch
-
-    def __lte__(self, other: KernelVersion) -> bool:
-        return self.__lt__(other) or self.__eq__(other)
-
-    def __gt__(self, other: KernelVersion) -> bool:
-        return not self.__lte__(other)
 
 
 class GDBPaths:
@@ -71,7 +39,7 @@ class UbuntuGDBProvision:
     def __init__(self, vm: LibvirtDomain, image_version: str, kernel: str):
         self.target = vm
         self.image_version = image_version
-        self.kernel = KernelVersion(kernel.split('-')[0])
+        self.kernel = semver.VersionInfo.parse(kernel)
 
     def run(self, ctx: Context, stack: str):
         self.target.copy(
@@ -87,16 +55,16 @@ class UbuntuGDBProvision:
         gdb_paths.kernel_source.mkdir(parents=True)
         self.target.download(
             ctx,
-            f"/usr/src/linux-source-{self.kernel}/linux-source-{self.kernel}.tar.bz2",
+            f"/usr/src/linux-source-{self.kernel.finalize_version()}/linux-source-{self.kernel.finalize_version()}.tar.bz2",
             f"{gdb_paths.kernel_source.parent}",
         )
         ctx.run(
-            f"cd {gdb_paths.kernel_source.parent} && tar xvf linux-source-{self.kernel}.tar.bz2 -C {gdb_paths.kernel_source} --strip-components=1",
+            f"cd {gdb_paths.kernel_source.parent} && tar xvf linux-source-{self.kernel.finalize_version()}.tar.bz2 -C {gdb_paths.kernel_source} --strip-components=1",
             hide="out",
             echo=True,
         )
 
-        if self.kernel > KernelVersion("4.4.0"):
+        if self.kernel > semver.VersionInfo.parse("4.4.0"):
             ctx.run(f"cd {gdb_paths.kernel_source} && make defconfig && make scripts_gdb")
 
         self.target.run_cmd(ctx, "shutdown -h now", verbose=True, allow_fail=True)
