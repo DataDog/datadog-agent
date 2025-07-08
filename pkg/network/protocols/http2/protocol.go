@@ -35,7 +35,7 @@ type Protocol struct {
 	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[HTTP2StreamKey, HTTP2Stream]
-	eventsConsumer          *events.Consumer[EbpfTx]
+	eventsConsumer          *events.BatchConsumer[EbpfTx]
 
 	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry

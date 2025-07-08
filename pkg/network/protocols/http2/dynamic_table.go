@@ -29,7 +29,7 @@ type DynamicTable struct {
 	cfg *config.Config
 
 	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
-	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
+	terminatedConnectionsEventsConsumer *events.BatchConsumer[netebpf.ConnTuple]
 	// terminatedConnections is the list of terminated connections received from the kernel.
 	terminatedConnections []netebpf.ConnTuple
 	// terminatedConnectionMux is used to protect the terminated connections list from concurrent access.

@@ -31,7 +31,7 @@ type protocol struct {
 	telemetry          *Telemetry
 	statkeeper         *StatKeeper
 	inFlightMapCleaner *ddebpf.MapCleaner[KafkaTransactionKey, KafkaTransaction]
-	eventsConsumer     *events.Consumer[EbpfTx]
+	eventsConsumer     *events.BatchConsumer[EbpfTx]
 
 	kernelTelemetry            *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}

@@ -66,7 +66,7 @@ func NewEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 }
 
 // RecordSample records a sample using the consumer Handler.
-func RecordSample[V any](c *config.Config, consumer *Consumer[V], sampleData []byte) {
+func RecordSample[V any](c *config.Config, consumer *BatchConsumer[V], sampleData []byte) {
 	// Ring buffers require kernel version 5.8.0 or higher, therefore, the Handler is chosen based on the kernel version.
 	if c.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil {
 		handler := consumer.handler.(*ddebpf.RingBufferHandler)
