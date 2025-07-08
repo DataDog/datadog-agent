@@ -164,3 +164,25 @@ func evaluateResource[T ~int](
 	}
 	return workloadfilter.Unknown
 }
+
+// GetContainerFilterInitializationErrors returns initialization errors for a specific container filter
+func (f *filter) GetContainerFilterInitializationErrors(filters []workloadfilter.ContainerFilter) []error {
+	return getFilterErrors(f, workloadfilter.ContainerType, filters)
+}
+
+// getFilterErrors returns initialization errors for a specific filter
+func getFilterErrors[T ~int](
+	f *filter,
+	resourceType workloadfilter.ResourceType, // Filterable resource (e.g., Container, Pod)
+	filters []T, // Generic filter types
+) []error {
+	errs := []error{}
+	for _, filter := range filters {
+		prg := f.getProgram(resourceType, int(filter))
+		if prg == nil {
+			continue
+		}
+		errs = append(errs, prg.GetInitializationErrors()...)
+	}
+	return errs
+}

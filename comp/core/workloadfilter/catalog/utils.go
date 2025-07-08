@@ -13,26 +13,24 @@ import (
 
 	"github.com/google/cel-go/cel"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // createProgramFromOldFilters handles the conversion of old filters to new filters and creates a CEL program.
-func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.ResourceType, logger log.Component) cel.Program {
+// Returns both the program and any errors encountered during creation.
+func createProgramFromOldFilters(oldFilters []string, objectType workloadfilter.ResourceType) (cel.Program, error) {
 	filterString, err := convertOldToNewFilter(oldFilters, objectType)
 	if err != nil {
-		logger.Warnf("Error converting filters: %v", err)
-		return nil
+		return nil, fmt.Errorf("error converting filters: %w", err)
 	}
 
 	program, progErr := createCELProgram(filterString, objectType)
 	if progErr != nil {
-		logger.Warnf("Error creating CEL filtering program: %v", progErr)
-		return nil
+		return nil, fmt.Errorf("error creating CEL filtering program: %w", progErr)
 	}
 
-	return program
+	return program, nil
 }
 
 func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel.Program, error) {
