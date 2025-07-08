@@ -33,6 +33,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -398,7 +399,19 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 				continue
 			}
 
-			repoDigests = append(repoDigests, "local@sha256:"+img.ID)
+			repoDigest := "local/" + img.Name + "@" + img.ID
+			repoDigests = append(repoDigests, repoDigest)
+
+			if metadata := img.SBOM.CycloneDXBOM.Metadata; metadata != nil {
+				if metadata.Component != nil && metadata.Component.Properties != nil {
+					*metadata.Component.Properties = append(*metadata.Component.Properties, cyclonedx.Property{
+						Name:  "aquasecurity:trivy:RepoDigest",
+						Value: repoDigest,
+					})
+				}
+			}
+
+			log.Infof("The image %s has no repo digest for repo %s, generated %s", img.Name, repo, repoDigests[0])
 		}
 
 		// Because we split a single image entity into different payloads if it has several repo digests,
