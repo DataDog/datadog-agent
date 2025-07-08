@@ -75,6 +75,15 @@ single-machine-performance-regression_detector:
     - changes:
         - "**/*.md"
         - "**/*_test.go"
+        - "docs/**/*"
+        - "README*"
+        - ".vscode/**/*"
+        - "examples/**/*"
+        - "LICENSE*"
+        - "NOTICE*"
+        - "CHANGELOG*"
+        - "releasenotes/**/*"
+        - "releasenotes-dca/**/*"
       when: never
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
