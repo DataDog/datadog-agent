@@ -9,6 +9,7 @@ from tasks.kernel_matrix_testing.infra import LibvirtDomain, build_infrastructur
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, info
 from tasks.kernel_matrix_testing.vars import KMTPaths
+from tasks.libs.common.utils import get_repo_root
 from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
@@ -73,7 +74,9 @@ class UbuntuGDBProvision:
         self.kernel = KernelVersion(kernel.split('-')[0])
 
     def run(self, ctx: Context, stack: str):
-        self.target.copy(ctx, "tasks/kernel_matrix_testing/provision/ubuntu-dbg.sh", "/tmp/provision.sh")
+        self.target.copy(
+            ctx, get_repo_root() / "tasks/kernel_matrix_testing/provision/ubuntu-dbg.sh", "/tmp/provision.sh"
+        )
         self.target.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh")
 
         gdb_paths = GDBPaths(self.target.tag, self.image_version, stack, self.target.arch)
