@@ -129,7 +129,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 		expectedEndpoints map[usmhttp.Key]int
 	}{
 		{
-			name: "GET /hello",
+			name: "multiple get requests",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getHTTPUnixClientArray(clientsCount, unixPath)
 
