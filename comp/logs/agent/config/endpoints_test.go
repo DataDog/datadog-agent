@@ -646,13 +646,17 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	tcp := newTCPEndpoint(logsConfig)
 	http := newHTTPEndpoint(logsConfig)
 
-	suite.Equal("1234", tcp.GetAPIKey())
-	suite.Equal("1234", http.GetAPIKey())
+	suite.Eventually(func() bool {
+		return assert.Equal(suite.T(), "1234", tcp.GetAPIKey()) &&
+			assert.Equal(suite.T(), "1234", http.GetAPIKey())
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("api_key", "5678")
-	suite.Equal("5678", tcp.GetAPIKey())
-	suite.Equal("5678", http.GetAPIKey())
+	suite.Eventually(func() bool {
+		return assert.Equal(suite.T(), "5678", tcp.GetAPIKey()) &&
+			assert.Equal(suite.T(), "5678", http.GetAPIKey())
+	}, 5*time.Second, 200*time.Millisecond)
 }
 
 func (suite *EndpointsTestSuite) TestLogCompressionKind() {

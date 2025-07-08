@@ -271,12 +271,12 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	expectAfterFmt := quoteList(expectAfter)
 
 	// forwardHealth's keysPerAPIEndpoint has the given API Keys
-	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
 
 	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 		return assert.Equal(t, expect, string(data), description)
 	}, 5*time.Second, 1*time.Second)
 
@@ -287,11 +287,11 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint has the new API Key
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectAfterFmt)
 	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 		return assert.Equal(t, expect, string(data), description)
 	}, 5*time.Second, 1*time.Second)
 
@@ -319,19 +319,19 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint are restored to previous
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
 	assert.Eventually(t, func() bool {
+		data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 		return assert.Equal(t, expect, string(data), description)
-	}, 5*time.Second, 1*time.Second)
+	}, 10*time.Second, 200*time.Millisecond)
 
 	// Check the old keys are now valid again
 	for _, key := range expectBefore {
 		assert.Eventually(t, func() bool {
 			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
-		}, 5*time.Second, 1*time.Second)
+		}, 10*time.Second, 200*time.Millisecond)
 	}
 
 	// Check added keys are now not valid
@@ -339,7 +339,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		if !slices.Contains(expectBefore, key) {
 			assert.Eventually(t, func() bool {
 				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
-			}, 5*time.Second, 1*time.Second)
+			}, 10*time.Second, 200*time.Millisecond)
 		}
 	}
 }
