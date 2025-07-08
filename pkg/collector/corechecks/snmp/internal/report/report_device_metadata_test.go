@@ -1000,9 +1000,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
                 "100.0.0.0/16",
                 "100.1.0.0/16"
             ],
-            "config": {
-                "life_size": "4608000",
-                "life_time": "3600"
+            "options": {
+                "ipsec_options": {
+                    "life_size": 4608000,
+                    "life_time": 3600
+                }
             }
         },
         {
@@ -1014,9 +1016,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
                 "110.0.0.0/24",
                 "110.1.0.0/24"
             ],
-            "config": {
-                "life_size": "123456",
-                "life_time": "7200"
+            "options": {
+                "ipsec_options": {
+                    "life_size": 123456,
+                    "life_time": 7200
+                }
             }
         },
         {
@@ -1029,9 +1033,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
                 "120.0.0.0/16",
                 "120.0.0.0/24"
             ],
-            "config": {
-                "life_size": "654321",
-                "life_time": "1800"
+            "options": {
+                "ipsec_options": {
+                    "life_size": 654321,
+                    "life_time": 1800
+                }
             }
         }
     ],
