@@ -607,6 +607,16 @@ func TestServiceFiltering(t *testing.T) {
 			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
+		{
+			name:        "AD annotation exclude truthy values",
+			serviceName: "annotated-service",
+			namespace:   "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/exclude": "T",
+			},
+			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			expected: workloadfilter.Excluded,
+		},
 	}
 
 	for _, tt := range tests {
@@ -670,6 +680,16 @@ func TestEndpointFiltering(t *testing.T) {
 			namespace:    "default",
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "true",
+			},
+			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:         "AD annotation exclude truthy values",
+			endpointName: "metrics-excluded-endpoint",
+			namespace:    "default",
+			annotations: map[string]string{
+				"ad.datadoghq.com/metrics_exclude": "1",
 			},
 			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,

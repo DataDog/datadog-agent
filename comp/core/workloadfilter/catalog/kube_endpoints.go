@@ -81,7 +81,7 @@ func EndpointsADAnnotationsProgram(_ config.Component, logger log.Component) pro
 	var initErrors []error
 	// Use 'in' operator to safely check if annotation exists before accessing it
 	excludeFilter := `(("ad.datadoghq.com/exclude") in endpoint.annotations && 
-		 endpoint.annotations["ad.datadoghq.com/exclude"] == "true")`
+		 endpoint.annotations["ad.datadoghq.com/exclude"] in ["1", "t", "T", "true", "TRUE", "True"])`
 
 	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.EndpointType)
 	if err != nil {
@@ -103,7 +103,7 @@ func EndpointsADAnnotationsMetricsProgram(_ config.Component, logger log.Compone
 	var initErrors []error
 	// Use 'in' operator to safely check if annotation exists before accessing it
 	excludeFilter := `(("ad.datadoghq.com/metrics_exclude") in endpoint.annotations && 
-		 endpoint.annotations["ad.datadoghq.com/metrics_exclude"] == "true")`
+		 endpoint.annotations["ad.datadoghq.com/metrics_exclude"] in ["1", "t", "T", "true", "TRUE", "True"])`
 
 	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.EndpointType)
 	if err != nil {

@@ -81,7 +81,7 @@ func ServiceADAnnotationsProgram(_ config.Component, logger log.Component) progr
 	var initErrors []error
 	// Use 'in' operator to safely check if annotation exists before accessing it
 	excludeFilter := `(("ad.datadoghq.com/exclude") in service.annotations && 
-		 service.annotations["ad.datadoghq.com/exclude"] == "true")`
+		 service.annotations["ad.datadoghq.com/exclude"] in ["1", "t", "T", "true", "TRUE", "True"])`
 
 	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ServiceType)
 	if err != nil {
@@ -103,7 +103,7 @@ func ServiceADAnnotationsMetricsProgram(_ config.Component, logger log.Component
 	var initErrors []error
 	// Use 'in' operator to safely check if annotation exists before accessing it
 	excludeFilter := `(("ad.datadoghq.com/metrics_exclude") in service.annotations && 
-		 service.annotations["ad.datadoghq.com/metrics_exclude"] == "true")`
+		 service.annotations["ad.datadoghq.com/metrics_exclude"] in ["1", "t", "T", "true", "TRUE", "True"])`
 
 	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ServiceType)
 	if err != nil {

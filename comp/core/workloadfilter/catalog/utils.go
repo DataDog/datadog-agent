@@ -58,7 +58,7 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
 func getFieldMapping(objectType workloadfilter.ResourceType) map[string]string {
 	if objectType == workloadfilter.ImageType {
-		// only support "id" which is the image name
+		// only support "image" which is the image name
 		return map[string]string{
 			"image": fmt.Sprintf("%s.name.matches", objectType),
 		}
@@ -109,7 +109,7 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 			return "", fmt.Errorf("invalid filter format: %s", oldFilter)
 		}
 
-		// Check if the key is in the excluded
+		// Check if the key applies for the particular workload type
 		if objectType != workloadfilter.ContainerType && objectType != workloadfilter.ImageType && key == "image" {
 			continue
 		}
