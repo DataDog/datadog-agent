@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -125,6 +126,11 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 	if d.cgroupID, err = getPIDCGroup(uint32(d.pid)); err != nil {
 		return nil, err
 	}
+
+	// Add a small delay to ensure the container is fully ready and the security monitoring
+	// system has time to attach before executing commands. This prevents race conditions
+	// where events might be missed due to timing issues.
+	time.Sleep(100 * time.Millisecond)
 
 	return out, err
 }
