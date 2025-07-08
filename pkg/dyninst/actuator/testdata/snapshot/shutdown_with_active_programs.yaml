@@ -11,7 +11,6 @@
       executable: {path: /usr/bin/test}
       probes:
         - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
-- !compiled {program_id: 1}
 - !loaded {program_id: 1}
 - !attached {program_id: 1, process_id: 1001}
 
@@ -29,7 +28,6 @@
 
 # Now trigger shutdown
 - !shutdown {error: "test shutdown"} 
-- !compiled {program_id: 2}
 - !detached {program_id: 1, process_id: 1001}
 ---
 event: !processes-updated
@@ -39,32 +37,20 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
-  currently_compiling: <nil> -> 1
+  currently_loading: <nil> -> 1
   queued_programs: '[]'
   processes:
     1001: <nil> -> WaitingForProgram (prog 1)
   programs:
-    1: <nil> -> Compiling (proc 1001)
----
-event: !compiled {program_id: 1}
-effects:
-  - !spawn-bpf-loading {program_id: 1}
-state:
-  currently_compiling: "1"
-  queued_programs: '[]'
-  processes:
-    1001: WaitingForProgram (prog 1)
-  programs:
-    1: Compiling (proc 1001) -> Loading (proc 1001)
+    1: <nil> -> Loading (proc 1001)
 ---
 event: !loaded {program_id: 1}
 effects:
-  - !register-program-with-dispatcher {program_id: 1}
   - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
 state:
-  currently_compiling: 1 -> <nil>
+  currently_loading: 1 -> <nil>
   queued_programs: '[]'
   processes:
     1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
@@ -73,7 +59,7 @@ state:
 ---
 event: !attached {program_id: 1, process_id: 1001}
 state:
-  currently_compiling: <nil>
+  currently_loading: <nil>
   queued_programs: '[]'
   processes:
     1001: Attaching (prog 1) -> Attached (prog 1)
@@ -91,48 +77,39 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/test2@0.0m0.0, probes: [probe2], program_id: 2}
+  - !spawn-bpf-loading {executable: /usr/bin/test2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 2}
 state:
-  currently_compiling: <nil> -> 2
+  currently_loading: <nil> -> 2
   queued_programs: '[]'
   processes:
     1001: Attached (prog 1)
     1002: <nil> -> WaitingForProgram (prog 2)
   programs:
     1: Loaded (proc 1001)
-    2: <nil> -> Compiling (proc 1002)
+    2: <nil> -> Loading (proc 1002)
 ---
 event: !shutdown {error: "test shutdown"}
 effects:
   - !detach-from-process {process_id: 1001, program_id: 1}
 state:
-  currently_compiling: "2"
+  currently_loading: "2"
   queued_programs: '[]'
   processes:
     1001: Attached (prog 1) -> Detaching (prog 1)
     1002: WaitingForProgram (prog 2)
   programs:
     1: Loaded (proc 1001) -> Draining (proc 1001)
-    2: Compiling (proc 1002) -> CompilationAborted (proc 1002)
----
-event: !compiled {program_id: 2}
-state:
-  currently_compiling: 2 -> <nil>
-  queued_programs: '[]'
-  processes:
-    1001: Detaching (prog 1)
-    1002: WaitingForProgram (prog 2) -> <nil>
-  programs:
-    1: Draining (proc 1001)
-    2: CompilationAborted (proc 1002) -> <nil>
+    2: Loading (proc 1002) -> LoadingAborted (proc 1002)
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !unregister-program-with-dispatcher {program_id: 1}
+  - !close-sink {program_id: 1}
 state:
-  currently_compiling: <nil>
+  currently_loading: "2"
   queued_programs: '[]'
   processes:
     1001: Detaching (prog 1) -> <nil>
+    1002: WaitingForProgram (prog 2)
   programs:
     1: Draining (proc 1001) -> <nil>
+    2: LoadingAborted (proc 1002)

@@ -72,9 +72,10 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			APIClient:                   chk.apiClient,
 			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
 		},
-		ClusterID:   chk.clusterID,
-		Config:      chk.orchestratorConfig,
-		MsgGroupRef: chk.groupID,
+		ClusterID:    chk.clusterID,
+		Config:       chk.orchestratorConfig,
+		MsgGroupRef:  chk.groupID,
+		AgentVersion: chk.agentVersion,
 	}
 	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,

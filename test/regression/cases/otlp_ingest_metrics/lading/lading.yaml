@@ -5,12 +5,45 @@ generator:
       headers:
         content-type: "application/x-protobuf"
       target_uri: "http://127.0.0.1:4318/v1/metrics"
-      bytes_per_second: "6 MiB"
+      bytes_per_second: "25 MiB"
       parallel_connections: 5
       method:
         post:
           maximum_prebuild_cache_size_bytes: "512 MiB"
-          variant: "opentelemetry_metrics"
+          variant:
+            # all numbers arbitraray
+            opentelemetry_metrics:
+              metric_weights:
+                gauge: 50
+                sum: 50
+              contexts:
+                total_contexts:
+                  constant: 10000
+                # host., service. etc
+                attributes_per_resource:
+                  inclusive:
+                    min: 8
+                    max: 64
+                # auto-instrumentation in client libraries, DB connection etc
+                scopes_per_resource:
+                  inclusive:
+                    min: 1
+                    max: 32
+                # rare? build info possibly
+                attributes_per_scope:
+                  inclusive:
+                    min: 0
+                    max: 4
+                # exported instruments / telemetry by libraries and custom code
+                metrics_per_scope:
+                  inclusive:
+                    min: 10
+                    max: 128
+                # stuff like exit code, user id, cgroup id
+                attributes_per_metric:
+                  inclusive:
+                    min: 0
+                    max: 255
 
 blackhole:
   - http:

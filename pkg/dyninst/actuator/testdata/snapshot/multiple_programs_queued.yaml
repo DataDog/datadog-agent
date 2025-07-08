@@ -14,7 +14,6 @@
       executable: {path: /usr/bin/app3}
       probes:
         - {type: LOG_PROBE, id: probe3, where: {methodName: main}, captureSnapshot: true}
-- !compiled {program_id: 1}
 - !processes-updated
   updated:
     - process_id: {pid: 1002}
@@ -30,7 +29,6 @@
       probes:
         - {type: LOG_PROBE, id: probe4, where: {methodName: main}, captureSnapshot: true}
 - !detached {program_id: 1, process_id: 1001}
-- !compiled {program_id: 3}
 - !loaded {program_id: 3}
 ---
 event: !processes-updated
@@ -48,33 +46,18 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe3, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
-  currently_compiling: <nil> -> 1
+  currently_loading: <nil> -> 1
   queued_programs: '[] -> [2 3]'
   processes:
     1001: <nil> -> WaitingForProgram (prog 1)
     1002: <nil> -> WaitingForProgram (prog 2)
     1003: <nil> -> WaitingForProgram (prog 3)
   programs:
-    1: <nil> -> Compiling (proc 1001)
+    1: <nil> -> Loading (proc 1001)
     2: <nil> -> Queued (proc 1002)
     3: <nil> -> Queued (proc 1003)
----
-event: !compiled {program_id: 1}
-effects:
-  - !spawn-bpf-loading {program_id: 1}
-state:
-  currently_compiling: "1"
-  queued_programs: '[2 3]'
-  processes:
-    1001: WaitingForProgram (prog 1)
-    1002: WaitingForProgram (prog 2)
-    1003: WaitingForProgram (prog 3)
-  programs:
-    1: Compiling (proc 1001) -> Loading (proc 1001)
-    2: Queued (proc 1002)
-    3: Queued (proc 1003)
 ---
 event: !processes-updated
   updated:
@@ -83,7 +66,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, version: 2, where: {methodName: main}, captureSnapshot: true}
 state:
-  currently_compiling: "1"
+  currently_loading: "1"
   queued_programs: '[2 3] -> [3 4]'
   processes:
     1001: WaitingForProgram (prog 1)
@@ -97,11 +80,10 @@ state:
 ---
 event: !loaded {program_id: 1}
 effects:
-  - !register-program-with-dispatcher {program_id: 1}
   - !attach-to-process {executable: /usr/bin/app1@0.0m0.0, process_id: 1001, program_id: 1}
-  - !spawn-ebpf-compilation {executable: /usr/bin/app3@0.0m0.0, probes: [probe3], program_id: 3}
+  - !spawn-bpf-loading {executable: /usr/bin/app3@0.0m0.0, probes: [probe3], process_id: 1003, program_id: 3}
 state:
-  currently_compiling: 1 -> 3
+  currently_loading: 1 -> 3
   queued_programs: '[3 4] -> [4]'
   processes:
     1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
@@ -109,12 +91,12 @@ state:
     1003: WaitingForProgram (prog 3)
   programs:
     1: Loading (proc 1001) -> Loaded (proc 1001)
-    3: Queued (proc 1003) -> Compiling (proc 1003)
+    3: Queued (proc 1003) -> Loading (proc 1003)
     4: Queued (proc 1002)
 ---
 event: !attached {program_id: 1, process_id: 1001}
 state:
-  currently_compiling: "3"
+  currently_loading: "3"
   queued_programs: '[4]'
   processes:
     1001: Attaching (prog 1) -> Attached (prog 1)
@@ -122,7 +104,7 @@ state:
     1003: WaitingForProgram (prog 3)
   programs:
     1: Loaded (proc 1001)
-    3: Compiling (proc 1003)
+    3: Loading (proc 1003)
     4: Queued (proc 1002)
 ---
 event: !processes-updated
@@ -134,7 +116,7 @@ event: !processes-updated
 effects:
   - !detach-from-process {process_id: 1001, program_id: 1}
 state:
-  currently_compiling: "3"
+  currently_loading: "3"
   queued_programs: '[4]'
   processes:
     1001: Attached (prog 1) -> Detaching (prog 1)
@@ -142,14 +124,14 @@ state:
     1003: WaitingForProgram (prog 3)
   programs:
     1: Loaded (proc 1001) -> Draining (proc 1001)
-    3: Compiling (proc 1003)
+    3: Loading (proc 1003)
     4: Queued (proc 1002)
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !unregister-program-with-dispatcher {program_id: 1}
+  - !close-sink {program_id: 1}
 state:
-  currently_compiling: "3"
+  currently_loading: "3"
   queued_programs: '[4] -> [4 5]'
   processes:
     1001: Detaching (prog 1) -> WaitingForProgram (prog 5)
@@ -157,32 +139,16 @@ state:
     1003: WaitingForProgram (prog 3)
   programs:
     1: Draining (proc 1001) -> <nil>
-    3: Compiling (proc 1003)
+    3: Loading (proc 1003)
     4: Queued (proc 1002)
     5: <nil> -> Queued (proc 1001)
 ---
-event: !compiled {program_id: 3}
-effects:
-  - !spawn-bpf-loading {program_id: 3}
-state:
-  currently_compiling: "3"
-  queued_programs: '[4 5]'
-  processes:
-    1001: WaitingForProgram (prog 5)
-    1002: WaitingForProgram (prog 4)
-    1003: WaitingForProgram (prog 3)
-  programs:
-    3: Compiling (proc 1003) -> Loading (proc 1003)
-    4: Queued (proc 1002)
-    5: Queued (proc 1001)
----
 event: !loaded {program_id: 3}
 effects:
-  - !register-program-with-dispatcher {program_id: 3}
   - !attach-to-process {executable: /usr/bin/app3@0.0m0.0, process_id: 1003, program_id: 3}
-  - !spawn-ebpf-compilation {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], program_id: 4}
+  - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 4}
 state:
-  currently_compiling: 3 -> 4
+  currently_loading: 3 -> 4
   queued_programs: '[4 5] -> [5]'
   processes:
     1001: WaitingForProgram (prog 5)
@@ -190,5 +156,5 @@ state:
     1003: WaitingForProgram (prog 3) -> Attaching (prog 3)
   programs:
     3: Loading (proc 1003) -> Loaded (proc 1003)
-    4: Queued (proc 1002) -> Compiling (proc 1002)
+    4: Queued (proc 1002) -> Loading (proc 1002)
     5: Queued (proc 1001)
