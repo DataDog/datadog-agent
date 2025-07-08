@@ -125,7 +125,7 @@ func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
 	return provides{
 		Comp:           c,
-		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c, deps.FilterStore)),
 
 		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
 		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
