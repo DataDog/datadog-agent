@@ -444,7 +444,7 @@ func OtelSpanToDDSpan(
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := traceutil.GetOTelAttrFromEitherMap(otelres.Attributes(), otelspan.Attributes(), false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
 			ddspan.Meta["db.name"] = dbNamespace
 		}
 	}
