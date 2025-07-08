@@ -902,7 +902,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
-	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", true)
+	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)

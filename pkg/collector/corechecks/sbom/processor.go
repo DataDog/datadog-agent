@@ -394,7 +394,8 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		if len(repoDigests) == 0 {
-			if !p.cfg.GetBool("sbom.container_image.allow_missing_repodigest") {
+			allowMissingRepodigest := p.cfg.GetBool("sbom.container_image.allow_missing_repodigest")
+			if !allowMissingRepodigest || len(img.RepoDigests) != 0 {
 				log.Infof("The image %s has no repo digest for repo %s, skipping", img.ID, repo)
 				continue
 			}
