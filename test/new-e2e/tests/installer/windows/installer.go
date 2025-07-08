@@ -479,7 +479,9 @@ func WithURLOverride(url string) PackageOption {
 func WithPipeline(pipeline string) PackageOption {
 	return func(params *TestPackageConfig) error {
 		params.Version = fmt.Sprintf("pipeline-%s", pipeline)
-		params.Registry = consts.PipelineOCIRegistry
+		if err := WithRegistry(consts.PipelineOCIRegistry)(params); err != nil {
+			return err
+		}
 		return nil
 	}
 }
