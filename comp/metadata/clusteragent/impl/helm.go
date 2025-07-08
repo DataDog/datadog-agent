@@ -29,10 +29,10 @@ import (
 )
 
 var (
-	releaseNamespace   = os.Getenv("DD_KUBE_RESOURCES_NAMESPACE")
-	releaseTemplate    = "sh.helm.release.v1.%s.v"
-	versionRegexp      = regexp.MustCompile(`\.v(\d+)$`)
-	noHelmReleaseError = fmt.Errorf("no Helm release found in pod labels")
+	releaseNamespace = os.Getenv("DD_KUBE_RESOURCES_NAMESPACE")
+	releaseTemplate  = "sh.helm.release.v1.%s.v"
+	versionRegexp    = regexp.MustCompile(`\.v(\d+)$`)
+	errNoHelmRelease = fmt.Errorf("no Helm release found in pod labels")
 )
 
 // HelmReleaseMinimal represents the minimal structure we care about
@@ -74,7 +74,7 @@ func getLatestHelmRevision(ctx context.Context, clientset *kubernetes.Clientset,
 }
 
 // Retrieves the release name from the pod labels or returns a default value.
-func getReleaseName(ctx context.Context, clientset *kubernetes.Clientset) (string, error) {
+func getReleaseName(clientset *kubernetes.Clientset) (string, error) {
 	// Get the pod
 	pod, err := clientset.CoreV1().Pods(releaseNamespace).Get(context.TODO(), os.Getenv("DD_POD_NAME"), metav1.GetOptions{})
 	if err != nil {
@@ -86,7 +86,7 @@ func getReleaseName(ctx context.Context, clientset *kubernetes.Clientset) (strin
 	if releaseName != "" {
 		return releaseName, nil
 	}
-	return "", noHelmReleaseError
+	return "", errNoHelmRelease
 }
 
 func retrieveHelmValues(ctx context.Context) ([]byte, error) {
@@ -101,9 +101,9 @@ func retrieveHelmValues(ctx context.Context) ([]byte, error) {
 	}
 
 	// Get the release name from the pod labels
-	releaseName, err := getReleaseName(ctx, kubernetesClient)
+	releaseName, err := getReleaseName(kubernetesClient)
 	if err != nil {
-		if err == noHelmReleaseError {
+		if err == errNoHelmRelease {
 			return nil, nil // No Helm release found, return nil
 		}
 		return nil, fmt.Errorf("failed to get Helm release name: %w", err)
