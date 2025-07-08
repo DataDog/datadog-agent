@@ -10,8 +10,6 @@ package gpu
 import (
 	"fmt"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -36,6 +34,8 @@ import (
 )
 
 const (
+	// CheckName defines the name of the GPU check
+	CheckName             = "gpu"
 	gpuMetricsNs          = "gpu."
 	metricNameCoreUsage   = gpuMetricsNs + "core.usage"
 	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
@@ -46,7 +46,6 @@ const (
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	config         *CheckConfig                // config for the check
 	sysProbeClient *sysprobeclient.CheckClient // sysProbeClient is used to communicate with system probe
 	activeMetrics  map[model.StatsKey]bool     // activeMetrics is a set of metrics that have been seen in the current check run
 	collectors     []nvidia.Collector          // collectors for NVML metrics
@@ -74,7 +73,6 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
 		CheckBase:  core.NewCheckBase(CheckName),
-		config:     &CheckConfig{},
 		tagger:     tagger,
 		telemetry:  newCheckTelemetry(telemetry),
 		wmeta:      wmeta,
@@ -100,10 +98,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
-	}
-
-	if err := yaml.Unmarshal(config, c.config); err != nil {
-		return fmt.Errorf("invalid gpu check config: %w", err)
 	}
 
 	// Initialize system-probe related fields only if GPU monitoring is enabled in system-probe
