@@ -221,7 +221,7 @@ newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
 			if existingSyscall.Syscall == int(newSyscall) {
-				existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime()) //moved the verification to Record function
+				existingSyscall.AppendImageTag(imageTag, e.ResolveEventTime())
 				continue newSyscallLoop
 			}
 		}
@@ -398,14 +398,14 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	return newNode
 }
 
-func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string, timestamp time.Time) {
+func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
 	if pn.HasImageTag(imageTag) {
 		return
 	}
-	pn.AppendImageTag(imageTag, timestamp)
+	pn.AppendImageTag(imageTag, pn.Process.ExecTime)
 	parent := pn.GetParent()
 	for parent != nil {
-		parent.AppendImageTag(imageTag, timestamp)
+		parent.AppendImageTag(imageTag, pn.Process.ExecTime)
 		parent = parent.GetParent()
 	}
 }
@@ -433,7 +433,7 @@ func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 		imds.AppendImageTag(imageTag, timestamp)
 	}
 	for _, device := range pn.NetworkDevices {
-		device.appendImageTag(imageTag, timestamp) // The used appendImageTag here is a private method of NetworkDeviceNode
+		device.appendImageTag(imageTag, timestamp)
 	}
 	for _, child := range pn.Children {
 		child.TagAllNodes(imageTag, timestamp)

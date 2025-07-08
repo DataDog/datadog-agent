@@ -226,7 +226,6 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
 		Name:           fan.Name,
 		File:           protoDecodeFileEvent(fan.File),
 		GenerationType: NodeGenerationType(fan.GenerationType),
-		FirstSeen:      ProtoDecodeTimestamp(fan.FirstSeen),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileNode, len(fan.Children)),
 		NodeBase:       NewNodeBase(),

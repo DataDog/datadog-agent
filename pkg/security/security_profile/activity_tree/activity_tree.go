@@ -494,7 +494,7 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 		if cs.isSet() {
 			fastMatch, found = at.CookieToProcessNode.Get(cs)
 			if found {
-				fastMatch.applyImageTagOnLineageIfNeeded(imageTag, fastMatch.Process.ExecTime)
+				fastMatch.applyImageTagOnLineageIfNeeded(imageTag)
 				return branch, fastMatch, nil
 			}
 		}
@@ -604,13 +604,13 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		}
 
 		// if we reach this point, we can safely return the last inserted entry and indicate that the tree was modified
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag, matchingNode.Process.ExecTime)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTag)
 		return matchingNode, true, nil
 	}
 
 	// if we reach this point, we've successfully found the matching node in the tree without modifying the tree
 	if matchingNode != nil {
-		matchingNode.applyImageTagOnLineageIfNeeded(imageTag, matchingNode.Process.ExecTime)
+		matchingNode.applyImageTagOnLineageIfNeeded(imageTag)
 	}
 	return matchingNode, newNode, nil
 }

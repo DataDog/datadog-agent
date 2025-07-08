@@ -251,7 +251,6 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 		Name:           escape(fan.Name),
 		File:           fileEventToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
-		FirstSeen:      TimestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
 		NodeBase:       nodeBaseToProto(&fan.NodeBase),

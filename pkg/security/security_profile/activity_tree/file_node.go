@@ -28,9 +28,7 @@ type FileNode struct {
 	IsPattern      bool
 	File           *model.FileEvent
 	GenerationType NodeGenerationType
-	FirstSeen      time.Time // I'm leaving this field here for now, but it should be removed (redundant)
-
-	Open *OpenNode
+	Open           *OpenNode
 
 	Children map[string]*FileNode
 }
