@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/jellydator/ttlcache/v3"
 )
 
@@ -23,6 +24,21 @@ const defaultMaxVariables = 100
 var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
+)
+
+const (
+	// Subsystem is the subsystem name for the provided telemetry for variables
+	Subsystem = "secl"
+)
+
+var (
+	// TotalVariables tracks the total number of SECL variables
+	TotalVariables = telemetry.NewGauge(
+		Subsystem,
+		"total_variables",
+		[]string{"type", "scope"},
+		"Number of instantiated variables",
+	)
 )
 
 // SECLVariable describes a SECL variable value
@@ -973,6 +989,27 @@ func NewVariables() *Variables {
 	return &Variables{}
 }
 
+func getVariableType(value interface{}) string {
+	switch value.(type) {
+	case bool:
+		return "bool"
+	case int:
+		return "integer"
+	case string:
+		return "string"
+	case net.IPNet:
+		return "ip"
+	case []string:
+		return "strings"
+	case []int:
+		return "integers"
+	case []net.IPNet:
+		return "ips"
+	default:
+		panic("unsupported variable type")
+	}
+}
+
 func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable, error) {
 	switch value := value.(type) {
 	case bool:
@@ -995,7 +1032,10 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
-func (v *Variables) NewSECLVariable(_ string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+func (v *Variables) NewSECLVariable(_ string, value interface{}, scope string, opts VariableOpts) (SECLVariable, error) {
+	varType := getVariableType(value)
+	TotalVariables.Add(1.0, varType, scope)
+
 	seclVariable, err := newSECLVariable(value, opts)
 	if err != nil {
 		return nil, err
@@ -1041,7 +1081,7 @@ func (v *ScopedVariables) Len() int {
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) NewSECLVariable(name string, value any, opts VariableOpts) (SECLVariable, error) {
+func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
 		scope := v.scoper(ctx)
 		if scope == nil {
@@ -1069,8 +1109,11 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, opts VariableO
 
 		key := scope.Hash()
 		vars := v.vars[key]
+		varType := getVariableType(value)
+
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {
+				TotalVariables.Sub(float64(len(v.vars[key])), varType, scopeName)
 				v.ReleaseVariable(key)
 			})
 
@@ -1078,6 +1121,8 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, opts VariableO
 		}
 
 		if _, found := v.vars[key][name]; !found {
+			TotalVariables.Add(1.0, varType, scopeName)
+
 			seclVariable, err := newSECLVariable(value, opts)
 			if err != nil {
 				return err

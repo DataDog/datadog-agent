@@ -451,7 +451,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size, Private: actionDef.Set.Private, Inherited: actionDef.Set.Inherited}
 
-				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
+				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, string(actionDef.Set.Scope), opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
 					continue
