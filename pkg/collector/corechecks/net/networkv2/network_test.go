@@ -14,6 +14,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -1231,4 +1232,84 @@ collect_connection_queues: true`)
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.send_q", float64(0), "", []string{"state:established"})
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:time_wait"})
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
+}
+
+func TestParseNetstatMetrics(t *testing.T) {
+	testcases := []struct {
+		name     string
+		protocol string
+		input    string
+		want     map[string]*connectionStateEntry
+	}{
+		{
+			name:     "initializes tcp4 states",
+			protocol: "tcp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes tcp6 states",
+			protocol: "tcp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp4 states",
+			protocol: "udp4",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name:     "initializes udp6 states",
+			protocol: "udp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseNetstatMetrics(tc.protocol, tc.input)
+			assert.NoError(t, err)
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("netstat result parsing diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func emptyConnectionStateEntry() *connectionStateEntry {
+	return &connectionStateEntry{
+		count: 0,
+		recvQ: []uint64{},
+		sendQ: []uint64{},
+	}
 }
