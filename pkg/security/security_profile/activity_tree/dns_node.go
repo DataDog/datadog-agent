@@ -51,8 +51,8 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 }
 
 func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
-	dn.EvictImageTag(imageTag)
-	if dn.IsEmpty() {
+	IsNodeEmpty := dn.EvictImageTag(imageTag) 
+	if IsNodeEmpty {
 		return true
 	}
 	// reconstruct the list of all DNS requests

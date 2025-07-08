@@ -196,8 +196,11 @@ func (fn *FileNode) tagAllNodes(imageTag string, timestamp time.Time) {
 }
 
 func (fn *FileNode) evictImageTag(imageTag string) bool {
-	fn.EvictImageTag(imageTag)
-	if fn.IsEmpty() {
+	if !fn.HasImageTag(imageTag) {
+		return false
+	}
+	evicted := fn.EvictImageTag(imageTag)
+	if evicted {
 		return true
 	}
 	for filename, child := range fn.Children {

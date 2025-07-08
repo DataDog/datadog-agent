@@ -19,11 +19,6 @@ type SyscallNode struct {
 	Syscall        int
 }
 
-func (sn *SyscallNode) evictImageTag(imageTag string) bool {
-	sn.EvictImageTag(imageTag)
-	return sn.IsEmpty()
-}
-
 // NewSyscallNode returns a new SyscallNode instance
 func NewSyscallNode(syscall int, timestamp time.Time, imageTag string, generationType NodeGenerationType) *SyscallNode {
 	node := &SyscallNode{

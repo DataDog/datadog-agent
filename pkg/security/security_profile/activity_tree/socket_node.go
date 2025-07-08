@@ -42,15 +42,10 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 	return sn.Family == toMatch.Family
 }
 
-func (bn *BindNode) evictImageTag(imageTag string) bool {
-	bn.EvictImageTag(imageTag)
-	return bn.IsEmpty()
-}
-
 func (sn *SocketNode) evictImageTag(imageTag string) bool {
 	newBind := []*BindNode{}
 	for _, bind := range sn.Bind {
-		if shouldRemoveNode := bind.evictImageTag(imageTag); !shouldRemoveNode {
+		if shouldRemoveNode := bind.EvictImageTag(imageTag); !shouldRemoveNode {
 			newBind = append(newBind, bind)
 		}
 	}

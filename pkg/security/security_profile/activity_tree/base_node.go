@@ -47,9 +47,11 @@ func (b *NodeBase) RecordWithTimestamps(imageTag string, firstSeen, lastSeen tim
 
 // EvictImageTag removes the stored timestamps for an imageTag returns true if the imageTag was present
 func (b *NodeBase) EvictImageTag(imageTag string) bool {
-	_, exists := b.Seen[imageTag]
+	if !b.HasImageTag(imageTag) || imageTag == "" {
+		return false
+	}
 	delete(b.Seen, imageTag)
-	return exists
+	return len(b.Seen) == 0
 }
 
 // EvictBeforeTimestamp removes all imageTags whose LastSeen is before the given timestamp.
@@ -69,9 +71,4 @@ func (b *NodeBase) EvictBeforeTimestamp(before time.Time) int {
 func (b *NodeBase) HasImageTag(imageTag string) bool {
 	_, exists := b.Seen[imageTag]
 	return exists
-}
-
-// IsEmpty checks if the seen map is empty
-func (b *NodeBase) IsEmpty() bool {
-	return len(b.Seen) == 0
 }

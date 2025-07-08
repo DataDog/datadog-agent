@@ -104,11 +104,21 @@ func protoDecodeSyscallNode(sysc *adproto.SyscallNode) *SyscallNode {
 		return nil
 	}
 
-	return &SyscallNode{
+	syscallNode := &SyscallNode{
 		NodeBase:       NewNodeBase(),
 		GenerationType: Runtime,
 		Syscall:        int(sysc.Syscall),
 	}
+
+	if sysc.NodeBase != nil {
+		for tag, imageTagTimes := range sysc.NodeBase.Seen {
+			firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+			lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+			syscallNode.RecordWithTimestamps(tag, firstSeen, lastSeen)
+		}
+	}
+
+	return syscallNode
 }
 
 func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
@@ -222,6 +232,14 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
 		NodeBase:       NewNodeBase(),
 	}
 
+	if fan.NodeBase != nil {
+		for tag, imageTagTimes := range fan.NodeBase.Seen {
+			firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+			lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+			pfan.RecordWithTimestamps(tag, firstSeen, lastSeen)
+		}
+	}
+
 	for _, rule := range fan.MatchedRules {
 		pfan.MatchedRules = append(pfan.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
@@ -261,6 +279,14 @@ func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 		NodeBase:     NewNodeBase(),
 	}
 
+	if dn.NodeBase != nil {
+		for tag, imageTagTimes := range dn.NodeBase.Seen {
+			firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+			lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+			pdn.RecordWithTimestamps(tag, firstSeen, lastSeen)
+		}
+	}
+
 	for _, rule := range dn.MatchedRules {
 		pdn.MatchedRules = append(pdn.MatchedRules, protoDecodeProtoMatchedRule(rule))
 	}
@@ -298,6 +324,13 @@ func protoDecodeNetworkDevice(device *adproto.NetworkDeviceNode) *NetworkDeviceN
 				NodeBase:       NewNodeBase(),
 				GenerationType: Runtime,
 				Flow:           *f,
+			}
+			if flow.NodeBase != nil {
+				for tag, imageTagTimes := range flow.NodeBase.Seen {
+					firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+					lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+					fn.RecordWithTimestamps(tag, firstSeen, lastSeen)
+				}
 			}
 			ndn.FlowNodes[f.GetFiveTuple()] = fn
 		}
@@ -342,6 +375,14 @@ func protoDecodeIMDSNode(in *adproto.IMDSNode) *IMDSNode {
 		MatchedRules: make([]*model.MatchedRule, 0, len(in.MatchedRules)),
 		NodeBase:     NewNodeBase(),
 		Event:        protoDecodeIMDSEvent(in.Event),
+	}
+
+	if in.NodeBase != nil {
+		for tag, imageTagTimes := range in.NodeBase.Seen {
+			firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+			lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+			node.RecordWithTimestamps(tag, firstSeen, lastSeen)
+		}
 	}
 
 	for _, rule := range in.MatchedRules {
@@ -430,7 +471,6 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 			NodeBase:     NewNodeBase(),
 		}
 
-		// Restore image tags from proto's NodeBase field
 		if bindNode.NodeBase != nil {
 			for tag, imageTagTimes := range bindNode.NodeBase.Seen {
 				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)

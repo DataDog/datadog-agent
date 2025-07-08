@@ -32,8 +32,3 @@ func NewIMDSNode(event *model.IMDSEvent, evt *model.Event, rules []*model.Matche
 
 	return node
 }
-
-func (imds *IMDSNode) evictImageTag(imageTag string) bool {
-	imds.EvictImageTag(imageTag)
-	return imds.IsEmpty()
-}

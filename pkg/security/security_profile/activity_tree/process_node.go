@@ -440,14 +440,14 @@ func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 	}
 }
 
-// EvictImageTag will remmove every trace of this image tag, and returns true if the process node should be removed
+// EvictImageTag will remove every trace of this image tag, and returns true if the process node should be removed
 // also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
-	removed := pn.NodeBase.EvictImageTag(imageTag)
-	if !removed {
+	if !pn.HasImageTag(imageTag) {
 		return false // this node don't have the tag, and all his childs/files/dns/etc shouldn't have neither
 	}
-	if pn.IsEmpty() {
+	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTag)
+	if IsNodeEmpty {
 		// if we removed the last tag, remove entirely the process node from the tree
 		return true
 	}
@@ -467,7 +467,7 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 
 	// Evict image tag from IMDS nodes
 	for key, imds := range pn.IMDSEvents {
-		if shouldRemoveNode := imds.evictImageTag(imageTag); shouldRemoveNode {
+		if shouldRemoveNode := imds.EvictImageTag(imageTag); shouldRemoveNode {
 			delete(pn.IMDSEvents, key)
 		}
 	}
@@ -489,7 +489,7 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 
 	newSyscalls := []*SyscallNode{}
 	for _, scall := range pn.Syscalls {
-		if shouldRemove := scall.evictImageTag(imageTag); !shouldRemove {
+		if shouldRemove := scall.EvictImageTag(imageTag); !shouldRemove {
 			newSyscalls = append(newSyscalls, scall)
 			SyscallsMask[scall.Syscall] = scall.Syscall
 		}
