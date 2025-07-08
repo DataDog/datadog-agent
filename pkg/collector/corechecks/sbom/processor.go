@@ -13,19 +13,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -36,11 +38,11 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = pkgconfigsetup.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 
 type processor struct {
+	cfg                   config.Component
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
 	tagger                tagger.Component
@@ -55,17 +57,23 @@ type processor struct {
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, procfsSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
 	}
+
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %v", err)
 	}
 
+	envVarEnv := pkgconfigsetup.Datadog().GetString("env")
+	hostSBOM := cfg.GetBool("sbom.host.enabled")
+	procfsSBOM := isProcfsSBOMEnabled(cfg)
+
 	return &processor{
+		cfg: cfg,
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
 			encoded, err := proto.Marshal(&model.SBOMPayload{
 				Version:  1,
@@ -92,6 +100,11 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
+}
+
+func isProcfsSBOMEnabled(cfg config.Component) bool {
+	// Allowed only on Fargate instance for now
+	return cfg.GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle, containerFilter *containers.Filter) {
@@ -380,8 +393,12 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		if len(repoDigests) == 0 {
-			log.Infof("The image %s has no repo digest for repo %s", img.ID, repo)
-			continue
+			if !p.cfg.GetBool("sbom.container_image.allow_missing_repodigest") {
+				log.Infof("The image %s has no repo digest for repo %s, skipping", img.ID, repo)
+				continue
+			}
+
+			repoDigests = append(repoDigests, "local@sha256:"+img.ID)
 		}
 
 		// Because we split a single image entity into different payloads if it has several repo digests,

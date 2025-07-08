@@ -22,10 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -134,11 +132,6 @@ func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.C
 	})
 }
 
-func isProcfsSBOMEnabled() bool {
-	// Allowed only on Fargate instance for now
-	return pkgconfigsetup.Datadog().GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
-}
-
 // Configure parses the check configuration and initializes the sbom check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	if !c.cfg.GetBool("sbom.enabled") {
@@ -165,10 +158,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.workloadmetaStore,
 		sender,
 		c.tagger,
+		c.cfg,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
-		c.cfg.GetBool("sbom.host.enabled"),
-		isProcfsSBOMEnabled(),
 		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
