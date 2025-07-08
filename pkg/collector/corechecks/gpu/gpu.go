@@ -50,14 +50,15 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	sysProbeClient *sysprobeclient.CheckClient // sysProbeClient is used to communicate with system probe
-	activeMetrics  map[model.StatsKey]bool     // activeMetrics is a set of metrics that have been seen in the current check run
-	collectors     []nvidia.Collector          // collectors for NVML metrics
-	tagger         tagger.Component            // Tagger instance to add tags to outgoing metrics
-	telemetry      *checkTelemetry             // Telemetry component to emit internal telemetry
-	wmeta          workloadmeta.Component      // Workloadmeta store to get the list of containers
-	deviceTags     map[string][]string         // deviceTags is a map of device UUID to tags
-	deviceCache    ddnvml.DeviceCache          // deviceCache is a cache of GPU devices
+	sysProbeClient               *sysprobeclient.CheckClient // sysProbeClient is used to communicate with system probe
+	activeMetrics                map[model.StatsKey]bool     // activeMetrics is a set of metrics that have been seen in the current check run
+	collectors                   []nvidia.Collector          // collectors for NVML metrics
+	tagger                       tagger.Component            // Tagger instance to add tags to outgoing metrics
+	telemetry                    *checkTelemetry             // Telemetry component to emit internal telemetry
+	wmeta                        workloadmeta.Component      // Workloadmeta store to get the list of containers
+	deviceTags                   map[string][]string         // deviceTags is a map of device UUID to tags
+	deviceCache                  ddnvml.DeviceCache          // deviceCache is a cache of GPU devices
+	useSystemProbeProcessMetrics bool                        // useSystemProbeProcessMetrics determines if SP process metrics are preferred over NVML process collectors
 }
 
 type checkTelemetry struct {
@@ -104,8 +105,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	// Initialize system-probe related fields only if GPU monitoring is enabled in system-probe
-	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
+	// Compute whether we should prefer system-probe process metrics
+	gpuProbeEnabled := pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled")
+	preferSP := pkgconfigsetup.Datadog().GetBool("gpum.use_sp_process_metrics")
+	c.useSystemProbeProcessMetrics = gpuProbeEnabled && preferSP
+
+	// Initialize system-probe related fields only if we actually want to use SP process metrics
+	if c.useSystemProbeProcessMetrics {
 		c.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 		c.activeMetrics = make(map[model.StatsKey]bool)
 	}

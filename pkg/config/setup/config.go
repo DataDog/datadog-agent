@@ -620,6 +620,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("collect_gpu_tags", true)
 	config.BindEnvAndSetDefault("gpum.enabled", false)
 	config.BindEnvAndSetDefault("gpum.nvml_lib_path", "")
+	config.BindEnvAndSetDefault("gpum.use_sp_process_metrics", false)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
