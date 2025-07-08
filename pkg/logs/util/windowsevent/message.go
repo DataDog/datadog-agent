@@ -71,18 +71,17 @@ func MapToMessage(m *Map, source *sources.LogSource, processRawMessage bool) (*m
 		if err != nil {
 			return nil, err
 		}
-		msg := message.NewMessageWithSource(jsonEvent, message.StatusInfo, source, time.Now().UnixNano())
-		msg.ParsingExtra.IsTruncated = isTruncated
+		msg := message.NewMessageWithSourceWithParsingExtra(jsonEvent, message.StatusInfo, source, time.Now().UnixNano(), isTruncated)
 		return msg, nil
 	}
 
 	// new behaviour returning a structured message
-	msg := message.NewStructuredMessage(
+	msg := message.NewStructuredMessageWithParsingExtra(
 		&Message{data: m},
 		message.NewOrigin(source),
 		message.StatusInfo,
 		time.Now().UnixNano(),
+		isTruncated,
 	)
-	msg.ParsingExtra.IsTruncated = isTruncated
 	return msg, nil
 }

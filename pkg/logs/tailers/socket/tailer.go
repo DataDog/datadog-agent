@@ -71,9 +71,8 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.SetTags(output.ParsingExtra.Tags)
-			msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-			msg.ParsingExtra = output.ParsingExtra
+			msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
 			t.outputChan <- msg
 		}
 	}
