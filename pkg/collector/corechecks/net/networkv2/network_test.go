@@ -14,7 +14,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -1299,11 +1299,17 @@ Proto Recv-Q Send-Q Local Address           Foreign Address         State
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseNetstatMetrics(tc.protocol, tc.input)
 			assert.NoError(t, err)
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
 				t.Errorf("netstat result parsing diff (-want +got):\n%s", diff)
 			}
 		})
 	}
+}
+
+func connectionStateEntryComparer(a, b *connectionStateEntry) bool {
+	return a.count == b.count &&
+		slices.Compare(a.recvQ, b.recvQ) &&
+		slices.Compare(a.sendQ, b.sendQ)
 }
 
 func emptyConnectionStateEntry() *connectionStateEntry {
