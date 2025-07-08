@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
 // effect represents a side effect that can be recorded and serialized to YAML
@@ -25,6 +26,7 @@ type effect interface {
 // Effect implementations
 
 type effectSpawnBpfLoading struct {
+	processID  ProcessID
 	programID  ir.ProgramID
 	executable Executable
 	probes     []ir.ProbeDefinition
@@ -41,6 +43,7 @@ func (e effectSpawnBpfLoading) yamlData() map[string]any {
 	}
 	slices.Sort(probeKeys)
 	return map[string]any{
+		"process_id": int(e.processID.PID),
 		"program_id": int(e.programID),
 		"executable": e.executable.String(),
 		"probes":     probeKeys,
@@ -109,6 +112,22 @@ func (e effectUnregisterProgramWithDispatcher) yamlData() map[string]any {
 	}
 }
 
+// effectCloseSink is a special effect that marks when a program sink is
+// closed.
+type effectCloseSink struct {
+	programID ir.ProgramID
+}
+
+func (e effectCloseSink) yamlTag() string {
+	return "!close-sink"
+}
+
+func (e effectCloseSink) yamlData() map[string]any {
+	return map[string]any{
+		"program_id": int(e.programID),
+	}
+}
+
 // effectRecorder records effects for testing
 type effectRecorder struct {
 	effects []effect
@@ -137,11 +156,14 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 // Implementation of effectHandler interface using the unified system
 
 func (er *effectRecorder) loadProgram(
+	_ tenantID,
 	programID ir.ProgramID,
 	executable Executable,
+	processID ProcessID,
 	probes []ir.ProbeDefinition,
 ) {
 	er.recordEffect(effectSpawnBpfLoading{
+		processID:  processID,
 		programID:  programID,
 		executable: executable,
 		probes:     probes,
@@ -167,14 +189,17 @@ func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	})
 }
 
-func (er *effectRecorder) registerProgramWithDispatcher(program *ir.Program) {
-	er.recordEffect(effectRegisterProgramWithDispatcher{
-		programID: program.ID,
-	})
+type closeEffectRecorderSink struct {
+	r         *effectRecorder
+	programID ir.ProgramID
 }
 
-func (er *effectRecorder) unregisterProgramWithDispatcher(programID ir.ProgramID) {
-	er.recordEffect(effectUnregisterProgramWithDispatcher{
-		programID: programID,
+func (s *closeEffectRecorderSink) HandleEvent(output.Event) error {
+	return nil
+}
+
+func (s *closeEffectRecorderSink) Close() {
+	s.r.effects = append(s.r.effects, effectCloseSink{
+		programID: s.programID,
 	})
 }

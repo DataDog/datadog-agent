@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
+type tenantID uint32
+
 // event represents an event in the state machine.
 type event interface {
 	event() // marker
@@ -25,8 +27,9 @@ func (baseEvent) event() {}
 
 type eventProcessesUpdated struct {
 	baseEvent
-	updated []ProcessUpdate
-	removed []ProcessID
+	tenantID tenantID
+	updated  []ProcessUpdate
+	removed  []ProcessID
 }
 
 func (e eventProcessesUpdated) String() string {

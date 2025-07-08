@@ -1614,6 +1614,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
+	config.BindEnvAndSetDefault("logs_config.http_timeout", 10)
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
