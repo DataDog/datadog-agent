@@ -191,10 +191,12 @@ type VPNTunnelMetadata struct {
 	Options         VPNTunnelOptions `json:"options,omitempty"`
 }
 
+// VPNTunnelOptions contains VPN tunnel options for each protocol
 type VPNTunnelOptions struct {
 	IPSecOptions IPsecOptions `json:"ipsec_options,omitempty"`
 }
 
+// IPsecOptions contains IPsec VPN tunnel options
 type IPsecOptions struct {
 	LifeSize int32 `json:"life_size"`
 	LifeTime int32 `json:"life_time"`
