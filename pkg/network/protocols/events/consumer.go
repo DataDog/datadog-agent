@@ -53,11 +53,11 @@ type Consumer[V any] struct {
 	invalidBatchCount                                  *telemetry.Counter
 }
 
-// NewConsumer instantiates a new event Consumer
+// NewConsumer instantiates a new event BatchConsumer
 // `callback` is executed once for every "event" generated on eBPF and must:
 // 1) copy the data it wishes to hold since the underlying byte array is reclaimed;
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
-func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
+func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*BatchConsumer[V], error) {
 	batchMapName := proto + batchMapSuffix
 	batchMap, err := maps.GetMap[batchKey, Batch](ebpf, batchMapName)
 	if err != nil {
@@ -107,7 +107,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	// `kernel_dropped_events`.
 	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
 
-	return &Consumer[V]{
+	return &BatchConsumer[V]{
 		proto:       proto,
 		callback:    callback,
 		syncRequest: make(chan chan struct{}),
@@ -127,7 +127,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 }
 
 // Start consumption of eBPF events
-func (c *Consumer[V]) Start() {
+func (c *BatchConsumer[V]) Start() {
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
@@ -178,7 +178,7 @@ func (c *Consumer[V]) Start() {
 
 // Sync userpace with kernelspace by fetching all buffered data on eBPF
 // Calling this will block until all eBPF map data has been fetched and processed
-func (c *Consumer[V]) Sync() {
+func (c *BatchConsumer[V]) Sync() {
 	c.mux.Lock()
 	if c.stopped {
 		c.mux.Unlock()
@@ -194,7 +194,7 @@ func (c *Consumer[V]) Sync() {
 }
 
 // Stop consuming data from eBPF
-func (c *Consumer[V]) Stop() {
+func (c *BatchConsumer[V]) Stop() {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -209,7 +209,7 @@ func (c *Consumer[V]) Stop() {
 	close(c.syncRequest)
 }
 
-func (c *Consumer[V]) process(b *Batch, syncing bool) {
+func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	cpu := int(b.Cpu)
 
 	// Determine the subset of data we're interested in as we might have read

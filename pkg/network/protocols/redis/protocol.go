@@ -39,7 +39,7 @@ const (
 
 type protocol struct {
 	cfg            *config.Config
-	eventsConsumer *events.Consumer[EbpfEvent]
+	eventsConsumer *events.BatchConsumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatsKeeper
 	mgr            *manager.Manager

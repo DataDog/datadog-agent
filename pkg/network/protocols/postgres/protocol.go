@@ -52,7 +52,7 @@ const (
 type protocol struct {
 	cfg                   *config.Config
 	telemetry             *Telemetry
-	eventsConsumer        *events.Consumer[postgresebpf.EbpfEvent]
+	eventsConsumer        *events.BatchConsumer[postgresebpf.EbpfEvent]
 	mapCleaner            *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
 	statskeeper           *StatKeeper
 	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
