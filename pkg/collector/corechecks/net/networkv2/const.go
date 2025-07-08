@@ -353,6 +353,7 @@ var (
 			"LAST-ACK":   "closing",
 			"LISTEN":     "listening",
 			"CLOSING":    "closing",
+			"UNCONN":     "closing",
 			"NONE":       "connections", // sole UDP mapping
 		},
 		"netstat": {

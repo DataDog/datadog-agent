@@ -472,6 +472,9 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 		}
 	} else {
 		for _, state := range suffixMapping {
+			if state == "connections" {
+				continue
+			}
 			if _, exists := results[state]; !exists {
 				results[state] = &connectionStateEntry{
 					count: 0,
@@ -506,11 +509,6 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 
 	lines := strings.Split(output, "\n")
 	for i, line := range lines {
-		// skip the header
-		if i == 0 {
-			continue
-		}
-
 		fields := strings.Fields(line)
 		// skip malformed ss entry result
 		if len(fields) < 3 {
@@ -518,6 +516,10 @@ func parseSocketStatsMetrics(protocol, output string) (map[string]*connectionSta
 		}
 
 		var stateField string
+		// skip the header
+		if fields[0] == "State" {
+			continue
+		}
 		if protocol[:3] == "udp" {
 			// all UDP suffixes resolve to connections
 			stateField = "NONE"
