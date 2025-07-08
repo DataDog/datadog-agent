@@ -228,7 +228,7 @@ func NewMessageWithSource(content []byte, status string, source *sources.LogSour
 
 // NewMessageWithSourceWithParsingExtra adds isTruncated to the parsingExtra tag for a new unstructured message with content, status, source and ingestionTimestamp
 func NewMessageWithSourceWithParsingExtra(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64, isTruncated bool) *Message {
-	msg := NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
+	msg := NewMessageWithSource(content, status, source, ingestionTimestamp)
 	msg.ParsingExtra.IsTruncated = isTruncated
 	return msg
 }

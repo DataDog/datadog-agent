@@ -150,7 +150,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	// ---------------------------
 
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
-	// Filter out rules with invalid regex that require it
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
