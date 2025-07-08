@@ -95,6 +95,19 @@ func TestHTTPScenarios(t *testing.T) {
 	})
 }
 
+func (s *usmHTTPSuite) TestLoadHTTPBinary() {
+	t := s.T()
+
+	cfg := s.getCfg()
+
+	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
+			cfg.BPFDebug = debug
+			setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+		})
+	}
+}
+
 func (s *usmHTTPSuite) TestSimple() {
 	t := s.T()
 	for name, isIPv6 := range map[string]bool{"IPv4": false, "IPv6": true} {
