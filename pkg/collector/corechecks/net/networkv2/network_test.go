@@ -1236,12 +1236,14 @@ collect_connection_queues: true`)
 
 func TestParseSocketStatMetrics(t *testing.T) {
 	testcases := []struct {
-		name  string
-		input string
-		want  map[string]*connectionStateEntry
+		name     string
+		protocol string
+		input    string
+		want     map[string]*connectionStateEntry
 	}{
 		{
-			name: "initializes tcp4 states",
+			name:     "initializes tcp4 states",
+			protocol: "tcp4",
 			input: `
 State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
 `,
@@ -1254,7 +1256,8 @@ State                  Recv-Q              Send-Q                               
 			},
 		},
 		{
-			name: "initializes tcp6 states",
+			name:     "initializes tcp6 states",
+			protocol: "tcp6",
 			input: `
 State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
 `,
@@ -1267,7 +1270,8 @@ State                  Recv-Q              Send-Q                               
 			},
 		},
 		{
-			name: "initializes udp4 states",
+			name:     "initializes udp4 states",
+			protocol: "udp4",
 			input: `
 State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
 `,
@@ -1276,7 +1280,8 @@ State                  Recv-Q              Send-Q                               
 			},
 		},
 		{
-			name: "initializes udp6 states",
+			name:     "initializes udp6 states",
+			protocol: "udp6",
 			input: `
 State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
 `,
@@ -1285,7 +1290,8 @@ State                  Recv-Q              Send-Q                               
 			},
 		},
 		{
-			name: "collects tcp4 states correctly",
+			name:     "collects tcp4 states correctly",
+			protocol: "tcp4",
 			input: `
 State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
 LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
@@ -1315,7 +1321,8 @@ TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:8
 			},
 		},
 		{
-			name: "collects tcp6 states correctly",
+			name:     "collects tcp6 states correctly",
+			protocol: "tcp6",
 			input: `
 State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
 LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
@@ -1344,7 +1351,8 @@ TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:8
 			},
 		},
 		{
-			name: "collects udp4 states correctly",
+			name:     "collects udp4 states correctly",
+			protocol: "udp4",
 			input: `
 State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
 UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
@@ -1361,7 +1369,8 @@ UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
 			},
 		},
 		{
-			name: "collects udp6 states correctly",
+			name:     "collects udp6 states correctly",
+			protocol: "udp6",
 			input: `
 State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
 UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
@@ -1381,7 +1390,7 @@ UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseSocketStatsMetrics(tc.input)
+			got, err := parseSocketStatsMetrics(tc.protocol, tc.input)
 			assert.NoError(t, err)
 			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
 				t.Errorf("socket statistics result parsing diff (-want +got):\n%s", diff)
