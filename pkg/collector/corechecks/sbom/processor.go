@@ -411,11 +411,13 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 				}
 			}
 
+			_, inUse = p.imageUsers[img.ID]
+
 			log.Infof("The image %s has no repo digest for repo %s, generated %s", img.Name, repo, repoDigests[0])
 		}
 
 		// Because we split a single image entity into different payloads if it has several repo digests,
-		// me must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
+		// we must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
 		ddTags2 := make([]string, 0, len(ddTags))
 		for _, ddTag := range ddTags {
 			if !strings.HasPrefix(ddTag, "image_id:") &&
