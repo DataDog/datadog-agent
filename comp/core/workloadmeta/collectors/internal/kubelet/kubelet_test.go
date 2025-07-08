@@ -121,7 +121,7 @@ func TestPodParser(t *testing.T) {
 		},
 	}
 
-	events := parsePods(referencePod)
+	events := parsePods(referencePod, true)
 	containerEvent, ephemeralContainerEvent, podEvent := events[0], events[1], events[2]
 
 	expectedContainer := &workloadmeta.Container{

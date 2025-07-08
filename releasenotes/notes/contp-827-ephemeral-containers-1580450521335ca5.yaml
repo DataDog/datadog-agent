@@ -6,8 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+features:
   - |
-    ``container.*`` and ``kubernetes.*`` metrics that refer to ephemeral
-    containers now include all the expected tags.
-
+    Added new config option ``include_ephemeral_containers`` to collect
+    Kubernetes ephemeral containers. The option is disabled by default.
