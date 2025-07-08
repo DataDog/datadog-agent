@@ -632,18 +632,27 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 
 		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
 		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
-		lifeSize := store.GetColumnAsString("cisco_ipsec_tunnel.life_size", strIndex)
-		lifeTime := store.GetColumnAsString("cisco_ipsec_tunnel.life_time", strIndex)
+
+		lifeSize, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_size", strIndex), 10, 32)
+		if err != nil {
+			lifeSize = 0
+		}
+		lifeTime, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_time", strIndex), 10, 32)
+		if err != nil {
+			lifeTime = 0
+		}
 
 		vpnTunnelStore.AddTunnel(devicemetadata.VPNTunnelMetadata{
 			DeviceID:        deviceID,
 			LocalOutsideIP:  localOutsideIP,
 			RemoteOutsideIP: remoteOutsideIP,
-			Protocol:        "ipsec",
+			Protocol:        devicemetadata.IPSec,
 			RouteAddresses:  []string{},
-			Config: map[string]string{
-				"life_size": lifeSize,
-				"life_time": lifeTime,
+			Options: devicemetadata.VPNTunnelOptions{
+				IPSecOptions: devicemetadata.IPsecOptions{
+					LifeSize: int32(lifeSize),
+					LifeTime: int32(lifeTime),
+				},
 			},
 		})
 	}
