@@ -9,12 +9,15 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
 )
 
 func runHardlinkTests(t *testing.T, opts testOpts) {
@@ -56,8 +59,9 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
-		}, func(_ *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(1), "wrong nlink")
 		})
 
 		testNewExecutable, _, err := test.Path("my-touch")
@@ -104,15 +108,17 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testOrigExecutable, "/tmp/test1")
 			return cmd.Run()
-		}, func(_ *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_orig_exec")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
 		})
 
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testNewExecutable, "/tmp/test2")
 			return cmd.Run()
-		}, func(_ *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_exec")
+			assert.Equal(t, event.Exec.FileEvent.NLink, uint32(2), "wrong nlink")
 		})
 	})
 }
@@ -172,6 +178,63 @@ func TestHardLink(t *testing.T) {
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_link_creation")
+		})
+	})
+}
+
+func TestHardlinkBusybox(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
+		return kv.Code < kernel.Kernel5_12
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_busybox_hardlink_1",
+			Expression: `open.file.path == "/bin/gunzip" && process.file.name == "cat"`,
+		},
+		{
+			ID:         "test_busybox_hardlink_2",
+			Expression: `open.file.path == "/bin/tar" && process.file.name == "cat"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// busybox uses hardlinks
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	if err != nil {
+		t.Skip("docker not available")
+		return
+	}
+
+	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/cat", []string{"/bin/gunzip"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_1", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Open.File.NLink, uint32(1), event.Open.File.PathnameStr)
+		})
+
+		// check that the cache is not used (having the same path_key)
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/cat", []string{"/bin/tar"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered: %v", event.ProcessContext.FileEvent.PathnameStr)
+			assert.Greater(t, event.Open.File.NLink, uint32(1), event.Open.File.PathnameStr)
 		})
 	})
 }

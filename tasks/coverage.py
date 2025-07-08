@@ -16,7 +16,7 @@ PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 COV_ARCHIVE_NAME = f"coverage_{get_distro()}.tgz"
-AWS_CMD = "aws.cmd" if sys.platform == 'win32' else "aws"
+AWS_CMD = "aws.exe" if sys.platform == 'win32' else "aws"
 BUCKET_CI_VAR = "S3_PERMANENT_ARTIFACTS_URI"
 
 

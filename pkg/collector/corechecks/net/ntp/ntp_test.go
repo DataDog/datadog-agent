@@ -422,3 +422,51 @@ func TestNTPUseLocalDefinedServers(t *testing.T) {
 	assert.False(t, defaultConfig.instance.UseLocalDefinedServers)
 	assert.NotEqual(t, configUseLocalServer.instance.Hosts, defaultConfig.instance.Hosts)
 }
+
+func TestNTPDynamicServerRediscovery(t *testing.T) {
+	// Test that servers are re-discovered on each Run() call when UseLocalDefinedServers is true
+
+	// Mock the getLocalDefinedNTPServers function to return different servers over time
+	currentServers := []string{"initial-server.com"}
+	originalGetLocalServers := getLocalDefinedNTPServersFunc
+	getLocalDefinedNTPServersFunc = func() ([]string, error) {
+		return currentServers, nil
+	}
+	defer func() { getLocalDefinedNTPServersFunc = originalGetLocalServers }()
+
+	// Mock NTP query to avoid actual network calls
+	ntpQuery = testNTPQuery
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	// Configure check with UseLocalDefinedServers enabled
+	ntpCfg := []byte("use_local_defined_servers: true")
+	ntpCheck := new(NTPCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, []byte(""), "test")
+	assert.NoError(t, err)
+
+	// Verify initial configuration
+	assert.Equal(t, []string{"initial-server.com"}, ntpCheck.cfg.instance.Hosts)
+
+	// Create mock sender
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	// First run - should use initial servers
+	err = ntpCheck.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"initial-server.com"}, ntpCheck.cfg.instance.Hosts)
+
+	// Change the servers returned by the discovery function (simulating DC promotion)
+	currentServers = []string{"new-pdc.com"}
+
+	// Second run - should discover and use new servers
+	err = ntpCheck.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"new-pdc.com"}, ntpCheck.cfg.instance.Hosts)
+
+	// Third run with same servers - should keep the same servers
+	err = ntpCheck.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"new-pdc.com"}, ntpCheck.cfg.instance.Hosts)
+}
