@@ -48,9 +48,13 @@ func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
+	var integrationTestPrograms = map[string]struct{}{
+		"simple": {},
+		"sample": {},
+	}
 	for _, svc := range programs {
-		if svc == "busyloop" {
-			t.Logf("busyloop is not used in integration test")
+		if _, ok := integrationTestPrograms[svc]; !ok {
+			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
 
@@ -336,12 +340,8 @@ type testReporter struct {
 	sink     testMessageSink
 }
 
-// ReportAttaching implements actuator.Reporter.
-func (r *testReporter) ReportAttaching(actuator.ProcessID, actuator.Executable, *ir.Program) {
-}
-
 // ReportLoaded implements actuator.Reporter.
-func (r *testReporter) ReportLoaded(p *ir.Program) (actuator.Sink, error) {
+func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
 	r.sink = testMessageSink{
 		irp: p,
 		ch:  make(chan output.Event, 100),
@@ -362,15 +362,26 @@ func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
 
 // ReportIRGenFailed implements actuator.Reporter.
 func (r *testReporter) ReportIRGenFailed(
-	programID ir.ProgramID, err error, probes []ir.ProbeDefinition,
+	processID actuator.ProcessID,
+	err error,
+	probes []ir.ProbeDefinition,
 ) {
-	r.t.Fatalf("IR generation failed for program %d: %v (with probes: %v)", programID, err, probes)
+	r.t.Fatalf(
+		"IR generation failed for process %v: %v (with probes: %v)",
+		processID, err, probes,
+	)
 }
 
 // ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(program *ir.Program, err error) {
+func (r *testReporter) ReportLoadingFailed(
+	processID actuator.ProcessID,
+	program *ir.Program,
+	err error,
+) {
 	defer close(r.attached)
-	r.t.Fatalf("loading failed for program %d: %v", program.ID, err)
+	r.t.Fatalf(
+		"loading failed for program %d for process %v: %v", program.ID, processID, err,
+	)
 }
 
 // ReportAttachingFailed implements actuator.Reporter.
@@ -382,14 +393,6 @@ func (r *testReporter) ReportAttachingFailed(
 		"attaching failed for program %d to process %v: %v",
 		program.ID, processID, err,
 	)
-}
-
-// ReportCompilationFailed implements actuator.Reporter.
-func (r *testReporter) ReportCompilationFailed(
-	programID ir.ProgramID, err error, _ []ir.ProbeDefinition,
-) {
-	defer close(r.attached)
-	r.t.Fatalf("compilation failed for program %d: %v", programID, err)
 }
 
 func makeTestReporter(t *testing.T) *testReporter {

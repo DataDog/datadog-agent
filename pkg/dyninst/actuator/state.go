@@ -154,7 +154,7 @@ func (pk probeKey) cmp(other probeKey) int {
 type effectHandler interface {
 
 	// Load eBPF program into kernel.
-	loadProgram(tenantID, ir.ProgramID, Executable, []ir.ProbeDefinition)
+	loadProgram(tenantID, ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition)
 
 	// Attach program to process via uprobes.
 	attachToProcess(*loadedProgram, Executable, ProcessID) // -> ProgramAttached/Failed
@@ -687,7 +687,7 @@ func maybeDequeueProgram(sm *state, effects effectHandler) error {
 		return fmt.Errorf("program %v in invalid state: %v", p.id, p.state)
 	}
 	p.state = programStateLoading
-	effects.loadProgram(p.tenantID, p.id, p.executable, p.config)
+	effects.loadProgram(p.tenantID, p.id, p.executable, p.ProcessID, p.config)
 	return nil
 }
 

@@ -228,15 +228,21 @@ func (a *effects) loadProgram(
 	tenantID tenantID,
 	programID ir.ProgramID,
 	executable Executable,
+	processID ProcessID,
 	probes []ir.ProbeDefinition,
 ) {
 	tenant := a.getTenant(tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		ir, err := generateIR(programID, executable, probes, tenant.genOptions...)
+		ir, err := generateIR(
+			programID, executable, probes, tenant.genOptions...,
+		)
+		if err == nil && len(ir.Probes) == 0 {
+			err = &NoSuccessfulProbesError{Issues: ir.Issues}
+		}
 		if err != nil {
-			tenant.reporter.ReportIRGenFailed(programID, err, probes)
+			tenant.reporter.ReportIRGenFailed(processID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
@@ -245,14 +251,14 @@ func (a *effects) loadProgram(
 		}
 		loaded, err := loadProgram(a.loader, ir)
 		if err != nil {
-			tenant.reporter.ReportLoadingFailed(ir, err)
+			tenant.reporter.ReportLoadingFailed(processID, ir, err)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
 			})
 			return
 		}
-		sink, err := tenant.reporter.ReportLoaded(ir)
+		sink, err := tenant.reporter.ReportLoaded(processID, executable, ir)
 		if err != nil {
 			loaded.Close()
 			a.sendEvent(eventProgramLoadingFailed{
@@ -342,7 +348,6 @@ func (a *effects) attachToProcess(
 
 		attached, err := attachToProcess(
 			tenant.id, loaded, executable, processID,
-			tenant.reporter,
 		)
 		if err != nil {
 			tenant.reporter.ReportAttachingFailed(processID, loaded.ir, err)
@@ -374,11 +379,7 @@ func attachToProcess(
 	loaded *loadedProgram,
 	executable Executable,
 	processID ProcessID,
-	reporter Reporter,
 ) (*attachedProgram, error) {
-
-	// Tell the reporter we're about to attach the probes.
-	reporter.ReportAttaching(processID, executable, loaded.ir)
 
 	// A silly thing here is that it's going to call, under the hood,
 	// safeelf.Open twice: once for the link package and once for finding the
