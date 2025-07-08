@@ -62,7 +62,6 @@ class OlderUbuntuGDBProvision:
         self.target.run_cmd(ctx, "shutdown -h now", verbose=True, allow_fail=True)
 
 
-
 class UbuntuGDBProvision:
     def __init__(self, vm: LibvirtDomain, image_version: str, kernel: str):
         self.target = vm
