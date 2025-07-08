@@ -268,7 +268,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	requireProcessNotCollected(t, payloads, "process-agent")
 }
 
-func (s *linuxTestSuite) TestProcessChecksInCoreAgentWLMProcessCollector() {
+func (s *linuxTestSuite) TestProcessChecksWLM() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentWLMProcessCollectorConfigStr))))
 
