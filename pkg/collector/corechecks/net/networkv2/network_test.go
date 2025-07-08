@@ -1293,6 +1293,28 @@ Proto Recv-Q Send-Q Local Address           Foreign Address         State
 				"connections": emptyConnectionStateEntry(),
 			},
 		},
+		{
+			name:     "collects udp6 states correctly",
+			protocol: "udp6",
+			input: `
+Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
+tcp        0      0 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
+tcp6       0      0 :::5355                 :::*                    LISTEN
+tcp6       0      0 ::1:631                 :::*                    LISTEN
+udp        0      0 127.0.0.53:53           0.0.0.0:*
+udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
+udp6       0      0 :::5353                 :::*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -1308,8 +1330,8 @@ Proto Recv-Q Send-Q Local Address           Foreign Address         State
 
 func connectionStateEntryComparer(a, b *connectionStateEntry) bool {
 	return a.count == b.count &&
-		slices.Compare(a.recvQ, b.recvQ) &&
-		slices.Compare(a.sendQ, b.sendQ)
+		gocmp.Equal(a.recvQ, b.recvQ) &&
+		gocmp.Equal(a.sendQ, b.sendQ)
 }
 
 func emptyConnectionStateEntry() *connectionStateEntry {
