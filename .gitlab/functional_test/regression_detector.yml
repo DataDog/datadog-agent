@@ -7,10 +7,10 @@ regression_detector_merge_base_check:
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
-  # artifacts:
-  #   expire_in: 1 day
-  #   paths:
-  #     - regression_detector_baseline_sha.txt
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - regression_detector_baseline_sha.txt
   variables:
     GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
   script:
@@ -63,9 +63,9 @@ regression_detector_merge_base_check:
       done
     - echo "Image exists for commit ${BASELINE_SHA}"
     - echo "Baseline SHA is ${BASELINE_SHA}"
-    # # Save the baseline SHA to an artifact file
-    # - echo -n "${BASELINE_SHA}" > regression_detector_baseline_sha.txt
-    # - echo "Merge-base check passed. Baseline SHA saved to artifact."
+    # Save the baseline SHA to an artifact file
+    - echo -n "${BASELINE_SHA}" > regression_detector_baseline_sha.txt
+    - echo "Merge-base check passed. Baseline SHA saved to artifact."
 
 single-machine-performance-regression_detector:
   stage: functional_test
@@ -79,13 +79,12 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
-    # - job: regression_detector_merge_base_check
-    #   artifacts: true
+    - job: regression_detector_merge_base_check
+      artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
       - submission_metadata # for provenance, debugging
-      - ${CI_COMMIT_SHA}-baseline_sha # for provenance, debugging
       - outputs/report.md # for debugging, also on S3
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
