@@ -1624,7 +1624,7 @@ func (i *PrintableInt) Add(other int) {
 }
 
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
-	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+	var kafkaStats map[kafka.Key]*kafka.RequestStats
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
 		t.Cleanup(cleaners)
@@ -1632,14 +1632,20 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
+			// Take a snapshot of the current stats to avoid race conditions
+			kafkaStats = make(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
-				prevStats, ok := kafkaStats[key]
-				if ok && prevStats != nil {
-					prevStats.CombineWith(stats)
-				} else {
-					kafkaStats[key] = currentStats[key]
+				// Create a copy to avoid reference sharing issues
+				statsCopy := &kafka.RequestStats{
+					ErrorCodeToStat: make(map[int32]*kafka.RequestStat),
 				}
+				for errCode, stat := range stats.ErrorCodeToStat {
+					statsCopy.ErrorCodeToStat[errCode] = stat
+				}
+				kafkaStats[key] = statsCopy
 			}
+		} else {
+			kafkaStats = make(map[kafka.Key]*kafka.RequestStats)
 		}
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
@@ -1654,7 +1660,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 }
 
 func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
-	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+	var kafkaStats map[kafka.Key]*kafka.RequestStats
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
 		t.Cleanup(cleaners)
@@ -1662,17 +1668,26 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
 			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
+			// Take a snapshot of the current stats to avoid race conditions
+			kafkaStats = make(map[kafka.Key]*kafka.RequestStats)
 			for key, stats := range currentStats {
-				prevStats, ok := kafkaStats[key]
-				if ok && prevStats != nil {
-					prevStats.CombineWith(stats)
-				} else {
-					kafkaStats[key] = currentStats[key]
+				// Create a copy to avoid reference sharing issues
+				statsCopy := &kafka.RequestStats{
+					ErrorCodeToStat: make(map[int32]*kafka.RequestStat),
 				}
+				for errCode, stat := range stats.ErrorCodeToStat {
+					statsCopy.ErrorCodeToStat[errCode] = stat
+				}
+				kafkaStats[key] = statsCopy
 			}
+		} else {
+			kafkaStats = make(map[kafka.Key]*kafka.RequestStats)
 		}
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
+			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
+		}
+	}, time.Second*5, time.Millisecond*10)
 			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
 		}
 	}, time.Second*5, time.Millisecond*10)
