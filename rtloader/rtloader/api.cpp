@@ -217,10 +217,10 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     return shared_library_handle_t{lib_handle, so_run_check, so_free_payload};
 }
 
-void run_shared_library(char *checkID, so_run_check_t *run_handle, so_free_payload_t *free_handle, const char **error)
+void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_payload_t *free_function, const char **error)
 {
     // verify the run function pointer
-    if (!run_handle) {
+    if (!run_function) {
         std::ostringstream err_msg;
         err_msg << "Pointer to shared library run function is null: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
@@ -228,7 +228,7 @@ void run_shared_library(char *checkID, so_run_check_t *run_handle, so_free_paylo
     }
 
     // verify the free function pointer
-    if (!free_handle) {
+    if (!free_function) {
         std::ostringstream err_msg;
         err_msg << "Pointer to shared library run function is null: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
@@ -236,7 +236,7 @@ void run_shared_library(char *checkID, so_run_check_t *run_handle, so_free_paylo
     }
 
     // run the shared library check and check the returned payload`
-    payload_t *payload = run_handle();
+    payload_t *payload = run_function();
     if (!payload) {
         std::ostringstream err_msg;
         err_msg << "Payload returned by shared library is null: " << dlerror();
@@ -246,10 +246,10 @@ void run_shared_library(char *checkID, so_run_check_t *run_handle, so_free_paylo
 
     // submit the payload returned by the shared library
     // hostname is hardcoded, don't know yet if it's needed to have it in the signature
-    submit_metric(checkID, payload->metricType, payload->name, payload->value, payload->tags, strdupe("COMP-KW702R60FR"), false);
+    submit_metric(checkID, payload->metricType, payload->name, payload->value, NULL, strdupe("COMP-KW702R60FR"), false);
 
     // free the payload after using it
-    free_handle(payload);
+    free_function(payload);
 }
 
 void destroy(rtloader_t *rtloader)
