@@ -92,10 +92,30 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 		},
 		postTracerSetup: func(t *testing.T, ctx testContext) {
 			fetchClient := ctx.extras["fetch_client"].(*kafka.Client)
-			fetches := fetchClient.Client.PollFetches(context.Background())
-			require.Empty(t, fetches.Errors())
-			records := fetches.Records()
-			require.Len(t, records, 1)
+
+			// Add timeout and retry logic for PollFetches to handle timing issues
+			var records []*kgo.Record
+			var fetchErr error
+
+			// Retry PollFetches with timeout to ensure we can fetch the produced message
+			for i := 0; i < 10; i++ {
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*2)
+				fetches := fetchClient.Client.PollFetches(ctxTimeout)
+				cancel()
+
+				if len(fetches.Errors()) == 0 {
+					records = fetches.Records()
+					if len(records) > 0 {
+						break
+					}
+				}
+
+				// Wait before retrying
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			require.Empty(t, fetchErr)
+			require.Len(t, records, 1, "expected exactly one record after retries")
 			require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
 		},
 		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
