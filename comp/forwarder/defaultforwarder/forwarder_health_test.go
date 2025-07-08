@@ -197,10 +197,12 @@ func TestUpdateAPIKey(t *testing.T) {
 	// update the API Key
 	fh.UpdateAPIKeys(ts1.URL, []string{"api_key1"}, []string{"api_key4"})
 
-	// ensure that keysPerAPIEndpoint has the new API Key
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key2","api_key4"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
+	assert.Eventually(t, func() bool {
+		// ensure that keysPerAPIEndpoint has the new API Key
+		data, _ := json.Marshal(fh.keysPerAPIEndpoint)
+		return assert.Equal(t, expect, string(data))
+	}, 5*time.Second, 200*time.Millisecond)
 }
 
 func quoteList(list []string) string {
@@ -278,7 +280,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	assert.Eventually(t, func() bool {
 		data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 		return assert.Equal(t, expect, string(data), description)
-	}, 5*time.Second, 1*time.Second)
+	}, 5*time.Second, 200*time.Millisecond)
 	endpoints := map[string][]string{
 		ts2.URL: keysAfter,
 	}
