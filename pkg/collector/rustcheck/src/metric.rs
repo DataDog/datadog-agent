@@ -2,12 +2,16 @@ use std::ffi::{c_char, c_double, CString};
 
 // utility functions to convert Rust types to C-compatible types
 pub fn to_cstring(string: &String) -> *mut c_char {
-    CString::new(string.as_str()).unwrap().into_raw()
+    CString::new(string.as_str()).expect("Can't cast Rust string to char*").into_raw()
 }
 
-pub fn _to_cstring_array(vec: &Vec<String>) -> *mut *mut c_char {
+pub fn to_cstring_array(vec: &[String]) -> *mut *mut c_char {
     let mut c_vec: Vec<*mut c_char> = vec.iter().map(|s| to_cstring(s)).collect();
-    c_vec.as_mut_ptr()
+    c_vec.push(std::ptr::null_mut());
+
+    let vec_ptr = c_vec.as_mut_ptr();
+    std::mem::forget(c_vec);
+    vec_ptr
 }
 
 // Replica of the Agent metric type enum
@@ -31,20 +35,17 @@ pub struct Payload {
     name: *mut c_char,
     metric_type: MetricType,
     value: c_double,
-    tags: *mut *mut c_char, // RTLoader needs to know the size of the array to iterate over it
-    //tags_length: usize, // pointer to the length of the tags array
+    tags: *mut *mut c_char,
     hostname: *mut c_char,
 }
 
 impl Payload {
-    pub fn new(name: &String, metric_type: &MetricType, value: &f64, _tags: &Vec<String>, hostname: &String) -> Self {
+    pub fn new(name: &String, metric_type: &MetricType, value: &f64, tags: &Vec<String>, hostname: &String) -> Self {
         Payload {
             name: to_cstring(name),
             metric_type: *metric_type,
             value: *value,
-            tags: std::ptr::null_mut(),
-            //tags_ptr: to_cstring_array(tags),
-            //tags_length: tags.len(),
+            tags: to_cstring_array(tags),
             hostname: to_cstring(hostname),
         }
     }
@@ -54,7 +55,7 @@ impl Payload {
 pub extern "C" fn FreePayload(ptr: *mut Payload) {
     if !ptr.is_null() {
         unsafe { 
-            drop(Box::from_raw(ptr));
+            drop(Box::from_raw(ptr)); // TODO: drop fields inside Payload
         }
     }
 }
