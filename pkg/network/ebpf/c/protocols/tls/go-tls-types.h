@@ -23,6 +23,13 @@ typedef struct {
     __u64 ptr;
 } interface_t;
 
+// equivalent to unsafe.SliceHeader.
+typedef struct {
+    __u64 ptr;
+    __u64 len;
+    __u64 cap;
+} slice_t;
+
 typedef struct {
     __u64 runtime_g_tls_addr_offset;
     __u64 goroutine_id_offset;
