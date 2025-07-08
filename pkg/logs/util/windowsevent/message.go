@@ -46,6 +46,7 @@ func (m *Message) SetContent(content []byte) {
 	_ = m.data.SetMessage(string(content))
 }
 
+// Checks at the beginning and end of string for truncated flag
 func hasTruncatedFlag(m string) bool {
 	if len(m) < len(truncatedFlag) {
 		return false
