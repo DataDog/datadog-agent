@@ -18,6 +18,39 @@ if TYPE_CHECKING:
     )
 
 
+class KernelVersion:
+    def __init__(self, kv: str):
+        self.major = kv.split(".")[0]
+        self.minor = kv.split(".")[1]
+        self.patch = kv.split(".")[2]
+
+    def __str__(self):
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    def __eq__(self, other: object):
+        if isinstance(other, KernelVersion):
+            return self.major == other.major and self.minor == other.minor and self.patch == other.patch
+
+        raise NotImplementedError
+
+    def __lt__(self, other: KernelVersion) -> bool:
+        if not isinstance(other, KernelVersion):
+            raise NotImplementedError
+
+        if self.major < other.major:
+            return True
+        if self.major == other.major and self.minor < other.minor:
+            return True
+
+        return self.minor == other.minor and self.patch < other.patch
+
+    def __lte__(self, other: KernelVersion) -> bool:
+        return self.__lt__(other) or self.__eq__(other)
+
+    def __gt__(self, other: KernelVersion) -> bool:
+        return not self.__lte__(other)
+
+
 class GDBPaths:
     def __init__(self, vm_tag: str, image_version: str, stack: str, arch: KMTArchNameOrLocal):
         self.tag = vm_tag
@@ -33,40 +66,11 @@ class GDBPaths:
         return self.kmt_paths.gdb / self.tag / self.image_version / "kernel-source"
 
 
-class OlderUbuntuGDBProvision:
-    def __init__(self, vm: LibvirtDomain, image_version: str, kernel: str):
-        self.target = vm
-        self.image_version = image_version
-        self.kernel = kernel.split('-')[0]
-
-    def run(self, ctx: Context, stack: str):
-        self.target.copy(ctx, "tasks/kernel_matrix_testing/provision/ubuntu-old-dbg.sh", "/tmp/provision.sh")
-        self.target.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh")
-
-        gdb_paths = GDBPaths(self.target.tag, self.image_version, stack, self.target.arch)
-        gdb_paths.vmlinux.parent.mkdir(exist_ok=True, parents=True)
-        self.target.download(ctx, "/usr/lib/debug/boot/vmlinux.dbg", f"{gdb_paths.vmlinux}")
-
-        ctx.run(f"rm -rf {gdb_paths.kernel_source}")
-        gdb_paths.kernel_source.mkdir(parents=True)
-        self.target.download(
-            ctx,
-            f"/usr/src/linux-source-{self.kernel}/linux-source-{self.kernel}.tar.bz2",
-            f"{gdb_paths.kernel_source.parent}",
-        )
-        ctx.run(
-            f"cd {gdb_paths.kernel_source.parent} && tar xvf linux-source-{self.kernel}.tar.bz2 -C {gdb_paths.kernel_source} --strip-components=1",
-            hide="out",
-            echo=True,
-        )
-        self.target.run_cmd(ctx, "shutdown -h now", verbose=True, allow_fail=True)
-
-
 class UbuntuGDBProvision:
     def __init__(self, vm: LibvirtDomain, image_version: str, kernel: str):
         self.target = vm
         self.image_version = image_version
-        self.kernel = kernel.split('-')[0]
+        self.kernel = KernelVersion(kernel.split('-')[0])
 
     def run(self, ctx: Context, stack: str):
         self.target.copy(ctx, "tasks/kernel_matrix_testing/provision/ubuntu-dbg.sh", "/tmp/provision.sh")
@@ -88,7 +92,9 @@ class UbuntuGDBProvision:
             hide="out",
             echo=True,
         )
-        ctx.run(f"cd {gdb_paths.kernel_source} && make defconfig && make scripts_gdb")
+
+        if self.kernel > KernelVersion("4.4.0"):
+            ctx.run(f"cd {gdb_paths.kernel_source} && make defconfig && make scripts_gdb")
 
         self.target.run_cmd(ctx, "shutdown -h now", verbose=True, allow_fail=True)
 
@@ -101,7 +107,7 @@ gdb_provision = {
         "24.10": UbuntuGDBProvision,
         "20.04": UbuntuGDBProvision,
         # TODO: Add support for bionic/ubuntu_18.04. Currently failing to find debug kernel build.
-        "16.04": OlderUbuntuGDBProvision,
+        "16.04": UbuntuGDBProvision,
     }
 }
 
