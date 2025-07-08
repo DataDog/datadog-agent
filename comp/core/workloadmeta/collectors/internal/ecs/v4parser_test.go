@@ -162,7 +162,6 @@ func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
 	defer cleanup()
 
 	// First pull - should fetch tags from API
-	fmt.Println("Josh first run")
 	err := collector.Pull(context.Background())
 	require.NoError(t, err)
 
@@ -180,7 +179,6 @@ func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
 	store.notifiedEvents = store.notifiedEvents[:0]
 
 	// Second pull - should fetch from API again since cache was cleared
-	fmt.Println("Josh second run")
 	err = collector.Pull(context.Background())
 	require.NoError(t, err)
 
