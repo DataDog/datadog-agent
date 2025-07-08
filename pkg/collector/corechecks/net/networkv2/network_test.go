@@ -1234,6 +1234,162 @@ collect_connection_queues: true`)
 	mockSender.AssertCalled(t, "Histogram", "system.net.tcp.recv_q", float64(0), "", []string{"state:established"})
 }
 
+func TestParseSocketStatMetrics(t *testing.T) {
+	testcases := []struct {
+		name  string
+		input string
+		want  map[string]*connectionStateEntry
+	}{
+		{
+			name: "initializes tcp4 states",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name: "initializes tcp6 states",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening":   emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name: "initializes udp4 states",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name: "initializes udp6 states",
+			input: `
+State                  Recv-Q              Send-Q                                 Local Address:Port                              Peer Address:Port
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": emptyConnectionStateEntry(),
+			},
+		},
+		{
+			name: "collects tcp4 states correctly",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
+LISTEN         1024        0                   0.0.0.0:27500          0.0.0.0:*
+LISTEN         0           4096              127.0.0.54:53             0.0.0.0:*
+ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
+TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
+`,
+			want: map[string]*connectionStateEntry{
+				"established": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"opening": emptyConnectionStateEntry(),
+				"closing": emptyConnectionStateEntry(),
+				"time_wait": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"listening": &connectionStateEntry{
+					count: 3,
+					recvQ: []uint64{0, 1024, 0},
+					sendQ: []uint64{4096, 0, 4096},
+				},
+			},
+		},
+		{
+			name: "collects tcp6 states correctly",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+LISTEN         0           4096           127.0.0.53%lo:53             0.0.0.0:*
+LISTEN         1024           0                   0.0.0.0:27500          0.0.0.0:*
+ESTAB          0           0               192.168.64.6:38848    34.107.243.93:443
+TIME-WAIT      0           0        192.168.64.6%enp0s1:42804     38.145.32.21:80
+`,
+			want: map[string]*connectionStateEntry{
+				"established": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"opening": emptyConnectionStateEntry(),
+				"closing": emptyConnectionStateEntry(),
+				"time_wait": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{0},
+				},
+				"listening": &connectionStateEntry{
+					count: 2,
+					recvQ: []uint64{0, 1024},
+					sendQ: []uint64{4096, 0},
+				},
+			},
+		},
+		{
+			name: "collects udp4 states correctly",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
+UNCONN      0           0                   0.0.0.0:27500          0.0.0.0:*
+UNCONN      0           0              127.0.0.54:53             0.0.0.0:*
+UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": &connectionStateEntry{
+					count: 4,
+					recvQ: []uint64{0, 0, 0, 0},
+					sendQ: []uint64{0, 0, 0, 0},
+				},
+			},
+		},
+		{
+			name: "collects udp6 states correctly",
+			input: `
+State          Recv-Q      Send-Q         Local Address:Port      Peer Address:Port
+UNCONN      0           0           127.0.0.53%lo:53             0.0.0.0:*
+UNCONN      0           0                   0.0.0.0:27500          0.0.0.0:*
+UNCONN      0           0              127.0.0.54:53             0.0.0.0:*
+UNCONN      0           0                 0.0.0.0:5355           0.0.0.0:*
+`,
+			want: map[string]*connectionStateEntry{
+				"connections": &connectionStateEntry{
+					count: 4,
+					recvQ: []uint64{0, 0, 0, 0},
+					sendQ: []uint64{0, 0, 0, 0},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseSocketStatsMetrics(tc.input)
+			assert.NoError(t, err)
+			if diff := gocmp.Diff(tc.want, got, gocmp.Comparer(connectionStateEntryComparer)); diff != "" {
+				t.Errorf("socket statistics result parsing diff (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestParseNetstatMetrics(t *testing.T) {
 	testcases := []struct {
 		name     string
