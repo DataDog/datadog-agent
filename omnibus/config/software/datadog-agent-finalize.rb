@@ -182,6 +182,7 @@ build do
 
                 # Codesign everything
                 command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/embedded/lib/python3.12/site-packages/ddtrace/internal/datadog/profiling/ -type f -perm +111 ! -name \"*.*\" | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
                 command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
                 command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
                 command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
