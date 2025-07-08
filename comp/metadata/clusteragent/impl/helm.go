@@ -26,6 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 var (
@@ -74,9 +76,13 @@ func getLatestHelmRevision(ctx context.Context, clientset *kubernetes.Clientset,
 }
 
 // Retrieves the release name from the pod labels or returns a default value.
-func getReleaseName(clientset *kubernetes.Clientset) (string, error) {
+func getReleaseName(ctx context.Context, clientset *kubernetes.Clientset) (string, error) {
 	// Get the pod
-	pod, err := clientset.CoreV1().Pods(releaseNamespace).Get(context.TODO(), os.Getenv("DD_POD_NAME"), metav1.GetOptions{})
+	podName, err := common.GetSelfPodName()
+	if err != nil {
+		return "", fmt.Errorf("could not fetch our self pod name: %w", err)
+	}
+	pod, err := clientset.CoreV1().Pods(releaseNamespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get pod: %w", err)
 	}
@@ -101,7 +107,7 @@ func retrieveHelmValues(ctx context.Context) ([]byte, error) {
 	}
 
 	// Get the release name from the pod labels
-	releaseName, err := getReleaseName(kubernetesClient)
+	releaseName, err := getReleaseName(ctx, kubernetesClient)
 	if err != nil {
 		if err == errNoHelmRelease {
 			return nil, nil // No Helm release found, return nil
