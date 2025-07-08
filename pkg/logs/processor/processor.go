@@ -172,8 +172,8 @@ func (p *Processor) run() {
 func (p *Processor) getFailoverAllowlist() (bool, map[string]struct{}) {
 	failoverActive := p.config.GetBool("multi_region_failover.failover_logs")
 	var allowlist map[string]struct{}
-	if failoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
-		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
+	if failoverActive && p.config.IsConfigured("multi_region_failover.logs_service_allowlist") {
+		rawList := p.config.GetStringSlice("multi_region_failover.logs_service_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {
 			allowlist[allowed] = struct{}{}

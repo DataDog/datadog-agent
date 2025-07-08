@@ -504,7 +504,7 @@ func TestBuffering(t *testing.T) {
 func TestFailoverAllowlist(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("multi_region_failover.failover_logs", true)
-	mockConfig.SetWithoutSource("multi_region_failover.logs_allowlist", []string{"test"})
+	mockConfig.SetWithoutSource("multi_region_failover.logs_service_allowlist", []string{"test"})
 
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	sources.NewConfigSources()
