@@ -66,6 +66,13 @@ type Config struct {
 	// for the init containers.
 	defaultResourceRequirements initResourceRequirementConfiguration
 
+	// podMetaAsTags is the unified configuration from [[configUtils.MetadataAsTags]]
+	// filtered to pod annotations and pod labels.
+	//
+	// This is used for picking a default service name for a given pod,
+	// see [[serviceNameMutator]].
+	podMetaAsTags podMetaAsTags
+
 	// version is the version of the autoinstrumentation logic to use.
 	// We don't expose this option to the user, and [[instrumentationV1]]
 	// is deprecated and slated for removal.
@@ -120,6 +127,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
 		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
 		containerFilter:               excludedContainerNamesContainerFilter,
+		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 		version:                       version,
 	}, nil
 }

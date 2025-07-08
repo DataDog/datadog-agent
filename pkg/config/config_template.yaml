@@ -597,7 +597,6 @@ api_key:
 
 
 ## @param fips - custom object - optional
-## [BETA] Enter specific configurations for using the FIPS proxy.
 ## Uncomment this parameter and the one below to enable them.
 #
 # fips:
@@ -1036,6 +1035,11 @@ api_key:
   ## The transport type to use for sending logs. Possible values are "auto" or "http1".
   # http_protocol: auto
 
+  ## @param http_timeout - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_HTTP_TIMEOUT - integer - optional - default: 10
+  ## The HTTP timeout to use for sending logs, in seconds.
+  # http_timeout: 10
+
   ## @param force_use_tcp - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
@@ -1064,6 +1068,12 @@ api_key:
   ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
+
+  ## @param close_timeout - integer - optional - default: 60
+  ## @env DD_LOGS_CONFIG_CLOSE_TIMEOUT - integer - optional - default: 60
+  ## The maximum number of seconds the Agent spends reading from a file after it has been rotated.
+  #
+  # close_timeout: 60
 
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
@@ -2595,6 +2605,13 @@ api_key:
 ## Specifies whether additional JMXFetch telemetry is enabled.
 #
 # jmx_telemetry_enabled: false
+
+## @param jmx_java_tool_options - string - optional
+## @env DD_JMX_JAVA_TOOL_OPTIONS - string - optional
+## If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+## set in the check templates. If that is the case, force custom jars here.
+#
+# jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
 
 {{ end -}}
 {{- if .Logging }}

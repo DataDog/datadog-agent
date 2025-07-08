@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -236,7 +236,7 @@ func (d *DBMAuroraService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns false on DBMAuroraService
-func (d *DBMAuroraService) HasFilter(containers.FilterType) bool {
+func (d *DBMAuroraService) HasFilter(filter.Scope) bool {
 	return false
 }
 

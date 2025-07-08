@@ -222,7 +222,7 @@ def _last_omnibus_changes(ctx):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
@@ -352,7 +352,7 @@ def send_build_metrics(ctx, overall_duration):
             )
 
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
-    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
+    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers, timeout=10)
     if r.ok:
         print('Successfully sent build metrics to DataDog')
     else:
@@ -384,7 +384,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
         'date_happened': int(datetime.now().timestamp()),
         'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
     }
-    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers, timeout=10)
     if not r.ok:
         print('Failed to send cache miss event')
         print(r.text)

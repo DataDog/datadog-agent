@@ -75,7 +75,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
   timeout: 2h
 
 
-# cloudfoundry IoT build for Windows
+# azure-app-services build for Windows
 windows_zip_agent_binaries_x64-a7:
   stage: package_build
   rules:

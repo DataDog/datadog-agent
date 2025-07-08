@@ -8,51 +8,49 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-      - job_name: 'otelcol'
-        scrape_interval: 10s
-        static_configs:
-          - targets: ['0.0.0.0:8888']
+        - job_name: "otelcol"
+          scrape_interval: 10s
+          static_configs:
+            - targets: ["0.0.0.0:8888"]
 exporters:
+  hostname: "smp-regression"
   datadog:
-    traces:
-      span_name_as_resource_name: true
-      endpoint: "http://127.0.0.1:9091"
-    hostname: "smp-regression"    
     api:
-      key: "123456789"
-      site: 127.0.0.1:9091
+      key: ${env:DD_API_KEY}
+      site: datadoghq.com
     metrics:
       resource_attributes_as_tags: true
-      endpoint: http://127.0.0.1:9091
-    logs:
-      endpoint: http://127.0.0.1:9091
-      
-
-processors:
-  batch:
-connectors:
-  # Use datadog connector to compute stats for pre-sampled traces
-  datadog/connector:
+      endpoint: "http://127.0.0.1:9091"
     traces:
-      span_name_as_resource_name: true
-      compute_stats_by_span_kind: true
-      compute_top_level_by_span_kind: true
-      peer_tags_aggregation: true
+      endpoint: "http://127.0.0.1:9091"
+    logs:
+      endpoint: "http://127.0.0.1:9091"
+    sending_queue:
+      queue_size: 50
+processors:
+  infraattributes:
+    cardinality: 2
+  batch:
+    send_batch_size: 4096
+    timeout: 10s
+connectors:
+  datadog/connector:
+    trace:
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
       exporters: [datadog/connector]
-    traces/send:
+    traces/otlp:
       receivers: [otlp]
-      processors: [batch]
+      processors: [infraattributes, batch]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector]
-      processors: [batch]
+      receivers: [otlp, datadog/connector, prometheus]
+      processors: [infraattributes, batch]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [infraattributes, batch]
       exporters: [datadog]

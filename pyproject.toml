@@ -82,3 +82,7 @@ disable_error_code = [
 ignore_decorators = ["@task"]
 ignore_names = ["test_*", "Test*"]
 paths = ["tasks"]
+
+[tool.ddev]
+repo = "agent"
+
