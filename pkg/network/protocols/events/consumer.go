@@ -30,8 +30,15 @@ const (
 
 var errInvalidPerfEvent = errors.New("invalid perf event")
 
-// Consumer provides a standardized abstraction for consuming (batched) events from eBPF
-type Consumer[V any] struct {
+// Consumer is an interface for event consumers
+type Consumer[V any] interface {
+	Start()
+	Sync()
+	Stop()
+}
+
+// BatchConsumer provides a standardized abstraction for consuming (batched) events from eBPF
+type BatchConsumer[V any] struct {
 	mux         sync.Mutex
 	proto       string
 	syncRequest chan (chan struct{})
