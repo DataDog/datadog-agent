@@ -577,6 +577,15 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	if bs.initOnly {
 		bs.T().Skip("INIT_ONLY is set, skipping tests")
 	}
+
+	if bs.params.stackName != "" {
+		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+		if err != nil {
+			bs.T().Fatalf("unable to get stack name: %v", err)
+		} else {
+			bs.T().Logf("CELIAN full stack name at init: %s", stackName)
+		}
+	}
 }
 
 func (bs *BaseSuite[Env]) getSuiteSessionSubdirectory() string {
@@ -675,28 +684,26 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	for id, provisioner := range bs.originalProvisioners {
 		// Run provisioner Diagnose before tearing down the stack
+		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+		if err != nil {
+			bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+		}
 		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
-			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
-			if err != nil {
-				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
-			} else {
-				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
-				if diagnoseErr != nil {
-					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
-				} else if diagnoseResult != "" {
-					bs.T().Logf("Diagnose result: %s", diagnoseResult)
-				}
+			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+			if diagnoseErr != nil {
+				bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+			} else if diagnoseResult != "" {
+				bs.T().Logf("Diagnose result: %s", diagnoseResult)
 			}
 		}
 
 		if bs.IsWithinCI() {
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			fullStackName := fmt.Sprintf("organization/e2eci/%s", bs.params.stackName)
-			bs.T().Logf("CELIAN: Trying to trigger API")
-			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			bs.T().Logf("CELIAN: Trying to trigger API for stack '%s' (full name: '%s')", bs.params.stackName, stackName)
+			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s", stackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				bs.T().Errorf("Unable to destroy stack %s: %s", bs.params.stackName, out)
+				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
 			} else {
 				// TODO
 				bs.T().Logf("API output: %s", out)
