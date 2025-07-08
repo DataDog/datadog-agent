@@ -2437,6 +2437,9 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	require.Empty(t, fetches.Errors())
 	require.Len(t, fetches.Records(), 1)
 
+	// Brief delay to allow tracer to process all network events
+	time.Sleep(500 * time.Millisecond)
+
 	localhostAddress := util.AddressFromString(localhost)
 	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
