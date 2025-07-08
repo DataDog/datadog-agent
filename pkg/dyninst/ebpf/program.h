@@ -6,7 +6,7 @@
 
 // Data that programs the stack machine and event processing.
 
-const uint32_t prog_id = 0;
+volatile const uint32_t prog_id = 0;
 
 struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);

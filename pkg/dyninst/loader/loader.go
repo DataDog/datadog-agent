@@ -274,6 +274,10 @@ func (l *Loader) loadData(
 	if err != nil {
 		return nil, fmt.Errorf("failed to set chase_pointers_entrypoint: %w", err)
 	}
+	err = setVariable(spec, "prog_id", uint32(serialized.programID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to set prog_id: %w", err)
+	}
 
 	mapSpec, typeIDsMap, err := makeArrayMap(typeIDsMapName, serialized.typeIDs, false /* singleEntry */)
 	spec.Maps[typeIDsMapName] = mapSpec

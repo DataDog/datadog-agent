@@ -12,10 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -53,9 +55,12 @@ func (ye yamlEvent) MarshalYAML() (interface{}, error) {
 		}
 
 		eventData := struct {
-			Updated []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed []int               `yaml:"removed,omitempty"`
-		}{}
+			TenantID tenantID            `yaml:"tenant_id,omitempty"`
+			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed  []int               `yaml:"removed,omitempty"`
+		}{
+			TenantID: ev.tenantID,
+		}
 
 		// Convert updated processes
 		for _, proc := range ev.updated {
@@ -154,8 +159,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		var eventData struct {
-			Updated []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed []int               `yaml:"removed,omitempty"`
+			TenantID tenantID            `yaml:"tenant_id,omitempty"`
+			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed  []int               `yaml:"removed,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode processes-updated event: %w", err)
@@ -181,12 +187,12 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 				ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
 				Executable: Executable{
 					Path: proc.Executable.Path,
-					Key: FileKey{
-						FileHandle: FileHandle{
+					Key: procmon.FileKey{
+						FileHandle: procmon.FileHandle{
 							Dev: proc.Executable.Key.FileHandle.Dev,
 							Ino: proc.Executable.Key.FileHandle.Ino,
 						},
-						FileCookie: FileCookie{
+						LastModified: syscall.Timespec{
 							Sec:  proc.Executable.Key.FileCookie.Sec,
 							Nsec: proc.Executable.Key.FileCookie.Nsec,
 						},
@@ -203,8 +209,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		ye.event = eventProcessesUpdated{
-			updated: updated,
-			removed: removedProcessIDs,
+			tenantID: eventData.TenantID,
+			updated:  updated,
+			removed:  removedProcessIDs,
 		}
 
 	case "loaded":
