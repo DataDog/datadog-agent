@@ -15,9 +15,16 @@ from .requirement import Requirement, RequirementState
 
 
 class Pulumi(Requirement):
-    def _is_user_logged_in(self, pulumi_about_output: str) -> bool:
-        match = re.search(r"^User +(.*)", pulumi_about_output, re.MULTILINE)
-        return match is not None and match.group(1) != "Unknown"
+    def _check_user_logged_in(self, ctx: Context) -> RequirementState:
+        pulumi_about_res = ctx.run("pulumi about", warn=True)
+        if pulumi_about_res is None or not pulumi_about_res.ok:
+            return RequirementState(Status.FAIL, "pulumi is not installed correctly.")
+
+        match = re.search(r"^User +(.*)", pulumi_about_res.stdout, re.MULTILINE)
+        if match is not None and match.group(1) != "Unknown":
+            return RequirementState(Status.OK, "pulumi is installed and logged in.")
+
+        return RequirementState(Status.FAIL, "pulumi is not logged in.")
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         if shutil.which("pulumi") is None:
@@ -37,18 +44,19 @@ class Pulumi(Requirement):
             # Update PATH in this session so we can call the command
             os.environ["PATH"] = f"{os.environ['PATH']}:{os.path.expanduser('~/.pulumi/bin')}"
 
-        pulumi_about_res = ctx.run("pulumi about", warn=True)
-        if pulumi_about_res is None or not pulumi_about_res.ok:
-            return RequirementState(Status.FAIL, "pulumi is not installed correctly.")
-
-        if not self._is_user_logged_in(pulumi_about_res.stdout):
+        login_state = self._check_user_logged_in(ctx)
+        if login_state.state != Status.OK:
             if not fix:
-                return RequirementState(Status.FAIL, "pulumi is installed but not logged in.", fixable=True)
-            ctx.run("pulumi login --local")
-            if not self._is_user_logged_in(pulumi_about_res.stdout):
-                return RequirementState(Status.FAIL, "pulumi login failed.")
+                return login_state
 
-        return RequirementState(Status.OK, "pulumi is installed and logged in.")
+            try:
+                ctx.run("pulumi login --local")
+            except Exception as e:
+                return RequirementState(Status.FAIL, f"pulumi login command failed: {e}")
+
+            login_state = self._check_user_logged_in(ctx)
+
+        return login_state
 
 
 class TestInfraDefinitionsRepo(Requirement):
@@ -77,8 +85,12 @@ class TestInfraDefinitionsRepo(Requirement):
                 fixable=True,
             )
 
+        clone_opts = "--depth 1 --single-branch --branch=main" if os.environ.get("CI") else ""
+
         try:
-            ctx.run(f"git clone git@github.com:DataDog/test-infra-definitions.git {self._candidate_paths[0]}")
+            ctx.run(
+                f"git clone git@github.com:DataDog/test-infra-definitions.git {self._candidate_paths[0]} {clone_opts}"
+            )
         except Exception as e:
             return RequirementState(Status.FAIL, f"test-infra-definitions could not be cloned: {e}", fixable=True)
 
