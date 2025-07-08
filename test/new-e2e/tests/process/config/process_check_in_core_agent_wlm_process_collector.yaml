@@ -1,7 +1,7 @@
 process_config:
   process_collection:
     enabled: true
-    use_wlm: true
+    linux_use_wlm: true
   container_collection:
     enabled: false
   process_discovery:

@@ -138,9 +138,9 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.intervals.connections",
 			defaultValue: nil,
 		},
-		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		// TODO: process_config.process_collection.linux_use_wlm is a temporary configuration for refactoring purposes
 		{
-			key:          "process_config.process_collection.use_wlm",
+			key:          "process_config.process_collection.linux_use_wlm",
 			defaultValue: false,
 		},
 	} {
@@ -459,10 +459,10 @@ func TestEnvVarOverride(t *testing.T) {
 			value:    "10",
 			expected: "10",
 		},
-		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		// TODO: process_config.process_collection.linux_use_wlm is a temporary configuration for refactoring purposes
 		{
-			key:      "process_config.process_collection.use_wlm",
-			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_USE_WLM",
+			key:      "process_config.process_collection.linux_use_wlm",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_LINUX_USE_WLM",
 			value:    "false",
 			expected: false,
 		},
