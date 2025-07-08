@@ -1308,15 +1308,19 @@ udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 udp6       0      0 :::5353                 :::*
 `,
 			want: map[string]*connectionStateEntry{
-				"established": emptyConnectionStateEntry(),
-				"opening":     emptyConnectionStateEntry(),
-				"closing":     emptyConnectionStateEntry(),
-				"time_wait":   emptyConnectionStateEntry(),
-				"listening": &connectionStateEntry{
-					count: 2,
-					recvQ: []uint64{0, 1024},
-					sendQ: []uint64{1024, 0},
+				"established": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{1024},
+					sendQ: []uint64{0},
 				},
+				"opening": emptyConnectionStateEntry(),
+				"closing": emptyConnectionStateEntry(),
+				"time_wait": &connectionStateEntry{
+					count: 1,
+					recvQ: []uint64{0},
+					sendQ: []uint64{1024},
+				},
+				"listening": emptyConnectionStateEntry(),
 			},
 		},
 		{
@@ -1334,19 +1338,15 @@ udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 udp6       0      0 :::5353                 :::*
 `,
 			want: map[string]*connectionStateEntry{
-				"established": &connectionStateEntry{
-					count: 1,
-					recvQ: []uint64{1024},
-					sendQ: []uint64{0},
+				"established": emptyConnectionStateEntry(),
+				"opening":     emptyConnectionStateEntry(),
+				"closing":     emptyConnectionStateEntry(),
+				"time_wait":   emptyConnectionStateEntry(),
+				"listening": &connectionStateEntry{
+					count: 2,
+					recvQ: []uint64{0, 1024},
+					sendQ: []uint64{1024, 0},
 				},
-				"opening": emptyConnectionStateEntry(),
-				"closing": emptyConnectionStateEntry(),
-				"time_wait": &connectionStateEntry{
-					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{1024},
-				},
-				"listening": emptyConnectionStateEntry(),
 			},
 		},
 		{
