@@ -6,7 +6,6 @@
 package windowsevent
 
 import (
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -47,10 +46,23 @@ func (m *Message) SetContent(content []byte) {
 	_ = m.data.SetMessage(string(content))
 }
 
+func hasTruncatedFlag(m string) bool {
+	if len(m) < len(truncatedFlag) {
+		return false
+	}
+
+	if m[0:len(truncatedFlag)] == truncatedFlag {
+		return true
+	} else if m[len(m)-len(truncatedFlag):] == truncatedFlag {
+		return true
+	}
+	return false
+}
+
 // MapToMessage packages a Map into either an unstructured message.Message or a structured one.
 func MapToMessage(m *Map, source *sources.LogSource, processRawMessage bool) (*message.Message, error) {
 	// Check if the message was truncated by looking for the truncated flag
-	isTruncated := strings.Contains(m.GetMessage(), truncatedFlag)
+	isTruncated := hasTruncatedFlag(m.GetMessage())
 
 	// old behaviour using an unstructured message with raw data
 	if processRawMessage {
