@@ -46,8 +46,6 @@ var (
 		bininspect.StructOffsetTLSConn,
 		bininspect.StructOffsetTCPConn,
 		bininspect.StructOffsetNetConnFd,
-		bininspect.StructOffsetNetFdPfd,
-		bininspect.StructOffsetPollFdSysfd,
 		bininspect.StructOffsetLimitListenerConnNetConn,
 		bininspect.StructOffsetFamilyInNetFD,
 		bininspect.StructOffsetLaddrInNetFD,
@@ -194,24 +192,6 @@ func run(
 				DocComment:      `GetConnFDOffset gets the offset of the "fd" field in the "net.conn" struct`,
 				ExtractValue: func(r interface{}) interface{} {
 					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetNetConnFd]
-				},
-			},
-			{
-				Name:            "GetNetFD_PFDOffset",
-				OutputType:      "uint64",
-				OutputZeroValue: "0",
-				DocComment:      `GetNetFD_PFDOffset gets the offset of the "pfd" field in the "net.netFD" struct`,
-				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetNetFdPfd]
-				},
-			},
-			{
-				Name:            "GetFD_SysfdOffset",
-				OutputType:      "uint64",
-				OutputZeroValue: "0",
-				DocComment:      `GetFD_SysfdOffset gets the offset of the "Sysfd" field in the "internal/poll.FD" struct`,
-				ExtractValue: func(r interface{}) interface{} {
-					return (r).(*bininspect.Result).StructOffsets[bininspect.StructOffsetPollFdSysfd]
 				},
 			},
 			{

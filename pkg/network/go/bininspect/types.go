@@ -45,18 +45,6 @@ var StructOffsetNetConnFd = FieldIdentifier{
 	FieldName:  "fd",
 }
 
-// StructOffsetNetFdPfd is the offset of the `pdf` field within `net.netFD`.
-var StructOffsetNetFdPfd = FieldIdentifier{
-	StructName: "net.netFD",
-	FieldName:  "pfd",
-}
-
-// StructOffsetPollFdSysfd is the offset of the `sysfd` field within `internal/poll.FD`.
-var StructOffsetPollFdSysfd = FieldIdentifier{
-	StructName: "internal/poll.FD",
-	FieldName:  "Sysfd",
-}
-
 // StructOffsetLimitListenerConnNetConn is the offset of the `net.Conn` field within `netutil/limitListenerConn`.
 var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
 	StructName: "golang.org/x/net/netutil.limitListenerConn",
