@@ -400,6 +400,8 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 				continue
 			}
 
+			// locally built images have no repo digest so we generate one in the
+			// form of local/my-image:my-tag@sha256:xxxxx
 			repoDigest := "local/" + img.Name + "@" + img.ID
 			repoDigests = append(repoDigests, repoDigest)
 
