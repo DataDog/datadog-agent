@@ -1310,15 +1310,15 @@ udp6       0      0 :::5353                 :::*
 			want: map[string]*connectionStateEntry{
 				"established": &connectionStateEntry{
 					count: 1,
-					recvQ: []uint64{1024},
-					sendQ: []uint64{0},
+					recvQ: []uint64{0},
+					sendQ: []uint64{1024},
 				},
 				"opening": emptyConnectionStateEntry(),
 				"closing": emptyConnectionStateEntry(),
 				"time_wait": &connectionStateEntry{
 					count: 1,
-					recvQ: []uint64{0},
-					sendQ: []uint64{1024},
+					recvQ: []uint64{1024},
+					sendQ: []uint64{0},
 				},
 				"listening": emptyConnectionStateEntry(),
 			},
@@ -1331,8 +1331,8 @@ Active Internet connections (servers and established)
 Proto Recv-Q Send-Q Local Address           Foreign Address         State
 tcp        1024      0 192.168.64.6:34816      34.49.51.44:443         TIME_WAIT
 tcp        0      1024 192.168.64.6:33852      34.107.243.93:443       ESTABLISHED
-tcp6       0      0 :::5355                 :::*                    LISTEN
-tcp6       0      0 ::1:631                 :::*                    LISTEN
+tcp6       0      1024 :::5355                 :::*                    LISTEN
+tcp6       1024      0 ::1:631                 :::*                    LISTEN
 udp        0      0 127.0.0.53:53           0.0.0.0:*
 udp        0      0 192.168.64.6:68         192.168.64.1:67         ESTABLISHED
 udp6       0      0 :::5353                 :::*
