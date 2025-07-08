@@ -34,7 +34,7 @@ type protocol struct {
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
-	eventsConsumer *events.BatchConsumer[EbpfEvent]
+	eventsConsumer events.Consumer[EbpfEvent]
 	mgr            *manager.Manager
 }
 
