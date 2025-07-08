@@ -527,7 +527,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
     section_id = str(uuid.uuid4())
-    in_ci = running_in_gitlab_ci()
+    in_ci = running_in_gitlab_ci() and 'INVOKE_UNIT_TESTS' not in os.environ
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
