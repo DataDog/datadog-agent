@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -101,14 +102,14 @@ func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{Reader: pkgconfigsetup.SystemProbe()},
 			Catalog:       workloadmeta.NodeAgent,
-			Insecure:      true, // wlm extractor currently does not support TLS
+			IPC:           ipc,
 		},
 	}, nil
 }
