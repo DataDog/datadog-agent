@@ -203,8 +203,6 @@ var defaultProfiles = `
       period: 900
   - name: logs-and-metrics
     metric:
-      exclude:
-        zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
