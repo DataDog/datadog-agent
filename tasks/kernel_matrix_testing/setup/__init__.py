@@ -26,7 +26,55 @@ def get_requirements(remote_setup_only: bool):
         elif sys.platform == "darwin":
             requirements += _get_requirements_from_module(mac_localvms)
 
-    return requirements
+    return _topological_sort_requirements(requirements)
+
+
+def _topological_sort_requirements(requirements: list[Requirement]) -> list[Requirement]:
+    """Topologically sorts the requirements based on their dependencies.
+
+    This is used to ensure that the requirements are checked in the correct order,
+    so that dependencies are checked before the requirements that depend on them.
+    """
+    req_by_class = {r.__class__: r for r in requirements}
+
+    # Build adjacency list
+    adj: dict[Requirement, list[Requirement]] = {r: [] for r in requirements}
+    for r in requirements:
+        if r.dependencies is None:
+            continue
+
+        for dep in r.dependencies:
+            if dep in req_by_class:
+                adj[r].append(req_by_class[dep])
+
+    in_degree = {r: 0 for r in requirements}
+    for r in requirements:
+        for dep in adj[r]:
+            in_degree[dep] += 1
+
+    # First select all requirements with no dependencies
+    queue = [r for r in requirements if in_degree[r] == 0]
+    sorted_reqs = []
+    while len(queue) > 0:
+        # Add this requirement to the sorted list
+        r = queue.pop(0)
+        sorted_reqs.append(r)
+
+        # Check all the requirements that depend on this one
+        for dep in adj[r]:
+            # Reduce the in-degree of the dependency
+            in_degree[dep] -= 1
+            # If the in-degree is now 0, meaning all of its dependencies have been added to the list,
+            # we can add it to the queue
+            if in_degree[dep] == 0:
+                queue.append(dep)
+
+    # If the number of requirements in the sorted list is not the same as the number of requirements,
+    # it means there is a cycle in the dependencies
+    if len(sorted_reqs) != len(requirements):
+        raise RuntimeError("Cycle detected in requirements dependencies")
+
+    return sorted_reqs
 
 
 def _get_requirements_from_module(module: ModuleType) -> list[Requirement]:
@@ -51,18 +99,32 @@ def check_requirements(
         ctx.config["run"]["hide"] = True
 
     if not is_root():
-        print("Some checks require root privileges, asking for sudo now:")
+        print("Some checks require root privileges, authenticating 'sudo' now to avoid prompts later:")
         ctx.run("sudo true")
+
+    requirement_succeded: dict[type[Requirement], bool] = {}
 
     for requirement in requirements:
         name = requirement.__class__.__name__
         if echo:
             print(f"{name} ...", end="\n" if verbose else "", flush=True)
 
-        try:
-            result = requirement.check(ctx, fix)
-        except Exception as e:
-            result = RequirementState(Status.FAIL, f"Exception checking requirement: {e}")
+        missing_requirements: list[str] = []
+        for dep in requirement.dependencies or []:
+            if dep not in requirement_succeded:
+                raise RuntimeError(
+                    f"Requirement {name} depends on {dep.__name__}, which has not been checked yet, this should not happen."
+                )
+            elif not requirement_succeded[dep]:
+                missing_requirements.append(dep.__name__)
+
+        if len(missing_requirements) == 0:
+            try:
+                result = requirement.check(ctx, fix)
+            except Exception as e:
+                result = RequirementState(Status.FAIL, f"Exception checking requirement: {e}")
+        else:
+            result = RequirementState(Status.FAIL, f"Missing dependencies: {', '.join(missing_requirements)}")
 
         state = summarize_requirement_states(result)
 
@@ -71,6 +133,9 @@ def check_requirements(
 
         if state.state == Status.FAIL:
             any_fail = True
+            requirement_succeded[requirement.__class__] = False
+        else:
+            requirement_succeded[requirement.__class__] = True
 
     if not verbose:
         ctx.config["run"]["hide"] = old_hide
