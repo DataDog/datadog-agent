@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
@@ -63,6 +64,9 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 		mux.HandleFunc("/debug/selinux_sestatus", debug.HandleSelinuxSestatus)
 		mux.HandleFunc("/debug/selinux_semodule_list", debug.HandleSelinuxSemoduleList)
 	}
+
+	// Register /agent/coverage endpoint for computing code coverage (e2ecoverage build only)
+	coverage.SetupCoverageHandler(mux)
 
 	go func() {
 		err = http.Serve(conn, mux)

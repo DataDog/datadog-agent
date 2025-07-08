@@ -33,7 +33,7 @@
 /LICENSE*                               # do not notify anyone
 
 /mkdocs.yml                             @DataDog/agent-devx
-/release.json                           @DataDog/agent-delivery @DataDog/agent-integrations
+/release.json                           @DataDog/agent-build @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-devx
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx

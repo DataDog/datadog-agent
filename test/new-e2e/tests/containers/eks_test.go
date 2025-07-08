@@ -6,8 +6,10 @@
 package containers
 
 import (
+	"regexp"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
@@ -156,6 +158,106 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 				`^pod_phase:running$`,
 				`^series:`,
 			},
+		},
+	})
+}
+
+func (suite *eksSuite) TestNginxFargate() {
+
+	// `nginx` check is configured via AD annotation on pods
+	// Test it is properly scheduled
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "nginx.net.request_per_s",
+			Tags: []string{
+				`^kube_namespace:workload-nginx-fargate$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^kube_cluster_name:`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx-fargate$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_priority_class:system-node-critical$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^nginx_host:`,
+				`^orch_cluster_id:`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^port:`,
+				`^short_image:apps-nginx-server$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+
+	// `http_check` is configured via AD annotation on service
+	// Test it is properly scheduled
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "network.http.response_time",
+			Tags: []string{
+				`^kube_namespace:workload-nginx-fargate$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:`,
+				`^instance:My_Nginx$`,
+				`^kube_cluster_name:`,
+				`^orch_cluster_id:`,
+				`^kube_namespace:workload-nginx-fargate$`,
+				`^kube_service:nginx$`,
+				`^url:http://`,
+			},
+		},
+	})
+
+	// Test Nginx logs
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "nginx-fargate",
+			Tags: []string{
+				`^kube_namespace:workload-nginx-fargate$`,
+			},
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
+				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^kube_cluster_name:`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx-fargate$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_priority_class:system-node-critical$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^orch_cluster_id:`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+			},
+			Message: `GET / HTTP/1\.1`,
 		},
 	})
 }
