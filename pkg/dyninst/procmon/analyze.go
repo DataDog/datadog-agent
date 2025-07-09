@@ -9,11 +9,13 @@ package procmon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"iter"
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,30 +39,55 @@ func analyzeProcess(
 		)
 	}
 	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
-		log.Tracef("process %d is not interesting: service name is %q, DD_DYNINST_ENABLED is %v", pid, ddEnv.serviceName, ddEnv.diEnabled)
+		log.Tracef(
+			"process %d is not interesting: service name is %q, %s=%t",
+			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
+		)
 		return processAnalysis{interesting: false}, nil
 	}
 
-	exePath := path.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
-	exeLink, err := os.Readlink(exePath)
+	exeLinkPath := path.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
+	exePath, err := os.Readlink(exeLinkPath)
 	if err != nil {
 		return processAnalysis{}, fmt.Errorf(
 			"failed to open exe link for pid %d: %w", pid, err,
 		)
 	}
 
-	isGo, err := isGoElfBinary(exeLink)
-	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to check if exe is go binary: %w", err,
+	exeFile, err := os.Open(exePath)
+	if errors.Is(err, os.ErrNotExist) {
+		// Try to open the exe under the proc root which can work when the
+		// file exists inside a container.
+		exePath = path.Join(
+			procfsRoot, strconv.Itoa(int(pid)), "root",
+			strings.TrimPrefix(exePath, "/"),
 		)
+		log.Debugf(
+			"exe for pid %d does not exist in root fs, trying under proc_root: %s",
+			pid, exePath,
+		)
+		exeFile, err = os.Open(exePath)
 	}
-	if !isGo {
-		return processAnalysis{interesting: false}, nil
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			err = fmt.Errorf("failed to open exe: %w", err)
+		} else {
+			err = nil
+		}
+		return processAnalysis{}, err
+	}
+	defer exeFile.Close()
+
+	isGo, err := isGoElfBinary(exeFile)
+	if errors.Is(err, os.ErrNotExist) {
+		isGo, err = false, nil
+	}
+	if !isGo || err != nil {
+		return processAnalysis{}, err
 	}
 
 	exe := Executable{Path: exePath}
-	st, err := os.Stat(exeLink)
+	st, err := exeFile.Stat()
 	if err != nil {
 		return processAnalysis{}, fmt.Errorf(
 			"failed to stat exe link for pid %v: %w", pid, err,
@@ -94,6 +121,9 @@ const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
 func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 	procEnv := path.Join(procfsRoot, strconv.Itoa(int(pid)), "environ")
 	env, err := os.ReadFile(procEnv)
+	if errors.Is(err, os.ErrNotExist) {
+		return ddEnvVars{}, nil
+	}
 	if err != nil {
 		return ddEnvVars{}, fmt.Errorf(
 			"failed to read proc env at %s: %w", procEnv, err,
@@ -150,16 +180,10 @@ var goSections = map[string]struct{}{
 // In the future we may want to look and see here if there's a relevant
 // version of the trace agent that we care about, but for now we leave
 // that to later analysis of dwarf.
-func isGoElfBinary(exePath string) (bool, error) {
-	f, err := os.Open(exePath)
-	if err != nil {
-		return false, fmt.Errorf("failed to open exe: %w", err)
-	}
-	defer f.Close()
-
+func isGoElfBinary(f *os.File) (bool, error) {
 	elfFile, err := safeelf.NewFile(f)
 	if err != nil {
-		log.Tracef("isGoElfBinary(%s): not an ELF file: %v", exePath, err)
+		log.Tracef("isGoElfBinary(%s): not an ELF file: %v", f.Name(), err)
 		return false, nil
 	}
 	defer elfFile.Close() // no-op, but why not
@@ -173,9 +197,11 @@ func isGoElfBinary(exePath string) (bool, error) {
 			hasDebugInfo = true
 		}
 	}
-	log.Tracef(
-		"isGoElfBinary(%s): hasGoSections: %v, hasDebugInfo: %v",
-		exePath, hasGoSections, hasDebugInfo,
-	)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"isGoElfBinary(%s): hasGoSections: %v, hasDebugInfo: %v",
+			f.Name(), hasGoSections, hasDebugInfo,
+		)
+	}
 	return hasGoSections && hasDebugInfo, nil
 }

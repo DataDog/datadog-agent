@@ -1029,13 +1029,14 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 }
 
 // LoadPolicies loads policies from the provided policy loader
-func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]*PolicyRule, *multierror.Error) {
 	var (
-		errs       *multierror.Error
-		allRules   []*PolicyRule
-		allMacros  []*PolicyMacro
-		macroIndex = make(map[string]*PolicyMacro)
-		rulesIndex = make(map[string]*PolicyRule)
+		errs          *multierror.Error
+		allRules      []*PolicyRule
+		filteredRules []*PolicyRule
+		allMacros     []*PolicyMacro
+		macroIndex    = make(map[string]*PolicyMacro)
+		rulesIndex    = make(map[string]*PolicyRule)
 	)
 
 	parsingContext := ast.NewParsingContext(false)
@@ -1077,6 +1078,15 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				allRules = append(allRules, rule)
 			}
 		}
+
+		for _, rule := range policy.GetFilteredRules() {
+			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
+				// if the rule is already in the rules index, this means that a rule with the same ID was already accepted
+				// in this case let's only report the version of the rule that was accepted
+				continue
+			}
+			filteredRules = append(filteredRules, rule)
+		}
 	}
 
 	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
@@ -1091,7 +1101,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		errs = multierror.Append(errs, err)
 	}
 
-	return errs
+	return filteredRules, errs
 }
 
 // NewEvent returns a new event using the embedded constructor

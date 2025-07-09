@@ -1,0 +1,46 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testNilSliceWithOtherParams",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testNilSliceWithOtherParams",
+          "location": {
+            "method": "main.testNilSliceWithOtherParams"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "int8",
+                "value": "1"
+              },
+              "s": {
+                "type": "[]bool",
+                "isNull": true
+              },
+              "x": {
+                "type": "uint",
+                "value": "5"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

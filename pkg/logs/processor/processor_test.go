@@ -428,3 +428,25 @@ func BenchmarkMaskSequences(b *testing.B) {
 	})
 
 }
+
+func TestExcludeTruncated(t *testing.T) {
+	p := &Processor{}
+	assert := assert.New(t)
+
+	ruleType := config.ExcludeTruncated
+	source := newSource(ruleType, "", "")
+
+	// A non-truncated message should be processed
+	msg1 := newMessage([]byte("hello"), &source, "")
+	msg1.IsTruncated = false
+	shouldProcess1 := p.applyRedactingRules(msg1)
+	assert.True(shouldProcess1)
+	assert.Equal(int64(0), msg1.Origin.LogSource.ProcessingInfo.GetCount(ruleType+":"+ruleName))
+
+	// A truncated message should not be processed
+	msg2 := newMessage([]byte("hello"), &source, "")
+	msg2.IsTruncated = true
+	shouldProcess2 := p.applyRedactingRules(msg2)
+	assert.False(shouldProcess2)
+	assert.Equal(int64(1), msg2.Origin.LogSource.ProcessingInfo.GetCount(ruleType+":"+ruleName))
+}

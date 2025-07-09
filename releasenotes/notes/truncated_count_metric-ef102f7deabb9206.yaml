@@ -6,20 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
-  - |
 features:
   - |
     Added a new `logs.truncated` metric to the Agent that reports the number of logs truncated before being sent. This metric helps monitor log volume loss due to truncation and is tagged by `service` and `source` for better visibility.
-enhancements:
-  - |
-issues:
-  - |
-deprecations:
-  - |
-security:
-  - |
-fixes:
-  - |
-other:
-  - |

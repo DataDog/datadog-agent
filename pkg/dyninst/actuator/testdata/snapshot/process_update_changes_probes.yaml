@@ -15,6 +15,7 @@
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: newFunc}, captureSnapshot: true}
 - !detached {program_id: 1, process_id: 1001}
+- !unloaded {program_id: 1}
 - !loaded {program_id: 2}
 - !attached {program_id: 2, process_id: 1001} 
 ---
@@ -72,7 +73,17 @@ state:
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !close-sink {program_id: 1}
+  - !unload-program {program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1)
+  programs:
+    1: Draining (proc 1001) -> Unloading (proc 1001)
+---
+event: !unloaded {program_id: 1}
+effects:
   - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe2], process_id: 1001, program_id: 2}
 state:
   currently_loading: <nil> -> 2
@@ -80,7 +91,7 @@ state:
   processes:
     1001: Detaching (prog 1) -> WaitingForProgram (prog 2)
   programs:
-    1: Draining (proc 1001) -> <nil>
+    1: Unloading (proc 1001) -> <nil>
     2: <nil> -> Loading (proc 1001)
 ---
 event: !loaded {program_id: 2}

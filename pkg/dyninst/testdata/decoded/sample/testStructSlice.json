@@ -1,0 +1,69 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testStructSlice",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testStructSlice",
+          "location": {
+            "method": "main.testStructSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "xs": {
+                "type": "[]main.structWithNoStrings",
+                "elements": [
+                  {
+                    "type": "main.structWithNoStrings",
+                    "fields": {
+                      "aUint8": {
+                        "type": "uint8",
+                        "value": "42"
+                      },
+                      "aBool": {
+                        "type": "bool",
+                        "value": "true"
+                      }
+                    }
+                  },
+                  {
+                    "type": "main.structWithNoStrings",
+                    "fields": {
+                      "aUint8": {
+                        "type": "uint8",
+                        "value": "24"
+                      },
+                      "aBool": {
+                        "type": "bool",
+                        "value": "true"
+                      }
+                    }
+                  }
+                ]
+              },
+              "a": {
+                "type": "int",
+                "value": "3"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

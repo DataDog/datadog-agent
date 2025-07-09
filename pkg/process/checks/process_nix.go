@@ -89,3 +89,9 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	pct = math.Max(pct, 0.0)
 	return float32(pct)
 }
+
+// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
+// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+func (p *ProcessCheck) useWLMCollection() bool {
+	return p.config.GetBool("process_config.process_collection.use_wlm")
+}

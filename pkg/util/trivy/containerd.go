@@ -258,13 +258,14 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		return nil, fmt.Errorf("unable to get a lease, err: %w", err)
 	}
 
+	fakeContainer, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
+	if err != nil {
+		return nil, err
+	}
+
 	report, err := c.scanOverlayFS(ctx, layers, &fakeContainerdContainer{
-		image: fanalImage,
-		fakeContainer: &fakeContainer{
-			layerPaths: layers,
-			imgMeta:    imgMeta,
-			layerIDs:   fanalImage.inspect.RootFS.Layers,
-		},
+		image:         fanalImage,
+		fakeContainer: fakeContainer,
 	}, imgMeta, scanOptions)
 
 	if err := done(ctx); err != nil {

@@ -23,6 +23,13 @@ typedef struct {
     __u64 ptr;
 } interface_t;
 
+// equivalent to unsafe.SliceHeader.
+typedef struct {
+    __u64 ptr;
+    __u64 len;
+    __u64 cap;
+} slice_t;
+
 typedef struct {
     __u64 runtime_g_tls_addr_offset;
     __u64 goroutine_id_offset;
@@ -35,8 +42,17 @@ typedef struct {
     __u64 tcp_conn_inner_conn_offset;
     __u64 limited_conn_inner_conn_offset;
     __u64 conn_fd_offset;
-    __u64 net_fd_pfd_offset;
-    __u64 fd_sysfd_offset;
+
+    // Offset of the field `family` in `netFD` struct.
+    __u64 conn_fd_family_offset;
+    // Offset of the field `laddr` in `netFD` struct.
+    __u64 conn_fd_laddr_offset;
+    // Offset of the field `raddr` in `netFD` struct.
+    __u64 conn_fd_raddr_offset;
+    // Offset of the field `port` in `net.TCPAddr` struct.
+    __u64 tcp_addr_port_offset;
+    // Offset of the field `ip` in `net.TCPAddr` struct.
+    __u64 tcp_addr_ip_offset;
 } tls_conn_layout_t;
 
 typedef struct {

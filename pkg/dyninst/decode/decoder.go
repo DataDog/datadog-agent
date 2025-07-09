@@ -30,7 +30,6 @@ type probeEvent struct {
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
 	program               *ir.Program
-	symbolicator          symbol.Symbolicator
 	stackFrames           map[uint64][]symbol.StackFrame
 	probeEvents           map[ir.TypeID]probeEvent
 	snapshotMessage       snapshotMessage
@@ -40,7 +39,6 @@ type Decoder struct {
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
-	symbolicator symbol.Symbolicator,
 ) (*Decoder, error) {
 	decoder := &Decoder{
 		addressReferenceCount: make(map[typeAndAddr]output.DataItem),
@@ -54,7 +52,6 @@ func NewDecoder(
 				Method: "",
 			},
 		},
-		symbolicator: symbolicator,
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -75,13 +72,18 @@ type typeAndAddr struct {
 }
 
 // Decode decodes the output Event from the BPF program into a JSON format to the specified output writer.
-func (d *Decoder) Decode(event Event, out io.Writer) error {
-	err := d.snapshotMessage.init(d, event)
+func (d *Decoder) Decode(
+	event Event,
+	symbolicator symbol.Symbolicator,
+	out io.Writer,
+) (probe ir.ProbeDefinition, err error) {
+	probe, err = d.snapshotMessage.init(d, event, symbolicator)
 	if err != nil {
-		return fmt.Errorf("could not decode event: %w", err)
+		return nil, err
 	}
 	defer d.snapshotMessage.clear()
-	return json.MarshalWrite(out, &d.snapshotMessage)
+	err = json.MarshalWrite(out, &d.snapshotMessage)
+	return probe, err
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
@@ -92,15 +94,20 @@ type Event struct {
 }
 
 type snapshotMessage struct {
-	Service  string       `json:"service"`
-	DDSource string       `json:"ddsource"`
-	Logger   logger       `json:"logger"`
-	Debugger debuggerData `json:"debugger"`
+	Service   string       `json:"service"`
+	DDSource  string       `json:"ddsource"`
+	Logger    logger       `json:"logger"`
+	Debugger  debuggerData `json:"debugger"`
+	Timestamp int          `json:"timestamp"`
 
 	rootData []byte
 }
 
-func (s *snapshotMessage) init(decoder *Decoder, event Event) error {
+func (s *snapshotMessage) init(
+	decoder *Decoder,
+	event Event,
+	symbolicator symbol.Symbolicator,
+) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
 	s.Debugger.Snapshot = snapshotData{
 		decoder:  decoder,
@@ -112,14 +119,14 @@ func (s *snapshotMessage) init(decoder *Decoder, event Event) error {
 
 	for item, err := range event.Event.DataItems() {
 		if err != nil {
-			return fmt.Errorf("error getting data items: %w", err)
+			return nil, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
 			s.rootData = item.Data()
 			var ok bool
 			rootType, ok = decoder.program.Types[ir.TypeID(item.Header().Type)].(*ir.EventRootType)
 			if !ok {
-				return errors.New("expected event of type root first")
+				return nil, errors.New("expected event of type root first")
 			}
 			continue
 		}
@@ -137,7 +144,7 @@ func (s *snapshotMessage) init(decoder *Decoder, event Event) error {
 	}
 
 	if rootType == nil {
-		return errors.New("no root type found")
+		return nil, errors.New("no root type found")
 	}
 	var (
 		pcs []uint64
@@ -145,36 +152,39 @@ func (s *snapshotMessage) init(decoder *Decoder, event Event) error {
 	)
 	header, err := event.Event.Header()
 	if err != nil {
-		return fmt.Errorf("error getting header %w", err)
+		return nil, fmt.Errorf("error getting header %w", err)
 	}
 	// TODO: resolve value from header.Ktime_ns to wall time
-	s.Debugger.Snapshot.Timestamp = int(time.Now().UnixMilli())
+	s.Debugger.Snapshot.Timestamp = int(time.Now().UTC().UnixMilli())
+	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
 	stackFrames, ok := decoder.stackFrames[header.Stack_hash]
 	if !ok {
 		pcs, err = event.StackPCs()
 		if err != nil {
-			return fmt.Errorf("error getting stack pcs %w", err)
+			return nil, fmt.Errorf("error getting stack pcs %w", err)
 		}
-		stackFrames, err = decoder.symbolicator.Symbolicate(pcs, header.Stack_hash)
+		stackFrames, err = symbolicator.Symbolicate(pcs, header.Stack_hash)
 		if err != nil {
-			return fmt.Errorf("error symbolicating stack %w", err)
+			return nil, fmt.Errorf("error symbolicating stack %w", err)
 		}
 		decoder.stackFrames[header.Stack_hash] = stackFrames
 	}
 
 	probe, ok := decoder.probeEvents[rootType.ID]
 	if !ok {
-		return fmt.Errorf("error getting probe %w", err)
+		return nil, fmt.Errorf("error getting probe %w", err)
 	}
 	switch where := probe.probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
+		s.Logger.Method = where.Location()
 	default:
-		return errors.New("probe is not on a supported location")
+		return nil, errors.New("probe is not on a supported location")
 	}
 
 	s.Logger.Version = probe.probe.GetVersion()
+	s.Debugger.Snapshot.Probe.ID = probe.probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	s.Debugger.Snapshot.Probe.ID = probe.probe.GetID()
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
@@ -183,7 +193,7 @@ func (s *snapshotMessage) init(decoder *Decoder, event Event) error {
 		rootData: s.rootData,
 		decoder:  decoder,
 	}
-	return nil
+	return probe.probe, nil
 }
 
 func (s *snapshotMessage) clear() {

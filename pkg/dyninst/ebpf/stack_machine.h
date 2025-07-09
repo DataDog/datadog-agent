@@ -790,15 +790,17 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_PROCESS_SLICE_DATA_REPEAT: {
     uint32_t elem_byte_len = sm_read_program_uint32(sm);
     sm->offset += elem_byte_len;
-    if (sm->data_stack_pointer == 0) {
-      LOG(2, "unexpected empty data stack during slice iteration");
+    uint32_t sp = *(volatile uint32_t *)&sm->data_stack_pointer;
+    uint32_t stack_idx = sp - 1;
+    if (stack_idx >= ENQUEUE_STACK_DEPTH) {
+      if (stack_idx + 1 == 0) {
+        LOG(2, "unexpected empty data stack during slice iteration");
+      } else {
+        LOG(2, "unexpected full data stack during slice iteration");
+      }
       return 1;
     }
-    if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
-      LOG(2, "unexpected full data stack during slice iteration");
-      return 1;
-    }
-    uint32_t* remaining =  &sm->data_stack[sm->data_stack_pointer-1];
+    uint32_t* remaining =  &sm->data_stack[stack_idx];
     LOG(4, "remaining: %d", *remaining);
     if (*remaining <= elem_byte_len) {
       // End of the slice.

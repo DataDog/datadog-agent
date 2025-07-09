@@ -6,6 +6,17 @@
 // Package tags contains the list of tags that are added by the tagger
 package tags
 
+// *************************************************************************************
+// *                               ⚠️ IMPORTANT WARNING ⚠️
+// *
+// *  When adding, modifying, or removing ANY tag constant in this file, you MUST
+// *  also update the corresponding public documentation at the following locations:
+// *
+// *  # Kubernetes: https://docs.datadoghq.com/containers/kubernetes/tag
+// *  # ECS:        https://docs.datadoghq.com/containers/amazon_ecs/tags/
+// *  # Docker:     https://docs.datadoghq.com/containers/docker/tags/
+// *************************************************************************************
+
 const (
 	// STANDARD TAGS
 

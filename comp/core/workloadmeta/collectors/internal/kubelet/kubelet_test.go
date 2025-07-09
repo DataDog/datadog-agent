@@ -122,7 +122,10 @@ func TestPodParser(t *testing.T) {
 	}
 
 	events := parsePods(referencePod, true)
-	containerEvent, ephemeralContainerEvent, podEvent := events[0], events[1], events[2]
+	parsedEntities := make([]workloadmeta.Entity, 0, len(events))
+	for _, event := range events {
+		parsedEntities = append(parsedEntities, event.Entity)
+	}
 
 	expectedContainer := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -248,7 +251,7 @@ func TestPodParser(t *testing.T) {
 		QOSClass:                   "Guaranteed",
 	}
 
-	assert.Equal(t, expectedPod, podEvent.Entity)
-	assert.Equal(t, expectedContainer, containerEvent.Entity)
-	assert.Equal(t, expectedEphemeralContainer, ephemeralContainerEvent.Entity)
+	expectedEntities := []workloadmeta.Entity{expectedContainer, expectedEphemeralContainer, expectedPod}
+
+	assert.ElementsMatch(t, expectedEntities, parsedEntities)
 }
