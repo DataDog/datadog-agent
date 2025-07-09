@@ -7,7 +7,7 @@ pub fn to_cstring(string: &String) -> *mut c_char {
 
 pub fn to_cstring_array(vec: &[String]) -> *mut *mut c_char {
     let mut c_vec: Vec<*mut c_char> = vec.iter().map(|s| to_cstring(s)).collect();
-    c_vec.push(std::ptr::null_mut());
+    c_vec.push(std::ptr::null_mut()); // null-terminate the array
 
     let vec_ptr = c_vec.as_mut_ptr();
     std::mem::forget(c_vec);
@@ -28,8 +28,8 @@ pub enum MetricType {
 }
 
 // this is the structure that is returned to RTLoader
-// it contains the same fields as Metric but in a C-compatible format
-// later we could have a Rust Payload struct, and Metric will have a Vec<Payload> field to send multiple metrics at once
+// it contains the same fields as AgentCheck but in a C-compatible format
+// later we could have a Rust Payload struct, and AgentCheck will have a Vec<Payload> field to send multiple metrics at once
 #[repr(C)]
 pub struct Payload {
     name: *mut c_char,
@@ -54,15 +54,15 @@ impl Payload {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn FreePayload(ptr: *mut Payload) {
+pub extern "C" fn Free(ptr: *mut Payload) {
     if !ptr.is_null() {
         unsafe { 
-            drop(Box::from_raw(ptr)); // TODO: drop fields inside Payload
+            drop(Box::from_raw(ptr)); // TODO: also drop fields inside Payload to avoid leaks
         }
     }
 }
 
-pub struct Metric {
+pub struct AgentCheck {
     name: String,
     metric_type: MetricType,
     value: f64,
@@ -70,11 +70,11 @@ pub struct Metric {
     hostname: String,
 }
 
-impl Metric {
+impl AgentCheck {
     // default check constructor
     // default field values should be changed by any methods that create metric like gauge, rate, etc. before sending the payload
     pub fn new() -> Self {
-        Metric {
+        AgentCheck {
             name: String::from(""),
             metric_type: MetricType::Gauge,
             value: 0.0,
@@ -93,6 +93,7 @@ impl Metric {
         self.hostname = hostname;
     }
 
+    // TODO: use Into<String> trait to allow passing any type of string that can be converted to String ???
     pub fn gauge(&mut self, name: String, value: f64, tags: Vec<String>, hostname: String) {
         self.set_metric_info(name, MetricType::Gauge, value, tags, hostname);
     }

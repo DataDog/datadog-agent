@@ -193,7 +193,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     const char *dlsym_error = NULL;
 
     // dlsym run_check function to get the metric run the custom check and get the payload
-    so_run_check_t *so_run_check = (so_run_check_t *)dlsym(lib_handle, "RunCheck");
+    so_run_check_t *so_run_check = (so_run_check_t *)dlsym(lib_handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
@@ -205,7 +205,7 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
     // dlsym free_payload function to avoid memory leaks
     // this function pointer is declared here because we don't want the check to run
     // if all required symbols haven't been found
-    so_free_payload_t *so_free_payload = (so_free_payload_t *)dlsym(lib_handle, "FreePayload");
+    so_free_payload_t *so_free_payload = (so_free_payload_t *)dlsym(lib_handle, "Free");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
@@ -236,7 +236,7 @@ void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_pay
     }
 
     // run the shared library check and check the returned payload`
-    payload_t *payload = run_function();
+    payload_t *payload = run_function();    
     if (!payload) {
         std::ostringstream err_msg;
         err_msg << "Payload returned by shared library is null: " << dlerror();

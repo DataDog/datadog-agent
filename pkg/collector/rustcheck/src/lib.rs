@@ -1,10 +1,10 @@
-mod metric;
-use metric::{Metric, Payload};
+mod base;
+use base::{AgentCheck, Payload};
 
 // function executed by RTLoader
 #[unsafe(no_mangle)]
-pub extern "C" fn RunCheck() -> *mut Payload {
-    let mut check = Metric::new();
+pub extern "C" fn Run() -> *mut Payload {
+    let mut check = AgentCheck::new();
 
     // run the custom implementation
     check.check();
@@ -14,10 +14,10 @@ pub extern "C" fn RunCheck() -> *mut Payload {
 }
 
 // custom check implementation
-impl Metric {
+impl AgentCheck {
     pub fn check(&mut self) {
         /* check implementation goes here */
-        
+
         let name = String::from("so.metric");
         let value = 3.14;
         let tags = vec![String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing")];
