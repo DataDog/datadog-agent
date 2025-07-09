@@ -105,7 +105,6 @@ type remoteAgentRegistry struct {
 
 type settingsUpdates struct {
 	setting    string
-	oldValue   interface{}
 	newValue   interface{}
 	sequenceID uint64
 }
@@ -196,10 +195,9 @@ func (ra *remoteAgentRegistry) registerCollector() {
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
 	ra.registerCollector()
-	ra.conf.OnUpdate(func(setting string, oldValue interface{}, newValue interface{}, sequenceID uint64) {
+	ra.conf.OnUpdate(func(setting string, _ interface{}, newValue interface{}, sequenceID uint64) {
 		ra.configEventsChan <- &settingsUpdates{
 			setting:    setting,
-			oldValue:   oldValue,
 			newValue:   newValue,
 			sequenceID: sequenceID,
 		}
