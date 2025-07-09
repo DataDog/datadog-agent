@@ -106,6 +106,8 @@ func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
+// Pipeline represents a data processing pipeline that filters series and marks
+// them for a specific destination
 type Pipeline struct {
 	FilterFunc  func(s *metrics.Serie) bool
 	Destination transaction.Destination
@@ -160,7 +162,7 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 		}
 	}
 
-	payloads := make([]*transaction.BytesPayload, len(pbs))
+	payloads := make([]*transaction.BytesPayload, 0, len(pbs))
 	for _, pb := range pbs {
 		payloads = append(payloads, pb.payloads...)
 	}
@@ -634,4 +636,36 @@ func encodePoints(points []metrics.Point, stream *jsoniter.Stream) {
 		stream.WriteArrayEnd()
 	}
 	stream.WriteArrayEnd()
+}
+
+// MarshalSplitCompress is a convenience method that provides a simple API for
+// marshaling and compressing series payloads. It uses the pipeline system
+// internally with a single pipeline that accepts all series.
+func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (transaction.BytesPayloads, error) {
+	// Create a single PayloadsBuilder using the provided buffer context
+	pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
+	if err != nil {
+		return nil, err
+	}
+
+	err = pb.startPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	// Use series.source.MoveNext() instead of series.MoveNext() to support NoIndex field
+	for series.source.MoveNext() {
+		err := pb.writeSerie(series.source.Current())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Finish the payload
+	err = pb.finishPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	return pb.payloads, nil
 }

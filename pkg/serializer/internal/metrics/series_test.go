@@ -463,22 +463,48 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 				}
 				rawSeries = append(rawSeries, &point)
 			}
-			series := CreateIterableSeries(CreateSerieSource(rawSeries))
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, filteredPayloads, autoscalingFailoverPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressor,
-				func(s *metrics.Serie) bool {
-					return s.Name == "test.metrics42"
+
+			// Create pipelines with different destinations for each type
+			pipelines := []Pipeline{
+				{
+					// Regular series (not filtered by either filter function)
+					FilterFunc: func(s *metrics.Serie) bool {
+						return true
+					},
+					Destination: transaction.AllRegions,
 				},
-				func(s *metrics.Serie) bool {
-					return s.Name == "test.metrics99" || s.Name == "test.metrics98"
+				{
+					// Filtered series (name == "test.metrics42")
+					FilterFunc: func(s *metrics.Serie) bool {
+						return s.Name == "test.metrics42"
+					},
+					Destination: transaction.PrimaryOnly,
 				},
-			)
+			}
+
+			// Run all pipelines in a single pass
+			series := CreateIterableSeries(CreateSerieSource(rawSeries))
+			allPayloads, err := series.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines)
 			require.NoError(t, err)
-			require.Equal(t, 5, len(payloads))
+
+			// Partition payloads by destination
+			regularPayloads := make([]*transaction.BytesPayload, 0)
+			filteredPayloads := make([]*transaction.BytesPayload, 0)
+
+			for _, payload := range allPayloads {
+				switch payload.Destination {
+				case transaction.AllRegions:
+					regularPayloads = append(regularPayloads, payload)
+				case transaction.PrimaryOnly:
+					filteredPayloads = append(filteredPayloads, payload)
+				}
+			}
+
+			require.Equal(t, 5, len(regularPayloads))
 			// only one serie should be present in the filtered payload, so 5 total points, which fits in one payload
 			require.Equal(t, 1, len(filteredPayloads))
-			require.Equal(t, 1, len(autoscalingFailoverPayloads))
 		})
 	}
 }
