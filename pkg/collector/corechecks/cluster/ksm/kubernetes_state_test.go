@@ -1436,57 +1436,57 @@ func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 		conf                    map[string]map[string]string
 		extra                   map[string]map[string]string
 		shouldTransformResource bool
-		isNodeAgent            bool
+		isNodeAgent             bool
 		expected                map[string]map[string]string
 	}{
 		{
-			name:     "nominal",
-			conf:     make(map[string]map[string]string),
-			extra:    defaultAnnotationsAsTags(),
+			name:        "nominal",
+			conf:        make(map[string]map[string]string),
+			extra:       defaultAnnotationsAsTags(),
 			isNodeAgent: false,
-			expected: defaultAnnotationsAsTags(),
+			expected:    defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "nil conf",
-			conf:     nil,
-			extra:    defaultAnnotationsAsTags(),
+			name:        "nil conf",
+			conf:        nil,
+			extra:       defaultAnnotationsAsTags(),
 			isNodeAgent: false,
-			expected: defaultAnnotationsAsTags(),
+			expected:    defaultAnnotationsAsTags(),
 		},
 		{
-			name:     "collision",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			name:        "collision",
+			conf:        map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:       map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
 			isNodeAgent: false,
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
+			expected:    map[string]map[string]string{"pod": {"common_key": "in_val", "foo": "bar"}},
 		},
 		{
-			name:     "no collision",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
+			name:        "no collision",
+			conf:        map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:       map[string]map[string]string{"deployment": {"common_key": "extra_val", "foo": "bar"}},
 			isNodeAgent: false,
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
+			expected:    map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"common_key": "extra_val", "foo": "bar"}},
 		},
 		{
-			name:     "nil extra",
-			conf:     map[string]map[string]string{"pod": {"common_key": "in_val"}},
-			extra:    nil,
+			name:        "nil extra",
+			conf:        map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			extra:       nil,
 			isNodeAgent: false,
-			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
+			expected:    map[string]map[string]string{"pod": {"common_key": "in_val"}},
 		},
 		{
-			name:     "conf nil values",
-			conf:     map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
-			extra:    defaultAnnotationsAsTags(),
+			name:        "conf nil values",
+			conf:        map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
+			extra:       defaultAnnotationsAsTags(),
 			isNodeAgent: false,
-			expected: defaultAnnotationsAsTags(),
+			expected:    defaultAnnotationsAsTags(),
 		},
 		{
 			name:                    "resource annotations as tags",
 			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}, "deployment": {"foo": "bar"}},
 			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"common_key": "some_val", "another_key": "another_value"}, "deployments.apps": {"foo": "another_bar", "fizz": "buzz"}},
 			shouldTransformResource: true,
-			isNodeAgent:            false,
+			isNodeAgent:             false,
 			expected:                map[string]map[string]string{"pod": {"common_key": "in_val", "another_key": "another_value"}, "endpoint": {"foo": "bar"}, "daemonset": {"fizz": "buzz"}, "deployment": {"foo": "bar", "fizz": "buzz"}},
 		},
 		{
@@ -1494,7 +1494,7 @@ func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
 			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"another_key": "another_value"}},
 			shouldTransformResource: true,
-			isNodeAgent:            true,
+			isNodeAgent:             true,
 			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}, "endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}, "pods": {"another_key": "another_value"}},
 		},
 		{
@@ -1502,7 +1502,7 @@ func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
 			conf:                    map[string]map[string]string{"pod": {"common_key": "in_val"}},
 			extra:                   map[string]map[string]string{"endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}},
 			shouldTransformResource: false,
-			isNodeAgent:            true,
+			isNodeAgent:             true,
 			expected:                map[string]map[string]string{"pod": {"common_key": "in_val"}, "endpoints": {"foo": "bar"}, "daemonsets.apps": {"fizz": "buzz"}},
 		},
 	}
