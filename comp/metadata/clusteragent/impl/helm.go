@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -129,29 +128,29 @@ func retrieveHelmValues(ctx context.Context) ([]byte, error) {
 	// Decode and decompress
 	decoded, err := base64.StdEncoding.DecodeString(cm.Data["release"])
 	if err != nil {
-		log.Fatalf("Base64 decode error: %v", err)
+		return nil, fmt.Errorf("Base64 decode error: %v", err)
 	}
 
 	gr, err := gzip.NewReader(bytes.NewReader(decoded))
 	if err != nil {
-		log.Fatalf("Gzip decompression error: %v", err)
+		return nil, fmt.Errorf("Gzip decompression error: %v", err)
 	}
 	defer gr.Close()
 
 	var decompressed bytes.Buffer
 	_, err = io.Copy(&decompressed, gr)
 	if err != nil {
-		log.Fatalf("GZIP read error: %v", err)
+		return nil, fmt.Errorf("GZIP read error: %v", err)
 	}
 
 	var release HelmReleaseMinimal
 	if err := json.Unmarshal(decompressed.Bytes(), &release); err != nil {
-		log.Fatalf("Unmarshal error: %v", err)
+		return nil, fmt.Errorf("Unmarshal error: %v", err)
 	}
 
 	valuesYAML, err := yaml.Marshal(release.Config)
 	if err != nil {
-		log.Fatalf("YAML marshal error: %v", err)
+		return nil, fmt.Errorf("YAML marshal error: %v", err)
 	}
 
 	return valuesYAML, nil
