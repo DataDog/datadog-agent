@@ -60,17 +60,13 @@ func (pk *processKey) String() string {
 	if pk.tenantID == 0 {
 		return pk.ProcessID.String()
 	}
-	if pk.Service == "" {
-		return fmt.Sprintf("{PID:%v,Ten:%v}", pk.PID, pk.tenantID)
-	}
-	return fmt.Sprintf("{PID:%v,Ten:%v,Svc:%v}", pk.PID, pk.tenantID, pk.Service)
+	return fmt.Sprintf("{PID:%v,Ten:%v}", pk.PID, pk.tenantID)
 }
 
 func (pk processKey) cmp(other processKey) int {
 	return cmp.Or(
 		cmp.Compare(pk.tenantID, other.tenantID),
 		cmp.Compare(pk.PID, other.PID),
-		cmp.Compare(pk.Service, other.Service),
 	)
 }
 

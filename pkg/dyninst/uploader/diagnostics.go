@@ -16,12 +16,14 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"time"
 )
 
 // DiagnosticMessage is the message sent to the DataDog backend conveying diagnostic information
 type DiagnosticMessage struct {
-	Service  string         `json:"service"`
-	DDSource debuggerSource `json:"ddsource"`
+	Service   string         `json:"service"`
+	DDSource  debuggerSource `json:"ddsource"`
+	Timestamp int64          `json:"timestamp"`
 
 	Debugger struct {
 		Diagnostic `json:"diagnostics"`
@@ -61,9 +63,10 @@ const (
 
 // Diagnostic contains fields relevant for conveying the status of a probe
 type Diagnostic struct {
-	RuntimeID string `json:"runtimeId"`
-	ProbeID   string `json:"probeId"`
-	Status    Status `json:"status"`
+	RuntimeID    string `json:"runtimeId"`
+	ProbeID      string `json:"probeId"`
+	Status       Status `json:"status"`
+	ProbeVersion int    `json:"probeVersion,omitempty"`
 
 	*DiagnosticException `json:"exception,omitempty"`
 }
@@ -93,6 +96,7 @@ func NewDiagnosticsUploader(opts ...Option) *DiagnosticsUploader {
 
 // Enqueue adds a message to the uploader's queue.
 func (u *DiagnosticsUploader) Enqueue(diag *DiagnosticMessage) error {
+	diag.Timestamp = time.Now().UnixMilli()
 	data, err := json.Marshal(diag)
 	if err != nil {
 		return err

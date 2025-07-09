@@ -306,7 +306,6 @@ func (pts *propertyTestState) existingProcesses() []processKey {
 		return cmp.Or(
 			cmp.Compare(a.tenantID, b.tenantID),
 			cmp.Compare(a.PID, b.PID),
-			cmp.Compare(a.Service, b.Service),
 		)
 	})
 	return existingProcesses
