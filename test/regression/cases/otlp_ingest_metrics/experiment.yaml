@@ -4,20 +4,11 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 7.5 GiB
+  memory_allotment: 2GiB
 
   environment:
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
-    # Enable the built-in OTLP receiver
-    DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT: 0.0.0.0:4317
-    DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: 0.0.0.0:4318
-    # Configure metrics
-    DD_OTLP_CONFIG_METRICS_ENABLED: true
-    DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS: true
-    DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS: true
-    # Disable DDOT to ensure we use built-in OTLP
-    DD_OTELCOLLECTOR_ENABLED: false
 
   profiling_environment:
     # internal profiling
@@ -28,7 +19,7 @@ target:
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
     # destination
     DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
-
+    
     # tags
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:otlp_ingest_metrics
     DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:otlp_ingest_metrics
