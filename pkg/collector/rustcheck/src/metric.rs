@@ -73,27 +73,28 @@ pub struct Metric {
 impl Metric {
     // default check constructor
     // default field values should be changed by any methods that create metric like gauge, rate, etc. before sending the payload
-    pub fn new(hostname: &str) -> Self {
+    pub fn new() -> Self {
         Metric {
             name: String::from(""),
             metric_type: MetricType::Gauge,
             value: 0.0,
             tags: Vec::new(),
-            hostname: hostname.to_string(),
+            hostname: String::from(""),
         }
     }
 
     // method used to modify fields beside hostname which is not meant to change
     // used by every methods that can send a payload
-    fn set_metric_info(&mut self, name: String, metric_type: MetricType, value: f64, tags: Vec<String>) {
+    fn set_metric_info(&mut self, name: String, metric_type: MetricType, value: f64, tags: Vec<String>, hostname: String) {
         self.name = name;
         self.metric_type = metric_type;
         self.value = value;
         self.tags = tags;
+        self.hostname = hostname;
     }
 
-    pub fn gauge(&mut self, name: &str, value: f64, tags: Vec<String>) {
-        self.set_metric_info(name.to_string(), MetricType::Gauge, value, tags);
+    pub fn gauge(&mut self, name: String, value: f64, tags: Vec<String>, hostname: String) {
+        self.set_metric_info(name, MetricType::Gauge, value, tags, hostname);
     }
 
     pub fn send_payload(&self) -> *mut Payload {

@@ -4,7 +4,7 @@ use metric::{Metric, Payload};
 // function executed by RTLoader
 #[unsafe(no_mangle)]
 pub extern "C" fn RunCheck() -> *mut Payload {
-    let mut check = Metric::new("UNUSED"); // hostname field not used yet
+    let mut check = Metric::new();
 
     // run the custom implementation
     check.check();
@@ -17,7 +17,12 @@ pub extern "C" fn RunCheck() -> *mut Payload {
 impl Metric {
     pub fn check(&mut self) {
         /* check implementation goes here */
+        
+        let name = String::from("so.metric");
+        let value = 3.14;
+        let tags = vec![String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing")];
+        let hostname = String::from("");
 
-        self.gauge("so.metric", 3.14, vec!(String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing"), String::from("tag3:its-a-tag")));
+        self.gauge(name, value, tags, hostname);
     }
 }

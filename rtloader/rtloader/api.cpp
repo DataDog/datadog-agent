@@ -254,8 +254,7 @@ void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_pay
     tags[payload->tags_length] = NULL;
 
     // submit the payload returned by the shared library
-    // hostname is hardcoded, don't know yet if it's needed to have it in the signature
-    submit_metric(checkID, payload->metricType, payload->name, payload->value, tags, strdupe("COMP-KW702R60FR"), false);
+    submit_metric(checkID, payload->metricType, payload->name, payload->value, tags, payload->hostname, false);
 
     // free the payload after using it
     free_function(payload);
