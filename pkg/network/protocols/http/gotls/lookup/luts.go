@@ -205,3 +205,93 @@ func GetLimitListenerConn_NetConnOffset(version goversion.GoVersion, goarch stri
 		return 0, fmt.Errorf("unsupported architecture %q", goarch)
 	}
 }
+
+// GetNetFD_FamilyInOffset gets the offset of the "familyIn" field in the "net.netFD" struct
+func GetNetFD_FamilyInOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x38, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x38, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetNetFD_LaddrInOffset gets the offset of the "laddrIn" field in the "net.netFD" struct
+func GetNetFD_LaddrInOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x60, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x60, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetNetFD_RaddrInOffset gets the offset of the "raddrIn" field in the "net.netFD" struct
+func GetNetFD_RaddrInOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x70, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x70, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPAddr_PortOffset gets the offset of the "Port" field in the "net.TCPAddr" struct
+func GetTCPAddr_PortOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x18, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x18, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+// GetTCPAddr_IPOffset gets the offset of the "IP" field in the "net.TCPAddr" struct
+func GetTCPAddr_IPOffset(version goversion.GoVersion, goarch string) (uint64, error) {
+	switch goarch {
+	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x0, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
+			return 0x0, nil
+		}
+		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
+	default:
+		return 0, fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
