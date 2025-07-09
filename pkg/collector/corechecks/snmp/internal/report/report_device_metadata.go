@@ -662,7 +662,7 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 			Protocol:        devicemetadata.IPSec,
 			RouteAddresses:  []string{},
 			Options: devicemetadata.VPNTunnelOptions{
-				IPSecOptions: devicemetadata.IPsecOptions{
+				IPsecOptions: devicemetadata.IPsecOptions{
 					LifeSize: int32(lifeSize),
 					LifeTime: int32(lifeTime),
 				},

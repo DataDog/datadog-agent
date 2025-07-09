@@ -194,7 +194,7 @@ type VPNTunnelMetadata struct {
 
 // VPNTunnelOptions contains VPN tunnel options for each protocol
 type VPNTunnelOptions struct {
-	IPSecOptions IPsecOptions `json:"ipsec_options,omitempty"`
+	IPsecOptions IPsecOptions `json:"ipsec_options,omitempty"`
 }
 
 // IPsecOptions contains IPsec VPN tunnel options
