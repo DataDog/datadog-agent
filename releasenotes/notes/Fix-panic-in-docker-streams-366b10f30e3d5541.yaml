@@ -8,7 +8,4 @@
 ---
 fixes:
   - |
-    Fix panic if docker stream log message is truncated. 
-other:
-  - |
-    Fuzz tests introduced for the docker stream logs parser. 
+    Fix a panic in docker streams log parsing when stream messages are truncated on transmission.
