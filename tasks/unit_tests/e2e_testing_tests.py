@@ -3,6 +3,7 @@ import unittest
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
+from tasks.libs.testing.e2e import filter_only_leaf_tests
 from tasks.new_e2e_tests import post_process_output, pretty_print_logs, write_result_to_log_files
 
 
@@ -113,3 +114,54 @@ class TestWriteResultToLogFiles(unittest.TestCase):
 
             files = set(os.listdir(tmpdir))
             self.assertSetEqual(files, {'mypackage.garfield.log', 'mypackage.bd_tomtom.log', 'mypackage.bd_nana.log'})
+
+
+class TestFilterOnlyLeafTests(unittest.TestCase):
+    def test_basic(self):
+        tests = {
+            ("mypackage", "TestParent"),
+            ("mypackage", "TestParent/Child1"),
+            ("mypackage", "TestParent/Child2"),
+            ("mypackage", "TestParent/SubParent"),
+            ("mypackage", "TestParent/SubParent/GrandChild"),
+        }
+
+        leaf_tests = filter_only_leaf_tests(tests)
+        expected_leaf_tests = {
+            ("mypackage", "TestParent/Child1"),
+            ("mypackage", "TestParent/Child2"),
+            ("mypackage", "TestParent/SubParent/GrandChild"),
+        }
+        self.assertSetEqual(leaf_tests, expected_leaf_tests)
+
+    def test_multiple_packages(self):
+        tests = {
+            ("mypackage", "TestParent"),
+            ("mypackage", "TestParent/Child"),
+            ("otherpackage", "TestParent"),
+            ("otherpackage", "TestParent/Child"),
+        }
+        leaf_tests = filter_only_leaf_tests(tests)
+        expected_leaf_tests = {
+            ("mypackage", "TestParent/Child"),
+            ("otherpackage", "TestParent/Child"),
+        }
+        self.assertSetEqual(leaf_tests, expected_leaf_tests)
+
+    def test_deep_hierarchy(self):
+        tests = {
+            ("mypackage", "TestParent"),
+            ("mypackage", "TestParent/Child1"),
+            ("mypackage", "TestParent/Child1/GrandChild"),
+            ("mypackage", "TestParent/Child1/GrandChild/GrandGrandChild"),
+            ("mypackage", "TestParent/Child2"),
+            ("mypackage", "TestParent/Child3"),
+            ("mypackage", "TestParent/Child3/GrandChild"),
+        }
+        leaf_tests = filter_only_leaf_tests(tests)
+        expected_leaf_tests = {
+            ("mypackage", "TestParent/Child1/GrandChild/GrandGrandChild"),
+            ("mypackage", "TestParent/Child3/GrandChild"),
+            ("mypackage", "TestParent/Child2"),
+        }
+        self.assertSetEqual(leaf_tests, expected_leaf_tests)
