@@ -11,6 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
+from tasks.libs.common.download import download as _download
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
@@ -372,21 +373,25 @@ def debug_specific_quality_gate(ctx, gate_name):
 
 
 @task()
-def exception_threshold_bump(ctx):
+def exception_threshold_bump(ctx, pipelineId):
     """
     When a PR is exempt of static quality gates, they have to use this invoke task to adjust the quality gates thresholds accordingly to the exempted added size.
 
     Note: This invoke task must be run on a pipeline that has finished running static quality gates
     :param ctx:
+    :param pipelineId
     :return:
     """
     current_branch_name = get_current_branch(ctx)
     ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
+        curPipeline = repo.pipelines.get(pipelineId)
+        gateJobId = next(job.id for job in curPipeline.jobs.list() if job.name == "static_quality_gates")
+        gateJob = repo.jobs.get(id=gateJobId)
         with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
             try:
-                f.write(repo.artifacts.download(ref_name=current_branch_name, job="static_quality_gates"))
+                f.write(gateJob.artifacts())
             except gitlab.exceptions.GitlabGetError as e:
                 print(
                     color_message(
