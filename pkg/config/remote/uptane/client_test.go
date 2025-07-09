@@ -317,12 +317,106 @@ func TestOrgStore(t *testing.T) {
 	assert.Equal(t, "def", uuid)
 }
 
+func TestSequentialUpdateValid(t *testing.T) {
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	target3Content, target3 := generateTarget()
+
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+	targetFiles := []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}}
+
+	testRepository1 := newTestRepository(2, 1, configTargets, directorTargets, targetFiles)
+	cfg := newTestConfig(t, testRepository1)
+	db := getTestDB(t)
+
+	client1, err := newTestClient(db, cfg)
+	assert.NoError(t, err)
+	err = client1.Update(testRepository1.toUpdate())
+	fmt.Printf("%v+\n", testRepository1.toUpdate())
+	assert.NoError(t, err)
+
+	// No change
+	fmt.Println("No change")
+	err = client1.Update(testRepository1.toUpdate())
+	fmt.Printf("%v+\n", testRepository1.toUpdate())
+	assert.NoError(t, err)
+
+	// Update with a new version
+	fmt.Println("Incremental change")
+	configTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	directorTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	targetFiles = []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/3", Raw: target3Content}}
+
+	testRepository2 := testRepository1.incrementalChange(configTargets, directorTargets, targetFiles)
+	err = client1.Update(testRepository2.toUpdate())
+	fmt.Printf("%v+\n", testRepository2.toUpdate())
+	assert.NoError(t, err)
+}
+
+func TestKeyRotationWithDowngrade(t *testing.T) {
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	target3Content, target3 := generateTarget()
+
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+	targetFiles := []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}}
+
+	testRepository1 := newTestRepository(2, 10, configTargets, directorTargets, targetFiles)
+	cfg := newTestConfig(t, testRepository1)
+	db := getTestDB(t)
+
+	client1, err := newTestClient(db, cfg)
+	assert.NoError(t, err)
+	err = client1.Update(testRepository1.toUpdate())
+	fmt.Printf("%v+\n", testRepository1.toUpdate())
+	assert.NoError(t, err)
+
+	// Update with a downgraded director repo, but rotated director keys
+	fmt.Println("Incremental change")
+	configTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	directorTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	targetFiles = []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/3", Raw: target3Content}}
+
+	testRepository2 := testRepository1.keyRotationWithDowngrade(configTargets, directorTargets, targetFiles)
+	err = client1.Update(testRepository2.toUpdate())
+	fmt.Printf("%v+\n", testRepository2.toUpdate())
+	assert.NoError(t, err)
+}
+
 func generateKey() keys.Signer {
 	key, _ := keys.GenerateEd25519Key()
 	return key
 }
 
 type testRepositories struct {
+	snapshotOrgID int
+
 	configTimestampKey   keys.Signer
 	configTargetsKey     keys.Signer
 	configSnapshotKey    keys.Signer
@@ -353,15 +447,84 @@ type testRepositories struct {
 	targetFiles []*pbgo.File
 }
 
+func (r testRepositories) incrementalChange(configTargetFiles data.TargetFiles, directorTargetFiles data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+	r.configTimestampVersion += 1
+	r.configTargetsVersion += 1
+	r.configSnapshotVersion += 1
+	r.configRootVersion += 1
+
+	r.directorTimestampVersion += 1
+	r.directorTargetsVersion += 1
+	r.directorSnapshotVersion += 1
+	r.directorRootVersion += 1
+
+	prevConfigRootKey := r.configRootKey
+	r.configRootKey = generateKey()
+	r.configRoot = generateRoot(r.configRootKey, r.configRootVersion, r.configTimestampKey, r.configTargetsKey, r.configSnapshotKey, prevConfigRootKey)
+	r.configTargets = generateTargets(r.configTargetsKey, r.configTargetsVersion, configTargetFiles)
+	r.configSnapshot = generateSnapshot(r.snapshotOrgID, r.configSnapshotKey, r.configSnapshotVersion, r.configTargetsVersion)
+	r.configTimestamp = generateTimestamp(r.configTimestampKey, r.configTimestampVersion, r.configSnapshotVersion, r.configSnapshot)
+
+	prevDirectorRootKey := r.directorRootKey
+	r.directorRootKey = generateKey()
+	r.directorRoot = generateRoot(r.directorRootKey, r.directorRootVersion, r.directorTimestampKey, r.directorTargetsKey, r.directorSnapshotKey, prevDirectorRootKey)
+	r.directorTargets = generateTargets(r.directorTargetsKey, r.directorTargetsVersion, directorTargetFiles)
+	r.directorSnapshot = generateSnapshot(r.snapshotOrgID, r.directorSnapshotKey, r.directorSnapshotVersion, r.directorTargetsVersion)
+	r.directorTimestamp = generateTimestamp(r.directorTimestampKey, r.directorTimestampVersion, r.directorSnapshotVersion, r.directorSnapshot)
+
+	r.targetFiles = targetFiles
+	return r
+}
+
+func (r testRepositories) keyRotationWithDowngrade(configTargetFiles data.TargetFiles, directorTargetFiles data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+	// Increment the config versions
+	r.configTimestampVersion += 1
+	r.configTargetsVersion += 1
+	r.configSnapshotVersion += 1
+	r.configRootVersion += 1
+
+	// Downgrade the director versions
+	r.directorTimestampVersion -= 1
+	r.directorTargetsVersion -= 1
+	r.directorSnapshotVersion -= 1
+	r.directorRootVersion -= 1
+
+	prevConfigRootKey := r.configRootKey
+	r.configRootKey = generateKey()
+	r.configRoot = generateRoot(r.configRootKey, r.configRootVersion, r.configTimestampKey, r.configTargetsKey, r.configSnapshotKey, prevConfigRootKey)
+	r.configTargets = generateTargets(r.configTargetsKey, r.configTargetsVersion, configTargetFiles)
+	r.configSnapshot = generateSnapshot(r.snapshotOrgID, r.configSnapshotKey, r.configSnapshotVersion, r.configTargetsVersion)
+	r.configTimestamp = generateTimestamp(r.configTimestampKey, r.configTimestampVersion, r.configSnapshotVersion, r.configSnapshot)
+
+	// rotate director keys
+	prevDirectorRootKey := r.directorRootKey
+	r.directorRootKey = generateKey()
+
+	directorTargetSnapshotDirectorKey := generateKey()
+	r.directorTargetsKey = directorTargetSnapshotDirectorKey
+	r.directorTimestampKey = directorTargetSnapshotDirectorKey
+	r.directorSnapshotKey = directorTargetSnapshotDirectorKey
+
+	r.directorRoot = generateRoot(r.directorRootKey, r.directorRootVersion, r.directorTimestampKey, r.directorTargetsKey, r.directorSnapshotKey, prevDirectorRootKey)
+	r.directorTargets = generateTargets(r.directorTargetsKey, r.directorTargetsVersion, directorTargetFiles)
+	r.directorSnapshot = generateSnapshot(r.snapshotOrgID, r.directorSnapshotKey, r.directorSnapshotVersion, r.directorTargetsVersion)
+	r.directorTimestamp = generateTimestamp(r.directorTimestampKey, r.directorTimestampVersion, r.directorSnapshotVersion, r.directorSnapshot)
+
+	r.targetFiles = targetFiles
+	return r
+}
+
 func newTestRepository(snapshotOrgID int, version int64, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+	directorTimestampSnapshotTargetKey := generateKey()
 	repos := testRepositories{
+		snapshotOrgID:        snapshotOrgID,
 		configTimestampKey:   generateKey(),
 		configTargetsKey:     generateKey(),
 		configSnapshotKey:    generateKey(),
 		configRootKey:        generateKey(),
-		directorTimestampKey: generateKey(),
-		directorTargetsKey:   generateKey(),
-		directorSnapshotKey:  generateKey(),
+		directorTimestampKey: directorTimestampSnapshotTargetKey,
+		directorTargetsKey:   directorTimestampSnapshotTargetKey,
+		directorSnapshotKey:  directorTimestampSnapshotTargetKey,
 		directorRootKey:      generateKey(),
 		targetFiles:          targetFiles,
 	}

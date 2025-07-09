@@ -5,10 +5,7 @@
     "products": ["TESTING1"],
     "version": "e2e-client-version",
     "state": {
-      "root_version": 1,
-      "targets_version": 10,
-      "has_error": true,
-      "error": ".NET beep boop bop boop"
+      "root_version": 1
     },
     "is_tracer": true,
     "client_tracer": {
