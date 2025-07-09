@@ -342,54 +342,62 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API && s.enableJSONStream {
-		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
-	} else if useV1API && !s.enableJSONStream {
-		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
-	} else {
-		failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-		failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-		failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-		if failoverActive {
-			var filtered transaction.BytesPayloads
-			var localAutoscalingFaioverPayloads transaction.BytesPayloads
-			seriesBytesPayloads, filtered, localAutoscalingFaioverPayloads, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy,
-				func(s *metrics.Serie) bool { // Filter for MRF
-					_, allowed := allowlistForMRF[s.Name]
-					return allowed
-				},
-				func(s *metrics.Serie) bool { // Filter for Autoscaling
-					_, allowed := allowlistForAutoscaling[s.Name]
-					return allowed
-				})
-
-			for _, seriesBytesPayload := range seriesBytesPayloads {
-				seriesBytesPayload.Destination = transaction.PrimaryOnly
-			}
-			for _, seriesBytesPayload := range filtered {
-				seriesBytesPayload.Destination = transaction.SecondaryOnly
-			}
-			for _, seriesBytesPayload := range localAutoscalingFaioverPayloads {
-				seriesBytesPayload.Destination = transaction.LocalOnly
-			}
-			seriesBytesPayloads = append(seriesBytesPayloads, filtered...)
-			seriesBytesPayloads = append(seriesBytesPayloads, localAutoscalingFaioverPayloads...)
+	if useV1API {
+		if s.enableJSONStream {
+			seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 		} else {
-			seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
-			for _, seriesBytesPayload := range seriesBytesPayloads {
-				seriesBytesPayload.Destination = transaction.AllRegions
-			}
+			seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 		}
-		extraHeaders = s.protobufExtraHeadersWithCompression
+		if err != nil {
+			return fmt.Errorf("dropping series payload: %s", err)
+		}
+		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
+
+	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
+	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
+	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
+	pipelines := make([]metricsserializer.Pipeline, 0, 3)
+	if failoverActive {
+		// Default behavior, primary region only
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc:  func(series *metrics.Serie) bool { return true },
+			Destination: transaction.PrimaryOnly,
+		})
+
+		// Filter for MRF
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(s *metrics.Serie) bool {
+				_, allowed := allowlistForMRF[s.Name]
+				return allowed
+			},
+			Destination: transaction.SecondaryOnly,
+		})
+
+		// Filter for Autoscaling
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(s *metrics.Serie) bool {
+				_, allowed := allowlistForAutoscaling[s.Name]
+				return allowed
+			},
+			Destination: transaction.LocalOnly,
+		})
+	} else {
+		// Default behavior, all regions
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc:  func(series *metrics.Serie) bool { return true },
+			Destination: transaction.AllRegions,
+		})
+	}
+
+
+	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
+	extraHeaders = s.protobufExtraHeadersWithCompression
 
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	if useV1API {
-		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
-	}
 	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
 }
 
