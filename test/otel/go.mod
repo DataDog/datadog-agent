@@ -1,18 +1,18 @@
 module github.com/DataDog/datadog-agent/test/otel
 
-go 1.23.0
+go 1.24.0
 
-toolchain go1.23.6
+toolchain go1.24.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.67.0
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.61.0
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.62.0-devel.0.20241213165407-f95df913d2b7
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.61.0
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.61.0
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.12
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.64.0-rc.12
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.64.0-devel.0.20250218192636-64fdfe7ec366
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.64.0-rc.12
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/config/model v0.67.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.67.0
 	github.com/DataDog/datadog-agent/pkg/proto v0.68.0-devel
@@ -64,6 +64,7 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
+	github.com/DataDog/datadog-agent v0.0.0-20250709193638-406c6d6dc2a5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0 // indirect
@@ -71,9 +72,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0 // indirect
@@ -85,22 +86,22 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0 // indirect
@@ -111,7 +112,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0 // indirect
