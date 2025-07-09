@@ -381,7 +381,7 @@ def exception_threshold_bump(ctx, pipelineId):
 
     Note: This invoke task must be run on a pipeline that has finished running static quality gates
     :param ctx:
-    :param pipelineId
+    :param pipelineId: pipeline ID we want to fetch the artifact from to bump gates
     :return:
     """
     current_branch_name = get_current_branch(ctx)
