@@ -233,7 +233,6 @@ variables:
   RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-delivery
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
-  TEST_GPG_KEY: ci.datadog-agent.test-key-${GPG_TEST_KEY_ID}
   # End aws ssm variables
 
   # Start vault variables
