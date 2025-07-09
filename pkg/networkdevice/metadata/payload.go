@@ -176,8 +176,8 @@ type TopologyLinkMetadata struct {
 type VPNProtocol string
 
 const (
-	// IPSec represents the IPSec protocol
-	IPSec VPNProtocol = "ipsec"
+	// IPsec represents the IPsec protocol
+	IPsec VPNProtocol = "ipsec"
 )
 
 // VPNTunnelMetadata contains VPN tunnel metadata

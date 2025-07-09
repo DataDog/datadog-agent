@@ -659,7 +659,7 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 			LocalOutsideIP:  localOutsideIP,
 			RemoteOutsideIP: remoteOutsideIP,
 			Status:          status,
-			Protocol:        devicemetadata.IPSec,
+			Protocol:        devicemetadata.IPsec,
 			RouteAddresses:  []string{},
 			Options: devicemetadata.VPNTunnelOptions{
 				IPsecOptions: devicemetadata.IPsecOptions{
