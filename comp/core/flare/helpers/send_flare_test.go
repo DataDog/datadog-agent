@@ -269,14 +269,14 @@ func TestSendToRetryLogic(t *testing.T) {
 
 	testCases := []struct {
 		name             string
-		serverBehavior   func(attempt int) (statusCode int, response string, delay time.Duration)
+		serverBehavior   func(_ int) (statusCode int, response string, delay time.Duration)
 		expectedAttempts int
 		expectSuccess    bool
 		expectedError    string
 	}{
 		{
 			name: "success on first attempt",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
+			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 200, `{"case_id": 1234}`, 0
 			},
 			expectedAttempts: 1,
@@ -310,7 +310,7 @@ func TestSendToRetryLogic(t *testing.T) {
 		},
 		{
 			name: "exhausted retries with 5xx errors",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
+			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 500, "Internal Server Error", 0
 			},
 			expectedAttempts: 4, // 1 initial + 3 retries
@@ -319,7 +319,7 @@ func TestSendToRetryLogic(t *testing.T) {
 		},
 		{
 			name: "non-retryable 400 error",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
+			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 400, "Bad Request", 0
 			},
 			expectedAttempts: 1,
@@ -328,7 +328,7 @@ func TestSendToRetryLogic(t *testing.T) {
 		},
 		{
 			name: "non-retryable 404 error",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
+			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 404, "Not Found", 0
 			},
 			expectedAttempts: 1,

@@ -292,11 +292,10 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 			r.Body.Close()
 			lastErr = fmt.Errorf("server error: %s", r.Status)
 			continue
-		} else {
-			// Other unexpected status code - don't retry
-			defer r.Body.Close()
-			return analyzeResponse(r, apiKey)
 		}
+		// Other unexpected status code - don't retry
+		defer r.Body.Close()
+		return analyzeResponse(r, apiKey)
 	}
 
 	return "", fmt.Errorf("failed to send flare after %d attempts: %w", defaultRetryConfig.MaxRetries+1, lastErr)
