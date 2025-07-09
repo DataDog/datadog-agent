@@ -186,6 +186,7 @@ type VPNTunnelMetadata struct {
 	InterfaceID     string           `json:"interface_id,omitempty"`
 	LocalOutsideIP  string           `json:"local_outside_ip"`
 	RemoteOutsideIP string           `json:"remote_outside_ip"`
+	Status          string           `json:"status"`
 	Protocol        VPNProtocol      `json:"protocol"`
 	RouteAddresses  []string         `json:"route_addresses"`
 	Options         VPNTunnelOptions `json:"options,omitempty"`

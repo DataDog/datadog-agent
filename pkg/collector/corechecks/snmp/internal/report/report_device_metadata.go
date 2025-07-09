@@ -35,8 +35,14 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
+
 const inetAddressUnknown = "0"
 const inetAddressIPv4 = "1"
+
+var ciscoIPsecStatusByValue = map[string]string{
+	"1": "active",
+	"2": "destroy",
+}
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -633,6 +639,12 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
 		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
 
+		statusValue := store.GetColumnAsString("cisco_ipsec_tunnel.status", strIndex)
+		status, exists := ciscoIPsecStatusByValue[statusValue]
+		if !exists {
+			status = "unknown"
+		}
+
 		lifeSize, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_size", strIndex), 10, 32)
 		if err != nil {
 			lifeSize = 0
@@ -646,6 +658,7 @@ func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID strin
 			DeviceID:        deviceID,
 			LocalOutsideIP:  localOutsideIP,
 			RemoteOutsideIP: remoteOutsideIP,
+			Status:          status,
 			Protocol:        devicemetadata.IPSec,
 			RouteAddresses:  []string{},
 			Options: devicemetadata.VPNTunnelOptions{

@@ -263,6 +263,12 @@ var VPNTunnelMetadataConfig = profiledefinition.MetadataConfig{
 					Name: "cipSecTunRemoteAddr",
 				},
 			},
+			"status": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.51",
+					Name: "cipSecTunStatus",
+				},
+			},
 			"life_size": {
 				Symbol: profiledefinition.SymbolConfig{
 					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.8",
