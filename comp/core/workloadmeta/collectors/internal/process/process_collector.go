@@ -269,7 +269,7 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 // a map of pids to *model.Service to be filled up with the response received from
 // system-probe. This map is useful to know for which pids we have not received
 // service info and that needs to be handled by the retry mechanism.
-func (c *collector) filterPidsToRequest(alivePids core.PidSet) ([]int32, map[int32]*model.Service) {
+func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]int32, map[int32]*model.Service) {
 	now := c.clock.Now()
 	pidsToRequest := make([]int32, 0, len(alivePids))
 	pidsToService := make(map[int32]*model.Service, len(alivePids))
@@ -277,6 +277,14 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet) ([]int32, map[int
 	for pid := range alivePids {
 		if c.ignoredPids.Has(pid) {
 			continue
+		}
+
+		// Filter out processes that started less than a minute ago
+		if proc, exists := procs[pid]; exists {
+			processStartTime := time.UnixMilli(proc.Stats.CreateTime)
+			if now.Sub(processStartTime) < time.Minute {
+				continue
+			}
 		}
 
 		// Check if service data is stale or never collected
@@ -381,8 +389,8 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 }
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
-func (c *collector) updateServices(alivePids core.PidSet) ([]*workloadmeta.Process, map[int32]*model.Service) {
-	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids)
+func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, map[int32]*model.Service) {
+	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids, procs)
 	if len(pidsToRequest) == 0 {
 		return nil, nil
 	}
@@ -405,7 +413,7 @@ func (c *collector) updateServices(alivePids core.PidSet) ([]*workloadmeta.Proce
 }
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
-	entities, pidsToService := c.updateServices(alivePids)
+	entities, pidsToService := c.updateServices(alivePids, procs)
 
 	// Only detect languages for services when process collection is disabled,
 	// otherwise the collectProcesses goroutine already did it for us.
@@ -641,7 +649,9 @@ func (c *collector) collectServicesCached(ctx context.Context, collectionTicker 
 				})
 			}
 
-			wlmServiceEntities, _ := c.updateServices(alivePids)
+			c.mux.RLock()
+			wlmServiceEntities, _ := c.updateServices(alivePids, c.lastCollectedProcesses)
+			c.mux.RUnlock()
 
 			if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
 				c.processEventsCh <- &Event{
