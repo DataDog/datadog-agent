@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build goexperiment.systemcrypto && !windows && !serverlessfips
+//go:build (goexperiment.systemcrypto || goexperiment.boringcrypto) && !windows && !serverlessfips
 
 // Package fips is an interface for build specific status of FIPS compliance
 package fips
@@ -18,8 +18,8 @@ func Status() string {
 	}
 }
 
-// Enabled checks to see if the agent runtime environment is as expected relating to its build to be FIPS compliant. The linux binary is built with requirefips and will not run out of FIPS Mode causing a panic if OpenSSL isn't installed and running in FIPS Mode as well
+// Enabled checks to see if the agent runtime environment is as expected relating to its build to be FIPS compliant.
+// For Microsoft Go, the linux binary is built with requirefips and will not run out of FIPS Mode causing a panic if OpenSSL isn't installed and running in FIPS Mode as well
 func Enabled() (bool, error) {
-	// requirefips only allows for the agent to run in FIPS Mode, GOFIPS=0 will not disable it
 	return true, nil
 }
