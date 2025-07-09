@@ -47,9 +47,7 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
             print(f'Getting presigned URL for {pkgname}...')
             headers = {"Authorization": f"Bearer {auth_header}"}
             presigned_response = requests.post(
-                f"{api_url}/apps/{pkgname}/builds/{git_sha}/url",
-                headers=headers,
-                timeout=30
+                f"{api_url}/apps/{pkgname}/builds/{git_sha}/url", headers=headers, timeout=30
             )
             presigned_response.raise_for_status()
             presigned_url = presigned_response.json()["data"]["url"]
@@ -75,16 +73,8 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
                 "memory": fuzz_memory,
             }
 
-            headers = {
-                "Authorization": f"Bearer {auth_header}",
-                "Content-Type": "application/json"
-            }
-            response = requests.post(
-                f"{api_url}/apps/{pkgname}/fuzzers",
-                headers=headers,
-                json=run_payload,
-                timeout=30
-            )
+            headers = {"Authorization": f"Bearer {auth_header}", "Content-Type": "application/json"}
+            response = requests.post(f"{api_url}/apps/{pkgname}/fuzzers", headers=headers, json=run_payload, timeout=30)
             response.raise_for_status()
             print(f'✅ Started fuzzer for {pkgname} ({func})...')
             response_json = response.json()
