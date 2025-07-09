@@ -69,11 +69,12 @@ func getCurrentNetns() (uint32, error) {
 }
 
 type FlowPid struct {
-	Addr0   uint64
-	Addr1   uint64
-	Netns   uint32
-	Port    uint16
-	Padding uint16
+	Addr0    uint64
+	Addr1    uint64
+	Netns    uint32
+	Port     uint16
+	Protocol uint8 // l4_protocol
+	Padding  uint8
 }
 
 type FlowPidEntry struct {
@@ -216,8 +217,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -248,9 +250,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -281,9 +284,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -318,8 +322,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -354,9 +359,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -391,9 +397,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -424,8 +431,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -456,9 +464,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -489,9 +498,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -526,8 +536,9 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -562,9 +573,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -599,9 +611,10 @@ func TestFlowPidBind(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
-				Netns: netns,
-				Port:  htons(uint16(<-boundPort)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(<-boundPort)),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -667,9 +680,10 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2234),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -703,9 +717,10 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2235),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2235),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -743,10 +758,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Addr1: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2236),
+				Addr0:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Addr1:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2236),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
@@ -784,10 +800,11 @@ func TestFlowPidBindLeak(t *testing.T) {
 			t,
 			test,
 			FlowPid{
-				Addr0: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Addr1: binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
-				Netns: netns,
-				Port:  htons(2237),
+				Addr0:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Addr1:    binary.BigEndian.Uint64([]byte{99, 99, 99, 99, 99, 99, 99, 99}),
+				Netns:    netns,
+				Port:     htons(2237),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			FlowPidEntry{
 				Pid:       pid,
