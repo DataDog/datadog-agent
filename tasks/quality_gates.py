@@ -387,12 +387,12 @@ def exception_threshold_bump(ctx, pipeline_id):
     current_branch_name = get_current_branch(ctx)
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
-        curPipeline = repo.pipelines.get(pipelineId)
-        gateJobId = next(job.id for job in curPipeline.jobs.list() if job.name == "static_quality_gates")
-        gateJob = repo.jobs.get(id=gateJobId)
+        cur_pipeline = repo.pipelines.get(pipeline_id)
+        gate_job_id = next(job.id for job in cur_pipeline.jobs.list() if job.name == "static_quality_gates")
+        gate_job = repo.jobs.get(id=gate_job_id)
         with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
             try:
-                f.write(gateJob.artifacts())
+                f.write(gate_job.artifacts())
             except gitlab.exceptions.GitlabGetError as e:
                 print(
                     color_message(
