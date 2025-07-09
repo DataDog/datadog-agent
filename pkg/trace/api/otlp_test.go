@@ -217,6 +217,7 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.payload", Value: 1, Tags: []string{"endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.agent.otlp.ingest.traces", Value: 1, Tags: []string{"host:test-host", "version:v1.0.0"}, Rate: 1})
 }
 

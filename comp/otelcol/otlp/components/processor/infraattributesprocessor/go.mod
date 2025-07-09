@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.64.1
@@ -93,7 +93,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.59.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/serializer v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/serializer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1 // indirect
