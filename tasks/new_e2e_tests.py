@@ -410,6 +410,7 @@ def run(
             junit_tar=junit_tar,
             result_json=partial_result_json,
             test_profiler=None,
+            attempt_number=attempt,
         )
 
         washer = TestWasher(test_output_json_file=partial_result_json)
