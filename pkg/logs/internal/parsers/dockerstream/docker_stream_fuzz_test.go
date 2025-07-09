@@ -55,7 +55,7 @@ func FuzzParseDockerStream(f *testing.F) {
 	// TTY messages (no header) with valid timestamps
 	for _, ts := range timestamps {
 		f.Add([]byte(fmt.Sprintf("%s tty message without header", ts)))
-		f.Add([]byte(ts))  // Just timestamp
+		f.Add([]byte(ts))                     // Just timestamp
 		f.Add([]byte(fmt.Sprintf("%s ", ts))) // Timestamp with space
 	}
 
