@@ -46,32 +46,35 @@ build_windows_container_entrypoint   @DataDog/windows-agent
 generate_minimized_btfs_*            @DataDog/ebpf-platform
 
 # Package build
-*agent_dmg*                          @DataDog/agent-delivery
-datadog-agent-*                      @DataDog/agent-delivery
-datadog-ot-agent-*                   @DataDog/agent-delivery
-dogstatsd-*                          @DataDog/agent-delivery
-installer_*                          @DataDog/agent-delivery
-iot-agent-*                          @DataDog/agent-delivery
-agent_suse*                          @DataDog/agent-delivery
+*agent_dmg*                          @DataDog/agent-build
+datadog-agent-*                      @DataDog/agent-build
+datadog-ot-agent-*                   @DataDog/agent-build
+dogstatsd-*                          @DataDog/agent-build
+installer_*                          @DataDog/agent-build
+iot-agent-*                          @DataDog/agent-build
+agent_suse*                          @DataDog/agent-build
 windows-installer*                   @DataDog/windows-agent
 windows_*                            @DataDog/windows-agent
 powershell_script_signing            @DataDog/windows-agent
-datadog-otel-agent-*                 @DataDog/agent-delivery
+datadog-otel-agent-*                 @DataDog/agent-build
 
 # Packaging
-agent_deb*                           @DataDog/agent-delivery
-dogstatsd_deb*                       @DataDog/agent-delivery
-agent_heroku_deb*                    @DataDog/agent-delivery
-updater_deb*                         @DataDog/agent-delivery
-agent_rpm*                           @DataDog/agent-delivery
-iot_agent_rpm*                       @DataDog/agent-delivery
-dogstatsd_rpm*                       @DataDog/agent-delivery
-iot_agent_deb*                       @DataDog/agent-delivery
-iot_agent_suse*                      @DataDog/agent-delivery
-dogstatsd_suse*                      @DataDog/agent-delivery
-agent_oci*                           @DataDog/agent-delivery
-installer_oci*                       @DataDog/agent-delivery
-check_pkg_size                       @DataDog/agent-delivery
+agent_deb*                           @DataDog/agent-build
+dogstatsd_deb*                       @DataDog/agent-build
+agent_heroku_deb*                    @DataDog/agent-build
+updater_deb*                         @DataDog/agent-build
+agent_rpm*                           @DataDog/agent-build
+iot_agent_rpm*                       @DataDog/agent-build
+dogstatsd_rpm*                       @DataDog/agent-build
+iot_agent_deb*                       @DataDog/agent-build
+iot_agent_suse*                      @DataDog/agent-build
+dogstatsd_suse*                      @DataDog/agent-build
+agent_oci*                           @DataDog/agent-build
+installer_oci*                       @DataDog/agent-build
+ddot_deb*                            @DataDog/agent-build
+ddot_rpm*                            @DataDog/agent-build
+ddot_suse_rpm*                       @DataDog/agent-build
+check_pkg_size                       @DataDog/agent-build
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-delivery
@@ -80,7 +83,7 @@ deploy_suse_rpm_testing*             @DataDog/agent-delivery
 deploy_windows_testing*              @DataDog/agent-delivery
 
 # Image build
-docker_build*                        @DataDog/agent-delivery
+docker_build*                        @DataDog/agent-build
 
 # Image scan
 scan_*                               @Datadog/agent-delivery
@@ -148,8 +151,10 @@ trace_agent_integration_tests @DataDog/agent-apm
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 serverless_cold_start_performance-deb_x64_dind @DataDog/agent-devx
-static_quality_gates                           @DataDog/agent-delivery
-manual_gate_threshold_update                   @DataDog/agent-delivery
+static_quality_gates                           @DataDog/agent-build
+debug_static_quality_gates                     @DataDog/agent-build
+manual_gate_threshold_update                   @DataDog/agent-build
+
 oracle*                                        @DataDog/database-monitoring
 
 # E2E

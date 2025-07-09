@@ -17,3 +17,11 @@ process_config:
 telemetry:
   enabled: true
   checks: '*'
+
+otelcollector:
+  converter:
+    enabled: true
+  enabled: true
+  extension_timeout: 0
+  flare:
+    timeout: 60

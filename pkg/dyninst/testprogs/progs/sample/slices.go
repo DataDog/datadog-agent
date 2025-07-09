@@ -70,7 +70,7 @@ func executeSliceFuncs() {
 	testUintSlice([]uint{1, 2, 3})
 	testStructSlice([]structWithNoStrings{{42, true}, {24, true}}, 3)
 	testEmptySliceOfStructs([]structWithNoStrings{}, 2)
-	testNilSliceOfStructs([]structWithNoStrings{}, 5)
+	testNilSliceOfStructs(nil, 5)
 
 	testSliceOfSlices([][]uint{
 		{4},

@@ -213,10 +213,10 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid = GET_USER_MODE_PID(pid_tgid);
+    u32 pid = GET_USER_MODE_PID(pid_tgid);
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-read-return] no offsets data in map for pid %llu", pid);
+        log_debug("[go-tls-read-return] no offsets data in map for pid %u", pid);
         return 0;
     }
 
@@ -225,7 +225,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     __s64 goroutine_id = 0;
     // Read the PID and goroutine ID to make the partial call key
     if (read_goroutine_id(ctx, &od->goroutine_id, &goroutine_id)) {
-        log_debug("[go-tls-read-return] failed reading go routine id for pid %llu", pid);
+        log_debug("[go-tls-read-return] failed reading go routine id for pid %u", pid);
         return 0;
     }
 
@@ -235,15 +235,14 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
 
     go_tls_read_args_data_t* call_data_ptr = bpf_map_lookup_elem(&go_tls_read_args, &call_key);
     if (call_data_ptr == NULL) {
-        log_debug("[go-tls-read-return] no read information in read-return for pid %llu", pid);
+        log_debug("[go-tls-read-return] no read information in read-return for pid %u", pid);
         return 0;
     }
 
     uint64_t bytes_read = 0;
     if (read_location(ctx, &od->read_return_bytes, sizeof(bytes_read), &bytes_read)) {
-        log_debug("[go-tls-read-return] failed reading return bytes location for pid %llu", pid);
-        bpf_map_delete_elem(&go_tls_read_args, &call_key);
-        return 0;
+        log_debug("[go-tls-read-return] failed reading return bytes location for pid %u", pid);
+        goto cleanup;
     }
 
     // Errors like "EOF" of "unexpected EOF" can be treated as no error by the hooked program.
@@ -251,20 +250,15 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     // For now for success validation we chose to check only the amount of bytes read
     // and make sure it's greater than zero.
     if (bytes_read <= 0) {
-        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %llu", pid);
-        bpf_map_delete_elem(&go_tls_read_args, &call_key);
-        return 0;
+        log_debug("[go-tls-read-return] read returned non-positive for amount of bytes read for pid: %u", pid);
+        goto cleanup;
     }
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
-        log_debug("[go-tls-read-return] failed getting conn tup from tls conn for pid %llu", pid);
-        bpf_map_delete_elem(&go_tls_read_args, &call_key);
-        return 0;
+        log_debug("[go-tls-read-return] failed getting conn tup from tls conn for pid %u", pid);
+        goto cleanup;
     }
-
-    char *buffer_ptr = (char*)call_data_ptr->b_data;
-    bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t*)&call_key);
 
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
@@ -273,7 +267,13 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
+    char *buffer_ptr = (char*)call_data_ptr->b_data;
+    bpf_map_delete_elem(&go_tls_read_args, &call_key);
     tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
+    return 0;
+
+cleanup:
+    bpf_map_delete_elem(&go_tls_read_args, &call_key);
     return 0;
 }
 

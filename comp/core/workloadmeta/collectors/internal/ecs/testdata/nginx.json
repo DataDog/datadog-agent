@@ -9,6 +9,12 @@
   "PullStoppedAt": "2023-10-18T19:00:40.229561055Z",
   "AvailabilityZone": "us-east-1a",
   "LaunchType": "EC2",
+  "TaskTags": {
+    "tag-test": "task-test-value"
+  },
+  "ContainerInstanceTags": {
+    "tag_key": "tag_value"
+  },
   "Containers": [
     {
       "DockerId": "2ad9e753a0dfbba1c91e0e7bebaaf3a0918d3ef304b7549b1ced5f573bc05645",

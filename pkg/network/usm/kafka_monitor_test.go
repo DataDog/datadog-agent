@@ -608,7 +608,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		},
 	}
 
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -849,7 +849,7 @@ func (can *CannedClientServer) runServer() {
 }
 
 func (can *CannedClientServer) runProxy() int {
-	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls)
+	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls, false)
 	can.t.Cleanup(cancel)
 	require.NoError(can.t, proxy.WaitForConnectionReady(can.unixPath))
 

@@ -32,18 +32,6 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
-func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) (bool, error) {
-	return false, nil
-}
-
-func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
-	return false, nil
-}
-
-func (p *mockProvider) StopSDSProcessing() error {
-	return nil
-}
-
 func (p *mockProvider) GetOutputChan() chan *message.Message {
 	return nil
 }
@@ -59,6 +47,6 @@ func (p *mockProvider) NextPipelineChan() chan *message.Message {
 }
 
 // NextPipelineChanWithInstance returns the next pipeline
-func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
-	return p.msgChan, metrics.NewNoopPipelineMonitor("")
+func (p *mockProvider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
+	return p.msgChan, metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", "")
 }

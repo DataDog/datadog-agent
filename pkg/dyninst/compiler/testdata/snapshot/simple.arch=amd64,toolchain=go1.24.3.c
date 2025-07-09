@@ -5,177 +5,177 @@ const uint8_t stack_machine_code[] = {
 		SM_OP_CHASE_POINTERS, 
 		SM_OP_RETURN, 
 
-	// 0x3: ProcessExpression[Probe[main.intArg]@0x4a806a.expr[0]]
+	// 0x3: ProcessType[*****int]
+		SM_OP_PROCESS_POINTER, 0x03, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0x9: ProcessExpression[Probe[main.PointerChainArg]@0x4a8006.expr[0]]
+		SM_OP_EXPR_PREPARE, 
+		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x03, 0x00, 0x00, 0x00, // ProcessType[*****int]
+		SM_OP_RETURN, 
+
+	// 0x24: ProcessEvent[Probe[main.PointerChainArg]@4a8006]
+		SM_OP_PREPARE_EVENT_ROOT, 0x3f, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x09, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.PointerChainArg]@0x4a8006.expr[0]]
+		SM_OP_RETURN, 
+
+	// 0x33: ProcessExpression[Probe[main.bigMapArg]@0x4a84b3.expr[0]]
+		SM_OP_EXPR_PREPARE, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0x42: ProcessEvent[Probe[main.bigMapArg]@4a84b3]
+		SM_OP_PREPARE_EVENT_ROOT, 0x3d, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x33, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.bigMapArg]@0x4a84b3.expr[0]]
+		SM_OP_RETURN, 
+
+	// 0x51: ProcessExpression[Probe[main.inlined]@0x4a838a.expr[0]]
 		SM_OP_EXPR_PREPARE, 
 		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
 		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 		SM_OP_RETURN, 
 
-	// 0x19: ProcessEvent[Probe[main.intArg]@4a806a]
+	// 0x67: ProcessEvent[Probe[main.inlined]@4a838a]
+		SM_OP_PREPARE_EVENT_ROOT, 0x3e, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x51, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.inlined]@0x4a838a.expr[0]]
+		SM_OP_RETURN, 
+
+	// 0x76: ProcessExpression[Probe[main.inlined]@0x4a7dce.expr[0]]
+		SM_OP_EXPR_PREPARE, 
+		SM_OP_RETURN, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0x86: ProcessEvent[Probe[main.inlined]@4a7dce]
+		SM_OP_PREPARE_EVENT_ROOT, 0x3e, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x76, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.inlined]@0x4a7dce.expr[0]]
+		SM_OP_RETURN, 
+
+	// 0x95: ProcessExpression[Probe[main.intArg]@0x4a806a.expr[0]]
+		SM_OP_EXPR_PREPARE, 
+		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0xab: ProcessEvent[Probe[main.intArg]@4a806a]
 		SM_OP_PREPARE_EVENT_ROOT, 0x35, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x03, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.intArg]@0x4a806a.expr[0]]
+		SM_OP_CALL, 0x95, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.intArg]@0x4a806a.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0x28: ProcessType[string]
-		SM_OP_PROCESS_STRING, 0x2b, 0x00, 0x00, 0x00, 
-		SM_OP_RETURN, 
-
-	// 0x2e: ProcessExpression[Probe[main.stringArg]@0x4a80ea.expr[0]]
-		SM_OP_EXPR_PREPARE, 
-		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_READ_REGISTER, 0x03, 0x08, 0x08, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x28, 0x00, 0x00, 0x00, // ProcessType[string]
-		SM_OP_RETURN, 
-
-	// 0x50: ProcessEvent[Probe[main.stringArg]@4a80ea]
-		SM_OP_PREPARE_EVENT_ROOT, 0x36, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x2e, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.stringArg]@0x4a80ea.expr[0]]
-		SM_OP_RETURN, 
-
-	// 0x5f: ProcessType[[]int]
-		SM_OP_PROCESS_SLICE, 0x2d, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 
-		SM_OP_RETURN, 
-
-	// 0x69: ProcessExpression[Probe[main.intSliceArg]@0x4a816a.expr[0]]
-		SM_OP_EXPR_PREPARE, 
-		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_READ_REGISTER, 0x03, 0x08, 0x08, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_READ_REGISTER, 0x02, 0x08, 0x10, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x5f, 0x00, 0x00, 0x00, // ProcessType[[]int]
-		SM_OP_RETURN, 
-
-	// 0x92: ProcessEvent[Probe[main.intSliceArg]@4a816a]
-		SM_OP_PREPARE_EVENT_ROOT, 0x37, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x69, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.intSliceArg]@0x4a816a.expr[0]]
-		SM_OP_RETURN, 
-
-	// 0xa1: ProcessExpression[Probe[main.intArrayArg]@0x4a81ea.expr[0]]
+	// 0xba: ProcessExpression[Probe[main.intArrayArg]@0x4a81ea.expr[0]]
 		SM_OP_EXPR_PREPARE, 
 		SM_OP_EXPR_DEREFERENCE_CFA, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 		SM_OP_RETURN, 
 
-	// 0xbd: ProcessEvent[Probe[main.intArrayArg]@4a81ea]
+	// 0xd6: ProcessEvent[Probe[main.intArrayArg]@4a81ea]
 		SM_OP_PREPARE_EVENT_ROOT, 0x38, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0xa1, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.intArrayArg]@0x4a81ea.expr[0]]
+		SM_OP_CALL, 0xba, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.intArrayArg]@0x4a81ea.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0xcc: ProcessType[[]string]
-		SM_OP_PROCESS_SLICE, 0x2f, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 
+	// 0xe5: ProcessType[string]
+		SM_OP_PROCESS_STRING, 0x2b, 0x00, 0x00, 0x00, 
 		SM_OP_RETURN, 
 
-	// 0xd6: ProcessExpression[Probe[main.stringSliceArg]@0x4a826a.expr[0]]
+	// 0xeb: ProcessType[[3]string]
+		SM_OP_PROCESS_ARRAY_DATA_PREP, 0x30, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xe5, 0x00, 0x00, 0x00, // ProcessType[string]
+		SM_OP_PROCESS_SLICE_DATA_REPEAT, 0x10, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0xfb: ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a8360.expr[0]]
+		SM_OP_EXPR_PREPARE, 
+		SM_OP_EXPR_DEREFERENCE_CFA, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xeb, 0x00, 0x00, 0x00, // ProcessType[[3]string]
+		SM_OP_RETURN, 
+
+	// 0x11c: ProcessEvent[Probe[main.stringArrayArgFrameless]@4a8360]
+		SM_OP_PREPARE_EVENT_ROOT, 0x3b, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xfb, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a8360.expr[0]]
+		SM_OP_RETURN, 
+
+	// 0x12b: ProcessType[[]int]
+		SM_OP_PROCESS_SLICE, 0x2d, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0x135: ProcessExpression[Probe[main.intSliceArg]@0x4a816a.expr[0]]
 		SM_OP_EXPR_PREPARE, 
 		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
 		SM_OP_EXPR_READ_REGISTER, 0x03, 0x08, 0x08, 0x00, 0x00, 0x00, 
 		SM_OP_EXPR_READ_REGISTER, 0x02, 0x08, 0x10, 0x00, 0x00, 0x00, 
 		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0xcc, 0x00, 0x00, 0x00, // ProcessType[[]string]
+		SM_OP_CALL, 0x2b, 0x01, 0x00, 0x00, // ProcessType[[]int]
 		SM_OP_RETURN, 
 
-	// 0xff: ProcessEvent[Probe[main.stringSliceArg]@4a826a]
-		SM_OP_PREPARE_EVENT_ROOT, 0x39, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0xd6, 0x00, 0x00, 0x00, // ProcessExpression[Probe[main.stringSliceArg]@0x4a826a.expr[0]]
+	// 0x15e: ProcessEvent[Probe[main.intSliceArg]@4a816a]
+		SM_OP_PREPARE_EVENT_ROOT, 0x37, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x35, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.intSliceArg]@0x4a816a.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0x10e: ProcessType[[3]string]
-		SM_OP_PROCESS_ARRAY_DATA_PREP, 0x30, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x28, 0x00, 0x00, 0x00, // ProcessType[string]
-		SM_OP_PROCESS_SLICE_DATA_REPEAT, 0x10, 0x00, 0x00, 0x00, 
-		SM_OP_RETURN, 
-
-	// 0x11e: ProcessExpression[Probe[main.stringArrayArg]@0x4a82ea.expr[0]]
-		SM_OP_EXPR_PREPARE, 
-		SM_OP_EXPR_DEREFERENCE_CFA, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x0e, 0x01, 0x00, 0x00, // ProcessType[[3]string]
-		SM_OP_RETURN, 
-
-	// 0x13f: ProcessEvent[Probe[main.stringArrayArg]@4a82ea]
-		SM_OP_PREPARE_EVENT_ROOT, 0x3a, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x1e, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.stringArrayArg]@0x4a82ea.expr[0]]
-		SM_OP_RETURN, 
-
-	// 0x14e: ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a8360.expr[0]]
-		SM_OP_EXPR_PREPARE, 
-		SM_OP_EXPR_DEREFERENCE_CFA, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x0e, 0x01, 0x00, 0x00, // ProcessType[[3]string]
-		SM_OP_RETURN, 
-
-	// 0x16f: ProcessEvent[Probe[main.stringArrayArgFrameless]@4a8360]
-		SM_OP_PREPARE_EVENT_ROOT, 0x3b, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x4e, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.stringArrayArgFrameless]@0x4a8360.expr[0]]
-		SM_OP_RETURN, 
-
-	// 0x17e: ProcessExpression[Probe[main.mapArg]@0x4a844a.expr[0]]
+	// 0x16d: ProcessExpression[Probe[main.mapArg]@0x4a844a.expr[0]]
 		SM_OP_EXPR_PREPARE, 
 		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 		SM_OP_RETURN, 
 
-	// 0x18d: ProcessEvent[Probe[main.mapArg]@4a844a]
+	// 0x17c: ProcessEvent[Probe[main.mapArg]@4a844a]
 		SM_OP_PREPARE_EVENT_ROOT, 0x3c, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x7e, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.mapArg]@0x4a844a.expr[0]]
+		SM_OP_CALL, 0x6d, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.mapArg]@0x4a844a.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0x19c: ProcessExpression[Probe[main.bigMapArg]@0x4a84b3.expr[0]]
-		SM_OP_EXPR_PREPARE, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_RETURN, 
-
-	// 0x1ab: ProcessEvent[Probe[main.bigMapArg]@4a84b3]
-		SM_OP_PREPARE_EVENT_ROOT, 0x3d, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x9c, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.bigMapArg]@0x4a84b3.expr[0]]
-		SM_OP_RETURN, 
-
-	// 0x1ba: ProcessExpression[Probe[main.inlined]@0x4a838a.expr[0]]
+	// 0x18b: ProcessExpression[Probe[main.stringArg]@0x4a80ea.expr[0]]
 		SM_OP_EXPR_PREPARE, 
 		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_READ_REGISTER, 0x03, 0x08, 0x08, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xe5, 0x00, 0x00, 0x00, // ProcessType[string]
 		SM_OP_RETURN, 
 
-	// 0x1d0: ProcessEvent[Probe[main.inlined]@4a838a]
-		SM_OP_PREPARE_EVENT_ROOT, 0x3e, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0xba, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.inlined]@0x4a838a.expr[0]]
+	// 0x1ad: ProcessEvent[Probe[main.stringArg]@4a80ea]
+		SM_OP_PREPARE_EVENT_ROOT, 0x36, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0x8b, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.stringArg]@0x4a80ea.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0x1df: ProcessExpression[Probe[main.inlined]@0x4a7dce.expr[0]]
+	// 0x1bc: ProcessExpression[Probe[main.stringArrayArg]@0x4a82ea.expr[0]]
 		SM_OP_EXPR_PREPARE, 
-		SM_OP_RETURN, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_RETURN, 
-
-	// 0x1ef: ProcessEvent[Probe[main.inlined]@4a7dce]
-		SM_OP_PREPARE_EVENT_ROOT, 0x3e, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0xdf, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.inlined]@0x4a7dce.expr[0]]
+		SM_OP_EXPR_DEREFERENCE_CFA, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xeb, 0x00, 0x00, 0x00, // ProcessType[[3]string]
 		SM_OP_RETURN, 
 
-	// 0x1fe: ProcessType[*****int]
-		SM_OP_PROCESS_POINTER, 0x03, 0x00, 0x00, 0x00, 
+	// 0x1dd: ProcessEvent[Probe[main.stringArrayArg]@4a82ea]
+		SM_OP_PREPARE_EVENT_ROOT, 0x3a, 0x00, 0x00, 0x00, 0x31, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xbc, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.stringArrayArg]@0x4a82ea.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0x204: ProcessExpression[Probe[main.PointerChainArg]@0x4a8006.expr[0]]
+	// 0x1ec: ProcessType[[]string]
+		SM_OP_PROCESS_SLICE, 0x2f, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0x1f6: ProcessExpression[Probe[main.stringSliceArg]@0x4a826a.expr[0]]
 		SM_OP_EXPR_PREPARE, 
 		SM_OP_EXPR_READ_REGISTER, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0xfe, 0x01, 0x00, 0x00, // ProcessType[*****int]
+		SM_OP_EXPR_READ_REGISTER, 0x03, 0x08, 0x08, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_READ_REGISTER, 0x02, 0x08, 0x10, 0x00, 0x00, 0x00, 
+		SM_OP_EXPR_SAVE, 0x01, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xec, 0x01, 0x00, 0x00, // ProcessType[[]string]
 		SM_OP_RETURN, 
 
-	// 0x21f: ProcessEvent[Probe[main.PointerChainArg]@4a8006]
-		SM_OP_PREPARE_EVENT_ROOT, 0x3f, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 
-		SM_OP_CALL, 0x04, 0x02, 0x00, 0x00, // ProcessExpression[Probe[main.PointerChainArg]@0x4a8006.expr[0]]
+	// 0x21f: ProcessEvent[Probe[main.stringSliceArg]@4a826a]
+		SM_OP_PREPARE_EVENT_ROOT, 0x39, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 
+		SM_OP_CALL, 0xf6, 0x01, 0x00, 0x00, // ProcessExpression[Probe[main.stringSliceArg]@0x4a826a.expr[0]]
 		SM_OP_RETURN, 
 
-	// 0x22e: ProcessType[[]string.array]
-		SM_OP_PROCESS_SLICE_DATA_PREP, 
-		SM_OP_CALL, 0x28, 0x00, 0x00, 0x00, // ProcessType[string]
-		SM_OP_PROCESS_SLICE_DATA_REPEAT, 0x10, 0x00, 0x00, 0x00, 
-		SM_OP_RETURN, 
-
-	// 0x23a: ProcessType[****int]
+	// 0x22e: ProcessType[****int]
 		SM_OP_PROCESS_POINTER, 0x04, 0x00, 0x00, 0x00, 
+		SM_OP_RETURN, 
+
+	// 0x234: ProcessType[[]string.array]
+		SM_OP_PROCESS_SLICE_DATA_PREP, 
+		SM_OP_CALL, 0xe5, 0x00, 0x00, 0x00, // ProcessType[string]
+		SM_OP_PROCESS_SLICE_DATA_REPEAT, 0x10, 0x00, 0x00, 0x00, 
 		SM_OP_RETURN, 
 
 	// 0x240: ProcessType[***int]
@@ -212,18 +212,18 @@ const uint32_t chase_pointers_entrypoint = 0x1;
 const uint32_t prog_id = 1;
 
 const probe_params_t probe_params[] = {
-	{.throttler_idx = 0, .stack_machine_pc = 0x19, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 1, .stack_machine_pc = 0x50, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 2, .stack_machine_pc = 0x92, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 3, .stack_machine_pc = 0xbd, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 4, .stack_machine_pc = 0xff, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 5, .stack_machine_pc = 0x13f, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 6, .stack_machine_pc = 0x16f, .pointer_chasing_limit = 4294967295, .frameless = true},
-	{.throttler_idx = 7, .stack_machine_pc = 0x18d, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 8, .stack_machine_pc = 0x1ab, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 9, .stack_machine_pc = 0x1d0, .pointer_chasing_limit = 4294967295, .frameless = false},
-	{.throttler_idx = 9, .stack_machine_pc = 0x1ef, .pointer_chasing_limit = 4294967295, .frameless = true},
-	{.throttler_idx = 10, .stack_machine_pc = 0x21f, .pointer_chasing_limit = 3, .frameless = true},
+	{.throttler_idx = 0, .stack_machine_pc = 0x24, .pointer_chasing_limit = 3, .frameless = true},
+	{.throttler_idx = 1, .stack_machine_pc = 0x42, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 2, .stack_machine_pc = 0x67, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 2, .stack_machine_pc = 0x86, .pointer_chasing_limit = 4294967295, .frameless = true},
+	{.throttler_idx = 3, .stack_machine_pc = 0xab, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 4, .stack_machine_pc = 0xd6, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 5, .stack_machine_pc = 0x11c, .pointer_chasing_limit = 4294967295, .frameless = true},
+	{.throttler_idx = 6, .stack_machine_pc = 0x15e, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 7, .stack_machine_pc = 0x17c, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 8, .stack_machine_pc = 0x1ad, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 9, .stack_machine_pc = 0x1dd, .pointer_chasing_limit = 4294967295, .frameless = false},
+	{.throttler_idx = 10, .stack_machine_pc = 0x21f, .pointer_chasing_limit = 4294967295, .frameless = false},
 };
 const uint32_t num_probe_params = 12;
 typedef enum type {
@@ -295,19 +295,19 @@ typedef enum type {
 
 const type_info_t type_info[] = {
 	/* 1: int	*/{.byte_len = 8, .enqueue_pc = 0x0},
-	/* 2: *****int	*/{.byte_len = 8, .enqueue_pc = 0x1fe},
-	/* 3: ****int	*/{.byte_len = 8, .enqueue_pc = 0x23a},
+	/* 2: *****int	*/{.byte_len = 8, .enqueue_pc = 0x3},
+	/* 3: ****int	*/{.byte_len = 8, .enqueue_pc = 0x22e},
 	/* 4: ***int	*/{.byte_len = 8, .enqueue_pc = 0x240},
 	/* 5: **int	*/{.byte_len = 8, .enqueue_pc = 0x246},
 	/* 6: *int	*/{.byte_len = 8, .enqueue_pc = 0x24c},
-	/* 7: string	*/{.byte_len = 16, .enqueue_pc = 0x28},
+	/* 7: string	*/{.byte_len = 16, .enqueue_pc = 0xe5},
 	/* 8: *uint8	*/{.byte_len = 8, .enqueue_pc = 0x0},
 	/* 9: uint8	*/{.byte_len = 1, .enqueue_pc = 0x0},
-	/* 10: []int	*/{.byte_len = 24, .enqueue_pc = 0x5f},
+	/* 10: []int	*/{.byte_len = 24, .enqueue_pc = 0x12b},
 	/* 11: [3]int	*/{.byte_len = 24, .enqueue_pc = 0x0},
-	/* 12: []string	*/{.byte_len = 24, .enqueue_pc = 0xcc},
+	/* 12: []string	*/{.byte_len = 24, .enqueue_pc = 0x1ec},
 	/* 13: *string	*/{.byte_len = 8, .enqueue_pc = 0x0},
-	/* 14: [3]string	*/{.byte_len = 48, .enqueue_pc = 0x10e},
+	/* 14: [3]string	*/{.byte_len = 48, .enqueue_pc = 0xeb},
 	/* 15: map[string]int	*/{.byte_len = 0, .enqueue_pc = 0x0},
 	/* 16: *map<string,int>	*/{.byte_len = 8, .enqueue_pc = 0x0},
 	/* 17: map<string,int>	*/{.byte_len = 48, .enqueue_pc = 0x0},
@@ -340,7 +340,7 @@ const type_info_t type_info[] = {
 	/* 44: *string.str	*/{.byte_len = 8, .enqueue_pc = 0x0},
 	/* 45: []int.array	*/{.byte_len = 512, .enqueue_pc = 0x0},
 	/* 46: *[]int.array	*/{.byte_len = 8, .enqueue_pc = 0x0},
-	/* 47: []string.array	*/{.byte_len = 512, .enqueue_pc = 0x22e},
+	/* 47: []string.array	*/{.byte_len = 512, .enqueue_pc = 0x234},
 	/* 48: *[]string.array	*/{.byte_len = 8, .enqueue_pc = 0x0},
 	/* 49: []*table<string,int>.array	*/{.byte_len = 2048, .enqueue_pc = 0x0},
 	/* 50: []noalg.map.group[string]int.array	*/{.byte_len = 512, .enqueue_pc = 0x0},
@@ -366,14 +366,14 @@ const uint32_t num_types = 63;
 const throttler_params_t throttler_params[] = {
 	{.period_ns = 1000000000, .budget = 1},
 	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
-	{.period_ns = 1000000000, .budget = 1},
 	{.period_ns = 1000000000, .budget = 2},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
+	{.period_ns = 1000000000, .budget = 1},
 	{.period_ns = 1000000000, .budget = 1},
 };
 #define NUM_THROTTLERS 11

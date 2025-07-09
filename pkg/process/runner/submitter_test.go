@@ -22,10 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -36,31 +36,37 @@ import (
 func TestNewCollectorQueueSize(t *testing.T) {
 	tests := []struct {
 		name              string
-		override          bool
+		configOverrides   map[string]interface{}
 		queueSize         int
 		expectedQueueSize int
 	}{
 		{
 			name:              "default queue size",
-			override:          false,
+			configOverrides:   nil,
 			queueSize:         42,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueSize,
 		},
 		{
-			name:              "valid queue size override",
-			override:          true,
+			name: "valid queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.queue_size": 42,
+			},
 			queueSize:         42,
 			expectedQueueSize: 42,
 		},
 		{
-			name:              "invalid negative queue size override",
-			override:          true,
+			name: "invalid negative queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.queue_size": -10,
+			},
 			queueSize:         -10,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueSize,
 		},
 		{
-			name:              "invalid 0 queue size override",
-			override:          true,
+			name: "invalid 0 queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.queue_size": 0,
+			},
 			queueSize:         0,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueSize,
 		},
@@ -68,12 +74,8 @@ func TestNewCollectorQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			if tc.override {
-				mockConfig.SetWithoutSource("process_config.queue_size", tc.queueSize)
-			}
-			deps := newSubmitterDepsWithConfig(t, mockConfig)
-			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
+			deps := getSubmitterDeps(t, tc.configOverrides, nil)
+			c, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 		})
@@ -83,31 +85,37 @@ func TestNewCollectorQueueSize(t *testing.T) {
 func TestNewCollectorRTQueueSize(t *testing.T) {
 	tests := []struct {
 		name              string
-		override          bool
+		configOverrides   map[string]interface{}
 		queueSize         int
 		expectedQueueSize int
 	}{
 		{
 			name:              "default queue size",
-			override:          false,
+			configOverrides:   nil,
 			queueSize:         2,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessRTQueueSize,
 		},
 		{
-			name:              "valid queue size override",
-			override:          true,
+			name: "valid queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.rt_queue_size": 2,
+			},
 			queueSize:         2,
 			expectedQueueSize: 2,
 		},
 		{
-			name:              "invalid negative size override",
-			override:          true,
+			name: "invalid negative size override",
+			configOverrides: map[string]interface{}{
+				"process_config.rt_queue_size": -2,
+			},
 			queueSize:         -2,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessRTQueueSize,
 		},
 		{
-			name:              "invalid 0 queue size override",
-			override:          true,
+			name: "invalid 0 queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.rt_queue_size": 0,
+			},
 			queueSize:         0,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessRTQueueSize,
 		},
@@ -115,12 +123,8 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			if tc.override {
-				mockConfig.SetWithoutSource("process_config.rt_queue_size", tc.queueSize)
-			}
-			deps := newSubmitterDepsWithConfig(t, mockConfig)
-			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
+			deps := getSubmitterDeps(t, tc.configOverrides, nil)
+			c, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -130,31 +134,37 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 func TestNewCollectorProcessQueueBytes(t *testing.T) {
 	tests := []struct {
 		name              string
-		override          bool
+		configOverrides   map[string]interface{}
 		queueBytes        int
 		expectedQueueSize int
 	}{
 		{
 			name:              "default queue size",
-			override:          false,
+			configOverrides:   nil,
 			queueBytes:        42000,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueBytes,
 		},
 		{
-			name:              "valid queue size override",
-			override:          true,
+			name: "valid queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.process_queue_bytes": 42000,
+			},
 			queueBytes:        42000,
 			expectedQueueSize: 42000,
 		},
 		{
-			name:              "invalid negative queue size override",
-			override:          true,
+			name: "invalid negative queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.process_queue_bytes": -2,
+			},
 			queueBytes:        -2,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueBytes,
 		},
 		{
-			name:              "invalid 0 queue size override",
-			override:          true,
+			name: "invalid 0 queue size override",
+			configOverrides: map[string]interface{}{
+				"process_config.process_queue_bytes": 0,
+			},
 			queueBytes:        0,
 			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueBytes,
 		},
@@ -162,12 +172,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			if tc.override {
-				mockConfig.SetWithoutSource("process_config.process_queue_bytes", tc.queueBytes)
-			}
-			deps := newSubmitterDepsWithConfig(t, mockConfig)
-			s, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
+			deps := getSubmitterDeps(t, tc.configOverrides, nil)
+			s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
@@ -181,12 +187,18 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor(flavor.ProcessAgent)
 
-	deps := newSubmitterDeps(t)
-	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
+	configOverrides := map[string]interface{}{
+		"process_config.process_collection.enabled": "false",
+	}
+	sysprobeconfigOverrides := map[string]interface{}{
+		"discovery.enabled": "false",
+	}
+	deps := getSubmitterDeps(t, configOverrides, sysprobeconfigOverrides)
+	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
 
-	now := time.Now()
 	agentVersion, _ := version.Agent()
+	now := time.Now()
 
 	requestID := submitter.getRequestID(now, 0)
 
@@ -203,14 +215,16 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "3",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.RequestIDHeader:      requestID,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "3",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.RequestIDHeader:         requestID,
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
@@ -221,13 +235,15 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "3",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "3",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
@@ -238,13 +254,15 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "2",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "2",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
@@ -255,41 +273,47 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				},
 			},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "5",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "5",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
 			name:    "process_discovery",
 			message: &model.CollectorProcDiscovery{},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           testHostName,
-				headers.ProcessVersionHeader: agentVersion.GetNumber(),
-				headers.ContainerCountHeader: "0",
-				headers.ContentTypeHeader:    headers.ProtobufContentType,
-				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:        "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "0",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 		{
 			name:    "process_events",
 			message: &model.CollectorProcEvent{},
 			expectHeaders: map[string]string{
-				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:             testHostName,
-				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
-				headers.ContainerCountHeader:   "0",
-				headers.ContentTypeHeader:      headers.ProtobufContentType,
-				headers.EVPOriginHeader:        "process-agent",
-				headers.EVPOriginVersionHeader: version.AgentVersion,
-				headers.AgentStartTime:         strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:          "process_agent",
+				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
+				headers.HostHeader:              testHostName,
+				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
+				headers.ContainerCountHeader:    "0",
+				headers.ContentTypeHeader:       headers.ProtobufContentType,
+				headers.EVPOriginHeader:         "process-agent",
+				headers.EVPOriginVersionHeader:  version.AgentVersion,
+				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:           "process_agent",
+				headers.ProcessesEnabled:        "false",
+				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
 	}
@@ -312,8 +336,8 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 }
 
 func Test_getRequestID(t *testing.T) {
-	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
@@ -350,8 +374,8 @@ func TestSubmitterHeartbeatProcess(t *testing.T) {
 	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
 	statsdClient.EXPECT().Gauge("datadog.process.agent", float64(1), gomock.Any(), float64(1)).MinTimes(1)
 
-	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName)
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
 	mockedClock := clock.NewMock()
 	s.clock = mockedClock
@@ -369,8 +393,8 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
 	statsdClient.EXPECT().Gauge("datadog.process.agent", float64(1), gomock.Any(), float64(1)).Times(0)
 
-	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName)
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
 	mockedClock := clock.NewMock()
 	s.clock = mockedClock
@@ -379,27 +403,86 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	s.Stop()
 }
 
+func TestSubmitterFeatureHeaders(t *testing.T) {
+	tests := []struct {
+		name                       string
+		configOverrides            map[string]interface{}
+		sysprobeconfigOverrides    map[string]interface{}
+		expProcessesEnabled        string
+		expServiceDiscoveryEnabled string
+	}{
+		{
+			name: "just processes enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": "true",
+			},
+			sysprobeconfigOverrides: map[string]interface{}{
+				"discovery.enabled": "false",
+			},
+			expProcessesEnabled:        "true",
+			expServiceDiscoveryEnabled: "false",
+		},
+		{
+			name: "just service discovery enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": "false",
+			},
+			sysprobeconfigOverrides: map[string]interface{}{
+				"discovery.enabled": "true",
+			},
+			expProcessesEnabled:        "false",
+			expServiceDiscoveryEnabled: "true",
+		},
+		{
+			name: "both enabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": "true",
+			},
+			sysprobeconfigOverrides: map[string]interface{}{
+				"discovery.enabled": "true",
+			},
+			expProcessesEnabled:        "true",
+			expServiceDiscoveryEnabled: "true",
+		},
+		{
+			name: "both disabled",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": "false",
+			},
+			sysprobeconfigOverrides: map[string]interface{}{
+				"discovery.enabled": "false",
+			},
+			expProcessesEnabled:        "false",
+			expServiceDiscoveryEnabled: "false",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := getSubmitterDeps(t, tc.configOverrides, tc.sysprobeconfigOverrides)
+			s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expProcessesEnabled, s.processesEnabled)
+			assert.Equal(t, tc.expServiceDiscoveryEnabled, s.serviceDiscoveryEnabled)
+		})
+	}
+}
+
 type submitterDeps struct {
 	fx.In
-	Config     config.Component
-	Log        log.Component
-	Forwarders forwarders.Component
-	Statsd     statsd.ClientInterface
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component
+	Log            log.Component
+	Forwarders     forwarders.Component
+	Statsd         statsd.ClientInterface
 }
 
-func newSubmitterDeps(t *testing.T) submitterDeps {
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, nil))
-}
-
-func newSubmitterDepsWithConfig(t *testing.T, config pkgconfigmodel.Config) submitterDeps {
-	overrides := config.AllSettings()
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, overrides))
-}
-
-func getForwardersMockModules(t *testing.T, configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(
+func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysprobeconfigOverrides map[string]interface{}) submitterDeps {
+	return fxutil.Test[submitterDeps](t, fx.Options(
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		sysprobeconfigimpl.MockModule(),
+		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
 		forwardersimpl.MockModule(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
@@ -407,5 +490,5 @@ func getForwardersMockModules(t *testing.T, configOverrides map[string]interface
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}
 		}),
-	)
+	))
 }

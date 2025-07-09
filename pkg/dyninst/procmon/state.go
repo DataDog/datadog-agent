@@ -9,8 +9,6 @@ package procmon
 
 import (
 	"slices"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 )
 
 // TODO: We should add rate limiting on the actual rate at which we will
@@ -31,7 +29,7 @@ type processEvent struct {
 
 type processAnalysis struct {
 	service     string
-	exe         actuator.Executable
+	exe         Executable
 	interesting bool
 }
 
@@ -54,7 +52,7 @@ func (r *analysisResult) event() {}
 
 type effects interface {
 	analyzeProcess(pid uint32)
-	reportProcessesUpdate(update actuator.ProcessesUpdate)
+	reportProcessesUpdate(update ProcessesUpdate)
 }
 
 type state struct {
@@ -66,8 +64,8 @@ type state struct {
 	// not yet been reported.
 	pending map[uint32]struct{}
 
-	updates  []actuator.ProcessUpdate
-	removals []actuator.ProcessID
+	updates  []ProcessUpdate
+	removals []ProcessID
 }
 
 func newState() *state {
@@ -91,7 +89,7 @@ func (s *state) handle(ev event, eff effects) {
 			if _, ok := s.alive[e.pid]; ok {
 				delete(s.alive, e.pid)
 				if _, ok := s.pending[e.pid]; !ok {
-					pid := actuator.ProcessID{PID: int32(e.pid)}
+					pid := ProcessID{PID: int32(e.pid)}
 					s.removals = append(s.removals, pid)
 				}
 			}
@@ -101,8 +99,8 @@ func (s *state) handle(ev event, eff effects) {
 		if e.err != nil || !e.interesting {
 			delete(s.alive, uint32(e.pid))
 		} else {
-			s.updates = append(s.updates, actuator.ProcessUpdate{
-				ProcessID: actuator.ProcessID{
+			s.updates = append(s.updates, ProcessUpdate{
+				ProcessID: ProcessID{
 					PID:     int32(e.pid),
 					Service: e.service,
 				},
@@ -131,11 +129,11 @@ func (s *state) handle(ev event, eff effects) {
 
 	// Drop updates for processes that exited before we finished building.
 	isDead := func(pid uint32) bool { _, ok := s.alive[pid]; return !ok }
-	s.updates = slices.DeleteFunc(s.updates, func(u actuator.ProcessUpdate) bool {
+	s.updates = slices.DeleteFunc(s.updates, func(u ProcessUpdate) bool {
 		return isDead(uint32(u.ProcessID.PID))
 	})
 	if len(s.updates) > 0 || len(s.removals) > 0 {
-		report := actuator.ProcessesUpdate{
+		report := ProcessesUpdate{
 			Processes: s.updates,
 			Removals:  s.removals,
 		}

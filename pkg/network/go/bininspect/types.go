@@ -90,8 +90,8 @@ const (
 )
 
 // PointerSize gets the size, in bytes, of pointers on the architecture
-func (a *GoArch) PointerSize() uint {
-	switch *a {
+func (a GoArch) PointerSize() uint {
+	switch a {
 	case GoArchX86_64:
 		return 8
 	case GoArchARM64:

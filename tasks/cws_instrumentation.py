@@ -9,6 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -57,22 +58,26 @@ def build(
     build_tags += get_default_build_tags(build="cws-instrumentation")
     build_tags = add_fips_tags(build_tags, fips_mode)
 
-    race_opt = "-race" if race else ""
-    build_type = "-a" if rebuild else ""
-    go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
     if arch_suffix:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
         agent_bin = f'{agent_bin}.{arch}'
 
-    strip_flags = "" if no_strip_binary else "-s -w"
+    if not no_strip_binary:
+        ldflags += " -s -w"
 
-    cmd = (
-        f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} {strip_flags}" {REPO_PATH}/cmd/cws-instrumentation'
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/cws-instrumentation",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        gcflags=gcflags,
+        ldflags=ldflags,
+        build_tags=build_tags,
+        bin_path=agent_bin,
+        env=env,
     )
-
-    ctx.run(cmd, env=env)
 
 
 @task

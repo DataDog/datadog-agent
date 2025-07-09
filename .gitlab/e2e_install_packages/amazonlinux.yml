@@ -100,3 +100,19 @@ new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64:
     matrix:
       - START_MAJOR_VERSION: [7]
         END_MAJOR_VERSION: [7]
+
+new-e2e-agent-platform-ddot-amazonlinux-a7-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_ddot
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_x86_64
+  rules: !reference [.on_default_new_e2e_tests]
+
+new-e2e-agent-platform-ddot-amazonlinux-a7-arm64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_ddot
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_arm64
+  rules: !reference [.on_default_new_e2e_tests]

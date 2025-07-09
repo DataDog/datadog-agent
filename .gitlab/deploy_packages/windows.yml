@@ -28,7 +28,7 @@ deploy_staging_windows_tags-7:
   stage: deploy_packages
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
-  needs: ["windows_msi_and_bosh_zip_x64-a7", "windows_zip_agent_binaries_x64-a7"]
+  needs: ["windows_zip_agent_binaries_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

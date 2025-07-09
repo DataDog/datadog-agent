@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -33,7 +33,7 @@ func Module() fxutil.Module {
 
 type noopAutoConfig struct{}
 
-func (n *noopAutoConfig) AddConfigProvider(providers.ConfigProvider, bool, time.Duration) {}
+func (n *noopAutoConfig) AddConfigProvider(types.ConfigProvider, bool, time.Duration) {}
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
 
@@ -51,12 +51,12 @@ func (n *noopAutoConfig) GetIDOfCheckWithEncryptedSecrets(checkid.ID) checkid.ID
 	return ""
 }
 
-func (n *noopAutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
-	return map[string]map[string]providers.ErrorMsgSet{}
+func (n *noopAutoConfig) GetAutodiscoveryErrors() map[string]map[string]types.ErrorMsgSet {
+	return map[string]map[string]types.ErrorMsgSet{}
 }
 
-func (n *noopAutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
-	return map[string]providers.ConfigProviderFactory{}
+func (n *noopAutoConfig) GetProviderCatalog() map[string]types.ConfigProviderFactory {
+	return map[string]types.ConfigProviderFactory{}
 }
 
 func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {

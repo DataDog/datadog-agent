@@ -1,0 +1,14 @@
+config:
+  max_items: 2
+  max_size_bytes: 50
+  max_buffer_ms: 200
+events:
+  - !batch-outcome {id: 1, success: false}
+error: "outcome for unknown batch id 1"
+---
+now: 0s
+event: !batch-outcome {id: 1, success: false}
+state:
+  batch_len: 0
+  current_size: 0
+  timer_set: false

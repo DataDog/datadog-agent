@@ -12,15 +12,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 )
 
 func TestStateMachine(t *testing.T) {
 	type step struct {
 		ev      event
-		analyze []uint32                  // nil if no build expected after this step
-		update  *actuator.ProcessesUpdate // nil if no update expected after this step
+		analyze []uint32         // nil if no build expected after this step
+		update  *ProcessesUpdate // nil if no update expected after this step
 	}
 
 	type opt func(*step)
@@ -28,11 +26,11 @@ func TestStateMachine(t *testing.T) {
 	upd := func(procPids ...uint32) opt {
 		return func(s *step) {
 			if s.update == nil {
-				s.update = &actuator.ProcessesUpdate{}
+				s.update = &ProcessesUpdate{}
 			}
 			for _, pid := range procPids {
-				s.update.Processes = append(s.update.Processes, actuator.ProcessUpdate{
-					ProcessID: actuator.ProcessID{PID: int32(pid)},
+				s.update.Processes = append(s.update.Processes, ProcessUpdate{
+					ProcessID: ProcessID{PID: int32(pid)},
 				})
 			}
 		}
@@ -41,10 +39,10 @@ func TestStateMachine(t *testing.T) {
 	rem := func(procPids ...uint32) opt {
 		return func(s *step) {
 			if s.update == nil {
-				s.update = &actuator.ProcessesUpdate{}
+				s.update = &ProcessesUpdate{}
 			}
 			for _, pid := range procPids {
-				s.update.Removals = append(s.update.Removals, actuator.ProcessID{PID: int32(pid)})
+				s.update.Removals = append(s.update.Removals, ProcessID{PID: int32(pid)})
 			}
 		}
 	}
@@ -145,7 +143,7 @@ func TestStateMachine(t *testing.T) {
 					if s.update != nil {
 						require.Equal(
 							t,
-							[]actuator.ProcessesUpdate{*s.update},
+							[]ProcessesUpdate{*s.update},
 							mock.updates,
 						)
 					} else {
@@ -163,7 +161,7 @@ func TestStateMachine(t *testing.T) {
 // It can synchronously feed processResult events back into the state machine
 // and records every ProcessesUpdate sent to the actuator.
 type mockEffects struct {
-	updates []actuator.ProcessesUpdate
+	updates []ProcessesUpdate
 	builds  []uint32
 }
 
@@ -171,6 +169,6 @@ func (m *mockEffects) analyzeProcess(pid uint32) {
 	m.builds = append(m.builds, pid)
 }
 
-func (m *mockEffects) reportProcessesUpdate(u actuator.ProcessesUpdate) {
+func (m *mockEffects) reportProcessesUpdate(u ProcessesUpdate) {
 	m.updates = append(m.updates, u)
 }

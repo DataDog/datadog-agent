@@ -12,6 +12,7 @@ import (
 	"net"
     "reflect"
 	"math"
+	"strings"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -298,7 +299,27 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 
+func (ev *Event) initProcess() {
+	if ev.BaseEvent.ProcessContext == nil {
+		ev.BaseEvent.ProcessContext = &ProcessContext{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
+	}
+
+	if ev.Exec.Process == nil {
+		ev.Exec.Process = &Process{}
+	}
+}
+
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
+	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+		ev.initProcess()
+	}
+
 	switch field {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
@@ -316,7 +337,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{$SetHandler := $Field | GetSetHandler $.AllFields}}
 
 		case "{{$Name}}":
-			{{- $Field | NewField $.AllFields}}
+			{{- $Field | NewField $.AllFields $Name}}
 			{{if $Field | IsReadOnly}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
@@ -328,26 +349,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{end}}
 			{{- if eq $Field.BasicType "string"}}
 				{{- if $Field.IsArray}}
-					switch rv := value.(type) {
-						case string:
-							{{$FieldName}} = append({{$FieldName}}, rv)
-						case []string:
-							{{$FieldName}} = append({{$FieldName}}, rv...)
-						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
-					}
+					return ev.setStringArrayFieldValue("{{$Name}}", &{{$FieldName}}, value)
 				{{else}}
+					{{- if ne $Field.OrigType "string" }}
 					rv, ok := value.(string)
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
-					{{- if ne $Field.OrigType "string" }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
+					return nil
 					{{else}}
-					{{$FieldName}} = rv
+					return ev.setStringFieldValue("{{$Name}}", &{{$FieldName}}, value)
 					{{end}}
 				{{end}}
-				return nil
 			{{else if eq $Field.BasicType "int"}}
 				{{- if $Field.IsArray}}
 					switch rv := value.(type) {
@@ -360,37 +374,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 						default:
 							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
 					}
+					return nil
 				{{else}}
-					rv, ok := value.(int)
-					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
-					}
-					{{- if eq $Field.OrigType "uint16" }}
-					if rv < 0 || rv > math.MaxUint16 {
-						return &eval.ErrValueOutOfRange{Field: "{{$Name}}"}
-					}
-					{{- end }}
-					{{$FieldName}} = {{$Field.OrigType}}(rv)
+					return ev.set{{$Field.OrigType | UpperCase}}FieldValue("{{$Name}}", &{{$FieldName}}, value)
 				{{end}}
-				return nil
 			{{else if eq $Field.BasicType "bool"}}
 				{{- if $Field.IsArray}}
-					switch rv := value.(type) {
-						case bool:
-							{{$FieldName}} = append({{$FieldName}}, rv)
-						case []bool:
-							{{$FieldName}} = append({{$FieldName}}, rv...)
-						default:
-							return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
-					}
+					return ev.setBoolArrayFieldValue("{{$Name}}", &{{$FieldName}}, value)
 				{{else}}
-					rv, ok := value.(bool)
-					if !ok {
-						return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
-					}
-					{{$FieldName}} = rv
+					return ev.setBoolFieldValue("{{$Name}}", &{{$FieldName}}, value)
 				{{end}}
-				return nil
 			{{else if eq $Field.BasicType "net.IPNet"}}
 				{{- if $Field.IsArray}}
 					switch rv := value.(type) {

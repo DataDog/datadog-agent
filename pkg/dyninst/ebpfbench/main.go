@@ -11,19 +11,19 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"runtime"
 	"time"
 	"unsafe"
 
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -35,6 +35,24 @@ func getSampleBinaryPath() (string, error) {
 		GOARCH:      runtime.GOARCH,
 		GOTOOLCHAIN: "go1.24.3",
 	})
+}
+
+type overriddenThrottle struct {
+	ir.ProbeDefinition
+	PeriodMs uint32
+	Budget   int64
+}
+
+func (o *overriddenThrottle) GetThrottleConfig() ir.ThrottleConfig {
+	return o
+}
+
+func (o *overriddenThrottle) GetThrottlePeriodMs() uint32 {
+	return o.PeriodMs
+}
+
+func (o *overriddenThrottle) GetThrottleBudget() int64 {
+	return o.Budget
 }
 
 func runBenchmark() error {
@@ -55,53 +73,37 @@ func runBenchmark() error {
 	if err != nil {
 		return err
 	}
-
 	obj, err := object.NewElfObject(binary)
 	if err != nil {
 		return err
+	}
+	probes[0] = &overriddenThrottle{
+		ProbeDefinition: probes[0],
+		PeriodMs:        1,
+		Budget:          3,
 	}
 
 	irp, err := irgen.GenerateIR(1, obj, probes)
 	if err != nil {
 		return err
 	}
-	irp.Probes[0].ThrottlePeriodMs = 1
-	irp.Probes[0].ThrottleBudget = 3
 
-	// Compile the IR and prepare the BPF program.
-	fmt.Println("compiling BPF")
-	compiledBPF, err := compiler.NewCompiler().Compile(irp, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { compiledBPF.Obj.Close() }()
-
-	bpfObjDump, err := os.Create("/tmp/probe.bpf.o")
-	if err != nil {
-		return err
-	}
-	defer func() { bpfObjDump.Close() }()
-	_, err = io.Copy(bpfObjDump, compiledBPF.Obj)
+	fmt.Printf("compiling sm")
+	smProgram, err := compiler.GenerateProgram(irp)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("loading BPF")
-	spec, err := ebpf.LoadCollectionSpecFromReader(compiledBPF.Obj)
+	loader, err := loader.NewLoader()
 	if err != nil {
 		return err
 	}
-
-	bpfCollection, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
+	program, err := loader.Load(smProgram)
 	if err != nil {
 		return err
 	}
-	defer func() { bpfCollection.Close() }()
-
-	bpfProg, ok := bpfCollection.Programs[compiledBPF.ProgramName]
-	if !ok {
-		return fmt.Errorf("bpf program %s not found", compiledBPF.ProgramName)
-	}
+	defer func() { program.Close() }()
 
 	sampleLink, err := link.OpenExecutable(binPath)
 	if err != nil {
@@ -129,13 +131,13 @@ func runBenchmark() error {
 		return err
 	}
 	var allAttached []link.Link
-	for _, attachpoint := range compiledBPF.Attachpoints {
+	for _, attachpoint := range program.Attachpoints {
 		// Despite the name, Uprobe expects an offset in the object file, and not the virtual address.
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset
 		fmt.Printf("attaching @0x%x cookie=%d\n", addr, attachpoint.Cookie)
 		attached, err := sampleLink.Uprobe(
 			"",
-			bpfProg,
+			program.BpfProgram,
 			&link.UprobeOptions{
 				PID:     sampleProc.Process.Pid,
 				Address: addr,
@@ -169,7 +171,7 @@ func runBenchmark() error {
 	}
 
 	// Count events.
-	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
+	rd, err := ringbuf.NewReader(program.Collection.Maps["out_ringbuf"])
 	if err != nil {
 		return err
 	}

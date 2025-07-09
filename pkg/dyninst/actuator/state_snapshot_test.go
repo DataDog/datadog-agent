@@ -27,10 +27,10 @@ import (
 // stateUpdate is a struct that represents the changes to the state after an
 // event is processed. It's used to generate the output document.
 type stateUpdate struct {
-	CurrentlyCompiling string         `yaml:"currently_compiling,omitempty"`
-	QueuedPrograms     string         `yaml:"queued_programs,omitempty"`
-	Processes          map[int]string `yaml:"processes,omitempty"`
-	Programs           map[int]string `yaml:"programs,omitempty"`
+	CurrentlyLoading string         `yaml:"currently_loading,omitempty"`
+	QueuedPrograms   string         `yaml:"queued_programs,omitempty"`
+	Processes        map[any]string `yaml:"processes,omitempty"`
+	Programs         map[int]string `yaml:"programs,omitempty"`
 }
 
 func TestSnapshot(t *testing.T) {
@@ -94,13 +94,22 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 
 	// Process each event
 	s := newState()
+	effects := effectRecorder{}
 	for i, ev := range events {
 
 		// Create snapshot before handling event
 		before := deepCopyState(s)
+		if loaded, ok := ev.event.(eventProgramLoaded); ok {
+			closeSink := &closeEffectRecorderSink{
+				r:         &effects,
+				programID: loaded.programID,
+			}
+			loaded.loaded.sink = closeSink
+			ev.event = loaded
+		}
 
 		// Handle the event
-		var effects effectRecorder
+		effects.effects = effects.effects[:0]
 		err = handleEvent(s, &effects, ev.event)
 		require.NoError(t, err)
 		output[i] = generateEventOutput(t, eventNodes[i], effects, before, s)
@@ -205,24 +214,24 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	update := &stateUpdate{}
 
 	{
-		var beforeCompiling, afterCompiling any
-		if before.currentlyCompiling != nil {
-			beforeCompiling = int(before.currentlyCompiling.id)
+		var beforeLoading, afterLoading any
+		if before.currentlyLoading != nil {
+			beforeLoading = int(before.currentlyLoading.id)
 		}
-		if after.currentlyCompiling != nil {
-			afterCompiling = int(after.currentlyCompiling.id)
+		if after.currentlyLoading != nil {
+			afterLoading = int(after.currentlyLoading.id)
 		}
-		if beforeCompiling != afterCompiling {
-			update.CurrentlyCompiling = fmt.Sprintf(
-				"%v -> %v", beforeCompiling, afterCompiling,
+		if beforeLoading != afterLoading {
+			update.CurrentlyLoading = fmt.Sprintf(
+				"%v -> %v", beforeLoading, afterLoading,
 			)
 		} else {
-			update.CurrentlyCompiling = fmt.Sprintf("%v", afterCompiling)
+			update.CurrentlyLoading = fmt.Sprintf("%v", afterLoading)
 		}
 	}
 	getQueuedProgramIDs := func(s *state) []int {
 		var ids []int
-		for p := range s.queuedCompilations.items() {
+		for p := range s.queuedLoading.items() {
 			ids = append(ids, int(p.id))
 		}
 		return ids
@@ -240,7 +249,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	}
 	{
 		before, after := before.processes, after.processes
-		allIDs := make(map[ProcessID]bool)
+		allIDs := make(map[processKey]bool)
 		for id := range before {
 			allIDs[id] = true
 		}
@@ -251,7 +260,12 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
-			key := int(id.PID)
+			var key any
+			if id.tenantID != 0 {
+				key = fmt.Sprintf("t%d:%d", id.tenantID, id.PID)
+			} else {
+				key = int(id.PID)
+			}
 
 			var beforeState, afterState any
 			if beforeProc != nil {
@@ -275,7 +289,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 				}
 			}
 			if update.Processes == nil {
-				update.Processes = make(map[int]string)
+				update.Processes = make(map[any]string)
 			}
 			if beforeState != afterState {
 				update.Processes[key] = fmt.Sprintf(
@@ -305,24 +319,16 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			var beforeState, afterState any
 
 			if beforeProg != nil {
-				if beforeProg.processID != nil {
-					beforeState = fmt.Sprintf(
-						"%s (proc %d)",
-						beforeProg.state.String(), beforeProg.processID.PID,
-					)
-				} else {
-					beforeState = beforeProg.state.String()
-				}
+				beforeState = fmt.Sprintf(
+					"%s (proc %d)",
+					beforeProg.state.String(), beforeProg.PID,
+				)
 			}
 			if afterProg != nil {
-				if afterProg.processID != nil {
-					afterState = fmt.Sprintf(
-						"%s (proc %d)",
-						afterProg.state.String(), afterProg.processID.PID,
-					)
-				} else {
-					afterState = afterProg.state.String()
-				}
+				afterState = fmt.Sprintf(
+					"%s (proc %d)",
+					afterProg.state.String(), afterProg.PID,
+				)
 			}
 
 			if update.Programs == nil {

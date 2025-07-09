@@ -14,7 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
 // effect represents a side effect that can be recorded and serialized to YAML
@@ -25,31 +25,11 @@ type effect interface {
 
 // Effect implementations
 
-type effectSpawnEBPFCompilation struct {
+type effectSpawnBpfLoading struct {
+	processID  ProcessID
 	programID  ir.ProgramID
 	executable Executable
-	probes     []irgen.ProbeDefinition
-}
-
-func (e effectSpawnEBPFCompilation) yamlTag() string {
-	return "!spawn-ebpf-compilation"
-}
-
-func (e effectSpawnEBPFCompilation) yamlData() map[string]any {
-	var probeKeys []string
-	for _, probe := range e.probes {
-		probeKeys = append(probeKeys, probe.GetID())
-	}
-	slices.Sort(probeKeys)
-	return map[string]any{
-		"program_id": int(e.programID),
-		"executable": e.executable.String(),
-		"probes":     probeKeys,
-	}
-}
-
-type effectSpawnBpfLoading struct {
-	programID ir.ProgramID
+	probes     []ir.ProbeDefinition
 }
 
 func (e effectSpawnBpfLoading) yamlTag() string {
@@ -57,8 +37,16 @@ func (e effectSpawnBpfLoading) yamlTag() string {
 }
 
 func (e effectSpawnBpfLoading) yamlData() map[string]any {
+	var probeKeys []string
+	for _, probe := range e.probes {
+		probeKeys = append(probeKeys, probe.GetID())
+	}
+	slices.Sort(probeKeys)
 	return map[string]any{
+		"process_id": int(e.processID.PID),
 		"program_id": int(e.programID),
+		"executable": e.executable.String(),
+		"probes":     probeKeys,
 	}
 }
 
@@ -124,6 +112,22 @@ func (e effectUnregisterProgramWithDispatcher) yamlData() map[string]any {
 	}
 }
 
+// effectCloseSink is a special effect that marks when a program sink is
+// closed.
+type effectCloseSink struct {
+	programID ir.ProgramID
+}
+
+func (e effectCloseSink) yamlTag() string {
+	return "!close-sink"
+}
+
+func (e effectCloseSink) yamlData() map[string]any {
+	return map[string]any{
+		"program_id": int(e.programID),
+	}
+}
+
 // effectRecorder records effects for testing
 type effectRecorder struct {
 	effects []effect
@@ -151,21 +155,18 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 
 // Implementation of effectHandler interface using the unified system
 
-func (er *effectRecorder) compileProgram(
+func (er *effectRecorder) loadProgram(
+	_ tenantID,
 	programID ir.ProgramID,
 	executable Executable,
-	probes []irgen.ProbeDefinition,
+	processID ProcessID,
+	probes []ir.ProbeDefinition,
 ) {
-	er.recordEffect(effectSpawnEBPFCompilation{
+	er.recordEffect(effectSpawnBpfLoading{
+		processID:  processID,
 		programID:  programID,
 		executable: executable,
 		probes:     probes,
-	})
-}
-
-func (er *effectRecorder) loadProgram(compiled *CompiledProgram) {
-	er.recordEffect(effectSpawnBpfLoading{
-		programID: compiled.IR.ID,
 	})
 }
 
@@ -175,7 +176,7 @@ func (er *effectRecorder) attachToProcess(
 	processID ProcessID,
 ) {
 	er.recordEffect(effectAttachToProcess{
-		programID:  loaded.id,
+		programID:  loaded.ir.ID,
 		processID:  processID,
 		executable: executable,
 	})
@@ -183,19 +184,22 @@ func (er *effectRecorder) attachToProcess(
 
 func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	er.recordEffect(effectDetachFromProcess{
-		programID: attached.progID,
+		programID: attached.ir.ID,
 		processID: attached.procID,
 	})
 }
 
-func (er *effectRecorder) registerProgramWithDispatcher(program *ir.Program) {
-	er.recordEffect(effectRegisterProgramWithDispatcher{
-		programID: program.ID,
-	})
+type closeEffectRecorderSink struct {
+	r         *effectRecorder
+	programID ir.ProgramID
 }
 
-func (er *effectRecorder) unregisterProgramWithDispatcher(programID ir.ProgramID) {
-	er.recordEffect(effectUnregisterProgramWithDispatcher{
-		programID: programID,
+func (s *closeEffectRecorderSink) HandleEvent(output.Event) error {
+	return nil
+}
+
+func (s *closeEffectRecorderSink) Close() {
+	s.r.effects = append(s.r.effects, effectCloseSink{
+		programID: s.programID,
 	})
 }

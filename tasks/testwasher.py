@@ -78,13 +78,13 @@ class TestWasher:
             or (package in self.known_flaky_tests and test in self.known_flaky_tests[package])
         )
 
-    def get_failing_tests(self) -> dict:
+    def get_failing_tests(self) -> dict[str, set[str]]:
         """
         Read the test output json file and return the tests that are failing
         """
         return self.test_output_json.failing_tests  # type: ignore[assignment]
 
-    def get_flaky_failures(self) -> dict:
+    def get_flaky_failures(self) -> dict[str, set[str]]:
         """
         Return failures that are due to flakiness. A test is considered flaky if it failed because of a flake.
         In the following cases the test failure is considered a flaky failure:

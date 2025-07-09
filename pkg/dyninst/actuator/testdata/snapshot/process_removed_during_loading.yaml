@@ -7,7 +7,6 @@
       executable: {path: /usr/bin/test}
       probes:
         - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
-- !compiled {program_id: 1}
 - !processes-updated {removed: [1001]} 
 - !loading-failed {program_id: 1, process_id: 1001, error: "eBPF loading failed"}
 ---
@@ -18,40 +17,29 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
-  currently_compiling: <nil> -> 1
+  currently_loading: <nil> -> 1
   queued_programs: '[]'
   processes:
     1001: <nil> -> WaitingForProgram (prog 1)
   programs:
-    1: <nil> -> Compiling (proc 1001)
----
-event: !compiled {program_id: 1}
-effects:
-  - !spawn-bpf-loading {program_id: 1}
-state:
-  currently_compiling: "1"
-  queued_programs: '[]'
-  processes:
-    1001: WaitingForProgram (prog 1)
-  programs:
-    1: Compiling (proc 1001) -> Loading (proc 1001)
+    1: <nil> -> Loading (proc 1001)
 ---
 event: !processes-updated {removed: [1001]}
 state:
-  currently_compiling: "1"
+  currently_loading: "1"
   queued_programs: '[]'
   processes:
     1001: WaitingForProgram (prog 1)
   programs:
-    1: Loading (proc 1001) -> CompilationAborted (proc 1001)
+    1: Loading (proc 1001) -> LoadingAborted (proc 1001)
 ---
 event: !loading-failed {program_id: 1, process_id: 1001, error: "eBPF loading failed"}
 state:
-  currently_compiling: 1 -> <nil>
+  currently_loading: 1 -> <nil>
   queued_programs: '[]'
   processes:
     1001: WaitingForProgram (prog 1) -> <nil>
   programs:
-    1: CompilationAborted (proc 1001) -> <nil>
+    1: LoadingAborted (proc 1001) -> <nil>

@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package datadog.filter;
+
+option go_package = "comp/core/workloadfilter/def/proto"; // golang
+
+message FilterContainer {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  oneof owner {
+    FilterPod pod = 4;
+    FilterECSTask ecs_task = 5;
+  }
+}
+
+message FilterPod {
+  string id = 1;
+  string name = 2;
+  string namespace = 3;
+  map<string, string> annotations = 4;
+}
+
+message FilterECSTask {
+  string id = 1;
+  string arn = 2;
+  // TODO: Explore task fields to add
+}
+
+message FilterKubeService {
+  string name = 1;
+  string namespace = 2;
+  map<string, string> annotations = 3;
+}
+
+message FilterKubeEndpoint {
+  string name = 1;
+  string namespace = 2;
+  map<string, string> annotations = 3;
+}

@@ -8,6 +8,7 @@ package aggregator
 import (
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -125,14 +126,14 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
 	if len(s.metricsByTimestamp) > 0 {
 		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
 			// disregard when the timestamp is too recent
-			if s.isBucketStillOpen(bucketTimestamp, cutoffTime) {
+			if s.isBucketStillOpen(bucketTimestamp, cutoffTime) && !forceFlushAll {
 				continue
 			}
 
@@ -207,10 +208,15 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 }
 
-func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink) {
+func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
-	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+	flushAllBefore := cutoffTime
+	if forceFlushAll {
+		flushAllBefore = math.MaxInt64
+	}
+
+	s.sketchMap.flushBefore(flushAllBefore, func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
 		}
@@ -226,12 +232,12 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
-	s.flushSeries(cutoffTime, series, blocklist)
-	s.flushSketches(cutoffTime, sketches)
+	s.flushSeries(cutoffTime, series, blocklist, forceFlushAll)
+	s.flushSketches(cutoffTime, sketches, forceFlushAll)
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))
 	s.lastCutOffTime = cutoffTime

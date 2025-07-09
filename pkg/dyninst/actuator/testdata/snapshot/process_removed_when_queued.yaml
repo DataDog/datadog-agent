@@ -23,24 +23,24 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
-  currently_compiling: <nil> -> 1
+  currently_loading: <nil> -> 1
   queued_programs: '[] -> [2]'
   processes:
     1001: <nil> -> WaitingForProgram (prog 1)
     1002: <nil> -> WaitingForProgram (prog 2)
   programs:
-    1: <nil> -> Compiling (proc 1001)
+    1: <nil> -> Loading (proc 1001)
     2: <nil> -> Queued (proc 1002)
 ---
 event: !processes-updated {removed: [1002]}
 state:
-  currently_compiling: "1"
+  currently_loading: "1"
   queued_programs: '[2] -> []'
   processes:
     1001: WaitingForProgram (prog 1)
     1002: WaitingForProgram (prog 2) -> <nil>
   programs:
-    1: Compiling (proc 1001)
+    1: Loading (proc 1001)
     2: Queued (proc 1002) -> <nil>

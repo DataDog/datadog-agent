@@ -28,7 +28,7 @@ BINARIES: dict[str, dict] = {
     },
     "iot-agent": {
         "build": "agent",
-        "entrypoint": "cmd/agent",
+        "entrypoint": "cmd/iot-agent",
         "flavor": AgentFlavor.iot,
         "platforms": ["linux/x64", "linux/arm64"],
     },

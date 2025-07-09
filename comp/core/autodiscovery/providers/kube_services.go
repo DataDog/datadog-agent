@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -37,13 +38,13 @@ const (
 type KubeServiceConfigProvider struct {
 	lister         listersv1.ServiceLister
 	upToDate       *atomic.Bool
-	configErrors   map[string]ErrorMsgSet
+	configErrors   map[string]types.ErrorMsgSet
 	telemetryStore *telemetry.Store
 }
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -57,7 +58,7 @@ func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, tele
 
 	p := &KubeServiceConfigProvider{
 		lister:         servicesInformer.Lister(),
-		configErrors:   make(map[string]ErrorMsgSet),
+		configErrors:   make(map[string]types.ErrorMsgSet),
 		telemetryStore: telemetryStore,
 		upToDate:       atomic.NewBool(false),
 	}
@@ -176,7 +177,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		setServiceIDs[serviceID] = struct{}{}
 		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
 		if len(errors) > 0 {
-			errMsgSet := make(ErrorMsgSet)
+			errMsgSet := make(types.ErrorMsgSet)
 			for _, err := range errors {
 				log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 				errMsgSet[err.Error()] = struct{}{}
@@ -223,6 +224,6 @@ func (k *KubeServiceConfigProvider) cleanErrorsOfDeletedServices(setCurrentServi
 }
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes service
-func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (k *KubeServiceConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return k.configErrors
 }
