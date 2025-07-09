@@ -180,6 +180,36 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
 			return
 		}
+
+		// Save the initial bookmark to the registry immediately by sending a synthetic message
+		// This ensures the bookmark is persisted even if no real events are processed
+		if t.bookmark != nil {
+			offset, err := t.bookmark.Render()
+			if err == nil {
+				log.Debugf("Saving initial bookmark to registry: %s", offset)
+
+				// Create a synthetic message just to persist the bookmark
+				// The message content is empty as it's only used for bookmark persistence
+				origin := message.NewOrigin(t.source)
+				origin.Identifier = t.Identifier()
+				origin.Offset = offset
+				origin.SetSource(t.Identifier())
+
+				// Create a synthetic message with minimal content
+				msg := message.NewMessage([]byte("[Initial bookmark seeded]"), origin, "", time.Now().UnixNano())
+
+				// Send through the output channel so it flows through the pipeline
+				// and the auditor will persist the bookmark
+				select {
+				case t.outputChan <- msg:
+					log.Debug("Initial bookmark sent for persistence")
+				default:
+					log.Warn("Failed to send initial bookmark for persistence - output channel may be full")
+				}
+			} else {
+				log.Warnf("Failed to render initial bookmark: %v", err)
+			}
+		}
 	}
 
 	// subscription
@@ -313,18 +343,18 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
-		return fmt.Errorf("Error rendering event values: %v", err)
+		return fmt.Errorf("error rendering event values: %v", err)
 	}
 	defer vals.Close()
 
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return fmt.Errorf("Failed to get provider name: %v", err)
+		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
 	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err != nil {
-		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
+		return fmt.Errorf("failed to get publisher metadata for provider '%s': %v", providerName, err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
 
