@@ -772,7 +772,19 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 				},
 			},
 
-			"1.3.6.1.4.1.9.9.171.1.3.2.1.8": {
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.51": { // Status
+				"1": valuestore.ResultValue{
+					Value: "1",
+				},
+				"2": valuestore.ResultValue{
+					Value: "2",
+				},
+				"3": valuestore.ResultValue{
+					Value: "3",
+				},
+			},
+
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.8": { // Life Size
 				"1": valuestore.ResultValue{
 					Value: "4608000",
 				},
@@ -783,7 +795,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 					Value: "654321",
 				},
 			},
-			"1.3.6.1.4.1.9.9.171.1.3.2.1.9": {
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.9": { // Life Time
 				"1": valuestore.ResultValue{
 					Value: "3600",
 				},
@@ -899,6 +911,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 							Name: "cipSecTunRemoteAddr",
 						},
 					},
+					"status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.51",
+							Name: "cipSecTunStatus",
+						},
+					},
 					"life_size": {
 						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.8",
@@ -995,6 +1013,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "interface_id": "1234:2",
             "local_outside_ip": "10.0.0.1",
             "remote_outside_ip": "20.0.0.1",
+            "status": "active",
             "protocol": "ipsec",
             "route_addresses": [
                 "100.0.0.0/16",
@@ -1011,6 +1030,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "device_id": "1234",
             "local_outside_ip": "30.0.0.1",
             "remote_outside_ip": "40.0.0.1",
+            "status": "destroy",
             "protocol": "ipsec",
             "route_addresses": [
                 "110.0.0.0/24",
@@ -1028,6 +1048,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "interface_id": "1234:6",
             "local_outside_ip": "50.0.0.1",
             "remote_outside_ip": "60.0.0.1",
+            "status": "unknown",
             "protocol": "ipsec",
             "route_addresses": [
                 "120.0.0.0/16",
