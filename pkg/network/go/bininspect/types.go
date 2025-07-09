@@ -45,22 +45,40 @@ var StructOffsetNetConnFd = FieldIdentifier{
 	FieldName:  "fd",
 }
 
-// StructOffsetNetFdPfd is the offset of the `pdf` field within `net.netFD`.
-var StructOffsetNetFdPfd = FieldIdentifier{
-	StructName: "net.netFD",
-	FieldName:  "pfd",
-}
-
-// StructOffsetPollFdSysfd is the offset of the `sysfd` field within `internal/poll.FD`.
-var StructOffsetPollFdSysfd = FieldIdentifier{
-	StructName: "internal/poll.FD",
-	FieldName:  "Sysfd",
-}
-
 // StructOffsetLimitListenerConnNetConn is the offset of the `net.Conn` field within `netutil/limitListenerConn`.
 var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
 	StructName: "golang.org/x/net/netutil.limitListenerConn",
 	FieldName:  "Conn",
+}
+
+// StructOffsetFamilyInNetFD is the offset of the `family` field within `net.netFD`.
+var StructOffsetFamilyInNetFD = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "family",
+}
+
+// StructOffsetLaddrInNetFD is the offset of the `laddr` field within `net.netFD`.
+var StructOffsetLaddrInNetFD = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "laddr",
+}
+
+// StructOffsetRaddrInNetFD is the offset of the `raddr` field within `net.netFD`.
+var StructOffsetRaddrInNetFD = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "raddr",
+}
+
+// StructOffsetPortInTCPAddr is the offset of the `Port` field within `net.TCPAddr`.
+var StructOffsetPortInTCPAddr = FieldIdentifier{
+	StructName: "net.TCPAddr",
+	FieldName:  "Port",
+}
+
+// StructOffsetIPInTCPAddr is the offset of the `IP` field within `net.TCPAddr`.
+var StructOffsetIPInTCPAddr = FieldIdentifier{
+	StructName: "net.TCPAddr",
+	FieldName:  "IP",
 }
 
 type elfMetadata struct {
