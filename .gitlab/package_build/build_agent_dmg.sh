@@ -125,8 +125,10 @@ if [ "$SIGN" = true ]; then
         echo "Submission logs:"
         # Always show logs even if notarization fails to have more context
         STATUS=$(xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" | tee /dev/stderr | jq --raw-output .status)
-        set -x
-        [ "$STATUS" = Accepted ]  # Fail on any other status like Expired, Invalid, Rejected, Unknown, etc.
+        if [ "$STATUS" != Accepted ]; then
+            echo "Submission was not accepted, got: ${STATUS}"
+            exit 1
+        fi
         exit "$EXIT_CODE"
     '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
