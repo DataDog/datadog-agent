@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/jellydator/ttlcache/v3"
 )
 
@@ -26,20 +25,18 @@ var (
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
-const (
-	// Subsystem is the subsystem name for the provided telemetry for variables
-	Subsystem = "secl"
-)
+// Telemetry tracks the values of evaluation metrics
+type Telemetry struct {
+	TotalVariables Gauge
+}
 
-var (
-	// TotalVariables tracks the total number of SECL variables
-	TotalVariables = telemetry.NewGauge(
-		Subsystem,
-		"total_variables",
-		[]string{"type", "scope"},
-		"Number of instantiated variables",
-	)
-)
+// Gauge tracks the amount of a metric
+type Gauge interface {
+	// Inc increments the Gauge value.
+	Inc(tagsValue ...string)
+	// Sub subtracts the value to the Gauge value.
+	Sub(value float64, tagsValue ...string)
+}
 
 // SECLVariable describes a SECL variable value
 type SECLVariable interface {
@@ -982,6 +979,7 @@ type VariableOpts struct {
 	TTL       time.Duration
 	Private   bool // When a variable is marked as private, it will not be included in the serialized event
 	Inherited bool
+	Telemetry *Telemetry
 }
 
 // NewVariables returns a new set of global variables
@@ -1032,9 +1030,11 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
-func (v *Variables) NewSECLVariable(_ string, value interface{}, scope string, opts VariableOpts) (SECLVariable, error) {
+func (v *Variables) NewSECLVariable(_ string, value interface{}, _ string, opts VariableOpts) (SECLVariable, error) {
 	varType := getVariableType(value)
-	TotalVariables.Add(1.0, varType, scope)
+	if opts.Telemetry != nil {
+		opts.Telemetry.TotalVariables.Inc(varType, "global")
+	}
 
 	seclVariable, err := newSECLVariable(value, opts)
 	if err != nil {
@@ -1113,7 +1113,9 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {
-				TotalVariables.Sub(float64(len(v.vars[key])), varType, scopeName)
+				if opts.Telemetry != nil {
+					opts.Telemetry.TotalVariables.Sub(float64(len(v.vars[key])), varType, scopeName)
+				}
 				v.ReleaseVariable(key)
 			})
 
@@ -1121,7 +1123,9 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 		}
 
 		if _, found := v.vars[key][name]; !found {
-			TotalVariables.Add(1.0, varType, scopeName)
+			if opts.Telemetry != nil {
+				opts.Telemetry.TotalVariables.Inc(varType, scopeName)
+			}
 
 			seclVariable, err := newSECLVariable(value, opts)
 			if err != nil {
