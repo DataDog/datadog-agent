@@ -458,8 +458,9 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
+				Netns:    netns,
+				Port:     clientPort,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -478,8 +479,9 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
+				Netns:    netns,
+				Port:     clientPort,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -542,8 +544,9 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
+				Netns:    netns,
+				Port:     clientPort,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -562,8 +565,9 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
+				Netns:    netns,
+				Port:     clientPort,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -626,8 +630,9 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
+				Netns:    netns,
+				Port:     clientPort,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -646,8 +651,9 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
+				Netns:    netns,
+				Port:     clientPort,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -702,9 +708,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9001),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9001),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -723,9 +730,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9001),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9001),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -780,9 +788,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9002),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9002),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -801,9 +810,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9002),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9002),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -811,9 +821,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9002),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9002),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -877,9 +888,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9003),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9003),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -898,9 +910,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9003),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9003),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -964,9 +977,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9004),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9004),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -985,9 +999,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9004),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9004),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -995,9 +1010,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9004),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9004),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -1075,9 +1091,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1092,9 +1109,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(1234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -1123,9 +1141,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		// server side
@@ -1134,9 +1153,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(1234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1221,9 +1241,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1238,9 +1259,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(2234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -1268,9 +1290,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		// server side
@@ -1279,9 +1302,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(2234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1366,9 +1390,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1383,9 +1408,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(3234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -1405,9 +1431,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1421,9 +1448,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(3234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1508,9 +1536,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1525,9 +1554,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(4234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -1546,9 +1576,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(4234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1563,9 +1594,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1660,9 +1692,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1677,9 +1710,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -1702,9 +1736,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1714,9 +1749,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1811,9 +1847,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1828,9 +1865,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -1849,9 +1887,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1865,9 +1904,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -1962,9 +2002,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -1979,9 +2020,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(7234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(7234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2009,9 +2051,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2021,9 +2064,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(7234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(7234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2118,9 +2162,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -2135,9 +2180,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(8234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(8234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2165,9 +2211,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(8234),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(8234),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2177,9 +2224,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2264,9 +2312,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -2281,9 +2330,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2313,9 +2363,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		// server side
@@ -2324,9 +2375,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -2334,9 +2386,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2421,9 +2474,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -2438,9 +2492,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(1334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2469,9 +2524,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		// server side
@@ -2480,9 +2536,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(2234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -2490,9 +2547,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2234),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(2234),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2577,9 +2635,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -2594,9 +2653,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(2334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2616,9 +2676,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2632,9 +2693,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(2334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -2642,9 +2704,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(2334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2729,9 +2792,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -2746,9 +2810,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(3334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2767,9 +2832,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(3334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -2777,9 +2843,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(3334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2794,9 +2861,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2891,9 +2959,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -2908,9 +2977,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2923,9 +2993,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -2948,9 +3019,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -2960,9 +3032,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -2970,9 +3043,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3067,9 +3141,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -3084,9 +3159,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3099,9 +3175,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3120,9 +3197,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -3130,9 +3208,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3146,9 +3225,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3243,9 +3323,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -3260,9 +3341,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3275,9 +3357,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3306,9 +3389,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3318,9 +3402,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -3328,9 +3413,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3425,9 +3511,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -3442,9 +3529,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(7334),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(7334),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3457,9 +3545,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(7334),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(7334),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3597,9 +3686,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9005),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9005),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -3614,9 +3704,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(8334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(8334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3634,9 +3725,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9005),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9005),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3650,9 +3742,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(8334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(8334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3738,9 +3831,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9006),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9006),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -3753,9 +3847,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9006),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9006),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3765,9 +3860,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3785,9 +3881,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9006),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9006),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3801,9 +3898,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9334),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(9334),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3899,9 +3997,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9007),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9007),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -3916,9 +4015,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(1434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -3941,9 +4041,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9007),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9007),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -3953,9 +4054,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(1434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4051,9 +4153,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9008),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9008),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -4066,9 +4169,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9008),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9008),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4078,9 +4182,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(2434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -4103,9 +4208,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9008),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9008),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -4113,9 +4219,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(9008),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(9008),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4125,9 +4232,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(2434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(2434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4222,9 +4330,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -4236,9 +4345,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4248,9 +4358,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3434),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(3434),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -4262,18 +4373,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(3434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(3434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4288,18 +4401,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4313,27 +4428,30 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3434),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(3434),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(3434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(3434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(3434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4428,10 +4546,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
-			},
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP},
 			// client expected entry
 			FlowPidEntry{
 				Pid:       pid,
@@ -4442,9 +4560,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4454,9 +4573,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4434),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4434),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -4468,18 +4588,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(4434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4494,18 +4616,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4519,27 +4643,30 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4434),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4434),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(4434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(4434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(4434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4634,9 +4761,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -4648,9 +4776,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4660,9 +4789,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5434),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5434),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -4674,18 +4804,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(5434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4700,18 +4832,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4725,27 +4859,30 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5434),
-				Addr1: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5434),
+				Addr1:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(5434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(5434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(5434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4840,9 +4977,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -4854,9 +4992,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4866,9 +5005,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// server entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(6434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// server expected entry
 			FlowPidEntry{
@@ -4880,9 +5020,10 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4897,18 +5038,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  clientPort,
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     clientPort,
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -4921,18 +5064,20 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6434),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(6434),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(6434),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(6434),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -5045,8 +5190,9 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  port2,
+				Netns:    netns,
+				Port:     port2,
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -5061,8 +5207,9 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 				m,
 				// client entry key
 				FlowPid{
-					Netns: netns,
-					Port:  port1,
+					Netns:    netns,
+					Port:     port1,
+					Protocol: syscall.IPPROTO_UDP,
 				},
 			)
 		}
@@ -5127,9 +5274,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1113),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(1113),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -5142,18 +5290,20 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1114),
-				Addr0: binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Netns:    netns,
+				Port:     htons(1114),
+				Addr0:    binary.BigEndian.Uint64([]byte{0, 0, 0, 0, 1, 0, 0, 127}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 		assertEmptyFlowPid(
 			t,
 			m,
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1114),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Netns:    netns,
+				Port:     htons(1114),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 127, 255, 255, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 
@@ -5165,9 +5315,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(1113),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(1113),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_UDP,
 			},
 		)
 	})
@@ -5254,9 +5405,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(boundPort1)),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(boundPort1)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -5293,9 +5445,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(boundPort2)),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(boundPort2)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 			// client expected entry
 			FlowPidEntry{
@@ -5308,9 +5461,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(boundPort1)),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(boundPort1)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
@@ -5322,9 +5476,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(boundPort1)),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(boundPort1)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 		assertEmptyFlowPid(
@@ -5332,9 +5487,10 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 			m,
 			// client entry key
 			FlowPid{
-				Netns: netns,
-				Port:  htons(uint16(boundPort2)),
-				Addr1: binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Netns:    netns,
+				Port:     htons(uint16(boundPort2)),
+				Addr1:    binary.BigEndian.Uint64([]byte{1, 0, 0, 0, 0, 0, 0, 0}),
+				Protocol: syscall.IPPROTO_TCP,
 			},
 		)
 
