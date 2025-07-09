@@ -8,11 +8,14 @@
 package gpu
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
+	"os/exec"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 )
 
@@ -167,50 +170,47 @@ func TestConfigureCgroupV2DeviceAllow(t *testing.T) {
 		t.Skip("Test requires cgroupv2")
 	}
 
-	// Create a temporary cgroup for testing
-	testCgroupName := "test-nvidia-device-allow"
-	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
+	// Create a temporary cgroup for testing using cgcreate
+	testCgroupName := fmt.Sprintf("test-nvidia-device-allow-%s", utils.RandString(10))
 
 	// Clean up after test
 	defer func() {
-		// Remove the test cgroup directory
-		if err := os.RemoveAll(testCgroupPath); err != nil {
-			t.Logf("Failed to remove test cgroup directory: %v", err)
+		// Remove the test cgroup using cgdelete
+		cmd := exec.Command("cgdelete", "devices", testCgroupName)
+		if err := cmd.Run(); err != nil {
+			t.Logf("Failed to clean up test cgroup: %v", err)
 		}
 	}()
 
-	// Create the test cgroup directory
-	if err := os.MkdirAll(testCgroupPath, 0755); err != nil {
-		t.Fatalf("Failed to create test cgroup directory: %v", err)
+	// Create the test cgroup using cgcreate
+	cmd := exec.Command("cgcreate", "-g", "devices:"+testCgroupName)
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to create test cgroup using cgcreate: %v", err)
 	}
 
-	// Refresh the cgroups to pick up the new cgroup
+	// Refresh the cgroups reader to pick up the new cgroup
 	if err := cgroupReader.RefreshCgroups(0); err != nil {
 		t.Fatalf("Failed to refresh cgroups: %v", err)
 	}
 
-	// Get the cgroup object for our test cgroup
+	// Get the cgroup object
 	testCgroup := cgroupReader.GetCgroup(testCgroupName)
 	if testCgroup == nil {
-		t.Fatalf("Failed to get cgroup object for %s", testCgroupName)
+		t.Fatalf("Failed to get test cgroup after creation")
 	}
 
-	// Test the function with the real cgroup
-	err = configureCgroupV2DeviceAllow(testCgroup, "/")
-	if err != nil {
-		t.Errorf("configureCgroupV2DeviceAllow failed: %v", err)
+	// Test the BPF program attachment
+	if err := configureCgroupV2DeviceAllow("", testCgroupName); err != nil {
+		t.Fatalf("Failed to configure cgroupv2 device allow: %v", err)
 	}
 
-	// Verify that the BPF program was attached by checking if the cgroup still exists and is accessible
-	if testCgroup.Identifier() != testCgroupName {
-		t.Errorf("Expected cgroup identifier %s, got %s", testCgroupName, testCgroup.Identifier())
+	// Verify that the BPF program was attached by checking if the cgroup.procs file exists
+	// and the cgroup is functional
+	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
+	procsPath := filepath.Join(testCgroupPath, "cgroup.procs")
+	if _, err := os.Stat(procsPath); err != nil {
+		t.Errorf("Cgroup procs file not found after BPF attachment: %v", err)
 	}
 
-	// Try to get PIDs from the cgroup to verify it's working
-	pids, err := testCgroup.GetPIDs(5 * time.Second)
-	if err != nil {
-		t.Logf("Could not get PIDs from cgroup (this is expected for an empty cgroup): %v", err)
-	} else {
-		t.Logf("Cgroup contains %d PIDs", len(pids))
-	}
+	t.Logf("Successfully created and configured cgroupv2 device allow for %s", testCgroupName)
 }
