@@ -148,7 +148,7 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         }
     }
 
-    bpf_map_update_elem(&conn_tup_by_go_tls_conn, &conn, &tuple, BPF_ANY);
+    bpf_map_update_with_telemetry(conn_tup_by_go_tls_conn, &conn, &tuple, BPF_ANY);
     return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
 }
 
