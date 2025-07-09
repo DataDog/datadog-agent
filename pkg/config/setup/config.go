@@ -1156,6 +1156,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
+	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
