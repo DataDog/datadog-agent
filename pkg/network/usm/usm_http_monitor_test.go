@@ -193,8 +193,8 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 
 					for key, count := range res {
 						value, ok := tt.expectedEndpoints[key]
-						require.True(t, ok, "expected endpoint mismatch")
-						require.Equal(t, value, count, "expected endpoint mismatch")
+						require.True(collect, ok, "expected endpoint mismatch")
+						require.Equal(collect, value, count, "expected endpoint mismatch")
 					}
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 				if t.Failed() {
