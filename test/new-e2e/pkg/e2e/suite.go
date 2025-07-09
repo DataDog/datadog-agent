@@ -201,6 +201,7 @@ type BaseSuite[Env any] struct {
 	startTime     time.Time
 	endTime       time.Time
 	initOnly      bool
+	teardownOnly  bool
 
 	outputDir string
 }
@@ -312,6 +313,11 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
 	if err == nil {
 		bs.initOnly = initOnly
+	}
+
+	teardownOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.TeardownOnly, false)
+	if err == nil {
+		bs.teardownOnly = teardownOnly
 	}
 
 	if !runner.GetProfile().AllowDevMode() {
@@ -550,6 +556,13 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
 	bs.startTime = time.Now()
+
+	if bs.teardownOnly {
+		defer bs.TearDownSuite()
+		bs.T().Skip("TEARDOWN_ONLY is set, skipping setup and tests")
+		return
+	}
+
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
 	if err != nil {
@@ -688,7 +701,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		if err != nil {
 			bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
 		}
-		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
+		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
 				bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
@@ -701,16 +714,12 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			fullStackName := fmt.Sprintf("organization/e2eci/%s", stackName)
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			bs.T().Logf("CELIAN: Trying to trigger API for stack '%s' (full name: '%s')", bs.params.stackName, fullStackName)
 			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
 			} else {
-				// TODO
-				bs.T().Logf("API output: %s", out)
-
-				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", bs.params.stackName)
+				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
 			}
 		} else {
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {

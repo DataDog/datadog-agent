@@ -153,7 +153,8 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 		status.AddGlobalWarning(
 			openFilesLimitWarningType,
 			fmt.Sprintf(
-				"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+				"The limit on the maximum number of files in use (%d) has been reached. If you aren't tailing the files you want to be tailing, increase this limit ("+
+					"logs_config.open_files_limit in datadog.yaml), decrease the number of files you are tailing, or alter the logs_config.file_wildcard_selection_mode setting to by_modification_time.",
 				p.filesLimit,
 			),
 		)

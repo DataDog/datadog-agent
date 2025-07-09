@@ -7,6 +7,7 @@ needs-rules:
     - .pre
     - lint
     - notify
+    - deploy_dca
     - deploy_containers
     - deploy_mutable_image_tags
 
@@ -42,13 +43,11 @@ needs-rules:
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
-    - trigger_auto_staging_release_on_failure
     - trigger_manual_prod_release
-    - trigger_manual_prod_release_on_failure
+    - trigger_distribution
+    - trigger_distribution_on_failure
     - installer_trigger_auto_staging_release
-    - installer_trigger_auto_staging_release_on_failure
     - installer_trigger_manual_prod_release
-    - installer_trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
@@ -64,6 +63,7 @@ job-owners:
     - build_otel_agent_binary_arm64
     - build_otel_agent_binary_x64
     - cancel-prev-pipelines
+    - clone
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
     - deploy_cluster_agent_cloudfoundry
@@ -88,8 +88,6 @@ job-owners:
     - new-e2e-package-signing-debian-a7-x86_64
     - new-e2e-package-signing-suse-a7-x86_64
     - new-e2e-unit-tests
-    - ot_agent_deb-arm64-a7
-    - ot_agent_deb-x64-a7
     - publish_fakeintake
     - publish_fakeintake_latest
     - rc_kubernetes_deploy

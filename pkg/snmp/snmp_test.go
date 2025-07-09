@@ -663,6 +663,74 @@ network_devices:
 	assert.Equal(t, true, conf.Configs[2].CollectTopology)
 }
 
+func Test_CollectVPN(t *testing.T) {
+	tests := []struct {
+		name                string
+		config              string
+		expectedCollectVPNs []bool
+	}{
+		{
+			name: "root collect_vpn false",
+			config: `
+network_devices:
+  autodiscovery:
+    collect_vpn: false
+    configs:
+     - network: 127.1.0.0/30
+       collect_vpn: true
+     - network: 127.2.0.0/30
+       collect_vpn: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectVPNs: []bool{true, false, false},
+		},
+		{
+			name: "root collect_vpn true",
+			config: `
+network_devices:
+  autodiscovery:
+    collect_vpn: true
+    configs:
+     - network: 127.1.0.0/30
+       collect_vpn: true
+     - network: 127.2.0.0/30
+       collect_vpn: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectVPNs: []bool{true, false, true},
+		},
+		{
+			name: "root collect_vpn unset",
+			config: `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+       collect_vpn: true
+     - network: 127.2.0.0/30
+       collect_vpn: false
+     - network: 127.3.0.0/30
+`,
+			expectedCollectVPNs: []bool{true, false, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configmock.NewFromYAML(t, tt.config)
+
+			conf, err := NewListenerConfig()
+			assert.NoError(t, err)
+
+			collectVPNs := make([]bool, len(conf.Configs))
+			for i, config := range conf.Configs {
+				collectVPNs[i] = config.CollectVPN
+			}
+			assert.Equal(t, tt.expectedCollectVPNs, collectVPNs)
+		})
+	}
+}
+
 func TestConfig_Digest(t *testing.T) {
 	tests := []struct {
 		name         string
