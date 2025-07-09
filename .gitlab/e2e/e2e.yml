@@ -480,7 +480,7 @@ new-e2e-cws:
     # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestAgentSuite(EC2|GCP)
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
