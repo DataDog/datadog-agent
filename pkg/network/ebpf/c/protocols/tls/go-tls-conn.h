@@ -27,24 +27,19 @@ static __always_inline bool read_ip(slice_t *address_ptr, __u32 family, __u64 *o
     // Taking 16 bytes as it is the maximum size for an IPv6 address (128 bits) and an IPv4 address (32 bits) can fit in this space.
     char ip[IP_ADDR_LEN_MAX] = {0};
     if (address_ptr->len == IPV4_ADDR_LEN && family == AF_INET) {
-        if (bpf_probe_read_user(ip, IPV4_ADDR_LEN, (void*)address_ptr->ptr)) {
-            log_debug("[go-tls-conn] failed to read IPv4 address at %p", (void*)address_ptr->ptr);
-            return false;
+        if (bpf_probe_read_user(ip, IPV4_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
+            *out_address_h = 0;
+            *out_address_l = *((__u32*)ip);
+            return true;
         }
-        *out_address_h = 0;
-        *out_address_l = *((__u32*)ip);
-        return true;
-    }
-    if (address_ptr->len == IPV6_ADDR_LEN && family == AF_INET6) {
-        if (bpf_probe_read_user(ip, IPV6_ADDR_LEN, (void*)address_ptr->ptr)) {
-            log_debug("[go-tls-conn] failed to read IPv6 address at %p", (void*)address_ptr->ptr);
-            return false;
+    } else if (address_ptr->len == IPV6_ADDR_LEN && family == AF_INET6) {
+        if (bpf_probe_read_user(ip, IPV6_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
+            *out_address_h = *((__u64*)ip);
+            *out_address_l = *((__u64*)(ip + 8));
+            return true;
         }
-        *out_address_h = *((__u64*)ip);
-        *out_address_l = *((__u64*)(ip + 8));
-        return true;
     }
-    log_debug("[go-tls-conn] invalid address length: %llu", address_ptr->len);
+    log_debug("[go-tls-conn] invalid address length: %llu; or invalid family: %u", address_ptr->len, family);
     return false;
 }
 
@@ -61,12 +56,8 @@ static __always_inline bool read_port(void *ptr, __u16 *out_port) {
 }
 
 static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tcp_conn_ptr, conn_tuple_t *output) {
-    void* tcp_conn_inner_conn_ptr = tcp_conn_ptr + cl->tcp_conn_inner_conn_offset;
-    // the net.conn struct is embedded in net.TCPConn, so just add the offset again
-    void* conn_fd_ptr_ptr = tcp_conn_inner_conn_ptr + cl->conn_fd_offset;
-
     void* conn_fd_ptr;
-    if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr), conn_fd_ptr_ptr)) {
+    if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr), tcp_conn_ptr + cl->tcp_conn_inner_conn_offset + cl->conn_fd_offset)) {
         return false;
     }
 
@@ -117,6 +108,12 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         return false;
     }
 
+    output->metadata = CONN_TYPE_TCP;
+    if (family == AF_INET6) {
+        output->metadata |= CONN_V6;
+    } else { // If we reached here, we already know the family is AF_INET or AF_INET6.
+        output->metadata |= CONN_V4;
+    }
     return true;
 }
 
@@ -140,7 +137,6 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
     // Here we obtain the pointer to the concrete type behind this interface.
     void *inner_conn_iface_ptr = resolve_interface(conn + pd->conn_layout.tls_conn_inner_conn_offset);
     if (inner_conn_iface_ptr == NULL) {
-        log_debug("[go-tls-conn] failed to resolve inner tls conn interface at %p", conn + pd->conn_layout.tls_conn_inner_conn_offset);
         return NULL;
     }
 
