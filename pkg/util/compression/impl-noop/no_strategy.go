@@ -40,7 +40,7 @@ func (s *NoopStrategy) ContentEncoding() string {
 	return "identity"
 }
 
-// NewStreamCompressor returns a nil when there is no compression implementation.
+// NewStreamCompressor implements the NewStreamCompressor method for NoopStrategy to satisfy the Compressor interface
 func (s *NoopStrategy) NewStreamCompressor(buf *bytes.Buffer) compression.StreamCompressor {
 	return &noopStreamCompressor{buf}
 }
