@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
@@ -21,51 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
-
-func TestMarshalJSONServiceChecks(t *testing.T) {
-	serviceChecks := ServiceChecks{{
-		CheckName:  "my_service.can_connect",
-		Host:       "my-hostname",
-		Ts:         int64(12345),
-		Status:     servicecheck.ServiceCheckOK,
-		Message:    "my_service is up",
-		Tags:       []string{"tag1", "tag2:yes"},
-		OriginInfo: taggertypes.OriginInfo{},
-	}}
-
-	payload, err := serviceChecks.MarshalJSON()
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("[{\"check\":\"my_service.can_connect\",\"host_name\":\"my-hostname\",\"timestamp\":12345,\"status\":0,\"message\":\"my_service is up\",\"tags\":[\"tag1\",\"tag2:yes\"]}]\n"))
-}
-
-func TestSplitServiceChecks(t *testing.T) {
-	var serviceChecks = ServiceChecks{}
-	for i := 0; i < 2; i++ {
-		sc := servicecheck.ServiceCheck{
-			CheckName:  "test.check",
-			Host:       "test.localhost",
-			Ts:         1000,
-			Status:     servicecheck.ServiceCheckOK,
-			Message:    "this is fine",
-			Tags:       []string{"tag1", "tag2:yes"},
-			OriginInfo: taggertypes.OriginInfo{},
-		}
-		serviceChecks = append(serviceChecks, &sc)
-	}
-
-	newSC, err := serviceChecks.SplitPayload(2)
-	require.Nil(t, err)
-	require.Len(t, newSC, 2)
-	require.Equal(t, 2, len(newSC))
-
-	newSC, err = serviceChecks.SplitPayload(3)
-	require.Nil(t, err)
-	require.Len(t, newSC, 2)
-}
 
 func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 	return &servicecheck.ServiceCheck{
@@ -200,28 +156,3 @@ func BenchmarkJSONPayloadBuilderServiceCheck10000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000000)
 }
 
-func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
-	serviceChecks := createServiceChecks(numberOfItem)
-
-	b.ResetTimer()
-
-	mockConfig := mock.New(b)
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-	logger := logmock.New(b)
-	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct, compressor, logger)
-	}
-}
-
-func BenchmarkPayloadServiceCheck1(b *testing.B)      { benchmarkPayloadsServiceCheck(b, 1) }
-func BenchmarkPayloadServiceCheck10(b *testing.B)     { benchmarkPayloadsServiceCheck(b, 10) }
-func BenchmarkPayloadServiceCheck100(b *testing.B)    { benchmarkPayloadsServiceCheck(b, 100) }
-func BenchmarkPayloadServiceCheck1000(b *testing.B)   { benchmarkPayloadsServiceCheck(b, 1000) }
-func BenchmarkPayloadServiceCheck10000(b *testing.B)  { benchmarkPayloadsServiceCheck(b, 10000) }
-func BenchmarkPayloadServiceCheck100000(b *testing.B) { benchmarkPayloadsServiceCheck(b, 100000) }
-func BenchmarkPayloadServiceCheck1000000(b *testing.B) {
-	benchmarkPayloadsServiceCheck(b, 1000000)
-}
-func BenchmarkPayloadServiceCheck10000000(b *testing.B) {
-	benchmarkPayloadsServiceCheck(b, 10000000)
-}
