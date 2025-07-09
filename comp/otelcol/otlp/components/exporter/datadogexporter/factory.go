@@ -178,7 +178,7 @@ func (f *factory) createTracesExporter(
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
 
-	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage)
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.s)
 
 	return exporterhelper.NewTraces(
 		ctx,

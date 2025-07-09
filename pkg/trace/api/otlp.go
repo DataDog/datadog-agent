@@ -140,6 +140,7 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) 
 	md, _ := metadata.FromIncomingContext(ctx)
 	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
 	o.processRequest(ctx, http.Header(md), in)
+	_ = o.statsd.Count("datadog.agent.otlp.ingest.traces", 1, []string{"host:" + o.conf.Hostname, "version:" + o.conf.AgentVersion}, 1)
 	return ptraceotlp.NewExportResponse(), nil
 }
 

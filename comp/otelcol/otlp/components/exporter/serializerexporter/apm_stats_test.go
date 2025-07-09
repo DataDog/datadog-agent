@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
@@ -84,7 +85,7 @@ func TestAPMStats_OSS(t *testing.T) {
 
 func TestAPMStats_OTelAgent(t *testing.T) {
 	statsIn := make(chan []byte, 1000)
-	factory := NewFactoryForOTelAgent(&metricRecorder{}, &MockTagEnricher{}, func(context.Context) (string, error) {
+	factory := NewFactoryForOTelAgent(&testutil.MetricRecorder{}, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
 	}, statsIn, otel.NewDisabledGatewayUsage())
 	testAPMStats(t, factory, statsIn)

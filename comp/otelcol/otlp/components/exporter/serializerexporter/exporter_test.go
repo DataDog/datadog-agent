@@ -21,42 +21,11 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
-
-var _ serializer.MetricSerializer = (*metricRecorder)(nil)
-
-type metricRecorder struct {
-	serializer.Serializer // embed for implementing serializer.MetricSerializer
-
-	sketchSeriesList metrics.SketchSeriesList
-	series           []*metrics.Serie
-}
-
-func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
-	for s.MoveNext() {
-		c := s.Current()
-		if c == nil {
-			continue
-		}
-		r.sketchSeriesList = append(r.sketchSeriesList, c)
-	}
-	return nil
-}
-
-func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
-	for s.MoveNext() {
-		c := s.Current()
-		if c == nil {
-			continue
-		}
-		r.series = append(r.series, c)
-	}
-	return nil
-}
 
 const (
 	histogramMetricName        = "test.histogram"
@@ -205,7 +174,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := &metricRecorder{}
+			rec := &testutil.MetricRecorder{}
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
@@ -224,12 +193,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			require.NoError(t, exp.Shutdown(ctx))
 
 			if tt.wantSketchTags.Len() > 0 {
-				assert.Equal(t, tt.wantSketchTags, rec.sketchSeriesList[0].Tags)
+				assert.Equal(t, tt.wantSketchTags, rec.SketchSeriesList[0].Tags)
 			} else {
-				assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), rec.sketchSeriesList[0].Tags)
+				assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), rec.SketchSeriesList[0].Tags)
 			}
-			assert.True(t, len(rec.series) > 0)
-			for _, s := range rec.series {
+			assert.True(t, len(rec.Series) > 0)
+			for _, s := range rec.Series {
 				if s.Name == "datadog.agent.otlp.metrics" {
 					assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
 				}
@@ -322,7 +291,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := &metricRecorder{}
+			rec := &testutil.MetricRecorder{}
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
@@ -338,13 +307,13 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			require.NoError(t, exp.ConsumeMetrics(ctx, tt.genMetrics(t)))
 			require.NoError(t, exp.Shutdown(ctx))
 
-			for _, serie := range rec.series {
+			for _, serie := range rec.Series {
 				if serie.Name != numberMetricName {
 					continue
 				}
 				assert.Equal(t, serie.Source, tt.msrc)
 			}
-			for _, sketch := range rec.sketchSeriesList {
+			for _, sketch := range rec.SketchSeriesList {
 				if sketch.Name != histogramMetricName {
 					continue
 				}
@@ -373,7 +342,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevVal))
 	}()
 
-	rec := &metricRecorder{}
+	rec := &testutil.MetricRecorder{}
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
@@ -403,7 +372,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
-	for _, serie := range rec.series {
+	for _, serie := range rec.Series {
 		if serie.Name == outName {
 			return
 		}
@@ -452,4 +421,81 @@ func newMetrics(
 	numberDataPoint.Attributes().CopyTo(gdpAttrs)
 
 	return md
+}
+
+func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
+	rec := &testutil.MetricRecorder{}
+	ctx := context.Background()
+	f := NewFactoryForAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+		return "agent-host", nil
+	})
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(
+		ctx,
+		exportertest.NewNopSettings(component.MustNewType("serializer")),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	h := pmetric.NewHistogramDataPoint()
+	h.BucketCounts().FromRaw([]uint64{100})
+	h.SetCount(100)
+	h.SetSum(0)
+	n := pmetric.NewNumberDataPoint()
+	n.SetIntValue(777)
+	md := newMetrics("test-histogram", h, "test-gauge", n)
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+
+	var usageMetric []*metrics.Serie
+	for _, serie := range rec.Series {
+		if serie.Name == "datadog.agent.otlp.ingest.metrics" {
+			usageMetric = append(usageMetric, serie)
+		}
+	}
+	require.Len(t, usageMetric, 1)
+	assert.Equal(t, "agent-host", usageMetric[0].Host)
+}
+
+func TestUsageMetric_DDOT(t *testing.T) {
+	rec := &testutil.MetricRecorder{}
+	ctx := context.Background()
+	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+		return "agent-host", nil
+	}, nil, otel.NewDisabledGatewayUsage())
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(
+		ctx,
+		exportertest.NewNopSettings(component.MustNewType("datadog")),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+	rm.Resource().Attributes().PutStr("datadog.host.name", "test-host")
+	ilms := rm.ScopeMetrics()
+	ilm := ilms.AppendEmpty()
+	metricsArray := ilm.Metrics()
+	met := metricsArray.AppendEmpty()
+	met.SetName("test-metric")
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := met.Sum().DataPoints().AppendEmpty()
+	dp.SetIntValue(100)
+
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+
+	var usageMetric []*metrics.Serie
+	for _, serie := range rec.Series {
+		if serie.Name == "datadog.agent.ddot.metrics" {
+			usageMetric = append(usageMetric, serie)
+		}
+	}
+	require.Len(t, usageMetric, 1)
+	assert.Equal(t, "test-host", usageMetric[0].Host)
 }
