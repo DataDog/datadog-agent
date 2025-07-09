@@ -11,21 +11,29 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
@@ -41,51 +49,60 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
-//go:embed testdata/decoded/*/*.yaml
+//go:embed testdata/decoded
 var testdataFS embed.FS
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
+	var integrationTestPrograms = map[string]struct{}{
+		"simple": {},
+		"sample": {},
+	}
+
+	// The debug variants of the tests spew logs to the trace_pipe, so we need
+	// to clear it after the tests to avoid interfering with other tests.
+	// Leave the option to disable this behavior for debugging purposes.
+	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
+	if !dontClear {
+		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			for {
+				deadline := time.Now().Add(100 * time.Millisecond)
+				require.NoError(t, tp.SetReadDeadline(deadline))
+				n, err := io.Copy(io.Discard, tp)
+				require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+				if n == 0 {
+					break
+				}
+			}
+			require.NoError(t, tp.Close())
+		})
+	}
+	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 	for _, svc := range programs {
-		if svc == "busyloop" {
-			t.Logf("busyloop is not used in integration test")
+		if _, ok := integrationTestPrograms[svc]; !ok {
+			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-
-		for _, cfg := range cfgs {
-			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
-				if cfg.GOARCH != runtime.GOARCH {
-					t.Skipf(
-						"cross-execution is not supported, running on %s",
-						runtime.GOARCH,
-					)
-				}
-				bin := testprogs.MustGetBinary(t, svc, cfg)
-
-				expectedOutput := getExpectedDecodedOutputOfProbes(t, svc)
-				probes := testprogs.MustGetProbeDefinitions(t, svc)
-				for i := range probes {
-					// Run each probe individually
-					t.Run(probes[i].GetID(), func(t *testing.T) {
-						t.Parallel()
-						testDyninst(t, svc, bin, probes[i:i+1], expectedOutput)
-					})
-				}
-			})
-		}
+		t.Run(svc, func(t *testing.T) {
+			runIntegrationTestSuite(t, svc, cfgs, rewrite)
+		})
 	}
 }
 
 func testDyninst(
 	t *testing.T,
 	service string,
-	sampleServicePath string,
+	servicePath string,
 	probes []ir.ProbeDefinition,
-	expOut map[string]string,
-) {
-	t.Logf("Testing with actuator")
+	rewriteEnabled bool,
+	expOut map[string][]json.RawMessage,
+	debug bool,
+) map[string][]json.RawMessage {
+	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
 
@@ -101,14 +118,16 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, objectFile.Close()) }()
 
-	reporter := makeTestReporter(t)
-	loader, err := loader.NewLoader(
-		// Add following to help debug this test.
-		// loader.WithDebugLevel(100),
+	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
-	)
+	}
+	if debug {
+		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+	}
+	reporter := makeTestReporter(t)
+	loader, err := loader.NewLoader(loaderOpts...)
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
@@ -118,14 +137,18 @@ func testDyninst(
 	t.Logf("launching %s", service)
 	ctx := context.Background()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
-		ctx, t, tempDir, sampleServicePath,
+		ctx, t, tempDir, servicePath,
 	)
+	defer func() {
+		_ = sampleProc.Process.Kill()
+		_ = sampleProc.Wait()
+	}()
 
-	stat, err := os.Stat(sampleServicePath)
+	stat, err := os.Stat(servicePath)
 	require.NoError(t, err)
 	fileInfo := stat.Sys().(*syscall.Stat_t)
 	exe := actuator.Executable{
-		Path: sampleServicePath,
+		Path: servicePath,
 		Key: procmon.FileKey{
 			FileHandle: procmon.FileHandle{
 				Dev: uint64(fileInfo.Dev),
@@ -153,7 +176,7 @@ func testDyninst(
 	sink, ok := <-reporter.attached
 	require.True(t, ok)
 	if t.Failed() {
-		return
+		return nil
 	}
 
 	// Trigger the function calls, receive the events, and wait for the process
@@ -161,13 +184,38 @@ func testDyninst(
 	t.Logf("Triggering function calls")
 	sampleStdin.Write([]byte("\n"))
 
-	expNumEvents := len(probes)
-	var read []output.Event
-	for m := range sink.ch {
-		read = append(read, m)
-		if len(read) == expNumEvents {
-			break
+	var totalExpectedEvents int
+	if rewriteEnabled {
+		totalExpectedEvents = math.MaxInt
+	} else {
+		for _, p := range probes {
+			totalExpectedEvents += len(expOut[p.GetID()])
 		}
+	}
+
+	timeout := time.Second
+	if !rewriteEnabled {
+		// Use some multiple of the time it took to start the test and get
+		// everything setup to try to add more margin in the case that we're
+		// running in an overloaded system.
+		timeout = time.Second + 2*time.Since(start)
+	}
+	timeoutCh := time.After(timeout)
+	var read []output.Event
+	var timedOut bool
+	for !timedOut && len(read) < totalExpectedEvents {
+		select {
+		case m := <-sink.ch:
+			read = append(read, m)
+		case <-timeoutCh:
+			timedOut = true
+		}
+	}
+	if !rewriteEnabled && timedOut {
+		t.Errorf(
+			"timed out waiting for %d events, got %d",
+			totalExpectedEvents, len(read),
+		)
 	}
 	require.NoError(t, sampleProc.Wait())
 
@@ -180,7 +228,7 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	mef, err := object.NewMMappingElfFile(sampleServicePath)
+	mef, err := object.NewMMappingElfFile(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, mef.Close()) }()
 	obj, err := object.NewElfObject(mef.Elf)
@@ -210,10 +258,14 @@ func testDyninst(
 	symbolicator := symbol.NewGoSymbolicator(symbolTable)
 	require.NotNil(t, symbolicator)
 
-	decoder, err := decode.NewDecoder(sink.irp, symbolicator)
+	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
+	require.NotNil(t, symbolicator)
 	require.NoError(t, err)
-	b := []byte{}
-	decodeOut := bytes.NewBuffer(b)
+
+	decoder, err := decode.NewDecoder(sink.irp)
+	require.NoError(t, err)
+
+	retMap := make(map[string][]json.RawMessage)
 	for _, ev := range read {
 		// Validate that the header has the correct program ID.
 		{
@@ -226,20 +278,30 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		err = decoder.Decode(event, decodeOut)
+		var decodeOut bytes.Buffer
+		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
-		t.Logf("Decoded output: \n%s\n", decodeOut.String())
 		redacted := redactJSON(t, decodeOut.Bytes())
-		t.Logf("Redacted output: \n%s\n", string(redacted))
-
-		outputToCompare := expOut[probes[0].GetID()]
-		assert.JSONEq(t, outputToCompare, string(redacted))
-
-		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expOut[probes[0].GetID()] = string(redacted)
-			saveActualOutputOfProbes(t, service, expOut)
+		probeID := probe.GetID()
+		probeRet := retMap[probeID]
+		expIdx := len(probeRet)
+		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
+		if expIdx < len(expOut[probeID]) {
+			outputToCompare := expOut[probeID][expIdx]
+			assert.JSONEq(t, string(outputToCompare), string(redacted))
+		}
+		if !rewriteEnabled {
+			expOut, ok := expOut[probeID]
+			assert.True(t, ok, "expected output for probe %s not found", probeID)
+			assert.Less(
+				t, expIdx, len(expOut),
+				"expected at least %d events for probe %s, got %d",
+				expIdx+1, probeID, len(expOut),
+			)
+			assert.Equal(t, string(expOut[expIdx]), string(redacted))
 		}
 	}
+	return retMap
 }
 
 type jsonRedactor struct {
@@ -276,22 +338,23 @@ func redactPtrRegexp(pat string, replacement jsontext.Value) jsonRedactor {
 }
 
 var redactors = []jsonRedactor{
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/fileName$`, []byte(`"<fileName>"`)),
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/lineNumber$`, []byte(`"<lineNumber>"`)),
+	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/fileName$`, []byte(`"[fileName]"`)),
+	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/lineNumber$`, []byte(`"[lineNumber]"`)),
 
 	// TODO: stack is only redacted in full because of bug with stack walking on arm64.
 	// Unredact this once the issue is fixed.
-	redactPtr(`/debugger/snapshot/stack`, []byte(`"<stack-unredact-me>"`)),
+	redactPtr(`/debugger/snapshot/stack`, []byte(`"[stack-unredact-me]"`)),
 
-	redactPtr("/debugger/snapshot/id", []byte(`"<id>"`)),
-	redactPtr("/debugger/snapshot/timestamp", []byte(`"<ts>"`)),
-	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"<addr>"`)),
+	redactPtr("/debugger/snapshot/id", []byte(`"[id]"`)),
+	redactPtr("/debugger/snapshot/timestamp", []byte(`"[ts]"`)),
+	redactPtr("/timestamp", []byte(`"[ts]"`)),
+	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"[addr]"`)),
 }
 
 func redactJSON(t *testing.T, input []byte) (redacted []byte) {
 	d := jsontext.NewDecoder(bytes.NewReader(input))
 	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf)
+	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
 	for {
 		tok, err := d.ReadToken()
 		if errors.Is(err, io.EOF) {
@@ -313,7 +376,126 @@ func redactJSON(t *testing.T, input []byte) (redacted []byte) {
 			}
 		}
 	}
-	return buf.Bytes()
+	return bytes.TrimSpace(buf.Bytes())
+}
+
+type probeOutputs map[string][]json.RawMessage
+
+func runIntegrationTestSuite(
+	t *testing.T,
+	service string,
+	configs []testprogs.Config,
+	rewrite bool,
+) {
+	var outputs = struct {
+		sync.Mutex
+		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
+	}{
+		byTest: make(map[string]probeOutputs),
+	}
+	if rewrite {
+		t.Cleanup(func() {
+			if t.Failed() {
+				return
+			}
+			validateAndSaveOutputs(t, service, outputs.byTest)
+		})
+	}
+	probes := testprogs.MustGetProbeDefinitions(t, service)
+	var expectedOutput map[string][]json.RawMessage
+	if !rewrite {
+		var err error
+		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
+		require.NoError(t, err)
+	}
+	for _, cfg := range configs {
+		if cfg.GOARCH != runtime.GOARCH {
+			t.Skipf(
+				"cross-execution is not supported, running on %s, skipping %s",
+				runtime.GOARCH, cfg.GOARCH,
+			)
+			continue
+		}
+		bin := testprogs.MustGetBinary(t, service, cfg)
+		for _, debug := range []bool{false, true} {
+			if testing.Short() && debug {
+				t.Skip("skipping debug mode in short mode")
+			}
+			runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+				t.Parallel()
+				actual := testDyninst(
+					t, service, bin, probeSlice, rewrite, expectedOutput, debug,
+				)
+				if t.Failed() {
+					return
+				}
+				outputs.Lock()
+				defer outputs.Unlock()
+				outputs.byTest[t.Name()] = actual
+			}
+			t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+				t.Parallel()
+				t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+				for i := range probes {
+					probeID := probes[i].GetID()
+					t.Run(probeID, func(t *testing.T) {
+						runTest(t, probes[i:i+1])
+					})
+				}
+			})
+		}
+	}
+}
+
+// validateAndSaveOutputs ensures that the outputs for the same probe are consistent
+// across all tests and saves them to disk.
+func validateAndSaveOutputs(
+	t *testing.T, svc string, byTest map[string]probeOutputs,
+) {
+	byProbe := make(map[string][]byte)
+	msgEq := func(a, b json.RawMessage) bool { return bytes.Equal(a, b) }
+	findMismatchingTests := func(
+		probeID string, cur []json.RawMessage,
+	) (testNames []string) {
+		for testName, testOutputs := range byTest {
+			if out, ok := testOutputs[probeID]; ok {
+				if !slices.EqualFunc(out, cur, msgEq) {
+					testNames = append(testNames, testName)
+				}
+			}
+		}
+		return testNames
+	}
+	for testName, testOutputs := range byTest {
+		for id, out := range testOutputs {
+			marshaled, err := json.MarshalIndent(out, "", "  ")
+			require.NoError(t, err)
+			prev, ok := byProbe[id]
+			if !ok {
+				byProbe[id] = marshaled
+				continue
+			}
+			if bytes.Equal(prev, marshaled) {
+				continue
+			}
+			otherTestNames := findMismatchingTests(id, out)
+			require.Equal(
+				t,
+				string(prev),
+				string(marshaled),
+				"inconsistent output for probe %s in test %s and %s: %s != %s",
+				id, testName, strings.Join(otherTestNames, ", "),
+			)
+		}
+	}
+	for id, out := range byProbe {
+		path := getProbeOutputFilename(svc, id)
+		if err := saveActualOutputOfProbe(path, out); err != nil {
+			t.Logf("error saving actual output for probe %s: %v", id, err)
+		} else {
+			t.Logf("output saved to: %s", path)
+		}
+	}
 }
 
 type testMessageSink struct {
@@ -336,12 +518,8 @@ type testReporter struct {
 	sink     testMessageSink
 }
 
-// ReportAttaching implements actuator.Reporter.
-func (r *testReporter) ReportAttaching(actuator.ProcessID, actuator.Executable, *ir.Program) {
-}
-
 // ReportLoaded implements actuator.Reporter.
-func (r *testReporter) ReportLoaded(p *ir.Program) (actuator.Sink, error) {
+func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
 	r.sink = testMessageSink{
 		irp: p,
 		ch:  make(chan output.Event, 100),
@@ -362,15 +540,26 @@ func (r *testReporter) ReportDetached(actuator.ProcessID, *ir.Program) {}
 
 // ReportIRGenFailed implements actuator.Reporter.
 func (r *testReporter) ReportIRGenFailed(
-	programID ir.ProgramID, err error, probes []ir.ProbeDefinition,
+	processID actuator.ProcessID,
+	err error,
+	probes []ir.ProbeDefinition,
 ) {
-	r.t.Fatalf("IR generation failed for program %d: %v (with probes: %v)", programID, err, probes)
+	r.t.Fatalf(
+		"IR generation failed for process %v: %v (with probes: %v)",
+		processID, err, probes,
+	)
 }
 
 // ReportLoadingFailed implements actuator.Reporter.
-func (r *testReporter) ReportLoadingFailed(program *ir.Program, err error) {
+func (r *testReporter) ReportLoadingFailed(
+	processID actuator.ProcessID,
+	program *ir.Program,
+	err error,
+) {
 	defer close(r.attached)
-	r.t.Fatalf("loading failed for program %d: %v", program.ID, err)
+	r.t.Fatalf(
+		"loading failed for program %d for process %v: %v", program.ID, processID, err,
+	)
 }
 
 // ReportAttachingFailed implements actuator.Reporter.
@@ -384,14 +573,6 @@ func (r *testReporter) ReportAttachingFailed(
 	)
 }
 
-// ReportCompilationFailed implements actuator.Reporter.
-func (r *testReporter) ReportCompilationFailed(
-	programID ir.ProgramID, err error, _ []ir.ProbeDefinition,
-) {
-	defer close(r.attached)
-	r.t.Fatalf("compilation failed for program %d: %v", programID, err)
-}
-
 func makeTestReporter(t *testing.T) *testReporter {
 	return &testReporter{
 		t:        t,
@@ -399,46 +580,63 @@ func makeTestReporter(t *testing.T) *testReporter {
 	}
 }
 
+func getProbeOutputFilename(service, probeID string) string {
+	return filepath.Join(
+		"testdata", "decoded", service, probeID+".json",
+	)
+}
+
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
-func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
-	expectedOutput := make(map[string]string)
-	filename := "testdata/decoded/" + runtime.GOARCH + "/" + name + ".yaml"
-
-	yamlData, err := testdataFS.ReadFile(filename)
+func getExpectedDecodedOutputOfProbes(progName string) (map[string][]json.RawMessage, error) {
+	dir := filepath.Join("testdata", "decoded", progName)
+	entries, err := testdataFS.ReadDir(dir)
 	if err != nil {
-		t.Errorf("testprogs: %v", err)
-		return expectedOutput
+		return nil, err
 	}
-
-	err = yaml.Unmarshal(yamlData, &expectedOutput)
-	if err != nil {
-		t.Errorf("testprogs: %v", err)
+	expected := make(map[string][]json.RawMessage)
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		probeID := strings.TrimSuffix(e.Name(), ".json")
+		content, err := testdataFS.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", e.Name(), err)
+		}
+		var out []json.RawMessage
+		if err := json.Unmarshal(content, &out); err != nil {
+			return nil, fmt.Errorf("unmarshalling %s: %w", e.Name(), err)
+		}
+		expected[probeID] = out
 	}
-	return expectedOutput
+	return expected, nil
 }
 
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
 // Note: This function now saves to the current working directory since embedded files are read-only.
-func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
-	// Create testdata/decoded/{arch} directory if it doesn't exist
-	archDir := filepath.Join("testdata", "decoded", runtime.GOARCH)
-	err := os.MkdirAll(archDir, 0755)
-	if err != nil {
-		t.Logf("error creating testdata directory: %s", err)
-		return
+func saveActualOutputOfProbe(outputPath string, content []byte) error {
+	outputDir := path.Dir(outputPath)
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("error creating testdata directory: %w", err)
 	}
 
-	filename := filepath.Join(archDir, name+".yaml")
-	actualOutputYAML, err := yaml.Marshal(savedState)
+	baseName := path.Base(outputPath)
+	tmpFile, err := os.CreateTemp(outputDir, "."+baseName+".*.tmp.json")
 	if err != nil {
-		t.Logf("error marshaling actual output to YAML: %s", err)
-		return
+		return fmt.Errorf("error creating temp output file: %w", err)
 	}
-	err = os.WriteFile(filename, actualOutputYAML, 0644)
-	if err != nil {
-		t.Logf("error writing actual output file: %s", err)
-		return
+	tmpName := tmpFile.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := io.Copy(tmpFile, bytes.NewReader(content)); err != nil {
+		return fmt.Errorf("error writing temp output: %w", err)
 	}
-	t.Logf("actual output saved to: %s", filename)
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("error closing temp output: %w", err)
+	}
+	if err := os.Rename(tmpName, outputPath); err != nil {
+		return fmt.Errorf("error renaming temp output: %w", err)
+	}
+	return nil
 }

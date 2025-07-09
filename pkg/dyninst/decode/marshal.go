@@ -423,11 +423,6 @@ func (d *Decoder) encodeValueFields(
 				jsontext.String("depth"),
 			)
 		}
-		if err := writeTokens(enc,
-			jsontext.String("value"),
-		); err != nil {
-			return err
-		}
 		stringData := stringValue.Data()
 		length := stringValue.Header().Length
 		if len(stringData) < int(length) {
@@ -435,6 +430,11 @@ func (d *Decoder) encodeValueFields(
 				jsontext.String("notCapturedReason"),
 				jsontext.String("no buffer space"),
 			)
+		}
+		if err := writeTokens(enc,
+			jsontext.String("value"),
+		); err != nil {
+			return err
 		}
 		str := unsafe.String(unsafe.SliceData(stringData), int(length))
 		if err := writeTokens(enc, jsontext.String(str)); err != nil {
@@ -500,72 +500,72 @@ func encodeBaseTypeValue(enc *jsontext.Encoder, irType *ir.BaseType, data []byte
 		if len(data) < 1 {
 			return errors.New("passed data not long enough for bool")
 		}
-		return writeTokens(enc, jsontext.Bool(data[0] == 1))
+		return writeTokens(enc, jsontext.String(strconv.FormatBool(data[0] == 1)))
 	case reflect.Int:
 		if len(data) < 8 {
 			return errors.New("passed data not long enough for int")
 		}
-		return writeTokens(enc, jsontext.Int(int64(binary.NativeEndian.Uint64(data))))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint64(data)), 10)))
 	case reflect.Int8:
 		if len(data) < 1 {
 			return errors.New("passed data not long enough for int8")
 		}
-		return writeTokens(enc, jsontext.Int(int64(int8(data[0]))))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int8(data[0])), 10)))
 	case reflect.Int16:
 		if len(data) < 2 {
 			return errors.New("passed data not long enough for int16")
 		}
-		return writeTokens(enc, jsontext.Int(int64(int16(binary.NativeEndian.Uint16(data)))))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint16(data)), 10)))
 	case reflect.Int32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for int32")
 		}
-		return writeTokens(enc, jsontext.Int(int64(int32(binary.NativeEndian.Uint32(data)))))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint32(data)), 10)))
 	case reflect.Int64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for int64")
 		}
-		return writeTokens(enc, jsontext.Int(int64(binary.NativeEndian.Uint64(data))))
+		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint64(data)), 10)))
 	case reflect.Uint:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for uint")
 		}
-		return writeTokens(enc, jsontext.Int(int64(binary.NativeEndian.Uint64(data))))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(binary.NativeEndian.Uint64(data), 10)))
 	case reflect.Uint8:
 		if len(data) != 1 {
 			return errors.New("passed data not long enough for uint8")
 		}
-		return writeTokens(enc, jsontext.Int(int64(uint8(data[0]))))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(data[0]), 10)))
 	case reflect.Uint16:
 		if len(data) != 2 {
 			return errors.New("passed data not long enough for uint16")
 		}
-		return writeTokens(enc, jsontext.Int(int64(uint16(binary.NativeEndian.Uint16(data)))))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(binary.NativeEndian.Uint16(data)), 10)))
 	case reflect.Uint32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for uint32")
 		}
-		return writeTokens(enc, jsontext.Int(int64(uint32(binary.NativeEndian.Uint32(data)))))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(binary.NativeEndian.Uint32(data)), 10)))
 	case reflect.Uint64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for uint64")
 		}
-		return writeTokens(enc, jsontext.Int(int64(binary.NativeEndian.Uint64(data))))
+		return writeTokens(enc, jsontext.String(strconv.FormatUint(binary.NativeEndian.Uint64(data), 10)))
 	case reflect.Uintptr:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for uintptr")
 		}
-		return writeTokens(enc, jsontext.Int(int64(binary.NativeEndian.Uint64(data))))
+		return writeTokens(enc, jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)))
 	case reflect.Float32:
 		if len(data) != 4 {
 			return errors.New("passed data not long enough for float32")
 		}
-		return writeTokens(enc, jsontext.Float(float64(math.Float32frombits(binary.NativeEndian.Uint32(data)))))
+		return writeTokens(enc, jsontext.String(strconv.FormatFloat(float64(math.Float32frombits(binary.NativeEndian.Uint32(data))), 'f', -1, 64)))
 	case reflect.Float64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for float64")
 		}
-		return writeTokens(enc, jsontext.Float(math.Float64frombits(binary.NativeEndian.Uint64(data))))
+		return writeTokens(enc, jsontext.String(strconv.FormatFloat(math.Float64frombits(binary.NativeEndian.Uint64(data)), 'f', -1, 64)))
 	case reflect.Complex64:
 		if len(data) != 8 {
 			return errors.New("passed data not long enough for complex64")
