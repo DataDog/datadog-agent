@@ -375,7 +375,7 @@ def debug_specific_quality_gate(ctx, gate_name):
 
 
 @task()
-def exception_threshold_bump(ctx, pipelineId):
+def exception_threshold_bump(ctx, pipeline_id):
     """
     When a PR is exempt of static quality gates, they have to use this invoke task to adjust the quality gates thresholds accordingly to the exempted added size.
 
