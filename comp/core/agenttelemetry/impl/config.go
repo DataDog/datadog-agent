@@ -228,9 +228,9 @@ var defaultProfiles = `
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
-        - name: transactions.errors
+        - name: transactions.http_errors
           aggregate_tags:
-            - error_type
+            - code
             - endpoint
     schedule:
       start_after: 30
