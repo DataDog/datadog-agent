@@ -27,7 +27,7 @@ type apiCallInfo struct {
 
 var apiCallFactory = []apiCallInfo{
 	{
-		name: "compute_processes",
+		name: "memory_usage",
 		testFunc: func(d ddnvml.Device) error {
 			_, err := d.GetComputeRunningProcesses()
 			return err
@@ -148,14 +148,24 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 
 	devInfo := c.device.GetDeviceInfo()
 	var processMetrics []Metric
+	var allPidTags []string
+
+	// Collect per-process memory.usage metrics and aggregate PID tags
 	for _, proc := range procs {
 		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
+		// Only emit memory.usage per process
 		processMetrics = append(processMetrics,
 			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "core.limit", Value: float64(devInfo.CoreCount), Type: metrics.GaugeType, Tags: pidTag},
 		)
+		// Collect PID tags for aggregated limit metrics
+		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", proc.Pid))
 	}
+
+	// Emit memory.limit once per device with all PID tags
+	processMetrics = append(processMetrics,
+		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Tags: allPidTags},
+	)
+
 	return processMetrics, nil
 }
 
@@ -166,6 +176,9 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	}
 
 	var utilizationMetrics []Metric
+	var allPidTags []string
+
+	// Collect per-process utilization metrics and aggregate PID tags
 	for _, sample := range processSamples {
 		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
 		utilizationMetrics = append(utilizationMetrics,
@@ -175,10 +188,20 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 			Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
 		)
 
+		// Collect PID tags for aggregated limit metrics
+		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
+
 		//update the last timestamp if the current sample's timestamp is greater
 		if sample.TimeStamp > c.lastTimestamp {
 			c.lastTimestamp = sample.TimeStamp
 		}
 	}
+
+	// Emit core.limit once per device with all PID tags
+	devInfo := c.device.GetDeviceInfo()
+	utilizationMetrics = append(utilizationMetrics,
+		Metric{Name: "core.limit", Value: float64(devInfo.CoreCount), Type: metrics.GaugeType, Tags: allPidTags},
+	)
+
 	return utilizationMetrics, nil
 }
