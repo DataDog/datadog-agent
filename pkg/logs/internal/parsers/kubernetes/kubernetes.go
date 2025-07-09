@@ -56,18 +56,23 @@ func parseKubernetes(msg *message.Message) (*message.Message, error) {
 		content = components[3]
 	}
 
+	status = getStatus(components[1])
+	flag = string(components[2])
+
 	// Validate timestamp format. K8s API uses either RFC3339 or RFC3339Nano
 	// but RFC3339Nano is a superset that can parse both formats.
 	timestamp = string(components[0])
 	_, err := time.Parse(time.RFC3339Nano, timestamp)
 	if err != nil {
+		msg.SetContent(content)
+		msg.Status = status
+		msg.ParsingExtra = message.ParsingExtra{
+			IsPartial: isPartial(flag),
+		}
 		// Invalid timestamp format - return error to prevent downstream issues
 		// where the timestamp is used as an offset for log tailing
-		return message.NewMessage(msg.GetContent(), nil, status, 0), errors.New("invalid timestamp format")
+		return msg, errors.New("invalid timestamp format")
 	}
-
-	status = getStatus(components[1])
-	flag = string(components[2])
 
 	msg.SetContent(content)
 	msg.Status = status
