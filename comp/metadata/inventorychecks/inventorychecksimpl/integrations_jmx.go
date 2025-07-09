@@ -49,12 +49,17 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					configHash = fmt.Sprintf("%s:%s", jmxName, fmt.Sprint(instance["name"]))
 				}
 
+				source, ok := jmxIntegration["config.source"].(string)
+				if !ok {
+					source = "unknown"
+				}
+
 				jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadata{
 					"init_config":     string(initConfigYaml),
 					"instance":        string(instanceYaml),
 					"config.provider": "file",
 					"config.hash":     configHash,
-					"config.source":   "TODO",
+					"config.source":   source,
 				})
 			}
 		}
