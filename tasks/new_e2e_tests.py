@@ -388,6 +388,7 @@ def run(
 
     to_teardown: set[tuple[str, str]] = set()
     result_jsons: list[str] = []
+    result_junits: list[str] = []
     for attempt in range(max_retries + 1):
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
@@ -399,15 +400,20 @@ def run(
         partial_result_json = f"{result_json}.{attempt}.part"
         result_jsons.append(partial_result_json)
 
+        # TODO(agent-devx): Check if this is the right flavor, we are not using the flavor passed in argument
+        partial_result_junit = f"junit-out-{str(AgentFlavor.base)}-{attempt}.xml"
+        result_junits.append(partial_result_junit)
+
         test_res = test_flavor(
             ctx,
+            # TODO(agent-devx): Same comment about flavor as above
             flavor=AgentFlavor.base,
             build_tags=tags,
             modules=[e2e_module],
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar=junit_tar,
+            result_junit=partial_result_junit,
             result_json=partial_result_json,
             test_profiler=None,
         )
@@ -480,8 +486,8 @@ def run(
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar="",  # No need to store JUnit results for teardown-only runs
-            result_json="/dev/null",  # No need to store results for teardown-only runs
+            result_junit="",  # No need to store JUnit results for teardown-only runs
+            result_json="",  # No need to store results for teardown-only runs
             test_profiler=None,
         )
 
@@ -491,7 +497,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
