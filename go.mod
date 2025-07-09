@@ -553,7 +553,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.158-0.20250704141941-ac460dc9bc56
+	github.com/DataDog/agent-payload/v5 v5.0.158
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0
@@ -1192,5 +1192,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 
 )
-
-replace github.com/DataDog/agent-payload/v5 v5.0.158-0.20250704141941-ac460dc9bc56 => github.com/DataDog/agent-payload/v5 v5.0.157
