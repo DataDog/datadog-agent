@@ -174,6 +174,12 @@ Settings: map[key:value]
 }
 
 func TestMarshalUnmarshal(t *testing.T) {
+	// set timezone to UTC so that test output doesn't depend upon local timezone
+	originalTZ := time.Local
+	time.Local = time.UTC
+	defer func() {
+		time.Local = originalTZ
+	}()
 	// json serialization drops nanoseconds; strip it here
 	testTime := time.Unix(time.Now().Unix(), 0).UTC()
 	fakeDpai := createFakePodAutoscaler(testTime)

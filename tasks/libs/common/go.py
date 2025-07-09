@@ -35,9 +35,13 @@ def go_build(
     bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
+    coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
     cmd = "go build"
+    if coverage:
+        cmd += " -cover -covermode=atomic"
+        build_tags.append("e2ecoverage")
     if mod:
         cmd += f" -mod={mod}"
     if race:

@@ -520,17 +520,14 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
 
-	var extTagsCb func() []string
+	var extTagsCb func() ([]string, bool)
 
 	if ev.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
 		containerID := ev.ContainerContext.ContainerID
 
-		// the container tags might not be resolved yet
-		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
-			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
-			}
+		extTagsCb = func() ([]string, bool) {
+			return e.probe.GetEventTags(containerID), true
 		}
 	}
 
@@ -678,7 +675,7 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		for _, pInfo := range rule.UsedBy {
+		for pInfo := range rule.Policies() {
 			if rule.Policy.IsInternal && !includeInternalPolicies {
 				continue
 			}

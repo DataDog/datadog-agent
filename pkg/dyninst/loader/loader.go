@@ -36,28 +36,28 @@ type Loader struct {
 }
 
 // WithEbpfConfig sets the eBPF configuration for the compiler.
-func WithEbpfConfig(cfg *ddebpf.Config) option {
+func WithEbpfConfig(cfg *ddebpf.Config) Option {
 	return (*ebpfConfigOption)(cfg)
 }
 
 // WithRingBufSize sets the size of the ring buffer for the Actuator.
-func WithRingBufSize(size uint32) option {
+func WithRingBufSize(size uint32) Option {
 	return ringBufSizeOption(size)
 }
 
 // WithDebugLevel sets the debug level for the ebpf program.
 // It forces use of a binary compiled in a debug mode
-func WithDebugLevel(level int) option {
+func WithDebugLevel(level int) Option {
 	return debugLevelOption(level)
 }
 
 // WithAdditionalSerializer sets an additional serializer for the ebpf program.
-func WithAdditionalSerializer(serializer compiler.CodeSerializer) option {
+func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
 }
 
 // NewLoader creates a new Loader.
-func NewLoader(opts ...option) (*Loader, error) {
+func NewLoader(opts ...Option) (*Loader, error) {
 	l := &Loader{}
 	err := l.init(opts...)
 	if err != nil {
@@ -167,7 +167,8 @@ type config struct {
 	additionalSerializer compiler.CodeSerializer
 }
 
-type option interface {
+// Option configures the Loader.
+type Option interface {
 	apply(c *config)
 }
 
@@ -198,7 +199,7 @@ func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
 }
 
-func (l *Loader) init(opts ...option) error {
+func (l *Loader) init(opts ...Option) error {
 	l.config.ringBufSize = defaultRingbufSize
 	for _, opt := range opts {
 		opt.apply(&l.config)
@@ -273,6 +274,10 @@ func (l *Loader) loadData(
 	err = setVariable(spec, "chase_pointers_entrypoint", serialized.chasePointersEntrypoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set chase_pointers_entrypoint: %w", err)
+	}
+	err = setVariable(spec, "prog_id", uint32(serialized.programID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to set prog_id: %w", err)
 	}
 
 	mapSpec, typeIDsMap, err := makeArrayMap(typeIDsMapName, serialized.typeIDs, false /* singleEntry */)

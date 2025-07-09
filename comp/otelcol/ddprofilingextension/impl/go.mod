@@ -58,6 +58,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.67.0 // indirect
@@ -143,6 +144,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect

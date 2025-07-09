@@ -11,22 +11,28 @@ logs_config:
   logs_no_ssl: true
   force_use_http: true
 
+log_level: info
+
 dd_url: http://127.0.0.1:9091
 process_config:
   process_dd_url: http://localhost:9093
 telemetry:
   enabled: true
   checks: '*'
+
+otelcollector:
+  enabled: false
+
 otlp_config:
   receiver:
     protocols:
-      http:
-        endpoint: 127.0.0.1:4318
       grpc:
-        endpoint: 127.0.0.1:4317
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
   metrics:
     enabled: true
   traces:
-    enabled: true
+    enabled: false
   logs:
-    enabled: true
+    enabled: false

@@ -1048,7 +1048,12 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 	for _, policy := range policies {
 		if len(policy.macros) == 0 && len(policy.rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
-			errs = multierror.Append(errs, &ErrPolicyLoad{Name: policy.Info.Name, Version: policy.Info.Version, Source: policy.Info.Source, Err: ErrPolicyIsEmpty})
+			errs = multierror.Append(errs, &ErrPolicyLoad{
+				Name:    policy.Info.Name,
+				Version: policy.Info.Version,
+				Source:  policy.Info.Source,
+				Err:     ErrPolicyIsEmpty,
+			})
 			continue
 		}
 
@@ -1068,7 +1073,6 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
 				existingRule.MergeWith(rule)
 			} else {
-				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule
 				allRules = append(allRules, rule)
 			}
