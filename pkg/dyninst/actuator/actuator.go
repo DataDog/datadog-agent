@@ -295,6 +295,38 @@ func (a *effects) setSink(progID ir.ProgramID, sink Sink) {
 	a.mu.sinks[progID] = sink
 }
 
+// clearSink removes a sink from the map if present.
+func (a *effects) clearSink(progID ir.ProgramID) {
+	a.mu.Lock()
+	delete(a.mu.sinks, progID)
+	a.mu.Unlock()
+}
+
+// unloadProgram performs the cleanup of a loaded program asynchronously and
+// notifies the state-machine once it is complete.
+func (a *effects) unloadProgram(lp *loadedProgram) {
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+
+		// Close kernel program & links.
+		lp.program.Close()
+
+		// TODO: We should flush the ringbuffer here to make sure
+		// that there are no events that haven't been processed that
+		// could possibly be affected by closing the sink.
+
+		// Close sink and unregister it so the dispatcher stops using it.
+		if lp.sink != nil {
+			lp.sink.Close()
+			a.clearSink(lp.ir.ID)
+		}
+
+		// Notify state-machine that unloading is finished.
+		a.sendEvent(eventProgramUnloaded{programID: lp.ir.ID})
+	}()
+}
+
 func generateIR(
 	programID ir.ProgramID,
 	executable Executable,

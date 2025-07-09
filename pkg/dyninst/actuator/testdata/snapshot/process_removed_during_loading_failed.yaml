@@ -1,6 +1,5 @@
 # Tests process removal while program is loading. The program should be marked
-# as aborted. Since loading doesn't have a completion event in our test framework,
-# we'll test the removal during loading state.
+# as aborted and then gone.
 - !processes-updated
   updated:
     - process_id: {pid: 1001}
