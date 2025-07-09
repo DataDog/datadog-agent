@@ -178,6 +178,7 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 
 	var utilizationMetrics []Metric
 	var allPidTags []string
+	var totalSmUtil float64
 
 	coreCount := c.device.GetDeviceInfo().CoreCount
 	// Collect per-process utilization metrics and aggregate PID tags
@@ -195,8 +196,9 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 			Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
 		)
 
-		// Collect PID tags for aggregated limit metrics
+		// Collect PID tags for aggregated metrics and aggregate SmUtil for gr_engine_active
 		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
+		totalSmUtil += float64(sample.SmUtil)
 
 		//update the last timestamp if the current sample's timestamp is greater
 		if sample.TimeStamp > c.lastTimestamp {
@@ -204,9 +206,15 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 		}
 	}
 
-	// Emit core.limit once per device with all PID tags
+	// Emit aggregated metrics once per device with all PID tags
+	// Cap totalSmUtil at 100% since total utilization cannot exceed 100%
+	if totalSmUtil > 100 {
+		totalSmUtil = 100
+	}
+
 	utilizationMetrics = append(utilizationMetrics,
 		Metric{Name: "core.limit", Value: float64(coreCount), Type: metrics.GaugeType, Tags: allPidTags},
+		Metric{Name: "gr_engine_active", Value: totalSmUtil, Type: metrics.GaugeType, Tags: allPidTags},
 	)
 
 	return utilizationMetrics, nil
