@@ -54,7 +54,8 @@ type checkCfg struct {
 	Namespace                       string   `yaml:"namespace"`
 	IncludedTenants                 []string `yaml:"included_tenants"`
 	ExcludedTenants                 []string `yaml:"excluded_tenants"`
-	SendNDMMetadata                 *bool    `yaml:"send_ndm_metadata"`
+	SendDeviceMetadata              *bool    `yaml:"send_device_metadata"`
+	SendInterfaceMetadata           *bool    `yaml:"send_interface_metadata"`
 	MinCollectionInterval           int      `yaml:"min_collection_interval"`
 	CollectHardwareMetrics          *bool    `yaml:"collect_hardware_metrics"`
 	CollectInterfaceMetrics         *bool    `yaml:"collect_interface_metrics"`
@@ -104,18 +105,20 @@ func (v *VersaCheck) Run() error {
 	organizations = filterOrganizations(organizations, v.config.IncludedTenants, v.config.ExcludedTenants)
 	log.Tracef("Filtered organizations: %v", organizations)
 
-	// Gather appliances for each organization
+	// Gather appliances for each organization if we need device metadata or hardware metrics
 	var appliances []client.Appliance
-	for _, org := range organizations {
-		orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
-		if err != nil {
-			return fmt.Errorf("error getting appliances from Versa client: %w", err)
-		}
+	if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics {
+		for _, org := range organizations {
+			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+			if err != nil {
+				return fmt.Errorf("error getting appliances from Versa client: %w", err)
+			}
 
-		for _, appliance := range orgAppliances {
-			log.Tracef("Processing appliance: %+v", appliance)
+			for _, appliance := range orgAppliances {
+				log.Tracef("Processing appliance: %+v", appliance)
+			}
+			appliances = append(appliances, orgAppliances...)
 		}
-		appliances = append(appliances, orgAppliances...)
 	}
 	// appliances, err = c.GetAppliances()
 	// if err != nil {
@@ -129,14 +132,18 @@ func (v *VersaCheck) Run() error {
 	}
 
 	// Convert Versa objects to device metadata
-	deviceMetadata := make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
-	deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
+	// We need device metadata for deviceNameToIDMap even if SendDeviceMetadata is false
+	var deviceMetadata []devicemetadata.DeviceMetadata
+	if len(appliances) > 0 {
+		deviceMetadata = make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
+		deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
 
-	directorDeviceMetadata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
-	if err != nil {
-		log.Errorf("error getting director device metadata: %v", err)
-	} else {
-		deviceMetadata = append(deviceMetadata, directorDeviceMetadata)
+		directorDeviceMetadata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
+		if err != nil {
+			log.Errorf("error getting director device metadata: %v", err)
+		} else {
+			deviceMetadata = append(deviceMetadata, directorDeviceMetadata)
+		}
 	}
 
 	// Send the tags to the metrics sender
@@ -153,31 +160,42 @@ func (v *VersaCheck) Run() error {
 
 	deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
 
-	// Grab interfaces for each organization
+	// Grab interfaces for each organization if we need interface metadata or interface metrics
 	var interfaces []client.Interface
-	for _, org := range organizations {
-		orgInterfaces, err := c.GetInterfaces(org.Name)
-		if err != nil {
-			// not getting interfaces shouldn't stop the rest of the check
-			log.Errorf("error getting interfaces from Versa client: %v", err)
-			continue
-		}
-		interfaces = append(interfaces, orgInterfaces...)
-	}
-	interfaceMetadata, err := payload.GetInterfaceMetadata(v.config.Namespace, deviceNameToIDMap, interfaces)
-	if err != nil {
-		if len(interfaceMetadata) == 0 {
-			log.Errorf("failed to parse all interface metadata: %v", err)
-		} else {
-			log.Errorf("partial failure in parsing interface metadata: %v", err)
+	if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
+		for _, org := range organizations {
+			orgInterfaces, err := c.GetInterfaces(org.Name)
+			if err != nil {
+				// not getting interfaces shouldn't stop the rest of the check
+				log.Errorf("error getting interfaces from Versa client: %v", err)
+				continue
+			}
+			interfaces = append(interfaces, orgInterfaces...)
 		}
 	}
 
-	log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
+	var interfaceMetadata []devicemetadata.InterfaceMetadata
+	if *v.config.SendInterfaceMetadata {
+		var err error
+		interfaceMetadata, err = payload.GetInterfaceMetadata(v.config.Namespace, deviceNameToIDMap, interfaces)
+		if err != nil {
+			if len(interfaceMetadata) == 0 {
+				log.Errorf("failed to parse all interface metadata: %v", err)
+			} else {
+				log.Errorf("partial failure in parsing interface metadata: %v", err)
+			}
+		}
+
+		log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
+	}
 
 	// Send the metadata to the metrics sender
-	if *v.config.SendNDMMetadata {
+	if *v.config.SendDeviceMetadata && *v.config.SendInterfaceMetadata {
 		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil)
+	} else if *v.config.SendDeviceMetadata {
+		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
+	} else if *v.config.SendInterfaceMetadata {
+		v.metricsSender.SendMetadata(nil, interfaceMetadata, nil)
 	}
 
 	// Send hardware metrics to the metrics sender
@@ -283,7 +301,8 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectControlConnectionMetrics = boolPointer(true)
 	instanceConfig.CollectOMPPeerMetrics = boolPointer(true)
 	instanceConfig.CollectDeviceCountersMetrics = boolPointer(true)
-	instanceConfig.SendNDMMetadata = boolPointer(true)
+	instanceConfig.SendDeviceMetadata = boolPointer(true)
+	instanceConfig.SendInterfaceMetadata = boolPointer(true)
 
 	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
