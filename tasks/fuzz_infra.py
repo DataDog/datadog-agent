@@ -36,8 +36,8 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
             print(f'Building {pkgname}/{func} for {git_sha}...')
             fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test'
             ctx.run(fuzz_build_cmd)
-
-            if not os.path.exists(directory + "/" + build_file):
+            build_full_path = directory + "/" + build_file
+            if not os.path.exists(build_full_path):
                 print(
                     f'❌ Build file {rel}/{build_file} does not exist. Skipping... (It is likely that we are missing a tag for this specific fuzz target to be built)'
                 )
@@ -54,7 +54,7 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
 
             print(f'Uploading {pkgname} ({func}) for {git_sha}...')
             # Upload file to presigned URL
-            with open(build_file, 'rb') as f:
+            with open(build_full_path, 'rb') as f:
                 upload_response = requests.put(presigned_url, data=f, timeout=300)
                 upload_response.raise_for_status()
 
