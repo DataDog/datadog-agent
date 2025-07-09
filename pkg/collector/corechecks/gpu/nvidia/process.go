@@ -179,11 +179,17 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	var utilizationMetrics []Metric
 	var allPidTags []string
 
+	coreCount := c.device.GetDeviceInfo().CoreCount
 	// Collect per-process utilization metrics and aggregate PID tags
 	for _, sample := range processSamples {
 		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+
+		// Calculate core usage from utilization percentage: Usage = (SmUtil / 100) * CoreCount
+		// SmUtil is a percentage (0-100), so we convert it to actual core usage
+		coreUsage := (float64(sample.SmUtil) / 100.0) * float64(coreCount)
+
 		utilizationMetrics = append(utilizationMetrics,
-			Metric{Name: "core.usage", Value: float64(sample.SmUtil), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "core.usage", Value: coreUsage, Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
@@ -199,9 +205,8 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	}
 
 	// Emit core.limit once per device with all PID tags
-	devInfo := c.device.GetDeviceInfo()
 	utilizationMetrics = append(utilizationMetrics,
-		Metric{Name: "core.limit", Value: float64(devInfo.CoreCount), Type: metrics.GaugeType, Tags: allPidTags},
+		Metric{Name: "core.limit", Value: float64(coreCount), Type: metrics.GaugeType, Tags: allPidTags},
 	)
 
 	return utilizationMetrics, nil
