@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/config"
+	cmdcoverage "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/coverage"
 	cmdevents "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/events"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/status"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/taggerlist"
@@ -27,5 +28,6 @@ func ProcessAgentSubcommands() []command.SubcommandFactory {
 		cmdtaggerlist.Commands,
 		cmdversion.Commands,
 		cmdworkloadlist.Commands,
+		cmdcoverage.Commands,
 	}
 }

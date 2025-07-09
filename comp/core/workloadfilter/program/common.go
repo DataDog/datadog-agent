@@ -12,5 +12,11 @@ import (
 
 // FilterProgram is an interface that defines a method for evaluating a filter program.
 type FilterProgram interface {
+
+	// Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
 	Evaluate(entity filterdef.Filterable) (filterdef.Result, []error)
+
+	// GetInitializationErrors returns any errors that occurred
+	// during the initialization of the filtering program
+	GetInitializationErrors() []error
 }

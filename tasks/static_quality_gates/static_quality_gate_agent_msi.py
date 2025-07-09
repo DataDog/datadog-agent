@@ -39,3 +39,7 @@ def entrypoint(**kwargs):
     metric_handler.register_metric(gate_name, "current_on_disk_size", package_on_disk_size)
 
     check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size)
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()

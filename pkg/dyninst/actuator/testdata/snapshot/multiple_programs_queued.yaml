@@ -46,7 +46,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe3, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-bpf-loading {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil> -> 1
   queued_programs: '[] -> [2 3]'
@@ -80,9 +80,8 @@ state:
 ---
 event: !loaded {program_id: 1}
 effects:
-  - !register-program-with-dispatcher {program_id: 1}
   - !attach-to-process {executable: /usr/bin/app1@0.0m0.0, process_id: 1001, program_id: 1}
-  - !spawn-bpf-loading {executable: /usr/bin/app3@0.0m0.0, probes: [probe3], program_id: 3}
+  - !spawn-bpf-loading {executable: /usr/bin/app3@0.0m0.0, probes: [probe3], process_id: 1003, program_id: 3}
 state:
   currently_loading: 1 -> 3
   queued_programs: '[3 4] -> [4]'
@@ -130,7 +129,7 @@ state:
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !unregister-program-with-dispatcher {program_id: 1}
+  - !close-sink {program_id: 1}
 state:
   currently_loading: "3"
   queued_programs: '[4] -> [4 5]'
@@ -146,9 +145,8 @@ state:
 ---
 event: !loaded {program_id: 3}
 effects:
-  - !register-program-with-dispatcher {program_id: 3}
   - !attach-to-process {executable: /usr/bin/app3@0.0m0.0, process_id: 1003, program_id: 3}
-  - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], program_id: 4}
+  - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 4}
 state:
   currently_loading: 3 -> 4
   queued_programs: '[4 5] -> [5]'

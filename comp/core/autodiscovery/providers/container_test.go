@@ -427,7 +427,7 @@ func TestGenerateConfig(t *testing.T) {
 			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {
-				for _, c := range pod.GetAllContainers() {
+				for _, c := range pod.GetContainersAndInitContainers() {
 					store.Set(&workloadmeta.Container{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindContainer,

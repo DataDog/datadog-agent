@@ -552,10 +552,25 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
+	// Socket file descriptor
+	SocketType string `json:"socket_type"`
+	// Socket family
+	SocketFamily string `json:"socket_family"`
+	// Length of the filter
+	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Socket protocol
+	SocketProtocol string `json:"socket_protocol"`
+
 	// Level at which the option is defined
-	Level uint32 `json:"level"`
+	Level string `json:"level"`
 	// Name of the option being set
-	OptName uint32 `json:"optname"`
+	OptName string `json:"optname"`
+	// Filter truncated
+	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
+	// Filter instructions
+	FilterInstructions string `json:"filter,omitempty"`
+	//Filter hash
+	FilterHash string `json:"filter_hash,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -1309,9 +1324,68 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 }
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
-	return &SetSockOptEventSerializer{
-		Level:   e.SetSockOpt.Level,
-		OptName: e.SetSockOpt.OptName,
+
+	switch e.SetSockOpt.Level {
+	case syscall.SOL_SOCKET:
+		return &SetSockOptEventSerializer{
+			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+			OptName:            model.SetSockOptOptNameSolSocket(e.SetSockOpt.OptName).String(),
+			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+			FilterLen:          e.SetSockOpt.FilterLen,
+			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
+		}
+	case syscall.SOL_TCP:
+		return &SetSockOptEventSerializer{
+			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+			OptName:            model.SetSockOptOptNameTCP(e.SetSockOpt.OptName).String(),
+			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+			FilterLen:          e.SetSockOpt.FilterLen,
+			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
+		}
+	case syscall.SOL_IP:
+		return &SetSockOptEventSerializer{
+			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+			OptName:            model.SetSockOptOptNameIP(e.SetSockOpt.OptName).String(),
+			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+			FilterLen:          e.SetSockOpt.FilterLen,
+			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
+		}
+	case syscall.SOL_IPV6:
+		return &SetSockOptEventSerializer{
+			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+			OptName:            model.SetSockOptOptNameIPv6(e.SetSockOpt.OptName).String(),
+			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+			FilterLen:          e.SetSockOpt.FilterLen,
+			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
+		}
+	default:
+		return &SetSockOptEventSerializer{
+			SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+			SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+			SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+			Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+			OptName:            fmt.Sprintf("%d", e.SetSockOpt.OptName),
+			IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+			FilterLen:          e.SetSockOpt.FilterLen,
+			FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+			FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
+		}
 	}
 }
 
