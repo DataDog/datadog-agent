@@ -347,6 +347,16 @@ func TestPorts(t *testing.T) {
 	startUDP("udp4")
 	startUDP("udp6")
 
+	// Create a log file for the current process to test log file collection
+	tempDir, err := os.MkdirTemp("", "test-log-files")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+
+	logFilePath := filepath.Join(tempDir, "test.log")
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() { logFile.Close() })
+
 	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
 
 	pid := os.Getpid()
@@ -376,6 +386,10 @@ func TestPorts(t *testing.T) {
 			t.Logf("unexpected port %v also found", port)
 		}
 	}
+
+	// Check that log files are collected
+	assert.Contains(t, startEvent.LogFiles, logFilePath,
+		"Process %d should have log file %s", pid, logFilePath)
 }
 
 func TestPortsLimits(t *testing.T) {
