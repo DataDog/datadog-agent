@@ -140,6 +140,7 @@ func (c *processCollector) Collect() ([]Metric, error) {
 }
 
 // Helper methods for metric collection
+// memory.usage and memory.limit metrics gets higher priority from process collector than from ebpf collector
 func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 	procs, err := c.device.GetComputeRunningProcesses()
 	if err != nil {
@@ -155,7 +156,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
 		// Only emit memory.usage per process
 		processMetrics = append(processMetrics,
-			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 1, Tags: pidTag},
 		)
 		// Collect PID tags for aggregated limit metrics
 		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", proc.Pid))
@@ -163,7 +164,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 
 	// Emit memory.limit once per device with all PID tags
 	processMetrics = append(processMetrics,
-		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Tags: allPidTags},
+		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Priority: 1, Tags: allPidTags},
 	)
 
 	return processMetrics, nil
@@ -182,7 +183,7 @@ func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	for _, sample := range processSamples {
 		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
 		utilizationMetrics = append(utilizationMetrics,
-			Metric{Name: "core.utilization", Value: float64(sample.SmUtil), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "core.usage", Value: float64(sample.SmUtil), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
 			Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},

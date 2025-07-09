@@ -105,6 +105,7 @@ func (c *ebpfCollector) DeviceUUID() string {
 
 // Collect returns system-probe process metrics for this device with high priority.
 // Returns empty slice if cache is invalid or no metrics found for this device.
+// core.usage and core.limit metrics get higher priority from eBPF collector than from the process collector,
 func (c *ebpfCollector) Collect() ([]Metric, error) {
 	// Check cache validity
 	if !c.cache.IsValid() {
@@ -165,10 +166,11 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
 				Metric{
-					Name:  "core.usage",
-					Value: 0,
-					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Name:     "core.usage",
+					Value:    0,
+					Type:     ddmetrics.GaugeType,
+					Priority: 1,
+					Tags:     pidTag,
 				},
 				Metric{
 					Name:  "memory.usage",
@@ -186,10 +188,11 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	// Emit limit metrics with aggregated PID tags
 	deviceMetrics = append(deviceMetrics,
 		Metric{
-			Name:  "core.limit",
-			Value: float64(devInfo.CoreCount),
-			Type:  ddmetrics.GaugeType,
-			Tags:  allPidTags,
+			Name:     "core.limit",
+			Value:    float64(devInfo.CoreCount),
+			Type:     ddmetrics.GaugeType,
+			Priority: 1,
+			Tags:     allPidTags,
 		},
 		Metric{
 			Name:  "memory.limit",
