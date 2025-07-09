@@ -12,8 +12,10 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -21,11 +23,14 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
@@ -52,12 +57,32 @@ func TestDyninst(t *testing.T) {
 		"simple": {},
 		"sample": {},
 	}
+
+	// The debug variants of the tests spew logs to the trace_pipe, so we need
+	// to clear it after the tests to avoid interfering with other tests.
+	// Leave the option to disable this behavior for debugging purposes.
+	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
+	if !dontClear {
+		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			for {
+				deadline := time.Now().Add(100 * time.Millisecond)
+				require.NoError(t, tp.SetReadDeadline(deadline))
+				n, err := io.Copy(io.Discard, tp)
+				require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+				if n == 0 {
+					break
+				}
+			}
+			require.NoError(t, tp.Close())
+		})
+	}
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-
 		for _, cfg := range cfgs {
 			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
 				if cfg.GOARCH != runtime.GOARCH {
@@ -66,15 +91,30 @@ func TestDyninst(t *testing.T) {
 						runtime.GOARCH,
 					)
 				}
+
+				t.Parallel()
 				bin := testprogs.MustGetBinary(t, svc, cfg)
 
-				expectedOutput := getExpectedDecodedOutputOfProbes(t, svc)
+				expectedOutput, err := getExpectedDecodedOutputOfProbes(svc)
+				require.NoError(t, err)
 				probes := testprogs.MustGetProbeDefinitions(t, svc)
-				for i := range probes {
-					// Run each probe individually
-					t.Run(probes[i].GetID(), func(t *testing.T) {
+				for _, debug := range []bool{false, true} {
+					if testing.Short() && debug {
+						t.Skip("skipping debug mode in short mode")
+					}
+					t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 						t.Parallel()
-						testDyninst(t, svc, bin, probes[i:i+1], expectedOutput)
+						for i := range probes {
+							probes := probes[i : i+1]
+							probe := probes[0]
+							// Run each probe individually.
+							t.Run(probe.GetID(), func(t *testing.T) {
+								t.Parallel()
+								testDyninst(
+									t, svc, bin, probes, expectedOutput, debug,
+								)
+							})
+						}
 					})
 				}
 			})
@@ -85,11 +125,11 @@ func TestDyninst(t *testing.T) {
 func testDyninst(
 	t *testing.T,
 	service string,
-	sampleServicePath string,
+	servicePath string,
 	probes []ir.ProbeDefinition,
 	expOut map[string]string,
+	debug bool,
 ) {
-	t.Logf("Testing with actuator")
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
 
@@ -105,14 +145,16 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, objectFile.Close()) }()
 
-	reporter := makeTestReporter(t)
-	loader, err := loader.NewLoader(
-		// Add following to help debug this test.
-		// loader.WithDebugLevel(100),
+	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
-	)
+	}
+	if debug {
+		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+	}
+	reporter := makeTestReporter(t)
+	loader, err := loader.NewLoader(loaderOpts...)
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
@@ -122,14 +164,14 @@ func testDyninst(
 	t.Logf("launching %s", service)
 	ctx := context.Background()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
-		ctx, t, tempDir, sampleServicePath,
+		ctx, t, tempDir, servicePath,
 	)
 
-	stat, err := os.Stat(sampleServicePath)
+	stat, err := os.Stat(servicePath)
 	require.NoError(t, err)
 	fileInfo := stat.Sys().(*syscall.Stat_t)
 	exe := actuator.Executable{
-		Path: sampleServicePath,
+		Path: servicePath,
 		Key: procmon.FileKey{
 			FileHandle: procmon.FileHandle{
 				Dev: uint64(fileInfo.Dev),
@@ -184,7 +226,7 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	mef, err := object.NewMMappingElfFile(sampleServicePath)
+	mef, err := object.NewMMappingElfFile(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, mef.Close()) }()
 	obj, err := object.NewElfObject(mef.Elf)
@@ -232,16 +274,21 @@ func testDyninst(
 		}
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
-		t.Logf("Decoded output: \n%s\n", decodeOut.String())
+		t.Logf("decoded output: \n%s\n", decodeOut.String())
 		redacted := redactJSON(t, decodeOut.Bytes())
-		t.Logf("Redacted output: \n%s\n", string(redacted))
+		t.Logf("redacted output: \n%s\n", string(redacted))
 
 		outputToCompare := expOut[probes[0].GetID()]
 		assert.JSONEq(t, outputToCompare, string(redacted))
 
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
 			expOut[probes[0].GetID()] = string(redacted)
-			saveActualOutputOfProbes(t, service, expOut)
+			outputName := getOutputFilename(service)
+			if err := saveActualOutputOfProbes(outputName, expOut); err != nil {
+				t.Logf("error saving actual output: %s", err)
+			} else {
+				t.Logf("output saved to: %s", outputName)
+			}
 		}
 	}
 }
@@ -402,46 +449,56 @@ func makeTestReporter(t *testing.T) *testReporter {
 	}
 }
 
-// getExpectedDecodedOutputOfProbes returns the expected output for a given service.
-func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
-	expectedOutput := make(map[string]string)
-	filename := "testdata/decoded/" + runtime.GOARCH + "/" + name + ".yaml"
+func getOutputFilename(progName string) string {
+	return filepath.Join(
+		"testdata", "decoded", runtime.GOARCH, progName+".yaml",
+	)
+}
 
-	yamlData, err := testdataFS.ReadFile(filename)
+// getExpectedDecodedOutputOfProbes returns the expected output for a given service.
+func getExpectedDecodedOutputOfProbes(progName string) (map[string]string, error) {
+	expectedOutput := make(map[string]string)
+	outputName := getOutputFilename(progName)
+	yamlData, err := testdataFS.ReadFile(outputName)
 	if err != nil {
-		t.Errorf("testprogs: %v", err)
-		return expectedOutput
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(yamlData, &expectedOutput)
 	if err != nil {
-		t.Errorf("testprogs: %v", err)
+		return nil, err
 	}
-	return expectedOutput
+	return expectedOutput, nil
 }
 
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
 // Note: This function now saves to the current working directory since embedded files are read-only.
-func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
-	// Create testdata/decoded/{arch} directory if it doesn't exist
-	archDir := filepath.Join("testdata", "decoded", runtime.GOARCH)
-	err := os.MkdirAll(archDir, 0755)
+func saveActualOutputOfProbes(outputPath string, savedState map[string]string) error {
+	outputDir := path.Dir(outputPath)
+	err := os.MkdirAll(outputDir, 0755)
 	if err != nil {
-		t.Logf("error creating testdata directory: %s", err)
-		return
+		return fmt.Errorf("error creating testdata directory: %w", err)
 	}
-
-	filename := filepath.Join(archDir, name+".yaml")
 	actualOutputYAML, err := yaml.Marshal(savedState)
 	if err != nil {
-		t.Logf("error marshaling actual output to YAML: %s", err)
-		return
+		return fmt.Errorf("error marshaling actual output to YAML: %w", err)
 	}
-	err = os.WriteFile(filename, actualOutputYAML, 0644)
+	baseName := path.Base(outputPath)
+	tmpFile, err := os.CreateTemp(outputDir, "."+baseName+".*.tmp.yaml")
 	if err != nil {
-		t.Logf("error writing actual output file: %s", err)
-		return
+		return fmt.Errorf("error creating output file: %w", err)
 	}
-	t.Logf("actual output saved to: %s", filename)
+	tmpFileName := tmpFile.Name()
+	defer func() { _ = os.Remove(tmpFileName) }() // remove it if not renamed
+	if _, err := io.Copy(tmpFile, bytes.NewReader(actualOutputYAML)); err != nil {
+		return fmt.Errorf("error writing actual output file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("error closing output file: %w", err)
+	}
+	if err := os.Rename(tmpFileName, outputPath); err != nil {
+		return fmt.Errorf("error renaming output file: %w", err)
+	}
+	return nil
 }

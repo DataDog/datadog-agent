@@ -908,7 +908,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
-	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os", "languages"})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
@@ -1254,6 +1254,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
+	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
 	// ac_load_timeout is used to delay the introduction of sources other than
