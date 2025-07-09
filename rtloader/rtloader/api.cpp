@@ -246,7 +246,7 @@ void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_pay
 
     // create the tags array with the payload tags
     // note that it might be possible to skip this tags array and directly pass the payload->tags to the
-    // submit_metric function, but decoding the tags array in the go code doesn't work
+    // submit_metric function, but decoding the tags array in the go code doesn't work well
     char **tags = new char*[payload->tags_length + 1];
     for (size_t i = 0; i < payload->tags_length; ++i) {
         tags[i] = payload->tags[i];

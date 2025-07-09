@@ -64,12 +64,6 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	case C.DATADOG_AGENT_RTLOADER_HISTORATE:
 		sender.Historate(_name, _value, _hostname, _tags)
 	}
-
-	// commit the metric here is somehow required if we don't fully use the Python check context
-	// indeed only when the agent starts, the shared library check is run by the worker.
-	// however the check is not added to the worker's pending checks channel, so it is never run again.
-	// See pkg/collector/worker/worker.go:202 for more details.
-	sender.Commit()
 }
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
