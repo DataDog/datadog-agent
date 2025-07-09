@@ -70,7 +70,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         return false;
     }
 
-    // Change here
     __u32 family = 0;
     if (bpf_probe_read_user(&family, sizeof(family), conn_fd_ptr + cl->conn_fd_family_offset)) {
         log_debug("[go-tls-conn] failed to read family from conn_fd_ptr %p", conn_fd_ptr);
