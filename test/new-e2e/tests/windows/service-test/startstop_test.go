@@ -76,7 +76,7 @@ const systemCrashDumpOutFileName = `SystemCrash.DMP`
 const defaultTimeoutScale = 1
 
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
-const driverVerifierTimeoutScale = 10
+const driverVerifierTimeoutScale = 15
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -547,16 +547,11 @@ func (s *baseStartStopSuite) SetupSuite() {
 	s.waitGroupMetricCollection.Add(1)
 	go func() {
 		defer s.waitGroupMetricCollection.Done()
-		// Collect metrics at most every 5 seconds
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				s.T().Log("Stopping host memory metrics collection")
 				return
-			case <-ticker.C:
-				s.sendHostMemoryMetrics(host)
 			}
 		}
 	}()
