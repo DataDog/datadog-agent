@@ -75,12 +75,12 @@ func TestKubernetesParserShouldRejectInvalidTimestamp(t *testing.T) {
 	// resuming log tailing. Invalid timestamps would cause tailer failures.
 	logMessage := message.NewMessage([]byte("stdout F foo bar"), nil, "", 0)
 	msg, err := New().Parse(logMessage)
-	
+
 	// Verify parser rejects invalid timestamp to prevent downstream failures
 	assert.NotNil(t, err)
 	assert.Equal(t, "invalid timestamp format", err.Error())
 	assert.Equal(t, logMessage.GetContent(), msg.GetContent())
-	
+
 	// Test another malformed timestamp case
 	logMessage.SetContent([]byte("2018-invalid-timestamp stdout F message"))
 	msg, err = New().Parse(logMessage)
