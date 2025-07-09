@@ -52,7 +52,6 @@
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
-    - export DD_TRACE_DEBUG=1
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
