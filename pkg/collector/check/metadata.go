@@ -21,7 +21,6 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 	instance["config.hash"] = instanceID
 
 	splitSource := strings.Split(c.ConfigSource(), ":")
-	log.Errorf("splitSource: %v", splitSource)
 	instance["config.provider"] = splitSource[0]
 	if len(splitSource) > 1 {
 		instance["config.source"] = splitSource[1]
