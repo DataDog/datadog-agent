@@ -327,6 +327,28 @@ func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 	}
 }
 
+// SendInterfaceStatus sends interface status metrics
+func (s *Sender) SendInterfaceStatus(interfaces []client.Interface, deviceNameToIPMap map[string]string) {
+	for _, iface := range interfaces {
+		// Get device IP from the deviceNameToIPMap
+		deviceIP, ok := deviceNameToIPMap[iface.DeviceName]
+		if !ok {
+			log.Warnf("device IP not found for device %s, skipping interface status", iface.DeviceName)
+			continue
+		}
+
+		deviceTags := s.GetDeviceTags(defaultIPTag, deviceIP)
+		interfaceTags := []string{
+			"interface:" + iface.Name,
+			"tenant:" + iface.TenantName,
+			"device_name:" + iface.DeviceName,
+		}
+
+		tags := append(deviceTags, interfaceTags...)
+		s.Gauge(versaMetricPrefix+"interface.status", 1, "", tags)
+	}
+}
+
 // parseTimestamp parses a timestamp string in the Versa formats and returns the unix timestamp in milliseconds
 // If the timestamp is invalid, it returns the current time in milliseconds
 func parseTimestamp(timestamp string) (float64, error) {

@@ -198,6 +198,11 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendMetadata(nil, interfaceMetadata, nil)
 	}
 
+	// Send interface status metrics
+	if *v.config.SendInterfaceMetadata {
+		v.metricsSender.SendInterfaceStatus(interfaces, deviceNameToIDMap)
+	}
+
 	// Send hardware metrics to the metrics sender
 	if *v.config.CollectHardwareMetrics {
 		uptimes := payload.GetDevicesUptime(appliances)
