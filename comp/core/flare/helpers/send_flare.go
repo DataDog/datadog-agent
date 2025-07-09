@@ -45,6 +45,12 @@ type FlareSource struct {
 	rcTaskUUID string
 }
 
+// RetryConfig holds configuration for retry behavior
+type RetryConfig struct {
+	MaxRetries int
+	BaseDelay  time.Duration
+}
+
 // NewLocalFlareSource returns a flare source struct for local flares
 func NewLocalFlareSource() FlareSource {
 	return FlareSource{
@@ -231,7 +237,7 @@ func mkURL(baseURL string, caseID string) string {
 }
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
-// components. When possible use the "Send" method of the "flare" component instead.
+// components. When possible use the "Send" method of the "flare" component instead. Configurable retry logic is used.
 func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
 	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
@@ -254,13 +260,64 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		return "", err
 	}
 
-	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
-	if err != nil {
-		return "", err
+	// Retry logic for the actual flare file posting
+	var lastErr error
+	var defaultRetryConfig = RetryConfig{
+		MaxRetries: 3,
+		BaseDelay:  100 * time.Millisecond,
 	}
 
-	defer r.Body.Close()
-	return analyzeResponse(r, apiKey)
+	for attempt := 0; attempt <= defaultRetryConfig.MaxRetries; attempt++ {
+		if attempt > 0 {
+			// Exponential backoff
+			delay := time.Duration(attempt) * defaultRetryConfig.BaseDelay
+			time.Sleep(delay)
+		}
+
+		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
+		if err != nil {
+			if isRetryableFlareError(err) {
+				lastErr = err
+				continue // Retry
+			}
+			// Non-retryable error - return immediately
+			return "", err
+		}
+
+		if r.StatusCode >= 200 && r.StatusCode < 500 {
+			defer r.Body.Close()
+			return analyzeResponse(r, apiKey)
+		} else if r.StatusCode >= 500 && r.StatusCode < 600 {
+			// 5xx error - retry
+			r.Body.Close()
+			lastErr = fmt.Errorf("server error: %s", r.Status)
+			continue
+		} else {
+			// Other unexpected status code - don't retry
+			defer r.Body.Close()
+			return analyzeResponse(r, apiKey)
+		}
+	}
+
+	return "", fmt.Errorf("failed to send flare after %d attempts: %w", defaultRetryConfig.MaxRetries+1, lastErr)
+}
+
+func isRetryableFlareError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	if strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "network unreachable") ||
+		strings.Contains(errStr, "temporary failure") {
+		return true
+	}
+
+	return false
 }
 
 // GetFlareEndpoint creates the flare endpoint URL

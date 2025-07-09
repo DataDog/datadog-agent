@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,4 +262,271 @@ func TestAnalyzeResponse(t *testing.T) {
 			reserr)
 		require.Equal(t, "", resstr)
 	})
+}
+
+func TestSendToRetryLogic(t *testing.T) {
+	cfg := config.NewMock(t)
+
+	testCases := []struct {
+		name             string
+		serverBehavior   func(attempt int) (statusCode int, response string, delay time.Duration)
+		expectedAttempts int
+		expectSuccess    bool
+		expectedError    string
+	}{
+		{
+			name: "success on first attempt",
+			serverBehavior: func(attempt int) (int, string, time.Duration) {
+				return 200, `{"case_id": 1234}`, 0
+			},
+			expectedAttempts: 1,
+			expectSuccess:    true,
+		},
+		{
+			name: "success on second attempt after 500 error",
+			serverBehavior: func(attempt int) (int, string, time.Duration) {
+				if attempt == 1 {
+					return 500, "Internal Server Error", 0
+				}
+				return 200, `{"case_id": 1234}`, 0
+			},
+			expectedAttempts: 2,
+			expectSuccess:    true,
+		},
+		{
+			name: "success on third attempt after 502 and 503 errors",
+			serverBehavior: func(attempt int) (int, string, time.Duration) {
+				switch attempt {
+				case 1:
+					return 502, "Bad Gateway", 0
+				case 2:
+					return 503, "Service Unavailable", 0
+				default:
+					return 200, `{"case_id": 1234}`, 0
+				}
+			},
+			expectedAttempts: 3,
+			expectSuccess:    true,
+		},
+		{
+			name: "exhausted retries with 5xx errors",
+			serverBehavior: func(attempt int) (int, string, time.Duration) {
+				return 500, "Internal Server Error", 0
+			},
+			expectedAttempts: 4, // 1 initial + 3 retries
+			expectSuccess:    false,
+			expectedError:    "failed to send flare after 4 attempts: server error: 500 Internal Server Error",
+		},
+		{
+			name: "non-retryable 400 error",
+			serverBehavior: func(attempt int) (int, string, time.Duration) {
+				return 400, "Bad Request", 0
+			},
+			expectedAttempts: 1,
+			expectSuccess:    false,
+			expectedError:    "HTTP 400 400 Bad Request",
+		},
+		{
+			name: "non-retryable 404 error",
+			serverBehavior: func(attempt int) (int, string, time.Duration) {
+				return 404, "Not Found", 0
+			},
+			expectedAttempts: 1,
+			expectSuccess:    false,
+			expectedError:    "HTTP 404 404 Not Found",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			attemptCount := 0
+			var lastAttemptTime time.Time
+			var timeBetweenAttempts []time.Duration
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Header.Get("DD-API-KEY") != "test-api-key" {
+					w.WriteHeader(403)
+					io.WriteString(w, "Forbidden")
+					return
+				}
+
+				if r.Method == "HEAD" && r.URL.Path == "/support/flare/12345" {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+					return
+				}
+				if r.Method == "HEAD" && r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+					return
+				}
+				if r.Method == "POST" && r.URL.Path == "/post-target" {
+					attemptCount++
+
+					if !lastAttemptTime.IsZero() {
+						timeBetweenAttempts = append(timeBetweenAttempts, time.Since(lastAttemptTime))
+					}
+					lastAttemptTime = time.Now()
+
+					statusCode, response, delay := tc.serverBehavior(attemptCount)
+
+					if delay > 0 {
+						time.Sleep(delay)
+					}
+
+					if statusCode == 200 {
+						w.Header().Set("Content-Type", "application/json")
+					}
+					w.WriteHeader(statusCode)
+					io.WriteString(w, response)
+					return
+				}
+
+				w.WriteHeader(404)
+				io.WriteString(w, "Not Found")
+			}))
+			defer server.Close()
+			result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+
+			assert.Equal(t, tc.expectedAttempts, attemptCount, "Unexpected number of attempts")
+
+			if tc.expectSuccess {
+				assert.NoError(t, err, "Expected success but got error")
+				assert.Contains(t, result, "Your logs were successfully uploaded", "Expected success message")
+			} else {
+				assert.Error(t, err, "Expected error but got success")
+				if tc.expectedError != "" {
+					assert.Contains(t, err.Error(), tc.expectedError, "Error message doesn't match expected")
+				}
+			}
+			if len(timeBetweenAttempts) > 0 {
+				for i, duration := range timeBetweenAttempts {
+					expectedDelay := time.Duration(i+1) * 100 * time.Millisecond
+					assert.True(t, duration >= expectedDelay-50*time.Millisecond && duration <= expectedDelay+50*time.Millisecond,
+						"Retry delay %d was %v, expected around %v", i+1, duration, expectedDelay)
+				}
+			}
+		})
+	}
+}
+
+func TestIsRetryableFlareError(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "timeout error",
+			err:      errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)"),
+			expected: true,
+		},
+		{
+			name:     "connection refused error",
+			err:      errors.New("dial tcp 127.0.0.1:8080: connection refused"),
+			expected: true,
+		},
+		{
+			name:     "connection reset error",
+			err:      errors.New("read tcp 127.0.0.1:8080: connection reset by peer"),
+			expected: true,
+		},
+		{
+			name:     "network unreachable error",
+			err:      errors.New("dial tcp 192.168.1.1:8080: network unreachable"),
+			expected: true,
+		},
+		{
+			name:     "temporary failure error",
+			err:      errors.New("temporary failure in name resolution"),
+			expected: true,
+		},
+		{
+			name:     "non-retryable error",
+			err:      errors.New("invalid request format"),
+			expected: false,
+		},
+		{
+			name:     "authentication error",
+			err:      errors.New("authentication failed"),
+			expected: false,
+		},
+		{
+			name:     "validation error",
+			err:      errors.New("validation failed"),
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isRetryableFlareError(tc.err)
+			assert.Equal(t, tc.expected, result, "isRetryableFlareError result mismatch")
+		})
+	}
+}
+
+func TestSendToWithNetworkErrors(t *testing.T) {
+	cfg := config.NewMock(t)
+
+	testCases := []struct {
+		name      string
+		errorType string
+		errorMsg  string
+	}{
+		{
+			name:      "connection refused error",
+			errorType: "connection refused",
+			errorMsg:  "connection refused",
+		},
+		{
+			name:      "timeout error",
+			errorType: "timeout",
+			errorMsg:  "timeout",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			attemptCount := 0
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "HEAD" && r.URL.Path == "/support/flare/12345" {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+					return
+				}
+				if r.Method == "HEAD" && r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+					return
+				}
+				if r.Method == "POST" && r.URL.Path == "/post-target" {
+					attemptCount++
+					// Simulate network error by closing connection
+					if attemptCount <= 3 {
+						// Close the connection to simulate network error
+						w.Header().Set("Connection", "close")
+						w.WriteHeader(500)
+						return
+					}
+					// Success on 4th attempt
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(200)
+					io.WriteString(w, `{"case_id": 1234}`)
+				}
+			}))
+			defer server.Close()
+
+			result, err := SendTo(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+
+			// Should eventually succeed after retries
+			assert.NoError(t, err, "Expected success after retries")
+			assert.Contains(t, result, "Your logs were successfully uploaded", "Expected success message")
+			assert.Equal(t, 4, attemptCount, "Expected 4 attempts before success")
+		})
+	}
 }
