@@ -821,11 +821,6 @@ func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
 	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
 }
 
-// GetContainersAndInitContainers returns init containers and containers.
-func (p KubernetesPod) GetContainersAndInitContainers() []OrchestratorContainer {
-	return append(p.InitContainers, p.Containers...)
-}
-
 var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
