@@ -52,6 +52,13 @@ import (
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
+type semaphore chan struct{}
+
+func (s semaphore) acquire() (release func()) {
+	s <- struct{}{}
+	return func() { <-s }
+}
+
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
@@ -60,6 +67,9 @@ func TestDyninst(t *testing.T) {
 		"simple": {},
 		"sample": {},
 	}
+
+	concurrency := max(1, runtime.GOMAXPROCS(0))
+	sem := make(semaphore, concurrency)
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -88,7 +98,7 @@ func TestDyninst(t *testing.T) {
 			continue
 		}
 		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, cfgs, rewrite)
+			runIntegrationTestSuite(t, svc, cfgs, rewrite, sem)
 		})
 	}
 }
@@ -101,7 +111,9 @@ func testDyninst(
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
+	sem semaphore,
 ) map[string][]json.RawMessage {
+	defer sem.acquire()()
 	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
@@ -195,10 +207,10 @@ func testDyninst(
 
 	timeout := time.Second
 	if !rewriteEnabled {
-		// Use some multiple of the time it took to start the test and get
-		// everything setup to try to add more margin in the case that we're
-		// running in an overloaded system.
-		timeout = time.Second + 2*time.Since(start)
+		// In CI the machines seem to get very overloaded and this takes a
+		// shocking amount of time. Given we don't wait for this timeout in
+		// the happy path, it's fine to let this be quite long.
+		timeout = 5*time.Second + 5*time.Since(start)
 	}
 	timeoutCh := time.After(timeout)
 	var read []output.Event
@@ -213,8 +225,8 @@ func testDyninst(
 	}
 	if !rewriteEnabled && timedOut {
 		t.Errorf(
-			"timed out waiting for %d events, got %d",
-			totalExpectedEvents, len(read),
+			"timed out after %v waiting for %d events, got %d",
+			timeout, totalExpectedEvents, len(read),
 		)
 	}
 	require.NoError(t, sampleProc.Wait())
@@ -386,6 +398,7 @@ func runIntegrationTestSuite(
 	service string,
 	configs []testprogs.Config,
 	rewrite bool,
+	sem semaphore,
 ) {
 	var outputs = struct {
 		sync.Mutex
@@ -425,6 +438,7 @@ func runIntegrationTestSuite(
 				t.Parallel()
 				actual := testDyninst(
 					t, service, bin, probeSlice, rewrite, expectedOutput, debug,
+					sem,
 				)
 				if t.Failed() {
 					return
