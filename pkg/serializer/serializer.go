@@ -115,13 +115,13 @@ type Serializer struct {
 	// might collect data considered too sensitive (database IP and
 	// such). By default every kind of payload is enabled since
 	// almost every user won't fall into this use case.
-	enableEvents                  bool
-	enableSeries                  bool
-	enableServiceChecks           bool
-	enableSketches                bool
-	enableJSONToV1Intake          bool
-	hostname                      string
-	logger                        log.Component
+	enableEvents         bool
+	enableSeries         bool
+	enableServiceChecks  bool
+	enableSketches       bool
+	enableJSONToV1Intake bool
+	hostname             string
+	logger               log.Component
 }
 
 // NewSerializer returns a new Serializer initialized
