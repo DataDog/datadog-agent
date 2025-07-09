@@ -40,6 +40,7 @@ const (
 	process      CollectorName = "process"
 	nvlink       CollectorName = "nvlink"
 	gpm          CollectorName = "gpm"
+	systemProbe  CollectorName = "system_probe"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -86,14 +87,16 @@ type CollectorDependencies struct {
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(deps, factory)
+// If spCache is provided, additional system-probe virtual collectors will be created for all devices.
+func BuildCollectors(deps *CollectorDependencies, spCache *SystemProbeCache) ([]Collector, error) {
+	return buildCollectors(deps, factory, spCache)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, spCache *SystemProbeCache) ([]Collector, error) {
 	var collectors []Collector
 
-	//For now build collectors only for physical devices, as we don't support MIG devices yet.
+	// Step 1: Build NVML collectors for physical devices only,
+	// (since most of NVML API doesn't support MIG devices)
 	for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 		for name, builder := range builders {
 			c, err := builder(dev)
@@ -106,6 +109,18 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 			}
 
 			collectors = append(collectors, c)
+		}
+	}
+
+	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
+	if spCache != nil {
+		for _, dev := range deps.DeviceCache.All() {
+			spCollector, err := newEbpfCollector(dev, spCache)
+			if err != nil {
+				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
+				continue
+			}
+			collectors = append(collectors, spCollector)
 		}
 	}
 

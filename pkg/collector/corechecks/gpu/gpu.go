@@ -21,15 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
-	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -50,15 +46,14 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	sysProbeClient               *sysprobeclient.CheckClient // sysProbeClient is used to communicate with system probe
-	activeMetrics                map[model.StatsKey]bool     // activeMetrics is a set of metrics that have been seen in the current check run
-	collectors                   []nvidia.Collector          // collectors for NVML metrics
-	tagger                       tagger.Component            // Tagger instance to add tags to outgoing metrics
-	telemetry                    *checkTelemetry             // Telemetry component to emit internal telemetry
-	wmeta                        workloadmeta.Component      // Workloadmeta store to get the list of containers
-	deviceTags                   map[string][]string         // deviceTags is a map of device UUID to tags
-	deviceCache                  ddnvml.DeviceCache          // deviceCache is a cache of GPU devices
-	useSystemProbeProcessMetrics bool                        // useSystemProbeProcessMetrics determines if SP process metrics are preferred over NVML process collectors
+	collectors                   []nvidia.Collector       // collectors for NVML metrics
+	tagger                       tagger.Component         // Tagger instance to add tags to outgoing metrics
+	telemetry                    *checkTelemetry          // Telemetry component to emit internal telemetry
+	wmeta                        workloadmeta.Component   // Workloadmeta store to get the list of containers
+	deviceTags                   map[string][]string      // deviceTags is a map of device UUID to tags
+	deviceCache                  ddnvml.DeviceCache       // deviceCache is a cache of GPU devices
+	useSystemProbeProcessMetrics bool                     // useSystemProbeProcessMetrics determines if SP process metrics are preferred over NVML process collectors
+	spCache                      *nvidia.SystemProbeCache // spCache manages system-probe GPU stats and client (only initialized when useSystemProbeProcessMetrics is true)
 }
 
 type checkTelemetry struct {
@@ -110,10 +105,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	preferSP := pkgconfigsetup.Datadog().GetBool("gpum.use_sp_process_metrics")
 	c.useSystemProbeProcessMetrics = gpuProbeEnabled && preferSP
 
-	// Initialize system-probe related fields only if we actually want to use SP process metrics
+	// Initialize system-probe cache only if we actually want to use SP process metrics
 	if c.useSystemProbeProcessMetrics {
-		c.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-		c.activeMetrics = make(map[model.StatsKey]bool)
+		c.spCache = nvidia.NewSystemProbeCache()
 	}
 
 	return nil
@@ -147,7 +141,7 @@ func (c *Check) ensureInitCollectors() error {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
-	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache})
+	collectors, err := nvidia.BuildCollectors(&nvidia.CollectorDependencies{DeviceCache: c.deviceCache}, c.spCache)
 	if err != nil {
 		return fmt.Errorf("failed to build NVML collectors: %w", err)
 	}
@@ -179,162 +173,23 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
 
+	// Refresh SP cache before collecting metrics (if using SP process metrics)
+	if c.useSystemProbeProcessMetrics && c.spCache != nil {
+		if err := c.spCache.Refresh(); err != nil {
+			log.Warnf("error refreshing system-probe cache: %v", err)
+			// Continue with NVML-only metrics, SP collectors will return empty metrics
+		}
+	}
+
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
-	if err := c.emitSysprobeMetrics(snd, gpuToContainersMap); err != nil {
-		log.Warnf("error while sending sysprobe metrics: %s", err)
-	}
-
-	if err := c.emitNvmlMetrics(snd, gpuToContainersMap); err != nil {
-		log.Warnf("error while sending NVML metrics: %s", err)
+	if err := c.emitMetrics(snd, gpuToContainersMap); err != nil {
+		log.Warnf("error while sending gpum metrics: %s", err)
 	}
 
 	return nil
-}
-
-func (c *Check) emitSysprobeMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
-	// Skip system-probe metrics if client is not initialized (GPU monitoring disabled in system-probe)
-	if c.sysProbeClient == nil {
-		return nil
-	}
-
-	if err := c.ensureInitDeviceCache(); err != nil {
-		return err
-	}
-
-	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.sysProbeClient, sysconfig.GPUMonitoringModule)
-	if err != nil {
-		if sysprobeclient.IgnoreStartupError(err) == nil {
-			return nil
-		}
-		return fmt.Errorf("cannot get data from system-probe: %w", err)
-	}
-
-	return c.processSysprobeStats(snd, stats, gpuToContainersMap)
-}
-
-func addToActiveEntitiesPerDevice(activeEntitiesPerDevice map[string]common.StringSet, key model.StatsKey, processTags []string) {
-	if _, ok := activeEntitiesPerDevice[key.DeviceUUID]; !ok {
-		activeEntitiesPerDevice[key.DeviceUUID] = common.NewStringSet()
-	}
-
-	for _, t := range processTags {
-		activeEntitiesPerDevice[key.DeviceUUID].Add(t)
-	}
-}
-
-func (c *Check) processSysprobeStats(snd sender.Sender, stats model.GPUStats, gpuToContainersMap map[string]*workloadmeta.Container) error {
-	sentMetrics := 0
-
-	// Always send telemetry metrics
-	defer func() {
-		c.telemetry.metricsSent.Add(float64(sentMetrics), "system_probe")
-		c.telemetry.activeMetrics.Set(float64(len(c.activeMetrics)))
-	}()
-
-	// Set all metrics to inactive, so we can remove the ones that we don't see
-	// and send the final metrics
-	for key := range c.activeMetrics {
-		c.activeMetrics[key] = false
-	}
-
-	// map each device UUID to the set of tags corresponding to entities (processes) using it
-	activeEntitiesPerDevice := make(map[string]common.StringSet)
-	for _, dev := range c.deviceCache.All() {
-		activeEntitiesPerDevice[dev.GetDeviceInfo().UUID] = common.NewStringSet()
-	}
-
-	// Emit the usage metrics
-	for _, entry := range stats.Metrics {
-		key := entry.Key
-		metrics := entry.UtilizationMetrics
-
-		// Get the tags for this metric. We split it between "process" and "device" tags
-		// so that we can store which processes are using which devices. That way we will later
-		// be able to tag the limit metrics (GPU memory capacity, GPU core count) with the
-		// tags of the processes using them.
-		processTags := c.getProcessTagsForKey(key)
-		deviceTags := c.deviceTags[key.DeviceUUID]
-
-		// Add the process tags to the active entities for the device, using a set to avoid duplicates
-		addToActiveEntitiesPerDevice(activeEntitiesPerDevice, key, processTags)
-
-		allTags := append(processTags, deviceTags...)
-
-		snd.Gauge(metricNameCoreUsage, metrics.UsedCores, "", allTags)
-		snd.Gauge(metricNameMemoryUsage, float64(metrics.Memory.CurrentBytes), "", allTags)
-		sentMetrics += 2
-
-		c.activeMetrics[key] = true
-	}
-
-	// Remove the PIDs that we didn't see in this check, and send a metric with a value
-	// of zero to ensure it's reset and the previous value doesn't linger on for longer than necessary.
-	for key, active := range c.activeMetrics {
-		if !active {
-			processTags := c.getProcessTagsForKey(key)
-			tags := append(processTags, c.deviceTags[key.DeviceUUID]...)
-			snd.Gauge(metricNameMemoryUsage, 0, "", tags)
-			snd.Gauge(metricNameCoreUsage, 0, "", tags)
-			sentMetrics += 2
-
-			// Here we also need to mark these entities as active. If we don't, the limit metrics won't have
-			// the tags and utilization will not be reported for them, as the limit metric won't match
-			addToActiveEntitiesPerDevice(activeEntitiesPerDevice, key, processTags)
-
-			delete(c.activeMetrics, key)
-		}
-	}
-
-	// Now, we report the limit metrics tagged with all the processes that are using them
-	// Use the list of active processes from system-probe instead of the ActivePIDs from the
-	// workloadmeta store, as the latter might not be up-to-date and we want these limit metrics
-	// to match the usage metrics reported above
-	for _, dev := range c.deviceCache.All() {
-		devInfo := dev.GetDeviceInfo()
-		deviceTags := c.deviceTags[devInfo.UUID]
-
-		// Retrieve the tags for all the active processes on this device. This will include pid, container
-		// tags and will enable matching between the usage of an entity and the corresponding limit.
-		activeEntitiesTags := activeEntitiesPerDevice[devInfo.UUID]
-		if activeEntitiesTags == nil {
-			// Might be nil if there are no active processes on this device
-			activeEntitiesTags = common.NewStringSet()
-		}
-
-		// Also, add the tags for the container that has this GPU allocated. Add to the set to avoid repetitions.
-		// Adding this ensures we correctly report utilization even if the GPU allocated to the container
-		// is not being used.
-		if container := gpuToContainersMap[devInfo.UUID]; container != nil {
-			for _, tag := range c.getContainerTags(container.EntityID.ID) {
-				activeEntitiesTags.Add(tag)
-			}
-		}
-
-		allTags := append(deviceTags, activeEntitiesTags.GetAll()...)
-
-		snd.Gauge(metricNameCoreLimit, float64(devInfo.CoreCount), "", allTags)
-		snd.Gauge(metricNameMemoryLimit, float64(devInfo.Memory), "", allTags)
-	}
-
-	return nil
-}
-
-// getProcessTagsForKey returns the process-related tags (PID, containerID) for a given key.
-func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
-	// PID is always added
-	tags := []string{
-		// Per-PID metrics are subject to change due to high cardinality
-		fmt.Sprintf("pid:%d", key.PID),
-	}
-
-	if key.ContainerID != "" {
-		tags = append(tags, c.getContainerTags(key.ContainerID)...)
-	}
-
-	return tags
 }
 
 func (c *Check) getContainerTags(containerID string) []string {
@@ -369,7 +224,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	return gpuToContainers
 }
 
-func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
