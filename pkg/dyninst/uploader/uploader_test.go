@@ -114,7 +114,9 @@ func TestDiagnosticsUploader(t *testing.T) {
 	computeExpectedBytes := func(messages []*DiagnosticMessage) int {
 		var expectedBytes int
 		for _, msg := range messages {
-			msgBytes, err := json.Marshal(msg)
+			msg := *msg
+			msg.Timestamp = time.Now().UnixMilli()
+			msgBytes, err := json.Marshal(&msg)
 			require.NoError(t, err)
 			expectedBytes += len(msgBytes)
 		}
