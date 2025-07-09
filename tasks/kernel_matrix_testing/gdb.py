@@ -51,7 +51,12 @@ class UbuntuGDBProvision:
         gdb_paths.vmlinux.parent.mkdir(exist_ok=True, parents=True)
         self.target.download(ctx, "/usr/lib/debug/boot/vmlinux.dbg", f"{gdb_paths.vmlinux}")
 
-        ctx.run(f"rm -rf {gdb_paths.kernel_source}")
+        # make sure we are deleteing from a sane path
+        if gdb_paths.kernel_source.name == "kernel-source" and f"{gdb_paths.kernel_source.absolute()}".startswith(
+            f"{get_repo_root().absolute()}"
+        ):
+            ctx.run(f"rm -rf {gdb_paths.kernel_source}")
+
         gdb_paths.kernel_source.mkdir(parents=True)
         self.target.download(
             ctx,
