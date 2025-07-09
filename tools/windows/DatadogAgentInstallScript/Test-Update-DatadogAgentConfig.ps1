@@ -261,6 +261,69 @@ Test-ConfigUpdate -TestName "Update-DatadogConfigFile replacing content in file 
     ) `
     -AssertMessage "Config should match expected content with api_key replaced in file without EOL"
 
+# Test: Adds tags block to fresh config
+Test-ConfigUpdate -TestName "Adds tags block to fresh config" `
+    -InitialConfig @(
+        "#"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:sre" } `
+    -ExpectedConfig @(
+        "#",
+        "tags:",
+        "  - env:prod",
+        "  - team:sre"
+    ) `
+    -AssertMessage "Should add new tags block when none exists"
+
+# Test: Replaces existing tags block
+Test-ConfigUpdate -TestName "Replaces existing tags block" `
+    -InitialConfig @(
+        "# Existing install",
+        "tags:",
+        "  - oldtag:legacy",
+        "  - team:old"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:qa,team:platform" } `
+    -ExpectedConfig @(
+        "# Existing install",
+        "tags:",
+        "  - env:qa",
+        "  - team:platform"
+    ) `
+    -AssertMessage "Should replace existing tags block with new values"
+
+# Test: Rerun updates tags block
+Test-ConfigUpdate -TestName "Rerun updates tags block" `
+    -InitialConfig @(
+        "# Config from earlier run",
+        "tags:",
+        "  - env:staging",
+        "  - team:infra"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# Config from earlier run",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should overwrite tags block on rerun"
+
+# Test: Update-DatadogAgentConfig with DD_LOGS_ENABLED set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_LOGS_ENABLED set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_LOGS_ENABLED = "true" } `
+    -ExpectedConfig @(
+        "# Test datadog.yaml configuration file",
+        "# api_key: placeholder_key",
+        "# site: datadoghq.com",
+        "# dd_url: https://app.datadoghq.com",
+        "# remote_updates: false",
+        "logs_enabled: true"
+    ) `
+    -AssertMessage "Config should match expected content with logs_enabled set to true"
+
+
 # Cleanup
 Cleanup-Tests
 

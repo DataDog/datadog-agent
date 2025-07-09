@@ -186,6 +186,54 @@ function Update-DatadogAgentConfig() {
       Write-Host "Writing DD_REMOTE_UPDATES"
       Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
    }
+
+   if ($env:DD_LOGS_ENABLED) {
+      Write-Host "Writing DD_LOGS_ENABLED"
+      Update-DatadogConfigFile "^[ #]*logs_enabled:.*" "logs_enabled: $($env:DD_LOGS_ENABLED.ToLower())"
+   }
+
+   if ($env:DD_TAGS) {
+      Write-Host "Writing DD_TAGS"
+
+      $tags = $env:DD_TAGS -split ","
+      $yamlTags = @("tags:") + ($tags | ForEach-Object { "  - $_" })
+
+      $configFile = Get-DatadogConfigPath
+      $lines = Get-Content $configFile
+      $output = @()
+
+      $inTagsBlock = $false
+      $didReplace = $false
+
+      for ($i = 0; $i -lt $lines.Count; $i++) {
+         $line = $lines[$i]
+
+         if (-not $didReplace -and $line -match '^\s*[#]?\s*tags:\s*$') {
+               $output += $yamlTags
+               $didReplace = $true
+               $inTagsBlock = $true
+               continue
+         }
+
+         if ($inTagsBlock -and $line -match '^\s*[#-]+\s*\S+:') {
+               continue
+         }
+
+         if ($inTagsBlock -and $line -notmatch '^\s*[#-]+\s*\S+:') {
+               $inTagsBlock = $false
+         }
+
+         $output += $line
+      }
+
+      if (-not $didReplace) {
+         $output += $yamlTags
+      }
+
+      Set-Content -Path $configFile -Value $output
+   }
+
+
 }
 
 if ($env:SCRIPT_IMPORT_ONLY) {
