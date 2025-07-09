@@ -26,12 +26,14 @@ def filter_only_leaf_tests(tests: Iterable[tuple[str, str]]) -> set[tuple[str, s
     Given some (package, test_name) tuples, return only the leaf tests.
     A test is a leaf if it is not a parent of any other test in the list (within the same package).
     """
-    # Sort tests by descending depth (number of '/' in test name)
-    tests_sorted = sorted(tests, key=lambda t: len(t[1].split('/')))
+    # Sort tests by depth (number of '/' in test name) - deepest tests first
+    tests_sorted = sorted(tests, key=lambda t: len(t[1].split('/')), reverse=True)
     leaf_tests: set[tuple[str, str]] = set()
     for candidate_test in tests_sorted:
-        # If none of the known leaf tests is a child of the candidate test, then the candidate test is a leaf
-        is_leaf = all(not _is_child(candidate_test, known_leaf_test) for known_leaf_test in leaf_tests)
+        # Check if candidate_test is a leaf test
+        # candidate_test will itself be a leaf if no known leaf test is a child of it.
+        # This works because we are iterating from deepest to shallowest test
+        is_leaf = all(not _is_child(known_leaf_test, candidate_test) for known_leaf_test in leaf_tests)
         if is_leaf:
             leaf_tests.add(candidate_test)
     return leaf_tests
