@@ -8,6 +8,7 @@ package processor
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"regexp"
 	"sync"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -228,7 +230,9 @@ func validateAndFilterRules(rules []*config.ProcessingRule) []*config.Processing
 			rule.Type == config.IncludeAtMatch ||
 			rule.Type == config.MaskSequences {
 			if rule.Regex == nil {
-				log.Warnf("Processing rule '%s' of type '%s' has nil regex - rule will be excluded", rule.Name, rule.Type)
+				warningMsg := fmt.Sprintf("Processing rule '%s' of type '%s' has nil regex - rule will be excluded", rule.Name, rule.Type)
+				log.Warnf(warningMsg)
+				status.AddGlobalWarning("processing_rule_nil_regex", warningMsg)
 				continue
 			}
 		}
