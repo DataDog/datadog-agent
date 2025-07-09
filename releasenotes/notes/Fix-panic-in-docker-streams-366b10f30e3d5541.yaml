@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix a panic in docker streams log parsing when stream messages are truncated on transmission.
+    Fix a panic in Docker streams log parsing when stream messages are truncated on transmission.
