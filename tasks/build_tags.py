@@ -296,6 +296,7 @@ build_tags = {
     },
     AgentFlavor.fips: {
         "agent": AGENT_TAGS.union(FIPS_TAGS),
+        "cluster-agent": CLUSTER_AGENT_TAGS.union(FIPS_TAGS),
         "dogstatsd": DOGSTATSD_TAGS.union(FIPS_TAGS),
         "process-agent": PROCESS_AGENT_TAGS.union(FIPS_TAGS),
         "security-agent": SECURITY_AGENT_TAGS.union(FIPS_TAGS),
