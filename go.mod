@@ -29,7 +29,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
-	github.com/DataDog/appsec-internal-go v1.12.0
+	github.com/DataDog/appsec-internal-go v1.13.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.64.0-rc.12
@@ -442,7 +442,7 @@ require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/distribution/reference v0.6.0
 	github.com/expr-lang/expr v1.17.5 // indirect
-	github.com/go-viper/mapstructure/v2 v2.2.1
+	github.com/go-viper/mapstructure/v2 v2.3.0
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/lorenzosaino/go-sysctl v0.3.1
@@ -756,7 +756,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.66.1 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.38.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
-	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250319104955-81009b9bad14 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250603194815-7edb7c2ad56a // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.28.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.28.0 // indirect
@@ -918,7 +918,7 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/prometheus/prometheus v0.304.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
-	github.com/rogpeppe/go-internal v1.13.1 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
