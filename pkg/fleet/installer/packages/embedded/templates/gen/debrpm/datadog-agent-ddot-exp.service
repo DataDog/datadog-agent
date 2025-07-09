@@ -1,4 +1,4 @@
-f[Unit]
+[Unit]
 Description=Datadog Distribution of OpenTelemetry Collector Experiment
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
