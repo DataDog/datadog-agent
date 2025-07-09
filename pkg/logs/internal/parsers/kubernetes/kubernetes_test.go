@@ -83,7 +83,7 @@ func TestKubernetesParserShouldRejectInvalidTimestamp(t *testing.T) {
 
 	// Test another malformed timestamp case
 	logMessage.SetContent([]byte("2018-invalid-timestamp stdout F message"))
-	msg, err = New().Parse(logMessage)
+	_, err = New().Parse(logMessage)
 	assert.NotNil(t, err)
 	assert.Equal(t, "invalid timestamp format", err.Error())
 }
