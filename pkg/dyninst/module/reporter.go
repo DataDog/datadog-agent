@@ -97,12 +97,20 @@ func (c *controllerReporter) ReportLoaded(
 		return nil, fmt.Errorf("creating decoder: %w", err)
 	}
 
+	var tags string
+	if gi := runtimeID.gitInfo; gi != nil {
+		tags = fmt.Sprintf(
+			"git.commit.sha:%s,git.repository_url:%s",
+			gi.CommitSha, gi.RepositoryURL,
+		)
+	}
 	s := &sink{
 		controller:   ctrl,
 		decoder:      decoder,
 		symbolicator: ctrl.store.getSymbolicator(program.ID),
 		programID:    program.ID,
 		service:      runtimeID.service,
+		logUploader:  ctrl.logUploader.GetUploader(tags),
 	}
 	return s, nil
 }
