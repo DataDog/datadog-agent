@@ -22,8 +22,6 @@ Release on: 2025-07-10
 Upgrade Notes
 -------------
 
-- Bump the Python version to 3.12.10
-
 - Bump the Python version to 3.12.11
 
 - Change how attribute precedence is handled. All fields are now evaluated across both span and resource attributes, using the following order of precedence (from highest to lowest):
@@ -82,8 +80,6 @@ Enhancement Notes
 - Introduce a new sample configuration file, `application_monitoring.yaml`, to support the Hands Off config feature.
   This file is automatically placed under `/etc/datadog-agent/` on Linux systems only. Users can manually edit the
   file to apply application monitoring configurations.
-
-- Agents are now built with Go ``1.24.3``.
 
 - Agents are now built with Go ``1.24.4``.
 
