@@ -48,6 +48,7 @@
                     "enum": [
                         "loaded",
                         "partially_loaded",
+                        "fully_rejected",
                         "error"
                     ]
                 },

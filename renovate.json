@@ -21,7 +21,7 @@
       {
         "matchDepNames": ["DataDog/datadog-agent-dev"],
         "changelogUrl": "https://github.com/DataDog/datadog-agent-dev/releases/tag/v{{newValue}}",
-        "schedule": ["3 4 5 6,12 *"]
+        "schedule": ["* 1-4 5 6,12 *"]
       }
     ],
     "pre-commit": {
