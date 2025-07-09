@@ -502,6 +502,24 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+
+			// If the payload has a preaggr destination, but the current domain
+			// is not the configured preaggr site, do not create a transaction.
+			//
+			// If we have a preaggr payload and domain, switch from the standard
+			// series endpoint to the preaggr-specific series endpoint.
+			if payload.Destination == transaction.PreaggrOnly {
+				if drDomain != f.config.GetString("preaggr_dd_url") {
+					continue
+				} else {
+					endpoint = endpoints.PreaggrSeriesEndpoint
+				}
+			}
+			// TODO(?): If the preaggr_dd_url is the same as the primary dd_url,
+			// we will also inherit any additional API keys from the
+			// configuration of that site, meaning we'll send preaggr payloads
+			// for each of those orgs. Not sure if this is a problem or not.
+
 			if payload.Destination == transaction.LocalOnly {
 				// if it is local payload, we should not send it to the remote endpoint
 				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
