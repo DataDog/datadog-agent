@@ -166,18 +166,6 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 	return s
 }
 
-func (s Serializer) serializePayload(
-	jsonMarshaler marshaler.JSONMarshaler,
-	protoMarshaler marshaler.ProtoMarshaler,
-	compress bool,
-	useV1API bool,
-) (transaction.BytesPayloads, http.Header, error) {
-	if useV1API {
-		return s.serializePayloadJSON(jsonMarshaler, compress)
-	}
-	return s.serializePayloadProto(protoMarshaler, compress)
-}
-
 func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compress bool) (transaction.BytesPayloads, http.Header, error) {
 	var extraHeaders http.Header
 
@@ -230,7 +218,7 @@ func (s Serializer) serializeIterableStreamablePayload(payload marshaler.Iterabl
 //
 // If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
-	eventsSerializer metricsserializer.Events, useV1API bool,
+	eventsSerializer metricsserializer.Events,
 ) (transaction.BytesPayloads, http.Header, error) {
 	marshaler := eventsSerializer.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, stream.FailOnErrItemTooBig)
@@ -241,7 +229,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 		// Do not use CreateMarshalersBySourceType when there are too many source types (Performance issue).
 		if marshaler.Len() > maxItemCountForCreateMarshalersBySourceType {
 			expvarsSendEventsErrItemTooBigsFallback.Add(1)
-			eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, useV1API)
+			eventPayloads, extraHeaders, err = s.serializePayloadJSON(eventsSerializer, true)
 		} else {
 			eventPayloads = nil
 			for _, v := range eventsSerializer.CreateMarshalersBySourceType() {
@@ -269,7 +257,7 @@ func (s *Serializer) SendEvents(events event.Events) error {
 		Hostname:  s.hostname,
 	}
 
-	eventPayloads, extraHeaders, err := s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
+	eventPayloads, extraHeaders, err := s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer)
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
