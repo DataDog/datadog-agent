@@ -19,7 +19,6 @@ import (
 )
 
 const (
-	containerIDHeader       = "Datadog-Container-ID"
 	containerTagsHashHeader = "Datadog-Container-Tags-Hash"
 )
 
@@ -146,7 +145,8 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 	}
 	h := sha256.Sum256(txt)
 	return fmt.Sprintf("%x", h), func(w http.ResponseWriter, req *http.Request) {
-		if containerTags, err := r.conf.ContainerTags(req.Header.Get(containerIDHeader)); err == nil {
+		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
 			hash := computeContainerTagsHash(containerTags)
 			w.Header().Add(containerTagsHashHeader, hash)
 		}

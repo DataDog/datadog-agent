@@ -348,7 +348,7 @@ func TestInfoHandler(t *testing.T) {
 	_, h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)
-	req.Header.Add(containerIDHeader, "id1")
+	req.Header.Add("Datadog-Container-ID", "id1")
 	h.ServeHTTP(rec, req)
 	var m map[string]interface{}
 	if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&m)) {
