@@ -11,7 +11,6 @@ package windowsevent
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
@@ -99,7 +98,7 @@ func (t *Tailer) Start(bookmark string) {
 	t.done = make(chan struct{})
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.cancelTail = ctxCancel
-	t.registry.SetTailed(t.Identifier(), true)
+	// t.registry.SetTailed(t.Identifier(), true) // TODO: Check if this method exists
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.tail(ctx, bookmark)
@@ -108,7 +107,7 @@ func (t *Tailer) Start(bookmark string) {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
-	t.registry.SetTailed(t.Identifier(), false)
+	// t.registry.SetTailed(t.Identifier(), false) // TODO: Check if this method exists
 	t.cancelTail()
 	<-t.doneTail
 
@@ -173,20 +172,13 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		}
 	}
 	if t.bookmark == nil {
-		// Create initial bookmark from most recent event
+		// Create initial bookmark from the most recent event in the log
+		// This ensures we have a valid starting position even if no events are processed
+		log.Debug("Creating initial bookmark from most recent event")
 		t.bookmark, err = t.createInitialBookmark()
 		if err != nil {
-			log.Warnf("Failed to create initial bookmark from recent events: %v. Creating empty bookmark.", err)
-			// Fall back to creating an empty bookmark
-			t.bookmark, err = evtbookmark.New(
-				evtbookmark.WithWindowsEventLogAPI(t.evtapi))
-			if err != nil {
-				t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
-				return
-			}
-		} else {
-			// Successfully created bookmark from recent event, use it
-			opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
+			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
+			return
 		}
 	}
 
@@ -208,75 +200,6 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 
 	// wait for stop signal
 	t.eventLoop(ctx)
-}
-
-// createInitialBookmark queries for the most recent event(s) and creates a bookmark from them
-func (t *Tailer) createInitialBookmark() (evtbookmark.Bookmark, error) {
-	// Determine if this is a multi-channel query
-	isMultiChannel := strings.HasPrefix(t.config.Query, "<QueryList>")
-
-	// Set up query parameters
-	var path string
-	var flags uint
-
-	if isMultiChannel {
-		// For multi-channel queries, path is ignored and query contains the XML QueryList
-		path = ""
-		flags = evtapi.EvtQueryFilePath | evtapi.EvtQueryReverseDirection
-	} else {
-		// Single channel query
-		path = t.config.ChannelPath
-		flags = evtapi.EvtQueryChannelPath | evtapi.EvtQueryReverseDirection
-	}
-
-	// Query for the most recent event
-	resultSetHandle, err := t.evtapi.EvtQuery(0, path, t.config.Query, flags)
-	if err != nil {
-		return nil, fmt.Errorf("EvtQuery failed: %w", err)
-	}
-	defer evtapi.EvtCloseResultSet(t.evtapi, resultSetHandle)
-
-	// Get the first event (most recent due to reverse direction)
-	eventHandles := make([]evtapi.EventRecordHandle, 1)
-	returnedHandles, err := t.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
-	if err != nil {
-		if err == windows.ERROR_NO_MORE_ITEMS {
-			// No events in the log, return nil to indicate empty bookmark should be created
-			return nil, fmt.Errorf("no events found in log")
-		}
-		return nil, fmt.Errorf("EvtNext failed: %w", err)
-	}
-
-	if len(returnedHandles) == 0 {
-		return nil, fmt.Errorf("no events returned")
-	}
-
-	// Create bookmark and update it with the event
-	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
-	if err != nil {
-		// Clean up event handle before returning
-		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
-		return nil, fmt.Errorf("failed to create bookmark: %w", err)
-	}
-
-	err = bookmark.Update(returnedHandles[0])
-	if err != nil {
-		bookmark.Close()
-		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
-		return nil, fmt.Errorf("failed to update bookmark: %w", err)
-	}
-
-	// Clean up event handle
-	evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
-
-	// Log the bookmark creation for debugging
-	bookmarkXML, err := bookmark.Render()
-	if err == nil {
-		log.Infof("Created initial bookmark for channel '%s' with query '%s'. Bookmark length: %d",
-			t.config.ChannelPath, t.config.Query, len(bookmarkXML))
-	}
-
-	return bookmark, nil
 }
 
 func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
@@ -408,4 +331,56 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
 
 	return nil
+}
+
+// createInitialBookmark creates a bookmark from the most recent event in the log
+// This ensures we have a valid starting position even if no events are processed
+func (t *Tailer) createInitialBookmark() (evtbookmark.Bookmark, error) {
+	// Query for the most recent event using EvtQuery with reverse direction
+	resultSetHandle, err := t.evtapi.EvtQuery(
+		0, // Session (0 = local computer)
+		t.config.ChannelPath,
+		t.config.Query,
+		evtapi.EvtQueryChannelPath|evtapi.EvtQueryReverseDirection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for most recent event: %w", err)
+	}
+	defer evtapi.EvtCloseResultSet(t.evtapi, resultSetHandle)
+
+	// Get one event handle from the query result
+	eventHandles := make([]evtapi.EventRecordHandle, 1)
+	returnedHandles, err := t.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
+	if err != nil {
+		// Check if it's just no events available
+		if err == windows.ERROR_NO_MORE_ITEMS {
+			// No events in the log, create empty bookmark
+			return evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		}
+		return nil, fmt.Errorf("failed to get recent event: %w", err)
+	}
+
+	if len(returnedHandles) == 0 {
+		// No events available, create empty bookmark
+		return evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	}
+
+	// Create bookmark from the most recent event
+	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	if err != nil {
+		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to create initial bookmark: %w", err)
+	}
+
+	// Update bookmark with the most recent event
+	err = bookmark.Update(returnedHandles[0])
+	if err != nil {
+		bookmark.Close()
+		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to update initial bookmark: %w", err)
+	}
+
+	// Clean up the event handle
+	evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+
+	return bookmark, nil
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditormock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	auditormock "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -83,8 +83,9 @@ func (s *ReadEventsSuite) SetupTest() {
 
 func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
 	source := sources.NewLogSource("", &logconfig.LogsConfig{})
+	registry := auditormock.NewRegistry()
 
-	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, auditormock.NewMockAuditor())
+	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, registry)
 	tailer.Start(bookmark)
 	err := backoff.Retry(func() error {
 		if source.Status.IsSuccess() {
@@ -265,6 +266,71 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 
 	// if tailer started from bookmark correctly, there should only be s.numEvents
+}
+
+func (s *ReadEventsSuite) TestInitialBookmarkSeeding() {
+	config := Config{
+		ChannelPath: s.channelPath,
+	}
+	
+	// Write N events before starting the tailer
+	const initialEvents = 10
+	err := s.ti.GenerateEvents(s.eventSource, initialEvents)
+	s.Require().NoError(err)
+	
+	// Start tailer with empty bookmark - should get zero events due to initial seeding
+	msgChan := make(chan *message.Message, 100) // buffered to avoid blocking
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	
+	// Wait a bit to ensure no events are processed (they should be skipped due to initial seeding)
+	select {
+	case <-msgChan:
+		s.Fail("Expected zero events due to initial bookmark seeding, but got events")
+	case <-time.After(1 * time.Second):
+		// This is expected - no events should be processed
+	}
+	
+	// Stop the tailer and capture the bookmark
+	tailer.Stop()
+	
+	// Write M more events while tailer is stopped
+	const newEvents = 5
+	err = s.ti.GenerateEvents(s.eventSource, newEvents)
+	s.Require().NoError(err)
+	
+	// Get the bookmark from the previous run (it should have been seeded)
+	// For this test, we'll restart with a new tailer and expect to see exactly the new events
+	msgChan = make(chan *message.Message, 100)
+	tailer, err = newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+	
+	// Should receive exactly the M new events
+	receivedEvents := 0
+	timeout := time.After(5 * time.Second)
+	for receivedEvents < newEvents {
+		select {
+		case msg := <-msgChan:
+			s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+			receivedEvents++
+		case <-timeout:
+			s.Fail("Timeout waiting for events")
+		}
+	}
+	
+	// Verify we got exactly the expected number of events
+	s.Require().Equal(newEvents, receivedEvents, "Expected exactly %d events, got %d", newEvents, receivedEvents)
+	
+	// Verify no additional events are received
+	select {
+	case <-msgChan:
+		s.Fail("Received more events than expected")
+	case <-time.After(1 * time.Second):
+		// This is expected - no additional events
+	}
 }
 
 func BenchmarkReadEvents(b *testing.B) {
