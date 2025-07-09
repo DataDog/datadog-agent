@@ -12,14 +12,12 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -29,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -293,7 +290,7 @@ func testDyninst(
 		var decodeOut bytes.Buffer
 		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
-		redacted := redactJSON(t, decodeOut.Bytes())
+		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
 		expIdx := len(probeRet)
@@ -314,81 +311,6 @@ func testDyninst(
 		}
 	}
 	return retMap
-}
-
-type jsonRedactor struct {
-	matches     func(ptr jsontext.Pointer) bool
-	replacement jsontext.Value
-}
-
-func redactPtr(toMatch string, replacement jsontext.Value) jsonRedactor {
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return string(ptr) == toMatch
-		},
-		replacement: replacement,
-	}
-}
-
-func redactPtrPrefixSuffix(prefix, suffix string, replacement jsontext.Value) jsonRedactor {
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return strings.HasPrefix(string(ptr), prefix) && strings.HasSuffix(string(ptr), suffix)
-		},
-		replacement: replacement,
-	}
-}
-
-func redactPtrRegexp(pat string, replacement jsontext.Value) jsonRedactor {
-	re := regexp.MustCompile(pat)
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return re.MatchString(string(ptr))
-		},
-		replacement: replacement,
-	}
-}
-
-var redactors = []jsonRedactor{
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/fileName$`, []byte(`"[fileName]"`)),
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/lineNumber$`, []byte(`"[lineNumber]"`)),
-
-	// TODO: stack is only redacted in full because of bug with stack walking on arm64.
-	// Unredact this once the issue is fixed.
-	redactPtr(`/debugger/snapshot/stack`, []byte(`"[stack-unredact-me]"`)),
-
-	redactPtr("/debugger/snapshot/id", []byte(`"[id]"`)),
-	redactPtr("/debugger/snapshot/timestamp", []byte(`"[ts]"`)),
-	redactPtr("/timestamp", []byte(`"[ts]"`)),
-	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"[addr]"`)),
-}
-
-func redactJSON(t *testing.T, input []byte) (redacted []byte) {
-	d := jsontext.NewDecoder(bytes.NewReader(input))
-	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
-	for {
-		tok, err := d.ReadToken()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		kind, idx := d.StackIndex(d.StackDepth())
-		require.NoError(t, e.WriteToken(tok))
-		if kind != '{' || idx%2 == 0 {
-			continue
-		}
-		ptr := d.StackPointer()
-		for _, redactor := range redactors {
-			if redactor.matches(ptr) {
-				_, err := d.ReadValue()
-				require.NoError(t, err)
-				require.NoError(t, e.WriteValue(redactor.replacement))
-				break
-			}
-		}
-	}
-	return bytes.TrimSpace(buf.Bytes())
 }
 
 type probeOutputs map[string][]json.RawMessage
