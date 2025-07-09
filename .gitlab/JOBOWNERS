@@ -187,3 +187,6 @@ run_codeql_scan                   @DataDog/sdlc-security
 
 # Experiment systemd units
 validate_experiment_systemd_units @DataDog/fleet
+
+# Fuzz testing
+test_fuzz                         @DataDog/chaos-engineering
