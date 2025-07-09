@@ -66,8 +66,11 @@ deploy_deb_testing-a7_x64:
       "lint_linux-x64",
     ]
   script:
-    - *setup_signing
+    # setup_signing_keys_package must be done *before* setup_signing
+    # because setup_signing replaces gpg with gpg-vault
+    # and gpg-vault does not support the operations required by setup_signing_keys_package
     - *setup_signing_keys_package
+    - *setup_signing
     - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
@@ -82,8 +85,11 @@ deploy_deb_testing-a7_arm64:
     - .deploy_deb_testing-a7
   needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64"]
   script:
-    - *setup_signing
+    # setup_signing_keys_package must be done *before* setup_signing
+    # because setup_signing replaces gpg with gpg-vault
+    # and gpg-vault does not support the operations required by setup_signing_keys_package
     - *setup_signing_keys_package
+    - *setup_signing
     - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
     - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
