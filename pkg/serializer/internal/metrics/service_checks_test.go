@@ -9,7 +9,6 @@ package metrics
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,13 +95,10 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmo
 	return uncompressedPayloads
 }
 
-func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler, expect string) {
+func assertEqualTo(t *testing.T, m marshaler.StreamJSONMarshaler, expect string) {
 	config := mock.New(t)
 	payloads := buildPayload(t, m, config)
-	json, err := jsonMarshaler.MarshalJSON()
-	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
-	assert.Equal(t, expect, strings.TrimSpace(string(json)))
 	assert.Equal(t, expect, string(payloads[0]))
 }
 
@@ -113,41 +109,31 @@ func TestServiceCheckDescribeItem(t *testing.T) {
 
 func TestPayloadsNoServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, "[]")
+	assertEqualTo(t, serviceChecks, "[]")
 }
 
 func TestPayloadsSingleServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{createServiceCheck("checkName")}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, "[{\"check\":\"checkName\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]}]")
+	assertEqualTo(t, serviceChecks, "[{\"check\":\"checkName\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]}]")
 }
 
 func TestPayloadsEmptyServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{&servicecheck.ServiceCheck{}}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, "[{\"check\":\"\",\"host_name\":\"\",\"timestamp\":0,\"status\":0,\"message\":\"\",\"tags\":null}]")
+	assertEqualTo(t, serviceChecks, "[{\"check\":\"\",\"host_name\":\"\",\"timestamp\":0,\"status\":0,\"message\":\"\",\"tags\":null}]")
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
 	config := mock.New(t)
 	config.Set("serializer_max_payload_size", 250, pkgconfigmodel.SourceAgentRuntime)
 
-	serviceCheckCollection := []ServiceChecks{
-		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
-		{createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6")},
-		{createServiceCheck("7"), createServiceCheck("8")}}
-	var allServiceChecks ServiceChecks
-	for _, serviceCheck := range serviceCheckCollection {
-		allServiceChecks = append(allServiceChecks, serviceCheck...)
+	serviceChecks := ServiceChecks{
+		createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3"),
+		createServiceCheck("4"), createServiceCheck("5"), createServiceCheck("6"),
+		createServiceCheck("7"), createServiceCheck("8"),
 	}
 
-	payloads := buildPayload(t, allServiceChecks, config)
+	payloads := buildPayload(t, serviceChecks, config)
 	assert.Equal(t, 3, len(payloads))
-
-	for index, serviceChecks := range serviceCheckCollection {
-		json, err := serviceChecks.MarshalJSON()
-		assert.NoError(t, err)
-
-		assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
-	}
 
 	assert.Equal(t, "["+
 		"{\"check\":\"1\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]},"+
