@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent-ddot setup steps before package is installed.
+#
+# .deb: STEP 2 of 5
+
+SERVICE_NAME=datadog-agent-ddot
+
+set -e
+
+if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/system/$SERVICE_NAME.service" ]; then
+    # Stop an already running agent
+    # supports systemd, upstart and sysvinit
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl stop $SERVICE_NAME || true
+    elif command -v service >/dev/null 2>&1; then
+        service $SERVICE_NAME stop || true
+    else
+        echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent-ddot package only provides service files for systemd, upstart and sysvinit."
+    fi
+fi
+
+# Uninstall the agent if it was installed by the installer
+if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent-ddot; then
+    datadog-installer remove datadog-agent-ddot || printf "[ WARNING ]\tFailed to remove datadog-agent-ddot installed by the installer\n"
+fi
+
+exit 0

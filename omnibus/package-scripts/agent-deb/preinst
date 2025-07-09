@@ -16,21 +16,18 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
         systemctl stop $SERVICE_NAME-sysprobe || true
         systemctl stop $SERVICE_NAME-trace || true
         systemctl stop $SERVICE_NAME-security || true
-        systemctl stop $SERVICE_NAME-ddot || true
         systemctl stop $SERVICE_NAME || true
     elif command -v initctl >/dev/null 2>&1; then
         initctl stop $SERVICE_NAME-process || true
         initctl stop $SERVICE_NAME-sysprobe || true
         initctl stop $SERVICE_NAME-trace || true
         initctl stop $SERVICE_NAME-security || true
-        initctl stop $SERVICE_NAME-ddot || true
         initctl stop $SERVICE_NAME || true
     elif command -v service >/dev/null 2>&1; then
         service $SERVICE_NAME-process stop || true
         service $SERVICE_NAME-sysprobe stop || true
         service $SERVICE_NAME-trace stop || true
         service $SERVICE_NAME-security stop || true
-        service $SERVICE_NAME-ddot stop || true
         service $SERVICE_NAME stop || true
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agent package only provides service files for systemd, upstart and sysvinit."
