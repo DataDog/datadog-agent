@@ -2,27 +2,21 @@
 Helper for running fuzz targets in the internal fuzzing infrastructure.
 """
 
-import json
 import os
 
+import requests
 from invoke import task
 
 
 @task
-def build_and_upload_fuzz(ctx):
+def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=3600, proc_count=2, fuzz_memory=4):
     """
     This builds and uploads fuzz targets to the internal fuzzing infrastructure.
     It needs to be passed the -fuzz flag in order to build the fuzz with efficient coverage guidance.
     """
-    # TODO: make these configurable
-    core_count = 2
-    duration = 3600  # in seconds
-    proc_count = 2
-    fuzz_memory = 4  # in GB
-    team = "chaos-platform"  # TODO: make this use the team name from the codeowners file
 
     api_url = "https://fuzzing-api.us1.ddbuild.io/api/v1"
-    gitsha = ctx.run('git rev-parse HEAD').stdout.strip()
+    git_sha = ctx.run('git rev-parse HEAD').stdout.strip()
 
     # Get the auth token a single time and reuse it for all requests
     auth_header = ctx.run(
@@ -39,7 +33,7 @@ def build_and_upload_fuzz(ctx):
             pkgname += "-".join(rel.split('/'))[:max_pkg_name_length]
             build_file = "fuzz.test"
 
-            print(f'Building {pkgname}/{func} for {gitsha}...')
+            print(f'Building {pkgname}/{func} for {git_sha}...')
             fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test'
             ctx.run(fuzz_build_cmd)
 
@@ -51,23 +45,27 @@ def build_and_upload_fuzz(ctx):
 
             # Get presigned URL
             print(f'Getting presigned URL for {pkgname}...')
-            presigned_url_cmd = (
-                f'curl -X POST "{api_url}/apps/{pkgname}/builds/{gitsha}/url" -H "Authorization: Bearer {auth_header}"'
+            headers = {"Authorization": f"Bearer {auth_header}"}
+            presigned_response = requests.post(
+                f"{api_url}/apps/{pkgname}/builds/{git_sha}/url",
+                headers=headers,
+                timeout=30
             )
-            presigned_response = ctx.run(presigned_url_cmd, hide=True).stdout.strip()
-            presigned_url = json.loads(presigned_response)["data"]["url"]
+            presigned_response.raise_for_status()
+            presigned_url = presigned_response.json()["data"]["url"]
 
-            print(f'Uploading {pkgname} ({func}) for {gitsha}...')
+            print(f'Uploading {pkgname} ({func}) for {git_sha}...')
             # Upload file to presigned URL
-            upload_cmd = f'curl --request PUT --upload-file {build_file} "{presigned_url}"'
-            ctx.run(upload_cmd, hide=True)
+            with open(build_file, 'rb') as f:
+                upload_response = requests.put(presigned_url, data=f, timeout=300)
+                upload_response.raise_for_status()
 
             print(f'Starting fuzzer for {pkgname} ({func})...')
             # Start new fuzzer
             run_payload = {
                 "app": pkgname,
                 "debug": False,
-                "version": gitsha,
+                "version": git_sha,
                 "core_count": core_count,
                 "duration": duration,
                 "type": "go-native-fuzz",
@@ -77,11 +75,19 @@ def build_and_upload_fuzz(ctx):
                 "memory": fuzz_memory,
             }
 
-            run_json_payload = json.dumps(run_payload)
-            start_fuzzer_cmd = f'curl -H "Authorization: Bearer {auth_header}" -H "Content-Type: application/json" "{api_url}/apps/{pkgname}/fuzzers" -d \'{run_json_payload}\''
-            response = ctx.run(start_fuzzer_cmd, hide=True).stdout.strip()
+            headers = {
+                "Authorization": f"Bearer {auth_header}",
+                "Content-Type": "application/json"
+            }
+            response = requests.post(
+                f"{api_url}/apps/{pkgname}/fuzzers",
+                headers=headers,
+                json=run_payload,
+                timeout=30
+            )
+            response.raise_for_status()
             print(f'✅ Started fuzzer for {pkgname} ({func})...')
-            response_json = json.loads(response)
+            response_json = response.json()
             print(response_json)
 
 
