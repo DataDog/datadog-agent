@@ -1,0 +1,38 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testTypeAlias",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testTypeAlias",
+          "location": {
+            "method": "main.testTypeAlias"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "main.typeAlias",
+                "value": "3"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

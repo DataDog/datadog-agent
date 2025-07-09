@@ -1,0 +1,48 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testPointerToSimpleStruct",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testPointerToSimpleStruct",
+          "location": {
+            "method": "main.testPointerToSimpleStruct"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "*main.structWithTwoValues",
+                "address": "[addr]",
+                "fields": {
+                  "a": {
+                    "type": "uint",
+                    "value": "9"
+                  },
+                  "b": {
+                    "type": "bool",
+                    "value": "true"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

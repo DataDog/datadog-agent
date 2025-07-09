@@ -1,0 +1,51 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.stringArrayArg",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "stringArrayArg",
+          "location": {
+            "method": "main.stringArrayArg"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "s": {
+                "type": "[3]string",
+                "elements": [
+                  {
+                    "type": "",
+                    "value": "a"
+                  },
+                  {
+                    "type": "",
+                    "value": "b"
+                  },
+                  {
+                    "type": "",
+                    "value": "c"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]
