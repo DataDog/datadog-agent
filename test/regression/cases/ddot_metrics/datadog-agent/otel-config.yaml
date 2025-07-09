@@ -8,49 +8,51 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - job_name: "otelcol"
-          scrape_interval: 10s
-          static_configs:
-            - targets: ["0.0.0.0:8888"]
+      - job_name: 'otelcol'
+        scrape_interval: 10s
+        static_configs:
+          - targets: ['0.0.0.0:8888']
 exporters:
-  hostname: "smp-regression"
   datadog:
+    traces:
+      span_name_as_resource_name: true
+      endpoint: "http://127.0.0.1:9091"
+    hostname: "smp-regression"    
     api:
-      key: ${env:DD_API_KEY}
-      site: datadoghq.com
+      key: "123456789"
+      site: 127.0.0.1:9091
     metrics:
       resource_attributes_as_tags: true
-      endpoint: "http://127.0.0.1:9091"
-    traces:
-      endpoint: "http://127.0.0.1:9091"
+      endpoint: http://127.0.0.1:9091
     logs:
-      endpoint: "http://127.0.0.1:9091"
-    sending_queue:
-      queue_size: 50
+      endpoint: http://127.0.0.1:9091
+      
+
 processors:
-  infraattributes:
-    cardinality: 2
   batch:
-    send_batch_size: 4096
-    timeout: 10s
 connectors:
+  # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
-    trace:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
       exporters: [datadog/connector]
-    traces/otlp:
+    traces/send:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [batch]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
-      processors: [infraattributes, batch]
+      receivers: [otlp, datadog/connector]
+      processors: [batch]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [batch]
       exporters: [datadog]
