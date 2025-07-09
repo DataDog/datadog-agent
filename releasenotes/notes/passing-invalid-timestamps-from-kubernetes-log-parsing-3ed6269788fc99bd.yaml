@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Timestamps from the kubernetes logs source are now validated, we will not pass invalid ones.
+    Kubernetes logs source timestamps are now validated. Invalid timestamps will not be passed.
