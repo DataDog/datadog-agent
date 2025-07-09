@@ -54,6 +54,7 @@ func (ic *inventorychecksImpl) getJMXChecksMetadata() (jmxMetadata map[string][]
 					"instance":        string(instanceYaml),
 					"config.provider": "file",
 					"config.hash":     configHash,
+					"config.source":   "TODO",
 				})
 			}
 		}
