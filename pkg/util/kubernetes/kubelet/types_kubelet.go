@@ -48,15 +48,16 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork       bool                    `json:"hostNetwork,omitempty"`
-	NodeName          string                  `json:"nodeName,omitempty"`
-	InitContainers    []ContainerSpec         `json:"initContainers,omitempty"`
-	Containers        []ContainerSpec         `json:"containers,omitempty"`
-	Volumes           []VolumeSpec            `json:"volumes,omitempty"`
-	PriorityClassName string                  `json:"priorityClassName,omitempty"`
-	SecurityContext   *PodSecurityContextSpec `json:"securityContext,omitempty"`
-	RuntimeClassName  *string                 `json:"runtimeClassName,omitempty"`
-	Tolerations       []Toleration            `json:"tolerations,omitempty"`
+	HostNetwork         bool                    `json:"hostNetwork,omitempty"`
+	NodeName            string                  `json:"nodeName,omitempty"`
+	InitContainers      []ContainerSpec         `json:"initContainers,omitempty"`
+	Containers          []ContainerSpec         `json:"containers,omitempty"`
+	EphemeralContainers []ContainerSpec         `json:"ephemeralContainers,omitempty"`
+	Volumes             []VolumeSpec            `json:"volumes,omitempty"`
+	PriorityClassName   string                  `json:"priorityClassName,omitempty"`
+	SecurityContext     *PodSecurityContextSpec `json:"securityContext,omitempty"`
+	RuntimeClassName    *string                 `json:"runtimeClassName,omitempty"`
+	Tolerations         []Toleration            `json:"tolerations,omitempty"`
 }
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
@@ -196,16 +197,17 @@ type VolumeClaimTemplateSpec struct {
 
 // Status contains fields for unmarshalling a Pod.Status
 type Status struct {
-	Phase          string            `json:"phase,omitempty"`
-	HostIP         string            `json:"hostIP,omitempty"`
-	PodIP          string            `json:"podIP,omitempty"`
-	Containers     []ContainerStatus `json:"containerStatuses,omitempty"`
-	InitContainers []ContainerStatus `json:"initContainerStatuses,omitempty"`
-	AllContainers  []ContainerStatus
-	Conditions     []Conditions `json:"conditions,omitempty"`
-	QOSClass       string       `json:"qosClass,omitempty"`
-	StartTime      time.Time    `json:"startTime,omitempty"`
-	Reason         string       `json:"reason,omitempty"`
+	Phase               string            `json:"phase,omitempty"`
+	HostIP              string            `json:"hostIP,omitempty"`
+	PodIP               string            `json:"podIP,omitempty"`
+	Containers          []ContainerStatus `json:"containerStatuses,omitempty"`
+	InitContainers      []ContainerStatus `json:"initContainerStatuses,omitempty"`
+	EphemeralContainers []ContainerStatus `json:"ephemeralContainerStatuses,omitempty"`
+	AllContainers       []ContainerStatus
+	Conditions          []Conditions `json:"conditions,omitempty"`
+	QOSClass            string       `json:"qosClass,omitempty"`
+	StartTime           time.Time    `json:"startTime,omitempty"`
+	Reason              string       `json:"reason,omitempty"`
 }
 
 // GetAllContainers returns the list of init and regular containers

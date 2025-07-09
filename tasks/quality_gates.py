@@ -13,7 +13,7 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
@@ -35,6 +35,36 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
+
+footer_error_debug_advice = """
+To understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates]({}) manual gitlab job to compare what this PR introduced for a specific gate.
+Usage:
+- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages
+Key: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`
+"""
+
+
+def get_debug_job_url():
+    commit_sha = os.environ.get("CI_COMMIT_SHA")
+    if not commit_sha:
+        return ""
+    try:
+        repo = get_gitlab_repo("DataDog/datadog-agent")
+        pipeline_list = repo.pipelines.list(sha=commit_sha)
+        if not len(pipeline_list):
+            raise Exit(code=1, message="The current commit has no pipeline attached.")
+        current_pipeline = pipeline_list[0]
+        debug_job = next(
+            job for job in current_pipeline.jobs.list(iterator=True) if job.name == "debug_static_quality_gates"
+        )
+    except StopIteration:
+        print("Job debug_static_quality_gates wasn't found in the current pipeline!")
+        return ""
+    except Exception as e:
+        print(f"Failed to fetch debug_static_quality_gates url!\n{traceback.format_exc()}\n{str(e)}")
+        return ""
+
+    return f"{debug_job._attrs['web_url']}"
 
 
 def display_pr_comment(
@@ -88,10 +118,14 @@ def display_pr_comment(
             error_message = gate['message'].replace('\n', '<br>')
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
-
-    body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+    if with_error:
+        debug_info_footer = footer_error_debug_advice.format(get_debug_job_url())
+        body_error_footer += f"\n</details>\n\nStatic quality gates prevent the PR to merge! {debug_info_footer}\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+        final_error_body = body_error + body_error_footer
+    else:
+        final_error_body = ""
     body_info += "\n</details>\n"
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{final_error_body}\n\n{body_info if with_info else ''}"
 
     pr_commenter(ctx, title=title, body=body)
 
@@ -176,17 +210,19 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.send_metrics_to_datadog()
 
-    metric_handler.generate_metric_reports(ctx, branch=branch)
+    metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
 
-    github = GithubAPI()
-    if github.get_pr_for_branch(branch).totalCount > 0:
-        ancestor = get_common_ancestor(ctx, "HEAD")
-        metric_handler.generate_relative_size(ctx, ancestor=ancestor)
-        display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
+    # We don't need a PR notification nor gate failures on release branches
+    if not is_a_release_branch(ctx, branch):
+        github = GithubAPI()
+        if github.get_pr_for_branch(branch).totalCount > 0:
+            ancestor = get_common_ancestor(ctx, "HEAD")
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor)
+            display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
 
-    # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
-    if final_state != "success" and not nightly_run:
-        raise Exit(code=1)
+        # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
+        if final_state != "success" and not nightly_run:
+            raise Exit(code=1)
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
@@ -214,11 +250,11 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler, exception_
         on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(
             gate, "current_on_wire_size", "max_on_wire_size", metric_handler, exception_bump
         )
-        config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit)
+        config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit, unit_power=2)
         on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(
             gate, "current_on_disk_size", "max_on_disk_size", metric_handler, exception_bump
         )
-        config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit)
+        config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit, unit_power=2)
         total_saved_amount += wire_saved_amount + disk_saved_amount
     return config_content, total_saved_amount
 
@@ -234,7 +270,12 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     # Create new branch
     branch_name = f"static_quality_gates/threshold_update_{os.environ['CI_COMMIT_SHORT_SHA']}"
     current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
-    github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
+    ctx.run(f"git checkout -b {branch_name}")
+    ctx.run(
+        f"git remote set-url origin https://x-access-token:{github._auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    ctx.run(f"git push --set-upstream origin {branch_name}")
 
     # Push changes
     commit_message = "feat(gate): update static quality gates thresholds"
@@ -264,7 +305,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         current_branch.name,
         branch_name,
         milestone_version,
-        ["team/agent-delivery", "qa/skip-qa", "changelog/no-changelog"],
+        ["team/agent-build", "qa/skip-qa", "changelog/no-changelog"],
     )
 
 
@@ -275,7 +316,7 @@ def notify_threshold_update(pr_url):
     emojis = client.emoji_list()
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
     message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
-    client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
+    client.chat_postMessage(channel='#agent-build-reviews', text=message)
 
 
 @task
@@ -288,6 +329,48 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     notify_threshold_update(pr_url)
 
 
+@task
+def debug_specific_quality_gate(ctx, gate_name):
+    """
+    Executes a single static quality gate to compare it to its ancestor and run debug on it
+
+    :param ctx: Invoke context
+    :param gate_name: Static quality gates to debug
+    :return:
+    """
+    if not gate_name:
+        raise Exit(
+            code=0,
+            message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
+        )
+    nightly_run = False
+    branch = os.environ["CI_COMMIT_BRANCH"]
+
+    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
+    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
+        nightly_run = True
+
+    quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
+    gate_inputs = {"ctx": ctx, "nightly": nightly_run}
+    try:
+        gate_module = getattr(quality_gates_module, gate_name)
+    except AttributeError as e:
+        raise Exit(
+            code=0,
+            message=f"The provided quality gate to debug ({gate_name}) is invalid and wasn't found as part of tasks.static_quality_gates.",
+        ) from e
+
+    # As it is a debug job we do not want the job to actually fail on failures.
+    try:
+        gate_module.debug_entrypoint(**gate_inputs)
+    except NotImplementedError:
+        print(f"The {gate_name} static quality gate doesn't support debugging yet.")
+    except Exception as e:
+        print(
+            f"The {gate_name} debugging failed with the following trace:\n{traceback.format_exc()}\nError message:\n{str(e)}"
+        )
+
+
 @task()
 def exception_threshold_bump(ctx):
     """
@@ -297,7 +380,7 @@ def exception_threshold_bump(ctx):
     :param ctx:
     :return:
     """
-    current_branch_name = get_current_branch()
+    current_branch_name = get_current_branch(ctx)
     ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
@@ -318,7 +401,7 @@ def exception_threshold_bump(ctx):
             metric_handler = GateMetricHandler(
                 git_ref=current_branch_name, bucket_branch="dev", filename=static_gate_report_path
             )
-            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, filename=static_gate_report_path)
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, report_path=static_gate_report_path)
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 

@@ -15,8 +15,13 @@
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
       },
       {
-        "matchDepNames": ["buildimages"],
+        "matchDepNames": ["linux-images", "windows-images"],
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main"
+      },
+      {
+        "matchDepNames": ["DataDog/datadog-agent-dev"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-dev/releases/tag/v{{newValue}}",
+        "schedule": ["* 1-4 5 6,12 *"]
       }
     ],
     "pre-commit": {
@@ -28,11 +33,22 @@
         "customType": "regex",
         "fileMatch": [".gitlab-ci.yml"],
         "matchStrings": [
-          "  CI_IMAGE_[^:]*: (?<currentValue>v.*)"
+          "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
         ],
-        "depNameTemplate": "buildimages",
+        "depNameTemplate": "linux-images",
         "versioningTemplate": "loose",
-        "datasourceTemplate": "custom.buildimages"
+        "datasourceTemplate": "custom.linux-images"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": [".gitlab-ci.yml"],
+        "matchStrings": [
+          "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "windows-images",
+        "versioningTemplate": "regex:^(ltsc2022-)?v(?<major>\\d+)-.*$",
+        "datasourceTemplate": "custom.windows-images",
+        "extractVersionTemplate": "^(ltsc2022-)?(?<version>.*)$"
       },
       {
         "customType": "regex",
@@ -41,6 +57,15 @@
           "(?<currentValue>[0-9]+.[0-9]+)"
         ],
         "depNameTemplate": "protocolbuffers/protobuf",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": [".dda/version"],
+        "matchStrings": [
+          "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
         "datasourceTemplate": "github-releases"
       },
       {
@@ -67,8 +92,14 @@
       }
     ],
     "customDatasources": {
-      "buildimages": {
+      "linux-images": {
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
+        "transformTemplates": [
+          "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "windows-images": {
+        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-windows_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
         ]

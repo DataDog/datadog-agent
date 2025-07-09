@@ -87,7 +87,8 @@ extensions:
             disable_failure_notifications: true
         - name: "conductor-sandbox"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
-          branch: "chouquette/conductor"
+          # Create and push to this branch to test changes with conductor if needed without merging to main
+          branch: "conductor-sandbox"
           parent_environments: ["staging"]
   datadoghq.com/change-detection:
     source_patterns:
@@ -190,3 +191,92 @@ tags:
 integrations:
   pagerduty:
     service-url: https://datadog.pagerduty.com/service-directory/P55U2GM
+---
+apiVersion: v3
+kind: service
+metadata:
+  name: datadog-agent-ci
+  description: Specific service to handle CI issues in datadog-agent repository.
+  displayName: Datadog-agent CI
+  tags:
+    - datadog-agent-ci
+  owner: agent-devx
+  links:
+    - name: datadog-agent
+      type: repo
+      provider: github
+      url: https://github.com/DataDog/datadog-agent
+    - name: ci-overview
+      type: doc
+      provider: Confluence
+      url: https://datadoghq.atlassian.net/wiki/x/j4AgXw
+    - name: "[Agent Platform] datadog-agent CI status"
+      type: dashboard
+      provider: Datadog
+      url: https://app.datadoghq.com/dashboard/44i-yb7-48x/agent-platform-datadog-agent-ci-status
+    - name: High duration variance jobs
+      type: runbook
+      provider: Datadog
+      url: https://app.datadoghq.com/notebook/7981331/datadog-agent-gitlab-ci-high-duration-variance-jobs
+    - name: High failure rate jobs
+      type: runbook
+      provider: Datadog
+      url: https://app.datadoghq.com/notebook/7981354/datadog-agent-gitlab-ci-high-failure-rate-jobs
+    - name: Gitlab CI Jobs
+      type: dashboard
+      provider: Datadog
+      url: https://app.datadoghq.com/dashboard/vev-54z-7wr/ci-execution-gitlab-ci-jobs
+    - name: Kubernetes Runner sizing and diagnostic
+      type: dashboard
+      provider: Datadog
+      url: https://app.datadoghq.com/dashboard/xff-wqx-4a2/ci-reliability-kubernetes-runner-sizing-and-diagnostic
+    - name: datadog-agent Merge Queue
+      type: other
+      provider: Datadog
+      url: https://sdp.ddbuild.io/#/ci/merge-request?fromTs=1713872972650&toTs=1713887372650&live=1&page=1&repoNameIn=datadog-agent
+    - name: Last failed job executions
+      type: other
+      provider: Datadog
+      url: https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3Amain%20%40ci.status%3Aerror%20-%40ci.pipeline.downstream%3Atrue&agg_m=count&agg_m_source=base&agg_t=count&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=trace&fromUser=true&index=cipipeline&sort=time&spanViewType=overview&start=1714031808008&end=1714046208008&paused=false
+    - name: Github status
+      type: other
+      provider: Github
+      url: https://www.githubstatus.com/
+    - name: Windows runners
+      type: dashboard
+      provider: Datadog
+      url: https://app.datadoghq.com/dashboard/rfm-ijx-8zc/windows-gitlab-runners-docker
+    - name: Codesync status
+      type: dashboard
+      provider: Datadog
+      url: https://app.datadoghq.com/dashboard/5md-cre-mhu/ci-platforms-codesync?fromUser=false&refresh_mode=sliding&view=spans&from_ts=1724773403328&to_ts=1724777003328&live=true
+  contacts:
+    - name: agent-devx-help
+      type: slack
+      contact: https://dd.enterprise.slack.com/archives/C06PBHLD4DQ
+    - name: datadog-agent-pipelines
+      type: slack
+      contact: https://dd.enterprise.slack.com/archives/CR5TV8QBY
+integrations:
+  pagerduty:
+    serviceURL: https://datadog.pagerduty.com/service-directory/P9SGXPT
+datadog:
+  pipelines:
+    fingerprints:
+      - AzxEDI9zLZwM
+      - s8CTrONGZMY4
+      - TesFW1GZuQAd
+      - GpHxjTYEytdG
+      - Pd_fZ1ZnhkdR
+      - Azd3xT8JYilC
+      - 0HKh9BmSCCuZ
+      - N5XBnqEDjGnH
+      - lJX0u7hFeUX5
+      - lyB2oS9hQ2w2
+spec:
+  lifecycle: 5 weeks
+  tier: "0"
+  languages:
+    - python
+    - go
+  type: custom

@@ -35,6 +35,11 @@ func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, re
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
+func (BaseHandlers) GetNodeName(ctx processors.ProcessorContext, resource interface{}) string {
+	return ""
+}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) GetMetadataTags(ctx processors.ProcessorContext, resource interface{}) []string {
 	return nil
 }
@@ -49,12 +54,14 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 	}
 
 	cm := &model.CollectorManifest{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		Manifests:   manifests,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		Tags:        pctx.Cfg.ExtraTags,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		Manifests:    manifests,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		Tags:         pctx.Cfg.ExtraTags,
+		HostName:     pctx.HostName,
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 	return cm
 }

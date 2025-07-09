@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -27,7 +28,7 @@ import (
 // ContainerConfigProvider implements the ConfigProvider interface for both pods and containers
 type ContainerConfigProvider struct {
 	workloadmetaStore workloadmeta.Component
-	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
+	configErrors      map[string]types.ErrorMsgSet             // map[entity name]types.ErrorMsgSet
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
 	telemetryStore    *telemetry.Store
@@ -35,11 +36,11 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (ConfigProvider, error) {
+func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
-		configErrors:      make(map[string]ErrorMsgSet),
+		configErrors:      make(map[string]types.ErrorMsgSet),
 		telemetryStore:    telemetryStore,
 	}, nil
 }
@@ -157,9 +158,9 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 	return changes
 }
 
-func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, ErrorMsgSet) {
+func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, types.ErrorMsgSet) {
 	var (
-		errMsgSet ErrorMsgSet
+		errMsgSet types.ErrorMsgSet
 		errs      []error
 		configs   []integration.Config
 	)
@@ -186,7 +187,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 	case *workloadmeta.KubernetesPod:
 		containerIdentifiers := map[string]struct{}{}
 		containerNames := map[string]struct{}{}
-		for _, podContainer := range entity.GetAllContainers() {
+		for _, podContainer := range entity.GetContainersAndInitContainers() {
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
 				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)
@@ -252,7 +253,7 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 	}
 
 	if len(errs) > 0 {
-		errMsgSet = make(ErrorMsgSet)
+		errMsgSet = make(types.ErrorMsgSet)
 		for _, err := range errs {
 			errMsgSet[err.Error()] = struct{}{}
 		}
@@ -275,11 +276,11 @@ func (k *ContainerConfigProvider) generateContainerConfig(container *workloadmet
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod
-func (k *ContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	errors := make(map[string]ErrorMsgSet, len(k.configErrors))
+	errors := make(map[string]types.ErrorMsgSet, len(k.configErrors))
 
 	maps.Copy(errors, k.configErrors)
 

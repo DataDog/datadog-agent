@@ -233,6 +233,7 @@ kmt_run_sysprobe_tests_x64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_sysprobe_tests_arm64:
   extends:
@@ -269,7 +270,7 @@ kmt_run_sysprobe_tests_arm64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 .kmt_sysprobe_cleanup:
   extends:
     - .kmt_cleanup

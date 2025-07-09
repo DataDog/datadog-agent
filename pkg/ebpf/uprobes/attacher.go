@@ -148,17 +148,20 @@ func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 			// so we do a simple check: either the regex matches a library name in the libset, or the regex contains
 			// a substring that matches a library name in the libset.
 			matchesAtLeastOneLib := false
-			suffixes := sharedlibraries.LibsetToLibSuffixes[attacherConfig.SharedLibsLibset]
-			for _, libSuffix := range suffixes {
-				libSuffixWithExt := libSuffix + ".so"
-				if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
-					matchesAtLeastOneLib = true
-					break
+		outer:
+			for _, libset := range attacherConfig.SharedLibsLibsets {
+				suffixes := sharedlibraries.LibsetToLibSuffixes[libset]
+				for _, libSuffix := range suffixes {
+					libSuffixWithExt := libSuffix + ".so"
+					if r.LibraryNameRegex.MatchString(libSuffixWithExt) || strings.Contains(r.LibraryNameRegex.String(), libSuffix) {
+						matchesAtLeastOneLib = true
+						break outer
+					}
 				}
 			}
 
 			if !matchesAtLeastOneLib {
-				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libset %s (%s)", r.LibraryNameRegex, attacherConfig.SharedLibsLibset, suffixes))
+				result = multierror.Append(result, fmt.Errorf("library name regex %s does not match any library in libsets [%v]", r.LibraryNameRegex, attacherConfig.SharedLibsLibsets))
 			}
 		}
 	}
@@ -217,8 +220,9 @@ type AttacherConfig struct {
 	// This is useful for debugging purposes, do not enable in production.
 	EnableDetailedLogging bool
 
-	// If shared libraries tracing is enabled, this is the name of the library set used to filter the events
-	SharedLibsLibset sharedlibraries.Libset
+	// If shared libraries tracing is enabled, this is the list of library sets to use to filter the events
+	// from the shared libraries program.
+	SharedLibsLibsets []sharedlibraries.Libset
 
 	// OnSyncCallback is an optional function that gets called when the attacher performs a sync. Receives as an argument
 	// the set of alive PIDs in the system.
@@ -278,8 +282,12 @@ func (ac *AttacherConfig) Validate() error {
 		targetsSharedLibs = targetsSharedLibs || rule.canTarget(AttachToSharedLibraries)
 	}
 
-	if targetsSharedLibs && !sharedlibraries.IsLibsetValid(ac.SharedLibsLibset) {
-		err = multierror.Append(err, fmt.Errorf("invalid libset %s", ac.SharedLibsLibset))
+	if targetsSharedLibs {
+		for _, libset := range ac.SharedLibsLibsets {
+			if !sharedlibraries.IsLibsetValid(libset) {
+				err = multierror.Append(err, fmt.Errorf("invalid libset %s", libset))
+			}
+		}
 	}
 
 	return err
@@ -376,6 +384,9 @@ type UprobeAttacher struct {
 	// scansPerPid is a map of PIDs to the number of times we have scanned them, to avoid re-scanning them
 	// too many times when EnablePeriodicScanNewProcesses is true
 	scansPerPid map[uint32]int
+
+	// attachLimiter is used to limit the number of times we log warnings about attachment errors
+	attachLimiter *log.Limit
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -408,6 +419,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		inspector:              inspector,
 		processMonitor:         processMonitor,
 		scansPerPid:            make(map[uint32]int),
+		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -469,12 +481,12 @@ func (ua *UprobeAttacher) Start() error {
 
 		ua.soWatcher = sharedlibraries.GetEBPFProgram(ua.config.EbpfConfig)
 
-		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibset)
+		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
 
-		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibset)
+		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibsets...)
 		if err != nil {
 			return fmt.Errorf("error subscribing to shared libraries events: %w", err)
 		}
@@ -621,7 +633,10 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	}
 
 	var unknownErr *utils.UnknownAttachmentError
-	return errors.As(err, &unknownErr)
+	if errors.As(err, &unknownErr) {
+		return ua.attachLimiter.ShouldLog()
+	}
+	return false
 }
 
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error

@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -20,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -63,7 +66,8 @@ type pendingMsg struct {
 	tags            []string
 	actionReports   []model.ActionReport
 	service         string
-	extTagsCb       func() []string
+	timestamp       time.Time
+	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
 }
@@ -139,6 +143,7 @@ type APIServer struct {
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
+	envAsTags          []string
 
 	// os release data
 	kernelVersion string
@@ -220,7 +225,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
-	a.queue = slices.DeleteFunc(a.queue, func(msg *pendingMsg) bool {
+	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
 		if msg.sendAfter.After(now) {
 			return false
 		}
@@ -240,6 +245,17 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 
 		return false
 	})
+}
+
+// slicesDeleteUntilFalse deletes elements from the slice until the function f returns false.
+func slicesDeleteUntilFalse(s []*pendingMsg, f func(*pendingMsg) bool) []*pendingMsg {
+	for i, v := range s {
+		if !f(v) {
+			return s[i:]
+		}
+	}
+
+	return nil
 }
 
 func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
@@ -287,8 +303,13 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
+					tags, retryable := msg.extTagsCb()
+					if len(tags) == 0 && retryable && msg.retry < maxRetry {
+						return false
+					}
+
 					// dedup
-					for _, tag := range msg.extTagsCb() {
+					for _, tag := range tags {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
 						}
@@ -309,10 +330,11 @@ func (a *APIServer) start(ctx context.Context) {
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
 				m := &api.SecurityEventMessage{
-					RuleID:  msg.ruleID,
-					Data:    data,
-					Service: msg.service,
-					Tags:    msg.tags,
+					RuleID:    msg.ruleID,
+					Data:      data,
+					Service:   msg.service,
+					Tags:      msg.tags,
+					Timestamp: timestamppb.New(msg.timestamp),
 				}
 				a.updateMsgService(m)
 
@@ -345,7 +367,7 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
@@ -382,6 +404,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
+	tags = append(tags, a.envAsTags...)
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
@@ -393,12 +416,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		}
 
+		timestamp := ev.ResolveEventTime()
+		if timestamp.IsZero() {
+			timestamp = time.Now()
+		}
+
 		msg := &pendingMsg{
 			ruleID:          ruleID,
 			backendEvent:    backendEvent,
 			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
+			timestamp:       timestamp,
 			sendAfter:       time.Now().Add(retention),
 			tags:            tags,
 			actionReports:   actionReports,
@@ -436,11 +465,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
+		// for custom events, we can use the current time as timestamp
+		timestamp := time.Now()
+
 		m := &api.SecurityEventMessage{
-			RuleID:  ruleID,
-			Data:    data,
-			Service: service,
-			Tags:    tags,
+			RuleID:    ruleID,
+			Data:      data,
+			Service:   service,
+			Tags:      tags,
+			Timestamp: timestamppb.New(timestamp),
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
@@ -605,8 +638,20 @@ func (a *APIServer) getGlobalTags() []string {
 	return globalTags
 }
 
+func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
+	tags := []string{}
+
+	for _, env := range cfg.EnvAsTags {
+		value := os.Getenv(env)
+		if value != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+		}
+	}
+	return tags
+}
+
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 
 	as := &APIServer{
@@ -623,13 +668,14 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		stopChan:        make(chan struct{}),
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
+		envAsTags:       getEnvAsTags(cfg),
 	}
 
 	as.collectOSReleaseData()
 
 	if as.msgSender == nil {
 		if cfg.SendEventFromSystemProbe {
-			msgSender, err := NewDirectMsgSender(stopper, compression)
+			msgSender, err := NewDirectMsgSender(stopper, compression, ipc)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)
 			} else {

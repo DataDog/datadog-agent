@@ -271,9 +271,10 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
 				continue
 			}
-			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers)+len(pod.Status.EphemeralContainers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
+			allContainers = append(allContainers, pod.Status.EphemeralContainers...)
 			pod.Status.AllContainers = allContainers
 			tmpSlice = append(tmpSlice, pod)
 		}
@@ -371,9 +372,8 @@ func (ku *KubeUtil) GetPodForContainerID(ctx context.Context, containerID string
 		return pod, nil
 	}
 
-	// Error is not nil
 	// Retry with cache invalidation
-	if errors.IsNotFound(err) {
+	if err != nil && errors.IsNotFound(err) {
 		log.Debugf("Cannot get container %q: %s, retrying without cache...", containerID, err)
 		pods, err = ku.ForceGetLocalPodList(ctx)
 		if err != nil {
@@ -507,6 +507,9 @@ func IsPodReady(pod *Pod) bool {
 		return false
 	}
 
+	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
+		return true
+	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true

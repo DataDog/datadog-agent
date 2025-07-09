@@ -188,6 +188,8 @@ type Diagnosis struct {
 	Remediation string `json:"remediation,omitempty"`
 	// run-time
 	RawError string `json:"rawerror,omitempty"`
+	// run-time (additional metadata)
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // MarshalJSON marshals the Diagnose struct to JSON

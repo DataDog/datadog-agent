@@ -2,6 +2,395 @@
 Release Notes
 =============
 
+.. _Release Notes_7.67.0:
+
+7.67.0
+======
+
+.. _Release Notes_7.67.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-06-18
+
+- Please refer to the `7.67.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7670>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.67.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Bump the Python version to 3.12.11
+
+- Upgraded JMXFetch to `0.49.7 <https://github.com/DataDog/jmxfetch/releases/0.49.7>` which switches from snakeyaml to snakeyaml-engine,
+  adding support for YAML 1.2.
+  See `0.49.7  <https://github.com/DataDog/jmxfetch/releases/tag/0.49.7>` for more details.
+
+- In order to avoid unnecessary DNS queries, the agent now uses FQDN when connecting to Datadog intakes.
+  Specifically, it adds a trailing dot at the end of the Datadog intake hostnames.
+  While most users may not notice this change, it can affect setups where connections between the agent and Datadog intakes are intercepted for deep packet inspection or TLS man-in-the-middle by proxies or firewalls.
+  Users that have such a proxy or L7 firewall should ensure that the rules for agent connections to ``*.datadoghq.com`` hosts are also valid for connections to ``*.datadoghq.com.`` (with an additional trailing dot) hosts.
+
+- Update go-sqllexer to 0.1.6.
+
+
+.. _Release Notes_7.67.0_New Features:
+
+New Features
+------------
+
+- In the Systemd core check add the option to use regular expressions to select units to monitor.
+
+- Added a new variable `extra_dbm` to Aurora Autodiscovery. This variable matches the value
+  of the `datadoghq.com/dbm` tag on the database instance.
+
+- Released a new `ddot-collector` container image that packages the [Datadog Distribution of OpenTelemetry Collector](https://docs.datadoghq.com/opentelemetry/setup/ddot_collector/).
+
+- The MacOS Agent now supports the Network Path feature by including system-probe and the `traceroute` module.
+
+- Windows: Added the Windows Certificate Store integration to monitor the expiration of certificates in the local machine certificate store.
+
+- Introducing a new setting `collect_ec2_instance_info` to collect basic EC2 instance information as host tags. This
+  reproduces some of the behaviors of the AWS integration for users that can't enable it. The
+  [AWS integration](https://docs.datadoghq.com/integrations/amazon_web_services/) should still be use whenever possible as
+  it offers a better and more in depth integration.
+
+- Feature parity between Python disk check and Go disk check.
+  The new version of the disk check is disabled by default for now, but it will be enabled later on.
+  It can be enabled by setting ``use_diskv2_check: true`` in your configuration.
+
+- Pretty printed/multi-line JSON messages are now aggregated into a single line when auto multiline
+  detection is enabled. This ensures the log is treated a structured log when processed by Datadog.
+  Aggregation can be disabled by setting ``logs_config.auto_multi_line.enable_json_aggregation`` to ``false``.
+
+- Add a networkv2 check that is a port of the Python network check to Go. This
+  version is disabled by default but can be enabled with ``use_networkv2_check``
+  in your configuration.
+
+- Adds a new diagnostic check that identifies firewall rules blocking SNMP traps and NetFlow traffic on Windows systems.
+
+- Enables support for NetPath on Windows client versions.
+  To enable set tcp_method to syn_socket in the network_path.d configuration file.
+
+- SNMP integration now defaults to use the Core loader instead of Python.
+
+- A new core check, agentprofiling, has been introduced to automatically generate a flare 
+  with profiles when the Datadog Agent exceeds a configured memory or CPU usage threshold. 
+  When a valid config file is set, the Agent monitors its own memory and CPU usage and, 
+  upon crossing the threshold, generates a flare with profiles that is either saved locally or 
+  sent to a Zendesk ticket. 
+  
+  This enhancement simplifies troubleshooting memory-related issues that are difficult to 
+  reproduce or time, allowing users to passively capture critical memory data without manual 
+  intervention.
+
+
+.. _Release Notes_7.67.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- APM: Improve the performance of the Trace Agent's QuantizePeerIPAddresses function, providing a marginal reduction in CPU usage for most workloads.
+
+- Added a new configuration option, ``ad_allowed_env_vars``, which allows
+  users to restrict which environment variables can be resolved in
+  Autodiscovery check configurations. When set, only the environment variables
+  listed are resolved.
+
+- Added a new configuration option, ``ad_disable_env_var_resolution``, which
+  lets users disable environment variable resolution in Autodiscovery check
+  configurations.
+
+- Agents are now built with Go ``1.23.9``.
+
+- Enable HA support for Oracle integration.
+
+- Network devices autodiscovery now deduplicates devices based on their name, description and uptime with config flag `use_deduplication`.
+
+- Adds a compression_kind tag to the ``logs.encoded_bytes_sent`` telemetry metric, enabling aggregation and monitoring of log compression type usage during rollout.
+
+- The log agent now uses zstd compression as default for improved performance and reduced bandwidth usage.
+  By default, zstd compression is used when no additional endpoints are configured.
+
+- Improved logging compression settings across different agent pipelines. Debug logs now clearly indicate whether compression settings are coming from pipeline-specific configuration, global logs configuration, or default fallback settings. This helps debug compression behavior across different pipelines.
+
+- Improved the behavior of the SQL obfuscator cache key computation.
+  The cache key is now computed conditionally based on whether the
+  cache is enabled.
+
+
+.. _Release Notes_7.67.0_Known Issues:
+
+Known Issues
+------------
+
+- In rare cases, profiles generated by the Agent (including those triggered by the new 
+  agentprofiling check) may become corrupted. This is a known limitation of the underlying
+  profile generation system and is not specific to this feature. Corrupted profiles are unusable for analysis. If profiles are still needed, Datadog recommends restarting the Agent and contacting Datadog support for assistance.
+
+
+.. _Release Notes_7.67.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The remote tagger for the process-agent is now always enabled and cannot be disabled. 
+  The ``process_config.remote_tagger`` config entry is removed.
+
+
+.. _Release Notes_7.67.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix an issue where the Trace-Agent socket could be deleted during an Agent upgrade by the previous Trace-Agent during shutdown.
+
+- Fixes an issue where the `extra_dbname` variable in the Aurora
+  Discovery template would default to an empty string if no database name
+  was specified in the cluster resource. It now correctly falls back to the engine's default database name.
+
+- Fix the Python script used when installing the Agent RPM from leaving behind bytecode.
+
+- Do not drop the leading zeroes of the AWS account ID in the ``account_id`` tag.
+
+- Fix SBOM generation when container images are scanned using the
+  overlayfs direct scan method (`overlayfs_direct_scan: true`).
+
+- Fix SNMP autodiscovery status to take into account ignored IP addresses.
+
+- Remove the FIPS Proxy status section from the Agent status page when running the FIPS Agent. 
+
+- Increased the Agent GUI cookie persistence to one year. This ensures uninterrupted session continuity for users who configure an infinite session duration.
+
+- APM: Fix bug where agent status command would show zero traces being written out.
+
+- The Windows Agent MSI no longer fails if it is unable to delete temporary
+  files related to extracting the embedded Python distribution.
+
+- The kubelet core check now respects the `timeout` parameter of the check configuration file.
+
+- Fixed potential compatibility issues with non-Datadog intakes by ensuring gzip compression is used
+  when additional endpoints are configured.
+
+- Fixed event platform forwarder to use correct pipeline-specific compression settings instead of log endpoint settings.
+  All non-log pipelines now default to zstd compression unless configured otherwise.
+
+- Use FQDNs when the Agent builds intake hostnames with ``DD_SITE`` to prevent generating as many DNS queries as there are entries in the ``search`` section of the ``/etc/resolv.conf` file.
+  If an intake full URL is explicitly set with a ``dd_url`` parameter, then, the parameter is used as-is and using FQDNs or not remains a user choice.
+
+- [oracle]: Set hostname for Oracle autonomous database.
+
+- [oracle]: Fix Active Connections with ``active_session_history: true``.
+
+- Fix incorrect connection stats with active session history (ASH) sampling by sending each ASH snapshot in a separate payload.
+
+- If a metric transaction can't be sent to the endpoint, this transaction
+  can be serialized to disk. When this occurs, the API key must be sanitized.
+  This ensures that when an API key sourced from a secret is refreshed, the
+  replacer continues to sanitize the new key.
+
+- Fix rare panic in the flush mechanism of the serverless logs pipeline
+
+- SNMP: Correctly decode strings with trailing 00s.
+
+- Avoid running the Agent MSI a second time when rolling back a remote upgrade on Windows.
+
+- Do not fail remote upgrade on Windows when the Agent service takes more than 3 minutes to start
+
+- Windows: Prevent unnecessary failing access to process memory when a process is protected
+
+
+.. _Release Notes_7.67.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add metrics origins for wlan integration.
+
+- The compression behavior is now also determined by the presence of additional endpoints:
+  - When additional endpoints are configured: gzip compression is used
+  - When no additional endpoints are configured: the default zstd compression is used
+
+- Add `system.` prefix to wlan.* metrics. Rename transmit_rate and receive_rate metrics
+  to txrate and rxrate respectively.
+
+- Adds Agent telemetry for Service Discovery.
+
+- Update our dogstatsd standalone image base to Alpine Linux 3.21.
+
+- Update libkrb5 to 1.21.3.
+
+
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-06-03
+
+- Please refer to the `7.66.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7661>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.66.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue parsing pod list from kubelet when the `InPlacePodVerticalScaling`
+  feature gate is enabled on the cluster.
+
+
+.. _Release Notes_7.66.0:
+
+7.66.0
+======
+
+.. _Release Notes_7.66.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-05-22
+
+- Please refer to the `7.66.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7660>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.66.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- If you use a custom Agent username and password on Windows with an Active
+  Directory domain account and you want to remotely upgrade the Agent using
+  Fleet Automation then you must provide the ``DDAGENTUSER_PASSWORD``
+  option when upgrading to 7.66 or later. For more information see the features release notes.
+
+
+.. _Release Notes_7.66.0_New Features:
+
+New Features
+------------
+
+- Added a new WLAN check that monitors the Wi-Fi interface on the host system.
+  This check is only available for macOS systems.
+
+- Fleet Automation now supports remote upgrades when using a custom Agent username and password on Windows.
+  
+  Windows stores the password as an encrypted LSA local private data object that is only accessible
+  to local Administrators. Windows Service Manager stores service account passwords in the same location.
+  For more information, see the Microsoft documentation on
+  [Storing Private Data](https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data)
+  and
+  [Private Data Objects](https://learn.microsoft.com/en-us/windows/win32/secmgmt/private-data-object).
+  
+  Uninstalling the Agent removes the encrypted password from the LSA.
+  
+  To avoid providing and manually managing the account password, consider using a
+  [Group Managed Service Account (gMSA)](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-managed-service-accounts/group-managed-service-accounts/group-managed-service-accounts-overview).
+  For more information, see [Installing the Agent with a gMSA account](https://docs.datadoghq.com/agent/basic_agent_usage/windows/?tab=installationinactivedirectorydomains).
+
+- Adds support for persisting of non-core integrations during Agent upgrades on Windows platforms. To disable,
+  set the INSTALL_PYTHON_THIRD_PARTY_DEPS="0" property during the installation of the MSI.
+
+- adds the ability for the Agent to tail logs via the kubelet's API.
+
+- Support multiple authentication methods for a subnet in network devices autodiscovery.
+
+- Use cdpCacheSecondaryMgmtAddr and cdpCacheAddress for CDP topology links in case cdpCachePrimaryMgmtAddr is empty or of an unsupported type.
+
+- Enable language detection via tracers metadata
+
+
+.. _Release Notes_7.66.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a build option (`--glibc`, enabled by default) to build the Agent on `glibc` environment.
+  On the other libc environments like `musl`, the Agent should be built with `--no-glibc` option.
+  The option enables system-probe gpu module and corechecks gpu collector using
+  `github.com/NVIDIA/go-nvml` which depends on a glibc-extended definition.
+
+- OpenTelemetry instrumentation scope attributes are now converted into span
+  attributes.
+
+- Utilize distributed senders and rtt fairness algorithms to improve logs pipeline throughput and fairness.
+
+- Adds ``|`` separator to the DogstatsD debug table (from ``agent dogstatsd-stats``) when not requesting JSON output. This allows the table to render properly in markdown format.
+
+- Get the k8s cluster name from an AKS node label if present
+
+- APM: Improve debug logging for ignore_resources configuration by showing what rule resulted in a trace being ignored.
+
+- Added a new feature flag `disable_operation_and_resource_name_logic_v2` in DD_APM_FEATURES that replaces `enable_operation_and_resource_name_logic_v2`. The new operation name logic for OTLP is now opt-out instead of opt-in.
+
+- Added an option for the Oracle integration to template the database instance identifier.
+
+- The Oracle integration now supports the `empty_default_hostname` option to omit `host` from metrics
+
+- Added the exclude_hostname option to the Oracle integration
+
+- The OTLP receiver gRPC server in the trace agent now respects the config `otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib` or env var `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB`.
+
+- added new expvar "submission_error_count" on process endpoint to be shown during user status checks
+
+- Reduce the memory footprint of the logs pipeline by eliminating unnecessary fields in the log payload.
+
+- The Windows Agent MSI now sets the Agent account password to the
+  provided ``DDAGENTUSER_PASSWORD`` value when it is a local account.
+  Previously, if the provided password did not match the account password,
+  the Agent would fail to start.
+
+
+.. _Release Notes_7.66.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Addressed a bug in the cluster-agent API that prevented tag extraction for annotations from working due to client
+  side filtering. The fix was implemented in both the node-agent and the cluster-agent. Now, node-agent clients
+  specify the annotations filter when querying the cluster-agent.
+
+- APM: Fix an issue where `apm_config.ignore_resources` only removes the root
+  span instead of discarding the whole trace when using OTLP ingestion.
+
+- When using OTLP ingest with metrics, the instrumentation_scope_metadata_as_tags option now
+  outputs the `instrumentation_scope` tag instead of the deprecated `instrumentation_library` tag.
+
+- Prevents the index out of range error caused when trying to match 
+  inspect layer digests to history layers on some images.
+
+- Fix clusterchecks dispatching on the Cloud Foundry Cluster Agent
+
+- Fixed an issue in the KSM check where, when using ``pod_collection_mode:
+  node_kubelet``, the Agent reported incorrect values for the
+  ``kubernetes_state.container.status_report.count.waiting`` metric.
+
+- Fixes a bug that Agent OTLP ingestion fails to start when the config `otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib` or env var `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB` is set to a string.
+
+- Process Agent files are added to the flare archive instead of
+  displaying "no session token provided".
+
+
+.. _Release Notes_7.66.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add a new Agent telemetry tag ``auth`` to the API telemetry metrics.
+  This tag is used to evaluate the impact of reworking the authentication system for inter-process communication.
+
+- Add a new metric counter to the Agent telemetry for status rendering errors.
+  This is used to detect potential issues with an ongoing change in the status rendering.
+
+
 .. _Release Notes_7.65.2:
 
 7.65.2

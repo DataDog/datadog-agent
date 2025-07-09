@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -144,7 +145,6 @@ func TestCreateContainerService(t *testing.T) {
 			Annotations: map[string]string{
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesContainer.Name):         `false`,
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesExcludedContainer.Name): `true`,
-				tolerateUnreadyAnnotation: `true`,
 			},
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
@@ -294,7 +294,7 @@ func TestCreateContainerService(t *testing.T) {
 						},
 						hosts: map[string]string{"pod": pod.IP},
 						ports: []ContainerPort{},
-						ready: true,
+						ready: pod.Ready,
 					},
 				},
 			},
@@ -387,6 +387,7 @@ func TestComputeContainerServiceIDs(t *testing.T) {
 
 func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &ContainerListener{workloadmetaListener: wlm, tagger: tagger}, wlm
+	return &ContainerListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
 }

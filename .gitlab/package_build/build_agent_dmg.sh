@@ -9,7 +9,6 @@ else
 fi
 
 # --- Setup environment ---
-unset OMNIBUS_GIT_CACHE_DIR
 unset OMNIBUS_BASE_DIR
 WORKDIR="/tmp"
 export INSTALL_DIR="$WORKDIR/datadog-agent-build/bin"
@@ -30,15 +29,15 @@ if [ "$SIGN" = true ]; then
     # Add certificates to temporary keychain
     echo "Setting up signing secrets"
 
-    KEYCHAIN_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_KEYCHAIN_PWD password) || exit $?; export KEYCHAIN_PWD
-    CODESIGNING_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING certificate) || exit $?; export CODESIGNING_CERT_BASE64
-    CODESIGNING_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
-    INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
-    INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
+    KEYCHAIN_PWD=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_KEYCHAIN_PWD" password) || exit $?; export KEYCHAIN_PWD
+    CODESIGNING_CERT_BASE64=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_APPLICATION_SIGNING" certificate) || exit $?; export CODESIGNING_CERT_BASE64
+    CODESIGNING_CERT_PASSPHRASE=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_APPLICATION_SIGNING" passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
+    INSTALLER_CERT_BASE64=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_INSTALLER_SIGNING" certificate) || exit $?; export INSTALLER_CERT_BASE64
+    INSTALLER_CERT_PASSPHRASE=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_INSTALLER_SIGNING" passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
-    NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT notarization-password) || exit $?; export NOTARIZATION_PWD
-    TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-    APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
+    NOTARIZATION_PWD=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" notarization-password) || exit $?; export NOTARIZATION_PWD
+    TEAM_ID=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" team-id) || exit $?; export TEAM_ID
+    APPLE_ACCOUNT=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" user) || exit $?; export APPLE_ACCOUNT
 
     # Create temporary build keychain
     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
@@ -115,8 +114,9 @@ if [ "$SIGN" = true ]; then
     export LATEST_DMG
     # shellcheck disable=SC2016
     ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
+        set -euo pipefail
         EXIT_CODE=0
-        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait || EXIT_CODE=$?)
+        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
         echo "Results: $RESULT"
         SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
         echo "Submission ID: $SUBMISSION_ID"
@@ -124,7 +124,11 @@ if [ "$SIGN" = true ]; then
         sleep 1
         echo "Submission logs:"
         # Always show logs even if notarization fails to have more context
-        xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID"
+        STATUS=$(xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" | tee /dev/stderr | jq --raw-output .status)
+        if [ "$STATUS" != Accepted ]; then
+            echo "Submission was not accepted, got: ${STATUS}"
+            exit 1
+        fi
         exit "$EXIT_CODE"
     '
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"

@@ -31,6 +31,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 
@@ -70,6 +71,7 @@ func main() {
 
 	err := fxutil.OneShot(
 		run,
+		workloadfilterfx.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
@@ -127,9 +129,11 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	// and exit right away.
 	_ = cloudService.Init()
 
+	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
+
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)),
+			serverlessTag.ArrayToMap(configuredTags),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -146,7 +150,8 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
-	traceAgent := setupTraceAgent(tags, tagger)
+	functionTags := strings.Join(configuredTags, ",")
+	traceAgent := setupTraceAgent(tags, functionTags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
 	metric.AddColdStartMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
@@ -168,7 +173,7 @@ var azureContainerAppTags = []string{
 	"aca.replica.name",
 }
 
-func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
 	for _, azureContainerAppTag := range azureContainerAppTags {
 		if value, ok := tags[azureContainerAppTag]; ok {
@@ -180,6 +185,7 @@ func setupTraceAgent(tags map[string]string, tagger tagger.Component) trace.Serv
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
 		ColdStartSpanID:       random.Random.Uint64(),
 		AzureContainerAppTags: azureTags.String(),
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

@@ -23,8 +23,6 @@ whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
-always_build true
-
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
   integrations_core_version = 'master'
@@ -251,6 +249,7 @@ build do
     'test', # cm-client
     'vertica_python/tests',
     'websocket/tests',
+    'win32com/test',
   ]
   test_folders.each do |test_folder|
     delete "#{site_packages_path}/#{test_folder}/"
