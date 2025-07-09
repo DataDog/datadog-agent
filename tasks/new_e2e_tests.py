@@ -439,9 +439,10 @@ def run(
                 to_teardown.update(known_flaky_failures)
 
             if to_retry:
+                failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
                 print(
                     color_message(
-                        f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                        f"Retrying {len(to_retry)} failed tests:\n- {failed_tests_printout}",
                         "yellow",
                     )
                 )
