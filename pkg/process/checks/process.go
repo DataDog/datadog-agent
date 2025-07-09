@@ -87,9 +87,9 @@ type ProcessCheck struct {
 	// determine if zombies process will be collected
 	ignoreZombieProcesses bool
 
-	// TODO: process_config.process_collection.linux_use_wlm is a temporary configuration for refactoring purposes
+	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
 	// that determines if linux process collection will use WLM
-	useLinuxWLMProcessCollection bool
+	useWLMProcessCollection bool
 
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
@@ -196,8 +196,8 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
 
-	// TODO: process_config.process_collection.linux_use_wlm is a temporary configuration for refactoring purposes
-	p.useLinuxWLMProcessCollection = p.config.GetBool("process_config.process_collection.linux_use_wlm")
+	// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+	p.useWLMProcessCollection = p.useWLMCollection()
 
 	return nil
 }
@@ -357,7 +357,7 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 }
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
-	if p.useLinuxWLMProcessCollection {
+	if p.useWLMProcessCollection {
 		return p.runWLM(groupID, collectRealTime)
 	}
 
