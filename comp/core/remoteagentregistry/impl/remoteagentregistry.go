@@ -538,9 +538,7 @@ func (ra *remoteAgentRegistry) sendConfigSnapshot(details *remoteAgentDetails) e
 }
 
 func (ra *remoteAgentRegistry) createConfigSnapshot() (*pb.ConfigEvent, error) {
-	// TODO: Use conf.AllSettingsWithSequenceID() once it's available.
-	allSettings := ra.conf.AllSettings()
-	sequenceID := ra.conf.GetSequenceID()
+	allSettings, sequenceID := ra.conf.AllSettingsWithSequenceID()
 
 	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
 	data, err := json.Marshal(allSettings)
