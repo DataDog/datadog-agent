@@ -68,5 +68,5 @@ func (k *KubernetesClient) PodExec(namespace, pod, container string, cmd []strin
 		return "", "", err
 	}
 
-	return stdoutSb.String(), stderrSb.String(), nil
+	return stdoutSb.String(), suppressGoCoverWarning(stderrSb.String()), nil
 }
