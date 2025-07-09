@@ -83,7 +83,7 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 
 		// Check that we still have enough bytes after removePartialDockerMetadata
 		if len(content) < dockerHeaderLength {
-			msg.Status = message.StatusInfo
+			msg.Status = status
 			return msg, fmt.Errorf("cannot parse docker message for container %v: message too short after processing", containerID)
 		}
 		// remove the header as we don't need it anymore
