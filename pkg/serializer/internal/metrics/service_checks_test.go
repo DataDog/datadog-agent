@@ -96,13 +96,14 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmo
 	return uncompressedPayloads
 }
 
-func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler) {
+func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler, expect string) {
 	config := mock.New(t)
 	payloads := buildPayload(t, m, config)
 	json, err := jsonMarshaler.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
-	assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[0]))
+	assert.Equal(t, expect, strings.TrimSpace(string(json)))
+	assert.Equal(t, expect, string(payloads[0]))
 }
 
 func TestServiceCheckDescribeItem(t *testing.T) {
@@ -112,17 +113,17 @@ func TestServiceCheckDescribeItem(t *testing.T) {
 
 func TestPayloadsNoServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
+	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, "[]")
 }
 
 func TestPayloadsSingleServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{createServiceCheck("checkName")}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
+	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, "[{\"check\":\"checkName\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]}]")
 }
 
 func TestPayloadsEmptyServiceCheck(t *testing.T) {
 	serviceChecks := ServiceChecks{&servicecheck.ServiceCheck{}}
-	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks)
+	assertEqualToMarshalJSON(t, serviceChecks, serviceChecks, "[{\"check\":\"\",\"host_name\":\"\",\"timestamp\":0,\"status\":0,\"message\":\"\",\"tags\":null}]")
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
@@ -147,6 +148,23 @@ func TestPayloadsServiceChecks(t *testing.T) {
 
 		assert.Equal(t, strings.TrimSpace(string(json)), string(payloads[index]))
 	}
+
+	assert.Equal(t, "["+
+		"{\"check\":\"1\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]},"+
+		"{\"check\":\"2\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]},"+
+		"{\"check\":\"3\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]}]",
+		string(payloads[0]))
+
+	assert.Equal(t, "["+
+		"{\"check\":\"4\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]},"+
+		"{\"check\":\"5\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]},"+
+		"{\"check\":\"6\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]}]",
+		string(payloads[1]))
+
+	assert.Equal(t, "["+
+		"{\"check\":\"7\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]},"+
+		"{\"check\":\"8\",\"host_name\":\"2\",\"timestamp\":3,\"status\":3,\"message\":\"4\",\"tags\":[\"5\",\"6\"]}]",
+		string(payloads[2]))
 }
 
 func createServiceChecks(numberOfItem int) ServiceChecks {
