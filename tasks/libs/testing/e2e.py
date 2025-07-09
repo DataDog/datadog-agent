@@ -33,25 +33,25 @@ def filter_only_leaf_tests(tests: Iterable[tuple[str, str]]) -> set[tuple[str, s
         # Check if candidate_test is a leaf test
         # candidate_test will itself be a leaf if no known leaf test is a child of it.
         # This works because we are iterating from deepest to shallowest test
-        is_leaf = all(not _is_child(known_leaf_test, candidate_test) for known_leaf_test in leaf_tests)
+        is_leaf = all(not _is_child(candidate_test, known_leaf_test) for known_leaf_test in leaf_tests)
         if is_leaf:
             leaf_tests.add(candidate_test)
     return leaf_tests
 
 
-def _is_child(test1: tuple[str, str], test2: tuple[str, str]) -> bool:
+def _is_child(candidate_parent: tuple[str, str], candidate_child: tuple[str, str]) -> bool:
     """
-    Returns True if test1 is a child of test2.
-    Example: is_child(("pkg", "TestAgent/TestFeatureA"), ("pkg", "TestAgent")) == True
+    Returns True if candidate_child is a child of candidate_parent.
+    Example: is_child(("pkg", "TestAgent"), ("pkg", "TestAgent/TestFeatureA")) == True
     """
-    if test1[0] != test2[0]:
+    if candidate_parent[0] != candidate_child[0]:
         return False
-    splitted_test1 = test1[1].split('/')
-    splitted_test2 = test2[1].split('/')
-    if len(splitted_test2) > len(splitted_test1):
+    child_test_parts = candidate_child[1].split('/')
+    parent_test_parts = candidate_parent[1].split('/')
+    if len(parent_test_parts) > len(child_test_parts):
         return False
 
-    for part1, part2 in zip(splitted_test1, splitted_test2, strict=False):
+    for part1, part2 in zip(child_test_parts, parent_test_parts, strict=False):
         if part1 != part2:
             return False
     return True
