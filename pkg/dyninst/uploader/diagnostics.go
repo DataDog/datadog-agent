@@ -38,6 +38,13 @@ func (d debuggerSource) MarshalJSON() ([]byte, error) {
 	return debuggerSourceJSON, nil
 }
 
+func (d debuggerSource) UnmarshalJSON(b []byte) error {
+	if !bytes.Equal(b, debuggerSourceJSON) {
+		return fmt.Errorf("unexpected debugger source: %s", string(b))
+	}
+	return nil
+}
+
 // NewDiagnosticMessage creates a new DiagnosticMessage with the given service
 // and diagnostic.
 func NewDiagnosticMessage(service string, d Diagnostic) *DiagnosticMessage {

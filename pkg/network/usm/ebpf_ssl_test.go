@@ -25,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -239,8 +238,8 @@ func TestSSLMapsCleanup(t *testing.T) {
 	require.Truef(t, tupleMapExists, "Map %s does not exist on this branch. This test expects it.", sslCtxByTupleMap)
 	require.NotNilf(t, sslTupleMap, "Map %s object is nil.", sslCtxByTupleMap)
 
-	ctxMapCountBefore := countMapEntries(t, sslSockMap)
-	tupleMapCountBefore := countMapEntries(t, sslTupleMap)
+	ctxMapCountBefore := utils.CountMapEntries(t, sslSockMap)
+	tupleMapCountBefore := utils.CountMapEntries(t, sslTupleMap)
 	t.Logf("Count for map '%s' BEFORE CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountBefore)
 	t.Logf("Count for map '%s' BEFORE CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCountBefore)
 
@@ -248,8 +247,8 @@ func TestSSLMapsCleanup(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	ctxMapCountAfter := countMapEntries(t, sslSockMap)
-	tupleMapCountAfter := countMapEntries(t, sslTupleMap)
+	ctxMapCountAfter := utils.CountMapEntries(t, sslSockMap)
+	tupleMapCountAfter := utils.CountMapEntries(t, sslTupleMap)
 	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountAfter)
 	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCountAfter)
 
@@ -296,42 +295,4 @@ func TestSSLMapsCleanup(t *testing.T) {
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap, sslCtxByTupleMap)
 		t.FailNow()
 	}
-}
-
-// countMapEntries counts entries in a specific BPF map.
-func countMapEntries(t *testing.T, m *ebpf.Map) int {
-	t.Helper()
-	if m == nil {
-		t.Logf("Map provided to countMapEntries is nil")
-		return -1
-	}
-
-	mapInfo, err := m.Info()
-	if err != nil {
-		t.Logf("Failed to get map info for map %s: %v", m.String(), err)
-		return -1
-	}
-	mapName := mapInfo.Name
-	count := 0
-	iter := m.Iterate()
-
-	switch mapName {
-	case sslSockByCtxMap:
-		var key uintptr
-		var value http.SslSock
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			count++
-		}
-	case sslCtxByTupleMap:
-		var key http.ConnTuple
-		var value uintptr
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			count++
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		t.Logf("Error iterating map %s: %v", mapName, err)
-	}
-	return count
 }
