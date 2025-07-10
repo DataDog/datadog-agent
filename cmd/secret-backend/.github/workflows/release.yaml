@@ -30,5 +30,4 @@ jobs:
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
         asset_name: datadog-secret-backend-${{ matrix.goos }}-${{ matrix.goarch }}
-        extra_files: datadog-secret-backend.yaml.example
         ldflags: -s -w -X main.appVersion=${{ github.ref_name }}
