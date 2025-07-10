@@ -14,6 +14,7 @@ import (
 
 // NetworkDeviceNode is used to store a Network Device node
 type NetworkDeviceNode struct {
+	NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
 
@@ -30,6 +31,7 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 		Context:        *ctx,
 		FlowNodes:      make(map[model.FiveTuple]*FlowNode),
 	}
+	node.NodeBase = NewNodeBase()
 	return node
 }
 

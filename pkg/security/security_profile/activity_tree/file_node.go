@@ -22,13 +22,13 @@ import (
 
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
+	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
-	ImageTags      []string
 	IsPattern      bool
 	File           *model.FileEvent
 	GenerationType NodeGenerationType
-	FirstSeen      time.Time
+	FirstSeen      time.Time // I'm leaving this field here for now, but it should be removed (redundant)
 
 	Open *OpenNode
 
@@ -55,8 +55,11 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
 	}
+
+	fan.NodeBase = NewNodeBase()
+
 	if imageTag != "" {
-		fan.ImageTags = []string{imageTag}
+		fan.Record(imageTag, time.Now())
 	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
@@ -64,6 +67,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
+	
 	fan.enrichFromEvent(event)
 	return fan
 }
@@ -109,9 +113,6 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 func (fn *FileNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
-	}
-	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = event.ResolveEventTime()
 	}
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)
@@ -168,7 +169,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.ImageTags, _ = AppendIfNotPresent(currentFn.ImageTags, imageTag)
+			currentFn.Record(imageTag, time.Now())
 			continue
 		}
 
@@ -191,21 +192,17 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 }
 
 func (fn *FileNode) tagAllNodes(imageTag string) {
-	fn.ImageTags, _ = AppendIfNotPresent(fn.ImageTags, imageTag)
+	fn.Record(imageTag, time.Now())
 	for _, child := range fn.Children {
 		child.tagAllNodes(imageTag)
 	}
 }
 
 func (fn *FileNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(fn.ImageTags, imageTag)
-	if !removed {
-		return false
-	}
-	if len(imageTags) == 0 {
+	fn.EvictImageTag(imageTag)
+	if fn.IsEmpty() {
 		return true
 	}
-	fn.ImageTags = imageTags
 	for filename, child := range fn.Children {
 		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
 			delete(fn.Children, filename)
@@ -213,3 +210,4 @@ func (fn *FileNode) evictImageTag(imageTag string) bool {
 	}
 	return false
 }
+

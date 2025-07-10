@@ -9,15 +9,16 @@
 package activitytree
 
 import (
-	"slices"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // BindNode is used to store a bind node
 type BindNode struct {
+	NodeBase
+
 	MatchedRules []*model.MatchedRule
-	ImageTags    []string
 
 	GenerationType NodeGenerationType
 	Port           uint16
@@ -27,6 +28,7 @@ type BindNode struct {
 
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
+	NodeBase
 	Family         string
 	GenerationType NodeGenerationType
 	Bind           []*BindNode
@@ -43,7 +45,7 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 }
 
 func (bn *BindNode) appendImageTag(imageTag string) {
-	bn.ImageTags, _ = AppendIfNotPresent(bn.ImageTags, imageTag)
+	bn.Record(imageTag, time.Now())
 }
 
 func (sn *SocketNode) appendImageTag(imageTag string) {
@@ -53,14 +55,10 @@ func (sn *SocketNode) appendImageTag(imageTag string) {
 }
 
 func (bn *BindNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(bn.ImageTags, imageTag)
-	if !removed {
-		return false
-	}
-	if len(imageTags) == 0 {
+	bn.EvictImageTag(imageTag)
+	if bn.IsEmpty() {
 		return true
 	}
-	bn.ImageTags = imageTags
 	return false
 }
 
@@ -86,11 +84,12 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				sn.Record(imageTag, time.Now())
 			}
-			if imageTag == "" || slices.Contains(n.ImageTags, imageTag) {
+			if imageTag == "" || n.HasImageTag(imageTag) {
 				return false
 			}
-			n.ImageTags = append(n.ImageTags, imageTag)
+			n.Record(imageTag, time.Now())
 			return false
 		}
 	}
@@ -105,7 +104,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 			Protocol:       evt.Protocol,
 		}
 		if imageTag != "" {
-			node.ImageTags = []string{imageTag}
+			node.Record(imageTag, time.Now())
 		}
 		sn.Bind = append(sn.Bind, node)
 	}
@@ -114,8 +113,10 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 
 // NewSocketNode returns a new SocketNode instance
 func NewSocketNode(family string, generationType NodeGenerationType) *SocketNode {
-	return &SocketNode{
+	node := &SocketNode{
 		Family:         family,
 		GenerationType: generationType,
 	}
+	node.NodeBase = NewNodeBase()
+	return node
 }

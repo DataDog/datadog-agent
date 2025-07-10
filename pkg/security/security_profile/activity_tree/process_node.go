@@ -10,16 +10,18 @@ package activitytree
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"html"
 	"io"
 	"slices"
 	"sort"
 	"strconv"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // ProcessNodeParent is an interface used to identify the parent of a process node
@@ -33,10 +35,10 @@ type ProcessNodeParent interface {
 
 // ProcessNode holds the activity of a process
 type ProcessNode struct {
+	NodeBase
 	Process        model.Process
 	Parent         ProcessNodeParent
 	GenerationType NodeGenerationType
-	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
 
 	Files          map[string]*FileNode
@@ -58,7 +60,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
 		}
 	}
-	return &ProcessNode{
+	node := &ProcessNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
@@ -66,6 +68,9 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
 	}
+	node.NodeBase = NewNodeBase()
+	
+	return node
 }
 
 // GetChildren returns the list of children from the ProcessNode
@@ -94,7 +99,7 @@ func (pn *ProcessNode) AppendChild(node *ProcessNode) {
 
 // AppendImageTag appends the given image tag to the list
 func (pn *ProcessNode) AppendImageTag(imageTag string) {
-	pn.ImageTags, _ = AppendIfNotPresent(pn.ImageTags, imageTag)
+	pn.Record(imageTag, time.Now())
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
@@ -216,15 +221,13 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize b
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
-func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
+func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {	
 	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		for _, existingSyscall := range pn.Syscalls {
 			if existingSyscall.Syscall == int(newSyscall) {
-				if imageTag != "" && !slices.Contains(existingSyscall.ImageTags, imageTag) {
-					existingSyscall.ImageTags = append(existingSyscall.ImageTags, imageTag)
-				}
+					existingSyscall.Record(imageTag, e.ResolveEventTime())
 				continue newSyscallLoop
 			}
 		}
@@ -318,7 +321,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		// update matched rules
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
-		dnsNode.ImageTags, _ = AppendIfNotPresent(dnsNode.ImageTags, imageTag)
+		dnsNode.Record(imageTag, evt.ResolveEventTime())
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -374,6 +377,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false
 	}
+	
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
 
@@ -402,14 +406,14 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 }
 
 func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
-	imageTags, added := AppendIfNotPresent(pn.ImageTags, imageTag)
-	if added {
-		pn.ImageTags = imageTags
-		parent := pn.GetParent()
-		for parent != nil {
-			parent.AppendImageTag(imageTag)
-			parent = parent.GetParent()
-		}
+	if pn.HasImageTag(imageTag) {
+		return
+	}
+	pn.AppendImageTag(imageTag)
+	parent := pn.GetParent()
+	for parent != nil {
+		parent.AppendImageTag(imageTag)
+		parent = parent.GetParent()
 	}
 }
 
@@ -419,7 +423,7 @@ func (pn *ProcessNode) TagAllNodes(imageTag string) {
 		return
 	}
 
-	pn.ImageTags, _ = AppendIfNotPresent(pn.ImageTags, imageTag)
+	pn.Record(imageTag, time.Now())
 	for _, file := range pn.Files {
 		file.tagAllNodes(imageTag)
 	}
@@ -460,15 +464,14 @@ func removeImageTagFromList(imageTags []string, imageTag string) ([]string, bool
 // EvictImageTag will remmove every trace of this image tag, and returns true if the process node should be removed
 // also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
-	imageTags, removed := removeImageTagFromList(pn.ImageTags, imageTag)
+	removed := pn.NodeBase.EvictImageTag(imageTag)
 	if !removed {
 		return false // this node don't have the tag, and all his childs/files/dns/etc shouldn't have neither
 	}
-	if len(imageTags) == 0 {
+	if pn.IsEmpty() {
 		// if we removed the last tag, remove entirely the process node from the tree
 		return true
 	}
-	pn.ImageTags = imageTags
 
 	for filename, file := range pn.Files {
 		if shouldRemoveNode := file.evictImageTag(imageTag); shouldRemoveNode {
