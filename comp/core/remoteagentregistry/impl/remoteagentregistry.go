@@ -640,12 +640,14 @@ outer:
 		initialSnapshot, sequenceID, err := createConfigSnapshot(config)
 		if err != nil {
 			log.Errorf("Failed to create initial config snapshot: %v", err)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 
 		err = stream.Send(initialSnapshot)
 		if err != nil {
 			log.Errorf("Failed to send initial config snapshot to remote agent: %v", err)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 
