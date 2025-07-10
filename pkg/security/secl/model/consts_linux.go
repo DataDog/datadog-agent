@@ -867,6 +867,18 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
+	// SocketTypeConstants is the list of socket types
+	// generate_constants:Socket types,Socket types are the supported socket types.
+	SocketTypeConstants = map[string]int{
+		"SOCK_STREAM":    syscall.SOCK_STREAM,
+		"SOCK_DGRAM":     syscall.SOCK_DGRAM,
+		"SOCK_RAW":       syscall.SOCK_RAW,
+		"SOCK_RDM":       syscall.SOCK_RDM,
+		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
+		"SOCK_DCCP":      syscall.SOCK_DCCP,
+		"SOCK_PACKET":    syscall.SOCK_PACKET,
+	}
+
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
 	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
 	SetSockoptLevelConstants = map[string]int{
@@ -878,14 +890,11 @@ var (
 		"IPPROTO_ICMPV6": syscall.IPPROTO_ICMPV6,
 	}
 
-	// SetSockOptOptNameConstants is the list of available options for setsockopt events
-	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
-	SetSockOptOptNameConstants = map[string]int{
+	// SetSockOptOptNameConstantsIP is the list of available options for setsockopt events when the level is IPPROTO_IP
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.
+	SetSockOptOptNameConstantsIP = map[string]int{
 		// All the values were added according to the Linux kernel headers:
 		// https://elixir.bootlin.com/linux/v5.15.86/source/include/uapi/linux/in.h
-		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/socket.h
-		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/tcp.h
-		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/in6.h
 
 		// IPPROTO_IP options
 		"IP_TOS":                    syscall.IP_TOS,
@@ -932,7 +941,11 @@ var (
 		"MCAST_LEAVE_SOURCE_GROUP":  unix.MCAST_LEAVE_SOURCE_GROUP,
 		"MCAST_MSFILTER":            unix.MCAST_MSFILTER,
 		"IP_MULTICAST_ALL":          unix.IP_MULTICAST_ALL,
-		"IP_UNICAST_IF":             unix.IP_UNICAST_IF,
+		"IP_UNICAST_IF":             unix.IP_UNICAST_IF}
+	// SetSockOptOptNameConstantsSolSocket is the list of available options for setsockopt events when the level is SOL_SOCKET
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is SOL_SOCKET.
+	SetSockOptOptNameConstantsSolSocket = map[string]int{
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/socket.h
 		// SOL_SOCKET options
 		"SO_DEBUG":                         syscall.SO_DEBUG,
 		"SO_REUSEADDR":                     syscall.SO_REUSEADDR,
@@ -1015,7 +1028,12 @@ var (
 		"SO_DEVMEM_DMABUF":                 unix.SO_DEVMEM_DMABUF,
 		"SO_DEVMEM_DONTNEED":               unix.SO_DEVMEM_DONTNEED,
 		"SCM_TS_OPT_ID":                    unix.SCM_TS_OPT_ID,
-		"SO_RCVPRIORITY":                   82,
+		"SO_RCVPRIORITY":                   82}
+
+	// SetSockOptOptNameConstantsTCP is the list of available options for setsockopt events when the level is IPPROTO_TCP
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_TCP.
+	SetSockOptOptNameConstantsTCP = map[string]int{
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/tcp.h
 		// IPPROTO_TCP options
 		"TCP_NODELAY":              syscall.TCP_NODELAY,
 		"TCP_MAXSEG":               syscall.TCP_MAXSEG,
@@ -1052,7 +1070,12 @@ var (
 		"TCP_FASTOPEN_NO_COOKIE":   unix.TCP_FASTOPEN_NO_COOKIE,
 		"TCP_ZEROCOPY_RECEIVE":     unix.TCP_ZEROCOPY_RECEIVE,
 		"TCP_INQ":                  unix.TCP_INQ,
-		"TCP_TX_DELAY":             unix.TCP_TX_DELAY,
+		"TCP_TX_DELAY":             unix.TCP_TX_DELAY}
+
+	// SetSockOptOptNameConstantsIPv6 is the list of available options for setsockopt events when the level is IPPROTO_IPV6.
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IPV6.
+	SetSockOptOptNameConstantsIPv6 = map[string]int{
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/in6.h
 		// IPPROTO_IPV6 options
 		"IPV6_ADDRFORM":             syscall.IPV6_ADDRFORM,
 		"IPV6_2292PKTINFO":          syscall.IPV6_2292PKTINFO,
@@ -1259,11 +1282,51 @@ func initSysCtlActionConstants() {
 func initSetSockOptLevelConstants() {
 	for k, v := range SetSockoptLevelConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptLevelStrings[v] = k
 	}
 }
-func initSetSockOptOptNameConstants() {
-	for k, v := range SetSockOptOptNameConstants {
+func initSetSockOptOptNameConstantsSolSocket() {
+	for k, v := range SetSockOptOptNameConstantsSolSocket {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsSolSocket[v] = k
+	}
+}
+func initSetSockOptOptNameConstantsIP() {
+	for k, v := range SetSockOptOptNameConstantsIP {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsIP[v] = k
+	}
+}
+
+func initSetSockOptOptNameConstantsTCP() {
+	for k, v := range SetSockOptOptNameConstantsTCP {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsTCP[v] = k
+	}
+}
+
+func initSetSockOptOptNameConstantsIPv6() {
+	for k, v := range SetSockOptOptNameConstantsIPv6 {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		setsockoptOptNameStringsIPv6[v] = k
+	}
+}
+func initSocketTypeConstants() {
+	for k, v := range SocketTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		socketTypeStrings[v] = k
+	}
+}
+
+func initSocketFamilyConstants() {
+	for k, v := range addressFamilyConstants {
+		socketFamilyStrings[v] = k
+	}
+}
+
+func initSocketProtocolConstants() {
+	for k, v := range SetSockoptLevelConstants {
+		socketProtocolStrings[v] = k
 	}
 }
 
@@ -2147,24 +2210,33 @@ func (sig Signal) String() string {
 }
 
 var (
-	openFlagsStrings          = map[int]string{}
-	fileModeStrings           = map[int]string{}
-	inodeModeStrings          = map[int]string{}
-	unlinkFlagsStrings        = map[int]string{}
-	kernelCapabilitiesStrings = map[uint64]string{}
-	bpfCmdStrings             = map[uint32]string{}
-	bpfHelperFuncStrings      = map[uint32]string{}
-	bpfMapTypeStrings         = map[uint32]string{}
-	bpfProgramTypeStrings     = map[uint32]string{}
-	bpfAttachTypeStrings      = map[uint32]string{}
-	ptraceFlagsStrings        = map[uint32]string{}
-	vmStrings                 = map[uint64]string{}
-	protStrings               = map[uint64]string{}
-	mmapFlagStrings           = map[uint64]string{}
-	signalStrings             = map[int]string{}
-	pipeBufFlagStrings        = map[int]string{}
-	sysctlActionStrings       = map[uint32]string{}
-	rlimitStrings             = map[int]string{}
+	openFlagsStrings                  = map[int]string{}
+	fileModeStrings                   = map[int]string{}
+	inodeModeStrings                  = map[int]string{}
+	unlinkFlagsStrings                = map[int]string{}
+	kernelCapabilitiesStrings         = map[uint64]string{}
+	bpfCmdStrings                     = map[uint32]string{}
+	bpfHelperFuncStrings              = map[uint32]string{}
+	bpfMapTypeStrings                 = map[uint32]string{}
+	bpfProgramTypeStrings             = map[uint32]string{}
+	bpfAttachTypeStrings              = map[uint32]string{}
+	ptraceFlagsStrings                = map[uint32]string{}
+	vmStrings                         = map[uint64]string{}
+	protStrings                       = map[uint64]string{}
+	mmapFlagStrings                   = map[uint64]string{}
+	signalStrings                     = map[int]string{}
+	pipeBufFlagStrings                = map[int]string{}
+	sysctlActionStrings               = map[uint32]string{}
+	rlimitStrings                     = map[int]string{}
+	setsockoptOptNameStringsIP        = map[int]string{}
+	setsockoptOptNameStringsSolSocket = map[int]string{}
+	setsockoptOptNameStringsTCP       = map[int]string{}
+	setsockoptOptNameStringsIPv6      = map[int]string{}
+
+	setsockoptLevelStrings = map[int]string{}
+	socketTypeStrings      = map[int]string{}
+	socketFamilyStrings    = map[uint16]string{}
+	socketProtocolStrings  = map[int]string{}
 )
 
 // SysCtlAction is used to define the action of a sysctl event
@@ -2182,3 +2254,59 @@ const (
 	// SysCtlWriteAction sysctl action type
 	SysCtlWriteAction
 )
+
+// SetSockOptOptNameIP is used to define the optname for setsockopt when the level is IP
+type SetSockOptOptNameIP int
+
+func (s SetSockOptOptNameIP) String() string {
+	return setsockoptOptNameStringsIP[int(s)]
+}
+
+// SetSockOptOptNameTCP is used to define the optname for setsockopt when the level is TCP
+type SetSockOptOptNameTCP int
+
+func (s SetSockOptOptNameTCP) String() string {
+	return setsockoptOptNameStringsTCP[int(s)]
+}
+
+// SetSockOptOptNameSolSocket is used to define the optname for setsockopt when the level is SOL_SOCKET
+type SetSockOptOptNameSolSocket int
+
+func (s SetSockOptOptNameSolSocket) String() string {
+	return setsockoptOptNameStringsSolSocket[int(s)]
+}
+
+// SetSockOptOptNameIPv6 is used to define the optname for setsockopt when the level is IPV6
+type SetSockOptOptNameIPv6 int
+
+func (s SetSockOptOptNameIPv6) String() string {
+	return setsockoptOptNameStringsIPv6[int(s)]
+}
+
+// SetSockOptLevel is used to define the level of a socket in setsockopt
+type SetSockOptLevel int
+
+func (s SetSockOptLevel) String() string {
+	return setsockoptLevelStrings[int(s)]
+}
+
+// SocketType is used to define the type of a socket in setsockopt
+type SocketType int
+
+func (s SocketType) String() string {
+	return socketTypeStrings[int(s)]
+}
+
+// SocketFamily is used to define the family of a socket in setsockopt
+type SocketFamily int
+
+func (s SocketFamily) String() string {
+	return socketFamilyStrings[uint16(s)]
+}
+
+// SocketProtocol is used to define the protocol of a socket in setsockopt
+type SocketProtocol int
+
+func (s SocketProtocol) String() string {
+	return socketProtocolStrings[int(s)]
+}
