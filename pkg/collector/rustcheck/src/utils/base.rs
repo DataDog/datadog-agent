@@ -1,4 +1,4 @@
-use super::rtloader::{MetricType, Aggregator};
+use super::aggregator::{MetricType, Aggregator};
 use std::ffi::{c_char, CString};
 
 pub struct AgentCheck {
