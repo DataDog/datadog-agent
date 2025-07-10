@@ -248,11 +248,12 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
 	if collector.Type() == collectors.ContainerImageScanType {
-		imgMeta = s.getImageMetadata(request)
-		if imgMeta == nil {
+		if imgMeta = s.getImageMetadata(request); imgMeta == nil {
+			s.scanQueue.Forget(request)
 			return
 		}
 	}
+
 	s.processScan(ctx, request, imgMeta, collector)
 }
 
@@ -333,6 +334,19 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 
 	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
 	s.scanQueue.Forget(request)
+
+	if imgMeta := scanResult.ImgMeta; imgMeta != nil {
+		if imgMeta.SBOM == nil || imgMeta.SBOM.CycloneDXBOM == nil || imgMeta.SBOM.CycloneDXBOM.Components == nil {
+			imgMeta = s.getImageMetadata(request)
+		}
+
+		if imgMeta.SBOM == nil || imgMeta.SBOM.CycloneDXBOM == nil || imgMeta.SBOM.CycloneDXBOM.Components == nil {
+			log.Warnf("invalid scan result for '%s'", request.ID())
+			return
+		}
+
+		telemetry.SBOMComponentsFound.Set(float64(len(*scanResult.ImgMeta.SBOM.CycloneDXBOM.Components)), request.Collector(), request.Type(collector.Options()))
+	}
 }
 
 func waitAfterScanIfNecessary(ctx context.Context, collector collectors.Collector) {
