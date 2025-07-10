@@ -328,10 +328,9 @@ func isRetryableExitCode(err error) bool {
 
 // Run runs msiexec synchronously with retry logic
 func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
-	var err error
 	var attemptCount int
 
-	operation := func() (any, error) {
+	operation := func() (any, err error) {
 		span, _ := telemetry.StartSpanFromContext(ctx, "msiexec")
 		defer func() {
 			// Add telemetry metadata about the msiexec operation
@@ -350,7 +349,7 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 		attemptCount++
 
 		// Execute the command
-		err := m.cmdRunner.Run(m.execPath, m.cmdLine)
+		err = m.cmdRunner.Run(m.execPath, m.cmdLine)
 
 		// Return permanent error for non-retryable exit codes
 		if err != nil && !isRetryableExitCode(err) {
@@ -361,7 +360,7 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 	}
 
 	// Execute with retry
-	_, err = backoff.Retry(ctx, operation,
+	_, err := backoff.Retry(ctx, operation,
 		backoff.WithBackOff(m.backoff),
 		backoff.WithMaxElapsedTime(10*time.Minute),
 	)
