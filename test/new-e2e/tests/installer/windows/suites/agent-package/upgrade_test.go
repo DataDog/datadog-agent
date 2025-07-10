@@ -303,7 +303,27 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
-	err := s.waitForInstallerVersion(s.StableAgentVersion().Version())
+	// Wait for the watchdog to trigger the revert by monitoring the service PID
+	// The watchdog will restart the service when it reverts to stable
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	// Wait for the service to restart due to watchdog timeout
+	err = backoff.Retry(func() error {
+		currentPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return err
+		}
+		if currentPID == originalPID {
+			return fmt.Errorf("service PID %d has not changed yet (watchdog timeout not triggered)", currentPID)
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	s.Require().NoError(err, "watchdog should have triggered service restart")
+
+	// Wait for the installer version to revert to stable
+	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
 	s.Require().NoError(err)
 	// wait till the services start
 	err = s.WaitForInstallerService("Running")
