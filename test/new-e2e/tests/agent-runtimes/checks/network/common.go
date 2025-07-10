@@ -63,7 +63,7 @@ instances:
   - collect_connection_state: true
 `,
 			``,
-			false,
+			true, // this setting is not only for Linux but the windows python check is missing some metrics
 		},
 		{
 			"collect connection queues",
