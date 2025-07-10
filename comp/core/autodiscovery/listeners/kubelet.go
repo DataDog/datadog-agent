@@ -61,7 +61,7 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod := entity.(*workloadmeta.KubernetesPod)
 
-	wlmContainers := pod.GetContainersAndInitContainers()
+	wlmContainers := pod.GetAllContainers()
 	containers := make([]*workloadmeta.Container, 0, len(wlmContainers))
 	for _, podContainer := range wlmContainers {
 		container, err := l.Store().GetContainer(podContainer.ID)

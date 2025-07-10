@@ -228,9 +228,10 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 		}
 
 		metrics = append(metrics, Metric{
-			Name:  metricData.name,
-			Value: metric.Value,
-			Type:  metricData.metricType,
+			Name:     metricData.name,
+			Value:    metric.Value,
+			Type:     metricData.metricType,
+			Priority: 10, // All GPM metrics have priority over other collectors
 		})
 	}
 

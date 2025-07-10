@@ -90,6 +90,18 @@ func (e eventProgramDetached) String() string {
 	return fmt.Sprintf("eventProgramDetached{programID: %v, processID: %v}", e.programID, e.processID)
 }
 
+// eventProgramUnloaded is emitted once a program has been fully unloaded
+// (BPF program closed, sink closed, and unregistered from the dispatcher).
+// It signals to the state-machine that the resources can now be dropped.
+type eventProgramUnloaded struct {
+	baseEvent
+	programID ir.ProgramID
+}
+
+func (e eventProgramUnloaded) String() string {
+	return fmt.Sprintf("eventProgramUnloaded{programID: %v}", e.programID)
+}
+
 type eventShutdown struct {
 	baseEvent
 }

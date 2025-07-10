@@ -253,7 +253,7 @@ variables:
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
-  OVERRIDE_GIT_STRATEGY: "s3"
+  GIT_STRATEGY: "s3"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2

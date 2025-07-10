@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,20 +37,17 @@ func makeDebouncer(idlePeriod time.Duration) debouncer {
 }
 
 type debouncerProcess struct {
-	processID   actuator.ProcessID
-	executable  actuator.Executable
+	procmon.ProcessUpdate
 	runtimeID   string
 	lastUpdated time.Time
 	files       []remoteConfigFile
 }
 
 func (c *debouncer) track(
-	processID actuator.ProcessID,
-	executable actuator.Executable,
+	proc procmon.ProcessUpdate,
 ) {
-	c.processes[processID] = &debouncerProcess{
-		processID:  processID,
-		executable: executable,
+	c.processes[proc.ProcessID] = &debouncerProcess{
+		ProcessUpdate: proc,
 	}
 }
 
@@ -61,7 +59,10 @@ func (c *debouncer) addInFlight(
 	now time.Time,
 	processID actuator.ProcessID,
 	file remoteConfigFile,
-) (err error) {
+) {
+	if file.ConfigContent == "" {
+		return
+	}
 	p, ok := c.processes[processID]
 	if !ok {
 		// Update corresponds to an untracked process.
@@ -71,7 +72,7 @@ func (c *debouncer) addInFlight(
 	if p.runtimeID != "" && p.runtimeID != file.RuntimeID {
 		log.Warnf(
 			"rcscrape: process %v: runtime ID mismatch: %s != %s",
-			p.processID, p.runtimeID, file.RuntimeID,
+			p.ProcessID, p.runtimeID, file.RuntimeID,
 		)
 		clear(p.files)
 	}
@@ -80,10 +81,9 @@ func (c *debouncer) addInFlight(
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef(
 			"rcscrape: process %v: got update for %s",
-			p.processID, file.ConfigPath,
+			p.ProcessID, file.ConfigPath,
 		)
 	}
-	return nil
 }
 
 func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
@@ -94,43 +94,48 @@ func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
 			process.lastUpdated.Add(c.idlePeriod).After(now) {
 			continue
 		}
-		delete(c.processes, procID)
-		slices.SortFunc(process.files, func(a, b remoteConfigFile) int {
-			return cmp.Compare(a.ConfigPath, b.ConfigPath)
-		})
-		process.files = slices.CompactFunc(process.files, sameConfigPath)
-		probes := make([]ir.ProbeDefinition, 0, len(process.files))
-		for _, file := range process.files {
-			// TODO: Optimize away this copy of the underlying data by either
-			// using unsafe or changing rcjson to use an io.Reader and reusing
-			// a strings.Reader.
-			probe, err := rcjson.UnmarshalProbe([]byte(file.ConfigContent))
-			if err != nil {
-				// TODO: Rate limit this warning in some form.
-				log.Warnf(
-					"process %v: failed to unmarshal probe %s: %v",
-					procID, file.ConfigPath, err,
-				)
-				continue
-			}
-			probes = append(probes, probe)
-		}
-		// Collapse duplicates if they somehow showed up.
-		slices.SortFunc(probes, ir.CompareProbeIDs)
-		probes = slices.CompactFunc(probes, eqProbeIDs)
+		probes := computeProbeDefinitions(procID, process.files)
+		process.files, process.lastUpdated = nil, time.Time{}
 		updates = append(updates, ProcessUpdate{
-			ProcessUpdate: actuator.ProcessUpdate{
-				ProcessID:  procID,
-				Executable: process.executable,
-				Probes:     probes,
-			},
-			RuntimeID: process.runtimeID,
+			ProcessUpdate: process.ProcessUpdate,
+			Probes:        probes,
+			RuntimeID:     process.runtimeID,
 		})
 	}
 	slices.SortFunc(updates, func(a, b ProcessUpdate) int {
 		return cmp.Compare(a.ProcessID.PID, b.ProcessID.PID)
 	})
 	return updates
+}
+
+func computeProbeDefinitions(
+	procID actuator.ProcessID,
+	files []remoteConfigFile,
+) []ir.ProbeDefinition {
+	slices.SortFunc(files, func(a, b remoteConfigFile) int {
+		return cmp.Compare(a.ConfigPath, b.ConfigPath)
+	})
+	files = slices.CompactFunc(files, sameConfigPath)
+	probes := make([]ir.ProbeDefinition, 0, len(files))
+	for _, file := range files {
+		// TODO: Optimize away this copy of the underlying data by either
+		// using unsafe or changing rcjson to use an io.Reader and reusing
+		// a strings.Reader.
+		probe, err := rcjson.UnmarshalProbe([]byte(file.ConfigContent))
+		if err != nil {
+			// TODO: Rate limit this warning in some form.
+			log.Warnf(
+				"process %v: failed to unmarshal probe %s: %v",
+				procID, file.ConfigPath, err,
+			)
+			continue
+		}
+		probes = append(probes, probe)
+	}
+	// Collapse duplicates if they somehow showed up.
+	slices.SortFunc(probes, ir.CompareProbeIDs)
+	probes = slices.CompactFunc(probes, eqProbeIDs)
+	return probes
 }
 
 func sameConfigPath(a, b remoteConfigFile) bool {

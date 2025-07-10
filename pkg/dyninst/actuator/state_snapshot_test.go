@@ -99,15 +99,6 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 
 		// Create snapshot before handling event
 		before := deepCopyState(s)
-		if loaded, ok := ev.event.(eventProgramLoaded); ok {
-			closeSink := &closeEffectRecorderSink{
-				r:         &effects,
-				programID: loaded.programID,
-			}
-			loaded.loaded.sink = closeSink
-			ev.event = loaded
-		}
-
 		// Handle the event
 		effects.effects = effects.effects[:0]
 		err = handleEvent(s, &effects, ev.event)

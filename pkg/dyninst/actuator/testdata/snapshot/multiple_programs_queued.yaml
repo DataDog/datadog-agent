@@ -30,6 +30,8 @@
         - {type: LOG_PROBE, id: probe4, where: {methodName: main}, captureSnapshot: true}
 - !detached {program_id: 1, process_id: 1001}
 - !loaded {program_id: 3}
+- !attached {program_id: 3, process_id: 1003}
+- !unloaded {program_id: 1}
 ---
 event: !processes-updated
   updated:
@@ -129,19 +131,18 @@ state:
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !close-sink {program_id: 1}
+  - !unload-program {program_id: 1}
 state:
   currently_loading: "3"
-  queued_programs: '[4] -> [4 5]'
+  queued_programs: '[4]'
   processes:
-    1001: Detaching (prog 1) -> WaitingForProgram (prog 5)
+    1001: Detaching (prog 1)
     1002: WaitingForProgram (prog 4)
     1003: WaitingForProgram (prog 3)
   programs:
-    1: Draining (proc 1001) -> <nil>
+    1: Draining (proc 1001) -> Unloading (proc 1001)
     3: Loading (proc 1003)
     4: Queued (proc 1002)
-    5: <nil> -> Queued (proc 1001)
 ---
 event: !loaded {program_id: 3}
 effects:
@@ -149,12 +150,39 @@ effects:
   - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 4}
 state:
   currently_loading: 3 -> 4
-  queued_programs: '[4 5] -> [5]'
+  queued_programs: '[4] -> []'
   processes:
-    1001: WaitingForProgram (prog 5)
+    1001: Detaching (prog 1)
     1002: WaitingForProgram (prog 4)
     1003: WaitingForProgram (prog 3) -> Attaching (prog 3)
   programs:
+    1: Unloading (proc 1001)
     3: Loading (proc 1003) -> Loaded (proc 1003)
     4: Queued (proc 1002) -> Loading (proc 1002)
-    5: Queued (proc 1001)
+---
+event: !attached {program_id: 3, process_id: 1003}
+state:
+  currently_loading: "4"
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1)
+    1002: WaitingForProgram (prog 4)
+    1003: Attaching (prog 3) -> Attached (prog 3)
+  programs:
+    1: Unloading (proc 1001)
+    3: Loaded (proc 1003)
+    4: Loading (proc 1002)
+---
+event: !unloaded {program_id: 1}
+state:
+  currently_loading: "4"
+  queued_programs: '[] -> [5]'
+  processes:
+    1001: Detaching (prog 1) -> WaitingForProgram (prog 5)
+    1002: WaitingForProgram (prog 4)
+    1003: Attached (prog 3)
+  programs:
+    1: Unloading (proc 1001) -> <nil>
+    3: Loaded (proc 1003)
+    4: Loading (proc 1002)
+    5: <nil> -> Queued (proc 1001)

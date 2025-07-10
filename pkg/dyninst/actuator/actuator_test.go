@@ -78,7 +78,7 @@ func testNoSuccessfulProbesError(t *testing.T, cfg testprogs.Config) {
 	}
 	at := a.NewTenant("test", reporter)
 
-	pid := actuator.ProcessID{PID: int32(cmd.Process.Pid), Service: "test"}
+	pid := actuator.ProcessID{PID: int32(cmd.Process.Pid)}
 	at.HandleUpdate(actuator.ProcessesUpdate{
 		Processes: []actuator.ProcessUpdate{{
 			ProcessID:  pid,

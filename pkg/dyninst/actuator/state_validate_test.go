@@ -252,6 +252,7 @@ func validateProgram(
 		}
 
 	case programStateDraining,
+		programStateUnloading,
 		programStateLoadingAborted:
 		// Transitional state, can have various field combinations.
 
