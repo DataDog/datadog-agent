@@ -178,10 +178,15 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 
+	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Redis,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}, nil
+			Type:  protocols.Redis,
+			Stats: keysToStats,
+		}, func() {
+			for _, stats := range keysToStats {
+				stats.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.
@@ -192,7 +197,8 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processRedis(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(tx)
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
 	}
 }
 
@@ -211,7 +217,7 @@ func (p *protocol) setupMapCleaner() {
 
 	// Clean up idle connections. We currently use the same TTL as HTTP, but we plan to rename this variable to be more generic.
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

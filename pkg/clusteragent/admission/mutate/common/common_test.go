@@ -238,7 +238,7 @@ func Test_injectVolume(t *testing.T) {
 			args: args{
 				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "second-container"),
 				volume:      corev1.Volume{Name: "differentName"},
-				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo", MountPath: "/foo"},
 			},
 			injected: true,
 		},
@@ -263,7 +263,17 @@ func Test_injectVolume(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.injected, InjectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
+			injectedVolume, injectedMount := InjectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount)
+			assert.Equal(t, tt.injected, injectedVolume)
+			if injectedMount {
+				for _, container := range tt.args.pod.Spec.Containers {
+					foundVolumeMount := false
+					for _, vMount := range container.VolumeMounts {
+						foundVolumeMount = foundVolumeMount || (vMount.MountPath == tt.args.volumeMount.MountPath)
+					}
+					assert.Truef(t, foundVolumeMount, "Expected finding volume mount path %q in container %q", tt.args.volumeMount.MountPath, container.Name)
+				}
+			}
 		})
 	}
 }

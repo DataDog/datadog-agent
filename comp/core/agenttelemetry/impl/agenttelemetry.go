@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/maps"
 
@@ -25,6 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -41,8 +44,12 @@ type atel struct {
 	runner  runner
 	atelCfg *Config
 
+	lightTracer *installertelemetry.Telemetry
+
 	cancelCtx context.Context
 	cancel    context.CancelFunc
+
+	startupSpan *installertelemetry.Span
 
 	prevPromMetricCounterValues   map[string]float64
 	prevPromMetricHistogramValues map[string]uint64
@@ -127,6 +134,12 @@ func createAtel(
 		runner = newRunnerImpl()
 	}
 
+	installertelemetry.SetSamplingRate("agent.startup", atelCfg.StartupTraceSampling)
+
+	tracerHTTPClient := &http.Client{
+		Transport: httputils.CreateHTTPTransport(cfgComp),
+	}
+
 	return &atel{
 		enabled: true,
 		cfgComp: cfgComp,
@@ -135,6 +148,13 @@ func createAtel(
 		sender:  sender,
 		runner:  runner,
 		atelCfg: atelCfg,
+
+		lightTracer: installertelemetry.NewTelemetry(
+			tracerHTTPClient,
+			utils.SanitizeAPIKey(cfgComp.GetString("api_key")),
+			cfgComp.GetString("site"),
+			"datadog-agent",
+		),
 
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
@@ -469,6 +489,12 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 	}
 
+	// All metrics stored in the "pms" slice above must follow the format:
+	//    <subsystem>__<metric_name>
+	// The "subsystem" and "name" should be concatenated with a double underscore ("__") separator,
+	// e.g., "checks__execution_time". Therefore, the "Options.NoDoubleUnderscoreSep: true" option
+	// must not be used when creating metrics.
+
 	session := a.sender.startSession(a.cancelCtx)
 	for _, p := range profiles {
 		a.reportAgentMetrics(session, pms, p)
@@ -568,11 +594,36 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	return nil
 }
 
+func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
+	if a.lightTracer != nil {
+		return installertelemetry.StartSpanFromContext(a.cancelCtx, operationName)
+	}
+	return &installertelemetry.Span{}, a.cancelCtx
+}
+
 // start is called by FX when the application starts.
 func (a *atel) start() error {
 	a.logComp.Infof("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
+
+	if a.lightTracer != nil {
+		// Start internal telemetry trace
+		a.startupSpan, a.cancelCtx = installertelemetry.StartSpanFromContext(a.cancelCtx, "agent.startup")
+		go func() {
+			timing := time.After(1 * time.Minute)
+			select {
+			case <-a.cancelCtx.Done():
+				if a.startupSpan != nil {
+					a.startupSpan.Finish(a.cancelCtx.Err())
+				}
+			case <-timing:
+				if a.startupSpan != nil {
+					a.startupSpan.Finish(nil)
+				}
+			}
+		}()
+	}
 
 	// Start the runner and add the jobs.
 	a.runner.start()
@@ -589,8 +640,16 @@ func (a *atel) start() error {
 
 // stop is called by FX when the application stops.
 func (a *atel) stop() error {
+	if a.startupSpan != nil {
+		a.startupSpan.Finish(nil)
+	}
+
 	a.logComp.Info("Stopping agent telemetry")
 	a.cancel()
+
+	if a.lightTracer != nil {
+		a.lightTracer.Stop()
+	}
 
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()

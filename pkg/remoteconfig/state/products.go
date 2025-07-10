@@ -35,6 +35,8 @@ var validProducts = map[string]struct{}{
 	ProductOrchestratorK8sCRDs:          {},
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
+	ProductMetricControl:                {},
+	ProductDataStreamsLiveMessages:      {},
 }
 
 const (
@@ -96,4 +98,8 @@ const (
 	ProductHaAgent = "HA_AGENT"
 	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
+	// ProductMetricControl receives configuration for the metrics control.
+	ProductMetricControl = "METRIC_CONTROL"
+	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 )

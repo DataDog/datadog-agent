@@ -7,7 +7,6 @@
 package agent
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -24,11 +23,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -47,7 +44,14 @@ type RuntimeSecurityAgent struct {
 	cancel                  context.CancelFunc
 
 	// activity dump
-	storage storage.ActivityDumpStorage
+	storage ADStorage
+}
+
+// ADStorage represents the interface for the activity dump storage
+type ADStorage interface {
+	backend.ActivityDumpHandler
+
+	SendTelemetry(_ statsd.ClientInterface)
 }
 
 // RSAOptions represents the runtime security agent options
@@ -167,7 +171,7 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 			}
 
 			if seclog.DefaultLogger.IsTracing() {
-				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetDump().GetMetadata().GetName())
+				seclog.DefaultLogger.Tracef("Got activity dump [%s]", msg.GetSelector())
 			}
 
 			rsa.activityDumpReceived.Inc()
@@ -183,32 +187,27 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 	if rsa.reporter == nil {
 		return
 	}
-	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetTags()...)
+	rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
 }
 
 // DispatchActivityDump forwards an activity dump message to the backend
 func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStreamMessage) {
-	// parse dump from message
-	p, storageRequests, err := profile.NewProfileFromActivityDumpMessage(msg.GetDump())
-	if err != nil {
-		seclog.Errorf("%v", err)
-		return
-	}
+	selector := msg.GetSelector()
+	image := selector.GetName()
+	tag := selector.GetTag()
+
 	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
-		imageName, imageTag := p.GetImageNameTag()
-		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
+		if image != "" {
+			rsa.profContainersTelemetry.registerProfiledContainer(image, tag)
+		}
+	}
 
-		raw := bytes.NewBuffer(msg.GetData())
-
-		for _, requests := range storageRequests {
-			for _, request := range requests {
-				if request.Type == sconfig.RemoteStorage {
-					if err := rsa.storage.Persist(request, p, raw); err != nil {
-						seclog.Errorf("%v", err)
-					}
-				}
-			}
+	// storage might be nil, on windows for example
+	if rsa.storage != nil {
+		err := rsa.storage.HandleActivityDump(image, tag, msg.GetHeader(), msg.GetData())
+		if err != nil {
+			seclog.Errorf("couldn't handle activity dump: %v", err)
 		}
 	}
 }

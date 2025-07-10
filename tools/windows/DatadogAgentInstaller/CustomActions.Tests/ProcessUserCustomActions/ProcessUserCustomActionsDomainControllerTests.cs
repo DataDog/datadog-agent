@@ -121,6 +121,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "false").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Domain).And
@@ -149,6 +150,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "false").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Domain).And
@@ -175,6 +177,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "true").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Domain).And
@@ -205,6 +208,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "true").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Domain).And
@@ -234,6 +238,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
             Test.Properties.Should()
                 .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_IS_SERVICE_ACCOUNT", "false").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)).And
                 .Contain("DDAGENTUSER_PROCESSED_NAME", ddAgentUserName).And
                 .Contain("DDAGENTUSER_PROCESSED_DOMAIN", Domain).And
@@ -264,7 +269,8 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             // services don't exist so password is required
             Test.Properties.Should()
                 .OnlyContain(kvp => (kvp.Key == "DDAGENTUSER_FOUND" && kvp.Value == "true") ||
-                                    (kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)));
+                                    (kvp.Key == "DDAGENTUSER_SID" && !string.IsNullOrEmpty(kvp.Value)) ||
+                                    (kvp.Key == "DDAGENTUSER_IS_SERVICE_ACCOUNT" && kvp.Value == "false"));
         }
 
         [Theory]

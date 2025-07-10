@@ -85,7 +85,7 @@ upload_secagent_tests_x64:
   extends:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_x64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
@@ -95,7 +95,7 @@ upload_secagent_tests_arm64:
   extends:
     - .upload_secagent_tests
   needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_arm64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -121,7 +121,7 @@ upload_secagent_tests_arm64:
 kmt_run_secagent_tests_x64:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -159,11 +159,12 @@ kmt_run_secagent_tests_x64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_x64_peds:
   extends:
     - .kmt_run_secagent_tests_required
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -201,11 +202,12 @@ kmt_run_secagent_tests_x64_peds:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_x64_required:
   extends:
     - .kmt_run_secagent_tests_required
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -221,11 +223,11 @@ kmt_run_secagent_tests_x64_required:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_x64_ad:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -241,11 +243,11 @@ kmt_run_secagent_tests_x64_ad:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_x64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -261,11 +263,12 @@ kmt_run_secagent_tests_x64_ebpfless:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_x64_docker:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_secagent_x64
@@ -300,11 +303,11 @@ kmt_run_secagent_tests_x64_docker:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_arm64:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -335,11 +338,12 @@ kmt_run_secagent_tests_arm64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_peds:
   extends:
     - .kmt_run_secagent_tests_required
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -370,11 +374,12 @@ kmt_run_secagent_tests_arm64_peds:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_ad:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -390,11 +395,12 @@ kmt_run_secagent_tests_arm64_ad:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -410,11 +416,12 @@ kmt_run_secagent_tests_arm64_ebpfless:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_docker:
   extends:
     - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_secagent_arm64
@@ -444,7 +451,7 @@ kmt_run_secagent_tests_arm64_docker:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 .kmt_secagent_cleanup:
   extends:
     - .kmt_cleanup
@@ -455,7 +462,7 @@ kmt_run_secagent_tests_arm64_docker:
 .kmt_secagent_tests_join:
   stage: kernel_matrix_testing_cleanup
   rules: !reference [.on_security_agent_changes_or_manual]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   script:
     - echo "nothing to do here"

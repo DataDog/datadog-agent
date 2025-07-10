@@ -10,65 +10,69 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *TestClient) {
-	flake.Mark(t)
-	requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
+	t.Run("integration", func(tt *testing.T) {
+		flake.Mark(tt)
+		requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
-	ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
-	freezeContent, err := client.FileManager.ReadFile(requirementIntegrationPath)
-	require.NoError(t, err)
+		ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
+		freezeContent, err := client.FileManager.ReadFile(requirementIntegrationPath)
+		require.NoError(tt, err)
 
-	freezeContent = ciliumRegex.ReplaceAll(freezeContent, []byte("datadog-cilium==4.0.0"))
-	_, err = client.FileManager.WriteFile(requirementIntegrationPath, freezeContent)
-	require.NoError(t, err)
+		freezeContent = ciliumRegex.ReplaceAll(freezeContent, []byte("datadog-cilium==4.0.0"))
+		_, err = client.FileManager.WriteFile(requirementIntegrationPath, freezeContent)
+		require.NoError(tt, err)
 
-	t.Run("install-uninstall package", func(tt *testing.T) {
-		installIntegration(tt, client, "datadog-cilium==4.0.0")
+		tt.Run("install-uninstall package", func(ttt *testing.T) {
+			installIntegration(ttt, client, "datadog-cilium==4.0.0")
 
-		freezeRequirement := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
-		require.Contains(tt, freezeRequirement, "datadog-cilium==4.0.0", "before removal integration should be in freeze")
+			freezeRequirement := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+			require.Contains(ttt, freezeRequirement, "datadog-cilium==4.0.0", "before removal integration should be in freeze")
 
-		client.AgentClient.Integration(agentclient.WithArgs([]string{"remove", "-r", "datadog-cilium"}))
+			client.AgentClient.Integration(agentclient.WithArgs([]string{"remove", "-r", "datadog-cilium"}))
 
-		freezeRequirementNew := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
-		require.NotContains(tt, freezeRequirementNew, "datadog-cilium==4.0.0", "after removal integration should not be in freeze")
+			freezeRequirementNew := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+			require.NotContains(ttt, freezeRequirementNew, "datadog-cilium==4.0.0", "after removal integration should not be in freeze")
+		})
+
+		tt.Run("upgrade a package", func(ttt *testing.T) {
+			installIntegration(ttt, client, "datadog-cilium==4.0.0")
+
+			freezeRequirement := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+			require.NotContains(ttt, freezeRequirement, "datadog-cilium==5.0.0", "before update integration should not be in 5.0.0")
+
+			installIntegration(ttt, client, "datadog-cilium==5.0.0")
+
+			freezeRequirementNew := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+			require.Contains(ttt, freezeRequirementNew, "datadog-cilium==5.0.0", "after update integration should be in 5.0.0")
+		})
+
+		tt.Run("downgrade a package", func(ttt *testing.T) {
+			installIntegration(ttt, client, "datadog-cilium==5.0.0")
+
+			freezeRequirement := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+			require.NotContains(ttt, freezeRequirement, "datadog-cilium==4.0.0", "before downgrade integration should not be in 4.0.0")
+
+			installIntegration(ttt, client, "datadog-cilium==4.0.0")
+
+			freezeRequirementNew := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
+			require.Contains(ttt, freezeRequirementNew, "datadog-cilium==4.0.0", "after downgrade integration should be in 4.0.0")
+		})
+
+		tt.Run("downgrade to older version than shipped", func(ttt *testing.T) {
+			_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "-r", "datadog-cilium==3.6.0"}))
+			require.Error(ttt, err, "should raise error when trying to install version older than the one shipped")
+		})
 	})
 
-	t.Run("upgrade a package", func(tt *testing.T) {
-		installIntegration(tt, client, "datadog-cilium==4.0.0")
-
-		freezeRequirement := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
-		require.NotContains(tt, freezeRequirement, "datadog-cilium==5.0.0", "before update integration should not be in 5.0.0")
-
-		installIntegration(tt, client, "datadog-cilium==5.0.0")
-
-		freezeRequirementNew := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
-		require.Contains(tt, freezeRequirementNew, "datadog-cilium==5.0.0", "after update integration should be in 5.0.0")
-	})
-
-	t.Run("downgrade a package", func(tt *testing.T) {
-		installIntegration(tt, client, "datadog-cilium==5.0.0")
-
-		freezeRequirement := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
-		require.NotContains(tt, freezeRequirement, "datadog-cilium==4.0.0", "before downgrade integration should not be in 4.0.0")
-
-		installIntegration(tt, client, "datadog-cilium==4.0.0")
-
-		freezeRequirementNew := client.AgentClient.Integration(agentclient.WithArgs([]string{"freeze"}))
-		require.Contains(tt, freezeRequirementNew, "datadog-cilium==4.0.0", "after downgrade integration should be in 4.0.0")
-	})
-
-	t.Run("downgrade to older version than shipped", func(tt *testing.T) {
-		_, err := client.AgentClient.IntegrationWithError(agentclient.WithArgs([]string{"install", "-r", "datadog-cilium==3.6.0"}))
-		require.Error(tt, err, "should raise error when trying to install version older than the one shipped")
-	})
 }
 
 func installIntegration(t *testing.T, client *TestClient, integration string) {

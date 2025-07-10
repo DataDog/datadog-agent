@@ -200,6 +200,7 @@ type BaseSuite[Env any] struct {
 	startTime     time.Time
 	endTime       time.Time
 	initOnly      bool
+	teardownOnly  bool
 
 	outputDir string
 }
@@ -235,6 +236,33 @@ func (bs *BaseSuite[Env]) EventuallyWithTf(condition func(*assert.CollectT), wai
 		}()
 		condition(c)
 	}, waitFor, tick, msg, args)
+}
+
+// CleanupOnSetupFailure is a helper to cleanup on setup failure
+// It should be defered in `SetupSuite` if you override it in your custom test suite.
+// When deferred, any panic or assertion failure will stop the test execution and call `TearDownSuite`.
+func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
+	if err := recover(); err != nil || bs.T().Failed() {
+		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
+		defer func() {
+			bs.T().Logf("Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
+			bs.TearDownSuite()
+			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
+		}()
+
+		// run environment diagnose
+		if bs.env != nil {
+			if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
+				// at least one test failed, diagnose the environment
+				diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
+				if diagnoseErr != nil {
+					bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
+				} else {
+					bs.T().Logf("Diagnose result:\n\n%s", diagnose)
+				}
+			}
+		}
+	}
 }
 
 // UpdateEnv updates the environment with new provisioners.
@@ -286,6 +314,11 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.initOnly = initOnly
 	}
 
+	teardownOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.TeardownOnly, false)
+	if err == nil {
+		bs.teardownOnly = teardownOnly
+	}
+
 	if !runner.GetProfile().AllowDevMode() {
 		bs.params.devMode = false
 	}
@@ -294,10 +327,18 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
+	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
+	if err != nil {
+		bs.T().Fatalf("unable to get stack name suffix: %v", err)
+	}
 	if bs.params.stackName == "" {
 		sType := reflect.TypeOf(self).Elem()
 		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
 		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
+	}
+
+	if stackNameSuffix != "" {
+		bs.params.stackName = fmt.Sprintf("%s-%s", bs.params.stackName, stackNameSuffix)
 	}
 
 	bs.originalProvisioners = bs.params.provisioners
@@ -509,10 +550,18 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // This function is called by [testify Suite].
 //
 // If you override SetupSuite in your custom test suite type, the function must call [e2e.BaseSuite.SetupSuite].
+// Please also call `defer bs.CleanupOnSetupFailure()` in your `SetupSuite` implementation. It is needed to make sure that we cleanup on panic or on SetupSuite failure.
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
 	bs.startTime = time.Now()
+
+	if bs.teardownOnly {
+		defer bs.TearDownSuite()
+		bs.T().Skip("TEARDOWN_ONLY is set, skipping setup and tests")
+		return
+	}
+
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
 	if err != nil {
@@ -523,32 +572,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
 	// Meaning that stack clean up may not be called.
 	// We do implement an explicit recover to handle this manuallay.
-	defer func() {
-		err := recover()
-		if err == nil {
-			return
-		}
-
-		bs.T().Logf("Caught panic in SetupSuite, err: %v. Will try to TearDownSuite", err)
-		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
-
-		// run environment diagnose
-		if diagnosableEnv, ok := any(bs.env).(common.Diagnosable); ok && diagnosableEnv != nil {
-			// at least one test failed, diagnose the environment
-			diagnose, diagnoseErr := diagnosableEnv.Diagnose(bs.SessionOutputDir())
-			if diagnoseErr != nil {
-				bs.T().Logf("unable to diagnose environment: %v", diagnoseErr)
-			} else {
-				bs.T().Logf("Diagnose result:\n\n%s", diagnose)
-			}
-		}
-
-		bs.TearDownSuite()
-
-		// As we need to call `recover` to know if there was a panic, we wrap and forward the original panic to,
-		// once again, stop the execution of the test suite.
-		panic(fmt.Errorf("Forward panic in SetupSuite after TearDownSuite, err was: %v", err))
-	}()
+	defer bs.CleanupOnSetupFailure()
 
 	// Setup Datadog Client to be used to send telemetry when writing e2e tests
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
@@ -657,8 +681,9 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
-		// Run provisioner Diagnose before tearing down the stack
-		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
+		// Run provisioner Diagnose before tearing down the stack if not in teardownOnly mode
+		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
+			bs.T().Logf("Running Diagnose for provisioner %s", id)
 			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 			if err != nil {
 				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
@@ -672,6 +697,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
+		bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
 		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 		}

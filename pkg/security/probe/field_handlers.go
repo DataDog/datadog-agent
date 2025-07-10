@@ -108,7 +108,8 @@ func NewBaseFieldHandlers(cfg *config.Config, hostname string) (*BaseFieldHandle
 // ResolveIsIPPublic resolves if the IP is public
 func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPPortContext) bool {
 	if !ipCtx.IsPublicResolved {
-		ipCtx.IsPublic = !bfh.privateCIDRs.Contains(&ipCtx.IPNet)
+		isPrivate, _ := bfh.privateCIDRs.Contains(&ipCtx.IPNet)
+		ipCtx.IsPublic = !isPrivate
 		ipCtx.IsPublicResolved = true
 	}
 	return ipCtx.IsPublic

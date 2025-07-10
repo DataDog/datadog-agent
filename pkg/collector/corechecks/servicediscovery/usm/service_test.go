@@ -165,6 +165,42 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedNameSource: CommandLine,
 		},
 		{
+			name: "ruby - puma with app name in brackets",
+			cmdline: []string{
+				"puma", "6.4.3", "(unix:///var/opt/app/sockets/app.socket,tcp://127.0.0.1:8080)", "[app-worker]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app-worker",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma cluster worker with app name",
+			cmdline: []string{
+				"puma:", "cluster", "worker", "0:", "15381", "[app-worker]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app-worker",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma with simple app name",
+			cmdline: []string{
+				"puma", "6.6.0", "(tcp://localhost:8080)", "[app]",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "ruby - puma without app name",
+			cmdline: []string{
+				"puma", "6.6.0", "(tcp://localhost:8080)",
+			},
+			lang:                        language.Ruby,
+			expectedGeneratedName:       "puma",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
 			name: "java using the -jar flag to define the service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
@@ -813,6 +849,95 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"[mcservice]",
 			},
 			expectedGeneratedName:       "mcservice",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "gunicorn with replaced cmdline and [ready]",
+			cmdline: []string{
+				"[ready]",
+				"gunicorn:",
+				"worker",
+				"[airflow-webserver]",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "airflow-webserver",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with first arg",
+			cmdline: []string{
+				"/usr/local/bin/python",
+				"/usr/local/bin/uvicorn",
+				"myapp.asgi:application",
+				"--host=0.0.0.0",
+				"--port=8000",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "myapp.asgi",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with middle args",
+			cmdline: []string{
+				"/app/.venv/bin/python3",
+				"/app/.venv/bin/uvicorn",
+				"--factory",
+				"--host=0.0.0.0",
+				"--port=8000",
+				"app:create_app",
+				"--workers=4",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"--header=X-Foo:Bar",
+				"api.v1.app:app",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header separate",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"--header",
+				"X-Foo:Bar",
+				"api.v1.app:app",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn with header separate last",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"api.v1.app:app",
+				"--header",
+				"X-Foo:Bar",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "api.v1.app",
+			expectedGeneratedNameSource: CommandLine,
+		},
+		{
+			name: "uvicorn unknown",
+			cmdline: []string{
+				"/usr/local/bin/python3",
+				"/usr/local/bin/uvicorn",
+				"foo",
+			},
+			lang:                        language.Python,
+			expectedGeneratedName:       "uvicorn",
 			expectedGeneratedNameSource: CommandLine,
 		},
 	}

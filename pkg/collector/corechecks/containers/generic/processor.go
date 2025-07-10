@@ -87,7 +87,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 			string(container.RuntimeFlavor),
 		))
 		if collector == nil {
-			log.Warnf("Collector not found for container: %v, metrics will ne missing", container)
+			log.Warnf("Collector not found for container: %v, metrics will be missing", container)
 			continue
 		}
 

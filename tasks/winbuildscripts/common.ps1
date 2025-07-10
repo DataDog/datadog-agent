@@ -140,7 +140,7 @@ function Install-Deps() {
         exit 1
     }
     Write-Host "Installing go dependencies"
-    dda inv -e deps
+    dda inv -- -e deps
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install dependencies"
         exit 1
@@ -149,7 +149,7 @@ function Install-Deps() {
 
 function Install-TestingDeps() {
     Write-Host "Installing testing dependencies"
-    dda inv -e install-tools
+    dda inv -- -e install-tools
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install testing dependencies"
         exit 1
@@ -324,7 +324,7 @@ function Invoke-BuildScript {
         }
 
         if ($CheckGoVersion) {
-            dda inv -e check-go-version
+            dda inv -- -e check-go-version
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "Go version check failed"
                 exit 1

@@ -291,7 +291,9 @@ namespace WixSetup.Datadog_Agent
             RunPostInstPythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPostInstPythonScript)),
                     CustomActions.RunPostInstPythonScript,
-                    Return.check,
+                    // we now ignore this custom action result to assure there are no failures resulting from
+                    // issues installing third party integrations
+                    Return.ignore,
                     When.After,
                     Step.InstallServices,
                     Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
@@ -339,7 +341,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.RunPreRemovePythonScript,
                     Return.ignore,
                     When.Before,
-                    Step.RemoveFiles,
+                    new Step(CleanupOnUninstall.Id),
                     Conditions.RemovingForUpgrade | Conditions.Maintenance | Conditions.Uninstalling
                 )
             {
@@ -382,7 +384,8 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
-                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
+                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
+                               "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);
 
             ConfigureUserRollback = new CustomAction<CustomActions>(
@@ -412,7 +415,9 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
-                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
+                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                               "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL]");
 
             UninstallUserRollback = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallUserRollback)),
@@ -519,7 +524,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
+                               "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
 
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`

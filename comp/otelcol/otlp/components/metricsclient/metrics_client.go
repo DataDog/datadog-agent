@@ -5,6 +5,7 @@ package metricsclient
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -28,13 +29,19 @@ type metricsClient struct {
 	source string
 }
 
+var errNilMeter = errors.New("failed to create meter from OTel Go SDK")
+
 // InitializeMetricClient using a meter provider.
-func InitializeMetricClient(mp metric.MeterProvider, source string) statsd.ClientInterface {
+func InitializeMetricClient(mp metric.MeterProvider, source string) (statsd.ClientInterface, error) {
+	meter := mp.Meter("datadog")
+	if meter == nil {
+		return nil, errNilMeter
+	}
 	return &metricsClient{
-		meter:  mp.Meter("datadog"),
+		meter:  meter,
 		gauges: make(map[string]float64),
 		source: source,
-	}
+	}, nil
 }
 
 // Gauge implements the Statsd Gauge interface

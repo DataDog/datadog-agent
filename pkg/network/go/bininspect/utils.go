@@ -127,7 +127,7 @@ func SymbolToOffset(f *safeelf.File, symbol safeelf.Symbol) (uint32, error) {
 	}
 
 	if len(sectionsToSearchForSymbol) == 0 {
-		return 0, fmt.Errorf("symbol %q not found in file - no sections to search", symbol)
+		return 0, fmt.Errorf("symbol %q not found in file - no sections to search", symbol.Name)
 	}
 
 	var executableSection *safeelf.Section

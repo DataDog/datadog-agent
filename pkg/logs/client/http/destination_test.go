@@ -19,8 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
@@ -367,7 +370,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""))
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test")
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
@@ -386,10 +389,10 @@ func TestTransportProtocol_HTTP1(t *testing.T) {
 	s := NewTestHTTPSServer(false)
 	defer s.Close()
 
-	timeout := 5 * time.Second
-	// Force HTTP/1 transport
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	// Create an HTTP/1.1 request
 	req, err := http.NewRequest("POST", s.URL, nil)
 	if err != nil {
@@ -419,9 +422,10 @@ func TestTransportProtocol_HTTP2(t *testing.T) {
 	s := NewTestHTTPSServer(false)
 	defer s.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", s.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -451,9 +455,10 @@ func TestTransportProtocol_InvalidProtocol(t *testing.T) {
 	server := NewTestHTTPSServer(false)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -482,9 +487,10 @@ func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
 	server := NewTestHTTPSServer(true)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -514,9 +520,10 @@ func TestTransportProtocol_HTTP2WhenUsingProxy(t *testing.T) {
 	server := NewTestHTTPSServer(false)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -546,9 +553,10 @@ func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
 	server := NewTestHTTPSServer(true)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -561,4 +569,131 @@ func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
 
 	// Assert that the server chose HTTP/1.1 because a proxy was configured
 	assert.Equal(t, "HTTP/1.1", resp.Proto)
+}
+
+// TestDestinationSourceTagBasedOnTelemetryName tests that the source tag is set when the telemetry name contains "logs" source tag
+func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create telemetry mock
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
+
+	// Create a new server
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	// Test case: Telemetry name contains "logs" -> sourceTag should be "logs"
+	server.Destination.destMeta = client.NewDestinationMetadata("logs", "3", "reliable", "0")
+	payload := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7, // len("payload")
+	}
+
+	// Send the payload to the server
+	err := server.Destination.unconditionalSend(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, "logs_3_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the source tag is "logs" in the telemetry metric
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "logs", metric[0].Tags()["source"])
+
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "logs", metric[0].Tags()["source"])
+}
+
+// TestDestinationSourceTagEPForwarder tests that the source tag is set to "epforwarder" when the telemetry source name does not contain "logs"
+func TestDestinationSourceTagEPForwarder(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create telemetry mock
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
+
+	// Create a new server
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	// Test case: Telemetry name does not contain "logs" -> sourceTag should be "epforwarder"
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	payload := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7, // len("payload")
+	}
+
+	err := server.Destination.unconditionalSend(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, "dbm_1_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the source tag is "epforwarder" in the telemetry metric
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
+
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
+}
+
+// TestDestinationCompression tests what the compression kind is set when compression is used
+func TestDestinationCompression(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create telemetry mock
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
+
+	// Create a new server with compression enabled
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	// Enable compression and set zstdcompression kind
+	server.Destination.endpoint.UseCompression = true
+	server.Destination.endpoint.CompressionKind = "zstd"
+
+	// Test case 1: Telemetry uses zstd compression
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	payload := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7, // len("payload")
+	}
+
+	err := server.Destination.unconditionalSend(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, "dbm_1_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the compression tag is set correctly
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "zstd", metric[0].Tags()["compression_kind"])
+
+	// Test case 2: Telemetry uses gzip compression
+	// Enable compression and set gzip compression kind
+	server.Destination.endpoint.CompressionKind = "gzip"
+
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "2", "reliable", "0")
+	payload2 := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7,
+	}
+
+	err = server.Destination.unconditionalSend(payload2)
+	assert.Nil(t, err)
+	assert.Equal(t, "dbm_2_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the compression tag is set correctly
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 2)
+	assert.Equal(t, "gzip", metric[0].Tags()["compression_kind"])
 }

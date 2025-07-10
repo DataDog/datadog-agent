@@ -219,3 +219,27 @@ func TestRemapOnFlush(t *testing.T) {
 		require.Contains(t, child.Meta["error.stack"], "telemetry_test.go")
 	}
 }
+
+func TestSampling(t *testing.T) {
+	const testService = "test-service"
+	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", testService)
+	globalTracer = &tracer{spans: make(map[uint64]*Span)}
+
+	// Create a span that should be sampled (normal trace ID)
+	normalSpan := newSpan("normal", 1234, 1234)
+	normalSpan.Finish(nil)
+
+	// Create a span that should be dropped (dropTraceID)
+	droppedSpan := newSpan("dropped", 12345, dropTraceID)
+	droppedSpan.Finish(nil)
+
+	// Extract completed spans
+	resTraces := telem.extractCompletedSpans()
+	require.Len(t, resTraces, 1, "Expected only one trace to be completed")
+
+	// Verify the normal span is present
+	trace := resTraces[0]
+	require.Len(t, trace, 1, "Expected only one span in the trace")
+	assert.Equal(t, "normal", trace[0].Name, "Expected the normal span to be present")
+	assert.NotEqual(t, dropTraceID, trace[0].TraceID, "Expected the trace ID to not be dropTraceID")
+}

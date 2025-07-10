@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -69,8 +70,6 @@ type Installer interface {
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
 
-	Postinst(ctx context.Context, pkg string, caller string) error
-
 	Close() error
 }
 
@@ -83,6 +82,7 @@ type installerImpl struct {
 	downloader *oci.Downloader
 	packages   *repository.Repositories
 	configs    *repository.Repositories
+	hooks      packages.Hooks
 
 	packagesDir    string
 	userConfigsDir string
@@ -98,12 +98,15 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
+	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks)
+	configs := repository.NewRepositories(paths.ConfigsPath, nil)
 	i := &installerImpl{
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
-		packages:   repository.NewRepositories(paths.PackagesPath, packages.PreRemoveHooks),
-		configs:    repository.NewRepositories(paths.ConfigsPath, nil),
+		packages:   pkgs,
+		configs:    configs,
+		hooks:      packages.NewHooks(env, pkgs),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
@@ -278,7 +281,14 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	err = i.preparePackage(ctx, pkg.Name, args) // Preinst
+	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
+	if upgrade {
+		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
+		if err != nil {
+			return fmt.Errorf("could not prepare package: %w", err)
+		}
+	}
+	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade)
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
 	}
@@ -312,7 +322,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name, args) // Postinst
+	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -368,6 +378,11 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not extract package config layer: %w", err),
 		)
 	}
+
+	err = i.hooks.PreStartExperiment(ctx, pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not install experiment: %w", err)
+	}
 	repository := i.packages.Get(pkg.Name)
 	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
 	if err != nil {
@@ -376,8 +391,15 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			fmt.Errorf("could not set experiment: %w", err),
 		)
 	}
-
-	return i.startExperiment(ctx, pkg.Name)
+	// HACK: close so package can be updated as watchdog runs
+	if pkg.Name == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
+	}
+	err = i.hooks.PostStartExperiment(ctx, pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not install experiment: %w", err)
+	}
+	return nil
 }
 
 // RemoveExperiment removes an experiment.
@@ -386,8 +408,17 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	defer i.m.Unlock()
 
 	repository := i.packages.Get(pkg)
-	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
-		// Special case for the Linux installer since `stopExperiment`
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	if !state.HasExperiment() {
+		// Return early
+		return nil
+	}
+
+	if runtime.GOOS != "windows" && (pkg == packageDatadogInstaller || pkg == packageDatadogAgent) {
+		// Special case for the Linux installer since `preStopExperiment`
 		// will kill the current process, delete the experiment first.
 		err := repository.DeleteExperiment(ctx)
 		if err != nil {
@@ -396,12 +427,12 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 				fmt.Errorf("could not delete experiment: %w", err),
 			)
 		}
-		err = i.stopExperiment(ctx, pkg)
+		err = i.hooks.PreStopExperiment(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
 	} else {
-		err := i.stopExperiment(ctx, pkg)
+		err = i.hooks.PreStopExperiment(ctx, pkg)
 		if err != nil {
 			return fmt.Errorf("could not stop experiment: %w", err)
 		}
@@ -413,6 +444,10 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 			)
 		}
 	}
+	err = i.hooks.PostStopExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop experiment: %w", err)
+	}
 	return nil
 }
 
@@ -422,17 +457,32 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	defer i.m.Unlock()
 
 	repository := i.packages.Get(pkg)
-	err := repository.PromoteExperiment(ctx)
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	if !state.HasExperiment() {
+		// Fail early
+		return fmt.Errorf("no experiment to promote")
+	}
+
+	err = i.hooks.PrePromoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	err = i.promoteExperiment(ctx, pkg)
+
+	err = repository.PromoteExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not promote experiment: %w", err)
+	}
+
+	err = i.hooks.PostPromoteExperiment(ctx, pkg)
 	if err != nil {
 		return err
 	}
 
 	// Update db
-	state, err := repository.GetState()
+	state, err = repository.GetState()
 	if err != nil {
 		return fmt.Errorf("could not get repository state: %w", err)
 	}
@@ -474,12 +524,12 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 
-	switch runtime.GOOS {
-	case "windows":
-		return nil // TODO: start config experiment for Windows
-	default:
-		return i.startExperiment(ctx, pkg)
+	// HACK: close so package can be updated as watchdog runs
+	if pkg == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
 	}
+
+	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -487,11 +537,20 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.stopExperiment(ctx, pkg)
+	repository := i.configs.Get(pkg)
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	if !state.HasExperiment() {
+		// Return early
+		return nil
+	}
+
+	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	repository := i.configs.Get(pkg)
 	err = repository.DeleteExperiment(ctx)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -515,7 +574,11 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 			fmt.Errorf("could not promote experiment: %w", err),
 		)
 	}
-	return i.promoteExperiment(ctx, pkg)
+	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
+	if err != nil {
+		log.Warnf("could not write user-facing config symlinks: %v", err)
+	}
+	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
@@ -523,20 +586,20 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	packages, err := i.db.ListPackages()
+	dbPackages, err := i.db.ListPackages()
 	if err != nil {
 		// if we can't list packages we'll only remove the installer
-		packages = nil
+		dbPackages = nil
 		log.Warnf("could not list packages: %v", err)
 	}
-	for _, pkg := range packages {
+	for _, pkg := range dbPackages {
 		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
 		if pkg.Name == packageDatadogAgent {
 			continue
 		}
-		err := i.removePackage(ctx, pkg.Name)
+		err := i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
@@ -549,14 +612,14 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.removePackage(ctx, packageDatadogAgent)
+	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
 	if err != nil {
 		log.Warnf("could not remove agent: %v", err)
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
 		// on windows the installer package has been merged with the agent package
-		err = i.removePackage(ctx, packageDatadogInstaller)
+		err = i.hooks.PreRemove(ctx, packageDatadogInstaller, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove installer: %v", err)
 		}
@@ -595,7 +658,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := i.removePackage(ctx, pkg)
+	err := i.hooks.PreRemove(ctx, pkg, packages.PackageTypeOCI, false)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
@@ -682,114 +745,11 @@ func (i *installerImpl) close() error {
 	return nil
 }
 
-// Postinst runs the post-install script for a package.
-func (i *installerImpl) Postinst(ctx context.Context, pkg string, caller string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	if caller != "deb" && caller != "rpm" && caller != "oci" {
-		return fmt.Errorf("invalid caller: %s", caller)
-	}
-
-	switch pkg {
-	case packageDatadogAgent:
-		installPath := filepath.Join(paths.PackagesPath, pkg, "stable")
-		if caller == "deb" || caller == "rpm" {
-			installPath = "/opt/datadog-agent"
-		}
-		return packages.PostInstallAgent(ctx, installPath, caller)
-	default:
-		return nil
-	}
-}
-
 // Close cleans up the Installer's dependencies
 func (i *installerImpl) Close() error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	return i.close()
-}
-
-func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		// close so package can be updated as watchdog runs
-		i.db.Close()
-		return packages.StartAgentExperiment(ctx)
-	case packageDatadogInstaller:
-		return packages.StartInstallerExperiment(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.StartAPMLibraryDotnetExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return packages.StopAgentExperiment(ctx)
-	case packageDatadogInstaller:
-		return packages.StopInstallerExperiment(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.StopAPMLibraryDotnetExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return packages.PromoteAgentExperiment(ctx)
-	case packageDatadogInstaller:
-		return packages.PromoteInstallerExperiment(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.PromoteAPMLibraryDotnetExperiment(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) preparePackage(ctx context.Context, pkg string, _ []string) error {
-	switch pkg {
-	case packageDatadogInstaller:
-		return packages.PrepareInstaller(ctx)
-	case packageDatadogAgent:
-		return packages.PrepareAgent(ctx)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
-	switch pkg {
-	case packageDatadogInstaller:
-		return packages.SetupInstaller(ctx)
-	case packageDatadogAgent:
-		return packages.SetupAgent(ctx, args)
-	case packageAPMInjector:
-		return packages.SetupAPMInjector(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.SetupAPMLibraryDotnet(ctx, pkg)
-	default:
-		return nil
-	}
-}
-
-func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
-	switch pkg {
-	case packageDatadogAgent:
-		return packages.RemoveAgent(ctx)
-	case packageAPMInjector:
-		return packages.RemoveAPMInjector(ctx)
-	case packageDatadogInstaller:
-		return packages.RemoveInstaller(ctx)
-	case packageAPMLibraryDotnet:
-		return packages.RemoveAPMLibraryDotnet(ctx)
-	default:
-		return nil
-	}
 }
 
 func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err error) {
@@ -809,10 +769,6 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
-	// TODO: Windows support
-	if runtime.GOOS == "windows" {
-		return nil
-	}
 	state, err := i.configs.GetState(pkg)
 	if err != nil {
 		return fmt.Errorf("could not get config repository state: %w", err)
@@ -857,6 +813,12 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+func cleanConfigName(p string) string {
+	// intentionally not using filepath.Clean so that the
+	// path maintains forward slashes on Windows
+	return path.Clean(p)
+}
+
 type configFile struct {
 	Path     string          `json:"path"`
 	Contents json.RawMessage `json:"contents"`
@@ -869,7 +831,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
 	for _, file := range files {
-		file.Path = filepath.Clean(file.Path)
+		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
@@ -889,6 +851,38 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
+		}
+	}
+	return nil
+}
+
+// writeConfigSymlinks writes `.override` symlinks to help surface configurations to the user
+func writeConfigSymlinks(userDir string, fleetDir string) error {
+	userFiles, err := os.ReadDir(userDir)
+	if err != nil {
+		return fmt.Errorf("could not list user config files: %w", err)
+	}
+	for _, userFile := range userFiles {
+		if userFile.Type()&os.ModeSymlink != 0 && strings.HasSuffix(userFile.Name(), ".override") {
+			err = os.Remove(filepath.Join(userDir, userFile.Name()))
+			if err != nil {
+				return fmt.Errorf("could not remove existing symlink: %w", err)
+			}
+		}
+	}
+	var files []string
+	fleetFiles, err := os.ReadDir(fleetDir)
+	if err != nil {
+		return fmt.Errorf("could not list fleet config files: %w", err)
+	}
+	for _, fleetFile := range fleetFiles {
+		files = append(files, fleetFile.Name())
+	}
+	for _, file := range files {
+		overrideFile := file + ".override"
+		err = os.Symlink(filepath.Join(fleetDir, file), filepath.Join(userDir, overrideFile))
+		if err != nil {
+			return fmt.Errorf("could not create symlink: %w", err)
 		}
 	}
 	return nil
@@ -925,6 +919,13 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
+	// TODO: should we call paths.EnsureInstallerDataDir() here?
+	//       It should probably be anywhere that the below directories must be
+	//       created, but it feels wrong to have the constructor perform work
+	//       like this. For example, "read only" subcommands like `get-states`
+	//       will end up iterating the filesystem tree to apply permissions,
+	//       and every subprocess during experiments will repeat the work,
+	//       even though it should only be needed at install/setup time.
 	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
@@ -937,5 +938,10 @@ func ensureRepositoriesExist() error {
 	if err != nil {
 		return fmt.Errorf("error creating tmp directory: %w", err)
 	}
+	err = os.MkdirAll(paths.RunPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating tmp directory: %w", err)
+	}
+
 	return nil
 }

@@ -113,7 +113,7 @@ message Container {
   ContainerState state = 10;
   repeated string collectorTags = 11;
   string cgroupPath = 12;
-  repeated ContainerAllocatedResource allocatedResources = 13;
+  repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
 }
 
 message KubernetesPodOwner {
@@ -143,6 +143,7 @@ message KubernetesPod {
   map<string, string> namespaceLabels = 12;
   repeated OrchestratorContainer InitContainers = 13;
   string runtimeClass = 14;
+  repeated OrchestratorContainer ephemeralContainers = 15;
 }
 
 enum ECSLaunchType {
@@ -162,7 +163,7 @@ message ECSTask {
   string version = 9;
   ECSLaunchType launchType = 10;
   repeated OrchestratorContainer containers = 11;
-  int64 awsAccountID = 12;
+  string awsAccountID = 12;
 }
 
 message WorkloadmetaEvent {

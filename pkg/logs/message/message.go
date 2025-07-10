@@ -19,11 +19,8 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
-// TruncatedTag is added to truncated log messages (if enabled).
-const TruncatedTag = "truncated"
-
-// AutoMultiLineTag is added to multiline log messages (if enabled).
-const AutoMultiLineTag = "auto_multiline"
+// AggregatedJSONTag is added to recombined JSON log messages (if enabled).
+const AggregatedJSONTag = "aggregated_json:true"
 
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
@@ -43,13 +40,7 @@ type Payload struct {
 	UnencodedSize int
 }
 
-func NewPayload(messages []*Message, encoded []byte, encoding string, unencodedSize int) *Payload {
-	messageMetas := make([]*MessageMetadata, len(messages))
-	for i, m := range messages {
-		// Split the metadata from the message content to avoid holding the entire message in memory
-		meta := m.MessageMetadata
-		messageMetas[i] = &meta
-	}
+func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
 	return &Payload{
 		MessageMetas:  messageMetas,
 		Encoded:       encoded,
@@ -235,6 +226,13 @@ func NewMessageWithSource(content []byte, status string, source *sources.LogSour
 	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
 }
 
+// NewMessageWithSourceWithParsingExtra adds isTruncated to the parsingExtra tag for a new unstructured message with content, status, source and ingestionTimestamp
+func NewMessageWithSourceWithParsingExtra(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64, isTruncated bool) *Message {
+	msg := NewMessageWithSource(content, status, source, ingestionTimestamp)
+	msg.ParsingExtra.IsTruncated = isTruncated
+	return msg
+}
+
 // NewMessage constructs an unstructured message with content,
 // status, origin and the ingestion timestamp.
 func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
@@ -250,6 +248,13 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 			IngestionTimestamp: ingestionTimestamp,
 		},
 	}
+}
+
+// NewMessageWithParsingExtra adds parsingExtra data to a new message
+func NewMessageWithParsingExtra(content []byte, origin *Origin, status string, ingestionTimestamp int64, parsingExtra ParsingExtra) *Message {
+	msg := NewMessage(content, origin, status, ingestionTimestamp)
+	msg.ParsingExtra = parsingExtra
+	return msg
 }
 
 // NewStructuredMessage creates a new message that had some structure the moment
@@ -270,6 +275,13 @@ func NewStructuredMessage(content StructuredContent, origin *Origin, status stri
 			IngestionTimestamp: ingestionTimestamp,
 		},
 	}
+}
+
+// NewStructuredMessageWithParsingExtra adds isTruncated to the parsingExtra tag for a new structured message with content, status, origin and ingestionTimestamp
+func NewStructuredMessageWithParsingExtra(content StructuredContent, origin *Origin, status string, ingestionTimestamp int64, isTruncated bool) *Message {
+	msg := NewStructuredMessage(content, origin, status, ingestionTimestamp)
+	msg.ParsingExtra.IsTruncated = isTruncated
+	return msg
 }
 
 // Render renders the message.
@@ -388,6 +400,19 @@ func (m *MessageMetadata) Count() int64 {
 // Size returns the size of the message.
 func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
+}
+
+// RecordProcessingRule records the application of a processing rule to a message.
+func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string) {
+	if m.Origin != nil && m.Origin.LogSource != nil {
+		m.Origin.LogSource.ProcessingInfo.Inc(ruleType + ":" + ruleName)
+	} else {
+		nilSource := "LogSource"
+		if m.Origin == nil {
+			nilSource = "Origin"
+		}
+		log.Debugf("Unable to record processing rule: %s is nil", nilSource)
+	}
 }
 
 // TruncatedReasonTag returns a tag with the reason for truncation.

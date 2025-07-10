@@ -9,6 +9,7 @@ from os import makedirs, path
 from invoke import task
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 
 DIR_BIN = path.join(".", "bin", "installer")
@@ -50,11 +51,6 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 
-    strip_flags = "" if no_strip_binary else "-s -w"
-    race_opt = "-race" if race else ""
-    build_type = "-a" if rebuild else ""
-    go_build_tags = " ".join(build_tags)
-
     installer_bin = INSTALLER_BIN
     if output_bin:
         installer_bin = output_bin
@@ -64,14 +60,25 @@ def build(
     else:
         env["CGO_ENABLED"] = "1"
 
-    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {installer_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
+    if not no_strip_binary:
+        ldflags += " -s -w"
 
-    ctx.run(cmd, env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/installer",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        gcflags=gcflags,
+        ldflags=ldflags,
+        build_tags=build_tags,
+        bin_path=installer_bin,
+        env=env,
+    )
 
 
 @task
-def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
+def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, package="installer-package"):
     '''
     Builds the script that is used to install datadog on linux.
     '''
@@ -88,6 +95,7 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output):
     bin_arm64_sha256 = hashlib.sha256(open(bin_arm64, 'rb').read()).hexdigest()
     install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
+    install_script = install_script.replace('PACKAGE_NAME', package)
 
     makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:

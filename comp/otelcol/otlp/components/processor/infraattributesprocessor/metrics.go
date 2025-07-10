@@ -9,23 +9,28 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
 type infraAttributesMetricProcessor struct {
+	infraTags   infraTagsProcessor
 	logger      *zap.Logger
-	tagger      taggerClient
 	cardinality types.TagCardinality
+	cfg         *Config
 }
 
-func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(
+	set processor.Settings,
+	infraTags infraTagsProcessor,
+	cfg *Config,
+) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
+		infraTags:   infraTags,
 		logger:      set.Logger,
-		tagger:      tagger,
 		cardinality: cfg.Cardinality,
+		cfg:         cfg,
 	}
 	set.Logger.Info("Metric Infra Attributes Processor configured")
 	return iamp, nil
@@ -35,7 +40,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		processInfraTags(iamp.logger, iamp.tagger, iamp.cardinality, resourceAttributes)
+		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride)
 	}
 	return md, nil
 }

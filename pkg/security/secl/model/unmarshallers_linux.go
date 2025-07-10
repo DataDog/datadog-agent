@@ -476,6 +476,45 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 }
 
+// ToMount transforms an fsmount event to be used with the mount resolver
+func (e *FsmountEvent) ToMount() *Mount {
+	return &Mount{
+		Origin:      MountOriginFsmount,
+		MountID:     e.MountID,
+		Device:      e.Device,
+		RootPathKey: e.RootPathKey,
+		RootStr:     "/",
+	}
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *FsmountEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.SyscallEvent.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	n, err := e.RootPathKey.UnmarshalBinary(data)
+	if err != nil {
+		return read, err
+	}
+
+	read += n
+	data = data[n:]
+
+	if len(data) < 16 {
+		return n, ErrNotEnoughData
+	}
+
+	e.Fd = int32(binary.NativeEndian.Uint32(data[0:4]))
+	e.Flags = binary.NativeEndian.Uint32(data[4:8])
+	e.Device = binary.NativeEndian.Uint32(data[8:12])
+	e.MountAttrs = binary.NativeEndian.Uint32(data[12:16])
+	e.MountID = e.RootPathKey.MountID
+	read += 16
+	return read, nil
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := e.Mount.UnmarshalBinary(data)
@@ -1091,18 +1130,17 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 10 {
 		return 0, ErrNotEnoughData
 	}
-
 	e.ID = binary.NativeEndian.Uint16(data[0:2])
-	e.Count = binary.NativeEndian.Uint16(data[2:4])
-	e.Type = binary.NativeEndian.Uint16(data[4:6])
-	e.Class = binary.NativeEndian.Uint16(data[6:8])
-	e.Size = binary.NativeEndian.Uint16(data[8:10])
+	e.Question.Count = binary.NativeEndian.Uint16(data[2:4])
+	e.Question.Type = binary.NativeEndian.Uint16(data[4:6])
+	e.Question.Class = binary.NativeEndian.Uint16(data[6:8])
+	e.Question.Size = binary.NativeEndian.Uint16(data[8:10])
 	var err error
-	e.Name, err = decodeDNSName(data[10:])
+	e.Question.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Question.Count, e.Question.Type, e.Question.Size)
 	}
-	if err = validateDNSName(e.Name); err != nil {
+	if err = validateDNSName(e.Question.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil
@@ -1360,13 +1398,14 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 260 {
+	const eventSize = 4 + OnDemandParsedArgsCount*OnDemandPerArgSize
+	if len(data) < eventSize {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = binary.NativeEndian.Uint32(data[0:4])
-	SliceToArray(data[4:260], e.Data[:])
-	return 260, nil
+	SliceToArray(data[4:eventSize], e.Data[:])
+	return eventSize, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1504,4 +1543,54 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	cursor += newValueLen
 
 	return cursor, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 24 {
+		return 0, ErrNotEnoughData
+	}
+	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
+	e.SocketFamily = binary.NativeEndian.Uint16(data[2:4])
+	e.FilterLen = binary.NativeEndian.Uint16(data[4:6])
+	e.SocketProtocol = binary.NativeEndian.Uint16(data[6:8])
+	e.Level = binary.NativeEndian.Uint32(data[8:12])
+	e.OptName = binary.NativeEndian.Uint32(data[12:16])
+	e.IsFilterTruncated = binary.NativeEndian.Uint32(data[16:20]) > 0
+	e.SizeToRead = binary.NativeEndian.Uint32(data[20:24])
+	sizeToRead := int(e.SizeToRead)
+
+	// Parse the filter here
+	filterStart := 24
+
+	if len(data) < filterStart+sizeToRead {
+		return 0, ErrNotEnoughData
+	}
+	// Store the filter
+	e.RawFilter = []byte(data[filterStart : filterStart+sizeToRead])
+	return filterStart + sizeToRead + read, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 24 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Resource = int(binary.NativeEndian.Uint32(data[read : read+4]))
+	e.TargetPid = binary.NativeEndian.Uint32(data[read+4 : read+8])
+	e.RlimCur = binary.NativeEndian.Uint64(data[read+8 : read+16])
+	e.RlimMax = binary.NativeEndian.Uint64(data[read+16 : read+24])
+
+	return read + 24, nil
 }

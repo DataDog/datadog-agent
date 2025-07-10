@@ -11,22 +11,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, cfg, testutil.GetTelemetryMock(t))
 
 	consumer.Start()
@@ -37,12 +39,11 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-
-	consumer := newCudaEventConsumer(ctx, handlers, nil, nil, testutil.GetTelemetryMock(t))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+	cfg := config.New()
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(t))
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -60,7 +61,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
@@ -121,16 +122,29 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
-			ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(b), testutil.GetTelemetryMock(b))
+			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+			ctx, err := getSystemContext(
+				withProcRoot(kernel.ProcFSRoot()),
+				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
+				withTelemetry(testutil.GetTelemetryMock(b)),
+				withFatbinParsingEnabled(fatbinParsingEnabled),
+			)
 			require.NoError(b, err)
-			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b))
-
-			ctx.fatbinParsingEnabled = fatbinParsingEnabled
 
 			cfg := config.New()
+			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b), cfg)
+
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-			ctx.visibleDevicesCache[pid] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
-			ctx.pidMaps[pid] = nil
+			ctx.visibleDevicesCache[pid] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
+
+			if ctx.cudaKernelCache != nil {
+				cuda.AddKernelCacheProcMap(ctx.cudaKernelCache, pid, nil)
+
+				// If we don't start the kernel cache, the request channel will be full and we'll run into
+				// errors, falsifying the results of the benchmark
+				ctx.cudaKernelCache.Start()
+				b.Cleanup(ctx.cudaKernelCache.Stop)
+			}
 
 			consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(b))
 			b.ResetTimer()

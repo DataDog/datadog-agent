@@ -1,19 +1,13 @@
-ARG BASE_IMAGE_ALPINE_VERSION=3.18
-FROM public.ecr.aws/docker/library/alpine:$BASE_IMAGE_ALPINE_VERSION
+ARG BASE_IMAGE_ALPINE_VERSION=3.21
+FROM public.ecr.aws/docker/library/alpine:$BASE_IMAGE_ALPINE_VERSION AS release-base
 ARG TARGETARCH
 ARG BASE_IMAGE_ALPINE_VERSION
-ARG DD_GIT_REPOSITORY_URL
-ARG DD_GIT_COMMIT_SHA
 
 LABEL baseimage.os "alpine"
 LABEL baseimage.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
 LABEL maintainer "Datadog <package@datadoghq.com>"
 LABEL org.opencontainers.image.base.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
 LABEL org.opencontainers.image.title "Datadog Dogstatsd Agent"
-
-ENV DOCKER_DD_AGENT=true \
-    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
-    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # We add mirror.clarkson.edu as a secondary mirror, as it's closest to us-east-1
 # where we build the agent
@@ -27,7 +21,17 @@ COPY entrypoint.sh probe.sh /
 RUN chmod 755 /entrypoint.sh /probe.sh
 COPY dogstatsd.yaml /etc/datadog-agent/dogstatsd.yaml
 COPY install_info /etc/datadog-agent/install_info
-COPY static/dogstatsd.$TARGETARCH /dogstatsd
+
+FROM release-base
+
+COPY --from=artifacts static/dogstatsd.$TARGETARCH /dogstatsd
+
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
+
+ENV DOCKER_DD_AGENT=true \
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 EXPOSE 8125/udp
 

@@ -16,4 +16,6 @@ type Params struct {
 	CPUProfile string
 	// MemProfile contains the value for the --mem-profile flag.
 	MemProfile string
+	// DisableInternalProfiling is used to disable internal profiling.
+	DisableInternalProfiling bool
 }

@@ -1,6 +1,5 @@
 # Datadog Agent
 
-[![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
 [![Windows unit tests](https://github.com/DataDog/datadog-agent/actions/workflows/windows-unittests.yml/badge.svg)](https://github.com/DataDog/datadog-agent/actions/workflows/windows-unittests.yml)
 [![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=main)](https://codecov.io/github/DataDog/datadog-agent?branch=main)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
@@ -19,8 +18,8 @@ and development, is located under [the docs directory](docs) of the present repo
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.23 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
- * Python 3.11+ along with development libraries for tooling. You will also need Python 2.7 if you are building the Agent with Python 2 support.
+ * [Go](https://golang.org/doc/install) 1.24. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
+ * Python 3.12 along with development libraries for tooling.
  * Python dependencies. You may install these with `pip install dda`.
  * CMake version 3.15 or later and a C++ compiler
 

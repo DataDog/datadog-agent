@@ -37,16 +37,55 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                     }
                 ),
             )
-        assert new_config["some_gate_high"]["max_on_wire_size"] == "48.16 MiB", print(
-            f"Expected 57.22 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
+        assert new_config["some_gate_high"]["max_on_wire_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_high"]["max_on_disk_size"] == "48.16 MiB", print(
-            f"Expected 57.22 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
+        assert new_config["some_gate_high"]["max_on_disk_size"] == "48.64 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_wire_size"] == "4.29 MiB", print(
+        assert new_config["some_gate_low"]["max_on_wire_size"] == "4.77 MiB", print(
             f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_wire_size']}"
         )
-        assert new_config["some_gate_low"]["max_on_disk_size"] == "4.29 MiB", print(
+        assert new_config["some_gate_low"]["max_on_disk_size"] == "4.77 MiB", print(
+            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
+        )
+
+    def test_exception_gate_bump(self):
+        with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
+            new_config, saved_amount = generate_new_quality_gate_config(
+                f,
+                MockMetricHandler(
+                    {
+                        "some_gate_high": {
+                            "relative_on_wire_size": 424242,
+                            "current_on_wire_size": 50000000,
+                            "max_on_wire_size": 100000000,
+                            "relative_on_disk_size": 242424,
+                            "current_on_disk_size": 50000000,
+                            "max_on_disk_size": 100000000,
+                        },
+                        "some_gate_low": {
+                            "relative_on_wire_size": 424242,
+                            "current_on_wire_size": 4000000,
+                            "max_on_wire_size": 5000000,
+                            "relative_on_disk_size": 242424,
+                            "current_on_disk_size": 4000000,
+                            "max_on_disk_size": 5000000,
+                        },
+                    }
+                ),
+                True,
+            )
+        assert new_config["some_gate_high"]["max_on_wire_size"] == "95.77 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_wire_size']}"
+        )
+        assert new_config["some_gate_high"]["max_on_disk_size"] == "95.6 MiB", print(
+            f"Expected 48.64 MiB got {new_config['some_gate_high']['max_on_disk_size']}"
+        )
+        assert new_config["some_gate_low"]["max_on_wire_size"] == "5.17 MiB", print(
+            f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_wire_size']}"
+        )
+        assert new_config["some_gate_low"]["max_on_disk_size"] == "5.0 MiB", print(
             f"Expected 4.77 MiB got {new_config['some_gate_low']['max_on_disk_size']}"
         )
 
@@ -63,6 +102,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
+    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_error(self, pr_commenter_mock):
         c = MockContext()
@@ -75,12 +118,13 @@ class TestQualityGatesPrMessage(unittest.TestCase):
                 {'name': 'gateB', 'error_type': None, 'message': None},
             ],
             gate_metric_handler,
+            "value",
         )
         pr_commenter_mock.assert_called_once()
         pr_commenter_mock.assert_called_with(
             ANY,
-            title='Static quality checks ✅',
-            body='Please find below the results from static quality gates\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateA|10MiB|10MiB|10MiB|10MiB|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n\n</details>\n',
+            title='Static quality checks',
+            body='✅ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|✅|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|✅|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n\n</details>\n',
         )
 
     @patch.dict(
@@ -93,6 +137,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     @patch(
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
+    )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_info(self, pr_commenter_mock):
@@ -106,12 +154,13 @@ class TestQualityGatesPrMessage(unittest.TestCase):
                 {'name': 'gateB', 'error_type': 'AssertionError', 'message': 'some_msg_B'},
             ],
             gate_metric_handler,
+            "value",
         )
         pr_commenter_mock.assert_called_once()
         pr_commenter_mock.assert_called_with(
             ANY,
-            title='Static quality checks ❌',
-            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|10MiB|10MiB|10MiB|10MiB|\n|❌|gateB|10MiB|10MiB|10MiB|10MiB|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n|gateB|AssertionError|some_msg_B|\n\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n',
+            title='Static quality checks',
+            body='❌ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n### Error\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|❌|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n|❌|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n|gateB|AssertionError|some_msg_B|\n\n</details>\n\nStatic quality gates prevent the PR to merge! \nTo understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000) manual gitlab job to compare what this PR introduced for a specific gate.\nUsage:\n- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages\nKey: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`\n\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n',
         )
 
     @patch.dict(
@@ -125,6 +174,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
+    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_one_of_each(self, pr_commenter_mock):
         c = MockContext()
@@ -137,12 +190,13 @@ class TestQualityGatesPrMessage(unittest.TestCase):
                 {'name': 'gateB', 'error_type': None, 'message': None},
             ],
             gate_metric_handler,
+            "value",
         )
         pr_commenter_mock.assert_called_once()
         pr_commenter_mock.assert_called_with(
             ANY,
-            title='Static quality checks ❌',
-            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|10MiB|10MiB|10MiB|10MiB|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|✅|gateB|10MiB|10MiB|10MiB|10MiB|\n\n</details>\n',
+            title='Static quality checks',
+            body='❌ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n### Error\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|❌|gateA|10MiB|DataNotFound|10MiB|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\nStatic quality gates prevent the PR to merge! \nTo understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000) manual gitlab job to compare what this PR introduced for a specific gate.\nUsage:\n- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages\nKey: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`\n\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n<details>\n<summary>Successful checks</summary>\n\n### Info\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|✅|gateB|10MiB|DataNotFound|10MiB|DataNotFound|\n\n</details>\n',
         )
 
     @patch.dict(
@@ -156,6 +210,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB", side_effect=KeyError),
     )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
+    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_missing_data(self, pr_commenter_mock):
         c = MockContext()
@@ -167,12 +225,13 @@ class TestQualityGatesPrMessage(unittest.TestCase):
                 {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
             ],
             gate_metric_handler,
+            "value",
         )
         pr_commenter_mock.assert_called_once()
         pr_commenter_mock.assert_called_with(
             ANY,
-            title='Static quality checks ❌',
-            body='Please find below the results from static quality gates\n### Error\n\n|Result|Quality gate|On disk size|On disk size limit|On wire size|On wire size limit|\n|----|----|----|----|----|----|\n|❌|gateA|DataNotFound|DataNotFound|DataNotFound|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n',
+            title='Static quality checks',
+            body='❌ Please find below the results from static quality gates\nComparison made with [ancestor](https://github.com/DataDog/datadog-agent/commit/value) value\n### Error\n\n||Quality gate|Delta|On disk size (MiB)|Delta|On wire size (MiB)|\n|--|--|--|--|--|--|\n|❌|gateA|DataNotFound|DataNotFound|DataNotFound|DataNotFound|\n<details>\n<summary>Gate failure full details</summary>\n\n|Quality gate|Error type|Error message|\n|----|---|--------|\n|gateA|AssertionError|some_msg_A|\n\n</details>\n\nStatic quality gates prevent the PR to merge! \nTo understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000) manual gitlab job to compare what this PR introduced for a specific gate.\nUsage:\n- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages\nKey: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`\n\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n\n\n',
         )
 
 

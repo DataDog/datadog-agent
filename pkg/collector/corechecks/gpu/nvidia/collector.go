@@ -15,11 +15,12 @@ package nvidia
 import (
 	"errors"
 	"fmt"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"maps"
+	"slices"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,13 +37,16 @@ const (
 	device       CollectorName = "device"
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
+	nvlink       CollectorName = "nvlink"
+	gpm          CollectorName = "gpm"
 )
 
 // Metric represents a single metric collected from the NVML library.
 type Metric struct {
-	Name  string  // Name holds the name of the metric.
-	Value float64 // Value holds the value of the metric.
-	Type  metrics.MetricType
+	Name     string  // Name holds the name of the metric.
+	Value    float64 // Value holds the value of the metric.
+	Type     metrics.MetricType
+	Priority int // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -60,7 +64,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device nvml.Device) (Collector, error)
+type subsystemBuilder func(device ddnvml.SafeDevice) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
@@ -69,12 +73,14 @@ var factory = map[CollectorName]subsystemBuilder{
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
+	nvlink:       newNVLinkCollector,
+	gpm:          newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// NVML is the NVML library interface used to interact with the NVIDIA devices.
-	NVML nvml.Interface
+	// DeviceCache is a cache of GPU devices.
+	DeviceCache ddnvml.DeviceCache
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
@@ -85,21 +91,11 @@ func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
 func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
 	var collectors []Collector
 
-	devCount, ret := deps.NVML.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("failed to get device count: %s", nvml.ErrorString(ret))
-	}
-
-	for i := 0; i < devCount; i++ {
-		dev, ret := deps.NVML.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("failed to get device handle for index %d: %s", i, nvml.ErrorString(ret))
-		}
-
+	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev, name)
+				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
 				continue
 			} else if err != nil {
 				log.Warnf("failed to create collector %s: %s", name, err)
@@ -114,28 +110,16 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 }
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
-func GetDeviceTagsMapping(lib nvml.Interface, tagger tagger.Component) map[string][]string {
-	devCount, ret := lib.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		log.Errorf("failed to get devices tags mapping, couldn't get available GPU devices: %s", nvml.ErrorString(ret))
+func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
+	devCount := deviceCache.Count()
+	if devCount == 0 {
 		return nil
 	}
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for i := 0; i < devCount; i++ {
-		dev, ret := lib.DeviceGetHandleByIndex(i)
-		if ret != nvml.SUCCESS {
-			// skip retrieving tags for this device if we failed to get its handle
-			continue
-		}
-
-		uuid, ret := dev.GetUUID()
-		if ret != nvml.SUCCESS {
-			// skip retrieving tags for this device if we failed to get its UUID
-			continue
-		}
-
+	for _, dev := range deviceCache.All() {
+		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
 		if err != nil {
@@ -152,4 +136,17 @@ func GetDeviceTagsMapping(lib nvml.Interface, tagger tagger.Component) map[strin
 	}
 
 	return tagsMapping
+}
+
+// RemoveDuplicateMetrics removes duplicate metrics from the given list, keeping the highest priority metric.
+func RemoveDuplicateMetrics(metrics []Metric) []Metric {
+	metricsByName := make(map[string]Metric)
+
+	for _, metric := range metrics {
+		if existing, ok := metricsByName[metric.Name]; !ok || existing.Priority < metric.Priority {
+			metricsByName[metric.Name] = metric
+		}
+	}
+
+	return slices.Collect(maps.Values(metricsByName))
 }

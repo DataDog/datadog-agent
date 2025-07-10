@@ -15,9 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.UtilizationMetrics {
@@ -31,14 +32,13 @@ func getMetricsEntry(key model.StatsKey, stats *model.GPUStats) *model.Utilizati
 }
 
 func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection, int64) {
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
-	require.NoError(t, err)
-	require.NotNil(t, sysCtx)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	sysCtx := getTestSystemContext(t)
 
 	ktime, err := ddebpf.NowNanoseconds()
 	require.NoError(t, err)
 
-	streamHandlers := newStreamCollection(sysCtx, testutil.GetTelemetryMock(t))
+	streamHandlers := newStreamCollection(sysCtx, testutil.GetTelemetryMock(t), config.New())
 	statsGen := newStatsGenerator(sysCtx, streamHandlers, testutil.GetTelemetryMock(t))
 	statsGen.lastGenerationKTime = ktime
 	statsGen.currGenerationKTime = ktime
@@ -47,7 +47,7 @@ func getStatsGeneratorForTest(t *testing.T) (*statsGenerator, *streamCollection,
 	return statsGen, streamHandlers, ktime
 }
 
-func addStream(streamHandlers *streamCollection, pid uint32, streamID uint64, gpuUUID string, containerID string) *StreamHandler {
+func addStream(t *testing.T, streamHandlers *streamCollection, pid uint32, streamID uint64, gpuUUID string, containerID string) *StreamHandler {
 	key := streamKey{pid: pid, stream: streamID}
 	metadata := streamMetadata{
 		pid:         pid,
@@ -56,13 +56,14 @@ func addStream(streamHandlers *streamCollection, pid uint32, streamID uint64, gp
 		gpuUUID:     gpuUUID,
 	}
 
-	stream := newStreamHandler(metadata, streamHandlers.sysCtx)
+	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, getStreamLimits(config.New()), streamHandlers.telemetry)
+	require.NoError(t, err)
 	streamHandlers.streams[key] = stream
 
 	return stream
 }
 
-func addGlobalStream(streamHandlers *streamCollection, pid uint32, gpuUUID string, containerID string) *StreamHandler {
+func addGlobalStream(t *testing.T, streamHandlers *streamCollection, pid uint32, gpuUUID string, containerID string) *StreamHandler {
 	streamID := uint64(0)
 	key := globalStreamKey{pid: pid, gpuUUID: gpuUUID}
 	metadata := streamMetadata{
@@ -72,7 +73,8 @@ func addGlobalStream(streamHandlers *streamCollection, pid uint32, gpuUUID strin
 		gpuUUID:     gpuUUID,
 	}
 
-	stream := newStreamHandler(metadata, streamHandlers.sysCtx)
+	stream, err := newStreamHandler(metadata, streamHandlers.sysCtx, getStreamLimits(config.New()), streamHandlers.telemetry)
+	require.NoError(t, err)
 	streamHandlers.globalStreams[key] = stream
 
 	return stream
@@ -86,8 +88,8 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 	streamID := uint64(120)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	shmemSize := uint64(10)
-	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream.ended = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
@@ -97,24 +99,24 @@ func TestGetStatsWithOnlyCurrentStreamData(t *testing.T) {
 				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
+			stream: stream,
 		},
 	}
 
 	allocSize := uint64(10)
-	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
-	stream.memAllocEvents = map[uint64]gpuebpf.CudaMemEvent{
-		0: {
-			Header: gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
-			Addr:   0,
-			Size:   allocSize,
-			Type:   gpuebpf.CudaMemAlloc,
-		},
-	}
+	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
+	stream.ended = false
+	stream.memAllocEvents.Add(0, gpuebpf.CudaMemEvent{
+		Header: gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
+		Addr:   0,
+		Size:   allocSize,
+		Type:   gpuebpf.CudaMemAlloc,
+	})
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
@@ -137,8 +139,8 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	pid := uint32(1)
 	streamID := uint64(120)
 	numThreads := uint64(5)
-	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream.ended = false
 	stream.kernelSpans = []*kernelSpan{
 		{
 			startKtime:     uint64(startKtime),
@@ -149,8 +151,8 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
+	stream.ended = false
 	stream.allocations = []*memoryAllocation{
 		{
 			startKtime: uint64(startKtime),
@@ -163,7 +165,8 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
@@ -188,8 +191,8 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	pidTgid := uint64(pid)<<32 + uint64(pid)
 	numThreads := uint64(5)
 	shmemSize := uint64(10)
-	stream := addStream(streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream.ended = false
 	stream.kernelLaunches = []enrichedKernelLaunch{
 		{
 			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
@@ -199,6 +202,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
 			},
+			stream: stream,
 		},
 	}
 
@@ -212,8 +216,8 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	}
 
 	allocSize := uint64(10)
-	stream = addGlobalStream(streamHandlers, pid, testutil.DefaultGpuUUID, "")
-	stream.processEnded = false
+	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
+	stream.ended = false
 	stream.allocations = []*memoryAllocation{
 		{
 			startKtime: uint64(startKtime),
@@ -224,18 +228,17 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 		},
 	}
 
-	stream.memAllocEvents = map[uint64]gpuebpf.CudaMemEvent{
-		0: {
-			Header: gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
-			Addr:   0,
-			Size:   allocSize,
-			Type:   gpuebpf.CudaMemAlloc,
-		},
-	}
+	stream.memAllocEvents.Add(0, gpuebpf.CudaMemEvent{
+		Header: gpuebpf.CudaEventHeader{Ktime_ns: uint64(startKtime), Pid_tgid: pidTgid, Stream_id: streamID},
+		Addr:   0,
+		Size:   allocSize,
+		Type:   gpuebpf.CudaMemAlloc,
+	})
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
@@ -263,8 +266,8 @@ func TestGetStatsMultiGPU(t *testing.T) {
 	// Add kernels for all devices
 	for i, uuid := range testutil.GPUUUIDs {
 		streamID := uint64(i)
-		stream := addStream(streamHandlers, pid, streamID, uuid, "")
-		stream.processEnded = false
+		stream := addStream(t, streamHandlers, pid, streamID, uuid, "")
+		stream.ended = false
 		stream.kernelSpans = []*kernelSpan{
 			{
 				startKtime:     uint64(startKtime),
@@ -277,7 +280,8 @@ func TestGetStatsMultiGPU(t *testing.T) {
 
 	checkDuration := 10 * time.Second
 	checkKtime := ktime + int64(checkDuration)
-	stats := statsGen.getStats(checkKtime)
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 
 	// Check the metrics for each device
@@ -290,5 +294,102 @@ func TestGetStatsMultiGPU(t *testing.T) {
 		expectedCores := threadSecondsUsed / checkDuration.Seconds()
 
 		require.InDelta(t, expectedCores, metrics.UsedCores, 0.001, "invalid utilization for device %d (uuid=%s)", i, uuid)
+	}
+}
+
+func TestCleanupInactiveAggregators(t *testing.T) {
+	statsGen, streamHandlers, ktime := getStatsGeneratorForTest(t)
+
+	// Add a stream and get stats to create an aggregator
+	pid := uint32(1)
+	streamID := uint64(120)
+	stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+	stream.kernelLaunches = []enrichedKernelLaunch{
+		{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Header:          gpuebpf.CudaEventHeader{Ktime_ns: uint64(ktime), Pid_tgid: uint64(pid)<<32 + uint64(pid), Stream_id: streamID},
+				Kernel_addr:     0,
+				Shared_mem_size: 10,
+				Grid_size:       gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+				Block_size:      gpuebpf.Dim3{X: 1, Y: 1, Z: 1},
+			},
+			stream: stream,
+		},
+	}
+
+	// First getStats call should create an aggregator
+	stats, err := statsGen.getStats(ktime + int64(10*time.Second))
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.Len(t, statsGen.aggregators, 1)
+
+	// We should not cleanup the aggregator yet, as it is still active
+	statsGen.cleanupFinishedAggregators()
+	require.Len(t, statsGen.aggregators, 1)
+
+	// If we remove the stream, the aggregator should be marked as inactive in the next getStats call
+	streamHandlers.streams = make(map[streamKey]*StreamHandler)
+	stats, err = statsGen.getStats(ktime + int64(20*time.Second))
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.Len(t, statsGen.aggregators, 1) // no cleanup done yet, here we just mark the aggregator as inactive
+
+	statsGen.cleanupFinishedAggregators()
+	require.Len(t, statsGen.aggregators, 0)
+}
+
+func TestGetStatsNormalization(t *testing.T) {
+	statsGen, streamHandlers, ktime := getStatsGeneratorForTest(t)
+
+	checkDuration := 10 * time.Second
+	startKtime := ktime
+	endKtime := startKtime + int64(checkDuration)
+
+	// Create two processes that each use 80% of GPU cores and 60% of memory
+	pid1 := uint32(1)
+	pid2 := uint32(2)
+	numThreads := uint64(testutil.DefaultGpuCores * 0.8)
+	memSize := uint64(float64(testutil.DefaultTotalMemory) * 0.6)
+
+	// Add kernels and memory allocations for both processes
+	for _, pid := range []uint32{pid1, pid2} {
+		streamID := uint64(pid)
+		stream := addStream(t, streamHandlers, pid, streamID, testutil.DefaultGpuUUID, "")
+		stream.ended = false
+		stream.kernelSpans = []*kernelSpan{
+			{
+				startKtime:     uint64(startKtime),
+				endKtime:       uint64(endKtime),
+				avgThreadCount: numThreads,
+				numKernels:     10,
+			},
+		}
+
+		// Add memory allocations
+		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
+		globalStream.ended = false
+		globalStream.allocations = []*memoryAllocation{
+			{
+				startKtime: uint64(startKtime),
+				endKtime:   uint64(endKtime),
+				size:       memSize,
+				isLeaked:   false,
+				allocType:  globalMemAlloc,
+			},
+		}
+	}
+
+	checkKtime := endKtime + 1
+	stats, err := statsGen.getStats(checkKtime)
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+
+	for _, pid := range []uint32{pid1, pid2} {
+		metricsKey := model.StatsKey{PID: pid, DeviceUUID: testutil.DefaultGpuUUID}
+		metrics := getMetricsEntry(metricsKey, stats)
+		require.NotNil(t, metrics, "cannot find metrics for pid %d", pid)
+
+		require.InDelta(t, testutil.DefaultGpuCores/2, metrics.UsedCores, 0.001, "incorrect utilization for pid %d", pid)
+		require.InDelta(t, testutil.DefaultTotalMemory/2, metrics.Memory.MaxBytes, 0.001, "incorrect normalized max memory for pid %d", pid)
 	}
 }

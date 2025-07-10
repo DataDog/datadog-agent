@@ -28,28 +28,28 @@ type number interface {
 	constraints.Integer | constraints.Float
 }
 
-func readDoubleFromBuffer[T number](reader io.Reader) (float64, error) {
+func readNumberFromBuffer[T number, V number](reader io.Reader) (V, error) {
 	var value T
 	err := binary.Read(reader, binary.LittleEndian, &value)
-	return float64(value), err
+	return V(value), err
 }
 
-func metricValueToDouble(valueType nvml.ValueType, value [8]byte) (float64, error) {
+func fieldValueToNumber[V number](valueType nvml.ValueType, value [8]byte) (V, error) {
 	reader := bytes.NewReader(value[:])
 
-	switch nvml.ValueType(valueType) {
+	switch valueType {
 	case nvml.VALUE_TYPE_DOUBLE:
-		return readDoubleFromBuffer[float64](reader)
+		return readNumberFromBuffer[float64, V](reader)
 	case nvml.VALUE_TYPE_UNSIGNED_INT:
-		return readDoubleFromBuffer[uint32](reader)
-	case nvml.VALUE_TYPE_UNSIGNED_LONG:
-	case nvml.VALUE_TYPE_UNSIGNED_LONG_LONG:
-		return readDoubleFromBuffer[uint64](reader)
+		return readNumberFromBuffer[uint32, V](reader)
+	case nvml.VALUE_TYPE_UNSIGNED_LONG, nvml.VALUE_TYPE_UNSIGNED_LONG_LONG:
+		return readNumberFromBuffer[uint64, V](reader)
 	case nvml.VALUE_TYPE_SIGNED_LONG_LONG: // No typo, there's no SIGNED_LONG in the NVML API
-		return readDoubleFromBuffer[int64](reader)
+		return readNumberFromBuffer[int64, V](reader)
 	case nvml.VALUE_TYPE_SIGNED_INT:
-		return readDoubleFromBuffer[int32](reader)
-	}
+		return readNumberFromBuffer[int32, V](reader)
 
-	return 0, fmt.Errorf("unsupported value type %d", valueType)
+	default:
+		return 0, fmt.Errorf("unsupported value type %d", valueType)
+	}
 }

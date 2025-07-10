@@ -135,7 +135,7 @@ func ExecutePointerFuncs() {
 	b := node{
 		val: 1,
 		b: &node{
-			val: 5,
+			val: 2,
 			b: &node{
 				val: 3,
 				b:   nil,

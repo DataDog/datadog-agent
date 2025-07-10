@@ -9,8 +9,11 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
@@ -46,15 +49,24 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
-func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
+func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, packetID uint16) packetResponse {
 	respChan := make(chan packetResponse, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+
+	// make sure listenPackets does not return while the goroutines are still reading
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
-		respChan <- handlePackets(ctx, tcpConn, localIP, localPort, remoteIP, remotePort, seqNum)
+		respChan <- handlePackets(ctx, tcpConn, localIP, localPort, remoteIP, remotePort, seqNum, packetID)
+		wg.Done()
 	}()
+	wg.Add(1)
 	go func() {
-		respChan <- handlePackets(ctx, icmpConn, localIP, localPort, remoteIP, remotePort, seqNum)
+		respChan <- handlePackets(ctx, icmpConn, localIP, localPort, remoteIP, remotePort, seqNum, packetID)
+		wg.Done()
 	}()
 
 	// wait for both responses to return
@@ -89,7 +101,7 @@ func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) packetResponse {
+func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, packetID uint16) packetResponse {
 	buf := make([]byte, 1024)
 	tp := newParser()
 	icmpParser := icmp.NewICMPTCPParser()
@@ -109,12 +121,10 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 			}
 		}
 		header, packet, _, err := conn.ReadFrom(buf)
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
+		}
 		if err != nil {
-			if nerr, ok := err.(*net.OpError); ok {
-				if nerr.Timeout() {
-					continue
-				}
-			}
 			return packetResponse{
 				Err: err,
 			}
@@ -130,7 +140,7 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, localIP net.IP, loc
 				log.Tracef("failed to parse ICMP packet: %s", err)
 				continue
 			}
-			if icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, seqNum) {
+			if icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, seqNum, packetID) {
 				return packetResponse{
 					IP:   icmpResponse.SrcIP,
 					Type: icmpResponse.TypeCode.Type(),

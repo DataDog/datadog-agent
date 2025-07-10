@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // ServerlessDemultiplexer is a simple demultiplexer used by the serverless flavor of the Agent
@@ -44,10 +45,13 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration, tagger tagger.Component) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	if err != nil {
+		return nil, err
+	}
 	h, _ := hostname.Get(context.Background())
 	config := pkgconfigsetup.Datadog()
 	config.SetWithoutSource("serializer_compressor_kind", "none")
@@ -75,7 +79,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	go demux.Run()
 
 	// we're done with the initialization
-	return demux
+	return demux, nil
 }
 
 // Run runs all demultiplexer parts
@@ -94,7 +98,8 @@ func (d *ServerlessDemultiplexer) Run() {
 // Stop stops the wrapped aggregator and the forwarder.
 func (d *ServerlessDemultiplexer) Stop(flush bool) {
 	if flush {
-		d.ForceFlushToSerializer(time.Now(), true)
+		forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
+		d.forceFlushToSerializer(time.Now(), true, forceFlushAll)
 	}
 
 	d.statsdWorker.stop()
@@ -106,6 +111,10 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 
 // ForceFlushToSerializer flushes all data from the time sampler to the serializer.
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
+	d.forceFlushToSerializer(start, waitForSerializer, false)
+}
+
+func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
@@ -121,6 +130,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 					time:              start,
 					blockChan:         make(chan struct{}),
 					waitForSerializer: waitForSerializer,
+					forceFlushAll:     forceFlushAll,
 				},
 				sketchesSink: sketchesSink,
 				seriesSink:   seriesSink,
@@ -164,6 +174,11 @@ func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metr
 //nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.MetricSampleBatch) {
 	panic("not implemented.")
+}
+
+// SetTimeSamplersBlocklist is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+	d.statsdWorker.blocklistChan <- blocklist
 }
 
 // Serializer returns the shared serializer

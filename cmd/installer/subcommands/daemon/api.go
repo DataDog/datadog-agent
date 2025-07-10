@@ -30,6 +30,7 @@ type cliParams struct {
 	pkg     string
 	version string
 	catalog string
+	configs string
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
@@ -45,6 +46,20 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+
+	setConfigCatalogCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "set-config-catalog configs",
+		Short:  "Internal command to set the config catalog to use",
+		Args:   cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(setConfigCatalog, &cliParams{
+				GlobalParams: *global,
+				configs:      args[0],
+			})
+		},
+	}
+
 	installCmd := &cobra.Command{
 		Use:     "install package version",
 		Aliases: []string{"install"},
@@ -76,19 +91,6 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(start, &cliParams{
-				GlobalParams: *global,
-				pkg:          args[0],
-				version:      args[1],
-			})
-		},
-	}
-	startInstallerExperimentCmd := &cobra.Command{
-		Use:     "start-installer-experiment package version",
-		Aliases: []string{"start-installer"},
-		Short:   "Starts an Installer experiment",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) error {
-			return experimentFxWrapper(startInstaller, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
 				version:      args[1],
@@ -168,8 +170,8 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	}
 	return []*cobra.Command{
 		setCatalogCmd,
+		setConfigCatalogCmd,
 		startExperimentCmd,
-		startInstallerExperimentCmd,
 		stopExperimentCmd,
 		promoteExperimentCmd,
 		installCmd,
@@ -204,19 +206,19 @@ func catalog(params *cliParams, client localapiclient.Component) error {
 	return nil
 }
 
-func start(params *cliParams, client localapiclient.Component) error {
-	err := client.StartExperiment(params.pkg, params.version)
+func setConfigCatalog(params *cliParams, client localapiclient.Component) error {
+	err := client.SetConfigCatalog(params.configs)
 	if err != nil {
-		fmt.Println("Error starting experiment:", err)
+		fmt.Println("Error setting config catalog:", err)
 		return err
 	}
 	return nil
 }
 
-func startInstaller(params *cliParams, client localapiclient.Component) error {
-	err := client.StartInstallerExperiment(params.pkg, params.version)
+func start(params *cliParams, client localapiclient.Component) error {
+	err := client.StartExperiment(params.pkg, params.version)
 	if err != nil {
-		fmt.Println("Error starting installer experiment:", err)
+		fmt.Println("Error starting experiment:", err)
 		return err
 	}
 	return nil

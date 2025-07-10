@@ -36,7 +36,7 @@ const (
 type Config struct {
 	OtelSource    string
 	LogSourceName string
-	QueueSettings exporterhelper.QueueConfig
+	QueueSettings exporterhelper.QueueBatchConfig
 }
 
 type factory struct {

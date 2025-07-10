@@ -8,15 +8,14 @@ package mock
 
 import (
 	"bytes"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	viperconfig "github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 var (
@@ -49,10 +48,11 @@ func New(t testing.TB) model.Config {
 	})
 
 	// Configure Datadog global configuration
-	newCfg := viperconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legitimate use of NewConfig
+	newCfg := create.NewConfig("datadog")
 	// Configuration defaults
 	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
+	newCfg.SetTestOnlyDynamicSchema(true)
 	return &mockConfig{newCfg}
 }
 
@@ -99,8 +99,15 @@ func NewSystemProbe(t testing.TB) model.Config {
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(viperconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))) // nolint forbidigo legitimate use of NewConfig and SetSystemProbe
+	setup.SetSystemProbe(create.NewConfig("system-probe")) // nolint forbidigo legitimate use of SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.SystemProbe())
+	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
 	return &mockConfig{setup.SystemProbe()}
+}
+
+// SetDefaultConfigType sets the config type for the mock config in use
+func SetDefaultConfigType(t *testing.T, configType string) {
+	mockConfig := New(t)
+	mockConfig.SetConfigType(configType)
 }

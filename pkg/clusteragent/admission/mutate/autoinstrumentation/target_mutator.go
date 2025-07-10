@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -33,13 +32,13 @@ const (
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
 type TargetMutator struct {
-	enabled                           bool
-	core                              *mutatorCore
-	targets                           []targetInternal
-	disabledNamespaces                map[string]bool
-	securityClientLibraryPodMutators  []podMutator
-	profilingClientLibraryPodMutators []podMutator
-	containerRegistry                 string
+	enabled                       bool
+	core                          *mutatorCore
+	targets                       []targetInternal
+	disabledNamespaces            map[string]bool
+	securityClientLibraryMutator  containerMutator
+	profilingClientLibraryMutator containerMutator
+	containerRegistry             string
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -125,15 +124,16 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component) (*TargetMuta
 	}
 
 	m := &TargetMutator{
-		enabled:                           config.Instrumentation.Enabled,
-		targets:                           internalTargets,
-		disabledNamespaces:                disabledNamespacesMap,
-		securityClientLibraryPodMutators:  config.securityClientLibraryPodMutators,
-		profilingClientLibraryPodMutators: config.profilingClientLibraryPodMutators,
-		containerRegistry:                 config.containerRegistry,
+		enabled:                       config.Instrumentation.Enabled,
+		targets:                       internalTargets,
+		disabledNamespaces:            disabledNamespacesMap,
+		securityClientLibraryMutator:  config.securityClientLibraryMutator,
+		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
+		containerRegistry:             config.containerRegistry,
 	}
 
-	// Create the core mutator. This is a bit gross. The target mutator is also the filter which we are passing in.
+	// Create the core mutator. This is a bit gross.
+	// The target mutator is also the filter which we are passing in.
 	core := newMutatorCore(config, wmeta, m)
 	m.core = core
 
@@ -179,23 +179,19 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
 
 	// Add the configuration for the security client library.
-	for _, mutator := range m.securityClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for security client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
 	// Add the configuration for profiling.
-	for _, mutator := range m.profilingClientLibraryPodMutators {
-		if err := mutator.mutatePod(pod); err != nil {
-			return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
-		}
+	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator); err != nil {
+		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
 	// in the target.
 	for _, envVar := range target.envVars {
-		mutatecommon.InjectEnv(pod, envVar)
+		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar))
 	}
 
 	// Inject the libraries.
@@ -205,10 +201,10 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Inject the target json. The is added so that the injector can make use of the target information.
-	mutatecommon.InjectEnv(pod, corev1.EnvVar{
+	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  AppliedTargetEnvVar,
 		Value: target.json,
-	})
+	}))
 
 	// Add the annotations to the pod.
 	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
@@ -334,15 +330,13 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
 	// If we are using the namespace selector, check if the namespace matches the selector.
 	if t.useNamespaceSelector {
-		// Get the namespace metadata.
-		id := util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace)
-		ns, err := t.wmeta.GetKubernetesMetadata(id)
+		nsLabels, err := getNamespaceLabels(t.wmeta, namespace)
 		if err != nil {
-			return false, fmt.Errorf("could not get kubernetes namespace to match against for %s: %w", namespace, err)
+			return false, fmt.Errorf("could not get labels to match: %w", err)
 		}
 
 		// Check if the namespace labels match the selector.
-		return t.nameSpaceSelector.Matches(labels.Set(ns.EntityMeta.Labels)), nil
+		return t.nameSpaceSelector.Matches(labels.Set(nsLabels)), nil
 	}
 
 	// If there are no match names, we match all namespaces.

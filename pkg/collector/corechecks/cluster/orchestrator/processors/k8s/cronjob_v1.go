@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -53,12 +54,13 @@ func (h *CronJobV1Handlers) BuildMessageBody(ctx processors.ProcessorContext, re
 	}
 
 	return &model.CollectorCronJob{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		CronJobs:    models,
-		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		CronJobs:     models,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 }
 
@@ -79,7 +81,7 @@ func (h *CronJobV1Handlers) ResourceList(ctx processors.ProcessorContext, list i
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -97,6 +99,17 @@ func (h *CronJobV1Handlers) ResourceUID(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *CronJobV1Handlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*batchv1.CronJob).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *CronJobV1Handlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.CronJob)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

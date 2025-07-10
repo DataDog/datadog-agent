@@ -18,12 +18,10 @@ python_version = "3.12"
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg2"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-
-always_build true
 
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
@@ -100,7 +98,7 @@ build do
   build_deps_dir = windows_safe_path(project_dir, ".build_deps")
   # We download build dependencies to make them available without an index when installing integrations
   command "#{python} -m pip download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-  command "#{python} -m pip download --dest #{build_deps_dir} setuptools==66.1.1", :env => pre_build_env # Version from ./setuptools3.rb
+  command "#{python} -m pip download --dest #{build_deps_dir} setuptools==75.1.0", :env => pre_build_env # Version from ./setuptools3.rb
   build_env = {
     "PIP_FIND_LINKS" => build_deps_dir,
     "PIP_CONFIG_FILE" => pip_config_file,
@@ -132,15 +130,15 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     # Collect integrations to install
     checks_to_install = (
-      shellout! "dda inv agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
+      shellout! "dda inv -- agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    cache_branch = (shellout! "dda inv release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
+    cache_branch = (shellout! "dda inv -- release.get-release-json-value base_branch --no-worktree", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     if cache_bucket != ''
       mkdir cached_wheels_dir
-      shellout! "dda inv -e agent.get-integrations-from-cache " \
+      shellout! "dda inv -- -e agent.get-integrations-from-cache " \
                 "--python 3 --bucket #{cache_bucket} " \
                 "--branch #{cache_branch || 'main'} " \
                 "--integrations-dir #{windows_safe_path(project_dir)} " \
@@ -188,7 +186,7 @@ build do
         end
         shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
         if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-          shellout! "dda inv -e agent.upload-integration-to-cache " \
+          shellout! "dda inv -- -e agent.upload-integration-to-cache " \
                     "--python 3 --bucket #{cache_bucket} " \
                     "--branch #{cache_branch} " \
                     "--integrations-dir #{windows_safe_path(project_dir)} " \
@@ -251,6 +249,7 @@ build do
     'test', # cm-client
     'vertica_python/tests',
     'websocket/tests',
+    'win32com/test',
   ]
   test_folders.each do |test_folder|
     delete "#{site_packages_path}/#{test_folder}/"

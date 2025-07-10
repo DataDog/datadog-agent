@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -48,7 +48,9 @@ var (
 		"CONFIG_INIT_ON_ALLOC_DEFAULT_ON",
 		"CONFIG_INIT_ON_FREE_DEFAULT_ON",
 		"CONFIG_IOMMU_DEFAULT_DMA_STRICT",
+		"CONFIG_IOMMU_DEFAULT_PASSTHROUGH",
 		"CONFIG_KFENCE",
+		"CONFIG_HAVE_ARCH_KFENCE",
 		"CONFIG_KFENCE_SAMPLE_INTERVAL",
 		"CONFIG_RANDOMIZE_KSTACK_OFFSET_DEFAULT",
 		"CONFIG_CC_STACKPROTECTOR",
@@ -142,6 +144,7 @@ var (
 		// various kernel behavior
 		"CONFIG_KEXEC",
 		"CONFIG_KEXEC_SIG",
+		"CONFIG_KEXEC_SIG_FORCE",
 		"CONFIG_HIBERNATION",
 		"CONFIG_BINFMT_MISC",
 		"CONFIG_LEGACY_PTYS",
@@ -202,6 +205,8 @@ type RuntimeSecurityConfig struct {
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
 	LogTags []string
+	// EnvAsTags convert envs to tags
+	EnvAsTags []string
 	// HostServiceName string
 	HostServiceName string
 	// OnDemandEnabled defines whether the on-demand probes should be enabled
@@ -419,6 +424,9 @@ type RuntimeSecurityConfig struct {
 
 	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
 	SendEventFromSystemProbe bool
+
+	// FileMetadataResolverEnabled defines if the file metadata is enabled
+	FileMetadataResolverEnabled bool
 }
 
 // Config defines a security config
@@ -505,6 +513,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),
+		EnvAsTags:   pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.env_as_tags"),
 
 		// custom events
 		InternalMonitoringEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.internal_monitoring.enabled"),
@@ -610,6 +619,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// direct sender
 		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
+
+		// FileMetadataResolverEnabled
+		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),
 	}
 
 	compilationFlags := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.kernel_compilation_flags")

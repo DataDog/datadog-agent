@@ -8,19 +8,18 @@
 package listeners
 
 import (
-	"context"
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func TestProcessService(t *testing.T) {
-	ctx := context.Background()
 	ksvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -50,15 +49,14 @@ func TestProcessService(t *testing.T) {
 	svc := processService(ksvc)
 	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
-	adID, err := svc.GetADIdentifiers(ctx)
-	assert.NoError(t, err)
+	adID := svc.GetADIdentifiers()
 	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
 
-	hosts, err := svc.GetHosts(ctx)
+	hosts, err := svc.GetHosts()
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"cluster": "10.0.0.1"}, hosts)
 
-	ports, err := svc.GetPorts(ctx)
+	ports, err := svc.GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 
@@ -427,7 +425,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 		metricsExcluded bool
 		globalExcluded  bool
 		want            bool
-		filter          containers.FilterType
+		filterScope     workloadfilter.Scope
 	}{
 		{
 			name: "metrics excluded is true",
@@ -457,7 +455,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  false,
 			want:            true,
-			filter:          containers.MetricsFilter,
+			filterScope:     workloadfilter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is false",
@@ -487,7 +485,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            false,
-			filter:          containers.MetricsFilter,
+			filterScope:     workloadfilter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is true with logs filter",
@@ -517,7 +515,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  true,
 			want:            false,
-			filter:          containers.LogsFilter,
+			filterScope:     workloadfilter.LogsFilter,
 		},
 		{
 			name: "metrics excluded is false with logs filter",
@@ -547,7 +545,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  false,
 			want:            false,
-			filter:          containers.LogsFilter,
+			filterScope:     workloadfilter.LogsFilter,
 		},
 		{
 			name: "global excluded is true",
@@ -577,7 +575,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            true,
-			filter:          containers.GlobalFilter,
+			filterScope:     workloadfilter.GlobalFilter,
 		},
 		{
 			name: "global excluded is false",
@@ -607,7 +605,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  false,
 			want:            false,
-			filter:          containers.GlobalFilter,
+			filterScope:     workloadfilter.GlobalFilter,
 		},
 	}
 	for _, tt := range tests {
@@ -615,7 +613,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			svc := processService(tt.ksvc)
 			svc.metricsExcluded = tt.metricsExcluded
 			svc.globalExcluded = tt.globalExcluded
-			isFilter := svc.HasFilter(tt.filter)
+			isFilter := svc.HasFilter(tt.filterScope)
 			assert.Equal(t, isFilter, tt.want)
 		})
 	}

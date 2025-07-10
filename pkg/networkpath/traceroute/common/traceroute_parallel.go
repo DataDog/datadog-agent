@@ -7,63 +7,59 @@ package common
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/netip"
-	"slices"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// ErrReceiveProbeNoPkt is returned when ReceiveProbe() didn't find anything new.
-// This is normal if the RTT is long
-var ErrReceiveProbeNoPkt = errors.New("ReceiveProbe() doesn't have new packets")
-
-// ProbeResponse is the response of a single probe in a traceroute
-type ProbeResponse struct {
-	// TTL is the Time To Live of the probe that was originally sent
-	TTL uint8
-	// IP is the IP address of the responding host
-	IP netip.Addr
-	// RTT is the round-trip time of the probe
-	RTT time.Duration
-	// IsDest is true if the responding host is the destination
-	IsDest bool
-}
-
-// TracerouteDriver is an implementation of traceroute send+receive of packets
-type TracerouteDriver interface {
-	// SendProbe sends a traceroute packet with a specific TTL
-	SendProbe(ttl uint8) error
-	// ReceiveProbe polls to get a traceroute response with a timeout
-	ReceiveProbe(timeout time.Duration) (*ProbeResponse, error)
-}
 
 // TracerouteParallelParams are the parameters for TracerouteParallel
 type TracerouteParallelParams struct {
-	// MinTTL is the TTL to start the traceroute at
-	MinTTL uint8
-	// MaxTTL is the TTL to end the traceroute at
-	MaxTTL uint8
-	// TracerouteTimeout is the maximum time to wait for a response
-	TracerouteTimeout time.Duration
-	// PollFrequency is how often to poll for a response
-	PollFrequency time.Duration
-	// SendDelay is the delay between sending probes (typically small)
-	SendDelay time.Duration
+	TracerouteParams
+}
+
+// MaxTimeout combines the timeout+probe delays into a total timeout for the traceroute
+func (p TracerouteParallelParams) MaxTimeout() time.Duration {
+	delaySum := p.SendDelay * time.Duration(p.ProbeCount())
+	return p.TracerouteTimeout + delaySum
 }
 
 // TracerouteParallel runs a traceroute in parallel
 func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TracerouteParallelParams) ([]*ProbeResponse, error) {
-	if p.MinTTL > p.MaxTTL {
-		return nil, fmt.Errorf("min TTL must be less than or equal to max TTL")
+	if err := p.validate(); err != nil {
+		return nil, err
 	}
 
-	results := make([]*ProbeResponse, int(p.MaxTTL-p.MinTTL+1))
+	info := t.GetDriverInfo()
+	if !info.SupportsParallel {
+		return nil, fmt.Errorf("tried to call TracerouteParallel on a TracerouteDriver that doesn't support parallel")
+	}
 
-	delaySum := p.SendDelay * time.Duration(len(results))
-	timeoutCtx, cancel := context.WithTimeout(ctx, p.TracerouteTimeout+delaySum)
+	results := make([]*ProbeResponse, int(p.MaxTTL)+1)
+	resultsMu := sync.Mutex{}
+	writeProbe := func(probe *ProbeResponse) {
+		log.Tracef("found probe %+v", probe)
+		resultsMu.Lock()
+		defer resultsMu.Unlock()
+		previous := results[probe.TTL]
+
+		// packets can get delivered twice - only use the first received probe to avoid overestimating RTT.
+		// this is also important for SACK because SACK traceroute returns the lowest TTL found from ACKs
+		shouldUpdate := previous == nil
+		// but also just in case, never let ICMP responses "cover up" actual destination responses
+		if previous != nil && !previous.IsDest && probe.IsDest {
+			shouldUpdate = true
+		}
+
+		if shouldUpdate {
+			results[probe.TTL] = probe
+		}
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, p.MaxTimeout())
 	defer cancel()
 
 	g, groupCtx := errgroup.WithContext(timeoutCtx)
@@ -74,15 +70,13 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 	g.Go(func() error {
 		for i := int(p.MinTTL); i <= int(p.MaxTTL); i++ {
 			// leave if we got cancelled
-			select {
-			case <-writerCtx.Done():
+			if writerCtx.Err() != nil {
 				return nil
-			default:
 			}
 
 			err := t.SendProbe(uint8(i))
 			if err != nil {
-				return err
+				return fmt.Errorf("SendProbe() failed: %w", err)
 			}
 
 			time.Sleep(p.SendDelay)
@@ -90,32 +84,24 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		return nil
 	})
 
-	// poll for ReceiveProbe() in a loop and write it to results[]
 	g.Go(func() error {
 		for {
 			// leave if we got cancelled, SendProbe() failed, etc
-			select {
-			// doesn't use writerCtx because even if we writerCancel(), we want to keep reading
-			case <-groupCtx.Done():
+			// doesn't use writerCtx because when we find the destination, we writerCancel(), and we want to keep reading
+			if groupCtx.Err() != nil {
 				return nil
-			default:
 			}
 
 			probe, err := t.ReceiveProbe(p.PollFrequency)
-			if errors.Is(err, ErrReceiveProbeNoPkt) {
+			if CheckProbeRetryable("ReceiveProbe", err) {
 				continue
-			}
-			if err != nil {
+			} else if err != nil {
+				return fmt.Errorf("ReceiveProbe() failed: %w", err)
+			} else if err = p.validateProbe(probe); err != nil {
 				return err
 			}
-			if probe == nil {
-				return fmt.Errorf("ReceiveProbe() returned nil without an error (this indicates a bug in the TracerouteDriver)")
-			}
-			if probe.TTL < p.MinTTL || probe.TTL > p.MaxTTL {
-				return fmt.Errorf("received an invalid TTL (expected TTL in [%d, %d]): %d", p.MinTTL, p.MaxTTL, probe.TTL)
-			}
 
-			results[probe.TTL-p.MinTTL] = probe
+			writeProbe(probe)
 			// no need to send more probes if we found the destination
 			if probe.IsDest {
 				writerCancel()
@@ -134,13 +120,5 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 		return nil, ctx.Err()
 	}
 
-	destIdx := slices.IndexFunc(results, func(pr *ProbeResponse) bool {
-		return pr != nil && pr.IsDest
-	})
-	// trim off anything after the destination
-	if destIdx != -1 {
-		results = slices.Clip(results[:destIdx+1])
-	}
-
-	return results, nil
+	return clipResults(p.MinTTL, results), nil
 }

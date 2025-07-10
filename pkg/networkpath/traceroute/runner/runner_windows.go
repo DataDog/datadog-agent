@@ -29,7 +29,7 @@ func (r *Runner) runUDP(cfg config.Config, hname string, target net.IP, maxTTL u
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(results, payload.ProtocolUDP, hname, cfg.DestHostname)
+	pathResult, err := r.processResults(results, payload.ProtocolUDP, hname, cfg.DestHostname, cfg.DestPort)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

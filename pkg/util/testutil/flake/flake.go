@@ -20,6 +20,8 @@ import (
 	"sync"
 	"testing"
 
+	"regexp"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -67,8 +69,14 @@ func getPackageName() (string, error) {
 	return packageName, nil
 }
 
-// MarkOnLog marks the test as flaky when the `pattern` regular expression is found in its logs.
-func MarkOnLog(t testing.TB, pattern string) {
+// MarkOnLog marks the test as flaky when the 'text' log is found, if you need to use regex see [MarkOnLogRegex]
+func MarkOnLog(t testing.TB, text string) {
+	t.Helper()
+	MarkOnLogRegex(t, regexp.QuoteMeta(text))
+}
+
+// MarkOnLogRegex marks the test as flaky when the `pattern` regular expression is found in its logs.
+func MarkOnLogRegex(t testing.TB, pattern string) {
 	// Types for the yaml file
 	type testEntry struct {
 		Test  string `yaml:"test"`

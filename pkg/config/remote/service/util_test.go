@@ -159,7 +159,6 @@ func TestRemoteConfigChangedAPIKey(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, metadata0.APIKeyHash, metadata1.APIKeyHash)
-	require.NotEqual(t, metadata0.CreationTime, metadata1.CreationTime)
 }
 
 func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
@@ -239,5 +238,4 @@ func TestRemoteConfigChangedURL(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, metadata0.URL, metadata1.URL)
-	require.NotEqual(t, metadata0.CreationTime, metadata1.CreationTime)
 }

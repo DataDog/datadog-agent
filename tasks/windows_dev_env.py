@@ -64,7 +64,7 @@ def run(
 
     with ctx.cd('../test-infra-definitions'):
         # find connection info for the VM
-        result = ctx.run(f"dda inv aws.show-vm --stack-name={name}", hide=True)
+        result = ctx.run(f"dda inv -- aws.show-vm --stack-name={name}", hide=True)
         if result is None or not result:
             raise Exception("Failed to find the Windows development environment.")
         host = RemoteHost(result.stdout)
@@ -90,7 +90,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
             ctx.run("git clone git@github.com:DataDog/test-infra-definitions.git")
             with ctx.cd('test-infra-definitions'):
                 # setup test-infra-definitions
-                ctx.run("dda inv setup")
+                ctx.run("dda inv -- setup")
     if shutil.which("rsync") is None:
         raise Exception(
             "rsync is not installed. Please install rsync by running `brew install rsync` on macOS and try again."
@@ -99,7 +99,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     host = ""
     with ctx.cd('../test-infra-definitions'):
         result = ctx.run(
-            f"dda inv aws.create-vm --ami-id={AMI_WINDOWS_DEV_2022} --os-family=windows --architecture=x86_64 --no-install-agent --stack-name={name} --no-interactive --instance-type=t3.xlarge"
+            f"dda inv -- aws.create-vm --ami-id={AMI_WINDOWS_DEV_2022} --os-family=windows --architecture=x86_64 --no-install-agent --stack-name={name} --no-interactive --instance-type=t3.xlarge"
         )
         if result is None or not result:
             raise Exception("Failed to create the Windows development environment.")
@@ -141,7 +141,7 @@ def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     _run_on_windows_dev_env(
         ctx,
         name,
-        ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {.\\tasks\\winbuildscripts\\pre-go-build.ps1; dda inv -e tidy}",
+        ". ./tasks/winbuildscripts/common.ps1; Invoke-BuildScript -InstallTestingDeps \\$true -InstallDeps \\$true -Command {.\\tasks\\winbuildscripts\\pre-go-build.ps1; dda inv -- -e tidy}",
     )
     # print the time taken to start the dev env
     elapsed_time = time.time() - start_time
@@ -222,7 +222,7 @@ def _on_changed_path_run_command(ctx: Context, path: str, command: str):
 
 def _stop_windows_dev_env(ctx, name: str = "windows-dev-env"):
     with ctx.cd('../test-infra-definitions'):
-        ctx.run(f"dda inv aws.destroy-vm --stack-name={name}")
+        ctx.run(f"dda inv -- aws.destroy-vm --stack-name={name}")
 
 
 class RemoteHost:
@@ -237,7 +237,7 @@ class RemoteHost:
 def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command: str = "") -> int:
     with ctx.cd('../test-infra-definitions'):
         # find connection info for the VM
-        result = ctx.run(f"dda inv aws.show-vm --stack-name={name}", hide=True)
+        result = ctx.run(f"dda inv -- aws.show-vm --stack-name={name}", hide=True)
         if result is None or not result:
             raise Exception("Failed to find the Windows development environment.")
         host = RemoteHost(result.stdout)

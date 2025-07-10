@@ -146,13 +146,13 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 
 		body, err := io.ReadAll(resp.Body)
 		// We replace windows line break by linux so the tests pass on every OS
-		bodyContent := strings.Replace(string(body), "\r\n", "\n", -1)
+		bodyContent := strings.ReplaceAll(string(body), "\r\n", "\n")
 		assert.NoErrorf(t, err, "failed to read content of GUI asset at address %s", fullLink)
 
 		// retrieving the served file in the Agent insallation director, removing the "view/" prefix
 		expectedBody, err := host.ReadFile(path.Join(installPath, "bin", "agent", "dist", "views", strings.TrimLeft(link, "view/")))
 		// We replace windows line break by linux so the tests pass on every OS
-		expectedBodyContent := strings.Replace(string(expectedBody), "\r\n", "\n", -1)
+		expectedBodyContent := strings.ReplaceAll(string(expectedBody), "\r\n", "\n")
 		assert.NoErrorf(t, err, "unable to retrieve file %v in the expected served files", link)
 
 		assert.Equalf(t, expectedBodyContent, bodyContent, "content of the file %v is not the same as expected", link)

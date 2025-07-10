@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: 0ccbb5b7942d83fbcf7cb5e0fd99633efd2351d7 # v0.3.5
+  rev: v0.12.2
   hooks:
     - id: ruff
       args: [ --fix ]
@@ -40,12 +40,12 @@ repos:
       args: [ "-w", "-s" ]
       exclude: ^.*.(pb.go|_gen.go)$
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
         files: release.json
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.7.3
+  rev: v1.7.7
   hooks:
     - id: actionlint
       args: [ "-ignore", "shellcheck" ]
@@ -118,21 +118,13 @@ repos:
       pass_filenames: false
     - id: gitlab-configuration
       name: gitlab-configuration
-      description: test the gitlab configuration on main
-      entry: 'dda inv linter.gitlab-ci -t main'
+      description: Lint and test GitLab CI configuration files
+      entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
       language: system
       require_serial: true
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
-    - id: gitlab-lint-jobs-codeowners
-      name: gitlab-lint-jobs-codeowners
-      description: lint the gitlab configuration to verify jobs codeowners
-      entry: 'dda inv linter.gitlab-ci-jobs-codeowners'
-      language: system
-      require_serial: true
-      files: .*gitlab.*\.yml$
-      pass_filenames: false
     - id: update-go
       name: update-go
       description: test formatting of files will allow go update
@@ -152,7 +144,7 @@ repos:
       entry: 'dda inv protobuf.generate --pre-commit'
       language: system
       pass_filenames: false
-      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version)$
+      files: (.*go\.mod|modules\.yml|.*gomodules\.py|.*modules\.py|.*.proto|.protoc-version|.*protobuf\.py)$
     - id: experiment-systemd-units
       name: validate-experiment-systemd-units
       description: Validate that the generated systemd experimrent units are up to date

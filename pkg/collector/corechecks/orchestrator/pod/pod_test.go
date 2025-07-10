@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -154,7 +155,7 @@ func (suite *PodTestSuite) SetupSuite() {
 		sender:    sender,
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(mockConfig, mockStore, fakeTagger)),
 		hostName:  testHostName,
-		config:    oconfig.NewDefaultOrchestratorConfig(),
+		config:    oconfig.NewDefaultOrchestratorConfig(nil),
 		tagger:    fakeTagger,
 	}
 }
@@ -186,4 +187,25 @@ func (suite *PodTestSuite) TestPodCheck() {
 
 	require.Len(suite.T(), suite.sender.pods[0].(*process.CollectorPod).Pods, 10)
 	require.Len(suite.T(), suite.sender.manifests[0].(*process.CollectorManifest).Manifests, 10)
+
+	require.Equal(suite.T(),
+		sorted(suite.sender.pods[0].(*process.CollectorPod).Tags...),
+		sorted("kube_api_version:v1"))
+	require.Equal(suite.T(),
+		sorted(suite.sender.pods[0].(*process.CollectorPod).Pods[0].Tags...),
+		sorted("kube_condition_podscheduled:true", "pod_status:pending"))
+
+	require.Equal(suite.T(),
+		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Tags...),
+		sorted())
+	require.Equal(suite.T(),
+		sorted(suite.sender.manifests[0].(*process.CollectorManifest).Manifests[0].Tags...),
+		sorted("kube_api_version:v1", "kube_condition_podscheduled:true", "pod_status:pending"))
+}
+
+func sorted(l ...string) []string {
+	var s []string
+	s = append(s, l...)
+	sort.Strings(s)
+	return s
 }

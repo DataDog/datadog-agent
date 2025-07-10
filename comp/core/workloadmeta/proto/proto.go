@@ -134,22 +134,22 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		return nil, err
 	}
 
-	protoAllocatedResources := toProtoAllocatedResources(container.AllocatedResources)
+	protoResolvedAllocatedResources := toProtoResolvedAllocatedResources(container.ResolvedAllocatedResources)
 
 	return &pb.Container{
-		EntityId:           protoEntityID,
-		EntityMeta:         toProtoEntityMetaFromContainer(container),
-		EnvVars:            container.EnvVars,
-		Hostname:           container.Hostname,
-		Image:              toProtoImage(&container.Image),
-		NetworkIps:         container.NetworkIPs,
-		Pid:                int32(container.PID),
-		Ports:              pbContainerPorts,
-		Runtime:            protoRuntime,
-		State:              protoContainerState,
-		CollectorTags:      container.CollectorTags,
-		CgroupPath:         container.CgroupPath,
-		AllocatedResources: protoAllocatedResources,
+		EntityId:                   protoEntityID,
+		EntityMeta:                 toProtoEntityMetaFromContainer(container),
+		EnvVars:                    container.EnvVars,
+		Hostname:                   container.Hostname,
+		Image:                      toProtoImage(&container.Image),
+		NetworkIps:                 container.NetworkIPs,
+		Pid:                        int32(container.PID),
+		Ports:                      pbContainerPorts,
+		Runtime:                    protoRuntime,
+		State:                      protoContainerState,
+		CollectorTags:              container.CollectorTags,
+		CgroupPath:                 container.CgroupPath,
+		ResolvedAllocatedResources: protoResolvedAllocatedResources,
 	}, nil
 }
 
@@ -284,16 +284,16 @@ func toProtoContainerState(state *workloadmeta.ContainerState) (*pb.ContainerSta
 	return res, nil
 }
 
-func toProtoAllocatedResources(resources []workloadmeta.ContainerAllocatedResource) []*pb.ContainerAllocatedResource {
-	var protoAllocatedResources []*pb.ContainerAllocatedResource
+func toProtoResolvedAllocatedResources(resources []workloadmeta.ContainerAllocatedResource) []*pb.ContainerAllocatedResource {
+	var protoResolvedAllocatedResources []*pb.ContainerAllocatedResource
 	for _, resource := range resources {
-		protoAllocatedResources = append(protoAllocatedResources, &pb.ContainerAllocatedResource{
+		protoResolvedAllocatedResources = append(protoResolvedAllocatedResources, &pb.ContainerAllocatedResource{
 			Name: resource.Name,
 			ID:   resource.ID,
 		})
 	}
 
-	return protoAllocatedResources
+	return protoResolvedAllocatedResources
 }
 
 func toProtoContainerStatus(status workloadmeta.ContainerStatus) (pb.ContainerStatus, error) {
@@ -351,6 +351,11 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		protoInitContainers = append(protoInitContainers, toProtoOrchestratorContainer(container))
 	}
 
+	var protoEphemeralContainers []*pb.OrchestratorContainer
+	for _, container := range kubernetesPod.EphemeralContainers {
+		protoEphemeralContainers = append(protoEphemeralContainers, toProtoOrchestratorContainer(container))
+	}
+
 	return &pb.KubernetesPod{
 		EntityId:                   protoEntityID,
 		EntityMeta:                 toProtoEntityMetaFromKubernetesPod(kubernetesPod),
@@ -358,6 +363,7 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		PersistentVolumeClaimNames: kubernetesPod.PersistentVolumeClaimNames,
 		InitContainers:             protoInitContainers,
 		Containers:                 protoOrchestratorContainers,
+		EphemeralContainers:        protoEphemeralContainers,
 		Ready:                      kubernetesPod.Ready,
 		Phase:                      kubernetesPod.Phase,
 		Ip:                         kubernetesPod.IP,
@@ -429,7 +435,7 @@ func protoECSTaskFromWorkloadmetaECSTask(ecsTask *workloadmeta.ECSTask) (*pb.ECS
 		ContainerInstanceTags: ecsTask.ContainerInstanceTags,
 		ClusterName:           ecsTask.ClusterName,
 		Region:                ecsTask.Region,
-		AwsAccountID:          int64(ecsTask.AWSAccountID),
+		AwsAccountID:          ecsTask.AWSAccountID,
 		AvailabilityZone:      ecsTask.AvailabilityZone,
 		Family:                ecsTask.Family,
 		Version:               ecsTask.Version,
@@ -615,22 +621,22 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		return nil, err
 	}
 
-	resources := toWorkloadmetaAllocatedResources(protoContainer.AllocatedResources)
+	resources := toWorkloadmetaResolvedAllocatedResources(protoContainer.ResolvedAllocatedResources)
 
 	return &workloadmeta.Container{
-		EntityID:           entityID,
-		EntityMeta:         toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
-		EnvVars:            protoContainer.EnvVars,
-		Hostname:           protoContainer.Hostname,
-		Image:              toWorkloadmetaImage(protoContainer.Image),
-		NetworkIPs:         protoContainer.NetworkIps,
-		PID:                int(protoContainer.Pid),
-		Ports:              ports,
-		Runtime:            runtime,
-		State:              state,
-		CollectorTags:      protoContainer.CollectorTags,
-		CgroupPath:         protoContainer.CgroupPath,
-		AllocatedResources: resources,
+		EntityID:                   entityID,
+		EntityMeta:                 toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
+		EnvVars:                    protoContainer.EnvVars,
+		Hostname:                   protoContainer.Hostname,
+		Image:                      toWorkloadmetaImage(protoContainer.Image),
+		NetworkIPs:                 protoContainer.NetworkIps,
+		PID:                        int(protoContainer.Pid),
+		Ports:                      ports,
+		Runtime:                    runtime,
+		State:                      state,
+		CollectorTags:              protoContainer.CollectorTags,
+		CgroupPath:                 protoContainer.CgroupPath,
+		ResolvedAllocatedResources: resources,
 	}, nil
 }
 
@@ -642,9 +648,9 @@ func toWorkloadmetaContainerPort(protoPort *pb.ContainerPort) workloadmeta.Conta
 	}
 }
 
-func toWorkloadmetaAllocatedResources(protoAllocatedResources []*pb.ContainerAllocatedResource) []workloadmeta.ContainerAllocatedResource {
+func toWorkloadmetaResolvedAllocatedResources(protoResolvedAllocatedResources []*pb.ContainerAllocatedResource) []workloadmeta.ContainerAllocatedResource {
 	var resources []workloadmeta.ContainerAllocatedResource
-	for _, protoResource := range protoAllocatedResources {
+	for _, protoResource := range protoResolvedAllocatedResources {
 		resources = append(resources, workloadmeta.ContainerAllocatedResource{
 			Name: protoResource.Name,
 			ID:   protoResource.ID,
@@ -791,12 +797,18 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		containers = append(containers, toWorkloadmetaOrchestratorContainer(protoContainer))
 	}
 
+	var ephemeralContainers []workloadmeta.OrchestratorContainer
+	for _, protoContainer := range protoKubernetesPod.EphemeralContainers {
+		ephemeralContainers = append(ephemeralContainers, toWorkloadmetaOrchestratorContainer(protoContainer))
+	}
+
 	return &workloadmeta.KubernetesPod{
 		EntityID:                   entityID,
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoKubernetesPod.EntityMeta),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: protoKubernetesPod.PersistentVolumeClaimNames,
 		Containers:                 containers,
+		EphemeralContainers:        ephemeralContainers,
 		Ready:                      protoKubernetesPod.Ready,
 		Phase:                      protoKubernetesPod.Phase,
 		IP:                         protoKubernetesPod.Ip,
@@ -847,7 +859,7 @@ func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, err
 		ContainerInstanceTags: protoECSTask.ContainerInstanceTags,
 		ClusterName:           protoECSTask.ClusterName,
 		Region:                protoECSTask.Region,
-		AWSAccountID:          int(protoECSTask.AwsAccountID),
+		AWSAccountID:          protoECSTask.AwsAccountID,
 		AvailabilityZone:      protoECSTask.AvailabilityZone,
 		Family:                protoECSTask.Family,
 		Version:               protoECSTask.Version,

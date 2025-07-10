@@ -67,25 +67,36 @@ type CollectorBundle struct {
 // If that's not the case then it'll select all available collectors that are
 // marked as stable.
 func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
-	bundle := &CollectorBundle{
-		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
-		check:              chk,
-		inventory:          inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
-		runCfg: &collectors.CollectorRunConfig{
-			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-				APIClient:                   chk.apiClient,
-				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
-			},
-			ClusterID:   chk.clusterID,
-			Config:      chk.orchestratorConfig,
-			MsgGroupRef: chk.groupID,
+	runCfg := &collectors.CollectorRunConfig{
+		K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+			APIClient:                   chk.apiClient,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
 		},
-		stopCh:              chk.stopCh,
-		manifestBuffer:      NewManifestBuffer(chk),
-		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
-		activatedCollectors: map[string]struct{}{},
+		ClusterID:    chk.clusterID,
+		Config:       chk.orchestratorConfig,
+		MsgGroupRef:  chk.groupID,
+		AgentVersion: chk.agentVersion,
 	}
-	bundle.terminatedResourceBundle = NewTerminatedResourceBundle(chk, bundle.runCfg, bundle.manifestBuffer)
+	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
+		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
+		ClusterID:             runCfg.ClusterID,
+		Config:                runCfg.Config,
+		MsgGroupRef:           runCfg.MsgGroupRef,
+		TerminatedResources:   true,
+	}
+	manifestBuffer := NewManifestBuffer(chk)
+
+	bundle := &CollectorBundle{
+		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:                    chk,
+		inventory:                inventory.NewCollectorInventory(chk.cfg, chk.wlmStore, chk.tagger),
+		runCfg:                   runCfg,
+		stopCh:                   chk.stopCh,
+		manifestBuffer:           manifestBuffer,
+		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
+		activatedCollectors:      map[string]struct{}{},
+		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+	}
 	bundle.prepare()
 
 	return bundle

@@ -37,7 +37,7 @@ import (
 )
 
 type factory struct {
-	attributesErr          error
+	setupErr               error
 	onceSetupTraceAgentCmp sync.Once
 
 	registry       *featuregate.Registry
@@ -55,15 +55,13 @@ type factory struct {
 func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 	f.onceSetupTraceAgentCmp.Do(func() {
 		var attributesTranslator *attributes.Translator
-		attributesTranslator, f.attributesErr = attributes.NewTranslator(set)
-		if f.attributesErr != nil {
+		attributesTranslator, f.setupErr = attributes.NewTranslator(set)
+		if f.setupErr != nil {
 			return
 		}
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		otelmclient := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
-		f.mclientwrapper.SetDelegate(otelmclient)
 	})
-	return f.attributesErr
+	return f.setupErr
 }
 
 func newFactoryWithRegistry(
@@ -170,6 +168,12 @@ func (f *factory) createTracesExporter(
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
 
+	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+	if err != nil {
+		return nil, err
+	}
+	f.mclientwrapper.SetDelegate(otelmclient)
+
 	if cfg.OnlyMetadata {
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
@@ -199,11 +203,17 @@ func (f *factory) createMetricsExporter(
 	if err := f.setupTraceAgentCmp(set.TelemetrySettings); err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
+	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+	if err != nil {
+		return nil, err
+	}
+	f.mclientwrapper.SetDelegate(otelmclient)
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
+	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, &wg, f.gatewayUsage)
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, &tagEnricher{}, f.h, statsIn, f.gatewayUsage)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: serializerexporter.MetricsConfig{
 			Metrics: cfg.Metrics,
@@ -211,7 +221,13 @@ func (f *factory) createMetricsExporter(
 		TimeoutConfig: exporterhelper.TimeoutConfig{
 			Timeout: cfg.Timeout,
 		},
-		QueueConfig: cfg.QueueSettings,
+		QueueBatchConfig: cfg.QueueSettings,
+		ShutdownFunc: func(context.Context) error {
+			cancel()  // first cancel context
+			wg.Wait() // then wait for shutdown
+			close(statsIn)
+			return nil
+		},
 	}
 	return sf.CreateMetrics(ctx, set, ex)
 }
@@ -251,8 +267,9 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 func (f *factory) createLogsExporter(
 	ctx context.Context,
 	set exporter.Settings,
-	_ component.Config,
+	c component.Config,
 ) (exporter.Logs, error) {
+	cfg := checkAndCastConfig(c, set.Logger)
 	var logch chan *message.Message
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
@@ -261,6 +278,7 @@ func (f *factory) createLogsExporter(
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
+		QueueSettings: cfg.QueueSettings,
 	}
 	return lf.CreateLogs(ctx, set, lc)
 }

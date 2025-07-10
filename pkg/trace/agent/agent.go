@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
@@ -117,6 +118,11 @@ type Agent struct {
 	// subsequent SpanModifier calls.
 	SpanModifier SpanModifier
 
+	// TracerPayloadModifier will be called on all tracer payloads early on in
+	// their processing. In particular this happens before trace chunks are
+	// meaningfully filtered or modified.
+	TracerPayloadModifier TracerPayloadModifier
+
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
@@ -127,12 +133,20 @@ type Agent struct {
 	ctx context.Context
 
 	firstSpanMap sync.Map
+
+	processWg *sync.WaitGroup
 }
 
 // SpanModifier is an interface that allows to modify spans while they are
 // processed by the agent.
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
+}
+
+// TracerPayloadModifier is an interface that allows tracer implementations to
+// modify a TracerPayload as it is processed in the Agent's Process method.
+type TracerPayloadModifier interface {
+	Modify(*pb.TracerPayload)
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -167,6 +181,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
 		Timing:                timing,
+		processWg:             &sync.WaitGroup{},
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
@@ -202,6 +217,7 @@ func (a *Agent) Run() {
 	workers := max(runtime.GOMAXPROCS(0), 1)
 
 	log.Infof("Processing Pipeline configured with %d workers", workers)
+	a.processWg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go a.work()
 	}
@@ -240,6 +256,7 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 }
 
 func (a *Agent) work() {
+	defer a.processWg.Done()
 	for {
 		p, ok := <-a.In
 		if !ok {
@@ -247,7 +264,6 @@ func (a *Agent) work() {
 		}
 		a.Process(p)
 	}
-
 }
 
 func (a *Agent) loop() {
@@ -255,9 +271,14 @@ func (a *Agent) loop() {
 	log.Info("Exiting...")
 
 	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
+	// Stop the receiver first before other processing components
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
+
+	//Wait to process any leftover payloads in flight before closing components that might be needed
+	a.processWg.Wait()
+
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -313,9 +334,27 @@ func (a *Agent) Process(p *api.Payload) {
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
-	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
 
-	p.TracerPayload.Env = traceutil.NormalizeTagValue(p.TracerPayload.Env)
+	p.TracerPayload.Env = normalize.NormalizeTagValue(p.TracerPayload.Env)
+	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
+	// We will first need to deprecate the `enable_cid_stats` feature flag.
+	// Set payload's container tags just in case we're processing a payload that was not received via the agent's receiver
+	// (e.g. an OTEL converted payload)
+	if len(p.ContainerTags) == 0 && a.conf.ContainerTags != nil {
+		cTags, err := a.conf.ContainerTags(p.TracerPayload.ContainerID)
+		if err != nil {
+			log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID, err)
+		} else {
+			p.ContainerTags = cTags
+		}
+	}
+
+	if a.TracerPayloadModifier != nil {
+		a.TracerPayloadModifier.Modify(p.TracerPayload)
+	}
+
+	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	a.discardSpans(p)
 
@@ -385,7 +424,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		a.setPayloadAttributes(p, root, chunk)
 
-		pt := processedTrace(p, chunk, root, p.TracerPayload.ContainerID, a.conf)
+		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
 		}
@@ -443,27 +482,21 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
-func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, containerID string, conf *config.AgentConfig) *traceutil.ProcessedTrace {
+func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTag string, gitCommitSha string) *traceutil.ProcessedTrace {
 	pt := &traceutil.ProcessedTrace{
 		TraceChunk:             chunk,
 		Root:                   root,
 		AppVersion:             p.TracerPayload.AppVersion,
 		TracerEnv:              p.TracerPayload.Env,
 		TracerHostname:         p.TracerPayload.Hostname,
+		Lang:                   p.TracerPayload.LanguageName,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
 	}
-	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
-	// We will first need to deprecate the `enable_cid_stats` feature flag.
-	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
-	if err != nil {
-		log.Debugf("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
-	} else {
-		pt.ImageTag = imageTag
-		// Only override the GitCommitSha if it was not set in the trace.
-		if pt.GitCommitSha == "" {
-			pt.GitCommitSha = gitCommitSha
-		}
+	pt.ImageTag = imageTag
+	// Only override the GitCommitSha if it was not set in the trace.
+	if pt.GitCommitSha == "" {
+		pt.GitCommitSha = gitCommitSha
 	}
 	return pt
 }
@@ -511,7 +544,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	if in.Env == "" {
 		in.Env = a.conf.DefaultEnv
 	}
-	in.Env = traceutil.NormalizeTagValue(in.Env)
+	in.Env = normalize.NormalizeTagValue(in.Env)
 	if in.TracerVersion == "" {
 		in.TracerVersion = tracerVersion
 	}

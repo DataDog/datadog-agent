@@ -40,6 +40,9 @@ type DataSampleInfo struct {
 
 	// EventCount is the number of events in the data sample
 	EventCount int
+
+	// EventByType is the number of events in the data sample by type
+	EventByType map[string]int
 }
 
 // DataSampleInfos contains information about the data samples available in the testdata directory,
@@ -48,6 +51,12 @@ var DataSampleInfos = map[dataSample]DataSampleInfo{
 	DataSamplePytorchBatchedKernels: {
 		ActivePID:  24920,
 		EventCount: 990,
+		EventByType: map[string]int{
+			"CudaEventTypeKernelLaunch": 848,
+			"CudaEventTypeMemory":       0,
+			"CudaEventTypeSync":         142,
+			"CudaEventTypeSetDevice":    0,
+		},
 	},
 }
 

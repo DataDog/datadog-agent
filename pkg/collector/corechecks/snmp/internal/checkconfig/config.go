@@ -90,10 +90,12 @@ type InitConfig struct {
 	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
+	CollectVPN            Boolean                           `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval int                               `yaml:"min_collection_interval"`
 	Namespace             string                            `yaml:"namespace"`
 	PingConfig            snmpintegration.PackedPingConfig  `yaml:"ping"`
+	Loader                string                            `yaml:"loader"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -117,8 +119,10 @@ type InstanceConfig struct {
 	UseGlobalMetrics      bool                                `yaml:"use_global_metrics"`
 	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
+	CollectVPN            *Boolean                            `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
 	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
+	Loader                string                              `yaml:"loader"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -181,6 +185,7 @@ type CheckConfig struct {
 	InstanceTags          []string
 	CollectDeviceMetadata bool
 	CollectTopology       bool
+	CollectVPN            bool
 	UseDeviceIDAsHostname bool
 	DeviceID              string
 	DeviceIDTags          []string
@@ -322,6 +327,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectTopology = bool(initConfig.CollectTopology)
 	}
 
+	if instance.CollectVPN != nil {
+		c.CollectVPN = bool(*instance.CollectVPN)
+	} else {
+		c.CollectVPN = bool(initConfig.CollectVPN)
+	}
+
 	if instance.UseDeviceIDAsHostname != nil {
 		c.UseDeviceIDAsHostname = bool(*instance.UseDeviceIDAsHostname)
 	} else {
@@ -446,11 +457,20 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 				"ignored because use_remote_config_profiles is set", len(initConfig.Profiles))
 		}
 		c.ProfileProvider, err = profile.NewRCProvider(rcClient)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		c.ProfileProvider, err = profile.GetProfileProvider(initConfig.Profiles)
-	}
-	if err != nil {
-		return nil, err
+		var haveLegacyProfile bool
+		c.ProfileProvider, haveLegacyProfile, err = profile.GetProfileProvider(initConfig.Profiles)
+		if err != nil {
+			return nil, err
+		}
+		if haveLegacyProfile || profiledefinition.IsLegacyMetrics(instance.Metrics) {
+			if initConfig.Loader == "" && instance.Loader == "" {
+				return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader")
+			}
+		}
 	}
 
 	// profile configs
@@ -606,6 +626,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
 	newConfig.CollectTopology = c.CollectTopology
+	newConfig.CollectVPN = c.CollectVPN
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import fnmatch
 import glob
-import json
 import operator
 import os
 import re
@@ -22,7 +21,6 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.collector import OCB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
@@ -38,15 +36,18 @@ from tasks.libs.common.utils import (
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*", ".gitlab-ci.yml"]
+# TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.123.0/go.mod"
 )
 
 
@@ -118,6 +119,8 @@ def test_flavor(
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
+    recursive: bool = True,
+    attempt_number: int = 0,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -142,24 +145,15 @@ def test_flavor(
 
     # Produce the junit file only if a junit tarball needs to be produced
     if junit_tar:
-        junit_file = f"junit-out-{flavor.name}.xml"
-        result.junit_file_path = os.path.join('.', junit_file)
+        # Include attempt number in the junit file name to avoid overwriting previous runs
+        junit_file = f"junit-out-{flavor.name}-{attempt_number}.xml"
+        result.junit_file_paths.append(os.path.join('.', junit_file))
 
-        junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
+        junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
         args["junit_file_flag"] = junit_file_flag
 
     # Compute full list of targets to run tests against
-    targets = []
-    for module in modules:
-        if not module.should_test():
-            continue
-        for target in module.test_targets:
-            target_path = os.path.join(module.path, target)
-            if not target_path.startswith('./'):
-                target_path = f"./{target_path}"
-            targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    packages = compute_gotestsum_cli_args(modules, recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -190,7 +184,7 @@ def test_flavor(
             return
 
     if junit_tar:
-        enrich_junitxml(result.junit_file_path, flavor)
+        enrich_junitxml(junit_file, flavor)  # type: ignore
 
     return result
 
@@ -211,15 +205,16 @@ def sanitize_env_vars():
     We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
     """
     for env in os.environ:
+        # Allow the env var that enables NodeTreeModel for testing purposes
+        if env == "DD_CONF_NODETREEMODEL":
+            continue
         if env.startswith("DD_"):
             del os.environ[env]
 
 
 def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
-        junit_file = test_result.junit_file_path
-
-        produce_junit_tar(junit_file, junit_tar)
+        produce_junit_tar(test_result.junit_file_paths, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
 
@@ -318,6 +313,7 @@ def test(
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
+    test_cpus_opt = f"-parallel {cpus}" if cpus else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -344,7 +340,7 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
+    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -352,6 +348,7 @@ def test(
         "ldflags": ldflags,
         "race_opt": race_opt,
         "build_cpus": build_cpus_opt,
+        "test_cpus": test_cpus_opt,
         "covermode_opt": covermode_opt,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
@@ -392,6 +389,7 @@ def test(
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
+            recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
     # Output (only if tests ran)
@@ -451,6 +449,9 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            continue
+
         best_module_path = Path(get_go_module(modified_file))
 
         # Check if the package is in the target list of the module we want to test
@@ -469,12 +470,6 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
         if best_module_path in go_mod_modified_modules:
-            continue
-
-        # If we modify the go.mod or go.sum we run the tests for the whole module
-        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
-            modules_to_test[best_module_path] = get_module_by_path(best_module_path)
-            go_mod_modified_modules.add(best_module_path)
             continue
 
         # If the package has been deleted we do not try to run tests
@@ -624,22 +619,15 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
 
 
 def parse_test_log(log_file):
-    failed_tests = []
-    n_test_executed = 0
-    with open(log_file) as f:
-        for line in f:
-            json_line = json.loads(line)
-            if (
-                json_line["Action"] == "fail"
-                and "Test" in json_line
-                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
-            ):
-                n_test_executed += 1
-                failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
-            if json_line["Action"] == "pass" and "Test" in json_line:
-                n_test_executed += 1
-                if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
-                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
+    obj: ResultJson = ResultJson.from_file(log_file)
+    failed_tests = [
+        f"{package}/{test_name}"
+        for package, tests in obj.failing_tests.items()
+        for test_name in tests
+        if test_name != "_"  # Exclude package-level failures
+    ]
+
+    n_test_executed = len([line for line in obj.lines if line.action in (ActionType.PASS, ActionType.FAIL)])
     return failed_tests, n_test_executed
 
 
@@ -845,6 +833,13 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
         for module in modules_to_test:
             print(f"- {module}: {modules_to_test[module].test_targets}")
 
+    # We need to make sure the CLI length is not too long
+    packages = compute_gotestsum_cli_args(modules_to_test.values())
+    # -1000 because there are ~1000 extra characters in the gotestsum command
+    if sys.platform == "win32" and len(packages) > WINDOWS_MAX_CLI_LENGTH - 1000:
+        print("CLI length is too long, skipping fast tests")
+        return get_default_modules().values()
+
     return modules_to_test.values()
 
 
@@ -876,6 +871,23 @@ def get_go_modified_files(ctx):
         if file.find("unit_tests/testdata/components_src") == -1
         and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
     ]
+
+
+def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
+    targets = []
+    for module in modules:
+        if not module.should_test():
+            continue
+        for target in module.test_targets:
+            target_path = os.path.join(module.path, target)
+            if not target_path.startswith('./'):
+                target_path = f"./{target_path}"
+            targets.append(target_path)
+    if recursive:
+        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    else:
+        packages = ' '.join(targets)
+    return packages
 
 
 @task

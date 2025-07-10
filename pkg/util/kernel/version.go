@@ -8,11 +8,10 @@
 package kernel
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
-
-	"github.com/cilium/ebpf/features"
 )
 
 var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+)(?:\.(\d+))?.*$`)
@@ -42,7 +41,7 @@ func (v Version) Patch() uint8 {
 
 // HostVersion returns the running kernel version of the host
 func HostVersion() (Version, error) {
-	lvc, err := features.LinuxVersionCode()
+	lvc, err := linuxVersionCode()
 	if err != nil {
 		return 0, err
 	}
@@ -51,7 +50,7 @@ func HostVersion() (Version, error) {
 
 // MustHostVersion returns the running kernel version of the host
 func MustHostVersion() Version {
-	lvc, err := features.LinuxVersionCode()
+	lvc, err := linuxVersionCode()
 	if err != nil {
 		panic(err)
 	}
@@ -61,7 +60,7 @@ func MustHostVersion() Version {
 // ParseVersion parses a string in the format of x.x.x to a Version
 func ParseVersion(s string) Version {
 	var a, b, c byte
-	fmt.Sscanf(s, "%d.%d.%d", &a, &b, &c)
+	_, _ = fmt.Sscanf(s, "%d.%d.%d", &a, &b, &c)
 	return VersionCode(a, b, c)
 }
 
@@ -126,7 +125,7 @@ var ubuntuKernelVersionRegex = regexp.MustCompile(`^(\d+)\.(\d+)\.(0)-(\d+)-([[:
 func NewUbuntuKernelVersion(unameRelease string) (*UbuntuKernelVersion, error) {
 	match := ubuntuKernelVersionRegex.FindStringSubmatch(unameRelease)
 	if len(match) == 0 {
-		return nil, fmt.Errorf("failed to parse ubuntu kernel version")
+		return nil, errors.New("failed to parse ubuntu kernel version")
 	}
 
 	major, err := strconv.ParseInt(match[1], 10, 0)

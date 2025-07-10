@@ -7,7 +7,9 @@ package api
 import (
 	fmt "fmt"
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
+	timestamppb "github.com/planetscale/vtprotobuf/types/known/timestamppb"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb1 "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 )
 
@@ -80,6 +82,16 @@ func (m *SecurityEventMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.Timestamp != nil {
+		size, err := (*timestamppb.Timestamp)(m.Timestamp).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if len(m.Service) > 0 {
 		i -= len(m.Service)
@@ -397,6 +409,51 @@ func (m *SecurityConfigMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 	return len(dAtA) - i, nil
 }
 
+func (m *FilterReport) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FilterReport) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *FilterReport) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Approvers) > 0 {
+		for iNdEx := len(m.Approvers) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Approvers[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *RuleSetReportMessage) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -427,22 +484,20 @@ func (m *RuleSetReportMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.Policies) > 0 {
-		for iNdEx := len(m.Policies) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.Policies[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-			i--
-			dAtA[i] = 0xa
+	if m.Filters != nil {
+		size, err := m.Filters.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
 		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
 
-func (m *EventTypePolicy) MarshalVT() (dAtA []byte, err error) {
+func (m *AcceptModeRule) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -455,12 +510,12 @@ func (m *EventTypePolicy) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *EventTypePolicy) MarshalToVT(dAtA []byte) (int, error) {
+func (m *AcceptModeRule) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *EventTypePolicy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *AcceptModeRule) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -472,6 +527,58 @@ func (m *EventTypePolicy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.RuleID) > 0 {
+		i -= len(m.RuleID)
+		copy(dAtA[i:], m.RuleID)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RuleID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ApproverReport) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ApproverReport) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *ApproverReport) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.AcceptModeRules) > 0 {
+		for iNdEx := len(m.AcceptModeRules) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.AcceptModeRules[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
 	if m.Approvers != nil {
 		size, err := m.Approvers.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -480,7 +587,7 @@ func (m *EventTypePolicy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x1a
 	}
 	if m.Mode != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Mode))
@@ -634,7 +741,7 @@ func (m *GetRuleSetReportParams) MarshalToSizedBufferVT(dAtA []byte) (int, error
 	return len(dAtA) - i, nil
 }
 
-func (m *GetRuleSetReportResultMessage) MarshalVT() (dAtA []byte, err error) {
+func (m *GetRuleSetReportMessage) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -647,12 +754,12 @@ func (m *GetRuleSetReportResultMessage) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetRuleSetReportResultMessage) MarshalToVT(dAtA []byte) (int, error) {
+func (m *GetRuleSetReportMessage) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *GetRuleSetReportResultMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *GetRuleSetReportMessage) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -2255,8 +2362,15 @@ func (m *ActivityDumpStreamMessage) MarshalToSizedBufferVT(dAtA []byte) (int, er
 		i--
 		dAtA[i] = 0x1a
 	}
-	if m.Dump != nil {
-		size, err := m.Dump.MarshalToSizedBufferVT(dAtA[:i])
+	if len(m.Header) > 0 {
+		i -= len(m.Header)
+		copy(dAtA[i:], m.Header)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Header)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Selector != nil {
+		size, err := m.Selector.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -3002,6 +3116,10 @@ func (m *SecurityEventMessage) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	if m.Timestamp != nil {
+		l = (*timestamppb.Timestamp)(m.Timestamp).SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3101,14 +3219,14 @@ func (m *SecurityConfigMessage) SizeVT() (n int) {
 	return n
 }
 
-func (m *RuleSetReportMessage) SizeVT() (n int) {
+func (m *FilterReport) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if len(m.Policies) > 0 {
-		for _, e := range m.Policies {
+	if len(m.Approvers) > 0 {
+		for _, e := range m.Approvers {
 			l = e.SizeVT()
 			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
@@ -3117,7 +3235,35 @@ func (m *RuleSetReportMessage) SizeVT() (n int) {
 	return n
 }
 
-func (m *EventTypePolicy) SizeVT() (n int) {
+func (m *RuleSetReportMessage) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Filters != nil {
+		l = m.Filters.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *AcceptModeRule) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.RuleID)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *ApproverReport) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -3133,6 +3279,12 @@ func (m *EventTypePolicy) SizeVT() (n int) {
 	if m.Approvers != nil {
 		l = m.Approvers.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.AcceptModeRules) > 0 {
+		for _, e := range m.AcceptModeRules {
+			l = e.SizeVT()
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -3189,7 +3341,7 @@ func (m *GetRuleSetReportParams) SizeVT() (n int) {
 	return n
 }
 
-func (m *GetRuleSetReportResultMessage) SizeVT() (n int) {
+func (m *GetRuleSetReportMessage) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -3814,8 +3966,12 @@ func (m *ActivityDumpStreamMessage) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Dump != nil {
-		l = m.Dump.SizeVT()
+	if m.Selector != nil {
+		l = m.Selector.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Header)
+	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	l = len(m.Data)
@@ -4326,6 +4482,42 @@ func (m *SecurityEventMessage) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Service = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Timestamp == nil {
+				m.Timestamp = &timestamppb1.Timestamp{}
+			}
+			if err := (*timestamppb.Timestamp)(m.Timestamp).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -4915,6 +5107,91 @@ func (m *SecurityConfigMessage) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *FilterReport) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FilterReport: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FilterReport: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Approvers", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Approvers = append(m.Approvers, &ApproverReport{})
+			if err := m.Approvers[len(m.Approvers)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *RuleSetReportMessage) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4946,7 +5223,7 @@ func (m *RuleSetReportMessage) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Policies", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Filters", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -4973,8 +5250,10 @@ func (m *RuleSetReportMessage) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Policies = append(m.Policies, &EventTypePolicy{})
-			if err := m.Policies[len(m.Policies)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			if m.Filters == nil {
+				m.Filters = &FilterReport{}
+			}
+			if err := m.Filters.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -5000,7 +5279,7 @@ func (m *RuleSetReportMessage) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
+func (m *AcceptModeRule) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -5023,10 +5302,93 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: EventTypePolicy: wiretype end group for non-group")
+			return fmt.Errorf("proto: AcceptModeRule: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: EventTypePolicy: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: AcceptModeRule: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RuleID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RuleID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ApproverReport) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ApproverReport: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ApproverReport: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -5080,7 +5442,7 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 4:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Approvers", wireType)
 			}
@@ -5113,6 +5475,40 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 				m.Approvers = &Approvers{}
 			}
 			if err := m.Approvers.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AcceptModeRules", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AcceptModeRules = append(m.AcceptModeRules, &AcceptModeRule{})
+			if err := m.AcceptModeRules[len(m.AcceptModeRules)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -5440,7 +5836,7 @@ func (m *GetRuleSetReportParams) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetRuleSetReportResultMessage) UnmarshalVT(dAtA []byte) error {
+func (m *GetRuleSetReportMessage) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -5463,10 +5859,10 @@ func (m *GetRuleSetReportResultMessage) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetRuleSetReportResultMessage: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetRuleSetReportMessage: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetRuleSetReportResultMessage: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetRuleSetReportMessage: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -9371,7 +9767,7 @@ func (m *ActivityDumpStreamMessage) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Dump", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Selector", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -9398,11 +9794,45 @@ func (m *ActivityDumpStreamMessage) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Dump == nil {
-				m.Dump = &ActivityDumpMessage{}
+			if m.Selector == nil {
+				m.Selector = &WorkloadSelectorMessage{}
 			}
-			if err := m.Dump.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.Selector.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Header = append(m.Header[:0], dAtA[iNdEx:postIndex]...)
+			if m.Header == nil {
+				m.Header = []byte{}
 			}
 			iNdEx = postIndex
 		case 3:

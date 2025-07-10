@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the installer is not supported on windows
-//go:build !windows
-
 package daemon
 
 import (
@@ -46,11 +43,6 @@ func (m *testDaemon) Remove(ctx context.Context, pkg string) error {
 }
 
 func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
-	return args.Error(0)
-}
-
-func (m *testDaemon) StartInstallerExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
 }
@@ -102,6 +94,10 @@ func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
 
 func (m *testDaemon) SetCatalog(catalog catalog) {
 	m.Called(catalog)
+}
+
+func (m *testDaemon) SetConfigCatalog(configs map[string]installerConfig) {
+	m.Called(configs)
 }
 
 type testLocalAPI struct {
@@ -184,23 +180,6 @@ func TestAPIStartExperiment(t *testing.T) {
 	api.i.On("StartExperiment", mock.Anything, testPackage.URL).Return(nil)
 
 	err := api.c.StartExperiment(testPackage.Name, testPackage.Version)
-
-	assert.NoError(t, err)
-}
-
-func TestAPIStartInstallerExperiment(t *testing.T) {
-	api := newTestLocalAPI(t)
-	defer api.Stop()
-
-	testPackage := Package{
-		Name:    "test-package",
-		Version: "1.0.0",
-		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-	}
-	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("StartInstallerExperiment", mock.Anything, testPackage.URL).Return(nil)
-
-	err := api.c.StartInstallerExperiment(testPackage.Name, testPackage.Version)
 
 	assert.NoError(t, err)
 }

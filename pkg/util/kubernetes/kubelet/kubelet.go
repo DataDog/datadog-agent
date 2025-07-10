@@ -11,11 +11,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -42,6 +44,19 @@ var (
 	globalKubeUtil      *KubeUtil
 	globalKubeUtilMutex sync.Mutex
 )
+
+// Time is used to mirror the wrapped Time struct inn"k8s.io/apimachinery/pkg/apis/meta/v1"
+type Time struct {
+	time.Time
+}
+
+// StreamLogOptions is used to mirror the options we need from PodLogOptions in "k8s.io/api/core/v1"
+// without importing the entire package
+type StreamLogOptions struct {
+	SinceTime  *Time
+	Follow     bool
+	Timestamps bool
+}
 
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
@@ -176,6 +191,16 @@ func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
 }
 
+// StreamLogs connects to the kubelet and returns an open connection for the purposes of streaming container logs
+func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
+	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
+	if logOptions.SinceTime != nil {
+		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+	}
+	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
+	return ku.kubeletClient.queryWithResp(ctx, path)
+}
+
 // GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	if ku.useAPIServer {
@@ -246,9 +271,10 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
 				continue
 			}
-			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers)+len(pod.Status.EphemeralContainers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
+			allContainers = append(allContainers, pod.Status.EphemeralContainers...)
 			pod.Status.AllContainers = allContainers
 			tmpSlice = append(tmpSlice, pod)
 		}
@@ -298,7 +324,7 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 		for _, device := range devices {
 			name := device.GetResourceName()
 			for _, id := range device.GetDeviceIds() {
-				container.AllocatedResources = append(container.AllocatedResources, ContainerAllocatedResource{
+				container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, ContainerAllocatedResource{
 					Name: name,
 					ID:   id,
 				})

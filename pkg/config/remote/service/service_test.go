@@ -12,9 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	"testing"
 	"time"
+
+	httpapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 
 	"github.com/DataDog/go-tuf/data"
 	"github.com/benbjohnson/clock"
@@ -571,26 +572,25 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
 	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
 
+	// The key here is that if we've never initialized the TUF repository, we shouldn't be sending any sort of expired message
+	// because the expired message check requires the TUF repository have Director Meta data.
+	//
+	// Checks in this state should look like the version of the client is unchanged (both will report 0 as the director targets meta, because
+	// no such file exists).
 	service.clients.seen(client)
-	// We don't flush the cache until we've seen at least one update from the backend
-	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	response, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, newConfig.ConfigStatus)
+	assert.Len(t, response.ClientConfigs, 0)
+	assert.Len(t, response.TargetFiles, 0)
+	assert.Len(t, response.Roots, 0)
+	assert.Len(t, response.Targets, 0)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, response.ConfigStatus)
 
-	clock.Set(time.Now().Add(2 * time.Hour))
-	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
-	assert.NoError(t, err)
-	assert.Nil(t, newConfig.TargetFiles)
-	assert.Nil(t, newConfig.ClientConfigs)
-	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
-
-	clock.Set(time.Now().Add(20 * time.Minute))
+	// If the repository is initialized, we should now return the expired message
 	service.firstUpdate = false
-	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.Nil(t, newConfig.TargetFiles)
-	assert.Nil(t, newConfig.ClientConfigs)
-	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
 }
 
 func TestService(t *testing.T) {
@@ -921,14 +921,12 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
 	updatedKey := "notUpdated"
-
+	notifications := make(chan string, 10)
 	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
 		updatedKey = args.Get(0).(string)
+		notifications <- updatedKey
 	})
-	orgResponse := pbgo.OrgDataResponse{
-		Uuid: "firstUuid",
-	}
-	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
+	api.On("FetchOrgData", mock.Anything).Return(&pbgo.OrgDataResponse{Uuid: "firstUuid"}, nil)
 	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
 
 	cfg := configmock.New(t)
@@ -948,13 +946,22 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
-	assert.Equal(t, "updated", updatedKey)
+	select {
+	case <-notifications:
+		assert.Equal(t, "updated", updatedKey)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for notification")
+	}
 
 	// We still use the new key even if the new org doesn't match the old org.
-	orgResponse.Uuid = "badUuid"
+	api.On("FetchOrgData", mock.Anything).Return(&pbgo.OrgDataResponse{Uuid: "badUuid"}, nil)
 	cfg.SetWithoutSource("api_key", "BAD_ORG")
-	assert.Equal(t, "BAD_ORG", updatedKey)
-
+	select {
+	case <-notifications:
+		assert.Equal(t, "BAD_ORG", updatedKey)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for notification")
+	}
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
@@ -1419,7 +1426,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	defer client.Close()
 	client.lastUpdate = time.Now()
 
-	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 	require.NoError(t, err)
 	uptaneClient.AssertExpectations(t)
 	require.NotNil(t, u)
@@ -1471,7 +1478,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
-			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0)
 			require.NoError(t, err)
 			uptaneClient.AssertExpectations(t)
 			require.NotNil(t, u)
@@ -1504,4 +1511,37 @@ func listsEqual(mustMatch []string) func(candidate []string) bool {
 
 		return true
 	}
+}
+
+func TestWithOrgStatusPollingIntervalNoConfigPassed(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, service.orgStatusRefreshInterval, defaultRefreshInterval)
+	assert.NotNil(t, service)
+	service.Stop()
+}
+
+func TestWithOrgStatusPollingIntervalConfigPassed(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithAPIKey("abc"),
+		WithOrgStatusRefreshInterval(54*time.Second, "test.org_status_refresh_interval"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, service.orgStatusRefreshInterval, 54*time.Second)
+	assert.NotNil(t, service)
+	service.Stop()
 }

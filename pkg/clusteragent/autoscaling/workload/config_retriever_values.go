@@ -28,21 +28,28 @@ import (
 )
 
 type autoscalingValuesProcessor struct {
-	store     *store
-	processed map[string]struct{}
+	store *store
+
+	processed           map[string]struct{}
+	lastProcessingError bool
 }
 
 func newAutoscalingValuesProcessor(store *store) autoscalingValuesProcessor {
 	return autoscalingValuesProcessor{
-		store:     store,
-		processed: make(map[string]struct{}),
+		store: store,
 	}
 }
 
-func (p autoscalingValuesProcessor) process(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error {
+func (p *autoscalingValuesProcessor) preProcess() {
+	p.processed = make(map[string]struct{}, len(p.processed))
+	p.lastProcessingError = false
+}
+
+func (p *autoscalingValuesProcessor) process(receivedTimestamp time.Time, configKey string, rawConfig state.RawConfig) error {
 	valuesList := &kubeAutoscaling.WorkloadValuesList{}
 	err := json.Unmarshal(rawConfig.Config, &valuesList)
 	if err != nil {
+		p.lastProcessingError = true
 		return fmt.Errorf("failed to unmarshal config id:%s, version: %d, config key: %s, err: %v", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey, err)
 	}
 
@@ -53,10 +60,11 @@ func (p autoscalingValuesProcessor) process(receivedTimestamp time.Time, configK
 		}
 	}
 
+	p.lastProcessingError = err != nil
 	return err
 }
 
-func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.WorkloadValues, timestamp time.Time) error {
+func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.WorkloadValues, timestamp time.Time) error {
 	if values == nil || values.Namespace == "" || values.Name == "" {
 		// Should never happen, but protecting the code from invalid inputs
 		return nil
@@ -77,6 +85,12 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 		p.processed[id] = struct{}{}
 		p.store.UnlockSet(id, podAutoscaler, configRetrieverStoreID)
 	}()
+
+	// Ignore values if the PodAutoscaler has a custom recommender configuration
+	if podAutoscaler.CustomRecommenderConfiguration() != nil {
+		return nil
+	}
+
 	scalingValues, err := parseAutoscalingValues(timestamp, values)
 	if err != nil {
 		return fmt.Errorf("failed to parse scaling values for PodAutoscaler %s: %w", id, err)
@@ -137,10 +151,10 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 	return nil
 }
 
-func (p autoscalingValuesProcessor) postProcess(errors []error) {
+func (p *autoscalingValuesProcessor) postProcess() {
 	// We don't want to delete configs if we received incorrect data
-	if len(errors) > 0 {
-		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data: %v", errors)
+	if p.lastProcessingError {
+		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data")
 		return
 	}
 

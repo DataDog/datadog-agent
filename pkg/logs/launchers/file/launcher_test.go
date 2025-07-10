@@ -20,8 +20,8 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -55,6 +55,7 @@ type LauncherTestSuite struct {
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
+	cfg := configmock.New(suite.T())
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.tagger = taggerfxmock.SetupFakeTagger(suite.T())
@@ -78,9 +79,9 @@ func (suite *LauncherTestSuite) SetupTest() {
 	fc := flareController.NewFlareController()
 	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger)
 	suite.s.pipelineProvider = suite.pipelineProvider
-	suite.s.registry = auditor.NewRegistry()
+	suite.s.registry = auditorMock.NewMockRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.scan()
 }
 
@@ -203,7 +204,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 func (suite *LauncherTestSuite) TestLifeCycle() {
 	s := suite.s
 	suite.Equal(1, s.tailers.Count())
-	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry(), tailers.NewTailerTracker())
+	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
 
 	// all tailers should be stopped
 	s.Stop()
@@ -221,6 +222,7 @@ func TestLauncherTestSuiteWithConfigID(t *testing.T) {
 }
 
 func TestLauncherScanStartNewTailer(t *testing.T) {
+	cfg := configmock.New(t)
 	var path string
 	var msg *message.Message
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -237,12 +239,12 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		fc := flareController.NewFlareController()
 		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 		launcher.pipelineProvider = mock.NewMockProvider()
-		launcher.registry = auditor.NewRegistry()
+		launcher.registry = auditorMock.NewMockRegistry()
 		outputChan := launcher.pipelineProvider.NextPipelineChan()
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 		defer status.Clear()
 
 		// create file
@@ -277,7 +279,7 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	fc := flareController.NewFlareController()
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
-	launcher.registry = auditor.NewRegistry()
+	launcher.registry = auditorMock.NewMockRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
 	firstSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "123456789"})
 	secondSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "987654321"})
@@ -326,7 +328,7 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	fc := flareController.NewFlareController()
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
-	launcher.registry = auditor.NewRegistry()
+	launcher.registry = auditorMock.NewMockRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
 	sources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/test.log", testDir), TailingMode: "beginning"}),
@@ -380,7 +382,7 @@ func TestLauncherSetTail(t *testing.T) {
 	fc := flareController.NewFlareController()
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
-	launcher.registry = auditor.NewRegistry()
+	launcher.registry = auditorMock.NewMockRegistry()
 
 	// Set tailing mode
 	source := sources.NewLogSource("source1", &config.LogsConfig{Type: config.FileType, Path: path1, TailingMode: "end"})
@@ -405,7 +407,7 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 	fc := flareController.NewFlareController()
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
-	launcher.registry = auditor.NewRegistry()
+	launcher.registry = auditorMock.NewMockRegistry()
 
 	// Set Identifier
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, Identifier: "NonEmptyString"})
@@ -417,6 +419,8 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 }
 
 func TestLauncherScanWithTooManyFiles(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 	var path string
 
@@ -443,16 +447,18 @@ func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	fc := flareController.NewFlareController()
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
-	launcher.registry = auditor.NewRegistry()
+	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// test at scan
 	launcher.scan()
 	assert.Equal(t, 2, launcher.tailers.Count())
+	// Confirm that all of the files have been keepalive'd even if they are not tailed
+	assert.Equal(t, 3, len(launcher.registry.(*auditorMock.Registry).KeepAlives))
 
 	path = fmt.Sprintf("%s/2.log", testDir)
 	err = os.Remove(path)
@@ -473,7 +479,7 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	fc := flareController.NewFlareController()
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
-	launcher.registry = auditor.NewRegistry()
+	launcher.registry = auditorMock.NewMockRegistry()
 
 	source := sources.NewLogSource("Source 1", &config.LogsConfig{Type: config.FileType, Identifier: "TEST_ID", Path: path})
 
@@ -494,6 +500,8 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 }
 
 func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -530,12 +538,12 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 			tagger:                 fakeTagger,
 		}
 		launcher.pipelineProvider = mock.NewMockProvider()
-		launcher.registry = auditor.NewRegistry()
+		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -564,6 +572,8 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 }
 
 func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -587,12 +597,12 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 		fc := flareController.NewFlareController()
 		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_modification_time", fc, fakeTagger)
 		launcher.pipelineProvider = mock.NewMockProvider()
-		launcher.registry = auditor.NewRegistry()
+		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -630,6 +640,8 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 }
 
 func TestLauncherFileRotation(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -649,12 +661,12 @@ func TestLauncherFileRotation(t *testing.T) {
 		fc := flareController.NewFlareController()
 		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 		launcher.pipelineProvider = mock.NewMockProvider()
-		launcher.registry = auditor.NewRegistry()
+		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -696,6 +708,8 @@ func TestLauncherFileRotation(t *testing.T) {
 }
 
 func TestLauncherFileDetectionSingleScan(t *testing.T) {
+	cfg := configmock.New(t)
+
 	var err error
 
 	testDir := t.TempDir()
@@ -715,12 +729,12 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 		fc := flareController.NewFlareController()
 		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 		launcher.pipelineProvider = mock.NewMockProvider()
-		launcher.registry = auditor.NewRegistry()
+		launcher.registry = auditorMock.NewMockRegistry()
 		logDirectory := fmt.Sprintf("%s/*.log", testDir)
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}

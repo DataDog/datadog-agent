@@ -95,9 +95,8 @@ func WithURLFromInstallersJSON(jsonURL, version string) Option {
 // MsiParams contains the optional parameters for the Datadog Installer Install command
 type MsiParams struct {
 	Params
-	msiArgs                []string
-	msiLogFilename         string
-	createInstallerFolders bool
+	msiArgs        []string
+	msiLogFilename string
 }
 
 // MsiOption is an optional function parameter type for the Datadog Installer Install command
@@ -168,12 +167,29 @@ func WithMSIDevEnvOverrides(prefix string) MsiOption {
 	}
 }
 
-// CreateInstallerFolders Specifies whether to create some folders that are necessary for the Datadog Installer.
-// Those folders are normally created when using the install script / bootstrapper, but are not when installing
-// the Datadog Installer MSI directly.
-func CreateInstallerFolders(create bool) MsiOption {
-	return func(params *MsiParams) error {
-		params.createInstallerFolders = create
+// WithInstallScriptDevEnvOverrides applies overrides to use local files for development.
+//
+// Example: local installer exe
+//
+//	export CURRENT_AGENT_INSTALLER_URL="file:///path/to/installer.exe"
+//
+// Example: local install script
+//
+//	export CURRENT_AGENT_INSTALLER_SCRIPT="file:///path/to/install.ps1"
+func WithInstallScriptDevEnvOverrides(prefix string) Option {
+	return func(params *Params) error {
+		if url, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_URL", prefix)); ok {
+			err := WithInstallerURL(url)(params)
+			if err != nil {
+				return err
+			}
+		}
+		if script, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_SCRIPT", prefix)); ok {
+			err := WithInstallerScript(script)(params)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 }

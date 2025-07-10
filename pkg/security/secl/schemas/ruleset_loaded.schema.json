@@ -3,6 +3,12 @@
     "$id": "ruleset_loaded.schema.json",
     "type": "object",
     "properties": {
+        "monitored_files": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
         "policies": {
             "type": "array",
             "items": {
@@ -15,7 +21,8 @@
     },
     "required": [
         "policies",
-        "date"
+        "date",
+        "monitored_files"
     ],
     "$defs": {
         "policyinfo": {
@@ -35,12 +42,27 @@
                 },
                 "version": {
                     "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "loaded",
+                        "partially_filtered",
+                        "partially_loaded",
+                        "fully_rejected",
+                        "fully_filtered",
+                        "error"
+                    ]
+                },
+                "message": {
+                    "type": "string"
                 }
             },
             "required": [
                 "source",
                 "name",
-                "version"
+                "version",
+                "status"
             ]
         },
         "policy": {
@@ -77,6 +99,7 @@
                         "agent_version_error",
                         "event_type_disabled",
                         "syntax_error",
+                        "filtered",
                         "error"
                     ]
                 },
@@ -106,6 +129,23 @@
                     "items": {
                         "$ref": "#/$defs/policyinfo"
                     }
+                },
+                "filter_type": {
+                    "type": "string",
+                    "enum": [
+                        "rule_id",
+                        "agent_version",
+                        "rule_filter"
+                    ]
+                },
+                "agent_version": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             },
             "required": [
@@ -129,7 +169,13 @@
                         "value": {
                             "type":["string", "number", "object", "array", "boolean", "null"]
                         },
+                        "default_value": {
+                            "type": ["string", "number", "object", "array", "boolean", "null"]
+                        },
                         "field": {
+                            "type": "string"
+                        },
+                        "expression": {
                             "type": "string"
                         },
                         "append": {
@@ -137,7 +183,13 @@
                         },
                         "scope": {
                             "type": "string",
-                            "enum": ["process", "container"]
+                            "enum": ["process", "container", "cgroup"]
+                        },
+                        "size": {
+                            "type": "integer"
+                        },
+                        "ttl": {
+                            "type": "string"
                         }
                     }
                 },
@@ -175,6 +227,17 @@
                         },
                         "no_compression": {
                             "type": "boolean"
+                        }
+                    }
+                },
+                "log": {
+                    "type": "object",
+                    "properties": {
+                        "level": {
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
                         }
                     }
                 }

@@ -90,6 +90,8 @@ type Check struct {
 	cdbName                                 string
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
+	dbResolvedHostname                      string
+	dbInstanceIdentifier                    string
 	dbVersion                               string
 	driver                                  string
 	metricLastRun                           time.Time
@@ -139,6 +141,10 @@ func handleServiceCheck(c *Check, err error) {
 		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
 	sendServiceCheck(c, "oracle.can_connect", status, message)
+	if status == servicecheck.ServiceCheckCritical {
+		// If we can't connect, we can't query
+		sendServiceCheck(c, serviceCheckName, status, message)
+	}
 	sender.Commit()
 }
 
@@ -149,6 +155,11 @@ func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
 		return true
 	}
 	return false
+}
+
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
 }
 
 // Run executes the check.
@@ -402,7 +413,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		tags = append(tags, fmt.Sprintf("server:%s", c.config.Server))
 	}
 	if c.config.ServiceName != "" {
-		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
+		tags = append(tags, fmt.Sprintf("service_name:%s", c.config.ServiceName))
 	}
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)

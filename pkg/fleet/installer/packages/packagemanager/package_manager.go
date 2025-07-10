@@ -36,7 +36,6 @@ func rpmInstalled() (bool, error) {
 // RemovePackage removes a package installed via deb/rpm package manager
 // It doesn't remove dependencies or purge as we want to keep existing configuration files
 // and reinstall the package using the installer.
-// Note: we don't run the pre/post remove scripts as we want to avoid surprises for older agent versions (like removing config)
 func RemovePackage(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "RemovePackage")
 	defer func() { span.Finish(err) }()

@@ -102,7 +102,7 @@ class TestFindAllTeams(unittest.TestCase):
             team_a.get_teams.return_value = [team_b, team_c]
             team_b.get_teams.return_value = [team_d]
             mock_repo.get_teams.return_value = [team_a]
-            self.assertCountEqual(github.find_all_teams(mock_repo), [team_a, team_b, team_c, team_d])
+            self.assertCountEqual(github.find_teams(mock_repo), [team_a, team_b, team_c, team_d])
 
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
     def test_ignore_dev_apm(self, _):
@@ -119,7 +119,7 @@ class TestFindAllTeams(unittest.TestCase):
             team_a.name = "Dev"
             team_e.name = "apm"
             mock_repo.get_teams.return_value = [team_a, team_e, team_f]
-            self.assertEqual(github.find_all_teams(mock_repo, exclude_teams=['Dev', 'apm']), [team_f])
+            self.assertEqual(github.find_teams(mock_repo, exclude_teams=['Dev', 'apm']), [team_f])
 
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
     def test_ignore_permissions(self, _):
@@ -137,7 +137,7 @@ class TestFindAllTeams(unittest.TestCase):
             team_e.permission = "triage"
             mock_repo.get_teams.return_value = [team_a, team_e, team_f]
             self.assertCountEqual(
-                github.find_all_teams(mock_repo, exclude_permissions=['pull', 'triage']),
+                github.find_teams(mock_repo, exclude_permissions=['pull', 'triage']),
                 [team_a, team_b, team_c, team_d],
             )
 
@@ -145,4 +145,4 @@ class TestFindAllTeams(unittest.TestCase):
     def test_empty_team(self, _):
         github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
-            self.assertListEqual(github.find_all_teams(mock_repo), [])
+            self.assertListEqual(github.find_teams(mock_repo), [])

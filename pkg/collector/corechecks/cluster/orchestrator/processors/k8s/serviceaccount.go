@@ -10,6 +10,7 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -59,7 +60,8 @@ func (h *ServiceAccountHandlers) BuildMessageBody(ctx processors.ProcessorContex
 		GroupId:         pctx.MsgGroupID,
 		GroupSize:       int32(groupSize),
 		ServiceAccounts: models,
-		Tags:            append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Tags:            util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:    ctx.GetAgentVersion(),
 	}
 }
 
@@ -80,7 +82,7 @@ func (h *ServiceAccountHandlers) ResourceList(ctx processors.ProcessorContext, l
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopy())
 	}
 
 	return resources
@@ -98,6 +100,17 @@ func (h *ServiceAccountHandlers) ResourceUID(ctx processors.ProcessorContext, re
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.ServiceAccount).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *ServiceAccountHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	m, ok := resourceMetadataModel.(*model.ServiceAccount)
+	if !ok {
+		return nil
+	}
+	return m.Tags
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

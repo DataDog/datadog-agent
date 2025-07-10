@@ -27,6 +27,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -58,7 +60,8 @@ type collectorImpl struct {
 type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
-	Lc compdef.Lifecycle
+	Lc         compdef.Lifecycle
+	Shutdowner compdef.Shutdowner
 
 	CollectorContrib collectorcontrib.Component
 	URIs             []string
@@ -73,6 +76,9 @@ type Requires struct {
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	Hostname            hostnameinterface.Component
+	Ipc                 ipc.Component
+	Params              Params
 }
 
 // RequiresNoAgent declares the input types to the constructor with no dependencies on Agent components
@@ -125,31 +131,38 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 	}
 }
 
-func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage) {
+func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
 	if v, ok := reqs.LogsAgent.Get(); ok {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger)
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger)
-	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.121.0",
+	Version:     "v0.129.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
 
 // NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
+	if !reqs.Config.GetBool("otelcollector.enabled") {
+		reqs.Log.Info("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
+		// Required to signal that the whole app must stop.
+		_ = reqs.Shutdowner.Shutdown()
+		return Provides{}, nil
+	}
+
 	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
 		return Provides{}, err
 	}
-	addFactories(reqs, factories, otel.NewGatewayUsage())
+	addFactories(reqs, factories, otel.NewGatewayUsage(), reqs.Params.BYOC)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	// Replace default core to use Agent logger
@@ -193,7 +206,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 		return Provides{}, err
 	}
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.None[ipc.Component](), false)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	set := otelcol.CollectorSettings{

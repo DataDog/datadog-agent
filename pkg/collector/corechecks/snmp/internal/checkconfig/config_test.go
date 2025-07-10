@@ -8,23 +8,22 @@ package checkconfig
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/stretchr/testify/require"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
@@ -942,8 +941,81 @@ collect_topology: true
 	assert.Equal(t, false, config.CollectTopology)
 }
 
+func Test_buildConfig_collectVPN(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: false
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.True(t, config.CollectVPN)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_vpn: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_vpn: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+	assert.False(t, config.CollectVPN)
+}
+
 func Test_buildConfig_namespace(t *testing.T) {
-	defer pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "default")
+	mockConfig := configmock.New(t)
 
 	// Should use namespace defined in instance config
 	// language=yaml
@@ -988,7 +1060,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "totoro")
+	mockConfig.SetWithoutSource("network_devices.namespace", "totoro")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "totoro", conf.Namespace)
@@ -1016,7 +1088,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: `)
-	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "mononoke")
+	mockConfig.SetWithoutSource("network_devices.namespace", "mononoke")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 	assert.Equal(t, "mononoke", conf.Namespace)
@@ -1028,7 +1100,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	pkgconfigsetup.Datadog().SetWithoutSource("network_devices.namespace", "")
+	mockConfig.SetWithoutSource("network_devices.namespace", "")
 	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
@@ -1693,6 +1765,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,
 		CollectTopology:       true,
+		CollectVPN:            true,
 		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
@@ -1757,7 +1830,8 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 }
 
 func TestCheckConfig_GetStaticTags(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	tests := []struct {
 		name         string
 		config       CheckConfig
@@ -1825,6 +1899,196 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
+		})
+	}
+}
+
+func TestHaveLegacyProfile(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	tests := []struct {
+		name                      string
+		rawInstanceConfig         []byte
+		rawInitConfig             []byte
+		mockConfd                 string
+		expectedHaveLegacyProfile bool
+	}{
+		{
+			name: "legacy custom profile (no oid) with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_no_oid.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy custom profile (string symbol type) with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_symbol_type.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy init config profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy-init-config
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+profiles:
+  legacy-init-config:
+    definition:
+      metrics:
+        - MIB: FOO-MIB
+          symbol:
+            # OID: 1.2.3.4.5.6
+            name: fooName
+`),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "ok profile with loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+loader: core
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: f5-big-ip
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "ok profile without loader specified should not fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: f5-big-ip
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name: "legacy custom profile (no oid) without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_no_oid.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy custom profile (string symbol type) without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "legacy_symbol_type.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy init config profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+profile: legacy-init-config
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+profiles:
+  legacy-init-config:
+    definition:
+      metrics:
+        - MIB: FOO-MIB
+          symbol:
+            # OID: 1.2.3.4.5.6
+            name: fooName
+`),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name: "legacy instance config profile without loader specified should fallback to Python",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+port: 1161
+community_string: public
+metrics:
+  - MIB: FOO-MIB
+    table:
+      OID: 1.2.3.4.5.6
+      name: fooTable
+    symbols:
+      - OID: 1.2.3.4.5.6.1
+        name: fooName1
+        metric_type: monotonic_count
+      # - OID: 1.2.3.4.5.6.2
+      - name: fooName2
+        metric_type: monotonic_count
+    metric_tags:
+      - index: 1
+        tag: fooTag3
+`),
+			// language=yaml
+			rawInitConfig:             []byte(``),
+			mockConfd:                 "conf.d",
+			expectedHaveLegacyProfile: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile.SetGlobalProfileConfigMap(nil)
+			mockConfdPath, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
+			mockConfig.SetWithoutSource("confd_path", mockConfdPath)
+
+			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
+			if tt.expectedHaveLegacyProfile {
+				assert.EqualError(t, err, "legacy profile detected with no loader specified, falling back to the Python loader")
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

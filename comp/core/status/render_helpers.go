@@ -9,34 +9,34 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	htemplate "html/template"
 	"io"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	ttemplate "text/template"
 	"time"
 	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
 	"github.com/spf13/cast"
-
 	"golang.org/x/text/unicode/norm"
+
+	pkghtmltemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	pkgtexttemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 var (
 	htmlFuncOnce sync.Once
-	htmlFuncMap  htemplate.FuncMap
+	htmlFuncMap  pkghtmltemplate.FuncMap
 	textFuncOnce sync.Once
-	textFuncMap  ttemplate.FuncMap
+	textFuncMap  pkgtexttemplate.FuncMap
 )
 
 // HTMLFmap return a map of utility functions for HTML templating
-func HTMLFmap() htemplate.FuncMap {
+func HTMLFmap() pkghtmltemplate.FuncMap {
 	htmlFuncOnce.Do(func() {
-		htmlFuncMap = htemplate.FuncMap{
+		htmlFuncMap = pkghtmltemplate.FuncMap{
 			"doNotEscape":         doNotEscape,
 			"lastError":           lastError,
 			"configError":         configError,
@@ -65,9 +65,9 @@ func HTMLFmap() htemplate.FuncMap {
 }
 
 // TextFmap map of utility functions for text templating
-func TextFmap() ttemplate.FuncMap {
+func TextFmap() pkgtexttemplate.FuncMap {
 	textFuncOnce.Do(func() {
-		textFuncMap = ttemplate.FuncMap{
+		textFuncMap = pkgtexttemplate.FuncMap{
 			"lastErrorTraceback":  lastErrorTraceback,
 			"lastErrorMessage":    lastErrorMessage,
 			"printDashes":         PrintDashes,
@@ -101,7 +101,8 @@ func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := htemplate.Must(htemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
+
+	t := pkghtmltemplate.Must(pkghtmltemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
 	return t.Execute(buffer, data)
 }
 
@@ -111,20 +112,21 @@ func RenderText(templateFS embed.FS, template string, buffer io.Writer, data any
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := ttemplate.Must(ttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
+
+	t := pkgtexttemplate.Must(pkgtexttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
 	return t.Execute(buffer, data)
 }
 
-func doNotEscape(value string) htemplate.HTML {
-	return htemplate.HTML(value)
+func doNotEscape(value string) pkghtmltemplate.HTML {
+	return pkghtmltemplate.HTML(value)
 }
 
-func configError(value string) htemplate.HTML {
-	return htemplate.HTML(value + "\n")
+func configError(value string) pkghtmltemplate.HTML {
+	return pkghtmltemplate.HTML(value + "\n")
 }
 
-func lastError(value string) htemplate.HTML {
-	return htemplate.HTML(value)
+func lastError(value string) pkghtmltemplate.HTML {
+	return pkghtmltemplate.HTML(value)
 }
 
 func lastErrorTraceback(value string) string {
@@ -134,7 +136,7 @@ func lastErrorTraceback(value string) string {
 	if err != nil || len(lastErrorArray) == 0 {
 		return "No traceback"
 	}
-	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
+	lastErrorArray[0]["traceback"] = strings.ReplaceAll(lastErrorArray[0]["traceback"], "\n", "\n      ")
 	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
 	return lastErrorArray[0]["traceback"]
 }
@@ -362,31 +364,31 @@ func getVersion(instances map[string]interface{}) string {
 	return ""
 }
 
-func pythonLoaderErrorHTML(value string) htemplate.HTML {
-	value = htemplate.HTMLEscapeString(value)
+func pythonLoaderErrorHTML(value string) pkghtmltemplate.HTML {
+	value = pkghtmltemplate.HTMLEscapeString(value)
 
-	value = strings.Replace(value, "\n", "<br>", -1)
-	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
-	return htemplate.HTML(value)
+	value = strings.ReplaceAll(value, "\n", "<br>")
+	value = strings.ReplaceAll(value, "  ", "&nbsp;&nbsp;&nbsp;")
+	return pkghtmltemplate.HTML(value)
 }
 
-func lastErrorTracebackHTML(value string) htemplate.HTML {
+func lastErrorTracebackHTML(value string) pkghtmltemplate.HTML {
 	var lastErrorArray []map[string]string
 
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err != nil || len(lastErrorArray) == 0 {
-		return htemplate.HTML("No traceback")
+		return pkghtmltemplate.HTML("No traceback")
 	}
 
-	traceback := htemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
+	traceback := pkghtmltemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
 
-	traceback = strings.Replace(traceback, "\n", "<br>", -1)
-	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	traceback = strings.ReplaceAll(traceback, "\n", "<br>")
+	traceback = strings.ReplaceAll(traceback, "  ", "&nbsp;&nbsp;&nbsp;")
 
-	return htemplate.HTML(traceback)
+	return pkghtmltemplate.HTML(traceback)
 }
 
-func lastErrorMessageHTML(value string) htemplate.HTML {
+func lastErrorMessageHTML(value string) pkghtmltemplate.HTML {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
@@ -394,15 +396,15 @@ func lastErrorMessageHTML(value string) htemplate.HTML {
 			value = msg
 		}
 	}
-	return htemplate.HTML(htemplate.HTMLEscapeString(value))
+	return pkghtmltemplate.HTML(pkghtmltemplate.HTMLEscapeString(value))
 }
 
-func statusHTML(check map[string]interface{}) htemplate.HTML {
+func statusHTML(check map[string]interface{}) pkghtmltemplate.HTML {
 	if check["LastError"].(string) != "" {
-		return htemplate.HTML("[<span class=\"error\">ERROR</span>]")
+		return pkghtmltemplate.HTML("[<span class=\"error\">ERROR</span>]")
 	}
 	if len(check["LastWarnings"].([]interface{})) != 0 {
-		return htemplate.HTML("[<span class=\"warning\">WARNING</span>]")
+		return pkghtmltemplate.HTML("[<span class=\"warning\">WARNING</span>]")
 	}
-	return htemplate.HTML("[<span class=\"ok\">OK</span>]")
+	return pkghtmltemplate.HTML("[<span class=\"ok\">OK</span>]")
 }

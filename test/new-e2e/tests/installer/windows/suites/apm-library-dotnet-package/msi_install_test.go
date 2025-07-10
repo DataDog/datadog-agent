@@ -39,11 +39,11 @@ func (s *testAgentMSIInstallsDotnetLibrary) SetupSuite() {
 
 	s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_DOTNET_VERSION_PACKAGE"))
 	if s.previousDotnetLibraryVersion.PackageVersion() == "" {
-		s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.13.0-pipeline.58926677.beta.sha-af5a1fab-1")
+		s.previousDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1")
 	}
 	s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_DOTNET_VERSION_PACKAGE"))
 	if s.currentDotnetLibraryVersion.PackageVersion() == "" {
-		s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.13.0-pipeline.58951229.beta.sha-af5a1fab-1")
+		s.currentDotnetLibraryVersion = installerwindows.NewVersionFromPackageVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1")
 	}
 }
 
@@ -61,7 +61,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestInstallFromMSI() {
 	s.installCurrentAgentVersion(
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -89,7 +89,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIThenRemoteUpgrade() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -138,7 +138,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -157,7 +157,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", newVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("upgrade.log"),
 	)
@@ -189,11 +189,10 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIRollbackRemovesLibrary() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
 		installerwindows.WithMSILogFile("install-rollback.log"),
 		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 	)
 	s.Require().Error(err)
 
@@ -214,7 +213,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", oldVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -224,11 +223,10 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", newVersion.PackageVersion())),
 		installerwindows.WithMSILogFile("install-rollback.log"),
 		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
-		installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"),
 	)
 	s.Require().Error(err)
 
@@ -247,7 +245,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallKeepsLibrary() {
 	s.installCurrentAgentVersion(
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg(fmt.Sprintf("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:%s", version.PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
@@ -304,7 +302,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) startExperimentCurrentVersion() (str
 		installerwindows.WithAlias("apm-library-dotnet-package"),
 		// TODO remove override once image is published in prod
 		installerwindows.WithVersion(s.currentDotnetLibraryVersion.PackageVersion()),
-		installerwindows.WithRegistry("install.datad0g.com"),
+		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithDevEnvOverrides("CURRENT_DOTNET_LIBRARY"),
 	)
 }
@@ -332,14 +330,12 @@ func (s *testAgentMSIInstallsDotnetLibrary) startExperimentWithCustomPackage(opt
 func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
-		// TODO: switch to prod stable entry when available
-		installerwindows.WithOption(installerwindows.WithURLFromPipeline("59253404")),
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
-	options = append(options, installerwindows.WithMSIDevEnvOverrides("PREVIOUS_AGENT"))
 	s.Require().NoError(s.Installer().Install(options...))
 
 	// sanity check: make sure we did indeed install the stable version
@@ -352,15 +348,15 @@ func (s *testAgentMSIInstallsDotnetLibrary) installPreviousAgentVersion(opts ...
 }
 
 func (s *testAgentMSIInstallsDotnetLibrary) installCurrentAgentVersion(opts ...installerwindows.MsiOption) {
-	agentVersion := s.CurrentAgentVersion().GetNumberAndPre()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	options := []installerwindows.MsiOption{
+		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-current-version.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
-	options = append(options, installerwindows.WithMSIDevEnvOverrides("CURRENT_AGENT"))
 	s.Require().NoError(s.Installer().Install(
 		options...,
 	))

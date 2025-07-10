@@ -10,9 +10,9 @@ type receiver struct {
 }
 
 type hasUnsupportedFields struct {
-	a int
-	b float32
-	c []uint8
+	b int
+	c float32
+	d []uint8
 }
 
 //nolint:all
@@ -175,9 +175,9 @@ func ExecuteStructFuncs() {
 	test_struct_with_arrays(sta)
 
 	test_struct_with_unsupported_fields(hasUnsupportedFields{
-		a: 1,
-		b: 2.0,
-		c: []uint8{3, 4, 5},
+		b: 1,
+		c: 2.0,
+		d: []uint8{3, 4, 5},
 	})
 }
 

@@ -10,6 +10,7 @@ package common
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -25,6 +26,7 @@ type (
 		Target     net.IP
 		DstPort    uint16
 		Hops       []*Hop
+		Tags       []string
 	}
 
 	// Hop encapsulates information about a single
@@ -49,7 +51,7 @@ type (
 
 	// MatcherFunc defines functions for matching a packet from the wire to
 	// a traceroute based on the source/destination addresses and an identifier
-	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
+	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32, uint16) (net.IP, error)
 )
 
 // Error implements the error interface for
@@ -71,7 +73,7 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	// this is a quick way to get the local address for connecting to the host
 	// using UDP as the network type to avoid actually creating a connection to
 	// the host, just get the OS to give us a local IP and local ephemeral port
-	conn, err := net.Dial("udp4", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
+	conn, err := net.Dial("udp", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -83,4 +85,10 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	}
 
 	return localUDPAddr, conn, nil
+}
+
+// UnmappedAddrFromSlice is the same as netip.AddrFromSlice but it also gets rid of mapped ipv6 addresses.
+func UnmappedAddrFromSlice(slice []byte) (netip.Addr, bool) {
+	addr, ok := netip.AddrFromSlice(slice)
+	return addr.Unmap(), ok
 }

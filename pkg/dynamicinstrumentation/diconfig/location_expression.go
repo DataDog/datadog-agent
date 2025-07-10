@@ -8,11 +8,9 @@
 package diconfig
 
 import (
-	"fmt"
+	"math/rand"
 	"reflect"
 	"strings"
-
-	"math/rand"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +53,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 		for pathElementIndex := range pathElements {
 			var elementParam *ditypes.Parameter = getParamFromTriePaths(pathElements[pathElementIndex])
 			if elementParam == nil {
-				log.Infof("Path not found to target: %s", pathElements[pathElementIndex])
 				continue
 			}
 			// Check if this instrumentation target is directly assigned
@@ -70,13 +67,13 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					targetExpressions = append(targetExpressions,
 						// Read process stack address to the stack
 						ditypes.ReadRegisterLocationExpression(ditypes.StackRegister, 8),
-						ditypes.ApplyOffsetLocationExpression(uint(elementParam.Location.StackOffset)),
+						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.Location.StackOffset)),
 					)
 					//FIXME: Do we need to limit lengths of arrays??
 					for i := 0; i < len(elementParam.ParameterPieces); i++ {
 						targetExpressions = append(targetExpressions,
 							ditypes.CopyLocationExpression(),
-							ditypes.ApplyOffsetLocationExpression(uint(i*(int(elementParam.ParameterPieces[0].TotalSize)))),
+							ditypes.ApplyOffsetLocationExpression(uint16(i*(int(elementParam.ParameterPieces[0].TotalSize)))),
 						)
 						targetExpressions = append(targetExpressions, expressionsToUseForEachArrayElement...)
 					}
@@ -93,12 +90,12 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Structs can have directly assigned locations if passed on the stack (common in the case of large structs)
 					targetExpressions = append(targetExpressions,
 						ditypes.ReadRegisterLocationExpression(ditypes.StackRegister, 8),
-						ditypes.ApplyOffsetLocationExpression(uint(elementParam.Location.StackOffset)),
+						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.Location.StackOffset)),
 					)
 				} else {
 					targetExpressions = append(targetExpressions,
 						ditypes.DirectReadLocationExpression(elementParam),
-						ditypes.PopLocationExpression(1, uint(elementParam.TotalSize)),
+						ditypes.PopLocationExpression(1, uint16(elementParam.TotalSize)),
 					)
 				}
 				continue
@@ -106,7 +103,8 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 				// This is not directly assigned, expect the address for it on the stack
 				if elementParam.Kind == uint(reflect.Pointer) {
 					targetExpressions = append(targetExpressions,
-						ditypes.DereferenceLocationExpression(uint(elementParam.TotalSize)),
+						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
+						ditypes.DereferenceLocationExpression(uint16(elementParam.TotalSize)),
 					)
 					_, ok := seenPointers[elementParam.ID]
 					if !ok {
@@ -117,6 +115,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					// Structs don't provide context on location, or have values themselves
 					// Just need to copy the address for each field
 					targetExpressions = append(targetExpressions,
+						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
 						ditypes.CopyLocationExpression(),
 					)
 
@@ -134,20 +133,20 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					stringLength.LocationExpressions = append(stringLength.LocationExpressions, targetExpressions...)
 					if stringLength.Location != nil {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
-							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
+							ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
 							ditypes.DirectReadLocationExpression(stringLength),
 							ditypes.PopLocationExpression(1, 2),
 						)
 					} else {
 						stringLength.LocationExpressions = append(stringLength.LocationExpressions,
-							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
-							ditypes.ApplyOffsetLocationExpression(uint(stringLength.FieldOffset)),
+							ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
+							ditypes.ApplyOffsetLocationExpression(uint16(stringLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
 
 					targetExpressions = append(targetExpressions,
-						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)))
+						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)))
 
 					if stringCharArray.Location != nil && stringLength.Location != nil {
 						// Fields of the string are directly assigned
@@ -155,7 +154,7 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 							// Read string dynamically:
 							ditypes.DirectReadLocationExpression(stringCharArray),
 							ditypes.DirectReadLocationExpression(stringLength),
-							ditypes.DereferenceDynamicToOutputLocationExpression(uint(limitsInfo.InstrumentationOptions.StringMaxSize)),
+							ditypes.DereferenceDynamicToOutputLocationExpression(uint16(limitsInfo.InstrumentationOptions.StringMaxSize)),
 						)
 					} else {
 						// Expect address of the string struct itself on the location expression stack
@@ -176,9 +175,6 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						continue
 					}
 
-					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
-						ditypes.PrintStatement("%s", "Reading the length of slice"),
-					)
 					sliceLength.LocationExpressions = append(sliceLength.LocationExpressions, targetExpressions...)
 					if sliceLength.Location != nil {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
@@ -187,8 +183,8 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 						)
 					} else {
 						sliceLength.LocationExpressions = append(sliceLength.LocationExpressions,
-							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
-							ditypes.ApplyOffsetLocationExpression(uint(sliceLength.FieldOffset)),
+							ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
+							ditypes.ApplyOffsetLocationExpression(uint16(sliceLength.FieldOffset)),
 							ditypes.DereferenceToOutputLocationExpression(2),
 						)
 					}
@@ -210,41 +206,37 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if slicePointer.Location != nil && sliceLength.Location != nil {
 						// Fields of the slice are directly assigned
 						targetExpressions = append(targetExpressions,
-							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (directly read)"),
 							ditypes.DirectReadLocationExpression(sliceLength),
-							ditypes.SetLimitEntry(sliceIdentifier, uint(ditypes.SliceMaxLength)),
+							ditypes.SetLimitEntry(sliceIdentifier, uint16(ditypes.SliceMaxLength)),
 						)
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							GenerateLocationExpression(limitsInfo, sliceElementType)
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 							targetExpressions = append(targetExpressions,
-								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
-								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
+								ditypes.JumpToLabelIfEqualToLimit(uint16(i), sliceIdentifier, labelName),
 								ditypes.DirectReadLocationExpression(slicePointer),
-								ditypes.ApplyOffsetLocationExpression(uint(sliceElementType.TotalSize)*uint(i)),
+								ditypes.ApplyOffsetLocationExpression(uint16(sliceElementType.TotalSize)*uint16(i)),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
 						}
 					} else {
 						// Expect address of the slice struct on stack, use offsets accordingly
 						targetExpressions = append(targetExpressions,
-							ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)), // Apply offset to the slice struct itself (incase we're in a struct on the stack or pointer)
-							ditypes.PrintStatement("%s", "Reading the length of slice and setting limit (indirect read)"),
-							ditypes.CopyLocationExpression(),         // Setup stack so it has two pointers to slice struct
-							ditypes.ApplyOffsetLocationExpression(8), // Change the top pointer to the address of the length field
-							ditypes.DereferenceLocationExpression(8), // Dereference to place length on top of the stack
-							ditypes.SetLimitEntry(sliceIdentifier, uint(ditypes.SliceMaxLength)),
+							ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)), // Apply offset to the slice struct itself (incase we're in a struct on the stack or pointer)
+							ditypes.CopyLocationExpression(),                                        // Setup stack so it has two pointers to slice struct
+							ditypes.ApplyOffsetLocationExpression(8),                                // Change the top pointer to the address of the length field
+							ditypes.DereferenceLocationExpression(8),                                // Dereference to place length on top of the stack
+							ditypes.SetLimitEntry(sliceIdentifier, uint16(ditypes.SliceMaxLength)),
 						)
 						// Expect address of slice struct on top of the stack, check limit and copy/apply offset accordingly
 						for i := 0; i < ditypes.SliceMaxLength; i++ {
 							GenerateLocationExpression(limitsInfo, sliceElementType)
 							expressionsToUseForEachSliceElement := collectAllLocationExpressions(sliceElementType, true)
 							targetExpressions = append(targetExpressions,
-								ditypes.PrintStatement("%s", "Reading slice element "+fmt.Sprintf("%d", i)),
-								ditypes.JumpToLabelIfEqualToLimit(uint(i), sliceIdentifier, labelName),
+								ditypes.JumpToLabelIfEqualToLimit(uint16(i), sliceIdentifier, labelName),
 								ditypes.CopyLocationExpression(),
 								ditypes.DereferenceLocationExpression(8),
-								ditypes.ApplyOffsetLocationExpression(uint(i*(int(sliceElementType.TotalSize)))),
+								ditypes.ApplyOffsetLocationExpression(uint16(i*(int(sliceElementType.TotalSize)))),
 							)
 							targetExpressions = append(targetExpressions, expressionsToUseForEachSliceElement...)
 						}
@@ -261,20 +253,21 @@ func GenerateLocationExpression(limitsInfo *ditypes.InstrumentationInfo, param *
 					if elementParam.ParameterPieces[0] == nil {
 						continue
 					}
+					targetExpressions = append(targetExpressions, ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)))
 					GenerateLocationExpression(limitsInfo, elementParam.ParameterPieces[0])
 					expressionsToUseForEachArrayElement := collectAllLocationExpressions(elementParam.ParameterPieces[0], true)
 					for i := range elementParam.ParameterPieces {
 						targetExpressions = append(targetExpressions,
 							ditypes.CopyLocationExpression(),
-							ditypes.ApplyOffsetLocationExpression(uint(int(elementParam.ParameterPieces[0].TotalSize)*i)),
+							ditypes.ApplyOffsetLocationExpression(uint16((elementParam.ParameterPieces[0].TotalSize)*int64(i))),
 						)
 						targetExpressions = append(targetExpressions, expressionsToUseForEachArrayElement...)
 					}
 				} else {
 					// Basic type, indirectly assigned
 					targetExpressions = append(targetExpressions,
-						ditypes.ApplyOffsetLocationExpression(uint(elementParam.FieldOffset)),
-						ditypes.DereferenceToOutputLocationExpression(uint(elementParam.TotalSize)))
+						ditypes.ApplyOffsetLocationExpression(uint16(elementParam.FieldOffset)),
+						ditypes.DereferenceToOutputLocationExpression(uint16(elementParam.TotalSize)))
 				}
 			} /* end indirectly assigned types */
 		}
@@ -351,11 +344,6 @@ func isBasicType(kind uint) bool {
 	}
 }
 
-func randomLabel() string {
-	length := 6
-	randomString := make([]byte, length)
-	for i := 0; i < length; i++ {
-		randomString[i] = byte(65 + rand.Intn(25))
-	}
-	return string(randomString)
+func randomLabel() uint32 {
+	return uint32(rand.Intn(1000000)) // Generates a random 6-digit number (0-999999)
 }

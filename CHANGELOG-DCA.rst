@@ -2,6 +2,216 @@
 Release Notes
 =============
 
+.. _Release Notes_7.67.1:
+
+7.67.1
+======
+
+.. _Release Notes_7.67.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-02
+Pinned to datadog-agent v7.67.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7671>`_.
+
+.. _Release Notes_7.67.0:
+
+7.67.0
+======
+
+.. _Release Notes_7.67.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-18
+Pinned to datadog-agent v7.67.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7670>`_.
+
+
+.. _Release Notes_7.67.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The Kubernetes State check no longer supports VPA versions <0.7.0.
+
+
+.. _Release Notes_7.67.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug where the Kubernetes State check could not generate VPA metrics for VPA versions 1.3.0+
+
+- Fix data race in the orchestrator check for the sensitive data scrubber. Note: This
+  would only occur when running the check on Datadog cluster check runners.
+
+
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-03
+Pinned to datadog-agent v7.66.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7661>`_.
+
+.. _Release Notes_7.66.0:
+
+7.66.0
+======
+
+.. _Release Notes_7.66.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-22
+Pinned to datadog-agent v7.66.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7660>`_.
+
+.. _Release Notes_7.66.0_New Features:
+
+New Features
+------------
+
+- For workload selection in auto-instrumentation, users can now use the Kubernetes native ``valueFrom``
+  as an alternative to ``value`` in ``ddTraceConfigs``. This enables dynamic, user-defined and label
+  based value propagation to the tracing SDKs, like ``DD_SERVICE``.
+
+- Collect `EndpointSlice` manifests in the orchestrator check.
+
+- Tag resources from Cluster Agent Orchestrator check with all static tags.
+
+.. _Release Notes_7.66.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix major data races in the orchestrator check for the Kubernetes resource collection.
+
+- Fix data race in autodiscovery cluster checks provider.
+
+- Fix data race in autodiscovery kube services provider.
+
+- Fixes an issue with autoinstrumentation where sometimes a ``DD_SERVICE`` is
+  not consistent between containers and init containers.
+
+- The auto-instrumentation webhook no longer mutates the ``istio-proxy`` container.
+  This fixes an issue with Kubernetes-native sidecars and the istio service mesh
+  where a standard sidecar is moved to be the first init container by istio after it
+  was mutated by auto-instrumentation.
+
+- The cluster-agent kubernetes_metadata API now supports client specified annotations filtering.
+  Clients can pass along filters as query parameters like '?filter=abc&filter=def'.
+
+
+.. _Release Notes_7.65.2:
+
+7.65.2
+======
+
+.. _Release Notes_7.65.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-13
+Pinned to datadog-agent v7.65.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7652>`_.
+
+.. _Release Notes_7.65.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix wrong computation of the init container resources in the autoinstrumentation webhook.
+
+
+.. _Release Notes_7.65.1:
+
+7.65.1
+======
+
+.. _Release Notes_7.65.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-08
+Pinned to datadog-agent v7.65.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7651>`_.
+
+.. _Release Notes_7.65.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Customers relying on the deprecated v1 implementation of the auto instrumentation webhook will no longer be forced
+  to use the v2 implementation. This will provide additional time for customers to migrate from the v1 to the v2 implementation
+  and ensure the v2 implementation adequately supports all existing use cases.
+
+
+.. _Release Notes_7.65.0:
+
+7.65.0
+======
+
+.. _Release Notes_7.65.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-06
+Pinned to datadog-agent v7.65.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7650>`_.
+
+.. _Release Notes_7.65.0_New Features:
+
+New Features
+------------
+
+- [PREVIEW] Add support for mounting Datadog CSI volumes instead of hostpath
+  volumes in the admission controller config webhook for sharing DogStatsD
+  and APM UDS sockets with user applications. This requires the Datadog
+  CSI driver to be installed and running on the cluster.
+
+
+.. _Release Notes_7.65.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect terminated Kubernetes resources.
+
+
+.. _Release Notes_7.64.3:
+
+7.64.3
+======
+
+.. _Release Notes_7.64.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-04-10
+Pinned to datadog-agent v7.64.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7643>`_.
+
+.. _Release Notes_7.64.2:
+
+7.64.2
+======
+
+.. _Release Notes_7.64.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-04-02
+Pinned to datadog-agent v7.64.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7642>`_.
+
 .. _Release Notes_7.64.1:
 
 7.64.1
@@ -58,7 +268,7 @@ New Features
         ddTraceVersions:
           python: "default"
   ```
-  
+
   Targets can also be chained together, with the first matching rule taking precedence. For example, the following
   configuration installs the Python tracer for pods labeled `language=python` and the Java tracer for pods in a
   namespace labeled `language=java`. If a pod matches both rules, the first match takes precedence:
@@ -79,7 +289,7 @@ New Features
         ddTraceVersions:
           python: "default"
   ```
-  
+
   Targets support tracer configuration options in the form of environment variables. All options must have the
   `DD_` prefix. The following example installs the Python tracer with profiling and data jobs enabled:
   ```
@@ -196,7 +406,7 @@ Enhancement Notes
 -----------------
 
 - Added support for `kubernetesResourcesLabelsAsTags` and `kubernetesResourcesAnnotationsAsTags` in the
-  orchestrator check. Kubernetes resources processed by the orchestrator check can now include labels 
+  orchestrator check. Kubernetes resources processed by the orchestrator check can now include labels
   and annotations as tags, improving consistency with existing tagging configurations.
 
 - The Cluster Agent is now able to delete `ValidatingAdmissionWebhook` and `MutatingAdmissionWebhook`

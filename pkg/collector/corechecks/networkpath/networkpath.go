@@ -51,11 +51,13 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname: c.config.DestHostname,
-		DestPort:     c.config.DestPort,
-		MaxTTL:       c.config.MaxTTL,
-		Timeout:      c.config.Timeout,
-		Protocol:     c.config.Protocol,
+		DestHostname:              c.config.DestHostname,
+		DestPort:                  c.config.DestPort,
+		MaxTTL:                    c.config.MaxTTL,
+		Timeout:                   c.config.Timeout,
+		Protocol:                  c.config.Protocol,
+		TCPMethod:                 c.config.TCPMethod,
+		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)
@@ -72,7 +74,7 @@ func (c *Check) Run() error {
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = c.config.Tags
+	path.Tags = append(path.Tags, c.config.Tags...)
 
 	// Perform reverse DNS lookup
 	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)

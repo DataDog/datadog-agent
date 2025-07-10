@@ -20,7 +20,6 @@
       -e CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
-      -e RELEASE_VERSION="$RELEASE_VERSION"
       -e MAJOR_VERSION="7"
       -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
       -e GOMODCACHE="c:\modcache"
@@ -76,7 +75,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
   timeout: 2h
 
 
-# cloudfoundry IoT build for Windows
+# azure-app-services build for Windows
 windows_zip_agent_binaries_x64-a7:
   stage: package_build
   rules:
@@ -103,7 +102,6 @@ windows_zip_agent_binaries_x64-a7:
       -e CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
-      -e RELEASE_VERSION="$RELEASE_VERSION"
       -e MAJOR_VERSION="7"
       -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION"
       -e GOMODCACHE="c:\modcache"

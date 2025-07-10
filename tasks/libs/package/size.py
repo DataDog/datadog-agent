@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 from datetime import datetime
+from pathlib import Path
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
@@ -32,7 +33,6 @@ SCANNED_BINARIES = {
     },
     "heroku-agent": {
         "agent": "opt/datadog-agent/bin/agent/agent",
-        "process-agent": "opt/datadog-agent/embedded/bin/process-agent",
         "trace-agent": "opt/datadog-agent/embedded/bin/trace-agent",
     },
 }
@@ -60,15 +60,7 @@ PACKAGE_SIZE_TEMPLATE = {
 
 
 class InfraError(Exception):
-    """Assertion failed."""
-
-    def __init__(self, *args, **kwargs):  # real signature unknown
-        pass
-
-    @staticmethod  # known case of __new__
-    def __new__(*args, **kwargs):  # real signature unknown
-        """Create and return a new object.  See help(type) for accurate signature."""
-        pass
+    pass
 
 
 def extract_deb_package(ctx, package_path, extract_dir):
@@ -76,15 +68,18 @@ def extract_deb_package(ctx, package_path, extract_dir):
 
 
 def extract_rpm_package(ctx, package_path, extract_dir):
+    log_dir = os.environ.get("CI_PROJECT_DIR", None)
+    if log_dir is None:
+        log_dir = "/tmp"
     with ctx.cd(extract_dir):
-        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > /dev/null", warn=True)
+        out = ctx.run(f"rpm2cpio {package_path} | cpio -idm > {log_dir}/extract_rpm_package_report", warn=True)
         if out.exited == 2:
-            raise InfraError()
+            raise InfraError("RPM archive extraction failed ! retrying...(infra flake)")
 
 
 def extract_zip_archive(ctx, package_path, extract_dir):
     with ctx.cd(extract_dir):
-        ctx.run(f"unzip {package_path}")
+        ctx.run(f"unzip {package_path}", hide=True)
 
 
 def extract_dmg_archive(ctx, package_path, extract_dir):
@@ -120,14 +115,12 @@ def file_size(path):
     return os.path.getsize(path)
 
 
-def directory_size(ctx, path):
-    # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
-    # NOTE: We use the -b (--bytes, equivalent to --apparent-size --block-size 1) option to make the computation
-    # consistent. Otherwise, each file's size is counted as the number of blocks it uses, which means a file's size
-    # depends on how it is written to disk.
-    # See https://unix.stackexchange.com/questions/173947/du-s-apparent-size-vs-du-s
-    # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
-    return int(ctx.run(f"du --apparent-size -sB1 {path}", hide=True).stdout.split()[0])
+def directory_size(path):
+    """Compute the size of a directory as the sum of all the files inside (recursively)"""
+    return sum(
+        sum((dirpath / basename).lstat().st_size for basename in filenames)
+        for dirpath, _, filenames in Path(path).walk()
+    )
 
 
 def compute_package_size_metrics(
@@ -155,7 +148,7 @@ def compute_package_size_metrics(
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
 
         package_compressed_size = file_size(path=package_path)
-        package_uncompressed_size = directory_size(ctx, path=extract_dir)
+        package_uncompressed_size = directory_size(path=extract_dir)
 
         timestamp = int(datetime.utcnow().timestamp())
         common_tags = [

@@ -16,7 +16,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -143,7 +143,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 		return nil, err
 	}
 
-	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.ShouldProcessRawMessage(), l.tagger)
+	tailer := tailer.NewTailer(source, l.pipelineProvider.NextPipelineChan(), journal, source.Config.ShouldProcessRawMessage(), l.tagger, l.registry)
 	cursor := l.registry.GetOffset(tailer.Identifier())
 
 	err = tailer.Start(cursor)

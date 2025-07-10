@@ -12,6 +12,8 @@ static __always_inline bool kafka_allow_packet(skb_info_t *skb_info);
 static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, kafka_telemetry_t *kafka_tel);
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info);
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size);
+static __always_inline void update_classified_fetch_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __s16 version);
+static __always_inline void update_classified_produce_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __s16 version);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -1110,14 +1112,14 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
     u32 index;
 
     switch (level) {
-    case PARSER_LEVEL_RECORD_BATCH:
+    case PARSER_LEVEL_RECORD_BATCH: // Can only be fetch
         if (api_version >= 12) {
             index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
         } else {
             index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
         }
         break;
-    case PARSER_LEVEL_PARTITION:
+    case PARSER_LEVEL_PARTITION: // Can be fetch or produce
     default:
         switch (api_key) {
         case KAFKA_FETCH:
@@ -1388,7 +1390,7 @@ int socket__kafka_fetch_response_partition_parser_v0(struct __sk_buff *skb) {
 
 SEC("socket/kafka_fetch_response_partition_parser_v12")
 int socket__kafka_fetch_response_partition_parser_v12(struct __sk_buff *skb) {
-    return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 12, 12, KAFKA_FETCH);
+    return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 12, KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION, KAFKA_FETCH);
 }
 
 SEC("socket/kafka_fetch_response_record_batch_parser_v0")
@@ -1398,7 +1400,7 @@ int socket__kafka_fetch_response_record_batch_parser_v0(struct __sk_buff *skb) {
 
 SEC("socket/kafka_fetch_response_record_batch_parser_v12")
 int socket__kafka_fetch_response_record_batch_parser_v12(struct __sk_buff *skb) {
-    return __socket__kafka_response_parser(skb, PARSER_LEVEL_RECORD_BATCH, 12, 12, KAFKA_FETCH);
+    return __socket__kafka_response_parser(skb, PARSER_LEVEL_RECORD_BATCH, 12, KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION, KAFKA_FETCH);
 }
 
 SEC("socket/kafka_produce_response_partition_parser_v0")
@@ -1408,7 +1410,7 @@ int socket__kafka_produce_response_partition_parser_v0(struct __sk_buff *skb) {
 
 SEC("socket/kafka_produce_response_partition_parser_v9")
 int socket__kafka_produce_response_partition_parser_v9(struct __sk_buff *skb) {
-    return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 9, 11, KAFKA_PRODUCE);
+    return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 9, KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION, KAFKA_PRODUCE);
 }
 
 
@@ -1438,7 +1440,7 @@ int uprobe__kafka_tls_fetch_response_partition_parser_v0(struct pt_regs *ctx) {
 
 SEC("uprobe/kafka_tls_fetch_response_partition_parser_v12")
 int uprobe__kafka_tls_fetch_response_partition_parser_v12(struct pt_regs *ctx) {
-    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 12, 12, KAFKA_FETCH);
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 12, KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION, KAFKA_FETCH);
 }
 
 SEC("uprobe/kafka_tls_fetch_response_record_batch_parser_v0")
@@ -1448,7 +1450,7 @@ int uprobe__kafka_tls_fetch_response_record_batch_parser_v0(struct pt_regs *ctx)
 
 SEC("uprobe/kafka_tls_fetch_response_record_batch_parser_v12")
 int uprobe__kafka_tls_fetch_response_record_batch_parser_v12(struct pt_regs *ctx) {
-    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 12, 12, KAFKA_FETCH);
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 12, KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION, KAFKA_FETCH);
 }
 
 SEC("uprobe/kafka_tls_produce_response_partition_parser_v0")
@@ -1458,7 +1460,7 @@ int uprobe__kafka_tls_produce_response_partition_parser_v0(struct pt_regs *ctx) 
 
 SEC("uprobe/kafka_tls_produce_response_partition_parser_v9")
 int uprobe__kafka_tls_produce_response_partition_parser_v9(struct pt_regs *ctx) {
-    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, 11, KAFKA_PRODUCE);
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION, KAFKA_PRODUCE);
 }
 
 // Gets the next expected TCP sequence in the stream, assuming
@@ -1622,6 +1624,28 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
+    }
+
+    // Check if the api key and version are supported
+    if(!is_supported_api_version_for_classification(kafka_header.api_key, kafka_header.api_version)) {
+        return false;
+    }
+
+    // Report api version hits telemetry & check if the api version is supported
+    // *classification has different supported versions for various API keys.
+    switch (kafka_header.api_key) {
+        case KAFKA_PRODUCE:
+            update_classified_produce_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
+            if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+                return false;
+            }
+            break;
+        case KAFKA_FETCH:
+            update_classified_fetch_api_version_hits_telemetry(kafka_tel, kafka_header.api_version);
+            if (kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
+                return false;
+            }
+            break;
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
@@ -1802,6 +1826,26 @@ static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *
     bucket_idx = bucket_idx > (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) : bucket_idx;
 
     __sync_fetch_and_add(&kafka_tel->topic_name_size_buckets[bucket_idx], 1);
+}
+
+// update_classified_produce_api_version_hits_telemetry updates the array keeping track of produce api versions hits in the telemetry
+static __always_inline void update_classified_produce_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __s16 version) {
+    // We explicitly ensure the index is in bounds to avoid verifier errors
+    __u8 bucket_idx = version % (KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION+1);
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    bucket_idx = bucket_idx > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION ? KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION : bucket_idx;
+
+    __sync_fetch_and_add(&kafka_tel->classified_produce_api_version_hits[bucket_idx], 1);
+}
+
+// update_classified_fetch_api_version_hits_telemetry updates the array keeping track of fetch api versions hits in the telemetry
+static __always_inline void update_classified_fetch_api_version_hits_telemetry(kafka_telemetry_t *kafka_tel, __s16 version) {
+    // We explicitly ensure the index is in bounds to avoid verifier errors
+    __u8 bucket_idx = version % (KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION+1);
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    bucket_idx = bucket_idx > KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION ? KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION : bucket_idx;
+
+    __sync_fetch_and_add(&kafka_tel->classified_fetch_api_version_hits[bucket_idx], 1);
 }
 
 #endif

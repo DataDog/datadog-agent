@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/atomic"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.uber.org/atomic"
 )
 
 // EPIntakeVersion is the events platform intake API version
@@ -83,6 +84,12 @@ type unmarshalEndpoint struct {
 	Endpoint `mapstructure:",squash"`
 }
 
+// EndpointCompressionOptions is the compression options for the endpoint
+type EndpointCompressionOptions struct {
+	CompressionKind  string
+	CompressionLevel int
+}
+
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, useSSL bool) Endpoint {
 	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
@@ -115,6 +122,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
 // newHTTPEndpoint returns a new HTTP Endpoint based on LogsConfigKeys The endpoint is by default reliable and will use
 // the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
 func newHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
+
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
 		apiKey:                  atomic.NewString(apiKey),
@@ -183,8 +191,8 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
-
 		newE.UseCompression = main.UseCompression
+		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
 		newE.ProxyAddress = e.ProxyAddress
 		newE.isReliable = e.IsReliable == nil || *e.IsReliable
@@ -269,7 +277,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 // onConfigUpdate handles configuration change notification to update the internal API key of the Endpoint if needed
 func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, oldVal interface{}, newVal interface{}) {
+	l.getConfig().OnUpdate(func(key string, oldVal interface{}, newVal interface{}, _ uint64) {
 		if key != e.configSettingPath {
 			return
 		}

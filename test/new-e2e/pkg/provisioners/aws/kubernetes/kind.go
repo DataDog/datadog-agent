@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -114,6 +116,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		Kubeconfig:            kindCluster.KubeConfig,
 	})
 	if err != nil {
+		return err
+	}
+
+	// Deploy the datadog CSI driver
+	if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
 		return err
 	}
 
@@ -230,6 +237,10 @@ agents:
 		}
 
 		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
 			return err
 		}
 

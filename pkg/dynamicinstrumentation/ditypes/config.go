@@ -15,12 +15,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/google/uuid"
+
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const ConfigBPFProbeID = "config" // ConfigBPFProbeID is the ID used for the config bpf program
@@ -28,10 +28,10 @@ const ConfigBPFProbeID = "config" // ConfigBPFProbeID is the ID used for the con
 var (
 	CaptureParameters       = true  // CaptureParameters is the default value for if probes should capture parameter values
 	ArgumentsMaxSize        = 10000 // ArgumentsMaxSize is the default size in bytes of the output buffer used for param values
-	StringMaxSize           = 512   // StringMaxSize is the length limit
+	StringMaxSize           = 60    // StringMaxSize is the length limit
 	MaxReferenceDepth uint8 = 4     // MaxReferenceDepth is the default depth that DI will traverse datatypes for capturing values
 	MaxFieldCount           = 20    // MaxFieldCount is the default limit for how many fields DI will capture in a single data type
-	SliceMaxLength          = 10    // SliceMaxLength is the default limit in number of elements of a slice
+	SliceMaxLength          = 1     // SliceMaxLength is the default limit in number of elements of a slice
 )
 
 // ProbeID is the unique identifier for probes
@@ -173,7 +173,7 @@ func (procs DIProcs) CloseUprobe(pid PID, probeID ProbeID) {
 	}
 	err := proc.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe: %s", err)
+		log.Errorf("could not close uprobe: %s", err)
 	}
 }
 
@@ -302,7 +302,18 @@ type ProcessInfo struct {
 	ProbesByID             *ProbesByID
 	InstrumentationUprobes *InstrumentationUprobesMap
 	InstrumentationObjects *InstrumentationObjectsMap
+	DDTracegoVersion       DDTraceGoVersion
 }
+
+// DDTraceGoVersion is the version of dd-trace-go that is used by the process
+type DDTraceGoVersion byte
+
+const (
+	// DDTraceGoVersionV1 represents that the process is using dd-trace-go v1
+	DDTraceGoVersionV1 DDTraceGoVersion = iota + 1
+	// DDTraceGoVersionV2 represents that the process is using dd-trace-go v2
+	DDTraceGoVersionV2
+)
 
 // SetupConfigUprobe sets the configuration probe for the process
 func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
@@ -421,7 +432,7 @@ func (pi *ProcessInfo) DeleteProbe(probeID ProbeID) {
 	}
 	err := pi.CloseUprobeLink(probeID)
 	if err != nil {
-		log.Infof("could not close uprobe link: %s", err)
+		log.Errorf("could not close uprobe link: %s", err)
 	}
 	if pi.ProbesByID != nil {
 		pi.ProbesByID.Delete(probeID)
@@ -481,7 +492,7 @@ type Probe struct {
 }
 
 // GetBPFFuncName cleans the function name to be allowed by the bpf compiler
-func (p *Probe) GetBPFFuncName() string {
+func GetBPFFuncName(p *Probe) string {
 	// can't have '.', '-' or '/' in bpf program name
 	replacer := strings.NewReplacer(".", "_", "/", "_", "-", "_", "[", "_", "]", "_", "*", "ptr_", "(", "", ")", "")
 	return replacer.Replace(p.FuncName)

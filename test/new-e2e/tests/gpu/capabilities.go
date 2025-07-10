@@ -7,9 +7,7 @@ package gpu
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -29,8 +27,8 @@ import (
 
 const agentNamespace = "datadog"
 const podSelectorField = "app"
-const jobQueryInterval = 250 * time.Millisecond
-const jobQueryTimeout = 30 * time.Second // Might take some time to pull the image
+const jobQueryInterval = 500 * time.Millisecond
+const jobQueryTimeout = 120 * time.Second // Might take some time to create the container
 
 type agentComponent string
 
@@ -87,10 +85,6 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	// Yes, it's deprecated, but apparently without this we get the same random string every time
-	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
-
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
 	args := strings.Join(arguments, " ")
@@ -170,10 +164,6 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
 func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	// Yes, it's deprecated, but apparently without this we get the same random string every time
-	// so seed it just in case, it's a test so we don't care too much about RNG safety
-	rand.Seed(time.Now().UnixNano())
-
 	jobName := strings.ToLower("workload-" + common.RandString(5))
 	jobNamespace := "default"
 
@@ -204,9 +194,10 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	}
 
 	// Now let's find the container ID
+	var pods *corev1.PodList // keep the list here so that we can return a good error message on timeout
 	maxTime := time.Now().Add(jobQueryTimeout)
 	for time.Now().Before(maxTime) {
-		pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
+		pods, err = c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("job-name", jobName).String(), // job-name is the label automatically assigned by k8s to the pod running this job
 			Limit:         1,
 		})
@@ -224,7 +215,13 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 		time.Sleep(jobQueryInterval)
 	}
 
-	return "", errors.New("Could not find the container ID for the job")
+	// Timed out, check what happened
+	if len(pods.Items) == 0 {
+		return "", fmt.Errorf("Could not find a pod that matched job-name: %s", jobName)
+	}
+
+	pod := pods.Items[0]
+	return "", fmt.Errorf("Pod %s found but is not running, status: %s %s (%s)", pod.Name, pod.Status.Phase, pod.Status.Message, pod.Status.Reason)
 }
 
 func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {

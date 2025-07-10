@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -28,6 +29,17 @@ type ContainerContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// Creation time of the container
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
+}
+
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -66,6 +78,8 @@ type EventContextSerializer struct {
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
+	// RuleContext rule context
+	RuleContext RuleContext `json:"rule_context,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -186,8 +200,19 @@ type DNSQuestionSerializer struct {
 type DNSEventSerializer struct {
 	// id is the unique identifier of the DNS request
 	ID uint16 `json:"id"`
+	// is_query if true means it's a question, if false is a response
+	Query bool `json:"is_query"`
 	// question is a DNS question for the DNS request
 	Question DNSQuestionSerializer `json:"question"`
+	// response is a DNS response for the DNS request
+	Response *DNSResponseEventSerializer `json:"response"`
+}
+
+// DNSResponseEventSerializer serializes a DNS response event to JSON
+// easyjson:json
+type DNSResponseEventSerializer struct {
+	// RCode is the response code present in the response
+	RCode uint8 `json:"code"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -197,6 +222,22 @@ type ExitEventSerializer struct {
 	Cause string `json:"cause"`
 	// Exit code of the process or number of the signal that caused the process to terminate
 	Code uint32 `json:"code"`
+}
+
+// MatchingSubExpr serializes matching sub expression to JSON
+// easyjson:json
+type MatchingSubExpr struct {
+	Offset int    `json:"offset"`
+	Length int    `json:"length"`
+	Value  string `json:"value"`
+	Field  string `json:"field,omitempty"`
+}
+
+// RuleContext serializes rule context to JSON
+// easyjson:json
+type RuleContext struct {
+	MatchingSubExprs []MatchingSubExpr `json:"matching_subexprs,omitempty"`
+	Expression       string            `json:"expression,omitempty"`
 }
 
 // BaseEventSerializer serializes an event to JSON
@@ -302,16 +343,25 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 
 // nolint: deadcode, unused
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
-	return &DNSEventSerializer{
-		ID: d.ID,
+	ret := &DNSEventSerializer{
+		ID:    d.ID,
+		Query: !d.HasResponse(),
 		Question: DNSQuestionSerializer{
-			Class: model.QClass(d.Class).String(),
-			Type:  model.QType(d.Type).String(),
-			Name:  d.Name,
-			Size:  d.Size,
-			Count: d.Count,
+			Class: model.QClass(d.Question.Class).String(),
+			Type:  model.QType(d.Question.Type).String(),
+			Name:  d.Question.Name,
+			Size:  d.Question.Size,
+			Count: d.Question.Count,
 		},
 	}
+
+	if d.HasResponse() {
+		ret.Response = &DNSResponseEventSerializer{
+			RCode: d.Response.ResponseCode,
+		}
+	}
+
+	return ret
 }
 
 // nolint: deadcode, unused
@@ -373,21 +423,22 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:      eventType.String(),
-			Variables: newVariablesContext(event, opts, ""),
+			Name:        eventType.String(),
+			Variables:   newVariablesContext(event, rule, ""),
+			RuleContext: newRuleContext(event, rule),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 	if s.ProcessContextSerializer != nil {
-		s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -402,7 +453,7 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	switch eventType {
 	case model.ExitEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event, 0, nil),
 		}
 		s.ExitEventSerializer = newExitEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
@@ -411,10 +462,32 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	return s
 }
 
-func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variables Variables) {
-	if opts != nil && opts.VariableStore != nil {
-		store := opts.VariableStore
+func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
+	if rule == nil {
+		return RuleContext{}
+	}
+
+	ruleContext := RuleContext{
+		Expression: rule.Expression,
+	}
+
+	for _, valuePos := range e.RuleContext.MatchingSubExprs.GetMatchingValuePos(rule.Expression) {
+		subExpr := MatchingSubExpr{
+			Offset: valuePos.Offset,
+			Length: valuePos.Length,
+			Value:  fmt.Sprintf("%v", valuePos.Value),
+			Field:  valuePos.Field,
+		}
+		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
+	}
+	return ruleContext
+}
+
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+	if rule != nil && rule.Opts.VariableStore != nil {
+		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
 			if _, found := model.SECLVariables[name]; found {
 				continue
 			}
@@ -425,6 +498,11 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
+				continue
+			}
+
+			// Skip private variables
+			if variable.GetVariableOpts().Private {
 				continue
 			}
 
@@ -471,7 +549,7 @@ func (e EventStringerWrapper) String() string {
 	)
 	switch evt := e.Event.(type) {
 	case *model.Event:
-		data, err = MarshalEvent(evt)
+		data, err = MarshalEvent(evt, nil)
 	case *events.CustomEvent:
 		data, err = MarshalCustomEvent(evt)
 	default:

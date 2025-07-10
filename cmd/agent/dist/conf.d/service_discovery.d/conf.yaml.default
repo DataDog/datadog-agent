@@ -1,2 +1,4 @@
+ad_identifiers:
+  - _discovery
 instances:
   - {}

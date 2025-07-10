@@ -14,10 +14,11 @@ package gpu
 import (
 	"testing"
 
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -43,11 +44,17 @@ func injectEventsToConsumer(tb testing.TB, consumer *cudaEventConsumer, events *
 
 func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
-	ctx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), testutil.GetWorkloadMetaMock(t), testutil.GetTelemetryMock(t))
+	telemetryMock := testutil.GetTelemetryMock(t)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	ctx, err := getSystemContext(
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		withTelemetry(telemetryMock),
+	)
 	require.NoError(t, err)
 
-	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t))
-	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, testutil.GetTelemetryMock(t))
+	handlers := newStreamCollection(ctx, telemetryMock, cfg)
+	consumer := newCudaEventConsumer(ctx, handlers, nil, cfg, telemetryMock)
 	require.NotNil(t, consumer)
 
 	events := testutil.GetGPUTestEvents(t, testutil.DataSamplePytorchBatchedKernels)
@@ -55,12 +62,22 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	// Setup the visibleDevicesCache so that we don't get warnings
 	// about missing devices
 	executingPID := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-	ctx.visibleDevicesCache[executingPID] = []nvml.Device{testutil.GetDeviceMock(0), testutil.GetDeviceMock(1)}
+	ctx.visibleDevicesCache[executingPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
 
 	injectEventsToConsumer(t, consumer, events, 0)
 
 	// Check that the consumer has the expected number of streams
 	require.Equal(t, 1, handlers.streamCount())
+
+	telemetryMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+	require.NoError(t, err)
+	require.Equal(t, 4, len(telemetryMetrics)) // one for each event type
+	expectedEventsByType := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].EventByType
+	for _, metric := range telemetryMetrics {
+		eventTypeTag := metric.Tags()["event_type"]
+		require.NotEmpty(t, eventTypeTag)
+		require.Equal(t, expectedEventsByType[eventTypeTag], int(metric.Value()))
+	}
 
 	// Check the state of those streams. As there's only one we can just get it
 	// by iterating over the map
@@ -115,7 +132,8 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	statsGen.currGenerationKTime = int64(startTs - 1)
 
 	// And get the stats for the full interval
-	stats := statsGen.getStats(int64(endTs + 1))
+	stats, err := statsGen.getStats(int64(endTs + 1))
+	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.Len(t, stats.Metrics, 1)
 

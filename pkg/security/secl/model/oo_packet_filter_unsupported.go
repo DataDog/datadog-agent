@@ -9,25 +9,27 @@
 package model
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-var errUnsupportedPacketFilter = errors.New("packet filter fields are not supported")
-
 // PacketFilterMatching is a set of overrides for packet filter fields, it only supports matching a single static value
 var PacketFilterMatching = &eval.OpOverrides{
-	StringEquals: func(_ *eval.StringEvaluator, _ *eval.StringEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedPacketFilter
+	StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
+		if a.IsStatic() || b.IsStatic() {
+			return &eval.BoolEvaluator{
+				Value: false,
+			}, nil
+		}
+
+		return nil, errorNonStaticPacketFilterField(a, b)
 	},
-	StringValuesContains: func(_ *eval.StringEvaluator, _ *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedPacketFilter
+	StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
+		return nil, errorNonStaticPacketFilterField(a, b)
 	},
-	StringArrayContains: func(_ *eval.StringEvaluator, _ *eval.StringArrayEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedPacketFilter
+	StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
+		return nil, errorNonStaticPacketFilterField(a, b)
 	},
-	StringArrayMatches: func(_ *eval.StringArrayEvaluator, _ *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
-		return nil, errUnsupportedPacketFilter
+	StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, _ *eval.State) (*eval.BoolEvaluator, error) {
+		return nil, errorNonStaticPacketFilterField(a, b)
 	},
 }

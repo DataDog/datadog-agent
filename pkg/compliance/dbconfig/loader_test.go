@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +37,7 @@ func TestDBConfLoader(t *testing.T) {
 		resourceType, res, ok := LoadConfiguration(context.Background(), "/", proc)
 		assert.True(t, ok)
 		assert.NotNil(t, res)
-		assert.Equal(t, postgresqlResourceType, resourceType)
+		assert.Equal(t, types.ResourceTypeDbPostgresql, resourceType)
 		assert.NotNil(t, res)
 		assert.NotNil(t, res.ConfigData)
 		assert.NotEmpty(t, res.ProcessName)
@@ -61,12 +62,12 @@ func TestDBConfLoader(t *testing.T) {
 
 		resourceType, ok := GetProcResourceType(proc)
 		assert.True(t, ok)
-		assert.Equal(t, postgresqlResourceType, resourceType)
+		assert.Equal(t, types.ResourceTypeDbPostgresql, resourceType)
 
 		resourceType, res, ok := LoadConfiguration(context.Background(), tempDir, proc)
 		assert.True(t, ok)
 		assert.NotNil(t, res)
-		assert.Equal(t, postgresqlResourceType, resourceType)
+		assert.Equal(t, types.ResourceTypeDbPostgresql, resourceType)
 		assert.NotNil(t, res.ConfigData)
 		assert.NotEmpty(t, res.ProcessName)
 		assert.NotEmpty(t, res.ProcessUser)

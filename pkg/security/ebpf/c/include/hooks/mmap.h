@@ -109,7 +109,7 @@ int hook_security_mmap_file(ctx_t *ctx) {
     syscall->resolver.ret = 0;
     syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MMAP);
@@ -117,8 +117,7 @@ int hook_security_mmap_file(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/handle_sys_mmap_exit")
-int tracepoint_handle_sys_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_mmap_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
 }
 

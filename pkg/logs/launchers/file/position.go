@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 )
 
 // Position returns the position from where logs should be collected.

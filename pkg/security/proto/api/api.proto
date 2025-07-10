@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "pkg/security/proto/api";
 
 package api;
@@ -11,6 +13,7 @@ message SecurityEventMessage {
     bytes Data = 2;
     repeated string Tags = 3;
     string Service = 4;
+    google.protobuf.Timestamp Timestamp = 5;
 }
 
 message DumpProcessCacheParams {
@@ -40,15 +43,24 @@ message SecurityConfigMessage {
     bool ActivityDumpEnabled = 3;
 }
 
-message RuleSetReportMessage{
-    repeated EventTypePolicy Policies = 1;
+message FilterReport{
+    repeated ApproverReport Approvers = 1;
 }
 
-message EventTypePolicy{
+
+message RuleSetReportMessage{
+    FilterReport Filters = 1;
+}
+
+message AcceptModeRule{
+    string RuleID = 1;
+}
+
+message ApproverReport{
     string EventType = 1;
     uint32 Mode = 2;
-    // field 3 is deprecated
-    Approvers Approvers = 4;
+    Approvers Approvers = 3;
+    repeated AcceptModeRule AcceptModeRules = 4;
 }
 
 message Approvers {
@@ -64,7 +76,7 @@ message ApproverDetails {
 
 message GetRuleSetReportParams{}
 
-message GetRuleSetReportResultMessage{
+message GetRuleSetReportMessage{
     RuleSetReportMessage RuleSetReportMessage = 1;
     string Error = 2;
 }
@@ -226,7 +238,8 @@ message TranscodingRequestMessage {
 message ActivityDumpStreamParams {}
 
 message ActivityDumpStreamMessage {
-    ActivityDumpMessage Dump = 1;
+    WorkloadSelectorMessage Selector = 1;
+    bytes Header = 2;
     bytes Data = 3;
 }
 
@@ -310,7 +323,7 @@ service SecurityModule {
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
-    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportResultMessage) {}
+    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}

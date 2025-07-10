@@ -7,6 +7,7 @@ package installtest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -19,6 +20,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	thirdPartyIntegration = "datadog-ping==1.0.2"
+	pipPackage            = "grpcio"
 )
 
 // TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
@@ -44,7 +50,6 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 			windowsAgent.WithValidAPIKey(),
-			windowsAgent.WithIntegrationsPersistence("1"),
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -55,11 +60,11 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	s.Require().NoError(err, "should get product version")
 
 	// install third party integration
-	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	err = s.installThirdPartyIntegration(vm, thirdPartyIntegration)
 	s.Require().NoError(err, "should install third party integration")
 
 	// install pip package
-	err = s.installPipPackage(vm, "grpcio")
+	err = s.installPipPackage(vm, pipPackage)
 	s.Require().NoError(err, "should install pip package")
 
 	// upgrade to test agent
@@ -68,7 +73,6 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 			windowsAgent.WithValidAPIKey(),
-			windowsAgent.WithIntegrationsPersistence("1"),
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
@@ -93,10 +97,94 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	// check that the pip package is still installed
-	s.checkPipPackageInstalled(vm, "grpcio")
+	s.checkPipPackageInstalled(vm, pipPackage)
+
+	s.uninstallAgentAndRunUninstallTests(t)
+
+}
+
+// TestDisablePersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// with the integrations persistence flag disabled
+// verify that the third party integration and pip package are not installed
+func TestDisablePersistingIntegrations(t *testing.T) {
+	s := &testDisablePersistingIntegrationsSuite{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get upgrade test package")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	Run(t, s)
+}
+
+type testDisablePersistingIntegrationsSuite struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegrations() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithIntegrationsPersistence("0"),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// install third party integration
+	err = s.installThirdPartyIntegration(vm, thirdPartyIntegration)
+	s.Require().NoError(err, "should install third party integration")
+
+	// install pip package
+	err = s.installPipPackage(vm, pipPackage)
+	s.Require().NoError(err, "should install pip package")
+
+	// upgrade to test agent
+	// with the integrations persistence flag disabled
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
+			windowsAgent.WithIntegrationsPersistence("0"),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// run tests
+	testerOptions := []TesterOption{
+		WithAgentPackage(s.upgradeAgentPackge),
+	}
+	t, err := NewTester(s, vm, testerOptions...)
+	s.Require().NoError(err, "should create tester")
+	if !t.TestInstallExpectations(s.T()) {
+		s.T().FailNow()
+	}
+
+	// Get Display Version
+	productVersionPost, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// check that version is different post upgrade
+	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
+
+	// check that the third party integration is not installed
+	s.checkIntegrationNotInstalled(vm, thirdPartyIntegration)
+
+	// check that the pip package is not installed
+	s.checkPipPackageNotInstalled(vm, pipPackage)
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
@@ -124,7 +212,6 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
-			windowsAgent.WithIntegrationsPersistence("1"),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
@@ -207,25 +294,34 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 	_, err = vm.Execute(cmd)
 	s.Require().NoError(err, "should set owner to ddAgentUserIdentity")
 
-	// upgrade to the new version, should fail due to folder permissions
+	logFilePath := filepath.Join(s.SessionOutputDir(), "upgrade.log")
+
+	// upgrade to the new version
+	// now we are ignoring the results of the custom action, which means that the install will pass
+	// but the integrations will not be installed as the folder permissions are incorrect
 	if !s.Run(fmt.Sprintf("Install %s with failure", s.upgradeAgentPackge.AgentVersion()), func() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithInstallLogFile(logFilePath),
 			windowsAgent.WithIntegrationsPersistence("1"),
 		)
-		s.Require().Error(err, "should fail to install agent %s", s.upgradeAgentPackge.AgentVersion())
+		s.Require().NoError(err, "should install agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
 		s.T().FailNow()
 	}
 
-	// TODO: we shouldn't have to start the agent manually after rollback
-	//       but the kitchen tests did too.
-	err = windowsCommon.StartService(vm, "DatadogAgent")
-	s.Require().NoError(err, "agent service should start after rollback")
-
 	// the previous version should be functional
-	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.upgradeAgentPackge.AgentVersion())
+
+	// check that there is an error in the logs
+	// Ensure that the log file contains the expected error message
+	logData, err := os.ReadFile(logFilePath)
+	s.Require().NoError(err)
+	// convert from utf-16 to utf-8
+	logData, err = windowsCommon.ConvertUTF16ToUTF8(logData)
+	s.Require().NoError(err)
+	// We don't use assert.Contains because it will print the very large logData on error
+	s.Assert().True(strings.Contains(string(logData), ".diff_python_installed_packages.txt is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation."))
 
 	// Ensure services are still installed
 	// NOTE: will need to update this if we add or remove services
@@ -267,7 +363,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	}
 
 	// install third party integration
-	err := s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	err := s.installThirdPartyIntegration(vm, thirdPartyIntegration)
 	s.Require().NoError(err, "should install third party integration")
 
 	// add package to .post_python_installed_packages.txt to check for(this will be still there on rollback)
@@ -318,7 +414,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	s.Require().NoError(err, "should write file")
 
 	// check to see if datadog-ping==1.0.2 is still installed
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	// upgrade again without failure
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
@@ -333,10 +429,95 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		s.T().FailNow()
 	}
 
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	s.uninstallAgent()
 
+}
+
+// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// verify that the third party integration and pip package are installed after uninstall and reinstall
+// this is the workload used by fleet to upgrade the agent
+func TestPersistingIntegrationsDuringUninstall(t *testing.T) {
+	s := &testPersistingIntegrationsDuringUninstall{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get upgrade test package")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	Run(t, s)
+}
+
+type testPersistingIntegrationsDuringUninstall struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDuringUninstall() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// install third party integration
+	err = s.installThirdPartyIntegration(vm, thirdPartyIntegration)
+	s.Require().NoError(err, "should install third party integration")
+
+	// install pip package
+	err = s.installPipPackage(vm, pipPackage)
+	s.Require().NoError(err, "should install pip package")
+
+	// uninstall agent
+	s.Require().True(
+		s.uninstallAgent(),
+	)
+
+	// upgrade to test agent
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// run tests
+	testerOptions := []TesterOption{
+		WithAgentPackage(s.upgradeAgentPackge),
+	}
+	t, err := NewTester(s, vm, testerOptions...)
+	s.Require().NoError(err, "should create tester")
+	if !t.TestInstallExpectations(s.T()) {
+		s.T().FailNow()
+	}
+
+	// Get Display Version
+	productVersionPost, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// check that version is different post upgrade
+	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
+
+	// check that the third party integration is still installed
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+
+	// check that the pip package is still installed
+	s.checkPipPackageInstalled(vm, pipPackage)
+
+	s.uninstallAgentAndRunUninstallTests(t)
 }
 
 // install third party integration
@@ -383,15 +564,44 @@ func (s *baseAgentMSISuite) checkPipPackageInstalled(vm *components.RemoteHost, 
 	assert.True(s.T(), strings.Contains(out, packageCheck), "pip package should be installed")
 }
 
-func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
-	// check that the third party integration is still installed
+// check pip package is not installed
+func (s *baseAgentMSISuite) checkPipPackageNotInstalled(vm *components.RemoteHost, packageToCheck string) {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
 	s.Require().NoError(err, "should get install path from registry")
 
+	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip show %s`, installPath, packageToCheck)
+	_, err = vm.Execute(cmd)
+	s.Require().ErrorContains(err, "not found", "should not find pip package")
+
+}
+
+func (s *baseAgentMSISuite) getInstalledIntegrations(vm *components.RemoteHost) (string, error) {
+	// check that the third party integration is still installed
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
+	if err != nil {
+		return "", err
+	}
+
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration freeze`, installPath)
 	out, err := vm.Execute(cmd)
-	s.Require().NoError(err, "should list integrations")
+	if err != nil {
+		return "", err
+	}
+	return out, nil
+}
+
+func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
+	out, err := s.getInstalledIntegrations(vm)
+	s.Require().NoError(err, "should get installed integrations")
 
 	// we use strings.Contains to limit output on failure
 	assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed")
+}
+
+func (s *baseAgentMSISuite) checkIntegrationNotInstalled(vm *components.RemoteHost, integration string) {
+	out, err := s.getInstalledIntegrations(vm)
+	s.Require().NoError(err, "should get installed integrations")
+
+	// we use strings.Contains to limit output on failure
+	assert.False(s.T(), strings.Contains(out, integration), "third party integration should not be installed")
 }

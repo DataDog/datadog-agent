@@ -11,6 +11,7 @@ package msi
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sys/windows"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -23,6 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
+var (
+	msiexecPath = `C:\Windows\System32\msiexec.exe`
+)
+
+func init() {
+	system32, err := windows.KnownFolderPath(windows.FOLDERID_System, 0)
+	if err == nil {
+		msiexecPath = filepath.Join(system32, "msiexec.exe")
+	}
+}
+
 type msiexecArgs struct {
 	// target should be either a full path to a MSI, an URL to a MSI or a product code.
 	target string
@@ -32,8 +44,9 @@ type msiexecArgs struct {
 
 	// logFile should be a full local path where msiexec will write the installation logs.
 	// If nothing is specified, a random, temporary file is used.
-	logFile         string
-	ddagentUserName string
+	logFile             string
+	ddagentUserName     string
+	ddagentUserPassword string
 
 	// additionalArgs are further args that can be passed to msiexec
 	additionalArgs []string
@@ -124,6 +137,14 @@ func WithAdditionalArgs(additionalArgs []string) MsiexecOption {
 func WithDdAgentUserName(ddagentUserName string) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		a.ddagentUserName = ddagentUserName
+		return nil
+	}
+}
+
+// WithDdAgentUserPassword specifies the DDAGENTUSER_PASSWORD to use
+func WithDdAgentUserPassword(ddagentUserPassword string) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.ddagentUserPassword = ddagentUserPassword
 		return nil
 	}
 }
@@ -300,6 +321,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	if a.ddagentUserName != "" {
 		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_NAME=%s", a.ddagentUserName))
 	}
+	if a.ddagentUserPassword != "" {
+		a.additionalArgs = append(a.additionalArgs, fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", a.ddagentUserPassword))
+	}
 	if a.msiAction == "/i" {
 		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
 	}
@@ -307,9 +331,24 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	// Do NOT pass the args to msiexec in exec.Command as it will apply some quoting algorithm (CommandLineToArgvW) that is
 	// incompatible with msiexec. It will make arguments like `TARGETDIR` fail because they will be quoted.
 	// Instead, we use the SysProcAttr.CmdLine option and do the quoting ourselves.
-	args := append([]string{`"C:\Windows\system32\msiexec.exe"`, a.msiAction, fmt.Sprintf(`"%s"`, a.target), "/qn", "/log", fmt.Sprintf(`"%s"`, a.logFile)}, a.additionalArgs...)
-	cmd.Cmd = exec.Command("msiexec")
-	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: strings.Join(args, " ")}
+	args := append([]string{
+		fmt.Sprintf(`"%s"`, msiexecPath),
+		a.msiAction,
+		fmt.Sprintf(`"%s"`, a.target),
+		"/qn",
+		"/log", fmt.Sprintf(`"%s"`, a.logFile),
+	}, a.additionalArgs...)
+
+	cmd.Cmd = &exec.Cmd{
+		// Don't call exec.Command("msiexec") to create the exec.Cmd struct
+		// as it will try to lookup msiexec.exe using %PATH%.
+		// Alternatively we could pass the full path of msiexec.exe to exec.Command(...)
+		// but it's much simpler to create the struct manually.
+		Path: msiexecPath,
+		SysProcAttr: &syscall.SysProcAttr{
+			CmdLine: strings.Join(args, " "),
+		},
+	}
 	cmd.logFile = a.logFile
 
 	return cmd, nil

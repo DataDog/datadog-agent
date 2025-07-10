@@ -80,12 +80,22 @@ func (s *State) HasExperiment() bool {
 
 // StableFS returns the stable package fs.
 func (r *Repository) StableFS() fs.FS {
-	return os.DirFS(filepath.Join(r.rootPath, stableVersionLink))
+	return os.DirFS(r.StablePath())
 }
 
 // ExperimentFS returns the experiment package fs.
 func (r *Repository) ExperimentFS() fs.FS {
-	return os.DirFS(filepath.Join(r.rootPath, experimentVersionLink))
+	return os.DirFS(r.ExperimentPath())
+}
+
+// StablePath returns the stable package path.
+func (r *Repository) StablePath() string {
+	return filepath.Join(r.rootPath, stableVersionLink)
+}
+
+// ExperimentPath returns the experiment package path.
+func (r *Repository) ExperimentPath() string {
+	return filepath.Join(r.rootPath, experimentVersionLink)
 }
 
 // GetState returns the state of the repository.
@@ -261,7 +271,7 @@ func (r *Repository) PromoteExperiment(ctx context.Context) error {
 	if !repository.experiment.Exists() {
 		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
-	if repository.stable.Target() == repository.experiment.Target() {
+	if repository.experiment.Target() == "" || repository.stable.Target() == repository.experiment.Target() {
 		return fmt.Errorf("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
@@ -439,6 +449,13 @@ func (r *repositoryFiles) cleanup(ctx context.Context) error {
 		}
 
 		log.Debugf("Removing package %s", pkgRepositoryPath)
+		realPkgRepositoryPath, err := filepath.EvalSymlinks(pkgRepositoryPath)
+		if err != nil {
+			log.Errorf("could not evaluate symlinks for package %s: %v", pkgRepositoryPath, err)
+		}
+		if err := os.RemoveAll(realPkgRepositoryPath); err != nil {
+			log.Errorf("could not remove package %s directory, will retry: %v", realPkgRepositoryPath, err)
+		}
 		if err := os.RemoveAll(pkgRepositoryPath); err != nil {
 			log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 		}
@@ -483,7 +500,11 @@ func (l *link) Exists() bool {
 
 func (l *link) Target() string {
 	if l.Exists() {
-		return filepath.Base(*l.packagePath)
+		packagePath := filepath.Base(*l.packagePath)
+		if packagePath == stableVersionLink {
+			return ""
+		}
+		return packagePath
 	}
 	return ""
 }

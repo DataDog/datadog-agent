@@ -4,7 +4,7 @@ version: "3.9"
 services:
   fips-server:
     container_name: "dd-fips-server"
-    image: "ghcr.io/datadog/apps-fips-server:main"
+    image: "ghcr.io/datadog/apps-fips-server:{APPS_VERSION}"
     ports:
       - "443:443"
     entrypoint: ["./run.sh", "${CERT:-rsa}", "${CIPHER}", "${TLS_MAX}"]

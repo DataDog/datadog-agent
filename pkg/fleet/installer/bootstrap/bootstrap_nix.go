@@ -33,7 +33,7 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	defer os.RemoveAll(tmpDir)
 	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
 	if err != nil {
-		return fmt.Errorf("failed to download installer: %w", err)
+		return err
 	}
 	if experiment {
 		return cmd.InstallExperiment(ctx, url)
@@ -41,43 +41,25 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 	return cmd.Install(ctx, url, nil)
 }
 
-// downloadInstaller downloads the installer package from the registry and returns an installer executor.
-//
-// This process is made to have the least assumption possible as it is long lived and should always work in the future.
-// 1. Download the installer package from the registry.
-// 2. Export the installer image as an OCI layout on the disk.
-// 3. Extract the installer image layers on the disk.
-// 4. Create an installer executor from the extract layer.
+// extractInstallerFromOCI downloads the installer binary from the agent package in the registry and returns an installer executor
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*exec.InstallerExec, error) {
-	// 1. Download the installer package from the registry.
 	downloader := oci.NewDownloader(env, env.HTTPClient())
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)
 	}
-	if downloadedPackage.Name != InstallerPackage {
-		return nil, fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, InstallerPackage)
+	if downloadedPackage.Name != AgentPackage {
+		return getLocalInstaller(env)
 	}
 
-	// 2. Export the installer image as an OCI layout on the disk.
-	layoutTmpDir, err := os.MkdirTemp(paths.RootTmpDir, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(layoutTmpDir)
-	err = downloadedPackage.WriteOCILayout(layoutTmpDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write OCI layout: %w", err)
-	}
-
-	// 3. Extract the installer image layers on the disk.
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	installerBinPath := filepath.Join(tmpDir, "installer")
+	err = downloadedPackage.ExtractLayers(oci.DatadogPackageInstallerLayerMediaType, installerBinPath) // Returns nil if the layer doesn't exist
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
-
-	// 4. Create an installer executor from the extract layer.
-	installerBinPath := filepath.Join(tmpDir, installerBinPath)
+	if _, err := os.Stat(installerBinPath); err != nil {
+		return nil, err
+	}
 	return exec.NewInstallerExec(env, installerBinPath), nil
 }
 

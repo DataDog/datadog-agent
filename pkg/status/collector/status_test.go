@@ -52,8 +52,8 @@ func TestRender(t *testing.T) {
 			require.NoError(t, err)
 
 			// We replace windows line break by linux so the tests pass on every OS
-			result := strings.Replace(string(expectedOutput), "\r\n", "\n", -1)
-			stringOutput := strings.Replace(output.String(), "\r\n", "\n", -1)
+			result := strings.ReplaceAll(string(expectedOutput), "\r\n", "\n")
+			stringOutput := strings.ReplaceAll(output.String(), "\r\n", "\n")
 
 			require.Equal(t, result, stringOutput, "HTML rendering is not as expected")
 		})

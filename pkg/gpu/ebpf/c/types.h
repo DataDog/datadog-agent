@@ -12,6 +12,7 @@ typedef enum {
     cuda_memory_event,
     cuda_sync,
     cuda_set_device,
+    cuda_event_type_count,
 } cuda_event_type_t;
 
 #define MAX_CONTAINER_ID_LEN 129

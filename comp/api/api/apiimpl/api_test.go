@@ -6,7 +6,7 @@
 package apiimpl
 
 import (
-	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,35 +16,19 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 
 	// package dependencies
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
@@ -54,12 +38,44 @@ import (
 	"go.uber.org/fx"
 )
 
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=digitalSignature,keyEncipherment" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	unknownIPCCert = []byte(`-----BEGIN CERTIFICATE-----
+MIIByzCCAXKgAwIBAgIUS1FJz1+ha1R1nNhi8E8nZhr5X6YwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTA2MTYxMzE1MjZaFw0zNTA2
+MTQxMzE1MjZaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAS7B0LbAe5NsNzPt8swHTTCkXEGL9g1sDivlYOZffXo1wCJ
+K1xQo0EcgnYUkiAoVqJXQoA9FFP+KAKEy1HFEcRTo4GZMIGWMB0GA1UdDgQWBBTx
+k3F9kxVd6tg8pWPTxl1qxzL9djAfBgNVHSMEGDAWgBTxk3F9kxVd6tg8pWPTxl1q
+xzL9djAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgWgMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0cAMEQCIH2ZuPES7+uwxjIF72poM16EJE8F2nG3qKDDPWtOTrUHAiBF
+R+jl3j1r8H6k8BatF4eUWagFev35hLz7VMuHVLR5Mw==
+-----END CERTIFICATE-----
+`)
+	unknownIPCKey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg0MgVZJY0NrncRALD
+GpnnYROePY82rJHHNeVtcG/VsyGhRANCAAS7B0LbAe5NsNzPt8swHTTCkXEGL9g1
+sDivlYOZffXo1wCJK1xQo0EcgnYUkiAoVqJXQoA9FFP+KAKEy1HFEcRT
+-----END PRIVATE KEY-----
+`)
+)
+
 type testdeps struct {
 	fx.In
 
 	API       api.Component
 	Telemetry telemetry.Mock
-	AuthToken authtoken.Component
+	IPC       ipc.Component
 }
 
 func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) testdeps {
@@ -67,22 +83,7 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		t,
 		Module(),
 		fx.Replace(params),
-		hostnameimpl.MockModule(),
-		secretsimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-		fx.Supply(context.Background()),
-		taggerfxmock.MockModule(),
-		fx.Provide(func(mock taggermock.Mock) tagger.Component {
-			return mock
-		}),
-		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
-		autodiscoveryimpl.MockModule(),
-		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
-			return mock
-		}),
-		fx.Supply(option.None[collector.Component]()),
-		pidmapimpl.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -92,40 +93,6 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		telemetryimpl.MockModule(),
 		config.MockModule(),
 		grpcNonefx.Module(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Options(fxOptions...),
-	)
-}
-
-func testAPIServer(params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
-	return fxutil.TestApp[testdeps](
-		Module(),
-		fx.Replace(params),
-		hostnameimpl.MockModule(),
-		secretsimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		fx.Provide(func(t *testing.T) authtoken.Component { return authtokenmock.New(t) }),
-		fx.Supply(context.Background()),
-		taggerfxmock.MockModule(),
-		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
-		autodiscoveryimpl.MockModule(),
-		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
-			return mock
-		}),
-		fx.Supply(option.None[collector.Component]()),
-		pidmapimpl.Module(),
-		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
-		fx.Provide(func() api.AgentEndpointProvider {
-			return api.AgentEndpointProvider{
-				Provider: nil,
-			}
-		}),
-		telemetryimpl.MockModule(),
-		config.MockModule(),
-		grpcNonefx.Module(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Options(fxOptions...),
 	)
 }
@@ -180,16 +147,8 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := util.GetClient().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// for debug purpose
-			if content, err := io.ReadAll(resp.Body); assert.NoError(t, err) {
-				t.Log(string(content))
-			}
-
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			_, err = deps.IPC.GetClient().Do(req)
+			require.ErrorContains(t, err, "status code: 404")
 
 			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
@@ -217,6 +176,29 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_does_not_exist"))
 		})
 	}
+
+	t.Run("IPC Server Only Accepts mTLS", func(t *testing.T) {
+		addr := deps.API.IPCServerAddress().String()
+		url := fmt.Sprintf("https://%s/config/v1/", addr)
+
+		// With the IPC HTTP Client this should succeed
+		_, err := deps.IPC.GetClient().Get(url)
+		require.NoError(t, err)
+
+		// With a client configured with another certificate, it should fail
+		tr := &http.Transport{
+			TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+		}
+		unknownCert, err := tls.X509KeyPair(unknownIPCCert, unknownIPCKey)
+		require.NoError(t, err)
+		tr.TLSClientConfig.Certificates = []tls.Certificate{unknownCert}
+		httpClient := &http.Client{
+			Transport: tr,
+		}
+
+		_, err = httpClient.Get(url) //nolint:bodyclose
+		assert.ErrorContains(t, err, "remote error: tls: unknown certificate authority")
+	})
 }
 
 type s struct {
@@ -230,7 +212,6 @@ func (s *s) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 type grpcServer struct {
 	grpcServer bool
-	gateway    bool
 }
 
 func (grpc *grpcServer) BuildServer() http.Handler {
@@ -240,16 +221,6 @@ func (grpc *grpcServer) BuildServer() http.Handler {
 		}
 	}
 	return nil
-}
-
-func (grpc *grpcServer) BuildGatewayMux(string) (http.Handler, error) {
-	if grpc.gateway {
-		return &s{
-			body: "GRPC GATEWAY OK",
-		}, nil
-	}
-
-	return nil, fmt.Errorf("error")
 }
 
 func TestStartServerWithGrpcServer(t *testing.T) {
@@ -263,7 +234,6 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 		fx.Replace(
 			fx.Annotate(&grpcServer{
 				grpcServer: true,
-				gateway:    true,
 			}, fx.As(new(grpc.Component))),
 		)))
 
@@ -272,89 +242,10 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 	url := fmt.Sprintf("https://%s", addr)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
-
-	resp, err := util.GetClient().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	content, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
-
-	// test the gateway is monted at the root
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
-
-	req, err = http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/grpc")
 
 	transport := &http.Transport{
-		TLSClientConfig: deps.AuthToken.GetTLSClientConfig(),
-	}
-
-	http2.ConfigureTransport(transport)
-	http2Client := &http.Client{
-		Transport: transport,
-	}
-
-	resp, err = http2Client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	content, err = io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
-
-	// test the api routes grpc request to the grpc server
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC SERVER OK", string(content))
-}
-
-func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port": 0,
-		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
-		"agent_ipc.port": 0,
-	}}
-
-	_, _, errApp := testAPIServer(cfgOverride, fx.Options(
-		fx.Replace(
-			fx.Annotate(&grpcServer{
-				grpcServer: true,
-				gateway:    false,
-			}, fx.As(new(grpc.Component))),
-		)))
-
-	assert.Error(t, errApp)
-}
-
-func TestStartServerWithoutGrpcServer(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port": 0,
-		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
-		"agent_ipc.port": 0,
-	}}
-
-	deps := getAPIServer(t, cfgOverride, fx.Options(
-		fx.Replace(
-			fx.Annotate(&grpcServer{
-				grpcServer: false,
-				gateway:    true,
-			}, fx.As(new(grpc.Component))),
-		)))
-
-	addr := deps.API.CMDServerAddress().String()
-
-	url := fmt.Sprintf("https://%s", addr)
-
-	// test the api routes does not routes grpc request to the grpc server
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/grpc")
-
-	transport := &http.Transport{
-		TLSClientConfig: deps.AuthToken.GetTLSClientConfig(),
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
 	}
 
 	http2.ConfigureTransport(transport)
@@ -370,6 +261,47 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 	assert.NoError(t, err)
 	t.Log(string(content))
 
+	// test the api routes grpc request to the grpc server
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
+	assert.Equal(t, "GRPC SERVER OK", string(content))
+}
+
+func TestStartServerWithoutGrpcServer(t *testing.T) {
+	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+		"cmd_port": 0,
+		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
+		"agent_ipc.port": 0,
+	}}
+
+	deps := getAPIServer(t, cfgOverride, fx.Options(
+		fx.Replace(
+			fx.Annotate(&grpcServer{
+				grpcServer: false,
+			}, fx.As(new(grpc.Component))),
+		)))
+
+	addr := deps.API.CMDServerAddress().String()
+
+	url := fmt.Sprintf("https://%s", addr)
+
+	// test the api routes does not routes grpc request to the grpc server
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/grpc")
+
+	transport := &http.Transport{
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+	}
+
+	http2.ConfigureTransport(transport)
+	http2Client := &http.Client{
+		Transport: transport,
+	}
+
+	resp, err := http2Client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// The server does not have a grpc server, so it should return a 404
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

@@ -17,25 +17,30 @@ import (
 	"testing"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 func TestRemoteAgentCreation(t *testing.T) {
-	provides, lc, _ := buildComponent(t)
+	provides, lc, _, _ := buildComponent(t)
 
 	assert.NotNil(t, provides.Comp)
 	assert.NotNil(t, provides.FlareProvider)
@@ -51,7 +56,7 @@ func TestRemoteAgentCreation(t *testing.T) {
 func TestRecommendedRefreshInterval(t *testing.T) {
 	expectedRefreshIntervalSecs := uint32(27)
 
-	provides, _, config := buildComponent(t)
+	provides, _, config, _ := buildComponent(t)
 	config.SetWithoutSource("remote_agent_registry.recommended_refresh_interval", fmt.Sprintf("%ds", expectedRefreshIntervalSecs))
 
 	component := provides.Comp
@@ -73,7 +78,7 @@ func TestRecommendedRefreshInterval(t *testing.T) {
 }
 
 func TestGetRegisteredAgents(t *testing.T) {
-	provides, _, _ := buildComponent(t)
+	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 
 	registrationData := &remoteagent.RegistrationData{
@@ -92,7 +97,7 @@ func TestGetRegisteredAgents(t *testing.T) {
 }
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
-	provides, _, _ := buildComponent(t)
+	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 
 	remoteAgentServer := &testRemoteAgentServer{
@@ -122,7 +127,7 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 }
 
 func TestFlareProvider(t *testing.T) {
-	provides, _, _ := buildComponent(t)
+	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 	flareProvider := provides.FlareProvider
 
@@ -154,8 +159,68 @@ func TestFlareProvider(t *testing.T) {
 	fb.AssertFileContent("test_content", "test-agent/test_file.yaml")
 }
 
+func TestGetTelemetry(t *testing.T) {
+	provides, lc, _, telemetry := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	remoteAgentServer := &testRemoteAgentServer{
+		PromText: `
+		# HELP foobar foobarhelp
+		# TYPE foobar counter
+		foobar 1
+		# HELP baz bazhelp
+		# TYPE baz gauge
+		baz{tag_one="1",tag_two="two"} 3
+		`,
+	}
+
+	server, port := buildRemoteAgentServer(t, remoteAgentServer)
+	defer server.Stop()
+
+	registrationData := &remoteagent.RegistrationData{
+		AgentID:     "test-agent",
+		DisplayName: "Test Agent",
+		APIEndpoint: fmt.Sprintf("localhost:%d", port),
+		AuthToken:   "testing",
+	}
+
+	_, err := component.RegisterRemoteAgent(registrationData)
+	require.NoError(t, err)
+
+	metrics, err := telemetry.Gather(false)
+	require.NoError(t, err)
+	assert.Contains(t, metrics, &io_prometheus_client.MetricFamily{
+		Name: proto.String("foobar"),
+		Type: io_prometheus_client.MetricType_COUNTER.Enum(),
+		Help: proto.String("foobarhelp"),
+		Metric: []*io_prometheus_client.Metric{
+			{
+				Counter: &io_prometheus_client.Counter{
+					Value: proto.Float64(1),
+				},
+			},
+		},
+	})
+
+	// assert.Contains does not work here because of the labels
+	bazMetric := func() *io_prometheus_client.MetricFamily {
+		for _, m := range metrics {
+			if m.GetName() == "baz" {
+				return m
+			}
+		}
+		return nil
+	}()
+	assert.NotNil(t, bazMetric)
+	assert.Equal(t, bazMetric.GetType(), io_prometheus_client.MetricType_GAUGE)
+	assert.Equal(t, bazMetric.GetMetric()[0].GetGauge().GetValue(), 3.0)
+	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[0].GetValue(), "1")
+	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[1].GetValue(), "two")
+}
+
 func TestStatusProvider(t *testing.T) {
-	provides, _, _ := buildComponent(t)
+	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
 	statusProvider := provides.Status
 
@@ -204,35 +269,38 @@ func TestStatusProvider(t *testing.T) {
 func TestDisabled(t *testing.T) {
 	config := configmock.New(t)
 
-	provides, _ := buildComponentWithConfig(t, config)
+	provides, _, _ := buildComponentWithConfig(t, config)
 
 	require.Nil(t, provides.Comp)
 	require.Nil(t, provides.FlareProvider.FlareFiller)
 	require.Nil(t, provides.Status.Provider)
 }
 
-func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component) {
+func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component) {
 	config := configmock.New(t)
 	config.SetWithoutSource("remote_agent_registry.enabled", true)
 
-	provides, lc := buildComponentWithConfig(t, config)
-	return provides, lc, config
+	provides, lc, telemetry := buildComponentWithConfig(t, config)
+	return provides, lc, config, telemetry
 }
 
-func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle) {
+func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component) {
 	lc := compdef.NewTestLifecycle(t)
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	reqs := Requires{
 		Config:    config,
 		Lifecycle: lc,
+		Telemetry: telemetry,
 	}
 
-	return NewComponent(reqs), lc
+	return NewComponent(reqs), lc, telemetry
 }
 
 type testRemoteAgentServer struct {
 	StatusMain  map[string]string
 	StatusNamed map[string]map[string]string
 	FlareFiles  map[string][]byte
+	PromText    string
 	pbgo.UnimplementedRemoteAgentServer
 }
 
@@ -255,6 +323,14 @@ func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatu
 func (t *testRemoteAgentServer) GetFlareFiles(context.Context, *pbgo.GetFlareFilesRequest) (*pbgo.GetFlareFilesResponse, error) {
 	return &pbgo.GetFlareFilesResponse{
 		Files: t.FlareFiles,
+	}, nil
+}
+
+func (t *testRemoteAgentServer) GetTelemetry(context.Context, *pbgo.GetTelemetryRequest) (*pbgo.GetTelemetryResponse, error) {
+	return &pbgo.GetTelemetryResponse{
+		Payload: &pbgo.GetTelemetryResponse_PromText{
+			PromText: t.PromText,
+		},
 	}, nil
 }
 

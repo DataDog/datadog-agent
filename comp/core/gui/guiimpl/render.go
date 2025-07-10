@@ -9,13 +9,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar"
-	"html/template"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
 var fmap = status.HTMLFmap()
@@ -42,31 +42,6 @@ func renderRunningChecks() (string, error) {
 
 	data := Data{LoaderErrs: loaderErrs, ConfigErrs: configErrs, Stats: runnerStats}
 	e := fillTemplate(b, data, "runningChecks")
-	if e != nil {
-		return "", e
-	}
-	return b.String(), nil
-}
-
-func renderCheck(name string, stats []*stats.Stats) (string, error) {
-	var b = new(bytes.Buffer)
-
-	data := Data{Name: name, CheckStats: stats}
-	e := fillTemplate(b, data, "singleCheck")
-	if e != nil {
-		return "", e
-	}
-	return b.String(), nil
-}
-
-func renderError(name string) (string, error) {
-	var b = new(bytes.Buffer)
-
-	loaderErrs := collector.GetLoaderErrors()
-	configErrs := autodiscoveryimpl.GetConfigErrors()
-
-	data := Data{Name: name, LoaderErrs: loaderErrs, ConfigErrs: configErrs}
-	e := fillTemplate(b, data, "loaderErr")
 	if e != nil {
 		return "", e
 	}

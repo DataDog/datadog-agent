@@ -990,6 +990,18 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "ImageTag")
 				return
 			}
+		case "ProcessTagsHash":
+			z.ProcessTagsHash, err = dc.ReadUint64()
+			if err != nil {
+				err = msgp.WrapError(err, "ProcessTagsHash")
+				return
+			}
+		case "ProcessTags":
+			z.ProcessTags, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "ProcessTags")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1004,15 +1016,15 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	// check for omitted fields
-	zb0001Len := uint32(14)
-	var zb0001Mask uint16 /* 14 bits */
+	zb0001Len := uint32(16)
+	var zb0001Mask uint16 /* 16 bits */
 	_ = zb0001Mask
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
 	}
 	// variable map header, size zb0001Len
-	err = en.Append(0x80 | uint8(zb0001Len))
+	err = en.WriteMapHeader(zb0001Len)
 	if err != nil {
 		return
 	}
@@ -1182,6 +1194,26 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "ImageTag")
 			return
 		}
+		// write "ProcessTagsHash"
+		err = en.Append(0xaf, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x54, 0x61, 0x67, 0x73, 0x48, 0x61, 0x73, 0x68)
+		if err != nil {
+			return
+		}
+		err = en.WriteUint64(z.ProcessTagsHash)
+		if err != nil {
+			err = msgp.WrapError(err, "ProcessTagsHash")
+			return
+		}
+		// write "ProcessTags"
+		err = en.Append(0xab, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x54, 0x61, 0x67, 0x73)
+		if err != nil {
+			return
+		}
+		err = en.WriteString(z.ProcessTags)
+		if err != nil {
+			err = msgp.WrapError(err, "ProcessTags")
+			return
+		}
 	}
 	return
 }
@@ -1190,15 +1222,15 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// check for omitted fields
-	zb0001Len := uint32(14)
-	var zb0001Mask uint16 /* 14 bits */
+	zb0001Len := uint32(16)
+	var zb0001Mask uint16 /* 16 bits */
 	_ = zb0001Mask
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
 	}
 	// variable map header, size zb0001Len
-	o = append(o, 0x80|uint8(zb0001Len))
+	o = msgp.AppendMapHeader(o, zb0001Len)
 
 	// skip if no fields are to be emitted
 	if zb0001Len != 0 {
@@ -1260,6 +1292,12 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 		// string "ImageTag"
 		o = append(o, 0xa8, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x54, 0x61, 0x67)
 		o = msgp.AppendString(o, z.ImageTag)
+		// string "ProcessTagsHash"
+		o = append(o, 0xaf, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x54, 0x61, 0x67, 0x73, 0x48, 0x61, 0x73, 0x68)
+		o = msgp.AppendUint64(o, z.ProcessTagsHash)
+		// string "ProcessTags"
+		o = append(o, 0xab, 0x50, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x54, 0x61, 0x67, 0x73)
+		o = msgp.AppendString(o, z.ProcessTags)
 	}
 	return
 }
@@ -1403,6 +1441,18 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ImageTag")
 				return
 			}
+		case "ProcessTagsHash":
+			z.ProcessTagsHash, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ProcessTagsHash")
+				return
+			}
+		case "ProcessTags":
+			z.ProcessTags, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ProcessTags")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1417,7 +1467,7 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ClientStatsPayload) Msgsize() (s int) {
-	s = 1 + 9 + msgp.StringPrefixSize + len(z.Hostname) + 4 + msgp.StringPrefixSize + len(z.Env) + 8 + msgp.StringPrefixSize + len(z.Version) + 6 + msgp.ArrayHeaderSize
+	s = 3 + 9 + msgp.StringPrefixSize + len(z.Hostname) + 4 + msgp.StringPrefixSize + len(z.Env) + 8 + msgp.StringPrefixSize + len(z.Version) + 6 + msgp.ArrayHeaderSize
 	for za0001 := range z.Stats {
 		if z.Stats[za0001] == nil {
 			s += msgp.NilSize
@@ -1429,7 +1479,7 @@ func (z *ClientStatsPayload) Msgsize() (s int) {
 	for za0002 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0002])
 	}
-	s += 13 + msgp.StringPrefixSize + len(z.GitCommitSha) + 9 + msgp.StringPrefixSize + len(z.ImageTag)
+	s += 13 + msgp.StringPrefixSize + len(z.GitCommitSha) + 9 + msgp.StringPrefixSize + len(z.ImageTag) + 16 + msgp.Uint64Size + 12 + msgp.StringPrefixSize + len(z.ProcessTags)
 	return
 }
 

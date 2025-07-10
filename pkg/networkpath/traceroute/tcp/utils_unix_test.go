@@ -11,7 +11,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -42,6 +44,8 @@ type (
 		payload          []byte
 		cm               *ipv4.ControlMessage
 
+		numReaders atomic.Int32
+
 		writeDelay time.Duration
 		writeToErr error
 	}
@@ -62,6 +66,7 @@ func Test_handlePackets(t *testing.T) {
 		remoteIP   net.IP
 		remotePort uint16
 		seqNum     uint32
+		packetID   uint16
 		// output
 		expectedIP   net.IP
 		expectedPort uint16
@@ -134,13 +139,14 @@ func Test_handlePackets(t *testing.T) {
 			ctxTimeout:  500 * time.Millisecond,
 			conn: &mockRawConn{
 				header:  testutils.CreateMockIPv4Header(srcIP, dstIP, 1),
-				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(4321, innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			localIP:      innerSrcIP,
 			localPort:    12345,
 			remoteIP:     innerDstIP,
 			remotePort:   443,
 			seqNum:       28394,
+			packetID:     4321,
 			expectedIP:   srcIP,
 			expectedPort: 0,
 			expectedType: layers.ICMPv4TypeTimeExceeded,
@@ -169,7 +175,7 @@ func Test_handlePackets(t *testing.T) {
 		t.Run(test.description, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), test.ctxTimeout)
 			defer cancel()
-			actual := handlePackets(ctx, test.conn, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			actual := handlePackets(ctx, test.conn, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum, test.packetID)
 			if test.errMsg != "" {
 				require.Error(t, actual.Err)
 				assert.True(t, strings.Contains(actual.Err.Error(), test.errMsg), "error mismatch: excpected %q, got %q", test.errMsg, actual.Err.Error())
@@ -190,14 +196,15 @@ func TestListenPackets(t *testing.T) {
 	tt := []struct {
 		description string
 		// input
-		icmpConn   rawConnWrapper
-		tcpConn    rawConnWrapper
+		icmpConn   *mockRawConn
+		tcpConn    *mockRawConn
 		timeout    time.Duration
 		localIP    net.IP
 		localPort  uint16
 		remoteIP   net.IP
 		remotePort uint16
 		seqNum     uint32
+		packetID   uint16
 		// output
 		expectedResponse packetResponse
 		errMsg           string
@@ -255,7 +262,7 @@ func TestListenPackets(t *testing.T) {
 			description: "successful ICMP parsing returns IP, port, and type code",
 			icmpConn: &mockRawConn{
 				header:  testutils.CreateMockIPv4Header(srcIP, dstIP, 1),
-				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+				payload: testutils.CreateMockICMPWithTCPPacket(nil, testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded), testutils.CreateMockIPv4Layer(4321, innerSrcIP, innerDstIP, layers.IPProtocolTCP), testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
 			},
 			tcpConn: &mockRawConn{
 				readTimeoutCount: 100,
@@ -267,6 +274,7 @@ func TestListenPackets(t *testing.T) {
 			remoteIP:   innerDstIP,
 			remotePort: 443,
 			seqNum:     28394,
+			packetID:   4321,
 			expectedResponse: packetResponse{
 				IP:   srcIP,
 				Type: layers.ICMPv4TypeTimeExceeded,
@@ -297,7 +305,9 @@ func TestListenPackets(t *testing.T) {
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			actualResponse := listenPackets(test.icmpConn, test.tcpConn, test.timeout, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			actualResponse := listenPackets(test.icmpConn, test.tcpConn, test.timeout, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum, test.packetID)
+			require.Zero(t, test.icmpConn.numReaders.Load())
+			require.Zero(t, test.tcpConn.numReaders.Load())
 			if test.errMsg != "" {
 				require.Error(t, actualResponse.Err)
 				assert.True(t, strings.Contains(actualResponse.Err.Error(), test.errMsg), "error mismatch: expected %q, got %q", test.errMsg, actualResponse.Err.Error())
@@ -322,6 +332,9 @@ func (m *mockRawConn) SetReadDeadline(t time.Time) error {
 }
 
 func (m *mockRawConn) ReadFrom(_ []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error) {
+	m.numReaders.Add(1)
+	defer m.numReaders.Add(-1)
+
 	if m.readTimeoutCount > 0 {
 		m.readTimeoutCount--
 		time.Sleep(time.Until(m.readDeadline))
@@ -329,6 +342,10 @@ func (m *mockRawConn) ReadFrom(_ []byte) (*ipv4.Header, []byte, *ipv4.ControlMes
 	}
 	if m.readFromErr != nil {
 		return nil, nil, nil, m.readFromErr
+	}
+	if m.payload == nil {
+		// it reads in a loop, so sleep for a bit to avoid log spam
+		time.Sleep(time.Until(m.readDeadline))
 	}
 
 	return m.header, m.payload, m.cm, nil
@@ -343,6 +360,6 @@ func (me mockTimeoutErr) Error() string {
 	return string(me)
 }
 
-func (me mockTimeoutErr) Timeout() bool {
-	return true
+func (me mockTimeoutErr) Unwrap() error {
+	return os.ErrDeadlineExceeded
 }
