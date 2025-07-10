@@ -26,17 +26,18 @@
             "arguments": {
               "s": {
                 "type": "[3]string",
+                "size": "3",
                 "elements": [
                   {
-                    "type": "",
+                    "type": "string",
                     "value": "a"
                   },
                   {
-                    "type": "",
+                    "type": "string",
                     "value": "b"
                   },
                   {
-                    "type": "",
+                    "type": "string",
                     "value": "c"
                   }
                 ]
