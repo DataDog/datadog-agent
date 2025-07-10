@@ -192,7 +192,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 
 // PreStart runs setup required before starting the protocol.
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStream,
 		p.mgr,
 		p.processPostgres,

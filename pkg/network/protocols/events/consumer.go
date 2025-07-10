@@ -60,11 +60,11 @@ type BatchConsumer[V any] struct {
 	invalidBatchCount                                  *telemetry.Counter
 }
 
-// NewConsumer instantiates a new event BatchConsumer
+// NewBatchConsumer instantiates a new event BatchConsumer
 // `callback` is executed once for every "event" generated on eBPF and must:
 // 1) copy the data it wishes to hold since the underlying byte array is reclaimed;
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
-func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*BatchConsumer[V], error) {
+func NewBatchConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*BatchConsumer[V], error) {
 	batchMapName := proto + batchMapSuffix
 	batchMap, err := maps.GetMap[batchKey, Batch](ebpf, batchMapName)
 	if err != nil {

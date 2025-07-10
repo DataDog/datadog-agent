@@ -52,7 +52,7 @@ func (dt *DynamicTable) configureOptions(mgr *manager.Manager, opts *manager.Opt
 
 // preStart sets up the terminated connections events consumer.
 func (dt *DynamicTable) preStart(mgr *manager.Manager) (err error) {
-	dt.terminatedConnectionsEventsConsumer, err = events.NewConsumer(
+	dt.terminatedConnectionsEventsConsumer, err = events.NewBatchConsumer(
 		terminatedConnectionsEventStream,
 		mgr,
 		dt.processTerminatedConnections,

@@ -288,7 +288,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 // PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart() error {
 	var err error
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStreamName,
 		p.mgr,
 		p.processKafka,
