@@ -204,23 +204,63 @@ func TestMsiexec_Run_NonRetryableError(t *testing.T) {
 
 // Test command line construction
 func TestMsiexec_CommandLineConstruction(t *testing.T) {
-	mockRunner := &mockCmdRunner{}
+	t.Run("install with args", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
 
-	expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2=value2 MSIFASTINSTALL=7`, msiexecPath)
-	mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+		expectedCmdLine := fmt.Sprintf(`"%s" /i "test.msi" /qn /log "test.log" ARG1=value1 ARG2=value2 DDAGENTUSER_NAME=ddagent DDAGENTUSER_PASSWORD=password MSIFASTINSTALL=7`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
 
-	cmd, err := Cmd(
-		Install(),
-		WithMsi("test.msi"),
-		WithLogFile("test.log"),
-		WithAdditionalArgs([]string{"ARG1=value1", "ARG2=value2"}),
-		withCmdRunner(mockRunner),
-	)
-	require.NoError(t, err)
+		cmd, err := Cmd(
+			Install(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			WithDdAgentUserName("ddagent"),
+			WithDdAgentUserPassword("password"),
+			WithAdditionalArgs([]string{"ARG1=value1", "ARG2=value2"}),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
 
-	_, err = cmd.Run(t.Context())
-	assert.NoError(t, err)
-	mockRunner.AssertExpectations(t)
+		_, err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
+
+	t.Run("uninstall with args", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
+		expectedCmdLine := fmt.Sprintf(`"%s" /x "test.msi" /qn /log "test.log"`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+
+		cmd, err := Cmd(
+			Uninstall(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
+
+		_, err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
+
+	t.Run("admin install", func(t *testing.T) {
+		mockRunner := &mockCmdRunner{}
+		expectedCmdLine := fmt.Sprintf(`"%s" /a "test.msi" /qn /log "test.log"`, msiexecPath)
+		mockRunner.On("Run", msiexecPath, expectedCmdLine).Return(nil)
+
+		cmd, err := Cmd(
+			AdministrativeInstall(),
+			WithMsi("test.msi"),
+			WithLogFile("test.log"),
+			withCmdRunner(mockRunner),
+		)
+		require.NoError(t, err)
+
+		_, err = cmd.Run(t.Context())
+		assert.NoError(t, err)
+		mockRunner.AssertExpectations(t)
+	})
 }
 
 // Test missing required arguments
