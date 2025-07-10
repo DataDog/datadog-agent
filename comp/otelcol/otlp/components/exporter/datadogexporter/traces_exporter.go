@@ -77,11 +77,12 @@ func (exp *traceExporter) consumeTraces(
 		}
 	}
 
-	exp.exportUsageMetrics(ctx, hosts, ecsFargateTags)
+	exp.exportUsageMetrics(hosts, ecsFargateTags)
 	return nil
 }
 
-func (exp *traceExporter) exportUsageMetrics(ctx context.Context, hosts map[string]struct{}, ecsFargateTags map[string]struct{}) {
+// exportUsageMetrics exports usage tracking metrics 
+func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFargateTags map[string]struct{}) {
 	if exp.s == nil {
 		return
 	}
