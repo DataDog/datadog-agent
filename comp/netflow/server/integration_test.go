@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -50,11 +51,11 @@ func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.Netfl
 	}
 }
 
-var flushTime, _ = time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
+var startTime, _ = time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 var setTimeNow = fx.Invoke(func(c Component) {
 	c.(*Server).FlowAgg.TimeNowFunction = func() time.Time {
-		return flushTime
+		return startTime
 	}
 })
 

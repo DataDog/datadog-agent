@@ -132,7 +132,7 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			agg.flowAcc.add(flow, agg.TimeNowFunction())
 		}
 	}
 }
@@ -234,12 +234,15 @@ func (agg *FlowAggregator) flushLoop() {
 			agg.flushLoopDone <- struct{}{}
 			return
 		// automatic flush sequence
-		case flushStartTime := <-flushFlowsToSendTicker:
+		case <-flushFlowsToSendTicker:
+			now := agg.TimeNowFunction()
 			if !lastFlushTime.IsZero() {
-				flushInterval := flushStartTime.Sub(lastFlushTime)
+				flushInterval := now.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
-			lastFlushTime = flushStartTime
+			lastFlushTime = now
+
+			flushStartTime := agg.TimeNowFunction()
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 			agg.sender.Commit()
@@ -254,7 +257,7 @@ func (agg *FlowAggregator) flushLoop() {
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
-	flowsToFlush := agg.flowAcc.flush()
+	flowsToFlush := agg.flowAcc.flush(flushTime)
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
