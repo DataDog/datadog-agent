@@ -17,13 +17,6 @@ import (
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
-var (
-	serviceCheckExpvar = expvar.NewMap("ServiceCheck")
-
-	tlmServiceCheck = telemetry.NewCounter("metrics", "service_check_split",
-		[]string{"action"}, "Service check split")
-)
-
 // ServiceChecks represents a list of service checks ready to be serialize
 type ServiceChecks []*servicecheck.ServiceCheck
 

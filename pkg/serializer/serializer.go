@@ -178,16 +178,6 @@ func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compre
 	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
 }
 
-func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, compress bool) (transaction.BytesPayloads, http.Header, error) {
-	var extraHeaders http.Header
-	if compress {
-		extraHeaders = s.protobufExtraHeadersWithCompression
-	} else {
-		extraHeaders = s.protobufExtraHeaders
-	}
-	return s.serializePayloadInternal(payload, compress, extraHeaders, split.ProtoMarshalFct)
-}
-
 func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (transaction.BytesPayloads, http.Header, error) {
 	payloads, err := split.Payloads(payload, compress, marshalFct, s.Strategy, s.logger)
 	if err != nil {
