@@ -2,6 +2,7 @@ single-machine-performance-regression_detector:
   stage: functional_test
   timeout: 1h10m
   rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
@@ -22,7 +23,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.22.0
+    SMP_VERSION: 0.23.5
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   script:
@@ -253,6 +254,7 @@ single-machine-performance-regression_detector:
 single-machine-performance-regression_detector-pr-comment:
   stage: functional_test
   rules:
+    - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.on_dev_branches]
     - when: always
   image:

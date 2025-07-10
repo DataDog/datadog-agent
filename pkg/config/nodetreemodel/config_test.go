@@ -17,9 +17,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Test that a setting with a map value is seen as a leaf by the nodetreemodel config
@@ -917,7 +918,7 @@ func TestOnUpdate(t *testing.T) {
 
 	gotSetting := ""
 	var gotOldValue, gotNewValue interface{}
-	cfg.OnUpdate(func(setting string, oldValue, newValue any) {
+	cfg.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
 		gotSetting = setting
 		gotOldValue = oldValue
 		gotNewValue = newValue
@@ -1124,4 +1125,29 @@ func TestWarningLogged(t *testing.T) {
 	cfg.BuildSchema()
 	// Check that the warning was logged
 	assert.Equal(t, &model.Warnings{Errors: []error{errors.New("empty key given to Set")}}, cfg.Warnings())
+}
+
+func TestSequenceID(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Equal(t, uint64(0), config.GetSequenceID())
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(1), config.GetSequenceID())
+
+	config.Set("a", 2, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	// Setting the same value does not update the sequence ID
+	config.Set("a", 2, model.SourceAgentRuntime)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	// Does not update the sequence ID since the source does not match
+	config.UnsetForSource("a", model.SourceEnvVar)
+	assert.Equal(t, uint64(2), config.GetSequenceID())
+
+	config.UnsetForSource("a", model.SourceAgentRuntime)
+	assert.Equal(t, uint64(3), config.GetSequenceID())
 }

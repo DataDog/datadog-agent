@@ -11,26 +11,40 @@
 package procmon
 
 import (
+	"os"
 	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Actuator is the recipient of process updates.
-type Actuator interface {
-	HandleUpdate(update actuator.ProcessesUpdate)
+// Handler is the recipient of processes updates.
+type Handler interface {
+	HandleUpdate(update ProcessesUpdate)
+}
+
+// ProcessesUpdate is a set of updates that the process monitor will send to the
+// handler.
+type ProcessesUpdate struct {
+	Processes []ProcessUpdate
+	Removals  []ProcessID
+}
+
+// ProcessUpdate is an update to a process's instrumentation configuration.
+type ProcessUpdate struct {
+	ProcessID  ProcessID
+	Executable Executable
+	Service    string
 }
 
 // ProcessMonitor encapsulates the logic of processing events from an event
 // monitor and translating them into actuator.ProcessesUpdate calls to the
 // actuator.
 type ProcessMonitor struct {
-	actuator   Actuator
+	handler    Handler
 	procfsRoot string
 
 	eventsCh chan event
@@ -42,8 +56,8 @@ type ProcessMonitor struct {
 
 // NewProcessMonitor creates a new ProcessMonitor that will send updates to the
 // given Actuator.
-func NewProcessMonitor(act Actuator) *ProcessMonitor {
-	return newProcessMonitor(act, kernel.ProcFSRoot())
+func NewProcessMonitor(h Handler) *ProcessMonitor {
+	return newProcessMonitor(h, kernel.ProcFSRoot())
 }
 
 // NotifyExec is a callback to notify the monitor that a process has started.
@@ -57,9 +71,9 @@ func (pm *ProcessMonitor) NotifyExit(pid uint32) {
 }
 
 // newProcessMonitor is injectable with a fake FS for tests.
-func newProcessMonitor(act Actuator, procFS string) *ProcessMonitor {
+func newProcessMonitor(h Handler, procFS string) *ProcessMonitor {
 	pm := &ProcessMonitor{
-		actuator:   act,
+		handler:    h,
 		procfsRoot: procFS,
 		eventsCh:   make(chan event, 1024),
 		doneCh:     make(chan struct{}),
@@ -90,6 +104,8 @@ func (pm *ProcessMonitor) sendEvent(ev event) {
 // Close requests an orderly shutdown and waits for completion.
 func (pm *ProcessMonitor) Close() {
 	pm.shutdownOnce.Do(func() {
+		log.Debugf("closing process monitor")
+		defer log.Debugf("process monitor closed")
 		close(pm.doneCh)
 		pm.wg.Wait()
 	})
@@ -108,7 +124,10 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 	go func() {
 		defer pm.wg.Done()
 		pa, err := analyzeProcess(pid, pm.procfsRoot)
-		if err != nil && analysisFailureLogLimiter.Allow() {
+		shouldLog := err != nil &&
+			!os.IsNotExist(err) &&
+			analysisFailureLogLimiter.Allow()
+		if shouldLog {
 			log.Infof("failed to analyze process %d: %v", pid, err)
 		}
 		pm.sendEvent(&analysisResult{
@@ -119,8 +138,8 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 	}()
 }
 
-func (pm *ProcessMonitor) reportProcessesUpdate(u actuator.ProcessesUpdate) {
-	pm.actuator.HandleUpdate(u)
+func (pm *ProcessMonitor) reportProcessesUpdate(u ProcessesUpdate) {
+	pm.handler.HandleUpdate(u)
 }
 
 // Ensure ProcessMonitor implements smEffects.

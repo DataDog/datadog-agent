@@ -6,7 +6,7 @@ test_install_script:
   script:
     - set +x
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-    - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
+    - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET/datadog-agent/pipeline-$CI_PIPELINE_ID-a7
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main --timeout 5400
