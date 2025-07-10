@@ -330,11 +330,6 @@ def compute_gitlab_ci_config(
 
 @task
 def test(ctx):
-    with gitlab_section('My section'):
-        print('Hello')
-
-    with gitlab_section('My section 2', broken=True):
-        print('Hello 2')
-
-    with gitlab_section('My section 3'):
-        print('Hello 3')
+    for i in range(1000):
+        with gitlab_section(f'My section {i}'):
+            print('Hello {i}')
