@@ -79,9 +79,9 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 }
 
 // onConfigUpdate is called when any config value changes
-func (p *Processor) onConfigUpdate(setting string, _, _ any, _ uint64) {
+func (p *Processor) onConfigUpdate(setting string, oldValue, newValue any, _ uint64) {
 	// Only update if the changed setting affects failover configuration
-	if setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist" {
+	if setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist" || oldValue == newValue {
 		p.updateFailoverConfig()
 	}
 }
