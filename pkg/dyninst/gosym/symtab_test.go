@@ -9,6 +9,7 @@ package gosym
 
 import (
 	"bytes"
+	"debug/dwarf"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -145,11 +147,9 @@ func TestFuncPCIterator(t *testing.T) {
 
 	goVersion, err := object.ReadGoVersion(obj.Underlying)
 	require.NoError(t, err)
-
 	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
-
 	symtab, err := ParseGoSymbolTable(
 		goDebugSections.PcLnTab.Data,
 		goDebugSections.GoFunc.Data,
@@ -161,38 +161,84 @@ func TestFuncPCIterator(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	var testFunc *GoFunction
-	for _, f := range symtab.Functions() {
-		if f.Name != "main.funcArg" {
-			continue
+	type testCase struct {
+		funcName              string
+		expectedLines         []uint32
+		expectedInlinedRanges bool
+	}
+	for _, tc := range []testCase{
+		{
+			funcName:              "main.funcArg",
+			expectedLines:         []uint32{80, 81, 82, 80},
+			expectedInlinedRanges: false,
+		},
+		{
+			funcName:              "main.stringArg",
+			expectedLines:         []uint32{47, 48, 49, 47},
+			expectedInlinedRanges: true,
+		},
+	} {
+		t.Run(tc.funcName, func(t *testing.T) {
+			funcEntry, err := findFuncInDwarf(obj.DwarfData(), tc.funcName)
+			require.NoError(t, err)
+			require.NotNil(t, funcEntry)
+			inlinedRanges, err := getInlinedRangesForFunc(funcEntry, obj.DwarfData())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedInlinedRanges, len(inlinedRanges) > 0)
+			lowpc := funcEntry.Val(dwarf.AttrLowpc).(uint64)
+			f := symtab.PCToFunction(lowpc)
+			require.NotNil(t, f)
+
+			it, err := f.PCIterator(inlinedRanges)
+			require.NoError(t, err)
+			// Check the iteration twice, to test Reset().
+			for i := 0; i < 2; i++ {
+				for _, expectedLine := range tc.expectedLines {
+					r, ok := it.Next()
+					require.True(t, ok)
+					require.Equal(t, int(expectedLine), int(r.Line))
+				}
+				_, ok := it.Next()
+				require.False(t, ok)
+				it.Reset()
+			}
+		})
+	}
+}
+
+// findFuncInDwarf searches for a function with the given name in the DWARF
+// data. If found, the reader is left positioned on the function entry and the
+// entry is returned. If not found, returns (nil, nil).
+func findFuncInDwarf(data *dwarf.Data, funcName string) (*dwarf.Entry, error) {
+	reader := data.Reader()
+	for entry, err := reader.Next(); entry != nil; entry, err = reader.Next() {
+		if err != nil {
+			return nil, err
 		}
-		testFunc = f
-		break
+		if entry.Tag == dwarf.TagSubprogram {
+			nameField := entry.AttrField(dwarf.AttrName)
+			if nameField == nil {
+				continue
+			}
+			name := nameField.Val.(string)
+			if name == funcName {
+				return entry, nil
+			}
+		}
 	}
-	if testFunc == nil {
-		t.Fatal("main.stringArg not found")
+	return nil, nil
+}
+
+func getInlinedRangesForFunc(funcEntry *dwarf.Entry, data *dwarf.Data) ([]dwarfutil.PCRange, error) {
+	reader := data.Reader()
+	reader.Seek(funcEntry.Offset)
+	_, err := reader.Next()
+	if err != nil {
+		return nil, err
 	}
-	// TODO: test EndLine() for a function containing other inlined funcs.
-	f := symtab.PCToFunction(testFunc.Entry)
-	require.NotNil(t, f)
-	it, err := f.PCIterator(nil /* inlinedPcRanges */)
-	require.NoError(t, err)
-	// Check the iteration twice, to test Reset().
-	for i := 0; i < 2; i++ {
-		r, ok := it.Next()
-		require.True(t, ok)
-		require.Equal(t, uint32(80), r.Line)
-		r, ok = it.Next()
-		require.True(t, ok)
-		require.Equal(t, uint32(81), r.Line)
-		r, ok = it.Next()
-		require.True(t, ok)
-		require.Equal(t, uint32(82), r.Line)
-		r, ok = it.Next()
-		require.True(t, ok)
-		require.Equal(t, uint32(80), r.Line)
-		_, ok = it.Next()
-		require.False(t, ok)
-		it.Reset()
+	pcRanges, err := dwarfutil.ExploreInlinedPcRangesInSubprogram(reader, data)
+	if err != nil {
+		return nil, err
 	}
+	return pcRanges, nil
 }
