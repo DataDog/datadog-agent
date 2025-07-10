@@ -17,6 +17,8 @@ import (
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func TestGetOTelEnv(t *testing.T) {
@@ -345,6 +347,81 @@ func TestGetOTelStatusCode(t *testing.T) {
 				res.Attributes().PutInt(k, int64(v))
 			}
 			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res, tt.ignoreMissingDatadogFields))
+		})
+	}
+}
+
+func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
+	tests := []struct {
+		name         string
+		sattrs       map[string]string
+		rattrs       map[string]string
+		expectedName string
+		shouldMap    bool
+	}{
+		{
+			name:         "db.namespace in span attributes, no db.name",
+			sattrs:       map[string]string{string(semconv127.DBNamespaceKey): "testdb"},
+			expectedName: "testdb",
+			shouldMap:    true,
+		},
+		{
+			name:         "db.namespace in resource attributes, no db.name",
+			rattrs:       map[string]string{string(semconv127.DBNamespaceKey): "testdb"},
+			expectedName: "testdb",
+			shouldMap:    true,
+		},
+		{
+			name:         "db.namespace in both, resource takes precedence",
+			sattrs:       map[string]string{string(semconv127.DBNamespaceKey): "span-db"},
+			rattrs:       map[string]string{string(semconv127.DBNamespaceKey): "resource-db"},
+			expectedName: "resource-db",
+			shouldMap:    true,
+		},
+		{
+			name:         "db.name already exists, should not map",
+			sattrs:       map[string]string{"db.name": "existing-db", string(semconv127.DBNamespaceKey): "testdb"},
+			expectedName: "existing-db",
+			shouldMap:    false,
+		},
+		{
+			name:      "no db.namespace, should not map",
+			sattrs:    map[string]string{},
+			shouldMap: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			cfg := &config.AgentConfig{}
+			cfg.OTLPReceiver = &config.OTLP{}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			if tt.shouldMap {
+				assert.Equal(t, tt.expectedName, ddspan.Meta["db.name"])
+			} else {
+				if tt.expectedName != "" {
+					assert.Equal(t, tt.expectedName, ddspan.Meta["db.name"])
+				} else {
+					assert.Empty(t, ddspan.Meta["db.name"])
+				}
+			}
 		})
 	}
 }

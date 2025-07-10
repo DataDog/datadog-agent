@@ -11,6 +11,7 @@
 package procmon
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ type ProcessesUpdate struct {
 type ProcessUpdate struct {
 	ProcessID  ProcessID
 	Executable Executable
+	Service    string
 }
 
 // ProcessMonitor encapsulates the logic of processing events from an event
@@ -102,6 +104,8 @@ func (pm *ProcessMonitor) sendEvent(ev event) {
 // Close requests an orderly shutdown and waits for completion.
 func (pm *ProcessMonitor) Close() {
 	pm.shutdownOnce.Do(func() {
+		log.Debugf("closing process monitor")
+		defer log.Debugf("process monitor closed")
 		close(pm.doneCh)
 		pm.wg.Wait()
 	})
@@ -120,7 +124,10 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 	go func() {
 		defer pm.wg.Done()
 		pa, err := analyzeProcess(pid, pm.procfsRoot)
-		if err != nil && analysisFailureLogLimiter.Allow() {
+		shouldLog := err != nil &&
+			!os.IsNotExist(err) &&
+			analysisFailureLogLimiter.Allow()
+		if shouldLog {
 			log.Infof("failed to analyze process %d: %v", pid, err)
 		}
 		pm.sendEvent(&analysisResult{
