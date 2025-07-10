@@ -1,5 +1,19 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.0.0 / 2025-07-10
+
+* Switched Azure backend to `azsecrets`, removed `go-autorest`.
+* Enabled Azure managed identity for secret retrieval.
+* Accepting config input via stdin, not separate files.
+* Azure secrets can now be flat strings or JSON.
+* Removing `secret_id` from AWS Secrets config.
+* Removing `parameters_path` from AWS SSM config.
+* Removing `secret_path` from Hashicorp config.
+* Centralizing secret retrieval in GetSecretOutput.
+* Updating Azure Key Vault docs with semicolon syntax.
+* Fixing Azure test bug and formatting issues.
+* Updated `release.yaml` job to automatically bump `appVersion`.
+
 ## 0.2.5 / 2025-06-27
 
 * Bump go version to `1.24.4`
