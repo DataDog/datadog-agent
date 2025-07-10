@@ -238,7 +238,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 // handleCheck is the handler for the /check endpoint.
 // Returns the list of service discovery events.
 func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
-	params, err := core.ParseParams(req.URL.Query())
+	params, err := core.ParseParamsFromRequest(req)
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -256,7 +256,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
-	params, err := core.ParseParams(req.URL.Query())
+	params, err := core.ParseParamsFromRequest(req)
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusBadRequest)
