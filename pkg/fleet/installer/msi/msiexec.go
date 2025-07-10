@@ -26,7 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
 )
 
@@ -330,7 +330,7 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 	var err error
 	var attemptCount int
 
-	operation := func() error {
+	operation := func() (any, error) {
 		span, _ := telemetry.StartSpanFromContext(ctx, "msiexec")
 		defer func() {
 			// Add telemetry metadata about the msiexec operation
@@ -353,15 +353,17 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 
 		// Return permanent error for non-retryable exit codes
 		if err != nil && !isRetryableExitCode(err) {
-			return backoff.Permanent(err)
+			return nil, backoff.Permanent(err)
 		}
 
-		return err
+		return nil, err
 	}
 
 	// Execute with retry
-	backoffStrategy := backoff.WithContext(m.backoff, ctx)
-	err = backoff.Retry(operation, backoffStrategy)
+	_, err = backoff.Retry(ctx, operation,
+		backoff.WithBackOff(m.backoff),
+		backoff.WithMaxElapsedTime(10*time.Minute),
+	)
 
 	// Process log file once after all retries are complete
 	logFileBytes, logErr := m.openAndProcessLogFile()
@@ -444,11 +446,10 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	if a.backoff != nil {
 		cmd.backoff = a.backoff
 	} else {
-		cmd.backoff = backoff.NewExponentialBackOff(
-			backoff.WithInitialInterval(10*time.Second),
-			backoff.WithMaxInterval(120*time.Second),
-			backoff.WithMaxElapsedTime(10*time.Minute),
-		)
+		b := backoff.NewExponentialBackOff()
+		b.InitialInterval = 10 * time.Second
+		b.MaxInterval = 120 * time.Second
+		cmd.backoff = b
 	}
 
 	return cmd, nil
