@@ -1,3 +1,71 @@
+single_machine_performance-regression_detector-merge_base_check:
+  stage: .pre
+  timeout: 10m
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches]
+    - when: on_success
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64"]
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - regression_detector.env
+  variables:
+    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
+  script:
+    # Fetch origin to ensure we have latest main branch
+    - git fetch origin
+    # Get the base branch from release.json
+    - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
+    - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
+    # Compute merge base of current commit and main
+    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
+    - echo "Merge base is ${SMP_MERGE_BASE}"
+    # Compute four days before now as UNIX timestamp
+    - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
+    # Compute UNIX timestamp of potential baseline SHA
+    - BASELINE_SHA="${SMP_MERGE_BASE}"
+    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
+    # Check if baseline SHA is too old
+    - |
+      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
+      then
+          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+          exit 1
+      fi
+    - echo "Commit ${BASELINE_SHA} is recent enough"
+    # Setup AWS credentials for single-machine-performance AWS account to check ECR images
+    - AWS_NAMED_PROFILE="single-machine-performance"
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
+    # Check if image exists for the baseline SHA
+    - echo "Checking if image exists for commit ${BASELINE_SHA}..."
+    - |
+      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
+      do
+          echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
+          BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
+          echo "Checking if commit ${BASELINE_SHA} is recent enough..."
+          BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
+          if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
+          then
+              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              exit 1
+          fi
+          echo "Commit ${BASELINE_SHA} is recent enough"
+          echo "Checking if image exists for commit ${BASELINE_SHA}..."
+      done
+    - echo "Image exists for commit ${BASELINE_SHA}"
+    # Save the baseline SHA to an artifact file
+    - echo "BASELINE_SHA=${BASELINE_SHA}" > regression_detector.env
+    - echo "Merge-base check passed. Baseline SHA saved to artifact."
+
 single-machine-performance-regression_detector:
   stage: functional_test
   timeout: 1h10m
@@ -10,11 +78,12 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
+    - job: single_machine_performance-regression_detector-merge_base_check
+      artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
       - submission_metadata # for provenance, debugging
-      - ${CI_COMMIT_SHA}-baseline_sha # for provenance, debugging
       - outputs/report.md # for debugging, also on S3
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
@@ -36,12 +105,6 @@ single-machine-performance-regression_detector:
     - datadog-ci tag --level job --tags smp_failure_mode:"unknown"
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
-    # Compute merge base of current commit and `main`
-    - git fetch origin
-    - SMP_BASE_BRANCH=$(dda inv release.get-release-json-value base_branch --no-worktree)
-    - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
-    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
-    - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
@@ -56,46 +119,10 @@ single-machine-performance-regression_detector:
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
-    - BASELINE_SHA="${SMP_MERGE_BASE}"
-    - echo "Computing baseline..."
-    - echo "Checking if commit ${BASELINE_SHA} is recent enough..."
-    # Compute four days before now as UNIX timestamp in order to test against SMP ECR expiration policy;
-    # add an hour as a small correction factor to overestimate time needed for SMP to query and pull the
-    # image so we don't end up with a hard-to-diagnose bug in which the image expires after checking its
-    # age in CI, but before SMP pulls the image.
-    - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
-    # Compute UNIX timestamp of potential baseline SHA
-    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-    # If baseline SHA is older than expiration policy, exit with an error
-    - | # Only 1st line of multiline command echoes, which reduces debuggability, so multiline commands are a maintenance tradeoff
-      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-      then
-          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          datadog-ci tag --level job --tags smp_failure_mode:"merge-base-too-old"
-          exit 1
-      fi
-    - echo "Commit ${BASELINE_SHA} is recent enough"
-    - echo "Checking if image exists for commit ${BASELINE_SHA}..."
-    - |
-      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
-      do
-          echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
-          BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
-          echo "Checking if commit ${BASELINE_SHA} is recent enough..."
-          BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-          if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-          then
-              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-              datadog-ci tag --level job --tags smp_failure_mode:"merge-base-too-old-predecessor"
-              exit 1
-          fi
-          echo "Commit ${BASELINE_SHA} is recent enough"
-          echo "Checking if image exists for commit ${BASELINE_SHA}..."
-      done
-    - echo "Image exists for commit ${BASELINE_SHA}"
+    - source regression_detector.env
     - echo "Baseline SHA is ${BASELINE_SHA}"
-    - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     # Copy the baseline SHA to SMP for debugging purposes later
+    - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-full-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
