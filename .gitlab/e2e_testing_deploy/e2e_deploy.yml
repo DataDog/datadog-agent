@@ -75,7 +75,7 @@ deploy_deb_testing-a7_x64:
     - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
     - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
-    - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_
+    - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a7_arm64:
   rules:
