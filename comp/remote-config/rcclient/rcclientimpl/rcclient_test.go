@@ -129,7 +129,7 @@ func TestRCClientCreate(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
-	assert.NotNil(t, client.(rcClient).client)
+	assert.NotNil(t, client.(*rcClient).client)
 }
 
 func TestAgentConfigCallback(t *testing.T) {
@@ -168,7 +168,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
 	configOrder := state.RawConfig{Config: []byte(`{"internal_order": ["layer1", "layer2"]}`)}
 
-	structRC := rc.(rcClient)
+	structRC := rc.(*rcClient)
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
@@ -272,7 +272,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
 
-	structRC := rc.(rcClient)
+	structRC := rc.(*rcClient)
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
