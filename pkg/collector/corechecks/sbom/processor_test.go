@@ -358,9 +358,6 @@ func TestProcessEvents(t *testing.T) {
 					RepoTags: []string{
 						"latest",
 					},
-					RepoDigests: []string{
-						"local/my-image:latest@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					},
 					InUse:              false,
 					GeneratedAt:        timestamppb.New(sbomGenerationTime),
 					GenerationDuration: durationpb.New(10 * time.Second),
