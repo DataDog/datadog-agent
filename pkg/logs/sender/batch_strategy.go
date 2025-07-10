@@ -55,6 +55,9 @@ type batchStrategy struct {
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
+	writeCounter    *writerCounter
+	encodedPayload  *bytes.Buffer
+	instanceID      string
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
@@ -69,8 +72,10 @@ func NewBatchStrategy(
 	pipelineName string,
 	useCompressionEndpoint config.Endpoint,
 	compressor logscompression.Component,
-	pipelineMonitor metrics.PipelineMonitor) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), useCompressionEndpoint, compressor, pipelineMonitor)
+	pipelineMonitor metrics.PipelineMonitor
+	instanceID string,
+) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), useCompressionEndpoint, compressor, pipelineMonitor, instanceID)
 }
 
 func newBatchStrategyWithClock(
@@ -85,7 +90,9 @@ func newBatchStrategyWithClock(
 	clock clock.Clock,
 	useCompressionEndpoint config.Endpoint,
 	compressor logscompression.Component,
-	pipelineMonitor metrics.PipelineMonitor) Strategy {
+	pipelineMonitor metrics.PipelineMonitor
+	instanceID string,
+) Strategy {
 
 	var encoder compressionCommon.Compressor
 	encoder = compressor.NewCompressor(compressionCommon.NoneKind, 0)
@@ -103,10 +110,11 @@ func newBatchStrategyWithClock(
 		pipelineName:    pipelineName,
 		clock:           clock,
 		pipelineMonitor: pipelineMonitor,
-		utilization:     pipelineMonitor.MakeUtilizationMonitor("strategy"),
+		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.StrategyTlmName, instanceID),
 		maxBatchSize:    maxBatchSize,
 		maxContentSize:  maxContentSize,
 		encoder:         encoder,
+		instanceID:      instanceID,
 	}
 
 	bs.mainBatch = bs.MakeBatch()
@@ -289,8 +297,8 @@ func (s *batchStrategy) sendMessages(b *batch, messagesMetadata []*message.Messa
 
 	s.utilization.Stop()
 	outputChan <- p
-	s.pipelineMonitor.ReportComponentEgress(p, "strategy")
-	s.pipelineMonitor.ReportComponentIngress(p, "sender")
+	s.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, s.instanceID)
+	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 }
 
 // writerCounter is a simple io.Writer that counts the number of bytes written to it

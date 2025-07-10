@@ -434,6 +434,15 @@ func (t *teeConfig) AllSettingsBySource() map[model.Source]interface{} {
 
 }
 
+// AllSettingsWithSequenceID returns the settings and the sequence ID.
+func (t *teeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+	base, baseSequenceID := t.baseline.AllSettingsWithSequenceID()
+	compare, compareSequenceID := t.compare.AllSettingsWithSequenceID()
+	t.compareResult("", "AllSettingsWithSequenceID (settings)", base, compare)
+	t.compareResult("", "AllSettingsWithSequenceID (sequenceID)", baseSequenceID, compareSequenceID)
+	return base, baseSequenceID
+}
+
 // AddConfigPath wraps Viper for concurrent access
 func (t *teeConfig) AddConfigPath(in string) {
 	t.baseline.AddConfigPath(in)
@@ -521,5 +530,12 @@ func (t *teeConfig) ExtraConfigFilesUsed() []string {
 	base := t.baseline.ExtraConfigFilesUsed()
 	compare := t.compare.ExtraConfigFilesUsed()
 	t.compareResult("", "ExtraConfigFilesUsed", base, compare)
+	return base
+}
+
+func (t *teeConfig) GetSequenceID() uint64 {
+	base := t.baseline.GetSequenceID()
+	compare := t.compare.GetSequenceID()
+	t.compareResult("", "GetSequenceID", base, compare)
 	return base
 }

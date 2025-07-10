@@ -624,6 +624,14 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
+
+	// Check for db.namespace and conditionally set db.name
+	if _, ok := span.Meta["db.name"]; !ok {
+		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(in, res, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+			transform.SetMetaOTLP(span, "db.name", dbNamespace)
+		}
+	}
+
 	if in.TraceState().AsRaw() != "" {
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}

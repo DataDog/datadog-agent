@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	"github.com/DataDog/datadog-agent/pkg/api/version"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
@@ -64,6 +65,9 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 		workloadList(w, verbose, a.wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/secret/refresh", a.refreshSecrets).Methods("GET")
+
+	// Special handler to compute running agent Code coverage
+	coverage.SetupCoverageHandler(r)
 }
 
 func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {

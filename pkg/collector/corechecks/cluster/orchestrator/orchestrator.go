@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -40,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -87,12 +89,18 @@ type OrchestratorCheck struct {
 	isCLCRunner                 bool
 	apiClient                   *apiserver.APIClient
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
+	agentVersion                *model.AgentVersion
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
 	extraTags, err := tagger.GlobalTags(types.LowCardinality)
 	if err != nil {
 		log.Debugf("Failed to get global tags: %s", err)
+	}
+
+	agentVersion, err := version.Agent()
+	if err != nil {
+		log.Warnf("Failed to get agent vserion: %s", err)
 	}
 
 	return &OrchestratorCheck{
@@ -105,6 +113,13 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 		stopCh:             make(chan struct{}),
 		groupID:            atomic.NewInt32(rand.Int31()),
 		isCLCRunner:        pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		agentVersion: &model.AgentVersion{
+			Major:  agentVersion.Major,
+			Minor:  agentVersion.Minor,
+			Patch:  agentVersion.Patch,
+			Pre:    agentVersion.Pre,
+			Commit: agentVersion.Commit,
+		},
 	}
 }
 

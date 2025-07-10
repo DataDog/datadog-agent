@@ -192,7 +192,7 @@ func (tf *factory) getPodAndContainer(containerID string) (*workloadmeta.Orchest
 	}
 
 	var container *workloadmeta.OrchestratorContainer
-	for _, pc := range pod.GetAllContainers() {
+	for _, pc := range pod.GetContainersAndInitContainers() {
 		if pc.ID == containerID {
 			container = &pc
 			break

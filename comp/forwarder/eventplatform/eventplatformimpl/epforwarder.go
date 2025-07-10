@@ -470,7 +470,9 @@ func newHTTPPassthroughPipeline(
 			desc.eventType,
 			endpoints.Main,
 			compressor,
-			pipelineMonitor)
+			pipelineMonitor,
+      "0",
+    )
 	}
 
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
