@@ -7,20 +7,18 @@
 package monitor
 
 import (
-	"runtime"
 	"testing"
 
-	"github.com/Masterminds/semver/v3"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 type testPolicy struct {
@@ -28,15 +26,13 @@ type testPolicy struct {
 	def  rules.PolicyDef
 }
 
-type testCase struct {
-	name                 string
-	policies             []*testPolicy
-	expectedPolicyStates []*PolicyState
-}
-
 func TestPolicyMonitorPolicyState(t *testing.T) {
-
-	testCases := []*testCase{
+	testCases := []struct {
+		name                 string
+		policies             []*testPolicy
+		testPolicyStatesCb   func(t *testing.T, states []*PolicyState)
+		expectedPolicyStates []*PolicyState
+	}{
 		{
 			name:                 "no policy",
 			policies:             nil,
@@ -311,20 +307,12 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 						Name:   "Policy A",
 						Source: "test",
 					},
-					Status: PolicyStatusPartiallyFiltered,
+					Status: PolicyStatusLoaded,
 					Rules: []*RuleState{
 						{
 							ID:         "rule_a",
 							Expression: `exec.file.path == "/etc/foo/bar"`,
 							Status:     "loaded",
-						},
-						{
-							ID:                     "rule_b",
-							Expression:             `exec.file.path == "/etc/foo/baz"`,
-							Status:                 "filtered",
-							Message:                "this agent version doesn't support this rule",
-							FilterType:             string(rules.FilterTypeAgentVersion),
-							AgentVersionConstraint: "< 0.0.1",
 						},
 					},
 				},
@@ -354,306 +342,19 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 					},
 				},
 			},
-			expectedPolicyStates: []*PolicyState{
-				{
-					PolicyMetadata: PolicyMetadata{
-						Name:   "Policy A",
-						Source: "test",
-					},
-					Status: PolicyStatusFullyFiltered,
-					Rules: []*RuleState{
-						{
-							ID:                     "rule_a",
-							Expression:             `exec.file.path == "/etc/foo/bar"`,
-							Status:                 "filtered",
-							Message:                "this agent version doesn't support this rule",
-							FilterType:             string(rules.FilterTypeAgentVersion),
-							AgentVersionConstraint: "< 0.0.1",
-						},
-						{
-							ID:                     "rule_b",
-							Expression:             `exec.file.path == "/etc/foo/baz"`,
-							Status:                 "filtered",
-							Message:                "this agent version doesn't support this rule",
-							FilterType:             string(rules.FilterTypeAgentVersion),
-							AgentVersionConstraint: "< 0.0.2",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "multiple rules with one agent constraint passing",
-			policies: []*testPolicy{
-				{
-					info: rules.PolicyInfo{
-						Name:   "Policy A",
-						Source: "test",
-					},
-					def: rules.PolicyDef{
-						Rules: []*rules.RuleDefinition{
-							{
-								ID:                     "rule_a",
-								Expression:             `exec.file.path == "/etc/foo/bar"`,
-								AgentVersionConstraint: "< 0.0.1",
-							},
-							{
-								ID:                     "rule_a",
-								Expression:             `exec.file.path == "/etc/foo/bar" && exec.file.name == "bar"`,
-								AgentVersionConstraint: "< 0.0.2",
-							},
-							{
-								ID:                     "rule_a",
-								Expression:             `exec.file.path == "/etc/foo/bar" && exec.file.name == "bar" && exec.pid == 42`,
-								AgentVersionConstraint: "~7.x",
-							},
-						},
-					},
-				},
-			},
-			expectedPolicyStates: []*PolicyState{
-				{
-					PolicyMetadata: PolicyMetadata{
-						Name:   "Policy A",
-						Source: "test",
-					},
-					Status: PolicyStatusLoaded,
-					Rules: []*RuleState{
-						{
-							ID:                     "rule_a",
-							Expression:             `exec.file.path == "/etc/foo/bar" && exec.file.name == "bar" && exec.pid == 42`,
-							Status:                 "loaded",
-							AgentVersionConstraint: "~7.x",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "multiple policies with same rules but different constraints",
-			policies: []*testPolicy{
-				{
-					info: rules.PolicyInfo{
-						Name:   "Policy A",
-						Source: "test",
-					},
-					def: rules.PolicyDef{
-						Rules: []*rules.RuleDefinition{
-							{
-								ID:                     "rule_a",
-								Expression:             `exec.file.path == "/etc/foo/bar"`,
-								AgentVersionConstraint: "< 0.0.1",
-							},
-							{
-								ID:                     "rule_b",
-								Expression:             `exec.file.path == "/etc/foo/baz"`,
-								AgentVersionConstraint: "< 0.0.2",
-							},
-						},
-					},
-				},
-				{
-					info: rules.PolicyInfo{
-						Name:   "Policy B",
-						Source: "test",
-					},
-					def: rules.PolicyDef{
-						Rules: []*rules.RuleDefinition{
-							{
-								ID:                     "rule_a",
-								Expression:             `exec.file.path == "/etc/foo/bar" && exec.pid == 42`,
-								AgentVersionConstraint: "~7.x",
-							},
-							{
-								ID:                     "rule_b",
-								Expression:             `exec.file.path == "/etc/foo/baz"`,
-								AgentVersionConstraint: "< 0.0.2",
-							},
-							{
-								ID:                     "rule_c",
-								Expression:             `exec.file.path == "/etc/foo/qwak"`,
-								AgentVersionConstraint: ">= 7.42.0",
-							},
-						},
-					},
-				},
-			},
-			expectedPolicyStates: []*PolicyState{
-				{
-					PolicyMetadata: PolicyMetadata{
-						Name:   "Policy A",
-						Source: "test",
-					},
-					Status: PolicyStatusFullyFiltered,
-					Rules: []*RuleState{
-						{
-							ID:                     "rule_a",
-							Expression:             `exec.file.path == "/etc/foo/bar"`,
-							Status:                 "filtered",
-							Message:                "this agent version doesn't support this rule",
-							FilterType:             string(rules.FilterTypeAgentVersion),
-							AgentVersionConstraint: "< 0.0.1",
-						},
-						{
-							ID:                     "rule_b",
-							Expression:             `exec.file.path == "/etc/foo/baz"`,
-							Status:                 "filtered",
-							Message:                "this agent version doesn't support this rule",
-							FilterType:             string(rules.FilterTypeAgentVersion),
-							AgentVersionConstraint: "< 0.0.2",
-						},
-					},
-				},
-				{
-					PolicyMetadata: PolicyMetadata{
-						Name:   "Policy B",
-						Source: "test",
-					},
-					Status: PolicyStatusPartiallyFiltered,
-					Rules: []*RuleState{
-						{
-							ID:                     "rule_a",
-							Expression:             `exec.file.path == "/etc/foo/bar" && exec.pid == 42`,
-							Status:                 "loaded",
-							AgentVersionConstraint: "~7.x",
-						},
-						{
-							ID:                     "rule_b",
-							Expression:             `exec.file.path == "/etc/foo/baz"`,
-							Status:                 "filtered",
-							Message:                "this agent version doesn't support this rule",
-							FilterType:             string(rules.FilterTypeAgentVersion),
-							AgentVersionConstraint: "< 0.0.2",
-						},
-						{
-							ID:                     "rule_c",
-							Expression:             `exec.file.path == "/etc/foo/qwak"`,
-							Status:                 "loaded",
-							AgentVersionConstraint: ">= 7.42.0",
-						},
-					},
-				},
-			},
+			expectedPolicyStates: nil,
 		},
 	}
 
-	if runtime.GOOS == "linux" {
-		testCases = append(testCases, []*testCase{
-			{
-				name: "policy with os filters",
-				policies: []*testPolicy{
-					{
-						info: rules.PolicyInfo{
-							Name:   "Policy A",
-							Source: "test",
-						},
-						def: rules.PolicyDef{
-							Rules: []*rules.RuleDefinition{
-								{
-									ID:         "rule_a",
-									Expression: `exec.file.path == "/etc/foo/bar"`,
-									Filters:    []string{"os == \"linux\""},
-								},
-								{
-									ID:         "rule_b",
-									Expression: `exec.file.path == "/etc/foo/baz"`,
-									Filters:    []string{"os == \"windows\""},
-								},
-							},
-						},
-					},
-				},
-				expectedPolicyStates: []*PolicyState{
-					{
-						PolicyMetadata: PolicyMetadata{
-							Name:   "Policy A",
-							Source: "test",
-						},
-						Status: PolicyStatusPartiallyFiltered,
-						Rules: []*RuleState{
-							{
-								ID:         "rule_a",
-								Expression: `exec.file.path == "/etc/foo/bar"`,
-								Status:     "loaded",
-								Filters:    []string{"os == \"linux\""},
-							},
-							{
-								ID:         "rule_b",
-								Expression: `exec.file.path == "/etc/foo/baz"`,
-								Status:     "filtered",
-								Message:    "none of the rule filters matched the host or configuration of this agent",
-								FilterType: string(rules.FilterTypeRuleFilter),
-								Filters:    []string{"os == \"windows\""},
-							},
-						},
-					},
-				},
-			},
-		}...)
-	} else if runtime.GOOS == "windows" {
-		testCases = append(testCases, []*testCase{
-			{
-				name: "policy with os filters",
-				policies: []*testPolicy{
-					{
-						info: rules.PolicyInfo{
-							Name:   "Policy A",
-							Source: "test",
-						},
-						def: rules.PolicyDef{
-							Rules: []*rules.RuleDefinition{
-								{
-									ID:         "rule_a",
-									Expression: `exec.file.path == "/etc/foo/bar"`,
-									Filters:    []string{"os == \"linux\""},
-								},
-								{
-									ID:         "rule_b",
-									Expression: `exec.file.path == "/etc/foo/baz"`,
-									Filters:    []string{"os == \"windows\""},
-								},
-							},
-						},
-					},
-				},
-				expectedPolicyStates: []*PolicyState{
-					{
-						PolicyMetadata: PolicyMetadata{
-							Name:   "Policy A",
-							Source: "test",
-						},
-						Status: PolicyStatusPartiallyFiltered,
-						Rules: []*RuleState{
-							{
-								ID:         "rule_a",
-								Expression: `exec.file.path == "/etc/foo/bar"`,
-								Status:     "filtered",
-								Message:    "none of the rule filters matched the host or configuration of this agent",
-								FilterType: string(rules.FilterTypeRuleFilter),
-								Filters:    []string{"os == \"linux\""},
-							},
-							{
-								ID:         "rule_b",
-								Expression: `exec.file.path == "/etc/foo/baz"`,
-								Status:     "loaded",
-								Filters:    []string{"os == \"windows\""},
-							},
-						},
-					},
-				},
-			},
-		}...)
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		t.Fatal("failed to get agent version:", err)
 	}
 
 	var macroFilters []rules.MacroFilter
 	var ruleFilters []rules.RuleFilter
 
-	seclRuleFilter := rules.NewSECLRuleFilter(filtermodel.NewOSOnlyFilterModel(runtime.GOOS))
-
-	macroFilters = append(macroFilters, seclRuleFilter)
-	ruleFilters = append(ruleFilters, seclRuleFilter)
-
-	agentVersionFilter, err := rules.NewAgentVersionFilter(semver.MustParse("7.42.0"))
+	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
 	if err != nil {
 		t.Fatal("failed to create agent version filter:", err)
 	} else {
@@ -680,10 +381,10 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rs := rules.NewRuleSet(&model.Model{}, eventCtor, ruleOpts, evalOpts)
 			loader := rules.NewPolicyLoader(newTestPolicyProvider(tc.policies...))
-			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
-			policyStates := NewPoliciesState(rs, filteredRules, errs, false)
+			errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
+			policyStates := NewPoliciesState(rs, errs, false)
 
-			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates, goCmpOpts...), gocmp.Diff(tc.expectedPolicyStates, policyStates, goCmpOpts...))
+			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates, goCmpOpts...), gocmp.Diff(tc.expectedPolicyStates, policyStates, goCmpOpts...), "policy states mismatch")
 		})
 	}
 }
