@@ -14,6 +14,7 @@ package gosym
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
@@ -30,6 +31,8 @@ type GoFunction struct {
 	DeferReturn uint32
 	// The index of the function in the symbol table
 	idx uint32
+	// The internal function info
+	funcInfo *funcInfo
 }
 
 // GoLocation represents a resolved source code location.
@@ -87,6 +90,20 @@ func (gst *GoSymbolTable) PCToFunction(pc uint64) *GoFunction {
 // LocatePC returns the location that contains the given PC.
 func (gst *GoSymbolTable) LocatePC(pc uint64) []GoLocation {
 	return gst.pclntab.locatePC(pc, gst.gofunc)
+}
+
+// FunctionPCResolver builds a FuncPCResolver for the function containing the
+// given program counter (any pc inside the function is valid). Returns nil if
+// the PC could not be resolved to a function.
+//
+// The FuncPCResolver can be used as an alternative to GoSymbolTable.LocatePC()
+// for more efficiently resolving multiple PCs within the same function.
+//
+// inlinedPcRanges describes the half-open pc ranges inside the function
+// corresponding to the code of other inlined functions; useful for EndLine()
+// which ignores instructions in these ranges.
+func (gst *GoSymbolTable) FunctionPCResolver(pc uint64, inlinedPcRanges [][2]uint64) (FuncPCResolver, error) {
+	return makeFuncPCResolver(&gst.pclntab, pc, inlinedPcRanges)
 }
 
 // Constants for pclntab parsing
@@ -502,6 +519,7 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 		End:         end,
 		DeferReturn: deferReturn,
 		idx:         idx,
+		funcInfo:    funcInfo,
 	}
 }
 
@@ -556,11 +574,6 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 		return nil
 	}
 
-	funcInfo, err := lt.funcInfo(function.idx)
-	if err != nil {
-		return nil
-	}
-
 	adjustedPC := pc
 	if pc+1 == function.End {
 		adjustedPC = pc - 1
@@ -585,7 +598,7 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 		}
 	}
 
-	inlinedCalls := unwindInlinedCalls(funcInfo, adjustedPC, goFuncData)
+	inlinedCalls := unwindInlinedCalls(function.funcInfo, adjustedPC, goFuncData)
 	if inlinedCalls == nil {
 		return []GoLocation{makeLocation(function.idx, adjustedPC, function.Name)}
 	}
@@ -594,7 +607,7 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 	for _, call := range inlinedCalls {
 		funcID := call.FuncID
 		if funcID == nil {
-			if fid, found := funcInfo.funcID(); found {
+			if fid, found := function.funcInfo.funcID(); found {
 				funcID = &fid
 			}
 		}
@@ -735,7 +748,7 @@ func (lt *lineTable) pcValue(off uint32, entry uint64, targetPC uint64) (uint32,
 	}
 
 	cursor := lt.data[offset:]
-	stepper := newStepper(cursor, entry, -1, lt.quantum)
+	stepper := makeStepper(cursor, entry, -1, lt.quantum)
 
 	for {
 		if !stepper.step() {
@@ -764,8 +777,8 @@ type stepper struct {
 	first   bool
 }
 
-func newStepper(cursor []byte, pc uint64, val int32, quantum uint32) *stepper {
-	return &stepper{
+func makeStepper(cursor []byte, pc uint64, val int32, quantum uint32) stepper {
+	return stepper{
 		cursor:  cursor,
 		pc:      pc,
 		val:     val,
@@ -774,6 +787,8 @@ func newStepper(cursor []byte, pc uint64, val int32, quantum uint32) *stepper {
 	}
 }
 
+// step advances to the next entry in the line table, updating s.pc and s.val.
+// Returns false if the table is exhausted.
 func (s *stepper) step() bool {
 	uvdelta, deltaBytes := decodeVarint(s.cursor)
 	if uvdelta == 0 && !s.first {
@@ -963,7 +978,8 @@ func (ft *funcTab) funcOff(i uint32) (uint64, error) {
 
 // funcInfo represents single function data in the pclntab.
 type funcInfo struct {
-	lt   *lineTable
+	lt *lineTable
+	// data points into lt.data at the start of this function's data.
 	data []byte
 }
 
@@ -1179,4 +1195,158 @@ func stringFromOffsetPtr(data []byte, offset int) *string {
 
 	result := string(data[offset:end])
 	return &result
+}
+
+// FuncPCResolver resolves program counters within a single function to source
+// line numbers. It is optimized for resolving multiple PCs in increasing order.
+type FuncPCResolver struct {
+	// The program counter used to initialize this FuncPCResolver; it represents
+	// some PC within the function.
+	funcPC uint64
+	lt     *lineTable
+
+	stepper stepper
+	// currentPCRangeStart is the start of the program counter range that the
+	// stepper is positioned on. In other words, stepper.val refers to the pc
+	// range [currentPCRangeStart, stepper.pc).
+	currentPCRangeStart uint64
+
+	// maxLineNumber is the maximum source line number encountered during
+	// iteration. After calling PCToLine(highPC), where highPC is the highest
+	// program counter in the function, maxLineNumber will correspond to the end
+	// of the function's code.
+	maxLineNumber uint32
+
+	// inlinedPcRanges is a list of program counter ranges that correspond to
+	// other functions inlined within the current function. The ranges are
+	// inclusive on the left, exclusive on the right, disjoint and ordered.
+	inlinedPcRanges [][2]uint64
+	// A cursor into inlinedPcRanges positioned corresponding to the stepper.pc.
+	inlinedPcRangesIdx int
+}
+
+// makeFuncResolver builds a FuncPCResolver for the function containing the
+// given program counter (any pc inside the function is valid). Returns nil if
+// the PC could not be resolved to a function.
+func makeFuncPCResolver(lt *lineTable, funcPC uint64, inlinedPcRanges [][2]uint64) (FuncPCResolver, error) {
+	var f FuncPCResolver
+	if err := f.init(lt, funcPC, inlinedPcRanges); err != nil {
+		return FuncPCResolver{}, err
+	}
+	return f, nil
+}
+
+func (f *FuncPCResolver) init(lt *lineTable, funcPC uint64, inlinedPcRanges [][2]uint64) error {
+	function := lt.getGoFunctionByPC(funcPC)
+	if function == nil {
+		return fmt.Errorf("failed to resolve pc to function: %d", funcPC)
+	}
+
+	pcLine, found := function.funcInfo.pcln()
+	if !found {
+		return fmt.Errorf("failed to find line table entry for function")
+	}
+
+	offset := lt.pcTab[0] + int(pcLine)
+	if offset >= len(lt.data) {
+		return fmt.Errorf("function line table offset out of bounds")
+	}
+	cursor := lt.data[offset:]
+
+	stepper := makeStepper(cursor, function.Entry, -1, lt.quantum)
+	*f = FuncPCResolver{
+		funcPC:              funcPC,
+		lt:                  lt,
+		stepper:             stepper,
+		currentPCRangeStart: 0,
+		maxLineNumber:       0,
+		inlinedPcRanges:     inlinedPcRanges,
+		inlinedPcRangesIdx:  0,
+	}
+	return nil
+}
+
+// PCToLine returns the line number corresponding to the given program counter.
+// If the PC corresponds to an inlined function, the returned line number
+// corresponds to the source code of that particular function, with no
+// information being returned about the definition file's name.
+//
+// Any PC inside the function is a valid input, but the FuncPCResolver is more
+// efficient if PCToLine is called with monotonically increasing PCs.
+//
+// Returns false if the PC could not be resolved to a line number.
+func (f *FuncPCResolver) PCToLine(pc uint64) (uint32, bool) {
+	if f.stepper.pc > pc {
+		// We cannot step backwards, so re-initialize the FuncPCResolver and
+		// start the iteration from the beginning of the function.
+		err := f.init(f.lt, f.funcPC, f.inlinedPcRanges)
+		if err != nil {
+			// If we managed to create the current FuncPCResolver, we should be
+			// able to reset it.
+			panic("failed to re-initialize FuncPCResolver")
+		}
+	}
+
+	// Advance the stepper to the target PC.
+	for {
+		// Stop when the stepper has gotten to a higher PC than our target, so
+		// it is positioned on the entry we were looking for.
+		if pc < f.stepper.pc {
+			if f.stepper.val < 0 {
+				return 0, false
+			}
+			return uint32(f.stepper.val), true
+		}
+		f.currentPCRangeStart = f.stepper.pc
+		if !f.stepper.step() {
+			return 0, false
+		}
+
+		// Advance inlinedPcRangesIdx such that it points after the inlined
+		// ranges below the current PC range.
+		for {
+			if f.inlinedPcRangesIdx >= len(f.inlinedPcRanges)-1 {
+				break
+			}
+			if f.currentPCRangeStart >= f.inlinedPcRanges[f.inlinedPcRangesIdx][1] {
+				f.inlinedPcRangesIdx++
+			} else {
+				break
+			}
+		}
+		// Keep track of the highest line number encountered, but ignore inlined
+		// functions.
+		if !f.pcInInlinedFunc() {
+			if f.stepper.val > int32(f.maxLineNumber) {
+				f.maxLineNumber = uint32(f.stepper.val)
+			}
+		}
+	}
+}
+
+// pcInInlinedFunc checks if the current PC range overlaps with the current
+// inlined function range.
+func (f *FuncPCResolver) pcInInlinedFunc() bool {
+	if f.inlinedPcRangesIdx >= len(f.inlinedPcRanges) {
+		return false
+	}
+	disjoint := f.inlinedPcRanges[f.inlinedPcRangesIdx][0] >= f.stepper.pc ||
+		f.inlinedPcRanges[f.inlinedPcRangesIdx][1] < f.currentPCRangeStart
+	return !disjoint
+}
+
+// EndLine returns the line number corresponding to the end of the function's
+// code.
+//
+// Note that figuring out the source line for the end of the function is not as
+// simple as PCToLine(<function's highPC>) because the last instructions in Go
+// functions relate to the stack growth and are actually mapped to the first
+// source line for the function. Instead, we iterate over the pclinetab to the
+// end of the function and keep track of the highest line number encountered,
+// while also ignoring inlined functions.
+func (f *FuncPCResolver) EndLine() uint32 {
+	// Force iterating over the function's table. We care about the side effect
+	// of ratcheting f.maxLineNumber.
+	_, _ = f.PCToLine(math.MaxUint64)
+	return f.maxLineNumber
 }
