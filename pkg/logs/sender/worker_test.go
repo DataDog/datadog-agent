@@ -367,11 +367,14 @@ func TestMRFPayloads(t *testing.T) {
 		output: make(chan *message.Payload, 1),
 	}
 
-	server := http.NewTestServerWithOptions(200, 1, true, make(chan int), cfg)
+	reliableRespond1 := make(chan int)
+	reliableServer1 := http.NewTestServerWithOptions(200, 1, true, reliableRespond1, cfg)
 
-	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
+	destinationFactory := func(_ string) *client.Destinations {
+		return client.NewDestinations([]client.Destination{reliableServer1.Destination}, nil)
+	}
 
-	worker := newWorker(cfg, input, auditor, destinations, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""))
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
 	worker.start()
 
 	input <- &message.Payload{}

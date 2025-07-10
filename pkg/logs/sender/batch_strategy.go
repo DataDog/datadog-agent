@@ -72,7 +72,7 @@ func NewBatchStrategy(
 	pipelineName string,
 	useCompressionEndpoint config.Endpoint,
 	compressor logscompression.Component,
-	pipelineMonitor metrics.PipelineMonitor
+	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
 ) Strategy {
 	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverlessMeta, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), useCompressionEndpoint, compressor, pipelineMonitor, instanceID)
@@ -90,7 +90,7 @@ func newBatchStrategyWithClock(
 	clock clock.Clock,
 	useCompressionEndpoint config.Endpoint,
 	compressor logscompression.Component,
-	pipelineMonitor metrics.PipelineMonitor
+	pipelineMonitor metrics.PipelineMonitor,
 	instanceID string,
 ) Strategy {
 
@@ -127,9 +127,6 @@ func (s *batchStrategy) MakeBatch() *batch {
 
 	var encodedPayload bytes.Buffer
 	compressor := s.encoder.NewStreamCompressor(&encodedPayload)
-	if compressor == nil {
-		compressor = &compressionCommon.NoopStreamCompressor{Writer: &encodedPayload}
-	}
 	wc := newWriterWithCounter(compressor)
 	buffer := NewMessageBuffer(s.maxBatchSize, s.maxContentSize)
 	serializer := NewArraySerializer()

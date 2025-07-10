@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -58,7 +59,6 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		config:                    cfg,
 	}
 }
 
@@ -108,10 +108,20 @@ func (p *Processor) run() {
 	}
 }
 
-func (s *sdsProcessor) resetBuffer() {
-	s.buffer = nil
-	s.bufferedBytes = 0
+func (p *Processor) getFailoverAllowlist() (bool, map[string]struct{}) {
+	failoverActive := p.config.GetBool("multi_region_failover.failover_logs")
+	var allowlist map[string]struct{}
+	if failoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
+		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
+		}
+	}
+
+	return failoverActive, allowlist
 }
+
 func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
 	defer p.utilization.Stop()

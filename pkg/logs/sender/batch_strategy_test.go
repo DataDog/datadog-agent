@@ -34,8 +34,8 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 		"test",
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
-		metrics.NewNoopPipelineMonitor("")
-    "test")
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -77,7 +77,7 @@ func TestBatchStrategyOverflowsOnTooLargeMessage(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -124,7 +124,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	s.Start()
 
 	for round := 0; round < 3; round++ {
@@ -162,7 +162,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -198,7 +198,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -233,7 +233,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -293,7 +293,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -356,7 +356,7 @@ func TestBatchMRFPayloads(t *testing.T) {
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
 		metrics.NewNoopPipelineMonitor(""),
-    "test")
+		"test")
 	strategy.Start()
 	mrfMessage := message.NewMessage([]byte("mrf message"), nil, "", 0)
 	mrfMessage.IsMRFAllow = true
@@ -387,7 +387,8 @@ func TestMainAndMrfPayloads(t *testing.T) {
 		"test",
 		config.NewMockEndpoint(),
 		compressionfx.NewMockCompressor(),
-		metrics.NewNoopPipelineMonitor(""))
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
 	strategy.Start()
 
 	mainMessage := message.NewMessage([]byte("main message"), nil, "", 0)

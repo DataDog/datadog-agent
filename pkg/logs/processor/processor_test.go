@@ -11,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -358,6 +356,7 @@ func TestGetHostname(t *testing.T) {
 	m := message.NewMessage([]byte("hello"), nil, "", 0)
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
 }
+
 // helpers
 // -
 
