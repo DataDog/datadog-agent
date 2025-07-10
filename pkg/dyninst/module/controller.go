@@ -15,14 +15,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
 type procRuntimeID struct {
-	actuator.ProcessID
+	procmon.ProcessID
 	service   string
 	runtimeID string
+	gitInfo   *procmon.GitInfo
 }
 
 type controller struct {
