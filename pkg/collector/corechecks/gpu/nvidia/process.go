@@ -47,14 +47,14 @@ var apiCallFactory = []apiCallInfo{
 type processCollector struct {
 	device            ddnvml.Device
 	lastTimestamp     uint64
-	supportedApiCalls []apiCallInfo
+	supportedAPICalls []apiCallInfo
 }
 
 func newProcessCollector(device ddnvml.Device) (Collector, error) {
 	c := &processCollector{device: device}
 
 	c.removeUnsupportedMetrics()
-	if len(c.supportedApiCalls) == 0 {
+	if len(c.supportedAPICalls) == 0 {
 		return nil, errUnsupportedDevice
 	}
 
@@ -65,7 +65,7 @@ func (c *processCollector) removeUnsupportedMetrics() {
 	for _, apiCall := range apiCallFactory {
 		err := apiCall.testFunc(c.device)
 		if err == nil || !ddnvml.IsUnsupported(err) {
-			c.supportedApiCalls = append(c.supportedApiCalls, apiCall)
+			c.supportedAPICalls = append(c.supportedAPICalls, apiCall)
 		}
 	}
 }
@@ -126,7 +126,7 @@ func (c *processCollector) Collect() ([]Metric, error) {
 	var allMetrics []Metric
 	var multiErr error
 
-	for _, apiCall := range c.supportedApiCalls {
+	for _, apiCall := range c.supportedAPICalls {
 		collectedMetrics, err := apiCall.callFunc(c)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to call %s: %w", apiCall.name, err))

@@ -25,28 +25,28 @@ func TestNewProcessCollector(t *testing.T) {
 		computeProcessesError   error
 		processUtilizationError error
 		wantError               bool
-		expectedApiCount        int
+		expectedAPICount        int
 	}{
 		{
 			name:                    "BothApisSupported",
 			computeProcessesError:   nil,
 			processUtilizationError: nil,
 			wantError:               false,
-			expectedApiCount:        2,
+			expectedAPICount:        2,
 		},
 		{
 			name:                    "OneApiSupported",
 			computeProcessesError:   nil,
 			processUtilizationError: &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
 			wantError:               false,
-			expectedApiCount:        1,
+			expectedAPICount:        1,
 		},
 		{
 			name:                    "NoApisSupported",
 			computeProcessesError:   &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
 			processUtilizationError: &safenvml.NvmlAPIError{APIName: "GetProcessUtilization", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
 			wantError:               true,
-			expectedApiCount:        0,
+			expectedAPICount:        0,
 		},
 	}
 
@@ -70,7 +70,7 @@ func TestNewProcessCollector(t *testing.T) {
 				assert.NotNil(t, collector)
 
 				pc := collector.(*processCollector)
-				assert.Len(t, pc.supportedApiCalls, tt.expectedApiCount)
+				assert.Len(t, pc.supportedAPICalls, tt.expectedAPICount)
 			}
 		})
 	}

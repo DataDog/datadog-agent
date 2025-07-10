@@ -192,20 +192,6 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) getContainerTags(containerID string) []string {
-	// Container ID tag will be added or not depending on the tagger configuration
-	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-
-	// we use orchestrator cardinality here to ensure we get the pod_name tag
-	// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
-	containerTags, err := c.tagger.Tag(containerEntityID, taggertypes.OrchestratorCardinality)
-	if err != nil {
-		log.Errorf("Error collecting container tags for container %s: %s", containerID, err)
-	}
-
-	return containerTags
-}
-
 func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	gpuToContainers := make(map[string]*workloadmeta.Container)
 
