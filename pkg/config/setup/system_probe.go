@@ -67,7 +67,7 @@ var (
 func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
-	cfg.BindEnvAndSetDefault(join(spNS, "disable_thp"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_thp"), true)
 
 	// SBOM configuration
 	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
