@@ -145,7 +145,14 @@ func (c *NetworkCheck) Run() error {
 				c.submitProtocolMetrics(sender, counters[protocol])
 			}
 		}
+		if tcpStats, ok := counters["Tcp"]; ok {
+			if val, ok := tcpStats.Stats["CurrEstab"]; ok {
+				sender.Gauge("system.net.tcp.current_established", float64(val), "", nil)
+			}
+		}
 	}
+
+	submitInterfaceSysMetrics(sender)
 
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
@@ -185,6 +192,47 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
 	}
 	return false
+}
+
+func submitInterfaceSysMetrics(sender sender.Sender) {
+	sysNetLocation := "/sys/class/net"
+	sysNetMetrics := []string{"mtu", "tx_queue_len", "up"}
+	ifaces, err := afero.ReadDir(filesystem, sysNetLocation)
+	if err != nil {
+		log.Debugf("Unable to list %s, skipping system iface metrics: %s.", sysNetLocation, err)
+		return
+	}
+	for _, iface := range ifaces {
+		ifaceTag := []string{fmt.Sprintf("iface:%s", iface.Name())}
+		for _, metricName := range sysNetMetrics {
+			metricFileName := metricName
+			if metricName == "up" {
+				metricFileName = "carrier"
+			}
+			metricFilepath := filepath.Join(sysNetLocation, iface.Name(), metricFileName)
+			val, err := readIntFile(metricFilepath, filesystem)
+			if err != nil {
+				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
+			}
+			sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
+		}
+		queuesFilepath := filepath.Join(sysNetLocation, iface.Name(), "queues")
+		queues, err := afero.ReadDir(filesystem, queuesFilepath)
+		if err != nil {
+			log.Debugf("Unable to list %s, skipping: %s.", queuesFilepath, err)
+		} else {
+			txQueueCount, rxQueueCount := 0, 0
+			for _, queue := range queues {
+				if strings.HasPrefix(queue.Name(), "tx-") {
+					txQueueCount++
+				} else if strings.HasPrefix(queue.Name(), "rx-") {
+					rxQueueCount++
+				}
+			}
+			sender.Gauge("system.net.iface.num_tx_queues", float64(txQueueCount), "", ifaceTag)
+			sender.Gauge("system.net.iface.num_rx_queues", float64(rxQueueCount), "", ifaceTag)
+		}
+	}
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
@@ -604,6 +652,10 @@ func readIntFile(filePath string, fs afero.Fs) (int, error) {
 }
 
 func addConntrackStatsMetrics(sender sender.Sender, conntrackPath string, useSudoConntrack bool) {
+	if conntrackPath == "" {
+		return
+	}
+
 	// In CentOS, conntrack is located in /sbin and /usr/sbin which may not be in the agent user PATH
 	cmd := []string{conntrackPath, "-S"}
 	if useSudoConntrack {
@@ -662,45 +714,50 @@ func runCommand(cmd []string, env []string) (string, error) {
 }
 
 func collectConntrackMetrics(sender sender.Sender, conntrackPath string, useSudo bool, procfsPath string, blacklistConntrackMetrics []string, whitelistConntrackMetrics []string) {
-	if conntrackPath != "None" {
-		addConntrackStatsMetrics(sender, conntrackPath, useSudo)
-		conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
-		var availableFiles []string
-		fs := filesystem
-		files, err := afero.ReadDir(fs, conntrackFilesLocation)
-		if err != nil {
-			log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
-		} else {
-			for _, file := range files {
-				if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
-					availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
-				}
-			}
-		}
+	addConntrackStatsMetrics(sender, conntrackPath, useSudo)
 
-		// By default, only max and count are reported. However if the blacklist is set,
-		// the whitelist is losing its default value
-		for _, metricName := range availableFiles {
-			if len(blacklistConntrackMetrics) > 0 {
-				if slices.Contains(blacklistConntrackMetrics, metricName) {
-					continue
-				}
-			} else if len(whitelistConntrackMetrics) > 0 {
-				if !slices.Contains(whitelistConntrackMetrics, metricName) {
-					continue
-				}
-			} else {
-				if !slices.Contains([]string{"max", "count"}, metricName) {
-					continue
-				}
+	conntrackFilesLocation := filepath.Join(procfsPath, "sys", "net", "netfilter")
+	var availableFiles []string
+	fs := filesystem
+	files, err := afero.ReadDir(fs, conntrackFilesLocation)
+	if err != nil {
+		log.Debugf("Unable to list files in %s: %v", conntrackFilesLocation, err)
+	} else {
+		for _, file := range files {
+			if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "nf_conntrack_") {
+				availableFiles = append(availableFiles, strings.TrimPrefix(file.Name(), "nf_conntrack_"))
 			}
-			metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
-			value, err := readIntFile(metricFileLocation, fs)
-			if err != nil {
-				log.Debugf("Error reading %s: %v", metricFileLocation, err)
-			}
-			sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 		}
+	}
+
+	// By default, only max and count are reported. However if the blacklist is set,
+	// the whitelist is losing its default value
+	for _, metricName := range availableFiles {
+		if len(blacklistConntrackMetrics) > 0 {
+			if slices.ContainsFunc(blacklistConntrackMetrics, func(s string) bool {
+				return strings.Contains(metricName, s)
+			}) {
+				continue
+			}
+		} else if len(whitelistConntrackMetrics) > 0 {
+			if !slices.ContainsFunc(whitelistConntrackMetrics, func(s string) bool {
+				return strings.Contains(metricName, s)
+			}) {
+				continue
+			}
+		} else {
+			if !slices.ContainsFunc([]string{"max", "count"}, func(s string) bool {
+				return strings.Contains(metricName, s)
+			}) {
+				continue
+			}
+		}
+		metricFileLocation := filepath.Join(conntrackFilesLocation, "nf_conntrack_"+metricName)
+		value, err := readIntFile(metricFileLocation, fs)
+		if err != nil {
+			log.Debugf("Error reading %s: %v", metricFileLocation, err)
+		}
+		sender.Gauge("system.net.conntrack."+metricName, float64(value), "", nil)
 	}
 }
 
@@ -750,6 +807,7 @@ func newCheck(cfg config.Component) check.Check {
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
+				ConntrackPath:             "",
 				WhitelistConntrackMetrics: []string{"max", "count"},
 				UseSudoConntrack:          true,
 			},

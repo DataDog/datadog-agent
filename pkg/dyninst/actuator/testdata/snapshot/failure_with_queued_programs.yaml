@@ -10,8 +10,7 @@
       executable: {path: /usr/bin/app2}
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
-- !compilation-failed {program_id: 1, error: "boom"}
-- !compiled {program_id: 2}
+- !loading-failed {program_id: 1, error: "boom"}
 - !loaded {program_id: 2}
 - !attached {program_id: 2, process_id: 1002} 
 ---
@@ -26,61 +25,48 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
-  currently_compiling: <nil> -> 1
+  currently_loading: <nil> -> 1
   queued_programs: '[] -> [2]'
   processes:
     1001: <nil> -> WaitingForProgram (prog 1)
     1002: <nil> -> WaitingForProgram (prog 2)
   programs:
-    1: <nil> -> Compiling (proc 1001)
+    1: <nil> -> Loading (proc 1001)
     2: <nil> -> Queued (proc 1002)
 ---
-event: !compilation-failed {program_id: 1, error: "boom"}
+event: !loading-failed {program_id: 1, error: "boom"}
 effects:
-  - !spawn-ebpf-compilation {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], program_id: 2}
+  - !spawn-bpf-loading {executable: /usr/bin/app2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 2}
 state:
-  currently_compiling: 1 -> 2
+  currently_loading: 1 -> 2
   queued_programs: '[2] -> []'
   processes:
-    1001: WaitingForProgram (prog 1) -> CompilationFailed
+    1001: WaitingForProgram (prog 1) -> LoadingFailed
     1002: WaitingForProgram (prog 2)
   programs:
-    1: Compiling (proc 1001) -> <nil>
-    2: Queued (proc 1002) -> Compiling (proc 1002)
----
-event: !compiled {program_id: 2}
-effects:
-  - !spawn-bpf-loading {program_id: 2}
-state:
-  currently_compiling: "2"
-  queued_programs: '[]'
-  processes:
-    1001: CompilationFailed
-    1002: WaitingForProgram (prog 2)
-  programs:
-    2: Compiling (proc 1002) -> Loading (proc 1002)
+    1: Loading (proc 1001) -> <nil>
+    2: Queued (proc 1002) -> Loading (proc 1002)
 ---
 event: !loaded {program_id: 2}
 effects:
-  - !register-program-with-dispatcher {program_id: 2}
   - !attach-to-process {executable: /usr/bin/app2@0.0m0.0, process_id: 1002, program_id: 2}
 state:
-  currently_compiling: 2 -> <nil>
+  currently_loading: 2 -> <nil>
   queued_programs: '[]'
   processes:
-    1001: CompilationFailed
+    1001: LoadingFailed
     1002: WaitingForProgram (prog 2) -> Attaching (prog 2)
   programs:
     2: Loading (proc 1002) -> Loaded (proc 1002)
 ---
 event: !attached {program_id: 2, process_id: 1002}
 state:
-  currently_compiling: <nil>
+  currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: CompilationFailed
+    1001: LoadingFailed
     1002: Attaching (prog 2) -> Attached (prog 2)
   programs:
     2: Loaded (proc 1002)

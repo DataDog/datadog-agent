@@ -41,13 +41,13 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Set currentlyCompiling to point to the copied program if it exists.
-	if original.currentlyCompiling != nil {
-		copied.currentlyCompiling = copied.programs[original.currentlyCompiling.id]
+	if original.currentlyLoading != nil {
+		copied.currentlyLoading = copied.programs[original.currentlyLoading.id]
 	}
 
 	// Copy queued compilations.
-	for prog := range original.queuedCompilations.items() {
-		copied.queuedCompilations.pushBack(copied.programs[prog.id])
+	for prog := range original.queuedLoading.items() {
+		copied.queuedLoading.pushBack(copied.programs[prog.id])
 	}
 
 	return copied
@@ -64,20 +64,19 @@ func deepCopyProgram(original *program) *program {
 	copy(copiedConfig, original.config)
 
 	copied := &program{
-		state:           original.state,
-		id:              original.id,
-		config:          copiedConfig,
-		executable:      original.executable,
-		compiledProgram: original.compiledProgram,
-		processID:       original.processID,
+		state:      original.state,
+		id:         original.id,
+		config:     copiedConfig,
+		executable: original.executable,
+		processKey: original.processKey,
 	}
 
 	// Note: loadedProgram interface is more complex to copy and represents
 	// external resources, so we'll handle it conservatively.
-	if original.loadedProgram != nil {
+	if original.loaded != nil {
 		// For testing purposes, we'll assume the loadedProgram is immutable
 		// or represents a resource that can be shared safely.
-		copied.loadedProgram = original.loadedProgram
+		copied.loaded = original.loaded
 	}
 
 	return copied
@@ -97,7 +96,7 @@ func deepCopyProcess(original *process) *process {
 
 	copied := &process{
 		state:           original.state,
-		id:              original.id,
+		processKey:      original.processKey,
 		executable:      original.executable,
 		probes:          copiedProbes,
 		currentProgram:  original.currentProgram,
@@ -121,13 +120,16 @@ func TestDeepCopyState(t *testing.T) {
 				Tags:       []string{"test-tag"},
 				EvaluateAt: "test-evaluate-at",
 			},
-			CaptureSnapshot: true,
 		},
 	}
 	s.programIDAlloc = 5
-	s.processes[processID] = &process{
+	tenantID := tenantID(1)
+	key := processKey{
+		tenantID:  tenantID,
+		ProcessID: processID,
+	}
+	s.processes[key] = &process{
 		state:      processStateWaitingForProgram,
-		id:         processID,
 		executable: executable,
 		probes: map[probeKey]ir.ProbeDefinition{
 			{id: "test-probe", version: 1}: probe,
@@ -140,7 +142,7 @@ func TestDeepCopyState(t *testing.T) {
 		id:         programID,
 		config:     []ir.ProbeDefinition{probe},
 		executable: executable,
-		processID:  &s.processes[processID].id,
+		processKey: key,
 	}
 	s.programs[programID] = program
 
@@ -151,11 +153,11 @@ func TestDeepCopyState(t *testing.T) {
 
 	// Verify processes are deeply copied.
 	require.Equal(t, len(clone.processes), len(clone.processes))
-	copiedProcess := clone.processes[processID]
+	copiedProcess := clone.processes[key]
 	require.NotNil(t, copiedProcess)
-	require.NotSame(t, s.processes[processID], copiedProcess)
-	require.Equal(t, s.processes[processID].state, copiedProcess.state)
-	require.Equal(t, s.processes[processID].id, copiedProcess.id)
+	require.NotSame(t, s.processes[key], copiedProcess)
+	require.Equal(t, s.processes[key].state, copiedProcess.state)
+	require.Equal(t, s.processes[key].processKey, copiedProcess.processKey)
 
 	// Verify programs are deeply copied.
 	require.Equal(t, len(clone.programs), len(clone.programs))

@@ -15,15 +15,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
@@ -41,40 +37,14 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
 
-	j := map[string]interface{}{}
-	configs := map[string]integration.JSONMap{}
-
-	for name, config := range jmxfetch.GetScheduledConfigs() {
-		var rawInitConfig integration.RawMap
-		err := yaml.Unmarshal(config.InitConfig, &rawInitConfig)
-		if err != nil {
-			log.Errorf("unable to parse JMX configuration: %s", err)
-			http.Error(w, err.Error(), 500)
-			return
-		}
-
-		c := map[string]interface{}{}
-		c["init_config"] = jmxfetch.GetJSONSerializableMap(rawInitConfig)
-		instances := []integration.JSONMap{}
-		for _, instance := range config.Instances {
-			var rawInstanceConfig integration.JSONMap
-			err := yaml.Unmarshal(instance, &rawInstanceConfig)
-			if err != nil {
-				log.Errorf("unable to parse JMX configuration: %s", err)
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			instances = append(instances, jmxfetch.GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
-		}
-
-		c["instances"] = instances
-		c["check_name"] = config.Name
-
-		configs[name] = c
+	payload, err := jmxfetch.GetIntegrations()
+	if err != nil {
+		log.Errorf("unable to get JMX configurations: %s", err)
+		http.Error(w, err.Error(), 500)
+		return
 	}
-	j["configs"] = configs
-	j["timestamp"] = time.Now().Unix()
-	jsonPayload, err := json.Marshal(jmxfetch.GetJSONSerializableMap(j))
+
+	jsonPayload, err := json.Marshal(jmxfetch.GetJSONSerializableMap(payload))
 	if err != nil {
 		log.Errorf("unable to parse JMX configuration: %s", err)
 		http.Error(w, err.Error(), 500)

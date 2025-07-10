@@ -410,6 +410,47 @@ func TestGenerateConfig(t *testing.T) {
 			},
 			containerCollectAll: true,
 		},
+		{
+			name: "check defined for ephemeral container",
+			entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/apache.checks": `{
+							"http_check": {
+								"instances": [
+									{
+										"name": "My service",
+										"url": "http://%%host%%",
+										"timeout": 1
+									}
+								]
+							}
+						}`,
+					},
+				},
+				EphemeralContainers: []workloadmeta.OrchestratorContainer{ // Targeted by the annotation
+					{
+						Name: "apache",
+						ID:   "ephemeral-id",
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{ // Not targeted by the annotation
+					{
+						Name: "nginx",
+						ID:   "non-ephemeral-id",
+					},
+				},
+			},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"docker://ephemeral-id"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
+					Source:        "container:docker://ephemeral-id",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
