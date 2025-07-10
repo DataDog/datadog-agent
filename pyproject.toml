@@ -21,19 +21,10 @@ line-length = 120
 
 [tool.ruff.lint]
 # All the rules can be found here: https://beta.ruff.rs/docs/rules/
-select = [
-    "B",
-    "C",
-    "E",
-    "F",
-    "G",
-    "I",
-    "U",
-    "W",
-]
+select = ["B", "C", "E", "F", "G", "I", "U", "W"]
 ignore = [
-    "E501", # line-too-long
-    "C901", # complex-structure
+    "E501",  # line-too-long
+    "C901",  # complex-structure
     "UP033", # Ignore the lru_cache for now
     "UP017", # Ignore datetime.UTC for now
 ]
@@ -82,7 +73,7 @@ disable_error_code = [
 ignore_decorators = ["@task"]
 ignore_names = ["test_*", "Test*"]
 paths = ["tasks"]
+min_confidence = 85
 
 [tool.ddev]
 repo = "agent"
-

@@ -45,6 +45,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
+from tasks.kernel_matrix_testing.setup import check_requirements, get_requirements
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
@@ -398,6 +399,23 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
     info(
         "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
     )
+
+
+@task
+def selfcheck(
+    ctx: Context,
+    remote_setup_only: bool = False,
+    fix: bool = False,
+    exclude_requirements: list[str] | None = None,
+):
+    requirements = get_requirements(remote_setup_only)
+    if exclude_requirements is not None:
+        requirements = [r for r in requirements if r.__class__.__name__ not in exclude_requirements]
+
+    if check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"]):
+        raise Exit("[-] KMT setup incorrect")
+    else:
+        info("[+] KMT setup correct")
 
 
 @task
