@@ -387,7 +387,6 @@ int BPF_UPROBE(uprobe__setenv, const char *name, const char *value, int overwrit
 
     // bpf_strncmp is available in kernel 5.17, our minimum kernel version is 5.8.0
     // so we need to do a manual comparison
-#pragma unroll
     for (int i = 0; i < sizeof(cuda_visible_devices); i++) {
         if (name_buf[i] != cuda_visible_devices[i]) {
             return 0;

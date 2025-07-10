@@ -196,7 +196,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 
 	// Check that the context was updated with the events
-	require.Equal(t, probe.sysCtx.updatedVisibleDevicesEnvVars[cmd.Process.Pid], "42")
+	require.Equal(t, probe.sysCtx.cudaVisibleDevicesPerProcess[cmd.Process.Pid], "42")
 }
 
 func (s *probeTestSuite) TestMultiGPUSupport() {

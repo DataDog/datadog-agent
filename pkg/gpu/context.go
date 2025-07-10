@@ -36,11 +36,11 @@ type systemContext struct {
 	// be modified by the CUDA_VISIBLE_DEVICES environment variable later
 	selectedDeviceByPIDAndTID map[int]map[int]int32
 
-	// updatedVisibleDevicesEnvVars maps each process ID to the latest visible
+	// cudaVisibleDevicesPerProcess maps each process ID to the latest visible
 	// devices environment variable that was set by the process. This is used to
 	// keep track of updates during process runtime, which aren't visible in
 	// /proc/pid/environ.
-	updatedVisibleDevicesEnvVars map[int]string
+	cudaVisibleDevicesPerProcess map[int]string
 
 	// deviceCache is a cache of GPU devices on the system
 	deviceCache ddnvml.DeviceCache
@@ -114,7 +114,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		procRoot:                     opts.procRoot,
 		selectedDeviceByPIDAndTID:    make(map[int]map[int]int32),
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
-		updatedVisibleDevicesEnvVars: make(map[int]string),
+		cudaVisibleDevicesPerProcess: make(map[int]string),
 		workloadmeta:                 opts.wmeta,
 	}
 
@@ -143,7 +143,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
-	delete(ctx.updatedVisibleDevicesEnvVars, pid)
+	delete(ctx.cudaVisibleDevicesPerProcess, pid)
 
 	if ctx.cudaKernelCache != nil {
 		ctx.cudaKernelCache.CleanProcessData(pid)
@@ -260,7 +260,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
 
-		envVar, ok := ctx.updatedVisibleDevicesEnvVars[pid]
+		envVar, ok := ctx.cudaVisibleDevicesPerProcess[pid]
 		if !ok {
 			envVar, err = kernel.GetProcessEnvVariable(pid, ctx.procRoot, cuda.CudaVisibleDevicesEnvVar)
 			if err != nil {
@@ -303,7 +303,7 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 }
 
 func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string) {
-	ctx.updatedVisibleDevicesEnvVars[pid] = envVar
+	ctx.cudaVisibleDevicesPerProcess[pid] = envVar
 
 	// Invalidate the visible devices cache to force a re-scan of the devices
 	delete(ctx.visibleDevicesCache, pid)
