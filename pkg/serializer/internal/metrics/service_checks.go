@@ -7,13 +7,11 @@ package metrics
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utiljson "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
