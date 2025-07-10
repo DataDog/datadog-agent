@@ -6,6 +6,7 @@ import os
 
 import requests
 from invoke import task
+
 from tasks.libs.common.git import get_commit_sha
 
 
