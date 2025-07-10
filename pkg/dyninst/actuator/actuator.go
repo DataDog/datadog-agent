@@ -248,7 +248,7 @@ func (a *effects) loadProgram(
 		if err != nil {
 			tenant.reporter.ReportIRGenFailed(processID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
-				programID: ir.ID,
+				programID: programID,
 				err:       err,
 			})
 			return
