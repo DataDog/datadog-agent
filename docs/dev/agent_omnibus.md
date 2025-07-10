@@ -19,10 +19,10 @@ From the `datadog-agent` source folder, use the following command to run the
 `omnibus.build` task in a Docker container:
 
 ```
-docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-linux-glibc-2-17-x64 dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems
+docker run -v "$PWD:/go/src/github.com/DataDog/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/go/src/github.com/DataDog/datadog-agent datadog/agent-buildimages-linux-glibc-x64 dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems
 ```
 
-For `arm64`, use this image instead: `datadog/agent-buildimages-linux-glibc-2-23-arm64`
+For `arm64`, use this image instead: `datadog/agent-buildimages-linux-glibc-arm64`
 
 The container will share 3 volumes with the host to avoid starting from scratch
 at each Omnibus run:
