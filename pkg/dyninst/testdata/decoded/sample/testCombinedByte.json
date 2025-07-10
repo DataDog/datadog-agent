@@ -34,7 +34,7 @@
               },
               "y": {
                 "type": "float32",
-                "value": "0"
+                "notCapturedReason": "unavailable"
               }
             }
           }
