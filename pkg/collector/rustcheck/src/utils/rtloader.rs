@@ -1,7 +1,7 @@
 // load rtloader library at runtime
 
 use libloading::{Library, library_filename, Symbol};
-use std::ffi::{c_char, CString, c_double};
+use std::ffi::{c_char, c_double, c_int, c_long, CString};
 
 // Replica of the Agent metric type enum
 #[repr(C)]
@@ -17,13 +17,43 @@ pub enum MetricType {
 
 // signature of submit_metric in RTLoader
 type SubmitMetricFn = extern "C" fn(
-    *mut c_char,
-    MetricType,
-    *mut c_char,
-    c_double,
-    *mut *mut c_char,
-    *mut c_char,
-    bool,
+    *mut c_char,        // check_id
+    MetricType,         // metric_type
+    *mut c_char,        // name
+    c_double,           // value
+    *mut *mut c_char,   // tags
+    *mut c_char,        // hostname
+    bool,               // flush_first_value
+);
+
+// signature of service_check in RTLoader
+type ServiceCheckFn = extern "C" fn(
+    *mut c_char,        // check_id
+    *mut c_char,        // name
+    c_int,              // status
+    *mut *mut c_char,   // tags
+    *mut c_char,        // hostname
+    *mut c_char,        // message
+);
+
+#[repr(C)]
+pub struct Event {
+    title: *mut c_char,
+    text: *mut c_char,
+    timestamp: c_long,
+    priority: *mut c_char,
+    host: *mut c_char,
+    tags: *mut *mut c_char,
+    alert_type: *mut c_char,
+    aggregation_key: *mut c_char,
+    source_type_name: *mut c_char,
+    event_type: *mut c_char,
+}
+
+// signature of event in RTLoader
+type EventFn = extern "C" fn(
+    *mut c_char, // check_id
+    Event,       // event
 );
 
 pub fn to_cstring(string: &String) -> *mut c_char {
@@ -47,10 +77,12 @@ fn _free_cstring_array(ptr: *mut *mut c_char) {
 
     unsafe {
         let mut current = ptr;
+        
         while !(*current).is_null() {
             drop(CString::from_raw(*current));
             current = current.add(1);
         }
+
         // Finally, free the array itself
         drop(Box::from_raw(ptr));
     }
