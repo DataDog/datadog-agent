@@ -32,7 +32,7 @@ type Module struct {
 	actuator      *actuator.Actuator
 	controller    *controller
 	cancel        context.CancelFunc
-	logUploader   *uploader.LogsUploader
+	logUploader   *uploader.LogsUploaderFactory
 	diagsUploader *uploader.DiagnosticsUploader
 
 	close struct {
@@ -55,7 +55,7 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 	if err != nil {
 		return nil, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	logUploader := uploader.NewLogsUploader(uploader.WithURL(logUploaderURL))
+	logUploader := uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
