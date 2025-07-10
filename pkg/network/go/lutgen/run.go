@@ -95,7 +95,7 @@ func (g *LookupTableGenerator) Run(ctx context.Context, writer io.Writer) error 
 	// against each combination of Go version and architecture.
 	matrixRunner := &matrix.Runner{
 		Parallelism:      g.CompilationParallelism,
-		Versions:         versions,
+		Versions:         sortedVersions,
 		Architectures:    g.Architectures,
 		InstallDirectory: g.InstallDirectory,
 		GetCommand:       g.getCommand,
@@ -245,7 +245,7 @@ func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion
 	// so that Go can resolve gcc in case it needs to use cgo.
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "PATH", os.Getenv("PATH")))
 
-	err = setupGoModule(ctx, command, g.TestProgramPath)
+	err = setupGoModule(ctx, command, g.TestProgramPath, version)
 	if err != nil {
 		log.Printf("error setting up go module for  %s (%s): %s", g.TestProgramPath, version, err)
 		return nil
@@ -295,7 +295,7 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 	return resultTable, nil
 }
 
-func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string) error {
+func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string, version goversion.GoVersion) error {
 	moduleDir, err := os.MkdirTemp("", "lut")
 	if err != nil {
 		return err
@@ -315,8 +315,20 @@ func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string) error
 		return err
 	}
 
-	// create go.mod file
-	err = os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module foobar"), os.ModePerm)
+	// create go.mod file with appropriate Go version directive and dependency constraints
+	// Use the format "1.X" for compatibility with older Go versions
+	goVersionStr := fmt.Sprintf("1.%d", version.Minor)
+	goModContent := fmt.Sprintf("module foobar\n\ngo %s\n", goVersionStr)
+
+	// For older Go versions, add explicit version constraints for problematic dependencies
+	// that have go.mod files with newer Go version formats
+	if version.Minor <= 16 {
+		// golang.org/x/net v0.35.0 should be compatible with older Go versions
+		// while avoiding the problematic "go 1.23.0" format in newer versions
+		goModContent += "\nrequire golang.org/x/net v0.35.0\n"
+	}
+
+	err = os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(goModContent), os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("error creating go.mod file: %w", err)
 	}

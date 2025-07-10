@@ -1,0 +1,48 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testInt64Array",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testInt64Array",
+          "location": {
+            "method": "main.testInt64Array"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "[2]int64",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "int64",
+                    "value": "1"
+                  },
+                  {
+                    "type": "int64",
+                    "value": "2"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]
