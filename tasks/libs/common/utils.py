@@ -522,7 +522,7 @@ def gitlab_section_old(section_name, collapsed=False, echo=False):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False, echo=False):
+def gitlab_section(section_name, collapsed=False, echo=False, broken=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
@@ -540,7 +540,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
-        if in_ci:
+        if not broken and in_ci:
             sys.stdout.flush()
             middle = bytes(f'section_end:{int(time.time())}:{section_id}', 'utf-8')
             sys.stdout.buffer.write(b"\033[0K" + middle + b"\r\033[0K")

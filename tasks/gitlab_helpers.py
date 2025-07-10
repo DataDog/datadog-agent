@@ -26,7 +26,7 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import experimental
+from tasks.libs.common.utils import experimental, gitlab_section
 
 
 @task
@@ -326,3 +326,15 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+@task
+def test(ctx):
+    with gitlab_section('My section'):
+        print('Hello')
+
+    with gitlab_section('My section 2', broken=True):
+        print('Hello 2')
+
+    with gitlab_section('My section 3'):
+        print('Hello 3')

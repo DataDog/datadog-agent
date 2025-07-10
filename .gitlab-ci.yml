@@ -1092,3 +1092,13 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
+
+notify:
+  stage: notify
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  needs: []
+  tags: ["arch:arm64"]
+  script:
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    - dda self dep sync -f legacy-tasks -f legacy-notifications
+    - dda inv -- -e gitlab.test
