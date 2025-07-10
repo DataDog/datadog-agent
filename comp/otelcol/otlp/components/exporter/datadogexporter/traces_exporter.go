@@ -81,7 +81,7 @@ func (exp *traceExporter) consumeTraces(
 	return nil
 }
 
-// exportUsageMetrics exports usage tracking metrics 
+// exportUsageMetrics exports usage tracking metrics on traces in DDOT
 func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFargateTags map[string]struct{}) {
 	if exp.s == nil {
 		return
