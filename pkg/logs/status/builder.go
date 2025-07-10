@@ -52,16 +52,15 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		tailers = b.getTailers()
 	}
 	return Status{
-		IsRunning:           b.getIsRunning(),
-		WaitingForSDSConfig: b.getWaitingForSDSConfig(),
-		Endpoints:           b.getEndpoints(),
-		Integrations:        b.getIntegrations(),
-		Tailers:             tailers,
-		StatusMetrics:       b.getMetricsStatus(),
-		ProcessFileStats:    b.getProcessFileStats(),
-		Warnings:            b.getWarnings(),
-		Errors:              b.getErrors(),
-		UseHTTP:             b.getUseHTTP(),
+		IsRunning:        b.getIsRunning(),
+		Endpoints:        b.getEndpoints(),
+		Integrations:     b.getIntegrations(),
+		Tailers:          tailers,
+		StatusMetrics:    b.getMetricsStatus(),
+		ProcessFileStats: b.getProcessFileStats(),
+		Warnings:         b.getWarnings(),
+		Errors:           b.getErrors(),
+		UseHTTP:          b.getUseHTTP(),
 	}
 }
 
@@ -70,10 +69,6 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 // from different commands (start, stop, status).
 func (b *Builder) getIsRunning() bool {
 	return b.isRunning.Load() == StatusRunning
-}
-
-func (b *Builder) getWaitingForSDSConfig() bool {
-	return b.isRunning.Load() == StatusCollectionNotStarted
 }
 
 func (b *Builder) getUseHTTP() bool {
@@ -209,6 +204,7 @@ func (b *Builder) getMetricsStatus() map[string]string {
 	metrics["RetryCount"] = fmt.Sprintf("%v", b.logsExpVars.Get("RetryCount").(*expvar.Int).Value())
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 	metrics["EncodedBytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value())
+	metrics["LogsTruncated"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value())
 	return metrics
 }
 

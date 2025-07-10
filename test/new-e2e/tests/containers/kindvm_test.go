@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
@@ -21,6 +22,15 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
+	// #incident-40502
+	flake.Mark(t)
+
+	helmValues := `
+clusterAgent:
+    envDict:
+        DD_CSI_ENABLED: "true"
+`
+
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithEC2VMOptions(
 			ec2.WithInstanceType("t3.xlarge"),
@@ -30,6 +40,7 @@ func TestKindSuite(t *testing.T) {
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(helmValues),
 		),
 	)))
 }

@@ -14,7 +14,9 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 )
 
 const (
@@ -141,7 +143,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 
 	podWithMetricsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithMetricsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.metrics_exclude", containerName)] = `true`
-	podWithMetricsExcludeAnnotation.Annotations[tolerateUnreadyAnnotation] = `true`
 
 	podWithLogsExcludeAnnotation := podWithAnnotations.DeepCopy().(*workloadmeta.KubernetesPod)
 	podWithLogsExcludeAnnotation.Annotations[fmt.Sprintf("ad.datadoghq.com/%s.logs_exclude", containerName)] = `true`
@@ -473,7 +474,6 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						},
 						metricsExcluded: true,
 						tagger:          taggerComponent,
-						ready:           true,
 					},
 				},
 			},
@@ -526,8 +526,97 @@ func TestKubeletCreateContainerService(t *testing.T) {
 	}
 }
 
+func TestProcessPodWithEphemeralContainer(t *testing.T) {
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+	listener, wlm := newKubeletListener(t, taggerComponent)
+
+	ephemeralContainerID := "ephemeral-container-id"
+	ephemeralContainerName := "debug-container"
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      podName,
+			Namespace: podNamespace,
+		},
+		EphemeralContainers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   ephemeralContainerID,
+				Name: ephemeralContainerName,
+				Image: workloadmeta.ContainerImage{
+					RawName:   "debug-image",
+					ShortName: "debug-image",
+				},
+			},
+		},
+		IP: "127.0.0.1",
+	}
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   ephemeralContainerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: ephemeralContainerName,
+		},
+		Image: workloadmeta.ContainerImage{
+			RawName:   "debug-image",
+			ShortName: "debug-image",
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	wlm.Store().(workloadmetamock.Mock).Set(container)
+
+	listener.processPod(pod)
+
+	expectedServices := map[string]wlmListenerSvc{
+		"container://ephemeral-container-id": {
+			parent: "kubernetes_pod://foobar",
+			service: &service{
+				entity: container,
+				adIdentifiers: []string{
+					"docker://ephemeral-container-id",
+					"debug-image",
+				},
+				hosts: map[string]string{
+					"pod": "127.0.0.1",
+				},
+				ports: []ContainerPort{},
+				extraConfig: map[string]string{
+					"namespace": podNamespace,
+					"pod_name":  podName,
+					"pod_uid":   podID,
+				},
+				tagger: taggerComponent,
+			},
+		},
+		"kubernetes_pod://foobar": {
+			service: &service{
+				entity:        pod,
+				adIdentifiers: []string{"kubernetes_pod://foobar"},
+				hosts: map[string]string{
+					"pod": "127.0.0.1",
+				},
+				ready:  true,
+				tagger: taggerComponent,
+			},
+		},
+	}
+
+	wlm.assertServices(expectedServices)
+}
+
 func newKubeletListener(t *testing.T, tagger tagger.Component) (*KubeletListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &KubeletListener{workloadmetaListener: wlm, tagger: tagger}, wlm
+	return &KubeletListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
 }

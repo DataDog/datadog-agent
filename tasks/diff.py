@@ -28,7 +28,7 @@ BINARIES: dict[str, dict] = {
     },
     "iot-agent": {
         "build": "agent",
-        "entrypoint": "cmd/agent",
+        "entrypoint": "cmd/iot-agent",
         "flavor": AgentFlavor.iot,
         "platforms": ["linux/x64", "linux/arm64"],
     },
@@ -165,8 +165,11 @@ def go_deps(
 
                 prdeps = os.path.join(tmpdir, f"{target}-current")
                 maindeps = os.path.join(tmpdir, f"{target}-main")
+                # filter out internal packages to avoid noise
                 res = ctx.run(
-                    f"diff -u0 {maindeps} {prdeps} | grep -v '^@@' | grep -v '^[+-][+-]'", hide=True, warn=True
+                    f"diff -u0 {maindeps} {prdeps} | grep -v '^@@' | grep -v '^[+-][+-]' | grep -v -E '(^[+-]|/)internal/'",
+                    hide=True,
+                    warn=True,
                 )
                 if len(res.stdout) > 0:
                     diffs[target] = res.stdout.strip()

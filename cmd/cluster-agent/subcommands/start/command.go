@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -51,6 +52,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	localTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -163,6 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
 				localTaggerfx.Module(),
+				workloadfilterfx.Module(),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -179,6 +182,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
+				}),
+				fx.Provide(func() option.Option[agenttelemetry.Component] {
+					return option.None[agenttelemetry.Component]()
 				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -479,7 +485,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, ipc, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

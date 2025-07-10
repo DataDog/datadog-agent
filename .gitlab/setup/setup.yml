@@ -4,9 +4,21 @@ setup_agent_version:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   script:
-    - dda inv -- -e agent.version --cache-version || exit $?
-    - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
+    - |
+      if ! dda inv -- -e agent.version --cache-version > build.env; then
+        echo "Failed to get agent version"
+        exit 1
+      fi
+    - sed -i 's/^/AGENT_VERSION=/' build.env
+    - |
+      if ! $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache; then
+        echo "Failed to upload agent version cache"
+        exit 1
+      fi
   needs: []
+  artifacts:
+    reports:
+      dotenv: build.env
 
 github_rate_limit_info:
   stage: .pre

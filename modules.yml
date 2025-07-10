@@ -124,6 +124,10 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  internal/tools/gotest-custom:
+    independent: false
+    should_tag: false
+    should_test_condition: never
   internal/tools/independent-lint:
     independent: false
     should_tag: false
@@ -175,6 +179,7 @@ modules:
     used_by_otel: true
   pkg/config/viperconfig:
     used_by_otel: true
+  pkg/dyninst/testprogs/progs: ignored
   pkg/errors: default
   pkg/fips:
     used_by_otel: true
@@ -184,8 +189,6 @@ modules:
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
-  pkg/logs/auditor:
-    used_by_otel: true
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:
@@ -198,8 +201,7 @@ modules:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
-  pkg/logs/sds:
-    used_by_otel: true
+  pkg/logs/sds: default
   pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:

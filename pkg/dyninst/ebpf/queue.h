@@ -14,7 +14,9 @@
     prefix##_queue_max_length = max_length,                                    \
     prefix##_queue_entries_per_shard =                                         \
         ((uint32_t)(32 << 10) / sizeof(elem_t)),                               \
-    prefix##_queue_shards = max_length / prefix##_queue_entries_per_shard,     \
+    prefix##_queue_shards =                                                    \
+        (max_length + prefix##_queue_entries_per_shard - 1) /                  \
+        prefix##_queue_entries_per_shard,                                      \
   };                                                                           \
                                                                                \
   typedef struct prefix##_queue_shard {                                        \
@@ -42,6 +44,7 @@
     if (!shard) {                                                              \
       return NULL;                                                             \
     }                                                                          \
+    barrier_var(shard_idx);                                                    \
     uint32_t entry_idx = queue_idx % prefix##_queue_entries_per_shard;         \
     if (entry_idx >= prefix##_queue_entries_per_shard) {                       \
       return NULL;                                                             \
@@ -49,19 +52,42 @@
     return &shard->entries[entry_idx];                                         \
   }                                                                            \
                                                                                \
-  static elem_t* prefix##_queue_push(prefix##_queue_t* queue) {                \
+  static elem_t* prefix##_queue_push_back(prefix##_queue_t* queue) {           \
     if (!queue) {                                                              \
       return NULL;                                                             \
     }                                                                          \
     if (queue->len >= prefix##_queue_max_length) {                             \
       return NULL;                                                             \
     }                                                                          \
-    elem_t* ret = prefix##_queue_element_at(queue, queue->head + queue->len);  \
+    elem_t* ret = prefix##_queue_element_at(                                   \
+      queue,                                                                   \
+      (queue->head + queue->len) % prefix##_queue_max_length                   \
+    );                                                                         \
     queue->len++;                                                              \
     return ret;                                                                \
   }                                                                            \
                                                                                \
-  static elem_t* prefix##_queue_pop(prefix##_queue_t* queue) {                 \
+  static elem_t* prefix##_queue_push_front(prefix##_queue_t* queue) {          \
+    if (!queue) {                                                              \
+      return NULL;                                                             \
+    }                                                                          \
+    if (queue->len >= prefix##_queue_max_length) {                             \
+      return NULL;                                                             \
+    }                                                                          \
+    queue->len++;                                                              \
+    if (queue->head == 0) {                                                    \
+      queue->head = prefix##_queue_max_length - 1;                             \
+    } else {                                                                   \
+      queue->head--;                                                           \
+    }                                                                          \
+    elem_t* ret = prefix##_queue_element_at(                                   \
+      queue,                                                                   \
+      queue->head                                                              \
+    );                                                                         \
+    return ret;                                                                \
+  }                                                                            \
+                                                                               \
+  static elem_t* prefix##_queue_pop_front(prefix##_queue_t* queue) {           \
     if (!queue) {                                                              \
       return NULL;                                                             \
     }                                                                          \

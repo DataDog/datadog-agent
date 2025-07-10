@@ -13,7 +13,9 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
@@ -24,7 +26,11 @@ type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
 	exporterhelper.TimeoutConfig `mapstructure:",squash"`
 
+	HTTPConfig confighttp.ClientConfig `mapstructure:",squash"`
+
 	exporterhelper.QueueBatchConfig `mapstructure:"sending_queue"`
+
+	configtls.ClientConfig `mapstructure:"tls"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 	// API defines the Datadog API configuration.

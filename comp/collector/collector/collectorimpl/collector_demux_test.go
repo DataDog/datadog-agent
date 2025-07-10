@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -88,6 +89,9 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
 		haagentmock.Module(),
+		fx.Provide(func() option.Option[agenttelemetry.Component] {
+			return option.None[agenttelemetry.Component]()
+		}),
 		fx.Provide(func() sender.SenderManager {
 			return suite.SenderManagerMock
 		}),

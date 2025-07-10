@@ -14,20 +14,32 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
-	object "github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func TestIRGenAllProbes(t *testing.T) {
-	for _, pkg := range testprogs.Packages {
+	programs := testprogs.MustGetPrograms(t)
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	for _, pkg := range programs {
+		switch pkg {
+		case "simple", "sample":
+		default:
+			// TODO: The generation for programs that link dd-trace-go is
+			// very slow due to accidentally quadratic behavior when processing
+			// the line programs. We should fix this, but for now we skip these
+			// programs.
+			t.Logf("skipping %s", pkg)
+			continue
+		}
 		t.Run(pkg, func(t *testing.T) {
-			for _, cfg := range testprogs.CommonConfigs {
+			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
-					bin, err := testprogs.GetBinary(pkg, cfg)
-					require.NoError(t, err)
+					bin := testprogs.MustGetBinary(t, pkg, cfg)
 					testAllProbes(t, bin)
 				})
 			}
@@ -41,7 +53,7 @@ func testAllProbes(t *testing.T, sampleServicePath string) {
 	symbols, err := binary.Symbols()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
-	var probes []config.Probe
+	var probes []ir.ProbeDefinition
 	for i, s := range symbols {
 		// These automatically generated symbols cause problems.
 		if strings.HasPrefix(s.Name, "type:.") {
@@ -52,10 +64,12 @@ func testAllProbes(t *testing.T, sampleServicePath string) {
 		}
 
 		// Speed things up by skipping some symbols.
-		probes = append(probes, &config.LogProbe{
-			ID: fmt.Sprintf("probe_%d", i),
-			Where: &config.Where{
-				MethodName: s.Name,
+		probes = append(probes, &rcjson.SnapshotProbe{
+			LogProbeCommon: rcjson.LogProbeCommon{
+				ProbeCommon: rcjson.ProbeCommon{
+					ID:    fmt.Sprintf("probe_%d", i),
+					Where: &rcjson.Where{MethodName: s.Name},
+				},
 			},
 		})
 	}

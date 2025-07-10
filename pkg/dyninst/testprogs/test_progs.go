@@ -6,30 +6,233 @@
 //go:build linux_bpf
 
 // Package testprogs contains logic to build and use go programs for testing.
+//
+// The package relies on the binaries being built in the `binaries` directory
+// and the source code being available in the `progs` directory. The binaries
+// are built by the `system_probe.py` invoke script.
+//
+// The package will check the local sources to determine if the binaries are
+// up to date, but it won't rebuild them if they are not. The hope is that the
+// binaries we build will be sufficiently reproducible that we can use them for
+// testing.
 package testprogs
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
 
-	"github.com/gofrs/flock"
+	"github.com/stretchr/testify/require"
 )
 
-// CommonConfigs are some common configs that we can use for testing.
-var CommonConfigs = []Config{
-	{GOARCH: Amd64, GOTOOLCHAIN: CurrentVersion},
-	{GOARCH: Arm64, GOTOOLCHAIN: CurrentVersion},
+const helpMsg = "consider running `dda inv system-probe.build-dyninst-test-programs`"
+
+// MustGetCommonConfigs calls GetCommonConfigs and checks for an error..
+func MustGetCommonConfigs(t *testing.T) []Config {
+	cfgs, err := GetCommonConfigs()
+	require.NoError(t, err)
+	return cfgs
 }
 
-// GetBinary returns the path to the binary for the given name and metadata.
-func GetBinary(
+// MustGetPrograms calls GetPrograms and checks for an error.
+func MustGetPrograms(t *testing.T) []string {
+	programs, err := GetPrograms()
+	require.NoError(t, err)
+	return programs
+}
+
+// MustGetBinary calls GetBinary and checks for an error.
+func MustGetBinary(t *testing.T, name string, cfg Config) string {
+	bin, err := GetBinary(name, cfg)
+	require.NoError(t, err)
+	return bin
+}
+
+// GetCommonConfigs returns a list of configurations that are suggested for
+// use in tests. In scenarios where the source code is available, other
+// configurations may still be available via GetBinary.
+func GetCommonConfigs() ([]Config, error) {
+	state, err := getState()
+	if err != nil {
+		return nil, fmt.Errorf("testprogs: %w", err)
+	}
+	return state.commonConfigs, nil
+}
+
+// GetPrograms returns a list of programs that are available for testing.
+func GetPrograms() ([]string, error) {
+	state, err := getState()
+	if err != nil {
+		return nil, fmt.Errorf("testprogs: %w", err)
+	}
+	return state.programs, nil
+}
+
+// GetBinary returns the path to the binary for the given name and
+// configuration. If the binary is not found, it will be compiled if the source
+// code is available.
+func GetBinary(name string, cfg Config) (string, error) {
+	state, err := getState()
+	if err != nil {
+		return "", fmt.Errorf("testprogs: %w", err)
+	}
+	bin, err := getBinary(state, name, cfg)
+	if err != nil {
+		return "", fmt.Errorf("testprogs: %w", err)
+	}
+	return bin, nil
+}
+
+// state is the state of the testprogs package.
+type state struct {
+	// A list of common configurations that are available for testing.
+	commonConfigs []Config
+	// A list of programs that are available for testing.
+	programs []string
+	// The directory where the binaries are stored.
+	binariesDir string
+	// The directory where the source code is stored, may be empty if the
+	// source code is not available.
+	progsSrcDir string
+	// Whether the source code is available.
+	haveSources bool
+	// The directory where the probe configs are stored.
+	probesCfgsDir string
+}
+
+var (
+	globalState     state
+	globalStateErr  error
+	globalStateOnce sync.Once
+)
+
+// getState returns the global state of the testprogs package.
+func getState() (*state, error) {
+	globalStateOnce.Do(func() {
+		var haveSources bool
+		var progsSrcDir string
+		if _, srcPath, _, ok := runtime.Caller(0); ok {
+			srcDir := path.Dir(srcPath)
+			s, err := os.Stat(srcDir)
+			haveSources = err == nil && s.IsDir()
+			if haveSources {
+				progsSrcDir = path.Join(srcDir, "progs")
+			}
+		}
+		globalState, globalStateErr = initStateFromBinaries(
+			haveSources,
+			progsSrcDir,
+		)
+	})
+	return &globalState, globalStateErr
+}
+
+func initStateFromBinaries(
+	haveSources bool,
+	progsSrcDir string,
+) (state, error) {
+	pkgPath := strings.TrimPrefix(
+		reflect.TypeOf(Config{}).PkgPath(),
+		"github.com/DataDog/datadog-agent/",
+	)
+	const maxDirectoryDepth = 10
+	binariesDir := path.Join(".", pkgPath, "binaries")
+	for range maxDirectoryDepth {
+		if _, err := os.Stat(binariesDir); err == nil {
+			goto found
+		}
+		binariesDir = path.Join("..", binariesDir)
+	}
+	return state{}, fmt.Errorf("binaries directory not found; %s", helpMsg)
+found:
+	binariesDir, err := filepath.Abs(binariesDir)
+	if err != nil {
+		return state{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
+	}
+	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
+	if err != nil {
+		return state{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
+	}
+	// Now we want to iterate over the binaries directory and read the
+	// packages names of the directories as well as parsing out the
+	// configuration from the directory name.
+	programConfigs := map[string]int{}
+	configs := map[Config]struct{}{}
+	files, err := os.ReadDir(binariesDir)
+	if err != nil {
+		return state{}, fmt.Errorf("failed to read binaries directory: %w", err)
+	}
+	for _, file := range files {
+		if !file.IsDir() {
+			continue
+		}
+		cfg, err := parseConfig(file.Name())
+		if err != nil {
+			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
+		}
+		files, err := os.ReadDir(path.Join(binariesDir, file.Name()))
+		if err != nil {
+			return state{}, fmt.Errorf("failed to read program directory: %w", err)
+		}
+		for _, file := range files {
+			name := file.Name()
+			if strings.HasPrefix(name, ".") {
+				continue
+			}
+			info, err := file.Info()
+			if err != nil {
+				return state{}, fmt.Errorf("failed to get file info: %w", err)
+			}
+			if !info.Mode().IsRegular() {
+				continue
+			}
+			programConfigs[file.Name()]++
+			// Only count the config if there's at least one program for it.
+			configs[cfg] = struct{}{}
+		}
+	}
+	numConfigs := len(configs)
+	programs := make([]string, 0, len(programConfigs))
+	for name := range programConfigs {
+		if programConfigs[name] == numConfigs {
+			programs = append(programs, name)
+		}
+	}
+	commonConfigs := make([]Config, 0, len(configs))
+	for cfg := range configs {
+		commonConfigs = append(commonConfigs, cfg)
+	}
+	slices.SortFunc(commonConfigs, func(a, b Config) int {
+		return cmp.Or(
+			cmp.Compare(a.GOARCH, b.GOARCH),
+			cmp.Compare(a.GOTOOLCHAIN, b.GOTOOLCHAIN),
+		)
+	})
+
+	return state{
+		commonConfigs: commonConfigs,
+		programs:      programs,
+		binariesDir:   binariesDir,
+		progsSrcDir:   progsSrcDir,
+		haveSources:   haveSources,
+		probesCfgsDir: probesCfgsDir,
+	}, nil
+}
+
+// getBinary returns the path to the binary for the given name and metadata.
+func getBinary(
+	state *state,
 	name string,
 	cfg Config,
 ) (string, error) {
@@ -37,60 +240,51 @@ func GetBinary(
 		return "", fmt.Errorf("invalid metadata: %w", err)
 	}
 
+	binariesDir := state.binariesDir
+	progsSrcDir := state.progsSrcDir
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
-	progDir := path.Join(progsDir, name)
-
-	if err := os.MkdirAll(binaryDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create binary directory: %w", err)
+	progDir := path.Join(progsSrcDir, name)
+	binInfo, err := os.Stat(binaryPath)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Printf(
+			"binary %q with config %q does not exist; %s",
+			name, cfg.String(),
+			helpMsg,
+		)
+		return "", nil
 	}
-	{
-		upToDate, err := checkIfUpToDate(progDir, binaryPath)
+	if err != nil {
+		return "", fmt.Errorf(
+			"failed to get binary info for %q with config %q: %w",
+			name, cfg.String(), err,
+		)
+	}
+
+	if state.haveSources {
+		upToDate, err := checkIfUpToDate(progDir, binInfo)
 		if err != nil {
-			return "", fmt.Errorf("failed to check if binary is up to date: %w", err)
+			return "", fmt.Errorf(
+				"failed to check if binary %q is up to date: %w", name, err,
+			)
 		}
-		if upToDate {
-			log.Printf("binary %q is up to date", binaryPath)
-			return binaryPath, nil
+		if !upToDate {
+			log.Printf(
+				"NOTE: binary %q with config %q is not up to date; %s",
+				name, cfg.String(),
+				helpMsg,
+			)
 		}
-	}
-
-	fLock := flock.New(path.Join(binaryDir, flockName))
-	if err := fLock.Lock(); err != nil {
-		return "", fmt.Errorf("failed to lock flock: %w", err)
-	}
-	defer fLock.Close()
-	{
-		upToDate, err := checkIfUpToDate(progDir, binaryPath)
-		if err != nil {
-			return "", fmt.Errorf("failed to check if binary is up to date: %w", err)
-		}
-		if upToDate {
-			log.Printf("binary %q is up to date", binaryPath)
-			return binaryPath, nil
-		}
-	}
-
-	if err := compileBinary(progDir, cfg, binaryPath); err != nil {
-		return "", fmt.Errorf("failed to compile binary: %w", err)
 	}
 
 	return binaryPath, nil
 }
 
-func checkIfUpToDate(progDir string, binPath string) (bool, error) {
-	binInfo, err := os.Stat(binPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to get binary info: %w", err)
-	}
+func checkIfUpToDate(progDir string, binInfo os.FileInfo) (bool, error) {
 	binModTime := binInfo.ModTime()
-
 	files, err := os.ReadDir(progDir)
 	if err != nil {
-		return false, fmt.Errorf("failed to read program directory: %w", err)
+		return false, fmt.Errorf("failed to read program directory %q: %w", progDir, err)
 	}
 	for _, file := range files {
 		info, err := file.Info()
@@ -111,15 +305,12 @@ type Config struct {
 }
 
 // String returns a string representation of the config.
+//
+// Note that this format corresponds to the format used by the code in
+// tasks/system_probe.py that builds the binaries.
 func (m *Config) String() string {
 	return fmt.Sprintf("arch=%s,toolchain=%s", m.GOARCH, m.GOTOOLCHAIN)
 }
-
-// Go124 is the go version 1.24.1.
-const Go124 = "go1.24.1"
-
-// Local is the local go version.
-const Local = "local"
 
 const (
 	// Amd64 is the amd64 architecture.
@@ -147,79 +338,29 @@ func (m *Config) Validate() error {
 	return nil
 }
 
-var (
-	goVersionRegex = regexp.MustCompile(`^(go1\.\d+\.\d+|local)$`)
-)
-
-const flockName = ".flock"
-
-// binariesDir is the directory where the binaries are stored.
-var testProgsDir = func() string {
-	_, file, _, ok := runtime.Caller(1)
-	if !ok {
-		panic("unable to get current file build path")
-	}
-	return filepath.Dir(file)
-}()
-
-// binariesDir is the directory where the binaries are stored.
-var binariesDir = path.Join(testProgsDir, "binaries")
-var progsDir = path.Join(testProgsDir, "progs")
-
-// Packages is the list of packages that are available for testing.
-var Packages = func() []string {
-	files, err := os.ReadDir(progsDir)
-	if err != nil {
-		panic(err)
-	}
-	var names []string
-	for _, file := range files {
-		if !file.IsDir() {
-			continue
+func parseConfig(s string) (Config, error) {
+	parts := strings.Split(s, ",")
+	var cfg Config
+	for _, part := range parts {
+		parts := strings.Index(part, "=")
+		if parts == -1 {
+			return Config{}, fmt.Errorf("invalid config: %q", s)
 		}
-		names = append(names, file.Name())
-	}
-	return names
-}()
-
-// CurrentVersion is the current go version.
-var CurrentVersion = func() string {
-	curDir := testProgsDir
-	goVersionRegex := regexp.MustCompile("\ngo (1\\.\\d+\\.\\d+)")
-	for curDir != "." && curDir != "/" {
-		goMod, err := os.ReadFile(path.Join(curDir, "go.mod"))
-		if errors.Is(err, os.ErrNotExist) {
-			curDir = filepath.Dir(curDir)
-			continue
+		switch part[:parts] {
+		case "arch":
+			cfg.GOARCH = part[parts+1:]
+		case "toolchain":
+			cfg.GOTOOLCHAIN = part[parts+1:]
+		default:
+			return Config{}, fmt.Errorf("invalid config: %q", s)
 		}
-		if err != nil {
-			panic(err)
-		}
-		match := goVersionRegex.FindStringSubmatch(string(goMod))
-		if len(match) == 0 {
-			panic(fmt.Errorf("go.mod is invalid: %q", string(goMod)))
-		}
-		return "go" + match[1]
 	}
-	panic("go.mod not found")
-}()
-
-func compileBinary(progDir string, cfg Config, binPath string) error {
-	log.Printf("compiling binary %q", binPath)
-
-	cmd := exec.Command("go", "build", "-C", progDir, "-o", binPath, ".")
-	cmd.Env = append(os.Environ(),
-		"GOWORK=off",
-		"GOOS=linux",
-		"GOARCH="+cfg.GOARCH,
-		"GOTOOLCHAIN="+cfg.GOTOOLCHAIN,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to compile binary: %w", err)
+	if err := cfg.Validate(); err != nil {
+		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
-
-	return nil
+	return cfg, nil
 }
+
+var (
+	goVersionRegex = regexp.MustCompile(`^(go1\.\d+\.\d+)$`)
+)

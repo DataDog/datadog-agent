@@ -21,17 +21,13 @@ uint64_t hash_stack(stack_pcs_t* stack, int seed) {
   }
   uint64_t hash = seed ^ (len * m);
 
-  for (uint64_t i = 0; i < len; i++) {
+  for (uint32_t i = 0; i < len; i++) {
     uint64_t k = stack->pcs[i];
-
     k *= m;
     k ^= k >> r;
     k *= m;
-
     hash ^= k;
-    hash *= m;
   }
-
   return hash;
 }
 
