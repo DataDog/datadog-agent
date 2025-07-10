@@ -1,0 +1,19 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  namespace: e2e-operator
+  labels:
+    agent.datadoghq.com/e2e-test: datadog-agent-apm
+spec:
+  global:
+    kubelet:
+      tlsVerify: false
+  features:
+    apm:
+      enabled: true
+      hostPortConfig:
+        enabled: true
+        hostPort: 8126
+      unixDomainSocketConfig:
+        enabled: true
+        path: /var/run/datadog/apm.socket

@@ -1,0 +1,19 @@
+apiVersion: datadoghq.com/v2alpha1
+kind: DatadogAgent
+metadata:
+  name: datadog-ccr-enabled
+  namespace: e2e-operator
+  labels:
+    agent.datadoghq.com/e2e-test: datadog-agent-ccr-enabled
+spec:
+  global:
+    kubelet:
+      tlsVerify: false
+  features:
+    clusterChecks:
+      enabled: true
+      useClusterChecksRunners: true
+    liveContainerCollection:
+      enabled: true
+    logCollection:
+      enabled: true

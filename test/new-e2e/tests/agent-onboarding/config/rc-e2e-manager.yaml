@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+  namespace: e2e-operator
+  labels:
+    app.kubernetes.io/name: datadog-operator
+    control-plane: controller-manager
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: datadog-operator
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datadog-operator
+    spec:
+      containers:
+      - command:
+        - /manager
+        args:
+        - --enable-leader-election
+        - --pprof
+        - --remoteConfigEnabled
+        image: controller:latest
+        imagePullPolicy: IfNotPresent
+        name: manager
+        env:
+        - name: DD_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: datadog-secret
+              key: api-key
+        - name: DD_APP_KEY
+          valueFrom:
+            secretKeyRef:
+              name: datadog-secret
+              key: app-key
+        - name: DD_CLUSTER_NAME
+          value: rc-updater-e2e-test-cluster
+        - name: DD_SITE
+          value: datadoghq.com
+        resources:
+          limits:
+            cpu: 100m
+            memory: 250Mi
+          requests:
+            cpu: 100m
+            memory: 250Mi
+        ports:
+          - name: metrics
+            containerPort: 8080
+            protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz/
+            port: 8081
+          periodSeconds: 10
+      imagePullSecrets:
+        - name: registry-credentials
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: controller-manager

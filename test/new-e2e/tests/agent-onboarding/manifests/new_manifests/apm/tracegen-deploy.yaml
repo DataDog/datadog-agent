@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracegen-tribrid
+  namespace: e2e-operator
+  labels:
+    app: tracegen-tribrid
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracegen-tribrid
+  template:
+    metadata:
+      labels:
+        app: tracegen-tribrid
+    spec:
+      containers:
+      - name: tracegen-tcp-hostip
+        image: ghcr.io/datadog/apps-tracegen:main
+        env:
+        # IP of the node - listened by the trace-Agent if hostPort is enabled
+        - name: DD_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: DD_SERVICE
+          value: "e2e-test-apm-hostip"
+        - name: DD_ENV
+          value: "e2e-operator"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "2m"
+          limits:
+            memory: "32Mi"
+            cpu: "10m"
+      - name: tracegen-tcp-agent-service
+        image: ghcr.io/datadog/apps-tracegen:main
+        env:
+        # Kubernetes service of the node Agent - enabled by default with the APM feature
+        # The service is created by the Datadog Operator following convention: <datadog-agent-name>-agent
+        - name: DD_AGENT_HOST
+          value: "datadog-agent-apm-agent"
+        - name: DD_SERVICE
+          value: "e2e-test-apm-agent-service"
+        - name: DD_ENV
+          value: "e2e-operator"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "2m"
+          limits:
+            memory: "32Mi"
+            cpu: "10m"
+      - name: tracegen-udp
+        image: ghcr.io/datadog/apps-tracegen:main
+        env:
+        # Socket of the trace-agent
+        - name: DD_TRACE_AGENT_URL
+          value: "unix:///var/run/datadog/apm.socket"
+        - name: DD_SERVICE
+          value: "e2e-test-apm-socket"
+        - name: DD_ENV
+          value: "e2e-operator"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "2m"
+          limits:
+            memory: "32Mi"
+            cpu: "10m"
+        volumeMounts:
+        - name: apmsocketpath
+          mountPath: /var/run/datadog
+      volumes:
+      - name: apmsocketpath
+        hostPath:
+          path: /var/run/datadog/
