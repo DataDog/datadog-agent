@@ -74,7 +74,7 @@ class Configuration:
         modules_config.update(
             {name: module.to_dict(remove_path=True) or 'default' for name, module in self.modules.items()}
         )
-        modules_config.update({module: 'ignored' for module in self.ignored_modules})
+        modules_config.update(dict.fromkeys(self.ignored_modules, 'ignored'))
 
         return {
             'modules': modules_config,
