@@ -98,6 +98,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 		}
 	}
 
+	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
 }
 

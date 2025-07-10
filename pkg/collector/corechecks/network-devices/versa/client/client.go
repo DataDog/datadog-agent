@@ -348,7 +348,7 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 
 	var allMetrics []InterfaceMetrics
 
-	// Step 1: Make the initial request to get the first page and query-id
+	// make the initial request to get the first page and query-id
 	initialEndpoint := fmt.Sprintf("/vnms/dashboard/appliance/%s/pageable_interfaces", applianceName)
 	params := map[string]string{
 		"orgName": tenantName,
@@ -367,62 +367,59 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 	if queryID == "" {
 		return nil, errors.New("failed to get interface metrics: no query-id returned")
 	}
+	// always attempt to clean up the query
+	defer client.closeQuery(queryID)
 
-	// Add the first page of data
+	// add the first page of data
 	allMetrics = append(allMetrics, resp.Collection.Interfaces...)
 
-	// Step 2: Paginate through remaining data using the query-id
+	// if the first page has less interfaces than the limit,
+	// there's no need to paginate
+	maxCount, _ := strconv.Atoi(client.maxCount)
+	if len(resp.Collection.Interfaces) < maxCount {
+		return allMetrics, nil
+	}
+
+	// paginate through remaining data using the query-id
 	nextPageEndpoint := "/vnms/dashboard/appliance/next_page_data"
-	for {
+	for range client.maxPages {
 		pageParams := map[string]string{
-			"query-id": queryID,
+			"queryId": queryID,
 		}
 
 		pageResp, err := get[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams, false)
 		if err != nil {
-			// Clean up the query before returning the error
-			_ = client.closeQuery(queryID)
 			return nil, fmt.Errorf("failed to get interface metrics (pagination): %v", err)
 		}
 		if pageResp == nil {
-			// Clean up the query before returning the error
-			_ = client.closeQuery(queryID)
 			return nil, errors.New("failed to get interface metrics: page response was nil")
-		}
-
-		// If we get an empty response, we're done with pagination
-		if len(pageResp.Collection.Interfaces) == 0 {
-			break
 		}
 
 		// Add the page data to our results
 		allMetrics = append(allMetrics, pageResp.Collection.Interfaces...)
-	}
 
-	// Step 3: Close the query to clean up resources
-	err = client.closeQuery(queryID)
-	if err != nil {
-		log.Warnf("Failed to close query %s: %v", queryID, err)
-		// Don't return an error here since we have the data, just log the warning
+		// If we get a response with less than the limit,
+		// we've hit the last page
+		if len(pageResp.Collection.Interfaces) < maxCount {
+			break
+		}
 	}
 
 	return allMetrics, nil
 }
 
 // closeQuery closes a pageable query to clean up resources
-func (client *Client) closeQuery(queryID string) error {
+func (client *Client) closeQuery(queryID string) {
 	closeEndpoint := "/vnms/dashboard/appliance/close_query"
 	params := map[string]string{
-		"query-id": queryID,
+		"queryId": queryID,
 	}
 
 	// We don't expect any meaningful response from the close endpoint
-	_, err := get[interface{}](client, closeEndpoint, params, false)
+	_, err := client.get(closeEndpoint, params, false)
 	if err != nil {
-		return fmt.Errorf("failed to close query %s: %v", queryID, err)
+		log.Warnf("failed to close query %s: %v", queryID, err)
 	}
-
-	return nil
 }
 
 // GetDirectorStatus retrieves the director status
