@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -386,7 +385,14 @@ func TestMarshalSplitCompress(t *testing.T) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := series.MarshalSplitCompressPipelines(mockConfig, compressor, []Pipeline{
+				Pipeline{
+					FilterFunc: func(s *metrics.Serie) bool {
+						return true
+					},
+					Destination: transaction.AllRegions,
+				},
+			})
 			require.NoError(t, err)
 			// check that we got multiple payloads, so splitting occurred
 			require.Greater(t, len(payloads), 1)
@@ -424,7 +430,14 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 			series := makeSeries(10, 50)
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := series.MarshalSplitCompressPipelines(mockConfig, compressor, []Pipeline{
+				Pipeline{
+					FilterFunc: func(s *metrics.Serie) bool {
+						return true
+					},
+					Destination: transaction.AllRegions,
+				},
+			})
 			require.NoError(t, err)
 			require.Equal(t, 5, len(payloads))
 		})
@@ -525,7 +538,14 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 			series := makeSeries(1, 2)
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressor)
+			payloads, err := series.MarshalSplitCompressPipelines(mockConfig, compressor, []Pipeline{
+				Pipeline{
+					FilterFunc: func(s *metrics.Serie) bool {
+						return true
+					},
+					Destination: transaction.AllRegions,
+				},
+			})
 			require.NoError(t, err)
 			require.Len(t, payloads, 0)
 		})
