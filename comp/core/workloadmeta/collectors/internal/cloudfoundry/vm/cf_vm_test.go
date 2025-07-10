@@ -23,7 +23,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -210,7 +209,7 @@ func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string,
 	}, nil
 }
 
-func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
+func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ []byte) error {
 	panic("implement me")
 }
 
