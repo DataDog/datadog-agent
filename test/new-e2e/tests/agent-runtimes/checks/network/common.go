@@ -25,9 +25,10 @@ import (
 
 type networkCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor            e2eos.Descriptor
-	metricCompareFraction float64
-	metricCompareDecimals int
+	descriptor                  e2eos.Descriptor
+	metricCompareFraction       float64
+	metricCompareDecimals       int
+	excludedFromValueComparison []string
 }
 
 func (v *networkCheckSuite) getSuiteOptions() []e2e.SuiteOption {
