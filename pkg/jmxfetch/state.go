@@ -127,7 +127,7 @@ func GetIntegrations() (map[string]interface{}, error) {
 			instances = append(instances, GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
 		}
 
-		splitSource := strings.Split(config.Source, ":")
+		splitSource := strings.SplitN(config.Source, ":", 2)
 		if len(splitSource) > 1 {
 			c["config.source"] = splitSource[1]
 		} else {
