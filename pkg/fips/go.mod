@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/fips
 
 go 1.23.0
 
-require golang.org/x/sys v0.33.0
+require golang.org/x/sys v0.34.0
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
