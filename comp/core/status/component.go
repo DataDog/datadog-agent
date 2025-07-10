@@ -82,3 +82,33 @@ func NewHeaderInformationProvider(provider HeaderProvider) HeaderInformationProv
 		Provider: provider,
 	}
 }
+
+// DynamicInformationProvider stores dynamic Providers getter
+type DynamicInformationProvider struct {
+	fx.Out
+
+	Getter func() []Provider `group:"dyn_status"`
+}
+
+// DynamicHeaderInformationProvider stores dynamic HeaderProvider getter
+type DynamicHeaderInformationProvider struct {
+	fx.Out
+
+	Getter func() []HeaderProvider `group:"dyn_header_status"`
+}
+
+// NewDynamicInformationProvider returns a new DynamicInformationProvider to be called when generating the agent status
+// It allows to dynamically add Providers to the status component
+func NewDynamicInformationProvider(getter func() []Provider) DynamicInformationProvider {
+	return DynamicInformationProvider{
+		Getter: getter,
+	}
+}
+
+// NewDynamicHeaderInformationProvider returns a new DynamicHeaderInformationProvider to be called when generating the agent status
+// It allows to dynamically add HeaderProviders to the status component
+func NewDynamicHeaderInformationProvider(getter func() []HeaderProvider) DynamicHeaderInformationProvider {
+	return DynamicHeaderInformationProvider{
+		Getter: getter,
+	}
+}
