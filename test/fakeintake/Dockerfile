@@ -30,7 +30,7 @@ ENV CGO_ENABLED=1
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM alpine:3.21
+FROM alpine:3.22
 
 RUN apk add curl
 
