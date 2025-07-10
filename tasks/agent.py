@@ -15,6 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
@@ -230,6 +231,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
     if embedded_path is None:
@@ -451,7 +453,15 @@ def hacky_dev_image_build(
     push=False,
     race=False,
     signed_pull=False,
+    arch=None,
 ):
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
+        raise Exit(code=1)
+
     if base_image is None:
         import requests
         import semver
@@ -472,7 +482,7 @@ def hacky_dev_image_build(
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
         ctx.run(
-            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+            f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
         os.environ["DELVE"] = "1"
@@ -564,7 +574,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
             ctx.run(f'docker push {target_image}')

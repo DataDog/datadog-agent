@@ -47,7 +47,10 @@
                     "type": "string",
                     "enum": [
                         "loaded",
+                        "partially_filtered",
                         "partially_loaded",
+                        "fully_rejected",
+                        "fully_filtered",
                         "error"
                     ]
                 },
@@ -96,6 +99,7 @@
                         "agent_version_error",
                         "event_type_disabled",
                         "syntax_error",
+                        "filtered",
                         "error"
                     ]
                 },
@@ -124,6 +128,23 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/$defs/policyinfo"
+                    }
+                },
+                "filter_type": {
+                    "type": "string",
+                    "enum": [
+                        "rule_id",
+                        "agent_version",
+                        "rule_filter"
+                    ]
+                },
+                "agent_version": {
+                    "type": "string"
+                },
+                "filters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             },
