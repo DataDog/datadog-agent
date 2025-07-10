@@ -357,7 +357,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
 	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
 	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-	pipelines := make([]metricsserializer.Pipeline, 0, 3)
+	pipelines := make([]metricsserializer.Pipeline, 0, 4)
 	if failoverActive {
 		// Default behavior, primary region only
 		pipelines = append(pipelines, metricsserializer.Pipeline{
@@ -390,6 +390,14 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		})
 	}
 
+	if s.config.GetBool("enable_preaggr_pipeline") {
+		pipelines = append(pipelines, metricsserializer.Pipeline{
+			FilterFunc: func(s *metrics.Serie) bool {
+				return true
+			},
+			Destination: transaction.PreaggrOnly,
+		})
+	}
 
 	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	extraHeaders = s.protobufExtraHeadersWithCompression
