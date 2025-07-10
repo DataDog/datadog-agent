@@ -26,7 +26,7 @@ const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
-	defaultLookback    = 30 * time.Minute
+	defaultLookback    = "30minutesAgo"
 	defaultHTTPTimeout = 10
 	defaultHTTPScheme  = "https"
 )
@@ -49,7 +49,7 @@ type Client struct {
 	maxAttempts         int
 	maxPages            int
 	maxCount            string // Stored as string to be passed as an HTTP param
-	lookback            time.Duration
+	lookback            string
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -189,9 +189,9 @@ func WithMaxPages(maxPages int) ClientOptions {
 }
 
 // WithLookback is a functional option to set the client lookback interval
-func WithLookback(lookback time.Duration) ClientOptions {
+func WithLookback(lookback int) ClientOptions {
 	return func(c *Client) {
-		c.lookback = lookback
+		c.lookback = createLookbackString(lookback)
 	}
 }
 
@@ -479,8 +479,8 @@ func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
 }
 
 // GetSLAMetrics retrieves SLA metrics from the Versa Analytics API
-func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
-	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
+func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
+	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "slam(localsite,remotesite,localaccckt,remoteaccckt,fc)", "tableData", []string{
 		"delay",
 		"fwdDelayVar",
 		"revDelayVar",
@@ -501,9 +501,9 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 	return metrics, nil
 }
 
-// GetLinkMetrics retrieves link metrics from the Versa Analytics API
-func (client *Client) GetLinkMetrics() error {
-	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "linkstatus(site,accckt)", "table", []string{
+// GetLinkStatusMetrics retrieves link metrics from the Versa Analytics API
+func (client *Client) GetLinkStatusMetrics(tenant string) error {
+	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkstatus(site,accckt)", "table", []string{
 		"availability",
 	})
 
@@ -571,8 +571,9 @@ func parseLinkExtendedMetrics(data [][]interface{}) ([]LinkExtendedMetrics, erro
 	return rows, nil
 }
 
-func (client *Client) GetLinkExtendedMetrics() ([]LinkExtendedMetrics, error) {
-	analyticsURL := buildAnalyticsPath("datadog", "SDWAN", "15minutesAgo", "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
+// GetLinkExtendedMetrics gets link metrics for a Versa tenant
+func (client *Client) GetLinkExtendedMetrics(tenant string) ([]LinkExtendedMetrics, error) {
+	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
 		"volume-tx",
 		"volume-rx",
 		"bw-tx",
@@ -602,11 +603,11 @@ func (client *Client) GetLinkExtendedMetrics() ([]LinkExtendedMetrics, error) {
 //   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio").
 //
 // Returns the full encoded URL string.
-func buildAnalyticsPath(tenant string, feature string, startDate string, query string, queryType string, metrics []string) string {
+func (client *Client) buildAnalyticsPath(tenant string, feature string, query string, queryType string, metrics []string) string {
 	baseAnalyticsPath := "/versa/analytics/v1.0.0/data/provider"
 	path := fmt.Sprintf("%s/tenants/%s/features/%s", baseAnalyticsPath, tenant, feature)
 	params := url.Values{
-		"start-date": []string{startDate},
+		"start-date": []string{client.lookback},
 		"qt":         []string{queryType},
 		"q":          []string{query},
 		"ds":         []string{"aggregate"}, // this seems to be the only datastore supported (from docs)
@@ -615,4 +616,8 @@ func buildAnalyticsPath(tenant string, feature string, startDate string, query s
 		params.Add("metrics", m)
 	}
 	return path + "?" + params.Encode()
+}
+
+func createLookbackString(lookbackMinutes int) string {
+	return fmt.Sprintf("%dminutesAgo", lookbackMinutes)
 }

@@ -254,25 +254,30 @@ func (v *VersaCheck) Run() error {
 	}
 
 	if *v.config.CollectSLAMetrics {
-		slaMetrics, err := c.GetSLAMetrics()
-		if err != nil {
-			log.Warnf("error getting SLA metrics from Versa client: %v", err)
+		for _, org := range organizations {
+			slaMetrics, err := c.GetSLAMetrics(org.Name)
+			if err != nil {
+				log.Warnf("error getting SLA metrics from Versa client: %v", err)
+			}
+			v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 		}
-		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 	}
 
 	if *v.config.CollectLinkExtendedMetrics {
-		linkExtendedMetrics, err := c.GetLinkExtendedMetrics()
-		if err != nil {
-			log.Warnf("error getting link extended metrics from Versa client: %v", err)
-		} else {
-			v.metricsSender.SendLinkExtendedMetrics(linkExtendedMetrics, deviceNameToIDMap)
-		}
-	}
+		for _, org := range organizations {
+			err = c.GetLinkStatusMetrics(org.Name)
+			if err != nil {
+				log.Warnf("error getting link metrics: %v", err)
+			}
+			//TODO: send these metrics
 
-	err = c.GetLinkMetrics()
-	if err != nil {
-		log.Warnf("error getting link metrics: %v", err)
+			linkExtendedMetrics, err := c.GetLinkExtendedMetrics(org.Name)
+			if err != nil {
+				log.Warnf("error getting link extended metrics from Versa client: %v", err)
+			} else {
+				v.metricsSender.SendLinkExtendedMetrics(linkExtendedMetrics, deviceNameToIDMap)
+			}
+		}
 	}
 
 	// Commit
@@ -370,7 +375,7 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	}
 
 	if v.config.LookbackTimeWindowMinutes > 0 {
-		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(v.config.LookbackTimeWindowMinutes)))
+		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
 	}
 
 	return clientOptions, nil

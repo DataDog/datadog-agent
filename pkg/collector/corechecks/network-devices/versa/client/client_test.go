@@ -396,7 +396,7 @@ func TestGetSLAMetrics(t *testing.T) {
 	client.directorEndpoint = server.URL
 	require.NoError(t, err)
 
-	slaMetrics, err := client.GetSLAMetrics()
+	slaMetrics, err := client.GetSLAMetrics("datadog")
 	require.NoError(t, err)
 
 	require.Equal(t, len(slaMetrics), 1)
@@ -413,7 +413,7 @@ func TestGetLinkExtendedMetrics(t *testing.T) {
 			DownlinkBandwidth: "10000000000",
 			Type:              "Unknown",
 			Media:             "Unknown",
-			IP:                "10.231.20.7",
+			IP:                "10.20.20.7",
 			ISP:               "",
 			VolumeTx:          757144.0,
 			VolumeRx:          457032.0,
@@ -430,7 +430,7 @@ func TestGetLinkExtendedMetrics(t *testing.T) {
 	client.directorEndpoint = server.URL
 	require.NoError(t, err)
 
-	linkExtendedMetrics, err := client.GetLinkExtendedMetrics()
+	linkExtendedMetrics, err := client.GetLinkExtendedMetrics("datadog")
 	require.NoError(t, err)
 
 	require.Equal(t, len(linkExtendedMetrics), 1)
@@ -447,7 +447,7 @@ func TestParseLinkExtendedMetrics(t *testing.T) {
 			"10000000000",
 			"Unknown",
 			"Unknown",
-			"10.231.20.7",
+			"10.20.20.7",
 			"",
 			757144.0,
 			457032.0,
@@ -465,7 +465,7 @@ func TestParseLinkExtendedMetrics(t *testing.T) {
 			DownlinkBandwidth: "10000000000",
 			Type:              "Unknown",
 			Media:             "Unknown",
-			IP:                "10.231.20.7",
+			IP:                "10.20.20.7",
 			ISP:               "",
 			VolumeTx:          757144.0,
 			VolumeRx:          457032.0,
