@@ -17,6 +17,11 @@ configure_make(
             "libcrypt.so.2",
             "libcrypt.so.2.0.0",
         ],
+        "@platforms//os:macos": [
+            "libcrypt.so",
+            "libcrypt.so.2",
+            "libcrypt.so.2.0.0",
+        ],
     }),
     visibility = ["//visibility:public"],
     deps = [
