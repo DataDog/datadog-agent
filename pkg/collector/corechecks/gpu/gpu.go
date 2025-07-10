@@ -32,13 +32,7 @@ import (
 )
 
 const (
-	// CheckName defines the name of the GPU check
-	CheckName             = "gpu"
-	gpuMetricsNs          = "gpu."
-	metricNameCoreUsage   = gpuMetricsNs + "core.usage"
-	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
-	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
-	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
+	gpuMetricsNs = "gpu."
 )
 
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
