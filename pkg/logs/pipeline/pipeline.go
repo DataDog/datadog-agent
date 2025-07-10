@@ -114,7 +114,7 @@ func getStrategy(
 			endpoints.Main,
 			compressor,
 			pipelineMonitor,
-      instanceID)
+			instanceID)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
 }

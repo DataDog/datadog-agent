@@ -55,8 +55,6 @@ type batchStrategy struct {
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
-	writeCounter    *writerCounter
-	encodedPayload  *bytes.Buffer
 	instanceID      string
 }
 
