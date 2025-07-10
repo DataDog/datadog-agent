@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/cenkalti/backoff/v5"
@@ -124,8 +125,9 @@ func TestIsRetryableExitCode(t *testing.T) {
 		for _, tt := range realExitCodeTests {
 			t.Run(tt.name, func(t *testing.T) {
 				// Use cmd /c exit $EXITCODE to generate a real exec.ExitError
-				cmd := exec.Command("cmd", "/c", fmt.Sprintf("exit %d", tt.exitCode))
-				err := cmd.Run()
+				cmdPath := filepath.Join(system32Path, "cmd.exe")
+				runner := newRealCmdRunner()
+				err := runner.Run(cmdPath, fmt.Sprintf("%s /c exit %d", cmdPath, tt.exitCode))
 
 				if tt.exitCode == 0 {
 					// Exit code 0 should not produce an error

@@ -39,13 +39,14 @@ type exitCodeError interface {
 }
 
 var (
-	msiexecPath = `C:\Windows\System32\msiexec.exe`
+	system32Path = `C:\Windows\System32`
+	msiexecPath  = filepath.Join(system32Path, "msiexec.exe")
 )
 
 func init() {
-	system32, err := windows.KnownFolderPath(windows.FOLDERID_System, 0)
+	system32Path, err := windows.KnownFolderPath(windows.FOLDERID_System, 0)
 	if err == nil {
-		msiexecPath = filepath.Join(system32, "msiexec.exe")
+		msiexecPath = filepath.Join(system32Path, "msiexec.exe")
 	}
 }
 
