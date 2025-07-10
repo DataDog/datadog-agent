@@ -1371,7 +1371,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
+	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", false)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
 	config.BindEnvAndSetDefault("serializer_max_payload_size", 2*megaByte+megaByte/2)
