@@ -21,7 +21,7 @@
         self.locationManager = [[CLLocationManager alloc] init];
 
         if (@available(macOS 11.0, *)) {
-            CLAuthorizationStatus status = [self.locationManager authorizationStatus];
+            CLAuthorizationStatus status = self.locationManager.authorizationStatus;
             if (status == kCLAuthorizationStatusNotDetermined) {
                 [self.locationManager requestWhenInUseAuthorization];
             }
