@@ -99,7 +99,7 @@ func TestCGroup(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_id",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "/cg1"`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*/cg1"`,
 		},
 		{
 			ID:         "test_cgroup_systemd",
@@ -149,7 +149,7 @@ func TestCGroup(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_cgroup_id")
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldEqual(t, event, "container.id", "")
-			assertFieldIsOneOf(t, event, "cgroup.id", "/cg1")
+			assertFieldIsOneOf(t, event, "cgroup.id", []string{"/cg1", "/systemd/cg1"})
 			assertFieldIsOneOf(t, event, "cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
