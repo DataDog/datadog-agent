@@ -141,8 +141,7 @@ func (c *collector) isProcessCollectionEnabled() bool {
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
-	// TODO: implement the logic to check if service discovery is enabled based on configuration
-	return false
+	return c.systemProbeConfig.GetBool("discovery.enabled")
 }
 
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
