@@ -38,8 +38,8 @@ func SetupHandlers(
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/install-info/get", installinfo.HandleGetInstallInfo).Methods("GET")
-	r.HandleFunc("/install-info/set", installinfo.HandleSetInstallInfo).Methods("POST", "PUT")
+	r.HandleFunc("/install-info", installinfo.HandleGetInstallInfo).Methods("GET")
+	r.HandleFunc("/install-info", installinfo.HandleSetInstallInfo).Methods("POST", "PUT")
 	return r
 }
 

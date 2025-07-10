@@ -80,7 +80,7 @@ func GetFilePath(conf model.Reader) string {
 
 // Get returns information about how the Agent was installed.
 func Get(conf model.Reader) (*InstallInfo, error) {
-	if installInfo := getRuntimeOverride(); installInfo != nil {
+	if installInfo := getRuntimeInstallInfo(); installInfo != nil {
 		return installInfo, nil
 	}
 	if installInfo, ok := getFromEnvVars(); ok {
@@ -102,6 +102,8 @@ func setRuntimeInstallInfo(info *InstallInfo) error {
 	runtimeInfoMutex.Lock()
 	defer runtimeInfoMutex.Unlock()
 
+	// Note: Unlike file/env-based sources which scrub on read, this scrubs the data at write time.
+	// This means the original (unscrubbed) values are not retained.
 	runtimeInstallInfo = scrubFields(&InstallInfo{
 		Tool:             info.Tool,
 		ToolVersion:      info.ToolVersion,
@@ -114,12 +116,8 @@ func setRuntimeInstallInfo(info *InstallInfo) error {
 	return nil
 }
 
-// getRuntimeInstallInfo returns the current runtime override if set
+// getRuntimeInstallInfo returns the current runtime install info if set
 func getRuntimeInstallInfo() *InstallInfo {
-	return getRuntimeOverride()
-}
-
-func getRuntimeOverride() *InstallInfo {
 	runtimeInfoMutex.RLock()
 	defer runtimeInfoMutex.RUnlock()
 
@@ -207,7 +205,7 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 		Version:   agentVersion,
 		Timestamp: timestamp,
 	}
-	if installInfo := getRuntimeOverride(); installInfo != nil {
+	if installInfo := getRuntimeInstallInfo(); installInfo != nil {
 		newEntry.InstallMethod = *installInfo
 	} else if installInfo, ok := getFromEnvVars(); ok {
 		newEntry.InstallMethod = *installInfo

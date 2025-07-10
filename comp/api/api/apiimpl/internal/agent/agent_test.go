@@ -114,11 +114,11 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 	}{
 		{
 			name:         "install info get with GET method",
-			route:        "/install-info/get",
+			route:        "/install-info",
 			method:       "GET",
 			payload:      nil,
 			expectedCode: 200,
-			description:  "GET request to install-info/get should succeed with test config",
+			description:  "GET request to install-info should succeed with test config",
 			assertFunc: func(t *testing.T, resp *http.Response, body []byte) {
 				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 				var installInfo installinfo.InstallInfo
@@ -131,31 +131,31 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 		},
 		{
 			name:         "install info get with POST method",
-			route:        "/install-info/get",
+			route:        "/install-info",
 			method:       "POST",
 			payload:      nil,
-			expectedCode: 405,
-			description:  "POST request to install-info/get should be rejected",
+			expectedCode: 400,
+			description:  "POST request to install-info should be rejected",
 		},
 		{
 			name:         "install info get with PUT method",
-			route:        "/install-info/get",
+			route:        "/install-info",
 			method:       "PUT",
 			payload:      nil,
-			expectedCode: 405,
-			description:  "PUT request to install-info/get should be rejected",
+			expectedCode: 400,
+			description:  "PUT request to install-info should be rejected",
 		},
 		{
 			name:         "install info get with DELETE method",
-			route:        "/install-info/get",
+			route:        "/install-info",
 			method:       "DELETE",
 			payload:      nil,
 			expectedCode: 405,
-			description:  "DELETE request to install-info/get should be rejected",
+			description:  "DELETE request to install-info should be rejected",
 		},
 		{
 			name:   "install info set with POST method and valid payload",
-			route:  "/install-info/set",
+			route:  "/install-info",
 			method: "POST",
 			payload: installinfo.SetInstallInfoRequest{
 				Tool:             "ECS",
@@ -163,7 +163,7 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 				InstallerVersion: "test-installer",
 			},
 			expectedCode: 200,
-			description:  "POST request to install-info/set with valid payload should succeed",
+			description:  "POST request to install-info with valid payload should succeed",
 			assertFunc: func(t *testing.T, resp *http.Response, body []byte) {
 				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 				var response map[string]interface{}
@@ -175,7 +175,7 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 		},
 		{
 			name:   "install info set with PUT method and valid payload",
-			route:  "/install-info/set",
+			route:  "/install-info",
 			method: "PUT",
 			payload: installinfo.SetInstallInfoRequest{
 				Tool:             "ECS",
@@ -183,7 +183,7 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 				InstallerVersion: "test-installer",
 			},
 			expectedCode: 200,
-			description:  "PUT request to install-info/set with valid payload should succeed",
+			description:  "PUT request to install-info with valid payload should succeed",
 			assertFunc: func(t *testing.T, resp *http.Response, body []byte) {
 				assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 				var response map[string]interface{}
@@ -194,38 +194,30 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			},
 		},
 		{
-			name:         "install info set with GET method",
-			route:        "/install-info/set",
-			method:       "GET",
-			payload:      nil,
-			expectedCode: 405,
-			description:  "GET request to install-info/set should be rejected",
-		},
-		{
 			name:         "install info set with DELETE method",
-			route:        "/install-info/set",
+			route:        "/install-info",
 			method:       "DELETE",
 			payload:      nil,
 			expectedCode: 405,
-			description:  "DELETE request to install-info/set should be rejected",
+			description:  "DELETE request to install-info should be rejected",
 		},
 		{
 			name:         "install info set with POST method and empty payload",
-			route:        "/install-info/set",
+			route:        "/install-info",
 			method:       "POST",
 			payload:      nil,
 			expectedCode: 400,
-			description:  "POST request to install-info/set with empty payload should return bad request",
+			description:  "POST request to install-info with empty payload should return bad request",
 		},
 		{
 			name:   "install info set with POST method and invalid JSON",
-			route:  "/install-info/set",
+			route:  "/install-info",
 			method: "POST",
 			payload: map[string]interface{}{
 				"invalid": "payload",
 			},
 			expectedCode: 400,
-			description:  "POST request to install-info/set with invalid payload should return bad request",
+			description:  "POST request to install-info with invalid payload should return bad request",
 		},
 	}
 
@@ -280,7 +272,7 @@ func TestInstallInfoAPIRoutesWithRuntimeInfo(t *testing.T) {
 	body, err := json.Marshal(setPayload)
 	require.NoError(t, err)
 
-	fullURL, err := url.JoinPath(ts.URL, "/install-info/set")
+	fullURL, err := url.JoinPath(ts.URL, "/install-info")
 	require.NoError(t, err)
 	req, err := http.NewRequest("POST", fullURL, bytes.NewReader(body))
 	require.NoError(t, err)
@@ -292,7 +284,7 @@ func TestInstallInfoAPIRoutesWithRuntimeInfo(t *testing.T) {
 
 	assert.Equal(t, 200, resp.StatusCode, "Setting install info should succeed")
 
-	fullURL, err = url.JoinPath(ts.URL, "/install-info/get")
+	fullURL, err = url.JoinPath(ts.URL, "/install-info")
 	require.NoError(t, err)
 	req, err = http.NewRequest("GET", fullURL, nil)
 	require.NoError(t, err)
@@ -332,13 +324,6 @@ func TestHandleSetInstallInfo(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			expectedError:  false,
-		},
-		{
-			name:           "invalid method",
-			method:         "GET",
-			payload:        nil,
-			expectedStatus: http.StatusMethodNotAllowed,
-			expectedError:  true,
 		},
 		{
 			name:           "invalid JSON",
@@ -399,7 +384,7 @@ func TestHandleSetInstallInfo(t *testing.T) {
 				}
 			}
 
-			fullURL, err := url.JoinPath(ts.URL, "/install-info/set")
+			fullURL, err := url.JoinPath(ts.URL, "/install-info")
 			require.NoError(t, err)
 
 			req, err := http.NewRequest(tt.method, fullURL, bytes.NewReader(body))
@@ -434,7 +419,7 @@ func TestHandleSetInstallInfo(t *testing.T) {
 				assert.True(t, response.Success)
 				assert.NotEmpty(t, response.Message)
 
-				getURL, err := url.JoinPath(ts.URL, "/install-info/get")
+				getURL, err := url.JoinPath(ts.URL, "/install-info")
 				require.NoError(t, err)
 
 				getReq, err := http.NewRequest("GET", getURL, nil)
@@ -472,7 +457,7 @@ func TestHandleGetInstallInfo(t *testing.T) {
 			name:           "invalid method",
 			method:         "POST",
 			setupRuntime:   false,
-			expectedStatus: http.StatusMethodNotAllowed,
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
@@ -491,7 +476,7 @@ func TestHandleGetInstallInfo(t *testing.T) {
 				body, err := json.Marshal(info)
 				require.NoError(t, err)
 
-				setURL, err := url.JoinPath(ts.URL, "/install-info/set")
+				setURL, err := url.JoinPath(ts.URL, "/install-info")
 				require.NoError(t, err)
 				req, err := http.NewRequest("POST", setURL, bytes.NewReader(body))
 				require.NoError(t, err)
@@ -504,7 +489,7 @@ func TestHandleGetInstallInfo(t *testing.T) {
 				require.Equal(t, http.StatusOK, resp.StatusCode)
 			}
 
-			getURL, err := url.JoinPath(ts.URL, "/install-info/get")
+			getURL, err := url.JoinPath(ts.URL, "/install-info")
 			require.NoError(t, err)
 			req, err := http.NewRequest(tt.method, getURL, nil)
 			require.NoError(t, err)
