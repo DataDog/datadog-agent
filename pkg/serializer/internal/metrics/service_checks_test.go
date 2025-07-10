@@ -155,4 +155,3 @@ func BenchmarkJSONPayloadBuilderServiceCheck1000000(b *testing.B) {
 func BenchmarkJSONPayloadBuilderServiceCheck10000000(b *testing.B) {
 	benchmarkJSONPayloadBuilderServiceCheck(b, 10000000)
 }
-
