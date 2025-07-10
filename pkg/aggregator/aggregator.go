@@ -167,6 +167,7 @@ var (
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
 	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
+	tlmBlockedHistoAggregates = telemetry.NewSimpleCounter("aggregator", "blocked_hist_aggregates", "How many histogram aggregates were blocked")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
