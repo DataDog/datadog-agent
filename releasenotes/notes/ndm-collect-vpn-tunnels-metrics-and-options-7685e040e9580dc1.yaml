@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Adds Cisco IPsec VPN tunnels metrics and options data collection to SNMP. This can be enabled/disabled using the `collect_vpn` config.
+    Adds Cisco IPsec VPN tunnel metrics and options data collection to SNMP. This can be enabled and disabled using the `collect_vpn` config.
