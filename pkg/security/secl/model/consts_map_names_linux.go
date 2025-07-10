@@ -104,6 +104,7 @@ var bpfMapNames = []string{
 	"tgid_fd_map_id",
 	"tgid_fd_prog_id",
 	"traced_cgroups",
+	"traced_cgroups_",
 	"traced_pids",
 	"user_sessions",
 	"veth_devices",

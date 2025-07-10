@@ -138,6 +138,12 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
     if (is_cgroup_activity_dumps_enabled()) {
 
+        // is this cgroup discarded ?
+        u8 *discarded = bpf_map_lookup_elem(&traced_cgroups_discarded, &cgroup->cgroup_file);
+        if (discarded != NULL) {
+            return 0;
+        }
+
         // is this cgroup traced ?
         u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup->cgroup_file);
 

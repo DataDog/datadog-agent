@@ -76,6 +76,7 @@ type Manager struct {
 	// ebpf maps
 	tracedPIDsMap              *ebpf.Map
 	tracedCgroupsMap           *ebpf.Map
+	tracedCgroupsDiscardedMap  *ebpf.Map
 	cgroupWaitList             *ebpf.Map
 	activityDumpsConfigMap     *ebpf.Map
 	activityDumpConfigDefaults *ebpf.Map
@@ -136,6 +137,11 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	tracedCgroupsMap, err := managerhelper.Map(ebpf, "traced_cgroups")
+	if err != nil {
+		return nil, err
+	}
+
+	tracedCgroupsDiscardedMap, err := managerhelper.Map(ebpf, "traced_cgroups_discarded")
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +263,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 
 		tracedPIDsMap:              tracedPIDs,
 		tracedCgroupsMap:           tracedCgroupsMap,
+		tracedCgroupsDiscardedMap:  tracedCgroupsDiscardedMap,
 		cgroupWaitList:             cgroupWaitList,
 		activityDumpsConfigMap:     activityDumpsConfigMap,
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,

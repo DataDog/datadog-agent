@@ -518,13 +518,19 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 }
 
 func (m *Manager) evictTracedCgroup(cgroup *model.CGroupContext) {
+	// first, push the evicted cgroup to the discarded map
+	if err := m.tracedCgroupsDiscardedMap.Put(cgroup.CGroupFile, uint8(1)); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Errorf("couldn't discard activity dump cgroup %s: %v", cgroup.CGroupID, err)
+		}
+	}
+	// then evict if from the traced one
 	if err := m.tracedCgroupsMap.Delete(cgroup.CGroupFile); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			seclog.Errorf("couldn't delete activity dump filter cgroup %s: %v", cgroup.CGroupID, err)
 		}
 	}
 
-	// TODO: push the entry to a new discarder map to avoid keeping tracing events flow
 }
 
 // HandleCGroupTracingEvent handles a cgroup tracing event
