@@ -14,11 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
-// populateStatus populates the status stats
-func populateStatus(registry remoteagentregistry.Component, stats map[string]interface{}) {
-	stats["registeredAgents"] = registry.GetRegisteredAgents()
-	stats["registeredAgentStatuses"] = registry.GetRegisteredAgentStatuses()
-}
+const (
+	registeredAgentsKey        = "registeredAgents"
+	registeredAgentStatusesKey = "registeredAgentStatuses"
+)
 
 //go:embed status_templates
 var templatesFS embed.FS
@@ -33,14 +32,6 @@ func GetProvider(registry remoteagentregistry.Component) status.Provider {
 	return Provider{registry: registry}
 }
 
-func (p Provider) getStatusInfo() map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	populateStatus(p.registry, stats)
-
-	return stats
-}
-
 // Name returns the name
 func (p Provider) Name() string {
 	return "Remote Agents"
@@ -53,17 +44,26 @@ func (p Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(p.registry, stats)
+	stats[registeredAgentsKey] = p.registry.GetRegisteredAgents()
+	stats[registeredAgentStatusesKey] = p.registry.GetRegisteredJsonAgentStatuses()
 
 	return nil
 }
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "remote_agents.tmpl", buffer, p.getStatusInfo())
+	stats := make(map[string]interface{})
+	stats[registeredAgentsKey] = p.registry.GetRegisteredAgents()
+	stats[registeredAgentStatusesKey] = p.registry.GetRegisteredTextAgentStatuses()
+
+	return status.RenderText(templatesFS, "remote_agents.tmpl", buffer, stats)
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "remote_agents_html.tmpl", buffer, p.getStatusInfo())
+	stats := make(map[string]interface{})
+	stats[registeredAgentsKey] = p.registry.GetRegisteredAgents()
+	stats[registeredAgentStatusesKey] = p.registry.GetRegisteredHtmlAgentStatuses()
+
+	return status.RenderHTML(templatesFS, "remote_agents_html.tmpl", buffer, stats)
 }

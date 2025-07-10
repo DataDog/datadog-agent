@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -101,7 +102,7 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 	component := provides.Comp
 
 	remoteAgentServer := &testRemoteAgentServer{
-		StatusMain: map[string]string{
+		StatusMain: map[string]interface{}{
 			"test_key": "test_value",
 		},
 	}
@@ -119,7 +120,7 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 	_, err := component.RegisterRemoteAgent(registrationData)
 	require.NoError(t, err)
 
-	statuses := component.GetRegisteredAgentStatuses()
+	statuses := component.GetRegisteredJsonAgentStatuses()
 	require.Len(t, statuses, 1)
 	require.Equal(t, "test-agent", statuses[0].AgentID)
 	require.Equal(t, "Test Agent", statuses[0].DisplayName)
@@ -225,7 +226,7 @@ func TestStatusProvider(t *testing.T) {
 	statusProvider := provides.Status
 
 	remoteAgentServer := &testRemoteAgentServer{
-		StatusMain: map[string]string{
+		StatusMain: map[string]interface{}{
 			"test_key": "test_value",
 		},
 	}
@@ -256,7 +257,7 @@ func TestStatusProvider(t *testing.T) {
 	require.Len(t, registeredAgents, 1)
 	require.Equal(t, "Test Agent", registeredAgents[0].DisplayName)
 
-	registeredAgentStatuses, ok := statusData["registeredAgentStatuses"].([]*remoteagent.StatusData)
+	registeredAgentStatuses, ok := statusData["registeredAgentStatuses"].([]*remoteagent.StatusData[map[string]interface{}])
 	if !ok {
 		t.Fatalf("registeredAgentStatuses is not a slice of StatusData")
 	}
@@ -297,25 +298,33 @@ func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides
 }
 
 type testRemoteAgentServer struct {
-	StatusMain  map[string]string
-	StatusNamed map[string]map[string]string
+	StatusMain  map[string]interface{}
+	StatusNamed map[string]map[string]interface{}
 	FlareFiles  map[string][]byte
 	PromText    string
 	pbgo.UnimplementedRemoteAgentServer
 }
 
-func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {
-	namedSections := make(map[string]*pbgo.StatusSection)
+func (t *testRemoteAgentServer) GetJsonStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetJsonStatusDetailsResponse, error) {
+	namedSections := make(map[string]*structpb.Struct)
 	for name, fields := range t.StatusNamed {
-		namedSections[name] = &pbgo.StatusSection{
-			Fields: fields,
+		// Convert the map to a protobuf struct
+		pbJson, err := structpb.NewStruct(fields)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert fields to struct for section %s: %w", name, err)
 		}
+
+		namedSections[name] = pbJson
 	}
 
-	return &pbgo.GetStatusDetailsResponse{
-		MainSection: &pbgo.StatusSection{
-			Fields: t.StatusMain,
-		},
+	// Convert the main section to a protobuf struct
+	pbJson, err := structpb.NewStruct(t.StatusMain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert status main section to struct: %w", err)
+	}
+
+	return &pbgo.GetJsonStatusDetailsResponse{
+		MainSection:   pbJson,
 		NamedSections: namedSections,
 	}, nil
 }

@@ -61,8 +61,12 @@ service AgentSecure {
 
 // Service exposed by remote agents to allow querying by the Core Agent.
 service RemoteAgent {
-  // Gets the status details of a remote agent.
-  rpc GetStatusDetails(datadog.remoteagent.GetStatusDetailsRequest) returns (datadog.remoteagent.GetStatusDetailsResponse);
+  // Gets the status details of a remote agent formated as JSON.
+  rpc GetJsonStatusDetails(datadog.remoteagent.GetStatusDetailsRequest) returns (datadog.remoteagent.GetJsonStatusDetailsResponse);
+  // Gets the status details of a remote agent formated as text.
+  rpc GetTextStatusDetails(datadog.remoteagent.GetStatusDetailsRequest) returns (datadog.remoteagent.GetTextStatusDetailsResponse);
+  // Gets the status details of a remote agent formated as HTML.
+  rpc GetHtmlStatusDetails(datadog.remoteagent.GetStatusDetailsRequest) returns (datadog.remoteagent.GetHtmlStatusDetailsResponse);
 
   // Gets all relevant flare files of a remote agent.
   rpc GetFlareFiles(datadog.remoteagent.GetFlareFilesRequest) returns (datadog.remoteagent.GetFlareFilesResponse);

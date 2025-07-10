@@ -11,16 +11,13 @@ type RegisteredAgent struct {
 	LastSeenUnix int64
 }
 
-// StatusSection is a map of key-value pairs that represent a section of the status data
-type StatusSection map[string]string
-
 // StatusData contains the status data for a remote agent
-type StatusData struct {
+type StatusData[T any] struct {
 	AgentID       string
 	DisplayName   string
 	FailureReason string
-	MainSection   StatusSection
-	NamedSections map[string]StatusSection
+	MainSection   T
+	NamedSections map[string]T
 }
 
 // FlareData contains the flare data for a remote agent
