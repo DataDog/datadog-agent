@@ -32,7 +32,7 @@
 
 - (BOOL)checkLocationPermissions {
     if (@available(macOS 11.0, *)) {
-        CLAuthorizationStatus status = [self.locationManager authorizationStatus];
+        CLAuthorizationStatus status = self.locationManager.authorizationStatus;
         return (status == kCLAuthorizationStatusAuthorized ||
                              status == kCLAuthorizationStatusAuthorizedAlways);
     }
