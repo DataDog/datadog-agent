@@ -292,7 +292,7 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 // Additional initialisation steps, such as starting an event consumer,
 // should be performed here.
 func (p *Protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStream,
 		p.mgr,
 		p.processHTTP2,
