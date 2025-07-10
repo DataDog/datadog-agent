@@ -45,6 +45,8 @@ type UnixTransparentProxyServer struct {
 	useControl bool
 	// useSplice indicates whether splice(2) should be used to transfer data between the sockets
 	useSplice bool
+	// useIPv6 indicates whether the proxy should use IPv6 to connect to the remote address.
+	useIPv6 bool
 	// isReady is a flag indicating whether the server is ready to accept connections.
 	isReady atomic.Bool
 	// wg is a wait group used to wait for the server to stop.
@@ -54,13 +56,14 @@ type UnixTransparentProxyServer struct {
 }
 
 // NewUnixTransparentProxyServer returns a new instance of a UnixTransparentProxyServer.
-func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS, useControl bool, useSplice bool) *UnixTransparentProxyServer {
+func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS, useControl, useSplice, useIPv6 bool) *UnixTransparentProxyServer {
 	return &UnixTransparentProxyServer{
 		unixPath:   unixPath,
 		remoteAddr: remoteAddr,
 		useTLS:     useTLS,
 		useControl: useControl,
 		useSplice:  useSplice,
+		useIPv6:    useIPv6,
 	}
 }
 
@@ -176,15 +179,19 @@ func copyWithoutSplice(dst io.Writer, src io.Reader, buf []byte) (written int64,
 func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	defer unixSocketConn.Close()
 
+	network := "tcp4"
+	if p.useIPv6 {
+		network = "tcp6"
+	}
 	var remoteConn net.Conn
 	var err error
 	if p.useTLS {
 		timedContext, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
 		dialer := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true}}
-		remoteConn, err = dialer.DialContext(timedContext, "tcp", p.remoteAddr)
+		remoteConn, err = dialer.DialContext(timedContext, network, p.remoteAddr)
 		cancel()
 	} else {
-		remoteConn, err = net.DialTimeout("tcp", p.remoteAddr, defaultDialTimeout)
+		remoteConn, err = net.DialTimeout(network, p.remoteAddr, defaultDialTimeout)
 	}
 	if err != nil {
 		log.Errorf("failed to dial remote: %s", err)

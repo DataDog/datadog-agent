@@ -241,6 +241,7 @@ func (c *client) Reset() {
 	}
 
 	c.closed.conns = c.closed.conns[:0]
+	c.closed.emptyStart = 0
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.usmDelta.Reset()

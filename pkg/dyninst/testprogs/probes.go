@@ -9,13 +9,16 @@ package testprogs
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 type probeYaml struct {
@@ -23,32 +26,50 @@ type probeYaml struct {
 	Probes []map[string]any `yaml:"probes"`
 }
 
-// GetProbeCfgs returns the probe configurations for binary of a given name.
-func GetProbeCfgs(t *testing.T, name string) []config.Probe {
+// MustGetProbeDefinitions calls GetProbeDefinitions and checks for an error.
+func MustGetProbeDefinitions(t *testing.T, name string) []ir.ProbeDefinition {
+	probes, err := GetProbeDefinitions(name)
+	require.NoError(t, err)
+	return probes
+}
+
+// GetProbeDefinitions returns the probe definitions for binary of a given name.
+func GetProbeDefinitions(name string) ([]ir.ProbeDefinition, error) {
+	probes, err := getProbeDefinitions(name)
+	if err != nil {
+		return nil, fmt.Errorf("get probe definitions for %s: %w", name, err)
+	}
+	return probes, nil
+}
+
+func getProbeDefinitions(name string) ([]ir.ProbeDefinition, error) {
 	state, err := getState()
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	yamlData, err := os.ReadFile(path.Join(state.probesCfgsDir, name+".yaml"))
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	var probeYaml probeYaml
 	err = yaml.Unmarshal(yamlData, &probeYaml)
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
-	var probesCfgs []config.Probe
+	var probes []ir.ProbeDefinition
 	for _, probe := range probeYaml.Probes {
 		probeBytes, err := json.Marshal(probe)
 		if err != nil {
-			t.Fatalf("testprogs: %v", err)
+			return nil, err
 		}
-		probeCfg, err := config.UnmarshalProbe(probeBytes)
+		probe, err := rcjson.UnmarshalProbe(probeBytes)
 		if err != nil {
-			t.Fatalf("testprogs: %v", err)
+			return nil, err
 		}
-		probesCfgs = append(probesCfgs, probeCfg)
+		if err := rcjson.Validate(probe); err != nil {
+			return nil, fmt.Errorf("validate probe %s: %w", probe.GetID(), err)
+		}
+		probes = append(probes, probe)
 	}
-	return probesCfgs
+	return probes, nil
 }

@@ -16,20 +16,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-	"google.golang.org/grpc"
-
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"google.golang.org/grpc"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -111,10 +111,12 @@ func TestResolveHostname(t *testing.T) {
 		name        string
 		agentFlavor string
 		ddAgentBin  string
+		features    []env.Feature
 		// hostname specified in the config
 		configHostname   string
 		mockHostname     string
 		expectedHostname string
+		fargateHostname  string
 	}{
 		{
 			name:             "valid hostname specified in config",
@@ -131,10 +133,31 @@ func TestResolveHostname(t *testing.T) {
 			expectedHostname: osHostname,
 		},
 		{
+			name:             "process-agent running in Fargate env",
+			agentFlavor:      flavor.ProcessAgent,
+			features:         []env.Feature{env.ECSFargate},
+			fargateHostname:  "fargate_task:arn:unit-test",
+			expectedHostname: "fargate_task:arn:unit-test",
+		},
+		{
 			name:             "running in core agent so use standard hostname lookup",
 			agentFlavor:      flavor.DefaultAgent,
 			mockHostname:     "core-agent-hostname",
 			expectedHostname: "core-agent-hostname",
+		},
+		{
+			name:             "running in core agent in a Fargate env with a user defined hostname",
+			agentFlavor:      flavor.DefaultAgent,
+			features:         []env.Feature{env.ECSFargate},
+			configHostname:   "unit-test-hostname",
+			expectedHostname: "unit-test-hostname",
+		},
+		{
+			name:             "running in core agent in a Fargate env",
+			agentFlavor:      flavor.DefaultAgent,
+			features:         []env.Feature{env.ECSFargate},
+			fargateHostname:  "fargate_task:arn:unit-test",
+			expectedHostname: "fargate_task:arn:unit-test",
 		},
 		{
 			name:             "running in iot agent so use standard hostname lookup",
@@ -159,6 +182,18 @@ func TestResolveHostname(t *testing.T) {
 			if tc.ddAgentBin != "" {
 				cfg.SetWithoutSource("process_config.dd_agent_bin", tc.ddAgentBin)
 			}
+
+			if tc.fargateHostname != "" {
+				originalFn := getFargateHost
+				getFargateHost = func(_ context.Context) (string, error) {
+					return tc.fargateHostname, nil
+				}
+				defer func() {
+					getFargateHost = originalFn
+				}()
+			}
+
+			env.SetFeatures(t, tc.features...)
 
 			hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
 				fx.Options(

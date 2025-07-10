@@ -29,13 +29,18 @@ const (
 	defaultHTTPScheme  = "https"
 )
 
+// Useful for mocking
+var timeNow = time.Now
+
 // Client is an HTTP Versa client.
 type Client struct {
-	httpClient *http.Client
-	endpoint   string
-	// TODO: add back with OAuth
-	// token               string
-	// tokenExpiry         time.Time
+	httpClient        *http.Client
+	directorEndpoint  string
+	directorAPIPort   int
+	analyticsEndpoint string
+	// TODO: replace with OAuth
+	token               string
+	tokenExpiry         time.Time
 	username            string
 	password            string
 	authenticationMutex *sync.Mutex
@@ -49,8 +54,8 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
-	err := validateParams(endpoint, username, password)
+func NewClient(directorEndpoint, analyticsEndpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+	err := validateParams(directorEndpoint, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -70,14 +75,21 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 		scheme = "http"
 	}
 
-	endpointURL := url.URL{
+	directorEndpointURL := url.URL{
 		Scheme: scheme,
-		Host:   endpoint,
+		Host:   directorEndpoint,
+	}
+
+	analyticsEndpointURL := url.URL{
+		Scheme: scheme,
+		Host:   analyticsEndpoint,
 	}
 
 	client := &Client{
 		httpClient:          httpClient,
-		endpoint:            endpointURL.String(),
+		directorEndpoint:    directorEndpointURL.String(),
+		directorAPIPort:     9182, // TODO: make configurable based on auth type
+		analyticsEndpoint:   analyticsEndpointURL.String(),
 		username:            username,
 		password:            password,
 		authenticationMutex: &sync.Mutex{},
@@ -94,9 +106,12 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	return client, nil
 }
 
-func validateParams(endpoint, username, password string) error {
-	if endpoint == "" {
-		return fmt.Errorf("invalid endpoint")
+func validateParams(directorEndpoint, analyticsEndpoint, username, password string) error {
+	if directorEndpoint == "" {
+		return fmt.Errorf("invalid director endpoint")
+	}
+	if analyticsEndpoint == "" {
+		return fmt.Errorf("invalid analytics endpoint")
 	}
 	if username == "" {
 		return fmt.Errorf("invalid username")
@@ -169,7 +184,7 @@ func WithLookback(lookback time.Duration) ClientOptions {
 // GetOrganizations retrieves a list of organizations
 func (client *Client) GetOrganizations() ([]Organization, error) {
 	var organizations []Organization
-	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil)
+	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organizations: %v", err)
 	}
@@ -183,7 +198,7 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 			"limit":  client.maxCount,
 			"offset": strconv.Itoa(i * maxCount),
 		}
-		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params)
+		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get organizations: %v", err)
 		}
@@ -209,7 +224,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	}
 
 	// Get the total count of appliances
-	totalCount, err := get[int](client, uri, params)
+	totalCount, err := get[int](client, uri, params, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 	}
@@ -223,7 +238,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
 		params["offset"] = fmt.Sprintf("%d", i*maxCount)
-		resp, err := get[[]Appliance](client, uri, params)
+		resp, err := get[[]Appliance](client, uri, params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 		}
@@ -238,7 +253,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
-	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil)
+	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get director status: %v", err)
 	}
@@ -303,7 +318,7 @@ func (client *Client) GetSLAMetrics() ([]SLAMetrics, error) {
 		"pduLossRatio",
 	})
 
-	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil)
+	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
 	}

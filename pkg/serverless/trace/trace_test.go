@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -72,6 +73,7 @@ func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 
 	lambdaSpanChan := make(chan *pb.Span)
 
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv("DD_API_KEY", "x")
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		Enabled:         true,
@@ -217,5 +219,49 @@ func TestGetDDOriginCloudServices(t *testing.T) {
 		t.Setenv(envVar, "myService")
 		assert.Equal(t, service, getDDOrigin())
 		os.Unsetenv(envVar)
+	}
+}
+
+func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		functionTags string
+	}{
+		{
+			name:         "with function tags",
+			functionTags: "env:production,service:my-service,version:1.0",
+		},
+		{
+			name:         "with empty function tags",
+			functionTags: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupTraceAgentTest(t)
+
+			lambdaSpanChan := make(chan *pb.Span)
+
+			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
+				Enabled:         true,
+				LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
+				LambdaSpanChan:  lambdaSpanChan,
+				ColdStartSpanID: random.Random.Uint64(),
+				FunctionTags:    tt.functionTags,
+			})
+			defer agent.Stop()
+
+			assert.NotNil(t, agent)
+			assert.IsType(t, &serverlessTraceAgent{}, agent)
+
+			// Access the underlying agent to check TracerPayloadModifier
+			serverlessAgent := agent.(*serverlessTraceAgent)
+			assert.NotNil(t, serverlessAgent.ta.TracerPayloadModifier)
+
+			// Test that the modifier has the correct function tags
+			modifier := serverlessAgent.ta.TracerPayloadModifier.(*tracerPayloadModifier)
+			assert.Equal(t, tt.functionTags, modifier.functionTags)
+		})
 	}
 }

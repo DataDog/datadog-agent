@@ -1,0 +1,36 @@
+config:
+  max_items: 10
+  max_size_bytes: 50
+  idle_flush_ms: 100
+  max_buffer_ms: 200
+events:
+  - !enqueue {value: "p"}
+  - !enqueue {value: "q"}
+  - !stop {} 
+---
+now: 0s
+next_flush: 200ms
+event: !enqueue {value: "p"}
+effects:
+  - !reset-timer {ts: 200ms (+200ms)}
+state:
+  batch_len: 1
+  current_size: 3
+  timer_set: true
+---
+now: 0s
+next_flush: 200ms
+event: !enqueue {value: "q"}
+state:
+  batch_len: 2
+  current_size: 6
+  timer_set: true
+---
+now: 0s
+event: !stop {}
+effects:
+  - !reset-timer {}
+state:
+  batch_len: 2
+  current_size: 6
+  timer_set: false

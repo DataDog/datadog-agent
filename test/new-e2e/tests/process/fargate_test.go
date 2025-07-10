@@ -6,6 +6,7 @@
 package process
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -46,8 +47,13 @@ func getFargateProvisioner(configMap runner.ConfigMap) provisioners.TypedProvisi
 func TestECSFargateTestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSFargateSuite{}
+
+	extraConfig := runner.ConfigMap{
+		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=false"},
+	}
+
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		getFargateProvisioner(nil),
+		getFargateProvisioner(extraConfig),
 	),
 	}
 
@@ -57,21 +63,15 @@ func TestECSFargateTestSuite(t *testing.T) {
 func (s *ECSFargateSuite) TestProcessCheck() {
 	t := s.T()
 
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		assertProcessCollectedNew(c, payloads, false, "process-agent")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertFargateHostname(t, payloads)
+	}, 2*time.Minute, 10*time.Second)
 }
 
 type ECSFargateCoreAgentSuite struct {
@@ -96,20 +96,20 @@ func TestECSFargateCoreAgentTestSuite(t *testing.T) {
 func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		requireProcessNotCollected(c, payloads, "process-agent")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertFargateHostname(t, payloads)
+	}, 2*time.Minute, 10*time.Second)
+}
 
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	requireProcessNotCollected(t, payloads, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
+func assertFargateHostname(t assert.TestingT, payloads []*aggregator.ProcessPayload) {
+	for _, payload := range payloads {
+		assert.Truef(t, strings.HasPrefix(payload.HostName, "fargate_task:"),
+			"hostname expected to start with 'fargate_task:', but got '%s'", payload.HostName)
+	}
 }

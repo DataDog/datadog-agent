@@ -8,9 +8,13 @@
 // Package hostnameutils holds utils/hostname related files
 package hostnameutils
 
-import "context"
+import (
+	"context"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+)
 
 // getHostnameFromAgent returns a fake hostname for functional tests.
-func getHostnameFromAgent(ctx context.Context) (string, error) {
+func getHostnameFromAgent(ctx context.Context, _ ipc.Component) (string, error) {
 	return "functional_tests_host", nil
 }

@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	pkghtmltemplate "github.com/DataDog/datadog-agent/pkg/template/html"
 	pkgtexttemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 )
@@ -32,13 +31,6 @@ var (
 	htmlFuncMap  pkghtmltemplate.FuncMap
 	textFuncOnce sync.Once
 	textFuncMap  pkgtexttemplate.FuncMap
-)
-
-var dceRenderErrors = telemetry.NewCounter(
-	"status",
-	"dce_render_errors",
-	[]string{"kind", "template_name"},
-	"Number of errors encountered while rendering a template",
 )
 
 // HTMLFmap return a map of utility functions for HTML templating
@@ -111,13 +103,7 @@ func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any
 	}
 
 	t := pkghtmltemplate.Must(pkghtmltemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
-	err := t.Execute(buffer, data)
-	if err != nil {
-		dceRenderErrors.Inc("html", template)
-		return err
-	}
-
-	return nil
+	return t.Execute(buffer, data)
 }
 
 // RenderText reads, parse and execute template from embed.FS
@@ -128,13 +114,7 @@ func RenderText(templateFS embed.FS, template string, buffer io.Writer, data any
 	}
 
 	t := pkgtexttemplate.Must(pkgtexttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
-	err := t.Execute(buffer, data)
-	if err != nil {
-		dceRenderErrors.Inc("text", template)
-		return err
-	}
-
-	return nil
+	return t.Execute(buffer, data)
 }
 
 func doNotEscape(value string) pkghtmltemplate.HTML {

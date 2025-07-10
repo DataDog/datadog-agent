@@ -42,7 +42,6 @@ import (
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -2258,10 +2257,12 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
 
 	handler := config.GetConfigHandler().(http.HandlerFunc)
+	ipcComp := ipcmock.New(t)
 
 	// Refuse non Get query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
@@ -2281,7 +2282,7 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	// Accept valid auth token and returning a valid YAML conf
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -2295,10 +2296,12 @@ func TestSetConfigHandler(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
 
 	handler := config.SetHandler().ServeHTTP
+	ipcComp := ipcmock.New(t)
 
 	// Refuse non POST query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
@@ -2318,7 +2321,7 @@ func TestSetConfigHandler(t *testing.T) {
 	// Accept valid auth token return OK
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("POST", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 }

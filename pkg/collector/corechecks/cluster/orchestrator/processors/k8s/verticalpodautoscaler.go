@@ -60,6 +60,7 @@ func (h *VerticalPodAutoscalerHandlers) BuildMessageBody(ctx processors.Processo
 		GroupSize:              int32(groupSize),
 		VerticalPodAutoscalers: models,
 		Tags:                   util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+		AgentVersion:           ctx.GetAgentVersion(),
 	}
 }
 

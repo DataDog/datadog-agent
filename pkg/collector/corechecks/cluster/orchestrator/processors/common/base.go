@@ -54,13 +54,14 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 	}
 
 	cm := &model.CollectorManifest{
-		ClusterName: pctx.Cfg.KubeClusterName,
-		ClusterId:   pctx.ClusterID,
-		Manifests:   manifests,
-		GroupId:     pctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-		Tags:        pctx.Cfg.ExtraTags,
-		HostName:    pctx.HostName,
+		ClusterName:  pctx.Cfg.KubeClusterName,
+		ClusterId:    pctx.ClusterID,
+		Manifests:    manifests,
+		GroupId:      pctx.MsgGroupID,
+		GroupSize:    int32(groupSize),
+		Tags:         pctx.Cfg.ExtraTags,
+		HostName:     pctx.HostName,
+		AgentVersion: ctx.GetAgentVersion(),
 	}
 	return cm
 }

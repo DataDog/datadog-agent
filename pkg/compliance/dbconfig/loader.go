@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -26,14 +27,10 @@ import (
 const (
 	maxFileSize = 1 * 1024 * 1024
 
-	postgresqlResourceType = "db_postgresql"
+	cassandraLogbackPath = "/etc/cassandra/logback.xml"
+	cassandraConfigGlob  = "/etc/cassandra/cassandra.y?ml"
 
-	cassandraResourceType = "db_cassandra"
-	cassandraLogbackPath  = "/etc/cassandra/logback.xml"
-	cassandraConfigGlob   = "/etc/cassandra/cassandra.y?ml"
-
-	mongoDBResourceType = "db_mongodb"
-	mongoDBConfigPath   = "/etc/mongod.conf"
+	mongoDBConfigPath = "/etc/mongod.conf"
 )
 
 func relPath(hostroot, configPath string) string {
@@ -63,17 +60,17 @@ func readFileLimit(name string) ([]byte, error) {
 
 // GetProcResourceType returns the type of database resource associated with
 // the given process.
-func GetProcResourceType(proc *process.Process) (string, bool) {
+func GetProcResourceType(proc *process.Process) (types.ResourceType, bool) {
 	name, _ := proc.Name()
 	switch name {
 	case "postgres":
-		return postgresqlResourceType, true
+		return types.ResourceTypeDbPostgresql, true
 	case "mongod":
-		return mongoDBResourceType, true
+		return types.ResourceTypeDbMongodb, true
 	case "java":
 		cmdline, _ := proc.CmdlineSlice()
 		if len(cmdline) > 0 && cmdline[len(cmdline)-1] == "org.apache.cassandra.service.CassandraDaemon" {
-			return cassandraResourceType, true
+			return types.ResourceTypeDbCassandra, true
 		}
 	}
 	return "", false
@@ -81,18 +78,18 @@ func GetProcResourceType(proc *process.Process) (string, bool) {
 
 // LoadConfiguration loads and returns an optional DBResource associated with the
 // given process PID.
-func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Process) (string, *DBConfig, bool) {
+func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Process) (types.ResourceType, *DBConfig, bool) {
 	resourceType, ok := GetProcResourceType(proc)
 	if !ok {
 		return "", nil, false
 	}
 	var conf *DBConfig
 	switch resourceType {
-	case postgresqlResourceType:
+	case types.ResourceTypeDbPostgresql:
 		conf, ok = LoadPostgreSQLConfig(ctx, rootPath, proc)
-	case mongoDBResourceType:
+	case types.ResourceTypeDbMongodb:
 		conf, ok = LoadMongoDBConfig(ctx, rootPath, proc)
-	case cassandraResourceType:
+	case types.ResourceTypeDbCassandra:
 		conf, ok = LoadCassandraConfig(ctx, rootPath, proc)
 	default:
 		ok = false
@@ -124,11 +121,11 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 
 	var conf *DBConfig
 	switch resourceType {
-	case postgresqlResourceType:
+	case types.ResourceTypeDbPostgresql:
 		conf, ok = LoadPostgreSQLConfig(ctx, hostroot, proc)
-	case mongoDBResourceType:
+	case types.ResourceTypeDbMongodb:
 		conf, ok = LoadMongoDBConfig(ctx, hostroot, proc)
-	case cassandraResourceType:
+	case types.ResourceTypeDbCassandra:
 		conf, ok = LoadCassandraConfig(ctx, hostroot, proc)
 	default:
 		ok = false

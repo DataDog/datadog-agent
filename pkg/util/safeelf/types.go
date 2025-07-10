@@ -44,3 +44,5 @@ const PF_W = elf.PF_W
 
 const STB_GLOBAL = elf.STB_GLOBAL
 const STT_FUNC = elf.STT_FUNC
+
+const SHF_COMPRESSED = elf.SHF_COMPRESSED

@@ -55,6 +55,7 @@ type CollectorMetadata struct {
 	LabelsAsTags                         map[string]string
 	AnnotationsAsTags                    map[string]string
 	SupportsTerminatedResourceCollection bool
+	IsGenericCollector                   bool
 }
 
 // CollectorTags returns static tags to be added to all resources collected by the collector.
@@ -100,6 +101,7 @@ type CollectorRunConfig struct {
 	Config              *config.OrchestratorConfig
 	MsgGroupRef         *atomic.Int32
 	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
 }
 
 // CollectorRunResult contains information about what the collector has done.

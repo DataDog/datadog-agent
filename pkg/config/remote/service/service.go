@@ -861,6 +861,8 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		response := make(chan struct{})
 		bypassStart := time.Now()
 
+		log.Debugf("Making bypass request for client %s", request.Client.GetId())
+
 		// Timeout in case the previous request is still pending
 		// and we can't request another one
 		select {
@@ -876,6 +878,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		select {
 		case <-response:
 		case <-time.After(partialNewClientBlockTTL):
+			log.Debugf("Bypass request timed out for client %s", request.Client.GetId())
 			s.telemetryReporter.IncTimeout()
 		}
 
@@ -983,8 +986,8 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
-	return func(setting string, _, newvalue any) {
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any, uint64) {
+	return func(setting string, _, newvalue any, _ uint64) {
 		if setting != "api_key" {
 			return
 		}

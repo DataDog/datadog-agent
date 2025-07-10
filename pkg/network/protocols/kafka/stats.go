@@ -128,6 +128,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		if err := stats.Latencies.MergeWith(newRequests.Latencies); err != nil {
 			log.Debugf("error merging kafka transactions: %v", err)
 		}
+		stats.StaticTags |= newRequests.StaticTags
 		stats.Count += newRequests.Count
 	}
 }

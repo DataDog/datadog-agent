@@ -1,0 +1,21 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  datadog:
+    proxy_url: "http://proxyurl.example.com:3128"
+    api:
+      key: KEY
+      site: "us3.datadoghq.com"
+processors:
+  batch:
+    timeout: 10s
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
+

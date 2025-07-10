@@ -19,8 +19,6 @@ import (
 	"time"
 
 	winio "github.com/Microsoft/go-winio"
-
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 var (
@@ -35,11 +33,6 @@ func printUsage() {
 func exitWithError(err error) {
 	fmt.Printf("\nError: %s\n", err.Error())
 	os.Exit(1)
-}
-
-func exitWithErrorCode(err int) {
-	fmt.Printf("Error: %d\n", err)
-	os.Exit(err)
 }
 
 func fprintf(format string, a ...interface{}) {
@@ -105,20 +98,9 @@ func main() {
 		},
 	}
 
-	fprintf("Setting up options. ")
-
-	options := &util.ReqOptions{Conn: 1}
-	if options.Authtoken == "" {
-		options.Authtoken = util.GetAuthToken()
-	}
-
-	if options.Ctx == nil {
-		options.Ctx = context.Background()
-	}
-
 	fprintf("Creating request.\n")
 
-	req, err := http.NewRequestWithContext(options.Ctx, *method, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), *method, url, nil)
 	if err != nil {
 		exitWithError(err)
 	}
@@ -126,9 +108,7 @@ func main() {
 	// Set required headers.
 	req.Header.Set("User-Agent", "namedpipecmd/1.1")
 	req.Header.Set("Accept-Encoding", "gzip")
-	if options.Conn == 1 {
-		req.Close = true
-	}
+	req.Close = true
 
 	fprintf("Sending HTTP request...\n")
 

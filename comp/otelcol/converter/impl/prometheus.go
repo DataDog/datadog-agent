@@ -24,6 +24,7 @@ var (
 					"fallback_scrape_protocol":      "PrometheusText0.0.4",
 					"job_name":                      "datadog-agent",
 					"metric_name_validation_scheme": "legacy",
+					"metric_name_escaping_scheme":   "underscores",
 					"scrape_interval":               "60s",
 					"scrape_protocols":              []any{"PrometheusText0.0.4"},
 					"static_configs": []any{

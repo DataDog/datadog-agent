@@ -109,6 +109,12 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		"version": secrets.PayloadVersion,
 		"secrets": secretsHandle,
 	}
+	if r.backendType != "" {
+		payload["type"] = r.backendType
+	}
+	if len(r.backendConfig) > 0 {
+		payload["config"] = r.backendConfig
+	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)

@@ -57,11 +57,10 @@ func TestCreateRawUDPBuffer(t *testing.T) {
 	// based on bytes 26-27 of expectedPktBytes
 	expectedChecksum := uint16(0xdba6)
 
-	ipHeader, pktBytes, actualChecksum, headerLength, err := udp.createRawUDPBuffer(udp.srcIP, udp.srcPort, udp.Target, udp.TargetPort, ttl)
+	ipHeaderID, pktBytes, actualChecksum, err := udp.createRawUDPBuffer(udp.srcIP, udp.srcPort, udp.Target, udp.TargetPort, ttl)
 
 	require.NoError(t, err)
-	assert.Equal(t, expectedIPHeader, ipHeader)
-	assert.Equal(t, 20, headerLength)
+	assert.Equal(t, uint16(expectedIPHeader.ID), ipHeaderID)
 	assert.Equal(t, expectedPktBytes, pktBytes)
 	assert.Equal(t, expectedChecksum, actualChecksum)
 }

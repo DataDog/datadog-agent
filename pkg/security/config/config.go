@@ -424,6 +424,9 @@ type RuntimeSecurityConfig struct {
 
 	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
 	SendEventFromSystemProbe bool
+
+	// FileMetadataResolverEnabled defines if the file metadata is enabled
+	FileMetadataResolverEnabled bool
 }
 
 // Config defines a security config
@@ -616,6 +619,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// direct sender
 		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
+
+		// FileMetadataResolverEnabled
+		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),
 	}
 
 	compilationFlags := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.kernel_compilation_flags")

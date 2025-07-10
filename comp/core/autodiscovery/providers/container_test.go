@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -39,7 +40,7 @@ func TestProcessEvents(t *testing.T) {
 	cp := &ContainerConfigProvider{
 		workloadmetaStore: store,
 		configCache:       make(map[string]map[string]integration.Config),
-		configErrors:      make(map[string]ErrorMsgSet),
+		configErrors:      make(map[string]types.ErrorMsgSet),
 		telemetryStore:    telemetryStore,
 	}
 
@@ -107,7 +108,7 @@ func TestGenerateConfig(t *testing.T) {
 		name                string
 		entity              workloadmeta.Entity
 		expectedConfigs     []integration.Config
-		expectedErr         ErrorMsgSet
+		expectedErr         types.ErrorMsgSet
 		containerCollectAll bool
 	}{
 		{
@@ -354,7 +355,7 @@ func TestGenerateConfig(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: ErrorMsgSet{
+			expectedErr: types.ErrorMsgSet{
 				"annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier [apache nginx]":  {},
 				"annotation ad.datadoghq.com/nonmatching.init_configs is invalid: nonmatching doesn't match a container identifier [apache nginx]": {},
 				"annotation ad.datadoghq.com/nonmatching.instances is invalid: nonmatching doesn't match a container identifier [apache nginx]":    {},
@@ -387,7 +388,7 @@ func TestGenerateConfig(t *testing.T) {
 					Source:        "container:docker://4ac8352d70bf1",
 				},
 			},
-			expectedErr: ErrorMsgSet{
+			expectedErr: types.ErrorMsgSet{
 				"could not extract logs config: in logs: invalid character '\"' after object key:value pair": {},
 			},
 		},
@@ -426,7 +427,7 @@ func TestGenerateConfig(t *testing.T) {
 			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {
-				for _, c := range pod.GetAllContainers() {
+				for _, c := range pod.GetContainersAndInitContainers() {
 					store.Set(&workloadmeta.Container{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindContainer,
@@ -440,7 +441,7 @@ func TestGenerateConfig(t *testing.T) {
 			cp := &ContainerConfigProvider{
 				workloadmetaStore: store,
 				configCache:       make(map[string]map[string]integration.Config),
-				configErrors:      make(map[string]ErrorMsgSet),
+				configErrors:      make(map[string]types.ErrorMsgSet),
 			}
 
 			configs, err := cp.generateConfig(tt.entity)

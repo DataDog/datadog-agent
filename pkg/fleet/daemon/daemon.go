@@ -270,6 +270,12 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 func (d *daemonImpl) Start(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+
+	if !d.env.RemoteUpdates {
+		// If remote updates are disabled, we don't need to start the daemon
+		return nil
+	}
+
 	go func() {
 		gcTicker := time.NewTicker(gcInterval)
 		defer gcTicker.Stop()
@@ -306,6 +312,12 @@ func (d *daemonImpl) Start(_ context.Context) error {
 func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+
+	if !d.env.RemoteUpdates {
+		// If remote updates are disabled, we don't need to stop the daemon as it was never started
+		return nil
+	}
+
 	d.rc.Close()
 	close(d.stopChan)
 	d.requestsWG.Wait()

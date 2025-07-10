@@ -149,5 +149,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
 
+	// CWS - File metadata
+	cfg.BindEnvAndSetDefault("runtime_security_config.file_metadata_resolver.enabled", false)
+
 	cfg.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }

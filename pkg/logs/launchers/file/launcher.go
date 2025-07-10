@@ -149,7 +149,7 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
-	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
+	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources, s.registry)
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
@@ -193,7 +193,6 @@ func (s *Launcher) scan() {
 			}
 		} else {
 			// Defer any files that are not tailed for the 2nd pass
-
 			continue
 		}
 
@@ -384,7 +383,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, capacityMonitor *metrics.CapacityMonitor) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
@@ -394,7 +393,8 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
 		Info:            tailerInfo,
 		TagAdder:        s.tagger,
-		PipelineMonitor: pipelineMonitor,
+		CapacityMonitor: capacityMonitor,
+		Registry:        s.registry,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -403,7 +403,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
-	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
+	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, s.registry)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

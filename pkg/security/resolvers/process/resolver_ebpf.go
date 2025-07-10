@@ -1528,13 +1528,16 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		return false
 	}
 
+	// Assume that the container runtime from the kernel side may be incorrect or missing
+	// In that case fallback to the userland container runtime.
+	if !cgroupContext.CGroupFlags.IsSystemd() && cgroupContext.CGroupID != "" {
+		pce.Process.ContainerID, cgroupContext.CGroupFlags = containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.ContainerID = pce.Process.ContainerID
+	}
+
 	pce.Process.CGroup = *cgroupContext
 	pce.CGroup = *cgroupContext
-	if cgroupContext.CGroupFlags.IsContainer() {
-		containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-		pce.ContainerID = containerID
-		pce.Process.ContainerID = containerID
-	}
+
 	return true
 }
 

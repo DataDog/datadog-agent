@@ -523,3 +523,10 @@ func (t *teeConfig) ExtraConfigFilesUsed() []string {
 	t.compareResult("", "ExtraConfigFilesUsed", base, compare)
 	return base
 }
+
+func (t *teeConfig) GetSequenceID() uint64 {
+	base := t.baseline.GetSequenceID()
+	compare := t.compare.GetSequenceID()
+	t.compareResult("", "GetSequenceID", base, compare)
+	return base
+}

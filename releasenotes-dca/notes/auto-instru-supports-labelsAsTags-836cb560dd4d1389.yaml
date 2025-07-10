@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The auto-instrumentation webhook supports labels and annotations as tags configuration.
+    If any of the label or annotation mappings for the incoming pod correspond to Universal
+    Service Tags (``service``, ``env``, or ``version``), the webhook will also add the corresponding
+    UST environment variable to the pod (``DD_SERVICE``, ``DD_ENV``, or ``DD_VERSION``).

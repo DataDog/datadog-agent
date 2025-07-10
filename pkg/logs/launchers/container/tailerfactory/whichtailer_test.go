@@ -17,30 +17,9 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 )
-
-// fakeRegistry implements auditor.Registry.
-type fakeRegistry struct {
-	t                  *testing.T
-	expectedRegistryID string
-	containerInReg     bool
-}
-
-// GetOffset implements auditor.Registry#GetOffset.
-func (r *fakeRegistry) GetOffset(identifier string) string {
-	require.Equal(r.t, r.expectedRegistryID, identifier)
-	if r.containerInReg {
-		return "from this time yesterday"
-	}
-	return ""
-}
-
-// GetTailingMode implements auditor.Registry#GetTailingMode.
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (r *fakeRegistry) GetTailingMode(identifier string) string {
-	panic("unused")
-}
 
 func TestWhichTailer(t *testing.T) {
 	ctrs := containersorpods.LogContainers
@@ -82,10 +61,11 @@ func TestWhichTailer(t *testing.T) {
 			cfg.SetWithoutSource("logs_config.k8s_container_use_kubelet_api", c.kcua)
 			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)
 
-			reg := &fakeRegistry{
-				t:                  t,
-				expectedRegistryID: fmt.Sprintf("%s:%s", runtime, identifier),
-				containerInReg:     c.containerInReg,
+			registryID := fmt.Sprintf("%s:%s", runtime, identifier)
+
+			reg := auditorMock.NewMockRegistry()
+			if c.containerInReg {
+				reg.StoredOffsets[registryID] = "from this time yesterday"
 			}
 
 			tf := &factory{

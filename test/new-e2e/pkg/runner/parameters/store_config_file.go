@@ -183,6 +183,9 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		if s.config.ConfigParams.Azure.Account != "" {
 			value = value + fmt.Sprintf("az/%s ", s.config.ConfigParams.Azure.Account)
 		}
+		if s.config.ConfigParams.GCP.Account != "" {
+			value = value + fmt.Sprintf("gcp/%s ", s.config.ConfigParams.GCP.Account)
+		}
 		value = strings.TrimSpace(value)
 
 	case VerifyCodeSignature:

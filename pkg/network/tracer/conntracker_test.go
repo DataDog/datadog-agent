@@ -294,3 +294,15 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
 }
+
+func TestCiliumConntrackerEnabledByDefault(t *testing.T) {
+	cfg := config.New()
+	assert.True(t, cfg.EnableCiliumLBConntracker)
+
+	// most unit tests environments don't have cilium enabled (including CI)
+	// so this should not load the cilium conntracker even if it enabled, without
+	// any error
+	clb, err := newCiliumLoadBalancerConntracker(cfg)
+	assert.NoError(t, err)
+	assert.Nil(t, clb)
+}

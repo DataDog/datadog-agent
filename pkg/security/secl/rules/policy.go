@@ -9,6 +9,7 @@ package rules
 import (
 	"fmt"
 	"io"
+	"iter"
 	"reflect"
 	"slices"
 
@@ -53,6 +54,20 @@ type PolicyRule struct {
 	Policy     PolicyInfo
 	ModifiedBy []PolicyInfo
 	UsedBy     []PolicyInfo
+}
+
+// Policies returns an iterator over the policies that this rule is part of.
+func (r *PolicyRule) Policies() iter.Seq[*PolicyInfo] {
+	return func(yield func(*PolicyInfo) bool) {
+		if !yield(&r.Policy) {
+			return
+		}
+		for _, policy := range r.UsedBy {
+			if !yield(&policy) {
+				return
+			}
+		}
+	}
 }
 
 func (r *PolicyRule) isAccepted() bool {
@@ -112,7 +127,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 }
 
 // MergeWith merges rule r2 into r
-func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
+func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 	switch r2.Def.Combine {
 	case OverridePolicy:
 		if !r2.Def.Disabled {
@@ -120,7 +135,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
-			return nil
+			return
 		}
 	}
 
@@ -135,8 +150,6 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 	}
 
 	r.ModifiedBy = append(r.ModifiedBy, r2.Policy)
-
-	return nil
 }
 
 // PolicyType represents the type of a policy
@@ -327,7 +340,7 @@ func LoadPolicy(info *PolicyInfo, reader io.Reader, macroFilters []MacroFilter, 
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
-		return nil, &ErrPolicyLoad{Name: info.Name, Err: err}
+		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Err: err}
 	}
 
 	return LoadPolicyFromDefinition(info, &def, macroFilters, ruleFilters)

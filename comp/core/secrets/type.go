@@ -21,4 +21,4 @@ type SecretVal struct {
 type SecretChangeCallback func(handle, origin string, path []string, oldValue, newValue any)
 
 // PayloadVersion defines the current payload version sent to a secret backend
-const PayloadVersion = "1.0"
+const PayloadVersion = "1.1"

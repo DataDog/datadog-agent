@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -87,10 +88,14 @@ type CheckSubmitter struct {
 	clock         clock.Clock
 
 	statsd statsd.ClientInterface
+
+	// Used to set headers on the payloads
+	processesEnabled        string
+	serviceDiscoveryEnabled string
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string) (*CheckSubmitter, error) {
+func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string, sysprobeconfig sysprobeconfig.Component) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
@@ -169,6 +174,9 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		clock:         clock.New(),
 
 		statsd: statsd,
+
+		processesEnabled:        config.GetString("process_config.process_collection.enabled"),
+		serviceDiscoveryEnabled: sysprobeconfig.GetString("discovery.enabled"),
 	}, nil
 }
 
@@ -412,6 +420,8 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
 		extraHeaders.Set(headers.PayloadSource, flavor.GetFlavor())
+		extraHeaders.Set(headers.ProcessesEnabled, s.processesEnabled)
+		extraHeaders.Set(headers.ServiceDiscoveryEnabled, s.serviceDiscoveryEnabled)
 
 		switch name {
 		case checks.ProcessEventsCheckName:

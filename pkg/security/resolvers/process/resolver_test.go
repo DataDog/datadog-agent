@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
@@ -863,4 +864,30 @@ func TestIsExecExecSnapshot(t *testing.T) {
 
 	assert.True(t, child3.ProcessCacheEntry.IsExecExec)
 	assert.True(t, child3.ProcessCacheEntry.IsExec)
+}
+
+func TestCGroupContext(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+
+	t.Run("unknown-container-runtime", func(t *testing.T) {
+		node := newFakeForkEvent(0, 3, 123, resolver)
+		resolver.insertEntry(node.ProcessCacheEntry, model.ProcessCacheEntryFromEvent)
+
+		const (
+			containerID = containerutils.ContainerID("09d3f62464b8761e9106350bacc609deb0dc639403888bdf2112033cb30e1bf6")
+			cgroupID    = containerutils.CGroupID("/kubepods/besteffort/pod8bbdd97b-f902-4e16-8235-4ac18307cef6/" + string(containerID))
+		)
+
+		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
+			CGroupID:    cgroupID,
+			CGroupFlags: 0,
+		}, nil)
+
+		assert.Equal(t, cgroupID, node.ProcessCacheEntry.CGroup.CGroupID)
+		assert.Equal(t, containerutils.CGroupManagerCRI, node.ProcessCacheEntry.CGroup.CGroupFlags.GetCGroupManager())
+		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerID)
+	})
 }

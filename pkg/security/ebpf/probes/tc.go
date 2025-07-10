@@ -9,8 +9,21 @@
 package probes
 
 import (
+	"fmt"
+
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	// TCActOk will terminate the packet processing pipeline and allows the packet to proceed
+	TCActOk = 0
+	// TCActShot will terminate the packet processing pipeline and drop the packet
+	TCActShot = 2
+	// TCActUnspec will continue packet processing
+	TCActUnspec = -1
 )
 
 // GetTCProbes returns the list of TCProbes
@@ -143,4 +156,39 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 	}
 
 	return tcr
+}
+
+// CheckUnspecReturnCode checks if the return code is TC_ACT_UNSPEC
+func CheckUnspecReturnCode(progSpecs map[string]*ebpf.ProgramSpec) error {
+	for _, progSpec := range progSpecs {
+		if progSpec.Type == ebpf.SchedCLS {
+
+			r0 := int32(255)
+
+			for _, inst := range progSpec.Instructions {
+				class := inst.OpCode.Class()
+				if class.IsJump() {
+					if inst.OpCode.JumpOp() == asm.Exit {
+						if r0 != TCActUnspec {
+							return fmt.Errorf("program %s is not using the TC_ACT_UNSPEC return %d, %v", progSpec.Name, r0, progSpec.Instructions)
+						}
+					}
+				} else {
+					op := inst.OpCode
+					switch op {
+					case asm.Mov.Op(asm.ImmSource),
+						asm.LoadImmOp(asm.DWord),
+						asm.LoadImmOp(asm.Word),
+						asm.LoadImmOp(asm.Half),
+						asm.LoadImmOp(asm.Byte):
+						if inst.Dst == asm.R0 {
+							r0 = int32(inst.Constant)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }

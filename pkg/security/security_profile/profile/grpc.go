@@ -49,7 +49,7 @@ func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRe
 			DifferentiateArgs: p.Metadata.DifferentiateArgs,
 			ContainerID:       string(p.Metadata.ContainerID),
 			CGroupID:          string(p.Metadata.CGroupContext.CGroupID),
-			CGroupManager:     containerutils.CGroupManager(p.Metadata.CGroupContext.CGroupFlags & containerutils.CGroupManagerMask).String(),
+			CGroupManager:     p.Metadata.CGroupContext.CGroupFlags.GetCGroupManager().String(),
 			Start:             p.Metadata.Start.Format(time.RFC822),
 			Timeout:           timeout.String(),
 			Size:              p.Metadata.Size,

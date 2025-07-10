@@ -34,7 +34,7 @@ const snapshotDir = "testdata/snapshot"
 var cases = []string{"simple"}
 
 func TestSnapshotTesting(t *testing.T) {
-	cfgs := testprogs.GetCommonConfigs(t)
+	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, caseName := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			for _, cfg := range cfgs {
@@ -51,8 +51,8 @@ func runTest(
 	cfg testprogs.Config,
 	caseName string,
 ) {
-	binPath := testprogs.GetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.GetProbeCfgs(t, caseName)
+	binPath := testprogs.MustGetBinary(t, caseName, cfg)
+	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)
@@ -60,6 +60,7 @@ func runTest(
 	defer func() { require.NoError(t, elfFile.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
 	marshaled, err := irprinter.PrintYAML(ir)
 	require.NoError(t, err)

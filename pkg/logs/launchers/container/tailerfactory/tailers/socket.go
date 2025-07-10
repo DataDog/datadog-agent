@@ -61,6 +61,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan 
 		erroredContainerID,
 		t.readTimeout,
 		t.tagger,
+		t.registry,
 	)
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {

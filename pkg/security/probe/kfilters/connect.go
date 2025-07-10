@@ -38,7 +38,7 @@ var connectCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func connectKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func connectKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	var (
 		fieldHandled []eval.Field
 	)
@@ -61,7 +61,7 @@ func connectKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Fi
 		return nil, nil, err
 	}
 
-	return newActiveKFilters(kfilter), fieldHandled, nil
+	return newKFilters(kfilter), fieldHandled, nil
 }
 
 func implicitAfInetFilterValues() rules.FilterValues {

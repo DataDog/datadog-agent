@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -1906,7 +1907,7 @@ func TestProcessExit(t *testing.T) {
 	})
 }
 
-func TestProcessBusybox(t *testing.T) {
+func TestProcessBusyboxSymlink(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -1936,7 +1937,7 @@ func TestProcessBusybox(t *testing.T) {
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
 	if err != nil {
-		t.Skip("docker no available")
+		t.Skip("docker not available")
 		return
 	}
 
@@ -1985,6 +1986,63 @@ func TestProcessBusybox(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_4", rule.ID, "wrong rule triggered")
+		})
+	})
+}
+
+func TestProcessBusyboxHardlink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
+		return kv.Code < kernel.Kernel5_12
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_busybox_hardlink_1",
+			Expression: `exec.file.path == "/bin/free" && exec.argv in ["-m"]`,
+		},
+		{
+			ID:         "test_busybox_hardlink_2",
+			Expression: `exec.file.path == "/bin/date" && exec.argv in ["-R"]`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// busybox uses hardlinks
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
+	if err != nil {
+		t.Skip("docker not available")
+		return
+	}
+
+	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/free", []string{"-m"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_1", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
+		})
+
+		// check that the cache is not used (having the same path_key)
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("/bin/date", []string{"-R"}, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
 		})
 	})
 }

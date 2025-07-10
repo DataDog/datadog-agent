@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -58,6 +59,7 @@ type Check struct {
 	clusterID                  string
 	hostName                   string
 	systemInfo                 *model.SystemInfo
+	agentVersion               *model.AgentVersion
 }
 
 // Factory creates a new check factory
@@ -122,6 +124,18 @@ func (c *Check) Configure(
 
 	c.hostName, _ = hostname.Get(context.TODO())
 
+	agentVersion, err := version.Agent()
+	if err != nil {
+		log.Warnf("Failed to get agent version: %s", err)
+	}
+	c.agentVersion = &model.AgentVersion{
+		Major:  agentVersion.Major,
+		Minor:  agentVersion.Minor,
+		Patch:  agentVersion.Patch,
+		Pre:    agentVersion.Pre,
+		Commit: agentVersion.Commit,
+	}
+
 	return nil
 }
 
@@ -149,9 +163,10 @@ func (c *Check) Run() error {
 				HostName:          c.hostName,
 				SystemInfo:        c.systemInfo,
 			},
-			Config:      c.config,
-			MsgGroupRef: c.groupID,
-			ClusterID:   c.clusterID,
+			Config:       c.config,
+			MsgGroupRef:  c.groupID,
+			ClusterID:    c.clusterID,
+			AgentVersion: c.agentVersion,
 		}
 		result, err := collector.Run(runConfig)
 		if err != nil {
