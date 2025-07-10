@@ -236,7 +236,6 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum T
 
     resolve_dentry(ctx, prog_type);
     // if the tail call fails, we need to pop the syscall cache entry
-    // Should it pop when it fails and is a DETACHED_COPY??
     pop_syscall(syscall->type);
 
     return 0;
@@ -513,7 +512,6 @@ HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr
 
     return 0;
 }
-
 
 HOOK_SYSCALL_EXIT(fsmount) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_FSMOUNT);

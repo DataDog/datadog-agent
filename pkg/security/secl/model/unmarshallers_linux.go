@@ -481,6 +481,9 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, err
 	}
 	data = data[n:]
+	if len(data) < 4 {
+		return n, ErrNotEnoughData
+	}
 	origin := binary.NativeEndian.Uint32(data[0:4])
 
 	switch origin {
