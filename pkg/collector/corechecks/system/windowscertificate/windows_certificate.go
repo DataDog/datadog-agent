@@ -57,18 +57,24 @@ const (
 	certNameStrCRLF = 0x08000000
 )
 
+type certChainValidation struct {
+	EnableCertChainValidation      bool     `yaml:"enabled" json:"enabled" default:"false"`
+	CertChainValidationIgnoreFlags []string `yaml:"ignore_flags" json:"ignore_flags" nullable:"false"`
+}
+
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
-	CertificateStore    string   `yaml:"certificate_store" json:"certificate_store" required:"true" nullable:"false"`
-	CertSubjects        []string `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
-	Server              string   `yaml:"server" json:"server" nullable:"false"`
-	Username            string   `yaml:"username" json:"username" nullable:"false"`
-	Password            string   `yaml:"password" json:"password" nullable:"false"`
-	DaysCritical        int      `yaml:"days_critical" json:"days_critical" minimum:"0"`
-	DaysWarning         int      `yaml:"days_warning" json:"days_warning" minimum:"0"`
-	EnableCRLMonitoring bool     `yaml:"enable_crl_monitoring" json:"enable_crl_monitoring" default:"false"`
-	CrlDaysWarning      int      `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
+	CertificateStore    string              `yaml:"certificate_store" json:"certificate_store" required:"true" nullable:"false"`
+	CertSubjects        []string            `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
+	Server              string              `yaml:"server" json:"server" nullable:"false"`
+	Username            string              `yaml:"username" json:"username" nullable:"false"`
+	Password            string              `yaml:"password" json:"password" nullable:"false"`
+	DaysCritical        int                 `yaml:"days_critical" json:"days_critical" minimum:"0"`
+	DaysWarning         int                 `yaml:"days_warning" json:"days_warning" minimum:"0"`
+	EnableCRLMonitoring bool                `yaml:"enable_crl_monitoring" json:"enable_crl_monitoring" default:"false"`
+	CrlDaysWarning      int                 `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
+	CertChainValidation certChainValidation `yaml:"cert_chain_validation" json:"cert_chain_validation"`
 }
 
 // WinCertChk is the object representing the check
