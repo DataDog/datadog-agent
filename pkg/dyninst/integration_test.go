@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -142,7 +143,7 @@ func testDyninst(
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter)
+	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
