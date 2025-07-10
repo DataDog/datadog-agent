@@ -88,14 +88,28 @@ fn _free_cstring_array(ptr: *mut *mut c_char) {
     }
 }
 
-pub fn submit_metric(check_id: &String, metric_type: MetricType, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
-    unsafe {
-        // might change the library name to an argument in the future
-        // should be opened only once, since the symbol won't change
-        let lib = Library::new(library_filename("datadog-agent-rtloader")).expect("Failed to load RTLoader library");
-        let submit_metric: Symbol<SubmitMetricFn> = lib.get(b"submit_metric").expect("Failed to load RTLoader submit_metric function");
+pub struct Aggregator {
+    cb_submit_metric: Symbol<'static, SubmitMetricFn>,
+    // ...
+}
 
-        submit_metric(
+impl Aggregator {
+    pub fn new() -> Self {
+        unsafe {
+            let lib = Library::new(library_filename("datadog-agent-rtloader")).expect("Failed to load RTLoader library");
+            let cb_submit_metric: Symbol<SubmitMetricFn> = lib.get(b"submit_metric").expect("Failed to load RTLoader submit_metric function");
+            
+            // we guarantee the symbol never outlives the library by storing both in the same struct
+            let cb_submit_metric: Symbol<'static, SubmitMetricFn> = std::mem::transmute(cb_submit_metric);
+
+            Aggregator {
+                cb_submit_metric,
+            }
+        }
+    }
+
+    pub fn submit_metric(&self, check_id: &String, metric_type: MetricType, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+        (self.cb_submit_metric)(
             to_cstring(check_id),
             metric_type,
             to_cstring(name),
