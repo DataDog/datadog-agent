@@ -9,6 +9,7 @@ package uploader
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -20,6 +21,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func (d debuggerSource) UnmarshalJSON(b []byte) error {
+	if string(b) == `"dd_debugger"` {
+		return nil
+	}
+	return fmt.Errorf("unexpected value: %s", string(b))
+}
 
 type testServer struct {
 	requests <-chan receivedRequest
