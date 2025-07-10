@@ -4,45 +4,41 @@
 
 ## Configuration
 
+### Managed Identity
+
+To access your Key Vault, create a Managed Identity in your environment. Assign that Identity as a Role on your Virtual Machine, which will give it access to your Key Vault's secrets.
+
 ### Backend Settings
 
 | Setting | Description |
 | --- | --- |
 | keyvaulturl | URL of the Azure keyvault |
-| backend_type | Backend type |
-| secret_id | Secret friendly name or Amazon Resource Name |
-| azure_session | Azure session configuration |
 
 ## Backend Configuration
+
+In your `datadog.yaml` config, the setting `secret_backend_type` must be set to `azure.keyvault`.
 
 The backend configuration for Azure Key Vault secrets has the following pattern:
 
 ```yaml
+# /etc/datadog-agent/datadog.yaml
 ---
-backends:
-  {backendId}:
-    backend_type: azure.keyvault
-    keyvaulturl: https://mykeyvault.vault.azure.net
-    # interpret contents of secret as string
-    force_string: [true|false]
-    azure_session:
-      azure_client_id: {clientId}
-      # ... additional session settings
-    secret_id: {secretId}
+secret_backend_type: azure.keyvault
+secret_backend_config:
+  keyvaulturl: {keyVaultURL}
 ```
 
-**backend_type** must be set to `azure.keyvault` and **secret_id** must be set to your target Azure Key Vault secret name.
+**backend_type** must be set to `azure.keyvault` and **keyvaulturl** must be set to your target Azure Key Vault URL.
 
-The backend secret is referenced in your Datadog Agent configuration files using the **ENC** notation.
+The backend secret is referenced in your Datadog Agent configuration file using the **ENC** notation.
 
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: "ENC[{backendId}:{secretKey}]"
-
+api_key: "ENC[{secretHandle}]"
 ```
 
-Azure Keyvault can hold multiple secret keys and values. For example, assuming a secret with a **backend_id** of `MySecretBackend` and an Azure secret id of `my_azure_secret_id`:
+Azure Keyvault can hold multiple secret keys and values using json. For example, assuming an Azure secret with a **Secret Name** of `MySecret`:
 
 ```json
 {
@@ -52,39 +48,18 @@ Azure Keyvault can hold multiple secret keys and values. For example, assuming a
 }
 ```
 
-Support for simple string values can be defined adding the config variable `force_string: true`. This will interpret the contents of secret as a string regardless of input.
-
-This will allow for generating simple string values with or without JSON parsing using the _ secretID. All input will be interpreted as a single string and if it fails to unmarshal the JSON, it will grab the raw string from the input. The secretId then gets coerced as _ and will access DD with the backendID and its secret using the ENC[] notation.
-
-```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
----
-backends:
-  MySecretBackend:
-    backend_type: azure.keyvault
-    secret_id: my_azure_secret_id
-    keyvaulturl: https://mykeyvault.vault.azure.net
-    # interpret contents of secret as string
-    force_string: true
-    azure_session:
-      azure_tenant_id: abcdef-*****
-      azure_client_id: 123456-*****
-      azure_client_secret: ************
-```
+This can be accessed using a semicolon (`;`) to separate the Secret Name from the Key. The notation in the datadog.yaml config file looks like **ENC[SecretName;SecretKey]**. If this semicolon is not present, then the entire string will be treated as the plain text value of the secret. Otherwise, `SecretKey` is the json key referring to the actual secret that you are trying to pull the value of.
 
 ```yaml
 # /etc/datadog-agent/datadog.yml
-api_key: "ENC[MySecretBackend:ddapikey]"
-app_key: "ENC[MySecretBackend:ddappkey]"
-property3: "ENC[MySecretBackend:ddorgname]"
+api_key: "ENC[MySecret;ddapikey]"
+app_key: "ENC[MySecret;ddappkey]"
+property3: "ENC[MySecret;ddorgname]"
 ```
 
-Multiple secret backends, of the same or different types, can be defined in your `datadog-secret-backend` yaml configuration. As a result, you can leverage multiple supported backends (file.yaml, file.json, aws.ssm, and aws.secrets, azure.keyvault) in your Datadog Agent configuration.
+## Configuration Example
 
-
-## Configuration Examples
-
-In the following examples, assume the Azure secret name (id) is `ddapikey` with a secret value containing the Datadog Agent api_key:
+In the following example, assume the Azure secret name is `MySecretName` with a secret value containing the Datadog Agent api_key:
 
 ```json
 {
@@ -92,86 +67,27 @@ In the following examples, assume the Azure secret name (id) is `ddapikey` with 
 }
 ```
 
-Each of the following examples will access the secret from the Datadog Agent configuration yaml file(s) as such:
+Also assume that the Key Vault's URL is `https://mykeyvault.vault.azure.net`
+
+The below example will access the secret from the Datadog Agent configuration yaml file(s) like so:
 
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-#########################
-## Basic Configuration ##
-#########################
+#################################
+## Datadog Agent Configuration ##
+#################################
 
 ## @param api_key - string - required
 ## @env DD_API_KEY - string - required
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key: "ENC[MySecretBackend:ddapikey]" 
-```
-
-**Azure Service Principal With Client Credentials**
-
-```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
----
-backends:
-  MySecretBackend:
-    backend_type: azure.keyvault
-    secret_id: my_azure_secret_id
-    keyvaulturl: https://mykeyvault.vault.azure.net
-    # interpret contents of secret as string
-    force_string: true
-    azure_session:
-      azure_tenant_id: abcdef-*****
-      azure_client_id: 123456-*****
-      azure_client_secret: ************
-```
-
-**Azure Service Principal With Client Certificate Without Password Protection**
-
-```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
----
-backends:
-  MySecretBackend:
-    backend_type: azure.keyvault
-    secret_id: my_azure_secret_id
-    keyvaulturl: https://mykeyvault.vault.azure.net
-    # interpret contents of secret as string
-    force_string: true
-    azure_session:
-      azure_tenant_id: abcdef-*****
-      azure_client_id: 123456-*****
-      azure_certificate_path: /path/to/cert.pfx
-```
-
-**Azure Service Principal With Client Certificate With Password Protection**
-
-```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
----
-backends:
-  MySecretBackend:
-    backend_type: azure.keyvault
-    secret_id: my_azure_secret_id
-    keyvaulturl: https://mykeyvault.vault.azure.net
-    # interpret contents of secret as string
-    force_string: true
-    azure_session:
-      azure_tenant_id: abcdef-*****
-      azure_client_id: 123456-*****
-      azure_certificate_path: /path/to/cert.pfx
-      azure_certificate_password: mycertificatepassword
-```
-
-**Azure Managed Identity**
-
-```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
----
-backends:
-  MySecretBackend:
-    backend_type: azure.keyvault
-    secret_id: my_azure_secret_id
-    keyvaulturl: https://mykeyvault.vault.azure.net
+api_key: "ENC[MySecretName;ddapikey]" 
+...
+...
+...
+secret_backend_type: azure.keyvault
+secret_backend_config:
+  keyvaulturl: https://mykeyvault.vault.azure.net
 ```

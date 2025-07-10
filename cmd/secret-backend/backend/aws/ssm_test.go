@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
@@ -62,31 +61,25 @@ func (c *ssmMockClient) GetParameters(_ context.Context, params *ssm.GetParamete
 	}, nil
 }
 
-func TestSSMParameterStoreBackend_Parameters(t *testing.T) {
-	mockClient := &ssmMockClient{
-		parameters: map[string]interface{}{
-			"/group1/key1":      "value1",
-			"/group1/nest/key2": "value2",
-		},
-	}
-	getSSMClient = func(_ aws.Config) ssmClient {
-		return mockClient
+func (c *ssmMockClient) GetParameter(_ context.Context, params *ssm.GetParameterInput, _ ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
+	if params == nil || params.Name == nil {
+		return nil, nil
 	}
 
-	ssmParameterStoreBackendParams := map[string]interface{}{
-		"backend_type": "aws.ssm",
-		"parameters":   []string{"/group1/key1", "/group1/nest/key2"},
+	paramName := *params.Name
+	if value, exists := c.parameters[paramName]; exists {
+		return &ssm.GetParameterOutput{
+			Parameter: &types.Parameter{
+				Name:  aws.String(paramName),
+				Value: aws.String(value.(string)),
+			},
+		}, nil
 	}
-	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend("ssmParameterStore-backend", ssmParameterStoreBackendParams)
-	assert.NoError(t, err)
 
-	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key1")
-	assert.Equal(t, "value1", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
-
-	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput("key_noexist")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
+	// Return AWS-like error for parameter not found
+	return nil, &types.ParameterNotFound{
+		Message: aws.String("Parameter " + paramName + " not found."),
+	}
 }
 
 func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
@@ -102,10 +95,9 @@ func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
 	}
 
 	ssmParameterStoreBackendParams := map[string]interface{}{
-		"backend_type":   "aws.ssm",
-		"parameter_path": "/group1",
+		"backend_type": "aws.ssm",
 	}
-	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend("ssmParameterStore-backend", ssmParameterStoreBackendParams)
+	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend(ssmParameterStoreBackendParams)
 	assert.NoError(t, err)
 
 	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key1")
@@ -118,9 +110,10 @@ func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
 
 	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key_noexist")
 	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
+	assert.NotNil(t, secretOutput.Error)
+	assert.Contains(t, *secretOutput.Error, "not found")
 
 	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput("/group2/key3")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
+	assert.Equal(t, "value3", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
 }

@@ -26,9 +26,8 @@ type BackendConfig struct {
 
 // Backend represents backend for Akeyless
 type Backend struct {
-	BackendID string
-	Config    BackendConfig
-	Token     string
+	Config BackendConfig
+	Token  string
 }
 
 type secretRequest struct {
@@ -45,26 +44,25 @@ type secretRequest struct {
 type secretResponse map[string]string
 
 // NewAkeylessBackend returns a new Akeyless backend
-func NewAkeylessBackend(backendID string, bc map[string]interface{}) (*Backend, error) {
+func NewAkeylessBackend(bc map[string]interface{}) (*Backend, error) {
 	backendConfig := BackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
 	authToken, err := NewAkeylessConfigFromBackendConfig(backendConfig.AkeylessURL, backendConfig.AkeylessSession)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Msg("failed to initialize Akeyless session")
 		return nil, err
 	}
 
 	backend := &Backend{
-		BackendID: backendID,
-		Config:    backendConfig,
-		Token:     authToken,
+		Config: backendConfig,
+		Token:  authToken,
 	}
 	return backend, nil
 }
@@ -86,7 +84,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	if err != nil {
 		es := err.Error()
 		log.Error().
-			Str("backend_id", b.BackendID).
 			Str("backend_type", b.Config.BackendType).
 			Str("secret_key", secretKey).
 			Msg("failed to marshal payload")
@@ -98,7 +95,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	if err != nil {
 		es := err.Error()
 		log.Error().
-			Str("backend_id", b.BackendID).
 			Str("backend_type", b.Config.BackendType).
 			Str("secret_key", secretKey).
 			Msg("failed to create request")
@@ -112,7 +108,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	if err != nil {
 		es := err.Error()
 		log.Error().
-			Str("backend_id", b.BackendID).
 			Str("backend_type", b.Config.BackendType).
 			Str("secret_key", secretKey).
 			Msg("failed to send request")
@@ -124,13 +119,11 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	//respDump, err := httputil.DumpResponse(resp, true)
 	//if err != nil {
 	//	log.Error().
-	//		Str("backend_id", b.BackendID).
 	//		Str("backend_type", b.Config.BackendType).
 	//		Str("secret_key", secretKey).
 	//		Msg("failed to dump response")
 	//} else {
 	//	log.Info().
-	//		Str("backend_id", b.BackendID).
 	//		Str("backend_type", b.Config.BackendType).
 	//		Str("secret_key", secretKey).
 	//		Msgf("Response:\n%s", string(respDump))
@@ -142,7 +135,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	if err != nil {
 		es := err.Error()
 		log.Error().
-			Str("backend_id", b.BackendID).
 			Str("backend_type", b.Config.BackendType).
 			Str("secret_key", secretKey).
 			Msg("failed to decode response")
@@ -154,7 +146,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	if !ok {
 		es := secret.ErrKeyNotFound.Error()
 		log.Error().
-			Str("backend_id", b.BackendID).
 			Str("backend_type", b.Config.BackendType).
 			Str("secret_key", secretKey).
 			Msg("failed to retrieve secret from response")

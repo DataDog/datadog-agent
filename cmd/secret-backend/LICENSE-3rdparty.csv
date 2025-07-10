@@ -1,7 +1,36 @@
 Component,Origin,License,Copyright
 core,dario.cat/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
-core,github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault,MIT,Copyright (c) Microsoft Corporation.
-core,github.com/Azure/azure-sdk-for-go/version,MIT,Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/exported,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/log,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/async,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/body,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/fake,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/loc,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/op,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/shared,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/log,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/policy,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/to,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/tracing,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azidentity,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/diag,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/exported,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/log,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/poller,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/temporal,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/internal/uuid,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets,MIT,Copyright (c) Microsoft Corporation. | Copyright (c) Microsoft Corporation. All rights reserved
+core,github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal,MIT,Copyright (c) Microsoft Corporation. | Copyright (c) Microsoft Corporation. All rights reserved
 core,github.com/Azure/go-autorest,Apache-2.0,Copyright 2015 Microsoft Corporation
 core,github.com/Azure/go-autorest/autorest,Apache-2.0,Copyright 2015 Microsoft Corporation
 core,github.com/Azure/go-autorest/autorest/adal,Apache-2.0,Copyright 2015 Microsoft Corporation
@@ -9,10 +38,29 @@ core,github.com/Azure/go-autorest/autorest/azure,Apache-2.0,Copyright 2015 Micro
 core,github.com/Azure/go-autorest/autorest/azure/auth,Apache-2.0,Copyright 2015 Microsoft Corporation
 core,github.com/Azure/go-autorest/autorest/azure/cli,Apache-2.0,Copyright 2015 Microsoft Corporation
 core,github.com/Azure/go-autorest/autorest/date,Apache-2.0,Copyright 2015 Microsoft Corporation
-core,github.com/Azure/go-autorest/autorest/to,Apache-2.0,Copyright 2015 Microsoft Corporation
-core,github.com/Azure/go-autorest/autorest/validation,Apache-2.0,Copyright 2015 Microsoft Corporation
 core,github.com/Azure/go-autorest/logger,Apache-2.0,Copyright 2015 Microsoft Corporation
 core,github.com/Azure/go-autorest/tracing,Apache-2.0,Copyright 2015 Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/cache,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/base,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/base/internal/storage,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/exported,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/json,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/json/types/time,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/local,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/accesstokens,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/authority,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/internal/comm,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/internal/grant,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/wstrust,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/oauth/ops/wstrust/defs,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/options,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/shared,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/version,MIT,Copyright (c) Microsoft Corporation
+core,github.com/AzureAD/microsoft-authentication-library-for-go/apps/public,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Microsoft/go-winio,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/internal/fs,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/internal/socket,MIT,Copyright (c) 2015 Microsoft
@@ -93,6 +141,50 @@ core,github.com/aws/aws-sdk-go-v2/service/ssooidc/types,Apache-2.0,"Copyright 20
 core,github.com/aws/aws-sdk-go-v2/service/sts,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sts/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/auth/bearer,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/awserr,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/awsutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/client,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/client/metadata,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/corehandlers,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/credentials,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/credentials/endpointcreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/credentials/processcreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/credentials/ssocreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/credentials/stscreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/csm,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/defaults,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/ec2metadata,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/request,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/session,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/aws/signer/v4,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/context,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/ini,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/sdkio,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/sdkmath,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/sdkrand,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/sdkuri,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/shareddefaults,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/strings,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/internal/sync/singleflight,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/json/jsonutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/jsonrpc,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/query,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/query/queryutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/rest,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/restjson,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/iam,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/iam/iamiface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/sso,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/sso/ssoiface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/ssooidc,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/sts,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go/service/sts/stsiface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/auth,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/smithy-go/auth/bearer,Apache-2.0,"Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -138,6 +230,7 @@ core,github.com/emirpasic/gods/lists/arraylist,BSD-2-Clause,"Copyright (c) 2015,
 core,github.com/emirpasic/gods/trees,BSD-2-Clause,"Copyright (c) 2015, Emir Pasic | Copyright (c) 2017 Benjamin Scher Purcell <benjapurcell@gmail.com>"
 core,github.com/emirpasic/gods/trees/binaryheap,BSD-2-Clause,"Copyright (c) 2015, Emir Pasic | Copyright (c) 2017 Benjamin Scher Purcell <benjapurcell@gmail.com>"
 core,github.com/emirpasic/gods/utils,BSD-2-Clause,"Copyright (c) 2015, Emir Pasic | Copyright (c) 2017 Benjamin Scher Purcell <benjapurcell@gmail.com>"
+core,github.com/fatih/color,MIT,Copyright (c) 2013 Fatih Arslan
 core,github.com/frapposelli/wwhrd,MIT,Copyright (c) 2016 Fabio Rapposelli
 core,github.com/go-git/gcfg,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go
 core,github.com/go-git/gcfg/scanner,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go
@@ -200,17 +293,22 @@ core,github.com/go-jose/go-jose/v4/cipher,Apache-2.0,Copyright 2014 Square Inc.
 core,github.com/go-jose/go-jose/v4/json,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright 2014 Square Inc.
 core,github.com/go-jose/go-jose/v4/jwt,Apache-2.0,Copyright 2014 Square Inc.
 core,github.com/golang-jwt/jwt/v4,MIT,Copyright (c) 2012 Dave Grijalva | Copyright (c) 2021 golang-jwt maintainers
+core,github.com/golang-jwt/jwt/v5,MIT,Copyright (c) 2012 Dave Grijalva | Copyright (c) 2021 golang-jwt maintainers
 core,github.com/golang/groupcache/lru,Apache-2.0,Copyright 2013 Google Inc.
 core,github.com/google/licensecheck,BSD-3-Clause,Copyright (c) 2019 The Go Authors. All rights reserved
 core,github.com/google/licensecheck/internal/match,BSD-3-Clause,Copyright (c) 2019 The Go Authors. All rights reserved
+core,github.com/google/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com> | bmatsuo | cd1 | dansouza | dsymonds | jboverfelt | shawnps | theory | wallclockbuilder"
 core,github.com/hashicorp/errwrap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-cleanhttp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/go-hclog,MIT,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-multierror,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-retryablehttp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-rootcerts,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/go-secure-stdlib/awsutil,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-secure-stdlib/parseutil,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-secure-stdlib/strutil,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-sockaddr,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/go-uuid,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/hcl,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/hcl/hcl/ast,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/hcl/hcl/parser,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
@@ -222,6 +320,7 @@ core,github.com/hashicorp/hcl/json/scanner,MPL-2.0,"Copyright © 2014-2018 Hashi
 core,github.com/hashicorp/hcl/json/token,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/approle,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/vault/api/auth/aws,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/ldap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/vault/api/auth/userpass,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hhatto/gorst,GPL-2.0-or-later,"Copyright (c) 2008 John MacFarlane | Copyright (c) 2010 Michael Teichgräber | Copyright (c) 2010, Go Authors | Copyright (c) 2015 Hideo Hattori"
@@ -234,6 +333,8 @@ core,github.com/jdkato/prose/tokenize,MIT,- Elliott Stoneham (<elliott.stoneham@
 core,github.com/jessevdk/go-flags,BSD-3-Clause,Copyright (c) 2012 Jesse van den Kieboom. All rights reserved
 core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinnie
 core,github.com/kevinburke/ssh_config,MIT,"Copyright (c) 2013 - 2017 Thomas Pelletier, Eric Anderton | Copyright (c) 2017 Kevin Burke"
+core,github.com/kylelemons/godebug/diff,Apache-2.0,Copyright 2013 Google Inc.  All rights reserved.
+core,github.com/kylelemons/godebug/pretty,Apache-2.0,Copyright 2013 Google Inc.  All rights reserved.
 core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-zglob,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
@@ -244,6 +345,7 @@ core,github.com/montanaflynn/stats,MIT,Copyright (c) 2014-2023 Montana Flynn (ht
 core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
 core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
 core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
+core,github.com/pkg/browser,BSD-2-Clause,"Copyright (c) 2014, Dave Cheney <dave@cheney.net>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/rs/zerolog,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/internal/cbor,MIT,Copyright (c) 2017 Olivier Poitrey

@@ -35,10 +35,9 @@ func TestJSONBackend(t *testing.T) {
 		"backend_type": "file.json",
 		"file_path":    secretsFilepath,
 	}
-	jsonSecretsBackend, err := NewJSONBackend("json-backend", jsonSecretsBackendParams)
+	jsonSecretsBackend, err := NewJSONBackend(jsonSecretsBackendParams)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "json-backend", jsonSecretsBackend.BackendID)
 	assert.Equal(t, "file.json", jsonSecretsBackend.Config.BackendType)
 	assert.Equal(t, secretsFilepath, jsonSecretsBackend.Config.FilePath)
 

@@ -43,30 +43,29 @@ Ensure that you have followed the instructions specified in the general [aws REA
 The backend configuration for AWS Secrets Manager secrets has the following pattern:
 
 ```yaml
+# /etc/datadog-agent/datadog.yaml
 ---
-backends:
-  {backendId}:
-    backend_type: aws.secrets
-    aws_session:
-      aws_region: {regionName}
-    secret_id: {secretId}
+secret_backend_type: aws.secrets
+secret_backend_config:
+  aws_session:
+    aws_region: {regionName}
 
 ```
 
-**backend_type** must be set to `aws.secrets` and **secret_id** must be set your target AWS Secrets Manager secret friendly name or ARN. The **secret_id** value can be the secret friendly name, e.g. `/DatadogAgent/Production`, or the full ARN format, e.g `arn:aws:secretsmanager:us-east-1:123456789012:secret:/DatadogAgent/Production-FOga1K`. The full ARN format is required when accessing secrets from an a different account where the AWS credential (or sts:AssumeRole credential) is defined.
+**secret_backend_type** must be set to `aws.secrets`.
 
 Cross-account Secrets Manager secrets are supported and tested, but require appropriate permissions on the secret as well as a KMS customer managed key. More details on this configuration is available on the AWS Secrets Manager [documentation](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_examples_cross.html).
 
-The backend secret is referenced in your Datadog Agent configuration files using the **ENC** notation.
+The backend secret is referenced in your Datadog Agent configuration file using the **ENC** notation, taking the form **ENC[secretId;secretKey]**. The **secretId** value can be the secret friendly name, e.g. `/DatadogAgent/Production`, or the full ARN format, e.g `arn:aws:secretsmanager:us-east-1:123456789012:secret:/DatadogAgent/Production-FOga1K`. The full ARN format is required when accessing secrets from an a different account where the AWS credential (or sts:AssumeRole credential) is defined. The **secretKey** is the json key referring to the actual secret that you are trying to pull the value of.
 
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: ENC[{backendId}:{secretId}]
+api_key: ENC[{secretId};{secretKey}]
 
 ```
 
-AWS Secrets Manager can hold multiple secret keys and values. A backend configuration using Secrets Manager will have access to all the secret keys defined on the secret. For example, assuming a secret with a **backend_id** of `MySecretBackend` and a AWS Secrets Manager secret id of `/My/Secret/Backend/Secret`:
+AWS Secrets Manager can hold multiple secret keys and values. A backend configuration using Secrets Manager will have access to all the secret keys defined on the secret. For example, assuming a AWS Secrets Manager secret id of `My-Secret-Backend-Secret`:
 
 ```json
 {
@@ -77,21 +76,19 @@ AWS Secrets Manager can hold multiple secret keys and values. A backend configur
 ```
 
 ```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+# /etc/datadog-agent/datadog.yaml
 ---
-backends:
-  MySecretBackend:
-    backend_type: aws.secrets
-    secret_id: /My/Secret/Backend/Secret
-    aws_session:
-      aws_region: us-east-1
+secret_backend_type: aws.secrets
+secret_backend_config:
+  aws_session:
+    aws_region: us-east-1
 ```
 
 ```yaml
-# /etc/datadog-agent/datadog.yml
-property1: ENC[MySecretBackend:SecretKey1]
-property2: ENC[MySecretBackend:SecretKey2]
-property3: ENC[MySecretBackend:SecretKey3]
+# /etc/datadog-agent/datadog.yaml
+property1: ENC[My-Secret-Backend-Secret;SecretKey1]
+property2: ENC[My-Secret-Backend-Secret;SecretKey2]
+property3: ENC[My-Secret-Backend-Secret;SecretKey3]
 ```
 
 Multiple secret backends, of the same or different types, can be defined in your `datadog-secret-backend` yaml configuration. As a result, you can leverage multiple supported backends (file.yaml, file.json, aws.ssm, and aws.secrets) in your Datadog Agent configuration.
@@ -120,18 +117,16 @@ Each of the following examples will access the secret from the Datadog Agent con
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key: ENC[agent_secret:api_key] 
+api_key: ENC[/DatadogAgent/Production;api_key] 
 ```
 
 **AWS IAM User Access Key with Secrets Manager secret in same AWS account**
 
 ```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+# /etc/datadog-agent/datadog.yaml
 ---
-backends:
-  agent_secret:
-    backend_type: aws.secrets
-    aws_session:
-      aws_region: us-east-1 # set to region of the Secrets Manager secret
-    secret_id: /DatadogAgent/Production
+secret_backend_type: aws.secrets
+secret_backend_config:
+  aws_session:
+    aws_region: us-east-1
 ```

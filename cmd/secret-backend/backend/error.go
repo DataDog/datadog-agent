@@ -10,13 +10,12 @@ import "github.com/DataDog/datadog-secret-backend/secret"
 
 // ErrorBackend links an error to its backend
 type ErrorBackend struct {
-	BackendID string
-	Error     error
+	Error error
 }
 
 // NewErrorBackend returns a new ErrorBackend
-func NewErrorBackend(backendID string, e error) *ErrorBackend {
-	return &ErrorBackend{BackendID: backendID, Error: e}
+func NewErrorBackend(e error) *ErrorBackend {
+	return &ErrorBackend{Error: e}
 }
 
 // GetSecretOutput returns a the value for a specific secret

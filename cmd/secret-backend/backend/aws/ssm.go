@@ -23,6 +23,7 @@ import (
 type ssmClient interface {
 	GetParametersByPath(ctx context.Context, params *ssm.GetParametersByPathInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
 	GetParameters(ctx context.Context, params *ssm.GetParametersInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersOutput, error)
+	GetParameter(ctx context.Context, params *ssm.GetParameterInput, optFns ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
 }
 
 // getSSMClient is a variable that holds the function to create a new ssmClient
@@ -33,117 +34,69 @@ var getSSMClient = func(cfg aws.Config) ssmClient {
 
 // SSMParameterStoreBackendConfig is the configuration for a AWS SSM backend
 type SSMParameterStoreBackendConfig struct {
-	Session       SessionBackendConfig `mapstructure:"aws_session"`
-	BackendType   string               `mapstructure:"backend_type"`
-	ParameterPath string               `mapstructure:"parameter_path"`
-	Parameters    []string             `mapstructure:"parameters"`
+	Session     SessionBackendConfig `mapstructure:"aws_session"`
+	BackendType string               `mapstructure:"backend_type"`
 }
 
 // SSMParameterStoreBackend represents backend for AWS SSM
 type SSMParameterStoreBackend struct {
-	BackendID string
-	Config    SSMParameterStoreBackendConfig
-	Secret    map[string]string
+	Config SSMParameterStoreBackendConfig
+	Client ssmClient
 }
 
 // NewSSMParameterStoreBackend returns a new AWS SSM backend
-func NewSSMParameterStoreBackend(backendID string, bc map[string]interface{}) (
-	*SSMParameterStoreBackend, error) {
-
+func NewSSMParameterStoreBackend(bc map[string]interface{}) (*SSMParameterStoreBackend, error) {
 	backendConfig := SSMParameterStoreBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
-	secretValue := make(map[string]string, 0)
-
 	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Msg("failed to initialize aws session")
 		return nil, err
 	}
 	client := getSSMClient(*cfg)
 
-	// GetParametersByPath
-	if backendConfig.ParameterPath != "" {
-		input := &ssm.GetParametersByPathInput{
-			Path:           &backendConfig.ParameterPath,
-			Recursive:      aws.Bool(true),
-			WithDecryption: aws.Bool(true),
-		}
-
-		pager := ssm.NewGetParametersByPathPaginator(client, input)
-		for pager.HasMorePages() {
-			out, err := pager.NextPage(context.TODO())
-			if err != nil {
-				log.Error().Err(err).
-					Str("backend_id", backendID).
-					Str("backend_type", backendConfig.BackendType).
-					Str("parameter_path", backendConfig.ParameterPath).
-					Strs("parameters", backendConfig.Parameters).
-					Str("aws_access_key_id", backendConfig.Session.AccessKeyID).
-					Str("aws_profile", backendConfig.Session.Profile).
-					Str("aws_region", backendConfig.Session.Region).
-					Msg("failed to retrieve parameters from path")
-				return nil, err
-			}
-
-			for _, parameter := range out.Parameters {
-				secretValue[*parameter.Name] = *parameter.Value
-			}
-		}
-	}
-
-	// GetParameters
-	if len(backendConfig.Parameters) > 0 {
-		input := &ssm.GetParametersInput{
-			Names:          backendConfig.Parameters,
-			WithDecryption: aws.Bool(true),
-		}
-		out, err := client.GetParameters(context.TODO(), input)
-		if err != nil {
-			log.Error().Err(err).
-				Str("backend_id", backendID).
-				Str("backend_type", backendConfig.BackendType).
-				Strs("parameters", backendConfig.Parameters).
-				Str("aws_access_key_id", backendConfig.Session.AccessKeyID).
-				Str("aws_profile", backendConfig.Session.Profile).
-				Str("aws_region", backendConfig.Session.Region).
-				Msg("failed to retrieve parameters")
-			return nil, err
-		}
-
-		// handle invalid parameters?
-		for _, parameter := range out.Parameters {
-			secretValue[*parameter.Name] = *parameter.Value
-		}
-	}
-
 	backend := &SSMParameterStoreBackend{
-		BackendID: backendID,
-		Config:    backendConfig,
-		Secret:    secretValue,
+		Config: backendConfig,
+		Client: client,
 	}
 	return backend, nil
 }
 
 // GetSecretOutput returns a the value for a specific secret
 func (b *SSMParameterStoreBackend) GetSecretOutput(secretKey string) secret.Output {
-	if val, ok := b.Secret[secretKey]; ok {
-		return secret.Output{Value: &val, Error: nil}
+	input := &ssm.GetParameterInput{
+		Name:           &secretKey,
+		WithDecryption: aws.Bool(true),
 	}
-	es := secret.ErrKeyNotFound.Error()
 
-	log.Error().
-		Str("backend_id", b.BackendID).
-		Str("backend_type", b.Config.BackendType).
-		Strs("parameters", b.Config.Parameters).
-		Str("parameter_path", b.Config.ParameterPath).
-		Str("secret_key", secretKey).
-		Msg("failed to retrieve parameters")
-	return secret.Output{Value: nil, Error: &es}
+	out, err := b.Client.GetParameter(context.TODO(), input)
+	if err != nil {
+		es := err.Error()
+		log.Error().Err(err).
+			Str("backend_type", b.Config.BackendType).
+			Str("parameter_name", secretKey).
+			Str("aws_access_key_id", b.Config.Session.AccessKeyID).
+			Str("aws_profile", b.Config.Session.Profile).
+			Str("aws_region", b.Config.Session.Region).
+			Msg("failed to retrieve parameter")
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	if out.Parameter == nil || out.Parameter.Value == nil {
+		es := "parameter value is nil"
+		log.Error().
+			Str("backend_type", b.Config.BackendType).
+			Str("parameter_name", secretKey).
+			Msg(es)
+		return secret.Output{Value: nil, Error: &es}
+	}
+
+	return secret.Output{Value: out.Parameter.Value, Error: nil}
 }

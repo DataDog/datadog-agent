@@ -10,8 +10,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/keyvault/v7.1/keyvault"
-	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,15 +21,18 @@ type keyvaultMockClient struct {
 	secrets map[string]interface{}
 }
 
-func (c *keyvaultMockClient) GetSecret(_ context.Context, _ string, secretName string, _ string) (result keyvault.SecretBundle, err error) {
+func (c *keyvaultMockClient) GetSecret(_ context.Context, secretName string, _ string, _ *azsecrets.GetSecretOptions) (result azsecrets.GetSecretResponse, err error) {
 	if _, ok := c.secrets[secretName]; ok {
 		val := c.secrets[secretName].(string)
-		return keyvault.SecretBundle{
-			Value: &val,
-			ID:    &secretName,
+		secretID := azsecrets.ID(secretName)
+		return azsecrets.GetSecretResponse{
+			Secret: azsecrets.Secret{
+				Value: &val,
+				ID:    &secretID,
+			},
 		}, nil
 	}
-	return keyvault.SecretBundle{}, secret.ErrKeyNotFound
+	return azsecrets.GetSecretResponse{}, secret.ErrKeyNotFound
 }
 
 func TestKeyvaultBackend(t *testing.T) {
@@ -40,97 +42,28 @@ func TestKeyvaultBackend(t *testing.T) {
 			"key2": "{\"foo\":\"bar\"}",
 		},
 	}
-	getKeyvaultClient = func(_ *autorest.Authorizer) keyvaultClient {
+	getKeyvaultClient = func(_ string) keyvaultClient {
 		return mockClient
 	}
 
 	keyvaultBackendParams := map[string]interface{}{
 		"backend_type": "azure.keyvault",
-		"secret_id":    "key1",
-		"force_string": false,
+		"keyvaulturl":  "https://my-vault.vault.azure.com/",
 	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
-	// Top-level keys are not fetchable
+	// Top-level key will be fetched as json
 	secretOutput := keyvaultSecretsBackend.GetSecretOutput("key1")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
-
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("key2")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
-
-	// But the contents under the selected key are
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("user")
-	assert.Equal(t, "foo", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
-
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("password")
-	assert.Equal(t, "bar", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
-}
-
-func TestKeyvaultBackend_ForceString(t *testing.T) {
-	mockClient := &keyvaultMockClient{
-		secrets: map[string]interface{}{
-			"key1": "{\"user\":\"foo\",\"password\":\"bar\"}",
-			"key2": "{\"foo\":\"bar\"}",
-		},
-	}
-	getKeyvaultClient = func(_ *autorest.Authorizer) keyvaultClient {
-		return mockClient
-	}
-
-	keyvaultBackendParams := map[string]interface{}{
-		"backend_type": "azure.keyvault",
-		"secret_id":    "key1",
-		"force_string": true,
-	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
-	assert.NoError(t, err)
-
-	secretOutput := keyvaultSecretsBackend.GetSecretOutput("_")
 	assert.Equal(t, "{\"user\":\"foo\",\"password\":\"bar\"}", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
 
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("key1")
+	// Index into secret json
+	secretOutput = keyvaultSecretsBackend.GetSecretOutput("key1;user")
+	assert.Equal(t, "foo", *secretOutput.Value)
+
+	secretOutput = keyvaultSecretsBackend.GetSecretOutput("key3")
 	assert.Nil(t, secretOutput.Value)
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
-}
-
-func TestKeyvaultBackend_NotJSON(t *testing.T) {
-	mockClient := &keyvaultMockClient{
-		secrets: map[string]interface{}{
-			"key1": "not json",
-			"key2": "foobar",
-		},
-	}
-	getKeyvaultClient = func(_ *autorest.Authorizer) keyvaultClient {
-		return mockClient
-	}
-
-	keyvaultBackendParams := map[string]interface{}{
-		"backend_type": "azure.keyvault",
-		"secret_id":    "key1",
-		"force_string": false,
-	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
-	assert.NoError(t, err)
-
-	// Top-level keys are not fetchable
-	secretOutput := keyvaultSecretsBackend.GetSecretOutput("key1")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
-
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("key2")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
-
-	// But the contents under the selected key are
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("_")
-	assert.Equal(t, "not json", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
 }
 
 func TestKeyVaultBackend_issue39434(t *testing.T) {
@@ -139,25 +72,21 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 			"key1": "{\\\"foo\\\":\\\"bar\\\"}",
 		},
 	}
-	getKeyvaultClient = func(_ *autorest.Authorizer) keyvaultClient {
+	getKeyvaultClient = func(_ string) keyvaultClient {
 		return mockClient
 	}
 
 	keyvaultBackendParams := map[string]interface{}{
 		"backend_type": "azure.keyvault",
-		"secret_id":    "key1",
-		"force_string": false,
 	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
 	// Top-level keys are not fetchable
 	secretOutput := keyvaultSecretsBackend.GetSecretOutput("key1")
-	assert.Nil(t, secretOutput.Value)
-	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
+	assert.Equal(t, "{\\\"foo\\\":\\\"bar\\\"}", *secretOutput.Value)
 
-	// But the contents under the selected key are
-	secretOutput = keyvaultSecretsBackend.GetSecretOutput("foo")
+	// Index into secret json
+	secretOutput = keyvaultSecretsBackend.GetSecretOutput("key1;foo")
 	assert.Equal(t, "bar", *secretOutput.Value)
-	assert.Nil(t, secretOutput.Error)
 }
