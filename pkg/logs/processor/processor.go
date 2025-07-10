@@ -37,18 +37,24 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
 
+	// Cached failover configuration
+	failoverMu        sync.RWMutex
+	failoverActive    bool
+	failoverAllowlist map[string]struct{}
+
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
 }
 
-// New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+// New returns an initialized Processor with no config support for failover notifications.
+func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
-	return &Processor{
+	p := &Processor{
+		config:                    config,
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
@@ -60,6 +66,53 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
 	}
+
+	// Initialize cached failover config
+	p.updateFailoverConfig()
+
+	// Register for config change notifications
+	if config != nil {
+		config.OnUpdate(p.onConfigUpdate)
+	}
+
+	return p
+}
+
+// onConfigUpdate is called when any config value changes
+func (p *Processor) onConfigUpdate(setting string, _, _ any, _ uint64) {
+	// Only update if the changed setting affects failover configuration
+	if setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist" {
+		p.updateFailoverConfig()
+	}
+}
+
+// updateFailoverConfig updates the cached failover configuration
+func (p *Processor) updateFailoverConfig() {
+	if p.config == nil {
+		return
+	}
+
+	p.failoverMu.Lock()
+	defer p.failoverMu.Unlock()
+
+	p.failoverActive = p.config.GetBool("multi_region_failover.failover_logs")
+
+	var allowlist map[string]struct{}
+	if p.failoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
+		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
+		}
+	}
+	p.failoverAllowlist = allowlist
+}
+
+// getCachedFailoverConfig returns the cached failover configuration
+func (p *Processor) getCachedFailoverConfig() (bool, map[string]struct{}) {
+	p.failoverMu.RLock()
+	defer p.failoverMu.RUnlock()
+	return p.failoverActive, p.failoverAllowlist
 }
 
 // Start starts the Processor.
@@ -108,20 +161,6 @@ func (p *Processor) run() {
 	}
 }
 
-func (p *Processor) getFailoverAllowlist() (bool, map[string]struct{}) {
-	failoverActive := p.config.GetBool("multi_region_failover.failover_logs")
-	var allowlist map[string]struct{}
-	if failoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
-		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
-		allowlist = make(map[string]struct{}, len(rawList))
-		for _, allowed := range rawList {
-			allowlist[allowed] = struct{}{}
-		}
-	}
-
-	return failoverActive, allowlist
-}
-
 func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
 	defer p.utilization.Stop()
@@ -144,9 +183,17 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
-		failoverActiveForMRF, allowlistForMRF := p.getFailoverAllowlist()
+		// Use cached failover config if available, otherwise fallback to direct config read
+		var failoverActiveForMRF bool
+		var allowlistForMRF map[string]struct{}
+		if p.config != nil {
+			failoverActiveForMRF, allowlistForMRF = p.getCachedFailoverConfig()
+		}
+
 		failoverActive := failoverActiveForMRF && len(allowlistForMRF) > 0
-		if _, failoverSource := allowlistForMRF[msg.Origin.Service()]; failoverActive && failoverSource {
+		_, sourceIsFailover := allowlistForMRF[msg.Origin.Service()]
+
+		if failoverActive && sourceIsFailover {
 			msg.IsMRFAllow = true
 		}
 
