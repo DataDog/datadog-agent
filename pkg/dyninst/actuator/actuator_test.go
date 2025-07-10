@@ -26,6 +26,43 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
+func TestIrGenFailed(t *testing.T) {
+	dyninsttest.SkipIfKernelNotSupported(t)
+
+	loader, err := loader.NewLoader()
+	require.NoError(t, err)
+	a := actuator.NewActuator(loader)
+
+	reporter := &irGenErrorReporter{
+		t:  t,
+		ch: make(chan irGenFailedMessage, 1),
+	}
+	pid := actuator.ProcessID{PID: 1234}
+	at := a.NewTenant("test", reporter)
+	at.HandleUpdate(actuator.ProcessesUpdate{
+		Processes: []actuator.ProcessUpdate{{
+			ProcessID: pid,
+			Executable: actuator.Executable{
+				Path: "I am not a real path",
+			},
+			Probes: []ir.ProbeDefinition{
+				&rcjson.SnapshotProbe{
+					LogProbeCommon: rcjson.LogProbeCommon{
+						ProbeCommon: rcjson.ProbeCommon{
+							ID: "test",
+						},
+					},
+				},
+			},
+		}},
+	})
+	msg, ok := <-reporter.ch
+	require.True(t, ok)
+	require.Equal(t, pid, msg.processID)
+	require.Regexp(t, "failed to open executable", msg.err.Error())
+	require.ErrorIs(t, msg.err, os.ErrNotExist)
+}
+
 func TestNoSuccessfulProbesError(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 
