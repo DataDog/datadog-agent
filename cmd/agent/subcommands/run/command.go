@@ -60,7 +60,6 @@ import (
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
-	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -535,7 +534,6 @@ func getSharedFxOption() fx.Option {
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
 		workloadfilterfx.Module(),
-		connectivitycheckerfx.Module(),
 	)
 }
 

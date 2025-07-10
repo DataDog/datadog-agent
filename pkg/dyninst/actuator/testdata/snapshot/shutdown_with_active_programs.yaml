@@ -103,13 +103,13 @@ state:
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !close-sink {program_id: 1}
+  - !unload-program {program_id: 1}
 state:
   currently_loading: "2"
   queued_programs: '[]'
   processes:
-    1001: Detaching (prog 1) -> <nil>
+    1001: Detaching (prog 1)
     1002: WaitingForProgram (prog 2)
   programs:
-    1: Draining (proc 1001) -> <nil>
+    1: Draining (proc 1001) -> Unloading (proc 1001)
     2: LoadingAborted (proc 1002)
