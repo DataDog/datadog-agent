@@ -82,7 +82,7 @@ func NewUSMEmptyConfig() *config.Config {
 	return cfg
 }
 
-// countMapEntries counts entries in a specific BPF map.
+// CountMapEntries counts entries in a specific BPF map.
 func CountMapEntries(t *testing.T, m *ebpf.Map) int {
 	t.Helper()
 	if m == nil {
