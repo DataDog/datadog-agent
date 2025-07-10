@@ -6,9 +6,11 @@
 package processor
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
+	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -46,14 +48,16 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		ts = msg.ServerlessExtra.Timestamp
 	}
 
-	encoded, err := json.Marshal(jsonPayload{
-		Message:   toValidUtf8(msg.GetContent()),
-		Status:    msg.GetStatus(),
-		Timestamp: ts.UnixNano() / nanoToMillis,
-		Hostname:  hostname,
-		Service:   msg.Origin.Service(),
-		Source:    msg.Origin.Source(),
-		Tags:      msg.TagsToString(),
+	msgContent := msg.GetContent()
+
+	encoded, err := jsonEncodeFastPath(fastPathPayload{
+		content:   msgContent,
+		status:    msg.GetStatus(),
+		timestamp: ts.UnixNano() / nanoToMillis,
+		hostname:  hostname,
+		service:   msg.Origin.Service(),
+		source:    msg.Origin.Source(),
+		tags:      msg.TagsToString(),
 	})
 
 	if err != nil {
@@ -62,4 +66,163 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 
 	msg.SetEncoded(encoded)
 	return nil
+}
+
+type fastPathPayload struct {
+	content   []byte
+	status    string
+	timestamp int64
+	hostname  string
+	service   string
+	source    string
+	tags      string
+}
+
+func jsonEncodeFastPath(payload fastPathPayload) ([]byte, error) {
+	var buff bytes.Buffer
+
+	appendRawString := func(key, value string, lastField bool) {
+		buff.WriteByte('"')
+		buff.WriteString(key)
+		buff.WriteString(`":"`)
+		buff.WriteString(value)
+		buff.WriteByte('"')
+		if !lastField {
+			buff.WriteByte(',')
+		}
+	}
+
+	preAllocKeyValue := func(key int, value int) int {
+		// quote + key + quote + colon + quote + value + quote
+		return 1 + key + 3 + value + 1
+	}
+
+	// {} + all fields + (number of fields - 1) commas
+	preAlloc := 2 +
+		preAllocKeyValue(len("message"), len(payload.content)) +
+		bytes.Count(payload.content, []byte{'"'}) + // for escaping quotes, quotes are the most commonly escaped character because of JSON content
+		preAllocKeyValue(len("status"), len(payload.status)) +
+		preAllocKeyValue(len("timestamp"), 19) + // max int64 in string is 19 chars
+		preAllocKeyValue(len("hostname"), len(payload.hostname)) +
+		preAllocKeyValue(len("service"), len(payload.service)) +
+		preAllocKeyValue(len("ddsource"), len(payload.source)) +
+		preAllocKeyValue(len("ddtags"), len(payload.tags)) +
+		6
+	buff.Grow(preAlloc)
+
+	// header
+	buff.WriteByte('{')
+
+	// message
+	buff.WriteString(`"message":`)
+	writeEscapedString(&buff, payload.content)
+	buff.WriteByte(',')
+
+	// status
+	appendRawString("status", payload.status, false)
+
+	// timestamp
+	buff.WriteString(`"timestamp":`)
+	tmp := buff.AvailableBuffer()
+	tmp = strconv.AppendInt(tmp, payload.timestamp, 10)
+	buff.Write(tmp)
+	buff.WriteByte(',')
+
+	// hostname
+	appendRawString("hostname", payload.hostname, false)
+	// service
+	appendRawString("service", payload.service, false)
+	// source
+	appendRawString("ddsource", payload.source, false)
+	// tags
+	appendRawString("ddtags", payload.tags, true)
+
+	// footer
+	buff.WriteByte('}')
+
+	return buff.Bytes(), nil
+}
+
+func isHTMLJSONSafe(b byte) bool {
+	// Check if the byte is a valid HTML JSON safe character
+	return b >= 0x20 && b != '"' && b != '\\' && b != '<' && b != '>' && b != '&'
+}
+
+func writeEscapedString(buff *bytes.Buffer, src []byte) {
+	const hex = "0123456789abcdef"
+
+	buff.WriteByte('"')
+	start := 0
+	for i := 0; i < len(src); {
+		if b := src[i]; b < utf8.RuneSelf {
+			if isHTMLJSONSafe(b) {
+				i++
+				continue
+			}
+			buff.Write(src[start:i])
+			switch b {
+			case '\\', '"':
+				buff.WriteByte('\\')
+				buff.WriteByte(b)
+			case '\b':
+				buff.WriteByte('\\')
+				buff.WriteByte('b')
+			case '\f':
+				buff.WriteByte('\\')
+				buff.WriteByte('f')
+			case '\n':
+				buff.WriteByte('\\')
+				buff.WriteByte('n')
+			case '\r':
+				buff.WriteByte('\\')
+				buff.WriteByte('r')
+			case '\t':
+				buff.WriteByte('\\')
+				buff.WriteByte('t')
+			default:
+				// This encodes bytes < 0x20 except for \b, \f, \n, \r and \t.
+				// If escapeHTML is set, it also escapes <, >, and &
+				// because they can lead to security holes when
+				// user-controlled strings are rendered into JSON
+				// and served to some browsers.
+				buff.Write([]byte{'\\', 'u', '0', '0', hex[b>>4], hex[b&0xF]})
+			}
+			i++
+			start = i
+			continue
+		}
+		// TODO(https://go.dev/issue/56948): Use generic utf8 functionality.
+		// For now, cast only a small portion of byte slices to a string
+		// so that it can be stack allocated. This slows down []byte slightly
+		// due to the extra copy, but keeps string performance roughly the same.
+		n := len(src) - i
+		if n > utf8.UTFMax {
+			n = utf8.UTFMax
+		}
+		c, size := utf8.DecodeRuneInString(string(src[i : i+n]))
+		if c == utf8.RuneError && size == 1 {
+			buff.Write(src[start:i])
+			buff.WriteString(`\ufffd`)
+			i += size
+			start = i
+			continue
+		}
+		// U+2028 is LINE SEPARATOR.
+		// U+2029 is PARAGRAPH SEPARATOR.
+		// They are both technically valid characters in JSON strings,
+		// but don't work in JSONP, which has to be evaluated as JavaScript,
+		// and can lead to security holes there. It is valid JSON to
+		// escape them, so we do so unconditionally.
+		// See https://en.wikipedia.org/wiki/JSON#Safety.
+		if c == '\u2028' || c == '\u2029' {
+			buff.Write(src[start:i])
+			buff.Write([]byte{'\\', 'u', '2', '0', '2', hex[c&0xF]})
+			i += size
+			start = i
+			continue
+		}
+		i += size
+	}
+	buff.Write(src[start:])
+	buff.WriteByte('"')
 }
