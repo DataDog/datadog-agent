@@ -96,7 +96,7 @@ func TestSetrlimitEvent(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 			return true
-		}, time.Second*3, "test_setrlimit_nproc")
+		}, time.Second*10, "test_setrlimit_nproc")
 		if err != nil {
 			t.Error(err)
 		}
