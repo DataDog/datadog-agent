@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -55,6 +58,7 @@ type depsWithoutServer struct {
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Hostname      hostnameinterface.Component
+	Tagger        tagger.Component
 }
 
 type serverDeps struct {
@@ -69,6 +73,7 @@ type serverDeps struct {
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Server        Component
+	Tagger        tagger.Component
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -82,13 +87,13 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 		}),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
-
 		Module(Params{Serverless: false}),
 	))
 }
@@ -97,6 +102,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
@@ -126,9 +132,10 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
+		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.Tagger)
 
 	return deps, s
 }

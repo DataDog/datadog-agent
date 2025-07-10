@@ -123,7 +123,7 @@ func NewComponent(req Requires) (Provides, error) {
 
 		// Start the TagStore and the WorkloadMeta collector.
 		go taggerInstance.tagStore.Run(taggerInstance.ctx)
-		go taggerInstance.collector.Run(taggerInstance.ctx, taggerInstance.cfg)
+		go taggerInstance.collector.Run(taggerInstance.ctx)
 
 		return nil
 	}})
@@ -179,7 +179,7 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 	// dogstatsd metrics.
 	tlmUDPOriginDetectionError := telemetryComp.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
 
-	return &localTagger{
+	tagger := &localTagger{
 		tagStore:                   tagStore,
 		workloadStore:              wmeta,
 		log:                        log,
@@ -187,7 +187,9 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 		cfg:                        cfg,
 		tlmUDPOriginDetectionError: tlmUDPOriginDetectionError,
 		datadogConfig:              dc,
-	}, nil
+	}
+
+	return tagger, nil
 }
 
 // getTags returns a read only list of tags for a given entity.
