@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -65,7 +66,8 @@ type pendingMsg struct {
 	tags            []string
 	actionReports   []model.ActionReport
 	service         string
-	extTagsCb       func() []string
+	timestamp       time.Time
+	extTagsCb       func() ([]string, bool)
 	sendAfter       time.Time
 	retry           int
 }
@@ -223,7 +225,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
-	a.queue = slices.DeleteFunc(a.queue, func(msg *pendingMsg) bool {
+	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
 		if msg.sendAfter.After(now) {
 			return false
 		}
@@ -243,6 +245,17 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 
 		return false
 	})
+}
+
+// slicesDeleteUntilFalse deletes elements from the slice until the function f returns false.
+func slicesDeleteUntilFalse(s []*pendingMsg, f func(*pendingMsg) bool) []*pendingMsg {
+	for i, v := range s {
+		if !f(v) {
+			return s[i:]
+		}
+	}
+
+	return nil
 }
 
 func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
@@ -290,8 +303,13 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
+					tags, retryable := msg.extTagsCb()
+					if len(tags) == 0 && retryable && msg.retry < maxRetry {
+						return false
+					}
+
 					// dedup
-					for _, tag := range msg.extTagsCb() {
+					for _, tag := range tags {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
 						}
@@ -312,10 +330,11 @@ func (a *APIServer) start(ctx context.Context) {
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
 				m := &api.SecurityEventMessage{
-					RuleID:  msg.ruleID,
-					Data:    data,
-					Service: msg.service,
-					Tags:    msg.tags,
+					RuleID:    msg.ruleID,
+					Data:      data,
+					Service:   msg.service,
+					Tags:      msg.tags,
+					Timestamp: timestamppb.New(msg.timestamp),
 				}
 				a.updateMsgService(m)
 
@@ -348,7 +367,7 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 }
 
 // SendEvent forwards events sent by the runtime security module to Datadog
-func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	backendEvent := events.BackendEvent{
 		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
@@ -397,12 +416,18 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		}
 
+		timestamp := ev.ResolveEventTime()
+		if timestamp.IsZero() {
+			timestamp = time.Now()
+		}
+
 		msg := &pendingMsg{
 			ruleID:          ruleID,
 			backendEvent:    backendEvent,
 			eventSerializer: serializers.NewEventSerializer(ev, rule),
 			extTagsCb:       extTagsCb,
 			service:         service,
+			timestamp:       timestamp,
 			sendAfter:       time.Now().Add(retention),
 			tags:            tags,
 			actionReports:   actionReports,
@@ -440,11 +465,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
+		// for custom events, we can use the current time as timestamp
+		timestamp := time.Now()
+
 		m := &api.SecurityEventMessage{
-			RuleID:  ruleID,
-			Data:    data,
-			Service: service,
-			Tags:    tags,
+			RuleID:    ruleID,
+			Data:      data,
+			Service:   service,
+			Tags:      tags,
+			Timestamp: timestamppb.New(timestamp),
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)

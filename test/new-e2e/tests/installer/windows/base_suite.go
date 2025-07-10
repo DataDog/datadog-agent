@@ -167,8 +167,11 @@ func (s *BaseSuite) createStableAgent() {
 	}
 	// else, use the defaults (last stable release)
 
-	agentVersion := "7.66.0-devel"
-	agentVersionPackage := "7.66.0-devel.git.488.1ddea94.pipeline.62296915-1"
+	// TODO: update to last stable when there is one
+	agentVersion := "7.68.0-rc.5"
+	agentVersionPackage := "7.68.0-rc.5-1"
+	agentRegistry := consts.BetaS3OCIRegistry
+	agentMSIURL := "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.68.0-rc.5.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -180,18 +183,16 @@ func (s *BaseSuite) createStableAgent() {
 	// Get previous version OCI package
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
-		// TODO: update to last stable when there is one
 		WithVersion(agentVersionPackage),
-		WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		WithRegistry(agentRegistry),
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
-		// TODO: update to last stable when there is one
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithURL("https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.66.0-devel.git.488.1ddea94.pipeline.62296915.msi"),
+		windowsagent.WithURL(agentMSIURL),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
@@ -287,9 +288,8 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Act
 	s.WaitForDaemonToStop(func() {
-		_, _ = s.startExperimentPreviousVersion()
-		// TODO: after stable is 7.68, we can check for error
-		// s.Require().NoError(err, "daemon should stop cleanly")
+		_, err := s.startExperimentPreviousVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert

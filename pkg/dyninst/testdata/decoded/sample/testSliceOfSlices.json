@@ -1,0 +1,78 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testSliceOfSlices",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testSliceOfSlices",
+          "location": {
+            "method": "main.testSliceOfSlices"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "u": {
+                "type": "[][]uint",
+                "elements": [
+                  {
+                    "type": "[]uint",
+                    "elements": [
+                      {
+                        "type": "uint",
+                        "value": "4"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "[]uint",
+                    "elements": [
+                      {
+                        "type": "uint",
+                        "value": "5"
+                      },
+                      {
+                        "type": "uint",
+                        "value": "6"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "[]uint",
+                    "elements": [
+                      {
+                        "type": "uint",
+                        "value": "7"
+                      },
+                      {
+                        "type": "uint",
+                        "value": "8"
+                      },
+                      {
+                        "type": "uint",
+                        "value": "9"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

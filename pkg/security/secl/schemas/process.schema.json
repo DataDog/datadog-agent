@@ -183,7 +183,6 @@
                 "name",
                 "inode",
                 "mode",
-                "filesystem",
                 "uid",
                 "gid",
                 "modification_time",
@@ -202,6 +201,23 @@
                 "required": [
                     "path",
                     "mount_id"
+                ]
+            },
+            "if": {
+                "not": {
+                    "properties": {
+                        "path": {
+                            "const": "/runc"
+                        },
+                        "mount_origin": {
+                            "const": "fsmount"
+                        }
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "filesystem"
                 ]
             }
         },

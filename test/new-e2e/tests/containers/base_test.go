@@ -35,10 +35,12 @@ type baseSuite[Env any] struct {
 
 func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
 	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
+	suite.BaseSuite.BeforeTest(suiteName, testName)
 }
 
 func (suite *baseSuite[Env]) AfterTest(suiteName, testName string) {
 	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
+	suite.BaseSuite.AfterTest(suiteName, testName)
 }
 
 type testMetricArgs struct {

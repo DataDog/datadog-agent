@@ -1,0 +1,39 @@
+[
+  {
+    "service": "simple",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.PointerSmallChainArg",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "PointerSmallChainArg",
+          "location": {
+            "method": "main.PointerSmallChainArg"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "ptr": {
+                "type": "**int",
+                "address": "[addr]",
+                "value": "17"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

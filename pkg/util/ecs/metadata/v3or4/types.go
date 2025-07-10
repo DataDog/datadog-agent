@@ -25,6 +25,17 @@ type Task struct {
 	PullStoppedAt           string             `json:"PullStoppedAt,omitempty"`
 	ExecutionStoppedAt      string             `json:"ExecutionStoppedAt,omitempty"`
 	AvailabilityZone        string             `json:"AvailabilityZone,omitempty"`
+	Errors                  []AwsError         `Json:"Errors,Omitempty"`
+}
+
+// AwsError represents errors returned in the payload
+type AwsError struct {
+	ErrorField   string `json:"ErrorField,omitempty"`
+	ErrorCode    string `json:"ErrorCode,omitempty"`
+	ErrorMessage string `json:"ErrorMessage,omitempty"`
+	StatusCode   int    `json:"StatusCode,omitempty"`
+	RequestID    string `json:"RequestId,omitempty"`
+	RequestARN   string `json:"RequestARN,omitempty"`
 }
 
 // Container represents a container within a task.

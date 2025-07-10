@@ -83,6 +83,7 @@ def build(
         bin_path=BIN_PATH,
         env=env,
         check_deadcode_in_ci=True,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
 

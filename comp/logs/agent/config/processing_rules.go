@@ -12,10 +12,11 @@ import (
 
 // Processing rule types
 const (
-	ExcludeAtMatch = "exclude_at_match"
-	IncludeAtMatch = "include_at_match"
-	MaskSequences  = "mask_sequences"
-	MultiLine      = "multi_line"
+	ExcludeAtMatch   = "exclude_at_match"
+	IncludeAtMatch   = "include_at_match"
+	MaskSequences    = "mask_sequences"
+	MultiLine        = "multi_line"
+	ExcludeTruncated = "exclude_truncated"
 )
 
 // ProcessingRule defines an exclusion or a masking rule to
@@ -43,19 +44,19 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 
 		switch rule.Type {
 		case ExcludeAtMatch, IncludeAtMatch, MaskSequences, MultiLine:
+			if rule.Pattern == "" {
+				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
+			}
+			_, err := regexp.Compile(rule.Pattern)
+			if err != nil {
+				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
+			}
+		case ExcludeTruncated:
 			break
 		case "":
 			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
 		default:
 			return fmt.Errorf("type %s is not supported for processing rule `%s`", rule.Type, rule.Name)
-		}
-
-		if rule.Pattern == "" {
-			return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
-		}
-		_, err := regexp.Compile(rule.Pattern)
-		if err != nil {
-			return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 		}
 	}
 	return nil
@@ -64,6 +65,9 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 // CompileProcessingRules compiles all processing rule regular expressions.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
+		if rule.Type == ExcludeTruncated {
+			continue
+		}
 		re, err := regexp.Compile(rule.Pattern)
 		if err != nil {
 			return err

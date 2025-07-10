@@ -42,6 +42,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	PulumiVerboseProgressStreams: "E2E_PULUMI_VERBOSE_PROGRESS_STREAMS",
 	DevMode:                      "E2E_DEV_MODE",
 	InitOnly:                     "E2E_INIT_ONLY",
+	TeardownOnly:                 "E2E_TEARDOWN_ONLY",
 	MajorVersion:                 "E2E_MAJOR_VERSION",
 	PreInitialized:               "E2E_PRE_INITIALIZED",
 	FIPS:                         "E2E_FIPS",

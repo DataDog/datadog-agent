@@ -8,40 +8,23 @@
 package actuator
 
 import (
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
 
-// CompiledProgram is a compiled eBPF program.
-type CompiledProgram struct {
-	// IR is the IR program that was generated from the probe configuration.
-	IR *ir.Program
-	// Probes is the list of probes that were compiled.
-	Probes []ir.ProbeDefinition
-	// CompiledBPF is the compiled eBPF program.
-	CompiledBPF compiler.CompiledBPF
-}
-
 type loadedProgram struct {
-	program      *ir.Program
-	collection   *ebpf.Collection
-	bpfProgram   *ebpf.Program
-	attachpoints []codegen.BPFAttachPoint
-}
-
-func (p *loadedProgram) close() {
-	if p.collection != nil { // only nil in tests
-		p.collection.Close() // should already contain the program
-	}
+	tenantID tenantID
+	program  loader.Program
+	ir       *ir.Program
+	sink     Sink
 }
 
 type attachedProgram struct {
-	program        *ir.Program
+	ir             *ir.Program
 	procID         ProcessID
+	tenantID       tenantID
 	executableLink *link.Executable
 	attachedLinks  []link.Link
 }

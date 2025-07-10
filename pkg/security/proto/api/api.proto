@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "pkg/security/proto/api";
 
 package api;
@@ -11,6 +13,7 @@ message SecurityEventMessage {
     bytes Data = 2;
     repeated string Tags = 3;
     string Service = 4;
+    google.protobuf.Timestamp Timestamp = 5;
 }
 
 message DumpProcessCacheParams {

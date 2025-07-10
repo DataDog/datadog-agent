@@ -206,9 +206,12 @@ type LogProbeCommon struct {
 	Capture *Capture `json:"capture,omitempty"`
 	// Sampling specifies how often to trigger the probe.
 	Sampling *Sampling `json:"sampling,omitempty"`
-	// CaptureSnapshot specifies whether to capture a full snapshot of the local
-	// state when the probe is triggered.
-	CaptureSnapshot bool `json:"captureSnapshot"`
+	// Message is the message to emit when the probe is triggered.
+	Message string `json:"message,omitempty"`
+	// Template is the message template of the log to emit.
+	Template string `json:"template"`
+	// Segments are the segments of the log message template.
+	Segments []json.RawMessage `json:"segments"`
 }
 
 // GetCaptureConfig returns the capture configuration of the probe.
@@ -220,11 +223,7 @@ func (l *LogProbeCommon) GetCaptureConfig() ir.CaptureConfig {
 type LogProbe struct {
 	LogProbeCommon
 	// CaptureSnapshot is always false for log probes.
-	CaptureSnapshot bool `json:"captureSnapshot"`
-	// Template is the message template of the log to emit.
-	Template string `json:"template"`
-	// Segments are the segments of the log message template.
-	Segments []json.RawMessage `json:"segments"`
+	CaptureSnapshot False `json:"captureSnapshot"`
 }
 
 func (l *LogProbe) validate() error {
@@ -236,9 +235,6 @@ func (l *LogProbe) validate() error {
 	}
 	if len(l.Segments) == 0 {
 		return errors.New("segments must be set")
-	}
-	if l.CaptureSnapshot {
-		return errors.New("captureSnapshot must be false for log probes")
 	}
 	return nil
 }

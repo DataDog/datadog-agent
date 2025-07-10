@@ -38,10 +38,15 @@ def go_build(
     verbose: bool = False,
     echo: bool = False,
     check_deadcode_in_ci: bool = False,
+    coverage: bool = False,
+    trimpath: bool = True,
 ) -> Result:
     check_deadcode = check_deadcode_in_ci and os.getenv("CI_JOB_NAME") is not None
 
     cmd = "go build"
+    if coverage:
+        cmd += " -cover -covermode=atomic"
+        build_tags.append("e2ecoverage")
     if mod:
         cmd += f" -mod={mod}"
     if race:
@@ -62,6 +67,8 @@ def go_build(
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
+    if trimpath:
+        cmd += " -trimpath"
 
     cmd += f" {entrypoint}"
 

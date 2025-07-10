@@ -190,6 +190,19 @@ func TestConversions(t *testing.T) {
 							},
 						},
 					},
+					EphemeralContainers: []workloadmeta.OrchestratorContainer{
+						{
+							ID:   "ephemeralID",
+							Name: "ephemeralName",
+							Image: workloadmeta.ContainerImage{
+								ID:        "456",
+								RawName:   "busybox:latest",
+								Name:      "busybox",
+								ShortName: "busybox",
+								Tag:       "latest",
+							},
+						},
+					},
 					Ready:         true,
 					Phase:         "Running",
 					IP:            "127.0.0.1",
@@ -241,6 +254,19 @@ func TestConversions(t *testing.T) {
 								Name:      "datadog/agent",
 								ShortName: "agent",
 								Tag:       "7",
+							},
+						},
+					},
+					EphemeralContainers: []*pb.OrchestratorContainer{
+						{
+							Id:   "ephemeralID",
+							Name: "ephemeralName",
+							Image: &pb.ContainerImage{
+								Id:        "456",
+								RawName:   "busybox:latest",
+								Name:      "busybox",
+								ShortName: "busybox",
+								Tag:       "latest",
 							},
 						},
 					},

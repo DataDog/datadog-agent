@@ -95,21 +95,4 @@ func TestEnableDiscovery(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
 		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
 	})
-
-	t.Run("default enabled with USM", func(t *testing.T) {
-		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-
-		cfg := mock.NewSystemProbe(t)
-		Adjust(cfg)
-		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
-	})
-
-	t.Run("force disabled with USM", func(t *testing.T) {
-		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-		t.Setenv("DD_DISCOVERY_ENABLED", "false")
-
-		cfg := mock.NewSystemProbe(t)
-		Adjust(cfg)
-		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
-	})
 }

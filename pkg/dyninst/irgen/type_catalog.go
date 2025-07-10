@@ -28,20 +28,29 @@ func (a *idAllocator[I]) next() I {
 }
 
 type typeCatalog struct {
-	ptrSize          uint8
-	dwarf            *dwarf.Data
-	idAlloc          idAllocator[ir.TypeID]
-	typesByDwarfType map[dwarf.Offset]ir.TypeID
-	typesByID        map[ir.TypeID]ir.Type
+	maxDynamicTypeSize uint32
+	maxHashBucketsSize uint32
+	ptrSize            uint8
+	dwarf              *dwarf.Data
+	idAlloc            idAllocator[ir.TypeID]
+	typesByDwarfType   map[dwarf.Offset]ir.TypeID
+	typesByID          map[ir.TypeID]ir.Type
 }
 
-func newTypeCatalog(dwarfData *dwarf.Data, ptrSize uint8) *typeCatalog {
+func newTypeCatalog(
+	dwarfData *dwarf.Data,
+	ptrSize uint8,
+	maxDynamicTypeSize uint32,
+	maxHashBucketsSize uint32,
+) *typeCatalog {
 	return &typeCatalog{
-		ptrSize:          ptrSize,
-		dwarf:            dwarfData,
-		idAlloc:          idAllocator[ir.TypeID]{},
-		typesByDwarfType: make(map[dwarf.Offset]ir.TypeID),
-		typesByID:        make(map[ir.TypeID]ir.Type),
+		maxDynamicTypeSize: maxDynamicTypeSize,
+		maxHashBucketsSize: maxHashBucketsSize,
+		ptrSize:            ptrSize,
+		dwarf:              dwarfData,
+		idAlloc:            idAllocator[ir.TypeID]{},
+		typesByDwarfType:   make(map[dwarf.Offset]ir.TypeID),
+		typesByID:          make(map[ir.TypeID]ir.Type),
 	}
 }
 

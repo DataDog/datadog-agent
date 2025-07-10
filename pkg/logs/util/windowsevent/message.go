@@ -46,22 +46,42 @@ func (m *Message) SetContent(content []byte) {
 	_ = m.data.SetMessage(string(content))
 }
 
+// Checks at the beginning and end of string for truncated flag
+func hasTruncatedFlag(m string) bool {
+	if len(m) < len(truncatedFlag) {
+		return false
+	}
+
+	if m[0:len(truncatedFlag)] == truncatedFlag {
+		return true
+	} else if m[len(m)-len(truncatedFlag):] == truncatedFlag {
+		return true
+	}
+	return false
+}
+
 // MapToMessage packages a Map into either an unstructured message.Message or a structured one.
 func MapToMessage(m *Map, source *sources.LogSource, processRawMessage bool) (*message.Message, error) {
+	// Check if the message was truncated by looking for the truncated flag
+	isTruncated := hasTruncatedFlag(m.GetMessage())
+
 	// old behaviour using an unstructured message with raw data
 	if processRawMessage {
 		jsonEvent, err := m.Json()
 		if err != nil {
 			return nil, err
 		}
-		return message.NewMessageWithSource(jsonEvent, message.StatusInfo, source, time.Now().UnixNano()), nil
+		msg := message.NewMessageWithSourceWithParsingExtra(jsonEvent, message.StatusInfo, source, time.Now().UnixNano(), isTruncated)
+		return msg, nil
 	}
 
 	// new behaviour returning a structured message
-	return message.NewStructuredMessage(
+	msg := message.NewStructuredMessageWithParsingExtra(
 		&Message{data: m},
 		message.NewOrigin(source),
 		message.StatusInfo,
 		time.Now().UnixNano(),
-	), nil
+		isTruncated,
+	)
+	return msg, nil
 }

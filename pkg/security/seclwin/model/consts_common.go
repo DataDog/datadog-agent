@@ -610,13 +610,19 @@ func initConstants() {
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
-	initSetSockOptOptNameConstants()
+	initSetSockOptOptNameConstantsIP()
+	initSetSockOptOptNameConstantsSolSocket()
+	initSetSockOptOptNameConstantsTCP()
+	initSetSockOptOptNameConstantsIPv6()
 	initRlimitConstants()
 	initABIConstants()
 	initArchitectureConstants()
 	initCompressionTypeConstants()
 	initFileTypeConstants()
 	initLinkageTypeConstants()
+	initSocketTypeConstants()
+	initSocketFamilyConstants()
+	initSocketProtocolConstants()
 }
 
 // RetValError represents a syscall return error value

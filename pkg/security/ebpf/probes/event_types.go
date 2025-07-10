@@ -467,6 +467,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture setsockopt events
 		"setsockopt": {
 			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setsockopt", fentry, EntryAndExit)},
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_security_socket_setsockopt"),
+				hookFunc("hook_sk_attach_filter"),
+				hookFunc("hook_release_sock"),
+				hookFunc("rethook_release_sock"),
+			}},
 		},
 
 		// List of probes required to capture splice events

@@ -76,6 +76,20 @@ func (c *NTPCheck) String() string {
 
 // for testing
 var getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts
+var getLocalDefinedNTPServersFunc = getLocalDefinedNTPServers
+
+// stringSlicesEqual compares two string slices for equality
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
 
 func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
 	var instance ntpInstanceConfig
@@ -107,9 +121,10 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	if c.instance.UseLocalDefinedServers {
 		localNtpServers, err = getLocalServers()
 		if err != nil {
-			return err
+			log.Warnf("Could not get local NTP servers, falling back to configured hosts: %v", err)
+		} else {
+			log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 		}
-		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 	}
 
 	if len(localNtpServers) > 0 {
@@ -150,7 +165,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
-	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
+	err := cfg.parse(data, initConfig, getLocalDefinedNTPServersFunc)
 	if err != nil {
 		log.Errorf("Error parsing configuration file: %s", err)
 		return err
@@ -172,6 +187,26 @@ func (c *NTPCheck) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
+	}
+
+	// Re-discover NTP servers on every run for dynamic environments (e.g., DC promotions)
+	if c.cfg.instance.UseLocalDefinedServers {
+		servers, err := getLocalDefinedNTPServersFunc()
+		if err != nil {
+			log.Warnf("Could not re-discover NTP servers: %v", err)
+		} else if len(servers) > 0 {
+			// Check if servers have changed
+			// Sort slices for order-insensitive comparison
+			sort.Strings(c.cfg.instance.Hosts)
+			sort.Strings(servers)
+			if !stringSlicesEqual(c.cfg.instance.Hosts, servers) {
+				log.Infof("NTP servers changed from [%s] to [%s]",
+					strings.Join(c.cfg.instance.Hosts, ", "),
+					strings.Join(servers, ", "))
+				c.cfg.instance.Hosts = servers // Update the list of hosts for this run
+			}
+			// Silent when no change - removed repetitive debug logging
+		}
 	}
 
 	var serviceCheckStatus servicecheck.ServiceCheckStatus

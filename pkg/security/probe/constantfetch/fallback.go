@@ -124,6 +124,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameFileFpath:                   getFileFpathOffset,
 		OffsetNameMountMntID:                  getMountIDOffset,
 		OffsetNameDeviceStructNdNet:           getDeviceStructNdNet,
+		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
 	}
 }
 
@@ -984,5 +985,22 @@ func getDeviceStructNdNet(kv *kernel.Version) uint64 {
 		return 1256
 	default:
 		return 1264
+	}
+}
+
+func getSockStructSKProtocolOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsRH7Kernel():
+		return 337
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15):
+		return 505
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20):
+		return 513
+	case kv.IsSuse12Kernel():
+		return 505
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_18, kernel.Kernel4_19):
+		return 505
+	default:
+		return ErrorSentinel
 	}
 }

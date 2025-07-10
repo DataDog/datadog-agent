@@ -64,8 +64,9 @@ class TestResult(ExecResult):
         self.result_type = "Tests"
         # Path to the result.json file output by gotestsum (should always be present)
         self.result_json_path = None
-        # Path to the junit file output by gotestsum (only present if specified in dda inv test)
-        self.junit_file_path = None
+        # List of paths to the junit files output by gotestsum (only present if specified in dda inv test)
+        # We have multiple because each retry will produce a new junit file
+        self.junit_file_paths = []
 
     def get_failing_tests(self) -> tuple[set[str], dict[str, set[str]]]:
         obj: ResultJson = ResultJson.from_file(self.result_json_path)

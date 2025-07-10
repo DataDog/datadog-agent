@@ -74,11 +74,11 @@ var testCases = []testCase{
 				Sampling: &Sampling{
 					SnapshotsPerSecond: 1.0,
 				},
-			},
-			Template: "Hello {name}",
-			Segments: []json.RawMessage{
-				json.RawMessage(`{"str": "Hello "}`),
-				json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Template: "Hello {name}",
+				Segments: []json.RawMessage{
+					json.RawMessage(`{"str": "Hello "}`),
+					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				},
 			},
 		},
 	},
@@ -128,11 +128,11 @@ var testCases = []testCase{
 				Sampling: &Sampling{
 					SnapshotsPerSecond: 1.0,
 				},
-			},
-			Template: "Hello {name}",
-			Segments: []json.RawMessage{
-				json.RawMessage(`{"str": "Hello "}`),
-				json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				Template: "Hello {name}",
+				Segments: []json.RawMessage{
+					json.RawMessage(`{"str": "Hello "}`),
+					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				},
 			},
 		},
 		validationErr: `signature is not supported`,

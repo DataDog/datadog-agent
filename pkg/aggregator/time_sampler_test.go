@@ -61,7 +61,7 @@ func testBucketSampling(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample, 12355.0)
 	sampler.sample(&mSample, 12365.0)
 
-	series, _ := flushSerie(sampler, 12360.0)
+	series, _ := flushSerie(sampler, 12360.0, false)
 
 	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
@@ -111,7 +111,7 @@ func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample2, 12346.0)
 	sampler.sample(&mSample3, 12346.0)
 
-	series, _ := flushSerie(sampler, 12360.0)
+	series, _ := flushSerie(sampler, 12360.0, false)
 
 	expectedSerie1 := &metrics.Serie{
 		Name:     "my.metric.name1",
@@ -180,7 +180,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler.sample(sampleCounter2, 1002.0)
 	sampler.sample(sampleGauge3, 1003.0)
 
-	series, _ := flushSerie(sampler, 1010.0)
+	series, _ := flushSerie(sampler, 1010.0, false)
 
 	expectedSerie1 := &metrics.Serie{
 		Name:       "my.counter1",
@@ -227,7 +227,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler.sample(sampleCounter1, 1010.0)
 	sampler.sample(sampleCounter2, 1020.0)
 
-	series, _ = flushSerie(sampler, 1040.0)
+	series, _ = flushSerie(sampler, 1040.0, false)
 
 	expectedSerie1 = &metrics.Serie{
 		Name:       "my.counter1",
@@ -253,20 +253,20 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 
 	// We shouldn't get any empty counter since the last flushSeries was during the same interval
-	series, _ = flushSerie(sampler, 1045.0)
+	series, _ = flushSerie(sampler, 1045.0, false)
 	assert.Equal(t, 0, len(series))
 
 	// Now we should get the empty counters
-	series, _ = flushSerie(sampler, 1050.0)
+	series, _ = flushSerie(sampler, 1050.0, false)
 	assert.Equal(t, 2, len(series))
 
-	series, _ = flushSerie(sampler, 1329.0)
+	series, _ = flushSerie(sampler, 1329.0, false)
 	// Counter1 should have stopped reporting but the context is not expired yet
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
 
-	series, _ = flushSerie(sampler, 1800.0)
+	series, _ = flushSerie(sampler, 1800.0, false)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
@@ -302,7 +302,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 		"interval should default to 10")
 
 	t.Run("empty flush", func(t *testing.T) {
-		_, flushed := flushSerie(sampler, timeNowNano())
+		_, flushed := flushSerie(sampler, timeNowNano(), false)
 		require.Len(t, flushed, 0)
 	})
 
@@ -324,7 +324,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			now++
 		}
 
-		_, flushed := flushSerie(sampler, now)
+		_, flushed := flushSerie(sampler, now, false)
 		metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
 			Name:     name,
 			Tags:     tagset.CompositeTagsFromSlice(tags),
@@ -339,7 +339,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			ContextKey: keyGen.Generate(name, host, tagset.NewHashingTagsAccumulatorWithTags(tags)),
 		}, flushed[0])
 
-		_, flushed = flushSerie(sampler, now)
+		_, flushed = flushSerie(sampler, now, false)
 		require.Len(t, flushed, 0, "these points have already been flushed")
 	})
 
@@ -371,7 +371,7 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample2, 10012)
 	sampler.sample(&mSample1, 10021)
 
-	_, flushed := flushSerie(sampler, 10020.0)
+	_, flushed := flushSerie(sampler, 10020.0, false)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1, 2)
 
@@ -414,7 +414,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample1, 10011)
 	sampler.sample(&mSample2, 10011)
 
-	_, flushed := flushSerie(sampler, 10020)
+	_, flushed := flushSerie(sampler, 10020, false)
 	expSketch := &quantile.Sketch{}
 	expSketch.Insert(quantile.Default(), 1)
 
@@ -472,7 +472,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample, 12355.0)
 	sampler.sample(&mSample, 12365.0)
 
-	series, sketches := flushSerie(sampler, 12360.0)
+	series, sketches := flushSerie(sampler, 12360.0, false)
 
 	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
@@ -526,7 +526,7 @@ func testFlushMissingContext(t *testing.T, store *tags.Store) {
 
 	assert.Len(t, sampler.contextResolver.resolver.contextsByKey, 0)
 
-	metrics, sketches := flushSerie(sampler, 1100)
+	metrics, sketches := flushSerie(sampler, 1100, false)
 
 	assert.Len(t, metrics, 0)
 	assert.Len(t, sketches, 0)
@@ -559,7 +559,7 @@ func testFlushBlocklist(t *testing.T, store *tags.Store) {
 		"test.histogram.count",
 	}, false)
 
-	metrics, sketches := flushSerieWithBlocklist(sampler, 1100, &bl)
+	metrics, sketches := flushSerieWithBlocklist(sampler, 1100, &bl, false)
 
 	assert.Len(t, metrics, 4)
 	assert.Len(t, sketches, 1)
@@ -579,9 +579,87 @@ func testFlushBlocklist(t *testing.T, store *tags.Store) {
 		"test.sketch",
 	})
 }
+
 func TestFlushBlocklist(t *testing.T) {
 	testWithTagsStore(t, testFlushBlocklist)
 }
+
+func TestForcedFlush(t *testing.T) {
+	sampler := testTimeSampler(tags.NewStore(false, "test"))
+	testMetric1 := &metrics.MetricSample{
+		Name:       "test.count1",
+		Value:      1,
+		Mtype:      metrics.CountType,
+		SampleRate: 1,
+	}
+	testMetric2 := &metrics.MetricSample{
+		Name:       "test.count2",
+		Value:      1,
+		Mtype:      metrics.CountType,
+		SampleRate: 1,
+	}
+	testSketch := &metrics.MetricSample{
+		Name:       "test.sketch",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		SampleRate: 1,
+	}
+
+	sampler.sample(testMetric1, 999)
+	sampler.sample(testMetric2, 1010)
+	sampler.sample(testMetric2, 1022)
+
+	sampler.sample(testSketch, 999)
+	sampler.sample(testSketch, 1010)
+	sampler.sample(testSketch, 1021)
+
+	mSerie, sSerie := flushSerie(sampler, 1000, true)
+
+	expMetric1 := &metrics.Serie{
+		Name:     testMetric1.Name,
+		Points:   []metrics.Point{{Ts: 990.0, Value: float64(1)}},
+		Tags:     tagset.CompositeTags{},
+		Host:     "",
+		MType:    metrics.APICountType,
+		Interval: 10,
+	}
+
+	expMetric2 := &metrics.Serie{
+		Name: testMetric2.Name,
+		Points: []metrics.Point{
+			{Ts: 1010.0, Value: float64(1)},
+			{Ts: 1020.0, Value: float64(1)},
+		},
+		Tags:     tagset.CompositeTags{},
+		Host:     "",
+		MType:    metrics.APICountType,
+		Interval: 10,
+	}
+
+	require.Len(t, mSerie, 2)
+	if mSerie[0].Name == testMetric1.Name {
+		metrics.AssertSerieEqual(t, expMetric1, mSerie[0])
+		metrics.AssertSerieEqual(t, expMetric2, mSerie[1])
+	} else {
+		metrics.AssertSerieEqual(t, expMetric1, mSerie[1])
+		metrics.AssertSerieEqual(t, expMetric2, mSerie[0])
+	}
+
+	expSketch := &quantile.Sketch{}
+	expSketch.Insert(quantile.Default(), 1)
+	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
+		Name:     testSketch.Name,
+		Tags:     tagset.CompositeTags{},
+		Interval: 10,
+		Points: []metrics.SketchPoint{
+			{Ts: 990.0, Sketch: expSketch},
+			{Ts: 1010.0, Sketch: expSketch},
+			{Ts: 1020.0, Sketch: expSketch},
+		},
+		ContextKey: generateContextKey(testSketch),
+	}, sSerie[0])
+}
+
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 
@@ -601,18 +679,18 @@ func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
 }
 
-func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches, nil)
+	sampler.flush(timestamp, &series, &sketches, nil, forceFlushAll)
 	return series, sketches
 }
 
-func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches, bl)
+	sampler.flush(timestamp, &series, &sketches, bl, forceFlushAll)
 	return series, sketches
 }

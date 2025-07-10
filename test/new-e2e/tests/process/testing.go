@@ -31,6 +31,9 @@ var processDiscoveryCheckConfigStr string
 //go:embed config/process_check_in_core_agent.yaml
 var processCheckInCoreAgentConfigStr string
 
+//go:embed config/process_check_in_core_agent_wlm_process_collector.yaml
+var processCheckInCoreAgentWLMProcessCollectorConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 

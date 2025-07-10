@@ -72,7 +72,7 @@ type DirectMsgSender struct {
 
 // Send the message
 func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
-	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Tags...)
+	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 }
 
 // NewDirectMsgSender returns a new direct sender

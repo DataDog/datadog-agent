@@ -84,7 +84,7 @@ func TestMacroMerge(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
+	if _, errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -99,7 +99,7 @@ func TestMacroMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -159,7 +159,7 @@ func TestRuleMerge(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
+	if _, errs := rs.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() != nil {
 		t.Error(err)
 	}
 
@@ -175,7 +175,7 @@ func TestRuleMerge(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -293,7 +293,7 @@ func TestActionSetVariable(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 
@@ -407,7 +407,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 
@@ -557,7 +557,7 @@ func TestActionSetVariableSize(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 
@@ -675,7 +675,7 @@ func TestActionSetEmptyScope(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 
@@ -737,7 +737,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err == nil {
 		t.Error("expected policy to fail to load")
 	}
 }
@@ -774,7 +774,7 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 
@@ -872,7 +872,7 @@ func TestActionSetVariableInherited(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1053,7 +1053,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1314,7 +1314,7 @@ func TestActionSetVariableScopeField(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1478,7 +1478,7 @@ func TestActionSetVariableExpression(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 
@@ -1598,7 +1598,9 @@ func loadPolicy(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts
 
 	loader := NewPolicyLoader(provider)
 
-	return rs, rs.LoadPolicies(loader, policyOpts)
+	_, errs := rs.LoadPolicies(loader, policyOpts)
+
+	return rs, errs
 }
 
 func TestRuleErrorLoading(t *testing.T) {
@@ -2019,7 +2021,7 @@ func TestActionSetVariableLength(t *testing.T) {
 	loader := NewPolicyLoader(provider)
 
 	rs := newRuleSet()
-	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
 		t.Error(err)
 	}
 

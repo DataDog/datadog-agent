@@ -1,0 +1,101 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testArrayOfArraysOfArrays",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testArrayOfArraysOfArrays",
+          "location": {
+            "method": "main.testArrayOfArraysOfArrays"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "b": {
+                "type": "[2][2][2]int",
+                "elements": [
+                  {
+                    "type": "",
+                    "elements": [
+                      {
+                        "type": "",
+                        "elements": [
+                          {
+                            "type": "",
+                            "value": "1"
+                          },
+                          {
+                            "type": "",
+                            "value": "2"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "",
+                        "elements": [
+                          {
+                            "type": "",
+                            "value": "3"
+                          },
+                          {
+                            "type": "",
+                            "value": "4"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "",
+                    "elements": [
+                      {
+                        "type": "",
+                        "elements": [
+                          {
+                            "type": "",
+                            "value": "5"
+                          },
+                          {
+                            "type": "",
+                            "value": "6"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "",
+                        "elements": [
+                          {
+                            "type": "",
+                            "value": "7"
+                          },
+                          {
+                            "type": "",
+                            "value": "8"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

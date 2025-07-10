@@ -55,6 +55,7 @@ def build(
         development,
         skip_assets,
         major_version=major_version,
+        cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
     if policies_version is None:

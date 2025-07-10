@@ -143,6 +143,7 @@ message KubernetesPod {
   map<string, string> namespaceLabels = 12;
   repeated OrchestratorContainer InitContainers = 13;
   string runtimeClass = 14;
+  repeated OrchestratorContainer ephemeralContainers = 15;
 }
 
 enum ECSLaunchType {

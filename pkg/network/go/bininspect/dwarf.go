@@ -313,7 +313,10 @@ func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry
 
 	var loclist loclist.Reader = loclist2
 	var debugAddr *godwarf.DebugAddr
-	if compileUnit != nil && compileUnit.Version >= 5 && loclist5 != nil {
+
+	// Use DWARF5 if available and either version >= 5 or fallback needed (Go 1.25rc1)
+	if loclist5 != nil && compileUnit != nil &&
+		(compileUnit.Version >= 5 || (loclist2.Empty() && !loclist5.Empty())) {
 		loclist = loclist5
 		if addrBase, ok := compileUnit.Entry.Val(dwarf.AttrAddrBase).(int64); ok {
 			debugAddr = debugAddrSection.GetSubsection(uint64(addrBase))

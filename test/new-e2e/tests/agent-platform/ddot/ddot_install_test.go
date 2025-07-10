@@ -132,8 +132,8 @@ func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
 func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://s3.amazonaws.com/apttesting.datad0g.com/"
-	aptrepoDist := fmt.Sprintf("pipeline-%s-a7-%s", os.Getenv("E2E_PIPELINE_ID"), *architecture)
+	aptrepo := fmt.Sprintf("[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID"))
+	aptrepoDist := fmt.Sprintf("stable-%s", *architecture)
 	fileManager := VMclient.FileManager
 	var err error
 

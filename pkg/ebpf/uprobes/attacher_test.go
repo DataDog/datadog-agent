@@ -114,7 +114,7 @@ func TestAttachPidReadsSharedLibraries(t *testing.T) {
 			{LibraryNameRegex: regexp.MustCompile(`libssl\.so`), Targets: AttachToSharedLibraries},
 			{Targets: AttachToExecutable},
 		},
-		SharedLibsLibset:      sharedlibraries.LibsetCrypto,
+		SharedLibsLibsets:     []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 		EnableDetailedLogging: true,
 	}
 
@@ -317,7 +317,7 @@ func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	}
 
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg, SharedLibsLibset: sharedlibraries.LibsetCrypto}, &MockManager{}, nil, nil, newMockProcessMonitor())
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg, SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto}}, &MockManager{}, nil, nil, newMockProcessMonitor())
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -361,7 +361,8 @@ func TestRuleMatches(t *testing.T) {
 }
 
 func TestAttachRuleValidatesLibsets(t *testing.T) {
-	attachCfg := AttacherConfig{SharedLibsLibset: sharedlibraries.LibsetCrypto}
+	attachCfg := AttacherConfig{SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto}}
+
 	t.Run("ValidLibset", func(tt *testing.T) {
 		rule := AttachRule{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
@@ -385,6 +386,32 @@ func TestAttachRuleValidatesLibsets(t *testing.T) {
 		}
 		require.Error(tt, rule.Validate(&attachCfg))
 	})
+
+}
+
+func TestAttachRuleValidatesMultipleLibsets(t *testing.T) {
+	attachCfgWithMultipleLibsets := AttacherConfig{SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU}}
+
+	t.Run("ValidRules", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.NoError(tt, rule.Validate(&attachCfgWithMultipleLibsets))
+		rule = AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libcudart.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.NoError(tt, rule.Validate(&attachCfgWithMultipleLibsets))
+	})
+
+	t.Run("InvalidRule", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`somethingelse.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.Error(tt, rule.Validate(&attachCfgWithMultipleLibsets))
+	})
 }
 
 func TestMonitor(t *testing.T) {
@@ -402,8 +429,8 @@ func TestMonitor(t *testing.T) {
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
-		EbpfConfig:       ebpfCfg,
-		SharedLibsLibset: sharedlibraries.LibsetCrypto,
+		EbpfConfig:        ebpfCfg,
+		SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 	}
 	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, procMon)
 	require.NoError(t, err)
@@ -455,7 +482,7 @@ func TestSync(t *testing.T) {
 			ProcRoot:                       procFS,
 			Rules:                          rules,
 			EnablePeriodicScanNewProcesses: true,
-			SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+			SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 		}
 
 		ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
@@ -488,7 +515,7 @@ func TestSync(t *testing.T) {
 			ProcRoot:                       procFS,
 			Rules:                          rules,
 			EnablePeriodicScanNewProcesses: true,
-			SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+			SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 		}
 
 		ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
@@ -709,7 +736,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 				Targets: AttachToSharedLibraries,
 			},
 		},
-		SharedLibsLibset: sharedlibraries.LibsetCrypto,
+		SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 	}
 
 	mockMan := &MockManager{}
@@ -873,7 +900,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 			Targets:          AttachToSharedLibraries,
 		}},
 		EbpfConfig:                     ebpfCfg,
-		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 		EnablePeriodicScanNewProcesses: false,
 	}
 
@@ -967,8 +994,8 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 			LibraryNameRegex: regexp.MustCompile(`fooroot-crypto.so`),
 			Targets:          AttachToSharedLibraries,
 		}},
-		EbpfConfig:       ebpfCfg,
-		SharedLibsLibset: sharedlibraries.LibsetCrypto,
+		EbpfConfig:        ebpfCfg,
+		SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 	}
 
 	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, attachCfg, &MockManager{}, nil, nil, s.procMonitor)
@@ -1016,6 +1043,94 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
+}
+
+func (s *SharedLibrarySuite) TestMultipleLibsets() {
+	t := s.T()
+	ebpfCfg := ddebpf.NewConfig()
+
+	// Create test files for different libsets
+	cryptoLibPath, _ := createTempTestFile(t, "foo-libssl.so")
+	gpuLibPath, _ := createTempTestFile(t, "foo-libcudart.so")
+
+	attachCfg := AttacherConfig{
+		Rules: []*AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile(`foo-libssl\.so`),
+				Targets:          AttachToSharedLibraries,
+			},
+			{
+				LibraryNameRegex: regexp.MustCompile(`foo-libcudart\.so`),
+				Targets:          AttachToSharedLibraries,
+			},
+		},
+		EbpfConfig:                     ebpfCfg,
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetCrypto, sharedlibraries.LibsetGPU},
+		EnablePeriodicScanNewProcesses: false,
+	}
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, attachCfg, &MockManager{}, nil, nil, s.procMonitor)
+	require.NoError(t, err)
+
+	mockRegistry := &MockFileRegistry{}
+	ua.fileRegistry = mockRegistry
+
+	// Tell mockRegistry to return on any calls, we will check the values later
+	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Log").Return()
+	mockRegistry.On("Unregister", mock.Anything).Return(nil)
+	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, ua.Start())
+	t.Cleanup(ua.Stop)
+
+	// Test that all three libsets can be detected and registered
+	type testCase struct {
+		libPath     string
+		libName     string
+		description string
+	}
+
+	testCases := []testCase{
+		{cryptoLibPath, "foo-libssl.so", "crypto library"},
+		{gpuLibPath, "foo-libcudart.so", "GPU library"},
+	}
+
+	var commands []*exec.Cmd
+
+	for _, tc := range testCases {
+		var cmd *exec.Cmd
+		waitAndRetryIfFail(t,
+			func() {
+				cmd, err = fileopener.OpenFromAnotherProcess(t, tc.libPath)
+				require.NoError(t, err)
+			},
+			func() bool {
+				return methodHasBeenCalledWithPredicate(mockRegistry, "Register", func(call mock.Call) bool {
+					return strings.Contains(call.Arguments[0].(string), tc.libName)
+				})
+			},
+			func(testSuccess bool) {
+				if !testSuccess && cmd != nil && cmd.Process != nil {
+					cmd.Process.Kill()
+				}
+			},
+			3, 10*time.Millisecond, 500*time.Millisecond, "did not catch %s process, received calls %v", tc.description, mockRegistry.Calls)
+
+		require.NotNil(t, cmd)
+		require.NotNil(t, cmd.Process)
+		commands = append(commands, cmd)
+	}
+
+	for i, cmd := range commands {
+		mockRegistry.AssertCalled(t, "Register", testCases[i].libPath, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
+		cmd.Process.Kill()
+	}
+
+	// Verify unregister calls for all processes
+	require.Eventually(t, func() bool {
+		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Unregister", len(commands))
+	}, 1500*time.Millisecond, 10*time.Millisecond, "did not receive unregister calls for all processes, received calls %v", mockRegistry.Calls)
 }
 
 func methodHasBeenCalledTimes(registry *MockFileRegistry, methodName string, times int) bool {

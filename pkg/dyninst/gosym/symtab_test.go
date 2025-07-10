@@ -62,6 +62,7 @@ func runTest(
 	defer func() { require.NoError(t, obj.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
 	moduledata, err := object.ParseModuleData(mef)
 	require.NoError(t, err)

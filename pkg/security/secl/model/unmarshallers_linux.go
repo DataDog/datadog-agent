@@ -1552,13 +1552,28 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	data = data[read:]
-	if len(data) < 8 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
+	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
+	e.SocketFamily = binary.NativeEndian.Uint16(data[2:4])
+	e.FilterLen = binary.NativeEndian.Uint16(data[4:6])
+	e.SocketProtocol = binary.NativeEndian.Uint16(data[6:8])
+	e.Level = binary.NativeEndian.Uint32(data[8:12])
+	e.OptName = binary.NativeEndian.Uint32(data[12:16])
+	e.IsFilterTruncated = binary.NativeEndian.Uint32(data[16:20]) > 0
+	e.SizeToRead = binary.NativeEndian.Uint32(data[20:24])
+	sizeToRead := int(e.SizeToRead)
 
-	e.Level = binary.NativeEndian.Uint32(data[0:4])
-	e.OptName = binary.NativeEndian.Uint32(data[4:8])
-	return 8 + read, nil
+	// Parse the filter here
+	filterStart := 24
+
+	if len(data) < filterStart+sizeToRead {
+		return 0, ErrNotEnoughData
+	}
+	// Store the filter
+	e.RawFilter = []byte(data[filterStart : filterStart+sizeToRead])
+	return filterStart + sizeToRead + read, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

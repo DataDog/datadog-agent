@@ -185,7 +185,6 @@ build do
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
-    mkdir "#{install_dir}/embedded/share/system-probe/java"
 
     arch = `uname -m`.strip
     if arch == "aarch64"
