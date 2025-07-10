@@ -1093,7 +1093,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-notify:
+celian:
   stage: notify
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   needs: []
