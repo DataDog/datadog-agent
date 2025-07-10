@@ -198,7 +198,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname)
+	consumer.addTelemetryMetric(hostname, e.params)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
 	consumer.addGatewayUsage(hostname, e.gatewayUsage)
 	if err := consumer.Send(e.s); err != nil {

@@ -13,7 +13,9 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/collector/exporter"
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -79,7 +81,7 @@ type SerializerConsumer interface {
 	otlpmetrics.Consumer
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
-	addTelemetryMetric(hostname string)
+	addTelemetryMetric(hostname string, params exporter.Settings)
 	addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage)
 }
 
@@ -90,7 +92,19 @@ type serializerConsumer struct {
 	sketches        metrics.SketchSeriesList
 	apmstats        []io.Reader
 	apmReceiverAddr string
+	path            ingestionPath
+	hosts           map[string]struct{}
+	ecsFargateTags  map[string]struct{}
 }
+
+// ingestionPath specifies which ingestion path is using the serializer exporter
+type ingestionPath int
+
+const (
+	ossCollector ingestionPath = iota
+	ddot
+	agentOTLPIngest
+)
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
@@ -150,15 +164,58 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.
-func (c *serializerConsumer) addTelemetryMetric(hostname string) {
+func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings) {
+	timestamp := float64(time.Now().Unix())
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
-		Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
+		Points:         []metrics.Point{{Value: 1, Ts: timestamp}},
 		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		Host:           hostname,
+		Host:           agentHostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+
+	buildTags := tagsFromBuildInfo(params.BuildInfo)
+
+	switch c.path {
+	case ddot:
+		for host := range c.hosts {
+			c.series = append(c.series, &metrics.Serie{
+				Name:           "datadog.agent.ddot.metrics",
+				Points:         []metrics.Point{{Value: 1, Ts: timestamp}},
+				Tags:           tagset.CompositeTagsFromSlice(buildTags),
+				Host:           host,
+				MType:          metrics.APIGaugeType,
+				SourceTypeName: "System",
+				Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+			})
+		}
+		for ecsFargateTag := range c.ecsFargateTags {
+			c.series = append(c.series, &metrics.Serie{
+				Name:           "datadog.agent.ddot.metrics",
+				Points:         []metrics.Point{{Value: 1, Ts: timestamp}},
+				Tags:           tagset.CompositeTagsFromSlice(append(buildTags, ecsFargateTag)),
+				Host:           "",
+				MType:          metrics.APIGaugeType,
+				SourceTypeName: "System",
+				Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+			})
+		}
+	case agentOTLPIngest:
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "datadog.agent.otlp.ingest.metrics",
+			Points:         []metrics.Point{{Value: 1, Ts: timestamp}},
+			Tags:           tagset.CompositeTagsFromSlice(buildTags),
+			Host:           agentHostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+			Source:         metrics.MetricSourceOpenTelemetryCollectorUnknown,
+		})
+	case ossCollector:
+		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
+	default:
+		params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.path)))
+	}
 }
 
 // addRuntimeTelemetryMetric to know if an Agent is using OTLP runtime metrics.
@@ -227,4 +284,14 @@ func (c *serializerConsumer) sendAPMStats() error {
 		}
 	}
 	return nil
+}
+
+// ConsumeHost implements the metrics.HostConsumer interface.
+func (c *serializerConsumer) ConsumeHost(host string) {
+	c.hosts[host] = struct{}{}
+}
+
+// ConsumeTag implements the metrics.TagsConsumer interface.
+func (c *serializerConsumer) ConsumeTag(tag string) {
+	c.ecsFargateTags[tag] = struct{}{}
 }

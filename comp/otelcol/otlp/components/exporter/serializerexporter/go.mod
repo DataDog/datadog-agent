@@ -157,6 +157,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.67.0
 	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.67.0
@@ -211,6 +212,8 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.67.0 // indirect

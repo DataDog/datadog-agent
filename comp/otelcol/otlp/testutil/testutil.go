@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"io"
 	"log"
 	"net/http"
@@ -28,10 +27,13 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgConfigSetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 // OTLPConfigFromPorts creates a test OTLP config map.
@@ -632,4 +634,38 @@ func (t *TestTaggerClient) Tag(entityID types.EntityID, _ types.TagCardinality) 
 // GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
 func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
 	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
+}
+
+var _ serializer.MetricSerializer = (*MetricRecorder)(nil)
+
+// MetricRecorder is a test implementataion of MetricSerializer that records all the ingested metrics
+type MetricRecorder struct {
+	serializer.Serializer // embed for implementing serializer.MetricSerializer
+
+	SketchSeriesList metrics.SketchSeriesList
+	Series           []*metrics.Serie
+}
+
+// SendSketch implements the MetricSerializer interface
+func (r *MetricRecorder) SendSketch(s metrics.SketchesSource) error {
+	for s.MoveNext() {
+		c := s.Current()
+		if c == nil {
+			continue
+		}
+		r.SketchSeriesList = append(r.SketchSeriesList, c)
+	}
+	return nil
+}
+
+// SendIterableSeries implements the MetricSerializer interface
+func (r *MetricRecorder) SendIterableSeries(s metrics.SerieSource) error {
+	for s.MoveNext() {
+		c := s.Current()
+		if c == nil {
+			continue
+		}
+		r.Series = append(r.Series, c)
+	}
+	return nil
 }

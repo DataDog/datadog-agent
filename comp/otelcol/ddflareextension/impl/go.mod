@@ -204,7 +204,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.67.0 // indirect
