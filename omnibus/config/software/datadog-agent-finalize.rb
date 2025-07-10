@@ -184,7 +184,8 @@ build do
                 command "find #{install_dir} \\
                     -type f \\
                     -exec sh -c 'file --mime-type {} | grep -q application/x-mach-binary' ';' \\
-                    -exec #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' {} ';'", cwd: Dir.pwd
+                    -exec #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' {} '+'", cwd: Dir.pwd
+                #TODO(regis): timing with ';' >400s - with '+' ???
                 command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end
