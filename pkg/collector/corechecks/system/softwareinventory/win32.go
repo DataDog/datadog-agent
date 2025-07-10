@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package softwareinventory
 
 import (
 	"golang.org/x/sys/windows"
