@@ -377,7 +377,7 @@ Description: Datadog Monitoring Agent
 
             # Verify that the URL we requested matches the architecture we set
             mock_get.assert_called_once_with(
-                'https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages', stream=True
+                'https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages', stream=True, timeout=10
             )
 
             # Verify omnibus_run_task was called with the correct environment variables

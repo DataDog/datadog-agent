@@ -74,6 +74,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 			ManifestProducer: t.metadata.IsManifestProducer,
 			ClusterID:        rcfg.ClusterID,
 			CollectorTags:    nil,
+			AgentVersion:     rcfg.AgentVersion,
 		},
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,

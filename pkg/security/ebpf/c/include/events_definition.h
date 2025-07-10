@@ -3,6 +3,8 @@
 
 #include "constants/custom.h"
 #include "structs/all.h"
+#include <uapi/linux/filter.h>
+
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;
@@ -300,6 +302,15 @@ struct mount_event_t {
     struct mount_fields_t mountfields;
 };
 
+struct fsmount_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct fsmount_fields_t fsmountfields;
+};
+
 struct unshare_mntns_event_t {
     struct kevent_t event;
     struct mount_fields_t mountfields;
@@ -538,8 +549,15 @@ struct setsockopt_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
+    u16 socket_type;
+    u16 socket_family;
+    u16 filter_len;
+    u16 socket_protocol;
     int level;
     int optname;
+    u32 truncated; 
+    int sent_size; 
+    char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 
 #endif

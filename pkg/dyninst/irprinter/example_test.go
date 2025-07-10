@@ -90,7 +90,8 @@ func ExamplePrintJSON() {
 	//       "Pointee": "1 StructureType Node"
 	//     }
 	//   ],
-	//   "MaxTypeID": 3
+	//   "MaxTypeID": 3,
+	//   "Issues": []
 	// }
 
 }
@@ -131,6 +132,7 @@ func ExamplePrintYAML() {
 	//       ByteSize: 8
 	//       Pointee: 1 StructureType Node
 	// MaxTypeID: 3
+	// Issues: []
 }
 
 func constructExampleProgram() *ir.Program {

@@ -152,6 +152,7 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+	Fsmount          FsmountEvent          `field:"-"`
 }
 
 var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
@@ -501,7 +502,7 @@ type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
-// Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
+// Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32  `field:"-"`
 	Device         uint32  `field:"-"`
@@ -531,6 +532,19 @@ type MountEvent struct {
 	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
 	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
+}
+
+// FsmountEvent represents an fsmount event
+type FsmountEvent struct {
+	SyscallEvent
+
+	Fd         int32  `field:"-"`
+	Flags      uint32 `field:"-"`
+	MountAttrs uint32 `field:"-"`
+
+	MountID     uint32  `field:"-"`
+	Device      uint32  `field:"-"`
+	RootPathKey PathKey `field:"-"`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
@@ -1009,6 +1023,15 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
-	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
+	SocketType         uint16 `field:"socket_type"`                                                     // SECLDoc[socket_type] Definition:`Socket type`
+	SocketFamily       uint16 `field:"socket_family"`                                                   // SECLDoc[socket_family] Definition:`Socket family`
+	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
+	SocketProtocol     uint16 `field:"socket_protocol"`                                                 // SECLDoc[socket_protocol] Definition:`Socket protocol`
+	Level              uint32 `field:"level"`                                                           // SECLDoc[level] Definition:`Socket level`
+	OptName            uint32 `field:"optname"`                                                         // SECLDoc[optname] Definition:`Socket option name`
+	SizeToRead         uint32 `field:"-"`                                                               // Internal field, not exposed to users
+	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                             // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
+	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"` // SECLDoc[filter_instructions] Definition:`Filter instructions`
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
 }
