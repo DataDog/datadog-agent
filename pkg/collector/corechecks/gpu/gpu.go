@@ -5,6 +5,7 @@
 
 //go:build linux && nvml
 
+// Package gpu contains gpum core-check implementation.
 package gpu
 
 import (
