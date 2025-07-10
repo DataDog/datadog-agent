@@ -485,9 +485,9 @@ func (r testRepositories) keyRotationWithDowngrade(configTargetFiles data.Target
 
 	// Downgrade the director versions
 	r.directorTimestampVersion -= 1
-	r.directorTargetsVersion -= 1
 	r.directorSnapshotVersion -= 1
-	r.directorRootVersion -= 1
+	r.directorTargetsVersion += 1
+	r.directorRootVersion += 1
 
 	prevConfigRootKey := r.configRootKey
 	r.configRootKey = generateKey()
