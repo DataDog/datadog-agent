@@ -161,7 +161,6 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 }
 
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
 	p.eventsConsumer, err = events.NewBatchConsumer(
 		"http",
 		p.mgr,
