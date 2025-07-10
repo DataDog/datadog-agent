@@ -8,15 +8,18 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"os/exec"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+
+	"github.com/cilium/ebpf"
 )
 
 func TestInsertAfterSection(t *testing.T) {
@@ -76,16 +79,11 @@ func TestInsertAfterSection(t *testing.T) {
 			result, err := insertAfterSection(tt.lines, tt.sectionHeader, tt.newLine)
 
 			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
+			require.NoError(t, err)
 
 			if len(result) != len(tt.expected) {
 				t.Errorf("expected %d lines, got %d", len(tt.expected), len(result))
@@ -135,16 +133,11 @@ func TestBuildSafePath(t *testing.T) {
 			result, err := buildSafePath(tt.rootfs, tt.basedir, tt.parts...)
 
 			if tt.expectErr {
-				if err == nil {
-					t.Errorf("expected error but got none")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
+			require.NoError(t, err)
 
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
@@ -160,57 +153,94 @@ func TestConfigureCgroupV2DeviceAllow(t *testing.T) {
 		t.Skip("Test requires root privileges")
 	}
 
+	// We will be testing by reading /dev/null, so we need to make sure it's accessible
+	// before we start the test
+	devnull, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("Test requires /dev/null to be accessible")
+	} else {
+		devnull.Close()
+	}
+
 	// Check if cgroupv2 is available
 	cgroupReader, err := cgroups.NewReader()
-	if err != nil {
-		t.Skipf("Cannot create cgroup reader: %v", err)
-	}
+	require.NoError(t, err)
 
 	if cgroupReader.CgroupVersion() != 2 {
 		t.Skip("Test requires cgroupv2")
 	}
 
-	// Create a temporary cgroup for testing using cgcreate
 	testCgroupName := fmt.Sprintf("test-nvidia-device-allow-%s", utils.RandString(10))
+	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
 
 	// Clean up after test
 	defer func() {
-		// Remove the test cgroup using cgdelete
-		cmd := exec.Command("cgdelete", "devices", testCgroupName)
-		if err := cmd.Run(); err != nil {
+		// Move process back to parent cgroup
+		parentCgroupProcs := "/sys/fs/cgroup/cgroup.procs"
+		pid := os.Getpid()
+		_ = os.WriteFile(parentCgroupProcs, []byte(fmt.Sprintf("%d\n", pid)), 0644)
+		// Remove the test cgroup directory
+		if err := os.RemoveAll(testCgroupPath); err != nil {
 			t.Logf("Failed to clean up test cgroup: %v", err)
 		}
 	}()
 
-	// Create the test cgroup using cgcreate
-	cmd := exec.Command("cgcreate", "-g", "devices:"+testCgroupName)
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to create test cgroup using cgcreate: %v", err)
+	// Test that /dev/null is accessible before adding the cgroup
+	f, err := os.OpenFile("/dev/null", os.O_WRONLY, 0)
+	require.NoError(t, err)
+	if f != nil {
+		f.Close()
 	}
+
+	// Create the test cgroup directory
+	require.NoError(t, os.MkdirAll(testCgroupPath, 0755))
+
+	// Enable controllers for the cgroup by writing to cgroup.subtree_control
+	// This is required to make it a real cgroup
+	subtreeControlPath := filepath.Join(testCgroupPath, "cgroup.subtree_control")
+	require.NoError(t, os.WriteFile(subtreeControlPath, []byte("+pids"), 0644))
 
 	// Refresh the cgroups reader to pick up the new cgroup
-	if err := cgroupReader.RefreshCgroups(0); err != nil {
-		t.Fatalf("Failed to refresh cgroups: %v", err)
+	require.NoError(t, cgroupReader.RefreshCgroups(0))
+
+	// Get the cgroup object, ensure it exists
+	testCgroup := cgroupReader.GetCgroup(testCgroupPath)
+	require.NotNil(t, testCgroup)
+
+	// Move self into the cgroup
+	cgroupProcs := filepath.Join(testCgroupPath, "cgroup.procs")
+	pid := os.Getpid()
+	require.NoError(t, os.WriteFile(cgroupProcs, []byte(fmt.Sprintf("%d\n", pid)), 0644))
+
+	// Test the BPF program attachment, allowing only NVIDIA
+	err = configureCgroupV2DeviceAllow("", testCgroupName, nvidiaDeviceMajor)
+	var verifierError *ebpf.VerifierError
+	if errors.As(err, &verifierError) {
+		t.Logf("Printing verifier error")
+		for _, line := range verifierError.Log {
+			t.Logf("%s", line)
+		}
+	}
+	require.NoError(t, err)
+
+	// /dev/null should be inaccessible
+	f, err = os.Open("/dev/null")
+	if err == nil {
+		f.Close()
+		t.Fatalf("expected /dev/null open to fail after moving to cgroup, but it succeeded")
 	}
 
-	// Get the cgroup object
-	testCgroup := cgroupReader.GetCgroup(testCgroupName)
-	if testCgroup == nil {
-		t.Fatalf("Failed to get test cgroup after creation")
+	// Now allow devices with major 1
+	err = configureCgroupV2DeviceAllow("", testCgroupName, 1)
+	if errors.As(err, &verifierError) {
+		t.Logf("Printing verifier error")
+		for _, line := range verifierError.Log {
+			t.Logf("%s", line)
+		}
 	}
+	require.NoError(t, err)
 
-	// Test the BPF program attachment
-	if err := configureCgroupV2DeviceAllow("", testCgroupName); err != nil {
-		t.Fatalf("Failed to configure cgroupv2 device allow: %v", err)
-	}
-
-	// Verify that the BPF program was attached by checking if the cgroup.procs file exists
-	// and the cgroup is functional
-	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
-	procsPath := filepath.Join(testCgroupPath, "cgroup.procs")
-	if _, err := os.Stat(procsPath); err != nil {
-		t.Errorf("Cgroup procs file not found after BPF attachment: %v", err)
-	}
-
-	t.Logf("Successfully created and configured cgroupv2 device allow for %s", testCgroupName)
+	// Test that /dev/null is now accessible
+	f, err = os.Open("/dev/null")
+	require.NoError(t, err)
 }

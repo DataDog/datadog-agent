@@ -48,7 +48,7 @@ func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 	if cgroupReader.CgroupVersion() == 1 {
 		err = configureCgroupV1DeviceAllow(cgroupPath, rootfs)
 	} else {
-		err = configureCgroupV2DeviceAllow(cgroupPath, rootfs)
+		err = configureCgroupV2DeviceAllow(cgroupPath, rootfs, nvidiaDeviceMajor)
 	}
 
 	if err != nil {
@@ -65,6 +65,7 @@ const (
 	cgroupv1DeviceAllowDir     = "sys/fs/cgroup/devices"
 	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
 	nvidiaCgroupv1Allow        = "c 195:* rwm\n"                 // 195 is the major number for the NVIDIA character devices
+	nvidiaDeviceMajor          = 195
 )
 
 func getCgroupForProcess(cgroupReader *cgroups.Reader, pid uint32) (cgroups.Cgroup, error) {
@@ -186,26 +187,23 @@ func configureCgroupV1DeviceAllow(rootfs, cgroupPath string) error {
 }
 
 // configureCgroupV2DeviceAllow configures device permissions for cgroupv2 using BPF programs
-func configureCgroupV2DeviceAllow(rootfs, cgroupPath string) error {
-	// Create a BPF program that allows access to NVIDIA devices (major number 195)
-	// The program receives device access parameters and should return 1 to allow, 0 to deny
+func configureCgroupV2DeviceAllow(rootfs, cgroupPath string, deviceMajor int) error {
+	// Create a BPF program that allows access to devices with the specified major number
+	// The program receives a pointer to a structure with three uint32 values:
+	// - First field: device type (1=block, 2=char)
+	// - Second field: major number
+	// - Third field: minor number
 	prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{
 		Type: ebpf.CGroupDevice,
 		Instructions: asm.Instructions{
-			// R1 contains the device type (1=block, 2=char)
-			// R2 contains the major number
-			// R3 contains the minor number
-			// R4 contains the access type (read=1, write=2, mknod=4)
+			// R1 contains pointer to the structure
+			// Load major number (second uint32 at offset 4)
+			asm.LoadMem(asm.R2, asm.R1, 4, asm.Word),
+			// Check if this is the target device major number
+			asm.LoadImm(asm.R3, int64(deviceMajor), asm.DWord),
+			asm.JNE.Reg(asm.R2, asm.R3, "deny"),
 
-			// Check if this is a character device (type 2)
-			asm.LoadImm(asm.R0, 2, asm.DWord),
-			asm.JNE.Reg(asm.R1, asm.R0, "deny"),
-
-			// Check if this is an NVIDIA device (major number 195)
-			asm.LoadImm(asm.R0, 195, asm.DWord),
-			asm.JNE.Reg(asm.R2, asm.R0, "deny"),
-
-			// Allow access to NVIDIA character devices
+			// Allow access to matching character devices
 			asm.LoadImm(asm.R0, 1, asm.DWord),
 			asm.Return(),
 
@@ -225,17 +223,24 @@ func configureCgroupV2DeviceAllow(rootfs, cgroupPath string) error {
 		return fmt.Errorf("failed to build host path for cgroup %s: %w", cgroupPath, err)
 	}
 
+	cgroup, err := os.Open(cgroupHostPath)
+	if err != nil {
+		return fmt.Errorf("failed to open cgroup %s: %w", cgroupHostPath, err)
+	}
+	defer cgroup.Close()
+
 	// Attach the program to the cgroup
 	log.Debugf("attaching BPF program to cgroup path %s", cgroupHostPath)
-	l, err := link.AttachCgroup(link.CgroupOptions{
-		Path:    cgroupHostPath,
-		Attach:  ebpf.AttachCGroupDevice,
+
+	err = link.RawAttachProgram(link.RawAttachProgramOptions{
+		Target:  int(cgroup.Fd()),
 		Program: prog,
+		Attach:  ebpf.AttachCGroupDevice,
+		Flags:   0, // AttachCgroup will try to attach with the MULTI flag, which we don't want because then other programs will override our behavior
 	})
 	if err != nil {
 		return fmt.Errorf("failed to attach BPF program to cgroup %s: %w", cgroupPath, err)
 	}
-	defer l.Close()
 
 	log.Debugf("successfully attached BPF device allow program to cgroup %s", cgroupPath)
 	return nil
