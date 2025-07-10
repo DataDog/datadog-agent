@@ -8,10 +8,12 @@
 package k8s
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -94,6 +96,9 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 
 	// additional tags
 	m.Tags = append(m.Tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
+
+	// add APM instrumentation tags
+	m.Tags = append(m.Tags, extractAPMInstrumentationTags(r)...)
 
 	// tags that should be on the tagger
 	if len(taggerTags) == 0 {
@@ -207,4 +212,78 @@ func (h *PodHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, re
 	if pctx.Cfg.IsScrubbingEnabled {
 		redact.ScrubPod(r, pctx.Cfg.Scrubber)
 	}
+}
+
+// ExtractAPMInstrumentationTags extracts tags from the pod that correspond
+// to single step instrumentation and the injection of init containers.
+//
+// We produce tags prefixed with "instrumentation."
+// - one tag for the version of the instrumentation (whether its using the injector or not)
+// - one tag for the injector version
+// - one tag for each language library version
+// - one tag for the workload target name (if used)
+func extractAPMInstrumentationTags(pod *corev1.Pod) []string {
+	var imageTag = func(image string) string {
+		if _, tag, ok := strings.Cut(image, ":"); ok {
+			return tag
+		}
+		return ""
+	}
+
+	// pushTag with the same prefix
+	tags := []string{}
+	var pushTag = func(name, value string) {
+		tags = append(tags, fmt.Sprintf("instrumentation.%s:%s", name, value))
+	}
+
+	// instrumentation version corresponds to how we are doing injection,
+	// whether or not there is an "injector" init container present or not.
+	// we default to v1, and if we find the injector container, set to v2.
+	//
+	// https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/version.go#L16-L22
+	var version string = "v1"
+	for _, c := range pod.Spec.InitContainers {
+		// N.B. There are two container naming schemes for how we do APM autoinstrumentation.
+		// 1. "datadog-init-apm-inject"
+		//	- https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/injector.go#L85
+		// 2. "datadog-lib-<language>-init"
+		//  - https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/auto_instrumentation.go#L133-L135
+		if c.Name == "datadog-init-apm-inject" {
+			version = "v2"
+			if tag := imageTag(c.Image); tag != "" {
+				pushTag("injector", tag)
+			}
+		} else if suffix, ok := strings.CutPrefix(c.Name, "datadog-lib-"); ok {
+			lang := strings.TrimSuffix(suffix, "-init")
+			if tag := imageTag(c.Image); tag != "" {
+				pushTag(lang, tag)
+			}
+		}
+	}
+
+	// if we didn't find any relevant init containers, we don't have APM auto-instrumentation
+	// and don't need to tag version, or check for applied target annotations.
+	if len(tags) == 0 {
+		return tags
+	}
+
+	pushTag("version", version)
+
+	// when using workload selection for APM auto-instrumentation, we apply
+	// the JSON encoded target as an annotation to the pod.
+	// - https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/target_mutator.go#L28
+	// - https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/target_mutator.go#L210
+	// - https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/config.go#L239-L261
+	for k, v := range pod.Annotations {
+		if k == "internal.apm.datadoghq.com/applied-target" {
+			var appliedTarget struct {
+				Name string `json:"name"`
+			}
+			if err := json.Unmarshal([]byte(v), &appliedTarget); err == nil {
+				pushTag("applied-target", appliedTarget.Name)
+			}
+		}
+	}
+
+	return tags
 }
