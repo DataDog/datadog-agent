@@ -545,7 +545,7 @@ func (ra *remoteAgentRegistry) handleConfigUpdate(update *settingsUpdates) {
 }
 
 func createConfigSnapshot(conf config.Component) (*pb.ConfigEvent, uint64, error) {
-	allSettings, sequenceId := conf.AllSettingsWithSequenceID()
+	allSettings, sequenceID := conf.AllSettingsWithSequenceID()
 
 	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to
 	// handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
@@ -578,13 +578,13 @@ func createConfigSnapshot(conf config.Component) (*pb.ConfigEvent, uint64, error
 	snapshot := &pb.ConfigEvent{
 		Event: &pb.ConfigEvent_Snapshot{
 			Snapshot: &pb.ConfigSnapshot{
-				SequenceId: int32(sequenceId),
+				SequenceId: int32(sequenceID),
 				Settings:   settings,
 			},
 		},
 	}
 
-	return snapshot, sequenceId, nil
+	return snapshot, sequenceID, nil
 }
 
 func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (pb.RemoteAgentClient, error) {
@@ -687,14 +687,14 @@ func (rad *remoteAgentDetails) restartConfigStream(config config.Component) erro
 func runConfigStream(ctx context.Context, config config.Component, stream pb.RemoteAgent_StreamConfigEventsClient, configUpdates chan *pb.ConfigUpdate) {
 outer:
 	for {
-		lastEventSequenceId := uint64(0)
+		lastEventSequenceID := uint64(0)
 
 		// Start by sending an initial snapshot of the current configuration.
 		//
 		// We do this to ensure that when we restart this outer loop, we always resynchronize the remote agent by
 		// providing a complete snapshot of the current configuration. This lets us handle any errors during send
 		// by just restarting the outer loop.
-		initialSnapshot, sequenceId, err := createConfigSnapshot(config)
+		initialSnapshot, sequenceID, err := createConfigSnapshot(config)
 		if err != nil {
 			log.Errorf("Failed to create initial config snapshot: %v", err)
 			continue
@@ -706,7 +706,7 @@ outer:
 			continue
 		}
 
-		lastEventSequenceId = sequenceId
+		lastEventSequenceID = sequenceID
 
 		// Start processing config updates.
 		for {
@@ -718,12 +718,12 @@ outer:
 				//
 				// If the sequence ID doesn't immediately follow our last event's sequence ID, then we've out of sync and
 				// need to restart the outer loop to resynchronize.
-				currentSequenceId := uint64(configUpdate.SequenceId)
-				if currentSequenceId <= lastEventSequenceId {
+				currentSequenceID := uint64(configUpdate.SequenceId)
+				if currentSequenceID <= lastEventSequenceID {
 					continue
 				}
 
-				if currentSequenceId > lastEventSequenceId+1 {
+				if currentSequenceID > lastEventSequenceID+1 {
 					continue outer
 				}
 
@@ -739,7 +739,7 @@ outer:
 					continue outer
 				}
 
-				lastEventSequenceId = currentSequenceId
+				lastEventSequenceID = currentSequenceID
 			}
 		}
 	}
