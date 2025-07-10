@@ -41,7 +41,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
+	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -144,7 +144,7 @@ func TestAllCollectorsWork(t *testing.T) {
 	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := BuildCollectors(deps)
+	collectors, err := BuildCollectors(deps, nil)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
