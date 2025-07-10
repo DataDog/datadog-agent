@@ -210,6 +210,8 @@ message GetStateConfigResponse {
   repeated Client active_clients = 4;
 }
 
+message ResetStateConfigResponse {}
+
 
 message TracerPredicateV1 {
   string clientID = 1;
