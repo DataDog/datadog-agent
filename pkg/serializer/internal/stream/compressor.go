@@ -126,7 +126,6 @@ func (c *Compressor) pack() error {
 		return err
 	}
 	c.uncompressedWritten += int(n)
-	c.zipper.Flush()
 	c.input.Reset()
 	return nil
 }
