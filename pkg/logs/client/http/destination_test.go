@@ -370,7 +370,7 @@ func TestDestinationHA(t *testing.T) {
 		}
 		isEndpointMRF := endpoint.IsMRF
 
-		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""))
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), false, client.NewNoopDestinationMetadata(), configmock.New(t), 1, 1, metrics.NewNoopPipelineMonitor(""), "test")
 		isDestMRF := dest.IsMRF()
 
 		assert.Equal(t, isEndpointMRF, isDestMRF)
@@ -389,10 +389,10 @@ func TestTransportProtocol_HTTP1(t *testing.T) {
 	s := NewTestHTTPSServer(false)
 	defer s.Close()
 
-	timeout := 5 * time.Second
-	// Force HTTP/1 transport
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	// Create an HTTP/1.1 request
 	req, err := http.NewRequest("POST", s.URL, nil)
 	if err != nil {
@@ -422,9 +422,10 @@ func TestTransportProtocol_HTTP2(t *testing.T) {
 	s := NewTestHTTPSServer(false)
 	defer s.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", s.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -454,9 +455,10 @@ func TestTransportProtocol_InvalidProtocol(t *testing.T) {
 	server := NewTestHTTPSServer(false)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -485,9 +487,10 @@ func TestTransportProtocol_HTTP1FallBack(t *testing.T) {
 	server := NewTestHTTPSServer(true)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -517,9 +520,10 @@ func TestTransportProtocol_HTTP2WhenUsingProxy(t *testing.T) {
 	server := NewTestHTTPSServer(false)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
@@ -549,9 +553,10 @@ func TestTransportProtocol_HTTP1FallBackWhenUsingProxy(t *testing.T) {
 	server := NewTestHTTPSServer(true)
 	defer server.Close()
 
-	timeout := 5 * time.Second
-	client := httpClientFactory(timeout, c)()
+	c.SetWithoutSource("logs_config.http_timeout", 5)
+	client := httpClientFactory(c)()
 
+	assert.Equal(t, 5*time.Second, client.Timeout)
 	req, err := http.NewRequest("POST", server.URL, nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)

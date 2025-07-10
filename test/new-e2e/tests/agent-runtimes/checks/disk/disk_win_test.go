@@ -25,6 +25,8 @@ func TestWindowsDiskSuite(t *testing.T) {
 			descriptor:            e2eos.WindowsDefault,
 			metricCompareFraction: 0.02,
 			metricCompareDecimals: 1,
+			// system.disk.used and system.disk.utilized are highly flaky. Their values ​​may vary between both executions, so we do not compare them.
+			excludedFromValueComparison: []string{"system.disk.used", "system.disk.utilized"},
 		},
 	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)

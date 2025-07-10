@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
+type tenantID uint32
+
 // event represents an event in the state machine.
 type event interface {
 	event() // marker
@@ -25,38 +27,19 @@ func (baseEvent) event() {}
 
 type eventProcessesUpdated struct {
 	baseEvent
-	updated []ProcessUpdate
-	removed []ProcessID
+	tenantID tenantID
+	updated  []ProcessUpdate
+	removed  []ProcessID
 }
 
 func (e eventProcessesUpdated) String() string {
 	return fmt.Sprintf("eventProcessesUpdated{updated: %d, removed: %d}", len(e.updated), len(e.removed))
 }
 
-type eventProgramCompiled struct {
-	baseEvent
-	programID       ir.ProgramID
-	compiledProgram *CompiledProgram
-}
-
-func (e eventProgramCompiled) String() string {
-	return fmt.Sprintf("eventProgramCompiled{programID: %v}", e.programID)
-}
-
-type eventProgramCompilationFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	err       error
-}
-
-func (e eventProgramCompilationFailed) String() string {
-	return fmt.Sprintf("eventProgramCompilationFailed{programID: %v, err: %v}", e.programID, e.err)
-}
-
 type eventProgramLoaded struct {
 	baseEvent
-	programID     ir.ProgramID
-	loadedProgram *loadedProgram
+	programID ir.ProgramID
+	loaded    *loadedProgram
 }
 
 func (e eventProgramLoaded) String() string {
@@ -82,7 +65,7 @@ func (e eventProgramAttached) String() string {
 	if e.program == nil {
 		return "eventProgramAttached{program: nil}"
 	}
-	return fmt.Sprintf("eventProgramAttached{programID: %v, processID: %v}", e.program.progID, e.program.procID)
+	return fmt.Sprintf("eventProgramAttached{programID: %v, processID: %v}", e.program.ir.ID, e.program.procID)
 }
 
 type eventProgramAttachingFailed struct {
@@ -105,6 +88,18 @@ type eventProgramDetached struct {
 
 func (e eventProgramDetached) String() string {
 	return fmt.Sprintf("eventProgramDetached{programID: %v, processID: %v}", e.programID, e.processID)
+}
+
+// eventProgramUnloaded is emitted once a program has been fully unloaded
+// (BPF program closed, sink closed, and unregistered from the dispatcher).
+// It signals to the state-machine that the resources can now be dropped.
+type eventProgramUnloaded struct {
+	baseEvent
+	programID ir.ProgramID
+}
+
+func (e eventProgramUnloaded) String() string {
+	return fmt.Sprintf("eventProgramUnloaded{programID: %v}", e.programID)
 }
 
 type eventShutdown struct {

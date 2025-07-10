@@ -58,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -189,6 +190,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // injected instance.
 func start(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
 	defer StopAgent(log)
+
+	// prepare go runtime
+	ddruntime.SetMaxProcs()
+
+	if config.GetBool("security_agent.disable_thp") {
+		if err := ddruntime.DisableTransparentHugePages(); err != nil {
+			log.Warnf("cannot disable transparent huge pages, performance may be degraded: %s", err)
+		}
+	}
 
 	err := RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
 	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {

@@ -112,11 +112,6 @@ CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
 LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-@task
-def create_stack(ctx, stack=None):
-    stacks.create_stack(ctx, stack)
-
-
 @task(
     help={
         "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
@@ -138,7 +133,7 @@ def gen_config(
     stack: str | None = None,
     vms: str = "",
     sets: str = "",
-    init_stack=False,
+    init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
     new=False,
@@ -219,7 +214,7 @@ def gen_config_from_ci_pipeline(
     kmt_pipeline.retrieve_jobs()
 
     for job in kmt_pipeline.setup_jobs:
-        if (vcpu is None or memory is None) and job.status == "success":
+        if (vcpu is None or memory is None) and job.status == GitlabJobStatus.SUCCESS:
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
                 memory_list = vmset.get("memory", [])
@@ -236,7 +231,7 @@ def gen_config_from_ci_pipeline(
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
     for test_job in kmt_pipeline.test_jobs:
-        if test_job.status == "failed" and job.component == vmconfig_template:
+        if test_job.status == GitlabJobStatus.FAILED and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = "local"
@@ -397,9 +392,12 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
 
-    info("[+] Kernel matrix testing system initialized successfully")
     if not skip_ssh_setup:
         config_ssh_key(ctx)
+
+    info(
+        "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
+    )
 
 
 @task
@@ -1788,8 +1786,8 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     kmt_pipeline = KMTPipeline(pipeline)
     kmt_pipeline.retrieve_jobs()
 
-    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == "failed"]
-    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == "failed"]
+    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == GitlabJobStatus.FAILED]
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.FAILED]
     failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"

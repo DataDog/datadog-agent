@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/mux"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -37,7 +38,7 @@ func SetupHandlers(
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-
+	coverage.SetupCoverageHandler(r)
 	return r
 }
 
