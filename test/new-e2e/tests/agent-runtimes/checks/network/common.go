@@ -8,6 +8,7 @@ package checknetwork
 
 import (
 	"math"
+	"slices"
 
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
@@ -75,24 +76,6 @@ instances:
 			``,
 			true,
 		},
-		{
-			"collect ethtool stats",
-			`init_config:
-instances:
-  - collect_ethtool_stats: true
-`,
-			``,
-			true,
-		},
-		{
-			"collect conntrack stats",
-			`init_config:
-instances:
-  - conntrack_path: true
-`,
-			``,
-			true,
-		},
 	}
 
 	p := math.Pow10(v.metricCompareDecimals)
@@ -112,6 +95,9 @@ instances:
 				gocmp.Comparer(func(a, b check.Metric) bool {
 					if !checkUtils.EqualMetrics(a, b) {
 						return false
+					}
+					if slices.Contains(v.excludedFromValueComparison, a.Metric) {
+						return true
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]

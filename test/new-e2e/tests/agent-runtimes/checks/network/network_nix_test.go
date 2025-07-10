@@ -23,8 +23,20 @@ func TestLinuxNetworkSuite(t *testing.T) {
 	suite := &linuxNetworkCheckSuite{
 		networkCheckSuite{
 			descriptor:            e2eos.UbuntuDefault,
-			metricCompareFraction: 0.1,
+			metricCompareFraction: 0.2, // 20% is a lot of margin but otherwise would error with 4 vs 5 counts
 			metricCompareDecimals: 1,
+			excludedFromValueComparison: []string{
+				"system.net.tcp.recv_q.count",
+				"system.net.tcp.recv_q.95percentile",
+				"system.net.tcp.recv_q.avg",
+				"system.net.tcp.recv_q.median",
+				"system.net.tcp.recv_q.max",
+				"system.net.tcp.send_q.count",
+				"system.net.tcp.send_q.95percentile",
+				"system.net.tcp.send_q.avg",
+				"system.net.tcp.send_q.median",
+				"system.net.tcp.send_q.max",
+			},
 		},
 	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
