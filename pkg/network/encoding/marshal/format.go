@@ -130,6 +130,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+	builder.SetDurationNs(conn.Duration.Nanoseconds())
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message
