@@ -6,6 +6,7 @@ import os
 
 import requests
 from invoke import task
+from tasks.libs.common.git import get_commit_sha
 
 
 @task
@@ -16,7 +17,7 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
     """
 
     api_url = "https://fuzzing-api.us1.ddbuild.io/api/v1"
-    git_sha = ctx.run('git rev-parse HEAD').stdout.strip()
+    git_sha = get_commit_sha(ctx)
 
     # Get the auth token a single time and reuse it for all requests
     auth_header = ctx.run(
