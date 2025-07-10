@@ -31,13 +31,7 @@ import (
 )
 
 const (
-	// CheckName defines the name of the GPU check
-	CheckName             = "gpu"
-	gpuMetricsNs          = "gpu."
-	metricNameCoreUsage   = gpuMetricsNs + "core.usage"
-	metricNameCoreLimit   = gpuMetricsNs + "core.limit"
-	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
-	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
+	gpuMetricsNs = "gpu."
 )
 
 // Check represents the GPU check that will be periodically executed via the Run() function
