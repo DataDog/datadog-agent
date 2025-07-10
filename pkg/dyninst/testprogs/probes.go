@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -27,14 +27,14 @@ type probeYaml struct {
 }
 
 // MustGetProbeDefinitions calls GetProbeDefinitions and checks for an error.
-func MustGetProbeDefinitions(t *testing.T, name string) []irgen.ProbeDefinition {
+func MustGetProbeDefinitions(t *testing.T, name string) []ir.ProbeDefinition {
 	probes, err := GetProbeDefinitions(name)
 	require.NoError(t, err)
 	return probes
 }
 
 // GetProbeDefinitions returns the probe definitions for binary of a given name.
-func GetProbeDefinitions(name string) ([]irgen.ProbeDefinition, error) {
+func GetProbeDefinitions(name string) ([]ir.ProbeDefinition, error) {
 	probes, err := getProbeDefinitions(name)
 	if err != nil {
 		return nil, fmt.Errorf("get probe definitions for %s: %w", name, err)
@@ -42,7 +42,7 @@ func GetProbeDefinitions(name string) ([]irgen.ProbeDefinition, error) {
 	return probes, nil
 }
 
-func getProbeDefinitions(name string) ([]irgen.ProbeDefinition, error) {
+func getProbeDefinitions(name string) ([]ir.ProbeDefinition, error) {
 	state, err := getState()
 	if err != nil {
 		return nil, err
@@ -56,25 +56,20 @@ func getProbeDefinitions(name string) ([]irgen.ProbeDefinition, error) {
 	if err != nil {
 		return nil, err
 	}
-	var probesCfgs []rcjson.Probe
+	var probes []ir.ProbeDefinition
 	for _, probe := range probeYaml.Probes {
 		probeBytes, err := json.Marshal(probe)
 		if err != nil {
 			return nil, err
 		}
-		probeCfg, err := rcjson.UnmarshalProbe(probeBytes)
+		probe, err := rcjson.UnmarshalProbe(probeBytes)
 		if err != nil {
 			return nil, err
 		}
-		probesCfgs = append(probesCfgs, probeCfg)
-	}
-	probeDefinitions := make([]irgen.ProbeDefinition, 0, len(probesCfgs))
-	for _, probe := range probesCfgs {
-		def, err := irgen.ProbeDefinitionFromRemoteConfig(probe)
-		if err != nil {
-			return nil, err
+		if err := rcjson.Validate(probe); err != nil {
+			return nil, fmt.Errorf("validate probe %s: %w", probe.GetID(), err)
 		}
-		probeDefinitions = append(probeDefinitions, def)
+		probes = append(probes, probe)
 	}
-	return probeDefinitions, nil
+	return probes, nil
 }

@@ -12,35 +12,90 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
 	name  string
 	input string
 	want  Probe
-	// regular expression to match the error message
-	wantErr string
+	// Regular expression to match the error message from
+	// unmarshalProbeWithoutValidation.
+	unmarshalErr string
+	// Regular expression to match the validation error message.
+	validationErr string
 }
 
 var testCases = []testCase{
 	{
-		name: "valid log probe",
+		name: "log probe with file and lines",
 		input: `{
 				"id": "log-probe-1",
 				"type": "LOG_PROBE",
 				"version": 1,
 				"where": {
-					"typeName": "MyType",
 					"sourceFile": "myfile.go",
+					"lines": ["10", "20"]
+				},
+				"tags": ["tag1", "tag2"],
+				"language": "go",
+				"template": "Hello {name}",
+				"segments": [{"str": "Hello "}, {"dsl": "name", "json": {"ref": "name"}}],
+				"capture": {
+					"maxReferenceDepth": 3,
+					"maxFieldCount": 10,
+					"maxCollectionSize": 100
+				},
+				"sampling": {
+					"snapshotsPerSecond": 1.0
+				},
+				"evaluateAt": "entry"
+			}`,
+		validationErr: `sourceFile and lines are not supported`,
+		want: &LogProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "log-probe-1",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						SourceFile: "myfile.go",
+						Lines:      []string{"10", "20"},
+					},
+					Tags:       []string{"tag1", "tag2"},
+					Language:   "go",
+					EvaluateAt: "entry",
+				},
+				Capture: &Capture{
+					MaxReferenceDepth: 3,
+					MaxFieldCount:     10,
+					MaxCollectionSize: 100,
+				},
+				Sampling: &Sampling{
+					SnapshotsPerSecond: 1.0,
+				},
+				Template: "Hello {name}",
+				Segments: []json.RawMessage{
+					json.RawMessage(`{"str": "Hello "}`),
+					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				},
+			},
+		},
+	},
+	{
+		name: "log probe with method and signature",
+		input: `{
+				"id": "log-probe-1",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
 					"methodName": "MyMethod",
-					"lines": ["10", "20"],
 					"signature": "func()"
 				},
 				"tags": ["tag1", "tag2"],
 				"language": "go",
 				"template": "Hello {name}",
 				"segments": [{"str": "Hello "}, {"dsl": "name", "json": {"ref": "name"}}],
-				"captureSnapshot": true,
 				"capture": {
 					"maxReferenceDepth": 3,
 					"maxFieldCount": 10,
@@ -52,34 +107,35 @@ var testCases = []testCase{
 				"evaluateAt": "entry"
 			}`,
 		want: &LogProbe{
-			ID:      "log-probe-1",
-			Version: 1,
-			Type:    TypeLogProbe.String(),
-			Where: &Where{
-				TypeName:   "MyType",
-				SourceFile: "myfile.go",
-				MethodName: "MyMethod",
-				Lines:      []string{"10", "20"},
-				Signature:  "func()",
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "log-probe-1",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+						Signature:  "func()",
+					},
+					Tags:       []string{"tag1", "tag2"},
+					Language:   "go",
+					EvaluateAt: "entry",
+				},
+				Capture: &Capture{
+					MaxReferenceDepth: 3,
+					MaxFieldCount:     10,
+					MaxCollectionSize: 100,
+				},
+				Sampling: &Sampling{
+					SnapshotsPerSecond: 1.0,
+				},
+				Template: "Hello {name}",
+				Segments: []json.RawMessage{
+					json.RawMessage(`{"str": "Hello "}`),
+					json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+				},
 			},
-			Tags:     []string{"tag1", "tag2"},
-			Language: "go",
-			Template: "Hello {name}",
-			Segments: []json.RawMessage{
-				json.RawMessage(`{"str": "Hello "}`),
-				json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
-			},
-			CaptureSnapshot: true,
-			Capture: &Capture{
-				MaxReferenceDepth: 3,
-				MaxFieldCount:     10,
-				MaxCollectionSize: 100,
-			},
-			Sampling: &Sampling{
-				SnapshotsPerSecond: 1.0,
-			},
-			EvaluateAt: "entry",
 		},
+		validationErr: `signature is not supported`,
 	},
 	{
 		name: "valid metric probe",
@@ -88,11 +144,7 @@ var testCases = []testCase{
 				"type": "METRIC_PROBE",
 				"version": 1,
 				"where": {
-					"typeName": "MyType",
-					"sourceFile": "myfile.go",
-					"methodName": "MyMethod",
-					"lines": ["10", "20"],
-					"signature": "func()"
+					"methodName": "MyMethod"
 				},
 				"tags": ["tag1", "tag2"],
 				"language": "go",
@@ -105,31 +157,29 @@ var testCases = []testCase{
 				"evaluateAt": "entry"
 			}`,
 		want: &MetricProbe{
-			ID:      "metric-probe-1",
-			Type:    TypeMetricProbe.String(),
-			Version: 1,
-			Where: &Where{
-				TypeName:   "MyType",
-				SourceFile: "myfile.go",
-				MethodName: "MyMethod",
-				Lines:      []string{"10", "20"},
-				Signature:  "func()",
+			ProbeCommon: ProbeCommon{
+				ID:      "metric-probe-1",
+				Version: 1,
+				Type:    TypeMetricProbe.String(),
+				Where: &Where{
+					MethodName: "MyMethod",
+				},
+				Tags:       []string{"tag1", "tag2"},
+				Language:   "go",
+				EvaluateAt: "entry",
 			},
-			Tags:       []string{"tag1", "tag2"},
-			Language:   "go",
 			Kind:       "count",
 			MetricName: "my.metric",
 			Value: &Value{
 				DSL:  "1",
 				JSON: json.RawMessage(`"1"`),
 			},
-			EvaluateAt: "entry",
 		},
 	},
 	{
-		name:    "invalid json",
-		input:   `{invalid json}`,
-		wantErr: `failed to parse json: .*`,
+		name:         "invalid json",
+		input:        `{invalid json}`,
+		unmarshalErr: `failed to parse json: .*`,
 	},
 	{
 		name: "invalid probe type",
@@ -137,7 +187,7 @@ var testCases = []testCase{
 				"id": "invalid-probe",
 				"type": "INVALID_TYPE"
 			}`,
-		wantErr: `failed to parse json: invalid config type: INVALID_TYPE`,
+		unmarshalErr: `failed to parse json: invalid config type: INVALID_TYPE`,
 	},
 }
 
@@ -145,13 +195,20 @@ func TestUnmarshalProbe(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := UnmarshalProbe([]byte(tt.input))
-			if tt.wantErr != "" {
-				assert.Error(t, err)
-				assert.Regexp(t, tt.wantErr, err.Error())
+			if tt.unmarshalErr != "" {
+				require.Error(t, err)
+				require.Regexp(t, tt.unmarshalErr, err.Error())
 				return
 			}
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
+			require.NoError(t, err)
+			require.EqualValues(t, tt.want, got)
+			validationErr := Validate(got)
+			if tt.validationErr != "" {
+				assert.Error(t, validationErr)
+				assert.Regexp(t, tt.validationErr, validationErr.Error())
+			} else {
+				assert.NoError(t, validationErr)
+			}
 		})
 	}
 }

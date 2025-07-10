@@ -63,6 +63,7 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     bool is_shared_library = false;
 #define match3chars(_base, _a, _b, _c) (path->buf[_base + i] == _a && path->buf[_base + i + 1] == _b && path->buf[_base + i + 2] == _c)
 #define match6chars(_base, _a, _b, _c, _d, _e, _f) (match3chars(_base, _a, _b, _c) && match3chars(_base + 3, _d, _e, _f))
+#define match4chars(_base, _a, _b, _c, _d) (match3chars(_base, _a, _b, _c) && path->buf[_base + i + 3] == _d)
     int i = 0;
 #pragma unroll
     for (i = 0; i < LIB_PATH_MAX_SIZE - (LIB_SO_SUFFIX_SIZE); i++) {
@@ -91,6 +92,13 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't'))) {
         bpf_perf_event_output(ctx, &gpu_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
     }
+
+    u64 libc_libset_enabled = 0;
+    LOAD_CONSTANT("libc_libset_enabled", libc_libset_enabled);
+
+    if (libc_libset_enabled && (match4chars(2, 'l', 'i', 'b', 'c'))) {
+        bpf_perf_event_output(ctx, &libc_shared_libraries, BPF_F_CURRENT_CPU, path, sizeof(lib_path_t));
+    }
 }
 
 static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
@@ -107,11 +115,10 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
 
 // This definition is the same for all architectures.
 #ifndef O_WRONLY
-#define O_WRONLY        00000001
+#define O_WRONLY 00000001
 #endif
 
-static __always_inline int should_ignore_flags(int flags)
-{
+static __always_inline int should_ignore_flags(int flags) {
     return flags & O_WRONLY;
 }
 

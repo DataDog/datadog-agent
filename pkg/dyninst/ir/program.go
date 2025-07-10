@@ -38,6 +38,8 @@ type Program struct {
 	Types map[TypeID]Type
 	// MaxTypeID is the maximum type ID that has been assigned.
 	MaxTypeID TypeID
+	// Issues is a list of probes that could not be created.
+	Issues []ProbeIssue
 }
 
 // Subprogram represents a function or method in the program.
@@ -88,26 +90,11 @@ type PCRange = [2]uint64
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
-	// The config UUID of the probe.
-	ID string
-	// The kind of the probe.
-	Kind ProbeKind
-	// The version of the probe.
-	Version int
-	// Tags that are passed through the probe.
-	Tags []string
+	ProbeDefinition
 	// The subprogram to which the probe is attached.
 	Subprogram *Subprogram
 	// The events that trigger the probe.
 	Events []*Event
-	// Whether the probe should capture a snapshot of the state of the program.
-	Snapshot bool
-	// ThrottlePeriodMs is the resolution of the throttler.
-	ThrottlePeriodMs uint32
-	// ThrottleBudget is the amount of events that can be emitted per ThrottlePeriodMs.
-	ThrottleBudget int64
-	// PointerChasingDepth is the depth of pointer chasing to perform.
-	PointerChasingLimit uint32
 	// TODO: Add template support:
 	//	TemplateSegments []TemplateSegment
 }
