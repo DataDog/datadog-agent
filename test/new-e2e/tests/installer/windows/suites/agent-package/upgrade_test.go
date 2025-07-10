@@ -87,6 +87,16 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
+	// Add retry logic to handle potential timing issues after upgrade
+	err = backoff.Retry(func() error {
+		// Check if the agent service is running and registry is consistent
+		if _, regErr := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost); regErr != nil {
+			return fmt.Errorf("registry not yet consistent after upgrade: %w", regErr)
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 12)) // Max 1 minute
+	s.Require().NoError(err, "registry should be consistent after upgrade")
+
 	s.Require().Host(s.Env().RemoteHost).
 		NoDirExists(windowsagent.DefaultConfigRoot).
 		NoDirExists(windowsagent.DefaultInstallPath).
