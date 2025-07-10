@@ -81,7 +81,7 @@ func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, con
 	}
 
 	// Create the check
-	c, err := NewSharedLibraryCheck(senderManager, config.Name, libPtrs.lib, libPtrs.run, libPtrs.free)
+	c, err := NewSharedLibraryCheck(senderManager, config.Name, libPtrs.lib, libPtrs.run)
 	if err != nil {
 		return c, err
 	}

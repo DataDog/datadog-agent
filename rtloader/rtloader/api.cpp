@@ -187,37 +187,25 @@ shared_library_handle_t load_shared_library(const char *lib_name, const char **e
         std::ostringstream err_msg;
         err_msg << "Unable to open shared library: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
-        return shared_library_handle_t{NULL, NULL, NULL};
+        return shared_library_handle_t{ NULL, NULL };
     }
 
     const char *dlsym_error = NULL;
 
     // dlsym run_check function to get the metric run the custom check and get the payload
-    so_run_check_t *so_run_check = (so_run_check_t *)dlsym(lib_handle, "Run");
+    run_check_t *run_handle = (run_check_t *)dlsym(lib_handle, "Run");
     dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
-        err_msg << "Unable to find RunCheck() method symbol in shared library: " << dlsym_error;
+        err_msg << "Unable to find Run method symbol in shared library: " << dlsym_error;
         *error = strdupe(err_msg.str().c_str());
-        return shared_library_handle_t{NULL, NULL, NULL};
-    }
-
-    // dlsym free_payload function to avoid memory leaks
-    // this function pointer is declared here because we don't want the check to run
-    // if all required symbols haven't been found
-    so_free_payload_t *so_free_payload = (so_free_payload_t *)dlsym(lib_handle, "Free");
-    dlsym_error = dlerror();
-    if (dlsym_error) {
-        std::ostringstream err_msg;
-        err_msg << "Unable to find FreePayload() method symbol in shared library: " << dlsym_error;
-        *error = strdupe(err_msg.str().c_str());
-        return shared_library_handle_t{NULL, NULL, NULL};
+        return shared_library_handle_t{ NULL, NULL };
     }
     
-    return shared_library_handle_t{lib_handle, so_run_check, so_free_payload};
+    return shared_library_handle_t{ lib_handle, run_handle };
 }
 
-void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_payload_t *free_function, const char **error)
+void run_shared_library(char *checkID, run_check_t *run_function, const char **error)
 {
     // verify the run function pointer
     if (!run_function) {
@@ -227,40 +215,8 @@ void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_pay
         return;
     }
 
-    // verify the free function pointer
-    if (!free_function) {
-        std::ostringstream err_msg;
-        err_msg << "Pointer to shared library run function is null: " << dlerror();
-        *error = strdupe(err_msg.str().c_str());
-        return;
-    }
-
     // run the shared library check and check the returned payload`
-    payload_t *payload = run_function();    
-    if (!payload) {
-        std::ostringstream err_msg;
-        err_msg << "Payload returned by shared library is null: " << dlerror();
-        *error = strdupe(err_msg.str().c_str());
-        return;
-    }
-
-    // create the tags array with the payload tags
-    // note that it might be possible to skip this tags array and directly pass the payload->tags to the
-    // submit_metric function, but decoding the tags array in the go code doesn't work well
-    char **tags = new char*[payload->tags_length + 1];
-    for (size_t i = 0; i < payload->tags_length; ++i) {
-        tags[i] = payload->tags[i];
-    }
-    tags[payload->tags_length] = NULL;
-
-    // submit the payload returned by the shared library
-    submit_metric(checkID, payload->metricType, payload->name, payload->value, tags, payload->hostname, false);
-
-    // free the payload after using it
-    free_function(payload);
-
-    // free the tags array
-    delete[] tags;
+    run_function(checkID);
 }
 
 void destroy(rtloader_t *rtloader)
@@ -383,8 +339,7 @@ char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
 }
 
-// when  the SharedLibrary subclass is implemented, it should have rtloader pointer in the signature and uses it to call the callback
-// python_rtloader is not meant to be used for a clean version
+// based on pkg/collecor/aggregator package to avoid going through the pkg/collector/python package to submit metrics
 DATADOG_AGENT_RTLOADER_API void submit_metric(char *checkID, const metric_type_t metricType,
                                             char *metricName, const double value, char **tags,
                                             char *hostname, const bool flushFirstValue)

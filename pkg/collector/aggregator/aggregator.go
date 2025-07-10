@@ -6,12 +6,17 @@
 package aggregator
 
 import (
+	"unsafe"
+
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 /*
 #include <datadog_agent_rtloader.h>
+#include <rtloader_types.h>
 #cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
 #cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
@@ -60,4 +65,120 @@ func SubmitMetricRtLoader(checkID *C.char, metricType C.metric_type_t, metricNam
 	}
 
 	sender.Commit()
+}
+
+// SubmitServiceCheck is the method exposed to Python scripts to submit service checks
+//
+//export SubmitServiceCheck
+func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
+	goCheckID := C.GoString(checkID)
+
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting metric to the Sender: %v", err)
+		return
+	}
+
+	_name := C.GoString(scName)
+	_status := servicecheck.ServiceCheckStatus(status)
+	_tags := cStringArrayToSlice(tags)
+	_hostname := C.GoString(hostname)
+	_message := C.GoString(message)
+
+	sender.ServiceCheck(_name, _status, _hostname, _tags, _message)
+}
+
+// SubmitEvent is the method exposed to Python scripts to submit events
+//
+//export SubmitEvent
+func SubmitEvent(checkID *C.char, event *C.event_t) {
+	goCheckID := C.GoString(checkID)
+
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting metric to the Sender: %v", err)
+		return
+	}
+
+	_event := metricsevent.Event{
+		Title:          eventParseString(event.title, "msg_title"),
+		Text:           eventParseString(event.text, "msg_text"),
+		Priority:       metricsevent.Priority(eventParseString(event.priority, "priority")),
+		Host:           eventParseString(event.host, "host"),
+		Tags:           cStringArrayToSlice(event.tags),
+		AlertType:      metricsevent.AlertType(eventParseString(event.alert_type, "alert_type")),
+		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
+		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
+		Ts:             int64(event.ts),
+	}
+
+	sender.Event(_event)
+}
+
+// SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
+//
+//export SubmitHistogramBucket
+func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+	goCheckID := C.GoString(checkID)
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
+		return
+	}
+
+	_name := C.GoString(metricName)
+	_value := int64(value)
+	_lowerBound := float64(lowerBound)
+	_upperBound := float64(upperBound)
+	_monotonic := (monotonic != 0)
+	_hostname := C.GoString(hostname)
+	_tags := cStringArrayToSlice(tags)
+	_flushFirstValue := bool(flushFirstValue)
+
+	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+}
+
+// SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
+//
+//export SubmitEventPlatformEvent
+func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
+	_checkID := C.GoString(checkID)
+	checkContext, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Python check context: %v", err)
+		return
+	}
+
+	sender, err := checkContext.senderManager.GetSender(checkid.ID(_checkID))
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting event platform event to the Sender: %v", err)
+		return
+	}
+	sender.EventPlatformEvent(C.GoBytes(unsafe.Pointer(rawEventPtr), rawEventSize), C.GoString(eventType))
+}
+
+func eventParseString(value *C.char, fieldName string) string {
+	if value == nil {
+		log.Tracef("Can't parse value for key '%s' in event submitted from python check", fieldName)
+		return ""
+	}
+	return C.GoString(value)
 }

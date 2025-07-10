@@ -30,18 +30,16 @@ type SharedLibraryCheck struct {
 	senderManager sender.SenderManager
 	id            checkid.ID
 	libName       string
-	libPtr        unsafe.Pointer       // pointer to the shared library (unsued in RTLoader because it only needs the symbols)
-	libRunPtr     *C.so_run_check_t    // pointer to the function symbol that runs the check
-	libFreePtr    *C.so_free_payload_t // pointer to the function symbol that frees the check payload
+	libPtr        unsafe.Pointer // pointer to the shared library (unsued in RTLoader because it only needs the symbols)
+	libRunPtr     *C.run_check_t // pointer to the function symbol that runs the check
 }
 
-func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.so_run_check_t, libFreePtr *C.so_free_payload_t) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, libPtr unsafe.Pointer, libRunPtr *C.run_check_t) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		senderManager: senderManager,
 		libName:       name,
 		libPtr:        libPtr,
 		libRunPtr:     libRunPtr,
-		libFreePtr:    libFreePtr,
 	}
 
 	return check, nil
@@ -53,10 +51,9 @@ func (c *SharedLibraryCheck) Run() error {
 	// the ID is used for sending the metrics, we need to know which check is running
 	// to retrieve the correct sender
 	cID := C.CString(string(c.ID()))
-	defer C._free(unsafe.Pointer(cID))
 
 	// execute the RunCheck() then FreePayload() functions of the shared library
-	C.run_shared_library(cID, c.libRunPtr, c.libFreePtr, &err)
+	C.run_shared_library(cID, c.libRunPtr, &err)
 	if err != nil {
 		defer C._free(unsafe.Pointer(err))
 		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(err))
@@ -92,6 +89,7 @@ func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
 }
 
 func (c *SharedLibraryCheck) ID() checkid.ID {
+	// c.id is not the same as c.libName (it has an id after the name so the sender found by SubmitMetricRtLoader is different and metrics are submitted)
 	return checkid.ID(c.libName)
 }
 

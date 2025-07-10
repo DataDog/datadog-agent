@@ -94,27 +94,13 @@ typedef struct pymem_stats_s {
  * custom builtins
  */
 
-// payload structure returned by the shared library
-typedef struct payload_s {
-    char *name;
-    metric_type_t metricType;
-    double value;
-    char **tags;
-    size_t tags_length;
-    char *hostname;
-} payload_t;
-
 // shared library function type that returns the payload
-typedef payload_t *(so_run_check_t)(void);
-
-// shared library function type that frees the payload
-typedef void (so_free_payload_t)(payload_t *);
+typedef void (run_check_t)(char *);
 
 // shared library handles struct to pass it to the go check
 typedef struct shared_library_handle_s {
     void *lib; // handle to the shared library
-    so_run_check_t *run; // handle to the run function
-    so_free_payload_t *free; // handle to the free function
+    run_check_t *run; // handle to the run function
 } shared_library_handle_t;
 
 // aggregator

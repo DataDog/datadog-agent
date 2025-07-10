@@ -1,16 +1,15 @@
-mod base;
-use base::{AgentCheck, Payload};
+mod utils;
+use utils::base::AgentCheck;
+use std::ffi::c_char;
 
 // function executed by RTLoader
 #[unsafe(no_mangle)]
-pub extern "C" fn Run() -> *mut Payload {
-    let mut check = AgentCheck::new();
+pub extern "C" fn Run(check_id: *mut c_char) {
+    // create the check instance that will handle everything
+    let mut check = AgentCheck::new(check_id);
 
     // run the custom implementation
     check.check();
-
-    // create and send the metric paylaod to RTLoader
-    check.send_payload()
 }
 
 // custom check implementation
@@ -23,6 +22,6 @@ impl AgentCheck {
         let tags = vec![String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing")];
         let hostname = String::from("");
 
-        self.gauge(name, value, tags, hostname);
+        self.gauge(name, value, tags, hostname, false);
     }
 }

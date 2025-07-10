@@ -42,7 +42,7 @@ DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char
 
 DATADOG_AGENT_RTLOADER_API shared_library_handle_t load_shared_library(const char *lib_name, const char **error);
 
-DATADOG_AGENT_RTLOADER_API void run_shared_library(char *checkID, so_run_check_t *run_function, so_free_payload_t* free_function, const char **error);
+DATADOG_AGENT_RTLOADER_API void run_shared_library(char *checkID, run_check_t *run_function, const char **error);
 
 // HELPERS
 /*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
