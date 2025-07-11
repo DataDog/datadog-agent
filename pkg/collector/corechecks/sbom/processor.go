@@ -17,6 +17,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -151,7 +152,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			container := event.Entity.(*workloadmeta.Container)
 			p.registerContainer(container)
 
-			if p.filterStore.IsContainerExcluded(workloadfilter.CreateContainer(container, nil), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
+			if p.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(container, nil), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
 				continue
 			}
 

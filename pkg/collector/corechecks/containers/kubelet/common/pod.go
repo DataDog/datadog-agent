@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -192,7 +193,7 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filterSto
 	}
 
 	if filterStore.IsContainerExcluded(
-		workloadfilter.CreateContainerFromOrch(container, workloadfilter.CreatePod(pod)),
+		workloadmetafilter.CreateContainerFromOrch(container, workloadmetafilter.CreatePod(pod)),
 		workloadfilter.GetContainerSharedMetricFilters(),
 	) {
 		return "", ErrContainerExcluded

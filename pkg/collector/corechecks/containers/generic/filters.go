@@ -7,6 +7,7 @@ package generic
 
 import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -52,7 +53,7 @@ func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) boo
 	}
 	pod, _ := f.Store.GetKubernetesPodForContainer(container.ID)
 
-	return f.FilterStore.IsContainerExcluded(workloadfilter.CreateContainer(container, workloadfilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
+	return f.FilterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(container, workloadmetafilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
 }
 
 // RuntimeContainerFilter filters containers by runtime

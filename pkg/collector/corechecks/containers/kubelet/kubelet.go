@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/summary"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -48,7 +47,6 @@ type Provider interface {
 type KubeletCheck struct {
 	core.CheckBase
 	instance    *common.KubeletConfig
-	filter      *containers.Filter
 	providers   []Provider
 	podUtils    *common.PodUtils
 	filterStore workloadfilter.Component

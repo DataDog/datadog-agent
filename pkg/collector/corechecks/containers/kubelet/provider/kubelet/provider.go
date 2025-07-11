@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -167,7 +168,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
 		tempPod := &workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}}
-		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(workloadfilter.CreatePod(tempPod), workloadfilter.GetPodSharedMetricFilters()) {
+		if pvcName == "" || namespace == "" || p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(tempPod), workloadfilter.GetPodSharedMetricFilters()) {
 			continue
 		}
 		tags := p.MetricTags(metric)
