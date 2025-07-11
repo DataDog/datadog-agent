@@ -79,10 +79,8 @@ namespace Datadog.AgentCustomActions
                 // We've also seen cases where WIX_UPGRADE_DETECTED contains MULTIPLE product codes, even though only one is expected.
                 // These appear to be Windows installer bugs and it creates a state where we can't reliably determine
                 // if this is a major upgrade or a "fresh" install, and we can't reliably determine the previous version.
-                // Hopefully including the Installed property will help filter out some of these cases.
-                var installed = _session["Installed"];
                 var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
-                if (!string.IsNullOrEmpty(upgradeDetected) && !string.IsNullOrEmpty(installed)) // This is an upgrade, conditionally set rollback flags.
+                if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
                 {
                     _session.Log($"WIX_UPGRADE_DETECTED: {_session["WIX_UPGRADE_DETECTED"]}");
                     var versionString = _nativeMethods.GetVersionString(upgradeDetected);

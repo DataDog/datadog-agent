@@ -71,7 +71,6 @@ namespace CustomActions.Tests.InstallState
         {
             var productCode = "{123-456-789}";
             Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
-            Test.Session.Setup(session => session["Installed"]).Returns("00:00:00");
             Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns(version);
 
             Test.Create()
@@ -94,7 +93,6 @@ namespace CustomActions.Tests.InstallState
         {
             var productCode = "{123-456-789};{123-456-790}";
             Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
-            Test.Session.Setup(session => session["Installed"]).Returns("00:00:00");
             Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Throws(new System.Exception("GetVersionString failed"));
 
             Test.Create()
