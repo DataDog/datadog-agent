@@ -7,6 +7,7 @@ package file
 
 import (
 	"bufio"
+	"fmt"
 	"hash/crc64"
 	"io"
 	"os"
@@ -15,6 +16,10 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// crc64Table is a package-level variable for the CRC64 ISO table
+// to avoid recreating it on every fingerprint computation
+var crc64Table = crc64.MakeTable(crc64.ISO)
 
 // ReturnFingerprintConfig returns the configuration for the fingerprinting algorithm set by user (also used for testing)
 func ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
@@ -25,12 +30,55 @@ func ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
 	maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_bytes")
 	bytesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.bytes_to_skip")
 	linesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.lines_to_skip")
-	return &logsconfig.FingerprintConfig{
+	config := &logsconfig.FingerprintConfig{
 		MaxLines:    &maxLines,
 		MaxBytes:    &maxBytes,
 		BytesToSkip: &bytesToSkip,
 		LinesToSkip: &linesToSkip,
 	}
+
+	if validFingerprintConfig(config) != nil {
+		return config
+	}
+	return nil
+}
+
+// validFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
+func validFingerprintConfig(config *logsconfig.FingerprintConfig) error {
+	if config == nil {
+		return fmt.Errorf("fingerprint config cannot be nil")
+	}
+
+	// Check if both skip modes are set (invalid configuration)
+	linesSkipSet := config.LinesToSkip != nil && *config.LinesToSkip != 0
+	bytesSkipSet := config.BytesToSkip != nil && *config.BytesToSkip != 0
+
+	if linesSkipSet && bytesSkipSet {
+		return fmt.Errorf("invalid configuration: both linesToSkip and bytesToSkip are set")
+	}
+
+	// Validate non-negative fields
+	if config.MaxLines != nil && *config.MaxLines < 0 {
+		return fmt.Errorf("maxLines cannot be negative, got: %d", *config.MaxLines)
+	}
+	if config.BytesToSkip != nil && *config.BytesToSkip < 0 {
+		return fmt.Errorf("bytesToSkip cannot be negative, got: %d", *config.BytesToSkip)
+	}
+	if config.LinesToSkip != nil && *config.LinesToSkip < 0 {
+		return fmt.Errorf("linesToSkip cannot be negative, got: %d", *config.LinesToSkip)
+	}
+
+	// Validate MaxBytes (must be positive)
+	if config.MaxBytes != nil {
+		if *config.MaxBytes < 0 {
+			return fmt.Errorf("maxBytes cannot be negative, got: %d", *config.MaxBytes)
+		}
+		if *config.MaxBytes == 0 {
+			return fmt.Errorf("maxBytes cannot be zero")
+		}
+	}
+
+	return nil
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
@@ -119,8 +167,7 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	}
 
 	// Compute fingerprint
-	table := crc64.MakeTable(crc64.ISO)
-	checksum := crc64.Checksum(buffer, table)
+	checksum := crc64.Checksum(buffer, crc64Table)
 
 	log.Debugf("Computed byte-based fingerprint 0x%x for file %q (bytes=%d)", checksum, filePath, bytesRead)
 	return checksum
@@ -192,8 +239,7 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	}
 
 	// Compute fingerprint
-	table := crc64.MakeTable(crc64.ISO)
-	checksum := crc64.Checksum(buffer, table)
+	checksum := crc64.Checksum(buffer, crc64Table)
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, filePath, len(buffer), linesRead)
 	return checksum
 }
