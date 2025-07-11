@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix a panic in Docker file log parsing when received message is are null equivalent.
+    Fix a panic in Docker file log parsing when received messages are null equivalent.
