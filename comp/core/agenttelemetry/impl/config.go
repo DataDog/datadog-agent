@@ -203,8 +203,6 @@ var defaultProfiles = `
       period: 900
   - name: logs-and-metrics
     metric:
-      exclude:
-        zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
         - name: dogstatsd.uds_packets_bytes
@@ -230,6 +228,10 @@ var defaultProfiles = `
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
+        - name: transactions.http_errors
+          aggregate_tags:
+            - code
+            - endpoint
     schedule:
       start_after: 30
       iterations: 0
