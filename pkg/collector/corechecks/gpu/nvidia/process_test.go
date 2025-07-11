@@ -90,7 +90,7 @@ func TestProcessScenarios(t *testing.T) {
 			name:                "NoRunningProcesses",
 			processes:           []nvml.ProcessInfo{},
 			samples:             []nvml.ProcessUtilizationSample{},
-			expectedMetricCount: 0,
+			expectedMetricCount: 3, //we expect the gpu.core.limit, gpu.memory.limit and gr_engine_active metrics to be emitted even if no processes are not running
 			expectedPIDCounts:   map[string]int{},
 		},
 		{
@@ -101,15 +101,15 @@ func TestProcessScenarios(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 1234, TimeStamp: 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
 			},
-			expectedMetricCount: 7, // 3 compute + 4 utilization
-			expectedPIDCounts:   map[string]int{"1234": 7},
+			expectedMetricCount: 8, // 2 compute per-process + 6 utilization (4 per-process + 2 aggregated)
+			expectedPIDCounts:   map[string]int{"1234": 8},
 			specificValidations: func(t *testing.T, metrics []Metric) {
 				metricsByName := make(map[string]Metric)
 				for _, metric := range metrics {
 					metricsByName[metric.Name] = metric
 				}
 				assert.Equal(t, float64(536870912), metricsByName["memory.usage"].Value)
-				assert.Equal(t, float64(75), metricsByName["core.utilization"].Value)
+				assert.Equal(t, float64(60), metricsByName["core.usage"].Value) // (75/100) * 80 = 60
 				assert.Equal(t, float64(60), metricsByName["dram_active"].Value)
 				assert.Equal(t, float64(30), metricsByName["encoder_utilization"].Value)
 				assert.Equal(t, float64(15), metricsByName["decoder_utilization"].Value)
@@ -127,11 +127,11 @@ func TestProcessScenarios(t *testing.T) {
 				{Pid: 1003, TimeStamp: 1200, SmUtil: 80, MemUtil: 70, EncUtil: 35, DecUtil: 25},
 				// Note: PID 1002 has no utilization sample
 			},
-			expectedMetricCount: 17, // 9 compute (3×3) + 8 utilization (2×4)
+			expectedMetricCount: 14, // 4 compute (3 per-process + 1 aggregated) + 10 utilization (2×4 per-process + 2 aggregated)
 			expectedPIDCounts: map[string]int{
-				"1001": 7, // 3 compute + 4 utilization
-				"1002": 3, // 3 compute only
-				"1003": 7, // 3 compute + 4 utilization
+				"1001": 8, // 1 compute per-process + 4 utilization per-process + 3 aggregated
+				"1002": 1, // 1 compute per-process only
+				"1003": 5, // 1 compute per-process + 4 utilization per-process
 			},
 		},
 		{
@@ -142,26 +142,32 @@ func TestProcessScenarios(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 3001, TimeStamp: 1500, SmUtil: 90, MemUtil: 85, EncUtil: 45, DecUtil: 35},
 			},
-			expectedMetricCount: 7, // 3 compute + 4 utilization
+			expectedMetricCount: 8, // 2 compute (1 per-process + 1 aggregated) + 6 utilization (4 per-process + 2 aggregated)
 			expectedPIDCounts: map[string]int{
-				"2001": 3, // compute metrics
-				"3001": 4, // utilization metrics
+				"2001": 2, // 1 compute per-process + 1 aggregated memory.limit
+				"3001": 6, // 4 utilization per-process + 2 aggregated
 			},
 			specificValidations: func(t *testing.T, metrics []Metric) {
 				computeMetrics := 0
 				utilizationMetrics := 0
 				for _, metric := range metrics {
 					switch metric.Name {
-					case "memory.usage", "memory.limit", "core.limit":
+					case "memory.usage":
 						assert.Contains(t, metric.Tags, "pid:2001")
 						computeMetrics++
-					case "core.utilization", "dram_active", "encoder_utilization", "decoder_utilization":
+					case "memory.limit":
+						assert.Contains(t, metric.Tags, "pid:2001")
+						computeMetrics++
+					case "core.usage", "dram_active", "encoder_utilization", "decoder_utilization":
+						assert.Contains(t, metric.Tags, "pid:3001")
+						utilizationMetrics++
+					case "core.limit", "gr_engine_active":
 						assert.Contains(t, metric.Tags, "pid:3001")
 						utilizationMetrics++
 					}
 				}
-				assert.Equal(t, 3, computeMetrics)
-				assert.Equal(t, 4, utilizationMetrics)
+				assert.Equal(t, 2, computeMetrics)
+				assert.Equal(t, 6, utilizationMetrics)
 			},
 		},
 		{
@@ -172,15 +178,15 @@ func TestProcessScenarios(t *testing.T) {
 			samples: []nvml.ProcessUtilizationSample{
 				{Pid: 13001, TimeStamp: 4000, SmUtil: 0, MemUtil: 0, EncUtil: 0, DecUtil: 0}, // Zero utilization
 			},
-			expectedMetricCount: 7, // 3 compute + 4 utilization
-			expectedPIDCounts:   map[string]int{"13001": 7},
+			expectedMetricCount: 8, // 2 compute + 6 utilization
+			expectedPIDCounts:   map[string]int{"13001": 8},
 			specificValidations: func(t *testing.T, metrics []Metric) {
 				metricsByName := make(map[string]Metric)
 				for _, metric := range metrics {
 					metricsByName[metric.Name] = metric
 				}
 				assert.Equal(t, float64(0), metricsByName["memory.usage"].Value)
-				assert.Equal(t, float64(0), metricsByName["core.utilization"].Value)
+				assert.Equal(t, float64(0), metricsByName["core.usage"].Value)
 				assert.Equal(t, float64(0), metricsByName["dram_active"].Value)
 				assert.Equal(t, float64(0), metricsByName["encoder_utilization"].Value)
 				assert.Equal(t, float64(0), metricsByName["decoder_utilization"].Value)
