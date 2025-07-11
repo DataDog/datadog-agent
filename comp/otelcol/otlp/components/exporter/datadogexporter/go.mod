@@ -85,7 +85,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.69.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.69.0-rc.1 // indirect

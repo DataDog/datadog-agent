@@ -65,7 +65,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.69.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.69.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.69.0-rc.1 // indirect
