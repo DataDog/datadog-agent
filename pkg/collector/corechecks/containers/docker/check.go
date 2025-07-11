@@ -22,6 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -260,7 +261,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 		}
 		pod, _ := d.store.GetKubernetesPodForContainer(rawContainer.ID)
 
-		isContainerExcluded := d.filterStore.IsContainerExcluded(workloadfilter.CreateContainer(wmetaContainer, workloadfilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
+		isContainerExcluded := d.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainer(wmetaContainer, workloadmetafilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
 		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)

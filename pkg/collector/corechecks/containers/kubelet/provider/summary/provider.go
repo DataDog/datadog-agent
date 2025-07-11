@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -114,9 +115,8 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 
-		// TODO: add release note for
-		podData.Annotations = nil
-		if p.filterStore.IsPodExcluded(workloadfilter.CreatePod(podData), workloadfilter.GetPodSharedMetricFilters()) {
+		// TODO GABE: add release note for adding annotation filtering the summary provider
+		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(podData), workloadfilter.GetPodSharedMetricFilters()) {
 			continue
 		}
 
@@ -227,7 +227,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			continue
 		}
 		ctr.Name = containerName
-		if p.filterStore.IsContainerExcluded(workloadfilter.CreateContainerFromOrch(ctr, workloadfilter.CreatePod(podData)), workloadfilter.GetContainerSharedMetricFilters()) {
+		if p.filterStore.IsContainerExcluded(workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData)), workloadfilter.GetContainerSharedMetricFilters()) {
 			continue
 		}
 		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)

@@ -367,9 +367,11 @@ func TestProvider_Provide(t *testing.T) {
 			assert.NoError(t, err)
 
 			err = p.Provide(kubeletMock, mockSender)
-			if err != tt.want.err {
-				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
-				return
+			if tt.want.err != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.want.err.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
 			}
 			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.want.gaugeMetrics))
 			mockSender.AssertNumberOfCalls(t, "Rate", len(tt.want.rateMetrics))

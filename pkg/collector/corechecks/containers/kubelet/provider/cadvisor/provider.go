@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -202,7 +203,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		if pod == nil {
 			continue
 		}
-		if p.filterStore.IsPodExcluded(workloadfilter.CreatePod(pod), workloadfilter.GetPodSharedMetricFilters()) {
+		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(pod), workloadfilter.GetPodSharedMetricFilters()) {
 			continue
 		}
 		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUID) {
@@ -379,7 +380,7 @@ func (p *Provider) getPodByMetricLabel(labels model.Metric) *workloadmeta.Kubern
 		podName = labels["pod_name"]
 	}
 	if pod, err := p.store.GetKubernetesPodByName(string(podName), string(namespace)); err == nil {
-		if !p.filterStore.IsPodExcluded(workloadfilter.CreatePod(pod), workloadfilter.GetPodSharedMetricFilters()) {
+		if !p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(pod), workloadfilter.GetPodSharedMetricFilters()) {
 			return pod
 		}
 	}

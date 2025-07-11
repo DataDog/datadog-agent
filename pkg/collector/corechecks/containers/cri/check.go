@@ -52,10 +52,11 @@ type CRICheck struct {
 func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &CRICheck{
-			CheckBase: core.NewCheckBase(CheckName),
-			instance:  &CRIConfig{},
-			store:     store,
-			tagger:    tagger,
+			CheckBase:   core.NewCheckBase(CheckName),
+			instance:    &CRIConfig{},
+			filterStore: filterStore,
+			store:       store,
+			tagger:      tagger,
 		}
 	})
 }

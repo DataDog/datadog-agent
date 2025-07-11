@@ -7,7 +7,6 @@ package workloadfilter
 
 import (
 	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // Result is an enumeration that represents the possible results of a filter evaluation.
@@ -50,62 +49,6 @@ type Container struct {
 	Owner Filterable
 }
 
-// CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
-func CreateContainer(container *workloadmeta.Container, owner Filterable) *Container {
-	if container == nil {
-		return nil
-	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// CreateContainerFromOrch creates a Filterable Container object from a workloadmeta.OrchestratorContainer and an owner.
-func CreateContainerFromOrch(container *workloadmeta.OrchestratorContainer, owner Filterable) *Container {
-	if container == nil {
-		return nil
-	}
-
-	c := &typedef.FilterContainer{
-		Id:    container.ID,
-		Name:  container.Name,
-		Image: container.Image.RawName,
-	}
-
-	setContainerOwner(c, owner)
-
-	return &Container{
-		FilterContainer: c,
-		Owner:           owner,
-	}
-}
-
-// setContainerOwner sets the owner field in the FilterContainer based on the owner type.
-func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
-	if owner == nil {
-		return
-	}
-
-	switch o := owner.(type) {
-	case *Pod:
-		if o != nil && o.FilterPod != nil {
-			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.FilterPod,
-			}
-		}
-	}
-}
-
 var _ Filterable = &Container{}
 
 // Serialize converts the Container object to a filterable object.
@@ -142,22 +85,6 @@ const (
 // Pod represents a pod object.
 type Pod struct {
 	*typedef.FilterPod
-}
-
-// CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.
-func CreatePod(pod *workloadmeta.KubernetesPod) *Pod {
-	if pod == nil {
-		return nil
-	}
-
-	return &Pod{
-		FilterPod: &typedef.FilterPod{
-			Id:          pod.ID,
-			Name:        pod.Name,
-			Namespace:   pod.Namespace,
-			Annotations: pod.Annotations,
-		},
-	}
 }
 
 var _ Filterable = &Pod{}
