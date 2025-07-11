@@ -98,11 +98,18 @@
 
 # Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
-.on_deploy_internal_manual_final:
-  - <<: *if_beta_repo_branch
-    when: never
+.on_deploy_internal_manual_auto_on_rc:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
+  - <<: *if_rc_tag_on_beta_repo_branch
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      IMG_REGISTRIES: internal-aws-ddbuild
   - when: manual
     allow_failure: true
     variables:

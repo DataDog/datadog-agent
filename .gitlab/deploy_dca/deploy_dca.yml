@@ -20,7 +20,7 @@ deploy_containers-dca:
 
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_internal_manual_final]
+  rules: !reference [.on_deploy_internal_manual_auto_on_rc]
 
 # Fips flavor
 .deploy_containers-dca-fips-base:
@@ -39,4 +39,4 @@ deploy_containers-dca-fips:
 
 deploy_containers-dca-fips_internal:
   extends: .deploy_containers-dca-fips-base
-  rules: !reference [.on_deploy_internal_manual_final]
+  rules: !reference [.on_deploy_internal_manual_auto_on_rc]
