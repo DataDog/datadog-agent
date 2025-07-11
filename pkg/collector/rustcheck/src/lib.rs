@@ -17,11 +17,15 @@ impl AgentCheck {
     pub fn check(&mut self) {
         /* check implementation goes here */
 
-        let name = String::from("so.metric");
-        let value = 3.14;
+        let metric_name = String::from("so.metric");
         let tags = vec![String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing")];
-        let hostname = String::from("");
+        let hostname = String::new();
 
-        self.gauge(name, value, tags, hostname, false);
+        self.gauge(&metric_name, 3.14, &tags, &hostname, false);
+
+        let service_name = String::from("so.service.check");
+        let message = String::from("Some service check message");
+
+        self.service_check(&service_name, 0, &tags, &hostname, &message);
     }
 }

@@ -58,6 +58,7 @@ static void *rtloader_backend = NULL;
 
 // pointer to store the callback of pkg/collect/aggregator.go
 static cb_submit_metric_t submit_metric_cb = NULL;
+static cb_submit_service_check_t submit_service_check_cb = NULL;
 
 #ifdef _WIN32
 
@@ -339,14 +340,6 @@ char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
 }
 
-// based on pkg/collecor/aggregator package to avoid going through the pkg/collector/python package to submit metrics
-DATADOG_AGENT_RTLOADER_API void submit_metric(char *checkID, const metric_type_t metricType,
-                                            char *metricName, const double value, char **tags,
-                                            char *hostname, const bool flushFirstValue)
-{
-    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);             
-}
-
 /*
  * error API
  */
@@ -478,18 +471,36 @@ void set_module_attr_string(rtloader_t *rtloader, char *module, char *attr, char
  * aggregator API
  */
 
-DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t cb) {
-    submit_metric_cb = cb;
-}
-
 void set_submit_metric_cb(rtloader_t *rtloader, cb_submit_metric_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitMetricCb(cb);
 }
 
+void set_aggregator_submit_metric_cb(cb_submit_metric_t cb)
+{
+    submit_metric_cb = cb;
+}
+
+void submit_metric(char *checkID, const metric_type_t metricType,
+                                            char *metricName, const double value, char **tags,
+                                            char *hostname, const bool flushFirstValue)
+{
+    submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);             
+}
+
 void set_submit_service_check_cb(rtloader_t *rtloader, cb_submit_service_check_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitServiceCheckCb(cb);
+}
+
+void set_aggregator_submit_service_check_cb(cb_submit_service_check_t cb)
+{
+    submit_service_check_cb = cb;
+}
+
+void submit_service_check(char * checkID, char * name, int status, char ** tags, char * hostname, char * message)
+{
+    submit_service_check_cb(checkID, name, status, tags, hostname, message);
 }
 
 void set_submit_event_cb(rtloader_t *rtloader, cb_submit_event_t cb)

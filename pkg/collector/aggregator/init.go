@@ -14,9 +14,11 @@ package aggregator
 #include <stdlib.h>
 
 void SubmitMetricRtLoader(char *, metric_type_t, char *, double, char **, char *, bool);
+void SubmitServiceCheckRtLoader(char *, char *, int, char **, char *, char *);
 
 void initAggregatorCallback() {
 	set_aggregator_submit_metric_cb(SubmitMetricRtLoader);
+	set_aggregator_submit_service_check_cb(SubmitServiceCheckRtLoader);
 }
 */
 import "C"

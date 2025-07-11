@@ -69,8 +69,8 @@ func SubmitMetricRtLoader(checkID *C.char, metricType C.metric_type_t, metricNam
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
 //
-//export SubmitServiceCheck
-func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
+//export SubmitServiceCheckRtLoader
+func SubmitServiceCheckRtLoader(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
 	goCheckID := C.GoString(checkID)
 
 	checkContext, err := getCheckContext()
@@ -96,8 +96,8 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 
 // SubmitEvent is the method exposed to Python scripts to submit events
 //
-//export SubmitEvent
-func SubmitEvent(checkID *C.char, event *C.event_t) {
+//export SubmitEventRtLoader
+func SubmitEventRtLoader(checkID *C.char, event *C.event_t) {
 	goCheckID := C.GoString(checkID)
 
 	checkContext, err := getCheckContext()
@@ -129,8 +129,8 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 
 // SubmitHistogramBucket is the method exposed to Python scripts to submit metrics
 //
-//export SubmitHistogramBucket
-func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+//export SubmitHistogramBucketRtLoader
+func SubmitHistogramBucketRtLoader(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
 	checkContext, err := getCheckContext()
 	if err != nil {
@@ -158,8 +158,8 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 
 // SubmitEventPlatformEvent is the method exposed to Python scripts to submit event platform events
 //
-//export SubmitEventPlatformEvent
-func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
+//export SubmitEventPlatformEventRtLoader
+func SubmitEventPlatformEventRtLoader(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
 	_checkID := C.GoString(checkID)
 	checkContext, err := getCheckContext()
 	if err != nil {
