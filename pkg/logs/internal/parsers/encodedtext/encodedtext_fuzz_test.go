@@ -88,7 +88,7 @@ var testStrings = []string{
 	"Mixed 日本語 and English text",
 	"Very long text " + string(make([]byte, 1000)),
 	"\x00\x01\x02\x03\x04\x05", // Control characters
-	"Surrogate pairs: 𝄞 𝐀𝐁𝐂",     // Characters outside BMP
+	"Surrogate pairs: 𝄞 𝐀𝐁𝐂",   // Characters outside BMP
 }
 
 func FuzzParseUTF16LE(f *testing.F) {
@@ -106,13 +106,13 @@ func FuzzParseUTF16LE(f *testing.F) {
 	}
 
 	// Edge cases
-	f.Add([]byte{})                          // Empty
-	f.Add([]byte{0xFF})                      // Incomplete BOM
-	f.Add([]byte{0xFF, 0xFE})                // Just BOM
-	f.Add([]byte{0xFF, 0xFE, 0x00})         // BOM + incomplete character
-	f.Add([]byte{0x00})                      // Single null byte
-	f.Add([]byte{0x80, 0x81, 0x82})         // Invalid UTF-8 but might be valid in other encodings
-	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF})   // All 0xFF bytes
+	f.Add([]byte{})                       // Empty
+	f.Add([]byte{0xFF})                   // Incomplete BOM
+	f.Add([]byte{0xFF, 0xFE})             // Just BOM
+	f.Add([]byte{0xFF, 0xFE, 0x00})       // BOM + incomplete character
+	f.Add([]byte{0x00})                   // Single null byte
+	f.Add([]byte{0x80, 0x81, 0x82})       // Invalid UTF-8 but might be valid in other encodings
+	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF}) // All 0xFF bytes
 
 	parser := New(UTF16LE)
 
@@ -164,13 +164,13 @@ func FuzzParseUTF16BE(f *testing.F) {
 	}
 
 	// Edge cases
-	f.Add([]byte{})                          // Empty
-	f.Add([]byte{0xFE})                      // Incomplete BOM
-	f.Add([]byte{0xFE, 0xFF})                // Just BOM
-	f.Add([]byte{0xFE, 0xFF, 0x00})         // BOM + incomplete character
-	f.Add([]byte{0x00})                      // Single null byte
-	f.Add([]byte{0x80, 0x81, 0x82})         // Invalid UTF-8 but might be valid in other encodings
-	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF})   // All 0xFF bytes
+	f.Add([]byte{})                       // Empty
+	f.Add([]byte{0xFE})                   // Incomplete BOM
+	f.Add([]byte{0xFE, 0xFF})             // Just BOM
+	f.Add([]byte{0xFE, 0xFF, 0x00})       // BOM + incomplete character
+	f.Add([]byte{0x00})                   // Single null byte
+	f.Add([]byte{0x80, 0x81, 0x82})       // Invalid UTF-8 but might be valid in other encodings
+	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF}) // All 0xFF bytes
 
 	parser := New(UTF16BE)
 
@@ -217,12 +217,12 @@ func FuzzParseShiftJIS(f *testing.F) {
 	f.Add([]byte{0x93, 0xfa, 0x96, 0x7b})             // 日本
 	f.Add([]byte{0x82, 0xa0, 0x82, 0xa2, 0x82, 0xa4}) // あいう
 	f.Add([]byte{0x8c, 0xea})                         // 語
-	
+
 	// Edge cases
-	f.Add([]byte{})                          // Empty
-	f.Add([]byte{0x00})                      // Single null byte
-	f.Add([]byte{0x80, 0x81, 0x82})         // High bytes
-	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF})   // All 0xFF bytes
+	f.Add([]byte{})                       // Empty
+	f.Add([]byte{0x00})                   // Single null byte
+	f.Add([]byte{0x80, 0x81, 0x82})       // High bytes
+	f.Add([]byte{0xFF, 0xFF, 0xFF, 0xFF}) // All 0xFF bytes
 
 	parser := New(SHIFTJIS)
 
