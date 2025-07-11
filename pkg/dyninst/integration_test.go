@@ -94,9 +94,11 @@ func TestDyninst(t *testing.T) {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, cfgs, rewrite, sem)
-		})
+		for _, cfg := range cfgs {
+			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
+				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
+			})
+		}
 	}
 }
 
@@ -290,6 +292,9 @@ func testDyninst(
 		var decodeOut bytes.Buffer
 		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Output: %s", decodeOut.String())
+		}
 		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
@@ -318,10 +323,14 @@ type probeOutputs map[string][]json.RawMessage
 func runIntegrationTestSuite(
 	t *testing.T,
 	service string,
-	configs []testprogs.Config,
+	cfg testprogs.Config,
 	rewrite bool,
 	sem semaphore,
 ) {
+	if cfg.GOARCH != runtime.GOARCH {
+		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
+		return
+	}
 	var outputs = struct {
 		sync.Mutex
 		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
@@ -343,43 +352,30 @@ func runIntegrationTestSuite(
 		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
 		require.NoError(t, err)
 	}
-	for _, cfg := range configs {
-		if cfg.GOARCH != runtime.GOARCH {
-			t.Skipf(
-				"cross-execution is not supported, running on %s, skipping %s",
-				runtime.GOARCH, cfg.GOARCH,
+	bin := testprogs.MustGetBinary(t, service, cfg)
+	for _, debug := range []bool{false, true} {
+		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+			t.Parallel()
+			actual := testDyninst(
+				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
 			)
-			continue
-		}
-		bin := testprogs.MustGetBinary(t, service, cfg)
-		for _, debug := range []bool{false, true} {
-			if testing.Short() && debug {
-				t.Skip("skipping debug mode in short mode")
+			if t.Failed() {
+				return
 			}
-			runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
-				t.Parallel()
-				actual := testDyninst(
-					t, service, bin, probeSlice, rewrite, expectedOutput, debug,
-					sem,
-				)
-				if t.Failed() {
-					return
-				}
-				outputs.Lock()
-				defer outputs.Unlock()
-				outputs.byTest[t.Name()] = actual
-			}
-			t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
-				t.Parallel()
-				t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
-				for i := range probes {
-					probeID := probes[i].GetID()
-					t.Run(probeID, func(t *testing.T) {
-						runTest(t, probes[i:i+1])
-					})
-				}
-			})
+			outputs.Lock()
+			defer outputs.Unlock()
+			outputs.byTest[t.Name()] = actual
 		}
+		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+			t.Parallel()
+			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+			for i := range probes {
+				probeID := probes[i].GetID()
+				t.Run(probeID, func(t *testing.T) {
+					runTest(t, probes[i:i+1])
+				})
+			}
+		})
 	}
 }
 

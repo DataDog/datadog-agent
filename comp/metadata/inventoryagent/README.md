@@ -43,6 +43,7 @@ The payload is a JSON dict with the following fields
   - `config_proxy_http` - **string**: the configuration value `proxy.http` (scrubbed)
   - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
+  - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent including description, error and metadata
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
