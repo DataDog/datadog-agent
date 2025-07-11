@@ -73,21 +73,25 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 // MarshalProcCache marshals a binary representation of itself
 func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal proc_cache_t
-	if len(data) < ContainerIDLen {
+
+	// marshal cgroup_context/path_key of size 16
+	if len(data) < PathKeySize {
 		return 0, ErrNotEnoughSpace
 	}
-
-	// process without cgroup should be mainly pid 1
-	// TODO: fix empty cgroup path key for not-pid-1 processes
 	e.CGroup.CGroupFile.Write(data)
 	written := PathKeySize
 
+	// marshal file_t executable of size 72
+	if len(data[written:]) < 72 {
+		return 0, ErrNotEnoughSpace
+	}
 	added, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {
 		return 0, err
 	}
 	written += added
 
+	// marshal exec_timestamp / tty_name / comm, total size of 88 (8 + 64 + 16)
 	if len(data[written:]) < 88 {
 		return 0, ErrNotEnoughSpace
 	}

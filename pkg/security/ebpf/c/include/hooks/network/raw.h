@@ -38,12 +38,12 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
 
     fill_network_device_context_from_pkt(&evt->device, skb, pkt);
 
-    u32 len = evt->len;
-    if (len > sizeof(evt->data)) {
-        len = sizeof(evt->data);
+    u32 len = evt->len + offsetof(struct raw_packet_event_t, data);
+    if (len > sizeof(evt)) {
+        len = sizeof(evt);
     }
 
-    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, offsetof(struct raw_packet_event_t, data) + len);
+    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, len);
 
     return TC_ACT_UNSPEC;
 }
