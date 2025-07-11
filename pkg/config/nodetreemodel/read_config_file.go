@@ -64,6 +64,9 @@ func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 
+	// Reset the file tree like Viper does, so previous config is cleared
+	c.file = newInnerNode(nil)
+
 	content, err := io.ReadAll(in)
 	if err != nil {
 		return err
@@ -130,20 +133,16 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 
 		// check if the key is defined in the schema
 		schemaChild, err := schema.GetChild(key)
-		if err != nil {
+		// schemaChild might be nil if not found or error
+		unknownKey := err != nil
+		if unknownKey {
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
 			if !allowDynamicSchema {
-				continue
-			}
-
-			// if the key is not defined in the schema, we can still add it to the destination
-			if value == nil || isScalar(value) || isSlice(value) {
 				dest.InsertChildNode(key, newLeafNode(value, source))
 				continue
 			}
-
-			// fallback to inner node if it's not a scalar or nil
-			schemaChild = newInnerNode(make(map[string]Node))
+			// fallback to assume it's an inner node
+			schemaChild = newInnerNode(nil)
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest

@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // features allowed for handling edge-cases
@@ -201,7 +202,9 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 
 			err := copyAny(target.FieldByName(f.Name), input, nextPath, fs)
 			if err != nil {
-				return err
+				warning := fmt.Sprintf("Failed to parse key %q at %v: %v", fieldKey, strings.Join(nextPath, "."), err)
+				log.Warn(warning)
+				continue // don't fail, just warn
 			}
 			usedFields[fieldKey] = struct{}{}
 			continue
@@ -220,7 +223,6 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 		}
 		usedFields[fieldKey] = struct{}{}
 	}
-
 	if fs.errorUnused {
 		inner, ok := input.(nodetreemodel.InnerNode)
 		if !ok {
