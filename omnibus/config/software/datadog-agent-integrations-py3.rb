@@ -241,7 +241,7 @@ build do
     'pbr/tests',
     'pkg_resources/tests',
     'psutil/tests',
-    '/requests_unixsocket/tests',
+    'requests_unixsocket/tests',
     'securesystemslib/_vendor/ed25519/test_data',
     'setuptools/_distutils/tests',
     'setuptools/tests',
