@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
+	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.10.0
 )
 

@@ -461,20 +461,22 @@ func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator
 
 // writeBinary extracts the binary from the given reader to the given path.
 func writeBinary(r io.Reader, path string) error {
-	outFile, err := os.Create(path)
+	// Ensure the file has 0700 permissions even if it already exists
+	if err := os.Chmod(path, 0700); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("could not set file permissions before writing: %w", err)
+	}
+	outFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0700)
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
 	}
 	defer outFile.Close()
 
+	// Now that we have the 0700 permissions set, we can write to the file.
+	// Use io.LimitReader to limit the size of the layer to layerMaxSize.
 	limitedReader := io.LimitReader(r, layerMaxSize)
 	_, err = io.Copy(outFile, limitedReader)
 	if err != nil {
 		return fmt.Errorf("could not write to file: %w", err)
-	}
-
-	if err := outFile.Chmod(0700); err != nil {
-		return fmt.Errorf("could not set file permissions: %w", err)
 	}
 
 	return nil
