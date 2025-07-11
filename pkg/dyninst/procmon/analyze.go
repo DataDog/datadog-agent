@@ -16,8 +16,10 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
@@ -48,15 +50,19 @@ func analyzeProcess(
 	resolver ContainerResolver,
 	executableAnalyzer *executableAnalyzer,
 ) (processAnalysis, error) {
+	maybeWrapErr := func(msg string, err error) error {
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		pid, msg, err := pid, msg, err
+		return fmt.Errorf("analyzeProcess: pid %d: %s: %w", pid, msg, err)
+	}
 
 	exeLinkPath := path.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
 	exePath, err := os.Readlink(exeLinkPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return processAnalysis{}, nil
-	}
 	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to open exe link for pid %d: %w", pid, err,
+		return processAnalysis{}, maybeWrapErr(
+			"failed to open exe link", err,
 		)
 	}
 
@@ -68,31 +74,29 @@ func analyzeProcess(
 			procfsRoot, strconv.Itoa(int(pid)), "root",
 			strings.TrimPrefix(exePath, "/"),
 		)
-		log.Debugf(
-			"exe for pid %d does not exist in root fs, trying under proc_root: %s",
-			pid, exePath,
-		)
+		if log.ShouldLog(log.TraceLvl) {
+			exePath := exePath
+			log.Tracef(
+				"exe for pid %d does not exist in root fs, trying under proc_root: %s",
+				pid, exePath,
+			)
+		}
 		exeFile, err = os.Open(exePath)
 	}
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			err = fmt.Errorf("failed to open exe: %w", err)
-		} else {
-			err = nil
-		}
-		return processAnalysis{}, err
+		return processAnalysis{}, maybeWrapErr("failed to open exe", err)
 	}
 	defer exeFile.Close()
 
 	statI, err := exeFile.Stat()
 	if err != nil {
-		return processAnalysis{}, fmt.Errorf("process %d: failed to stat exe: %w", pid, err)
+		return processAnalysis{}, maybeWrapErr("failed to stat exe", err)
 	}
 	statSys := statI.Sys()
 	st, ok := statSys.(*syscall.Stat_t)
 	if !ok {
-		return processAnalysis{}, fmt.Errorf(
-			"process %d: failed to cast stat: %T", pid, statSys,
+		return processAnalysis{}, maybeWrapErr(
+			"failed to cast stat", fmt.Errorf("got %T", statSys),
 		)
 	}
 	fileKey := FileKey{
@@ -110,8 +114,8 @@ func analyzeProcess(
 
 	ddEnv, err := analyzeEnviron(int32(pid), procfsRoot)
 	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to check if process %d is interesting: %w", pid, err,
+		return processAnalysis{}, maybeWrapErr(
+			"failed to analyze environ", err,
 		)
 	}
 	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
@@ -123,11 +127,10 @@ func analyzeProcess(
 	}
 
 	isGo, err := executableAnalyzer.isInteresting(exeFile, fileKey)
-	if errors.Is(err, os.ErrNotExist) {
-		isGo, err = false, nil
-	}
 	if !isGo || err != nil {
-		return processAnalysis{}, err
+		return processAnalysis{}, maybeWrapErr(
+			"failed to check if exe is interesting", err,
+		)
 	}
 
 	containerInfo := analyzeContainerInfo(resolver, pid)
@@ -156,28 +159,44 @@ const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
 const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
 const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
 
+var ddEnvVarBufPool = sync.Pool{
+	New: func() any {
+		return bytes.NewBuffer(make([]byte, 0, 16<<10))
+	},
+}
+
 func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
+	buf := ddEnvVarBufPool.Get().(*bytes.Buffer)
+	defer ddEnvVarBufPool.Put(buf)
+	defer buf.Reset()
 	procEnv := path.Join(procfsRoot, strconv.Itoa(int(pid)), "environ")
-	env, err := os.ReadFile(procEnv)
-	if errors.Is(err, os.ErrNotExist) {
-		return ddEnvVars{}, nil
-	}
+
+	f, err := os.Open(procEnv)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ddEnvVars{}, nil
+		}
 		return ddEnvVars{}, fmt.Errorf(
-			"failed to read proc env at %s: %w", procEnv, err,
+			"failed to open proc env at %s: %w", procEnv, err,
 		)
 	}
+	defer f.Close()
+	_, err = buf.ReadFrom(f)
+	if err != nil {
+		return ddEnvVars{}, fmt.Errorf("failed to copy proc env: %w", err)
+	}
+	env := buf.Bytes()
 	var ddEnv ddEnvVars
 	for envVar, val := range envVars(env) {
-		switch envVar {
+		switch unsafe.String(unsafe.SliceData(envVar), len(envVar)) {
 		case ddServiceEnvVar:
-			ddEnv.serviceName = val
+			ddEnv.serviceName = string(val)
 		case ddDynInstEnabledEnvVar:
-			ddEnv.diEnabled, _ = strconv.ParseBool(val)
+			ddEnv.diEnabled, _ = strconv.ParseBool(string(val))
 		case ddGitCommitShaEnvVar:
-			ddEnv.gitCommitSha = val
+			ddEnv.gitCommitSha = string(val)
 		case ddGitRepositoryURLEnvVar:
-			ddEnv.gitRepositoryURL = val
+			ddEnv.gitRepositoryURL = string(val)
 		}
 	}
 	return ddEnv, nil
@@ -185,8 +204,8 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 
 // envVars returns an iterator over the environment variables in the given
 // procfs environment file.
-func envVars(procEnviron []byte) iter.Seq2[string, string] {
-	return func(yield func(string, string) bool) {
+func envVars(procEnviron []byte) iter.Seq2[[]byte, []byte] {
+	return func(yield func(k, v []byte) bool) {
 		cur := procEnviron
 		for len(cur) > 0 {
 			curVar := cur
@@ -200,7 +219,7 @@ func envVars(procEnviron []byte) iter.Seq2[string, string] {
 			if eqIdx == -1 { // shouldn't happen, just skip it
 				continue
 			}
-			if !yield(string(curVar[:eqIdx]), string(curVar[eqIdx+1:])) {
+			if !yield(curVar[:eqIdx], curVar[eqIdx+1:]) {
 				return
 			}
 		}
@@ -236,10 +255,6 @@ func analyzeContainerInfo(resolver ContainerResolver, pid uint32) ContainerInfo 
 		}
 	}
 	if cgroupContext.CGroupFile.Inode != hostCgroupNamespaceInode {
-		log.Tracef(
-			"analyzeContainerInfo(%d): cgroupContext.CGroupFile.Inode: %d",
-			pid, cgroupContext.CGroupFile.Inode,
-		)
 		return ContainerInfo{
 			EntityID: fmt.Sprintf("in-%d", cgroupContext.CGroupFile.Inode),
 		}
