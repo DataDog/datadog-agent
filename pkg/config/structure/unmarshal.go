@@ -117,7 +117,6 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	if rawval == nil {
 		return nil
 	}
-	log.Debug("UnmarshalKey: rawval:", rawval)
 	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
@@ -228,7 +227,6 @@ func copyStruct(cfg model.Reader, target reflect.Value, input nodetreemodel.Node
 		}
 		usedFields[fieldKey] = struct{}{}
 	}
-	log.Debug("made it through all fields, usedFields:", usedFields)
 	if fs.errorUnused {
 		inner, ok := input.(nodetreemodel.InnerNode)
 		if !ok {
