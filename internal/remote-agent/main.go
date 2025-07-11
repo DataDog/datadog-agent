@@ -16,6 +16,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -31,7 +32,8 @@ import (
 )
 
 type remoteAgentServer struct {
-	started time.Time
+	started      time.Time
+	configEvents chan *pbcore.ConfigEvent
 	pbcore.UnimplementedRemoteAgentServer
 }
 
@@ -78,9 +80,40 @@ remote_agent_test_bar{tag_one="1",tag_two="two"} 3
 	}, nil
 }
 
+func (s *remoteAgentServer) StreamConfigEvents(stream pbcore.RemoteAgent_StreamConfigEventsServer) error {
+	log.Printf("Starting config events stream")
+	for {
+		event, err := stream.Recv()
+		if err == io.EOF {
+			log.Printf("Config events stream closed")
+			return nil
+		}
+		if err != nil {
+			log.Printf("Error receiving config event: %v", err)
+			return err
+		}
+
+		s.configEvents <- event
+	}
+}
+
+func handleConfigEvents(configEvents chan *pbcore.ConfigEvent) {
+	for event := range configEvents {
+		switch event.Event.(type) {
+		case *pbcore.ConfigEvent_Snapshot:
+			log.Printf("Received config snapshot: %v", event.GetSnapshot())
+		case *pbcore.ConfigEvent_Update:
+			log.Printf("Received config update: %v", event.GetUpdate())
+		}
+	}
+}
+
 func newRemoteAgentServer() *remoteAgentServer {
+	configEvents := make(chan *pbcore.ConfigEvent, 8)
+	go handleConfigEvents(configEvents)
 	return &remoteAgentServer{
-		started: time.Now(),
+		started:      time.Now(),
+		configEvents: configEvents,
 	}
 }
 
