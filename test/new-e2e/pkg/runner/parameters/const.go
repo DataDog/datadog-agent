@@ -79,6 +79,8 @@ const (
 	FIPS StoreKey = "fips"
 	// CoveragePipeline config flag parameter name
 	CoveragePipeline StoreKey = "coverage_pipeline"
+	// CoverageOutDir config flag parameter name
+	CoverageOutDir StoreKey = "coverage_out_dir"
 )
 
 const (

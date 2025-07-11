@@ -23,3 +23,9 @@ type Initializable interface {
 type Diagnosable interface {
 	Diagnose(outputDir string) (string, error)
 }
+
+// Coverageable defines the interface for an environment that can generage coverage information about the agent under test
+// and store files in an output directory
+type Coverageable interface {
+	Coverage(outputDir string) error
+}
