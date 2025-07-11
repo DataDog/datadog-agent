@@ -260,23 +260,17 @@ func (h *Host) GetFile(src string, dst string) error {
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
+	return downloadFile(sftpClient, src, dst)
+}
 
-	// remote
-	fsrc, err := sftpClient.Open(src)
-	if err != nil {
-		return err
-	}
-	defer fsrc.Close()
-
-	// local
-	fdst, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer fdst.Close()
-
-	_, err = fsrc.WriteTo(fdst)
-	return err
+// GetFolder create a sftp session and copy a folder from the remote host through SSH
+func (h *Host) GetFolder(srcFolder string, dstFolder string) error {
+	h.context.T().Logf("Copying folder from remote %s to local %s", srcFolder, dstFolder)
+	srcFolder = h.convertPathSeparator(srcFolder)
+	dstFolder = h.convertPathSeparator(dstFolder)
+	sftpClient := h.getSFTPClient()
+	defer sftpClient.Close()
+	return downloadFolder(sftpClient, srcFolder, dstFolder)
 }
 
 // ReadFile reads the content of the file, return bytes read and error if any

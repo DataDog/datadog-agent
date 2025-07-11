@@ -26,7 +26,7 @@ func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientpar
 	case os.WindowsFamily:
 		installPath := params.AgentInstallPath
 		if len(installPath) == 0 {
-			installPath = defaultWindowsAgentInstallPath(host)
+			installPath = DefaultWindowsAgentInstallPath(host)
 		}
 		fmt.Printf("Using default install path: %s\n", installPath)
 		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
@@ -57,7 +57,7 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 //
 // If the Agent is installed, the installPath is read from the registry.
 // If the registry key is not found, returns the default install path.
-func defaultWindowsAgentInstallPath(host *Host) string {
+func DefaultWindowsAgentInstallPath(host *Host) string {
 	path, err := host.Execute(wincommand.GetInstallPathFromRegistry())
 	if err != nil {
 		path = wincommand.DefaultInstallPath
