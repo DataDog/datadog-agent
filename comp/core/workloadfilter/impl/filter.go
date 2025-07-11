@@ -108,9 +108,12 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	// Image Filters
 	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.LegacyImage), catalog.LegacyImageProgram(config, logger))
 	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImagePaused), catalog.ImagePausedProgram(config, logger))
-	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImageSBOM), catalog.ImageSBOMProgram(config, logger))
+	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.LegacyImageSBOM), catalog.ImageSBOMProgram(config, logger))
 
-	// WIP: Pod Filters
+	// Pod Filters
+	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram(config, logger))
+	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), catalog.PodADAnnotationsProgram(config, logger))
+	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), catalog.PodADAnnotationsMetricsProgram(config, logger))
 
 	return filter, nil
 }

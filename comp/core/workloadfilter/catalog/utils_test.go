@@ -22,22 +22,28 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 		expected    string
 	}{
 		{
-			"single name filter",
+			"container name filter",
 			workloadfilter.ContainerType,
 			[]string{"name:foo-.*"},
 			`container.name.matches("foo-.*")`,
 		},
 		{
-			"single image filter",
+			"container image filter",
 			workloadfilter.ContainerType,
 			[]string{"image:nginx.*"},
 			`container.image.matches("nginx.*")`,
 		},
 		{
+			"container namespace filter",
+			workloadfilter.ContainerType,
+			[]string{"kube_namespace:foo-.*"},
+			`container.pod.namespace.matches("foo-.*")`,
+		},
+		{
 			"multiple filters",
 			workloadfilter.ContainerType,
-			[]string{"name:foo-.*", "image:nginx.*"},
-			`container.name.matches("foo-.*") || container.image.matches("nginx.*")`,
+			[]string{"name:foo-.*", "image:nginx.*", "image:busybox:latest"},
+			`container.name.matches("foo-.*") || container.image.matches("nginx.*") || container.image.matches("busybox:latest")`,
 		},
 		{
 			"filter with single quote and backslash",
@@ -60,8 +66,8 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 		{
 			"exclude omitted image key in pod",
 			workloadfilter.PodType,
-			[]string{"name:foo-.*", "image:nginx.*"},
-			`pod.name.matches("foo-.*")`,
+			[]string{"kube_namespace:foo-.*", "image:nginx.*"},
+			`pod.namespace.matches("foo-.*")`,
 		},
 		{
 			"exclude omitted image key in service",
@@ -78,7 +84,7 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 		{
 			"image filter on image type",
 			workloadfilter.ImageType,
-			[]string{"image:nginx.*"},
+			[]string{"image:nginx.*", "kube_namespace:foo", "name:bar"},
 			`image.name.matches("nginx.*")`,
 		},
 	}

@@ -752,6 +752,33 @@ func TestImageFiltering(t *testing.T) {
 	}
 }
 
+func TestImageSBOMFilter(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("sbom.container_image.container_include", []string{"image:dd-agent"})
+	mockConfig.SetWithoutSource("sbom.container_image.container_exclude", []string{"image:nginx"})
+	mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", true)
+
+	f := newFilterObject(t, mockConfig)
+
+	t.Run("Include image", func(t *testing.T) {
+		image := workloadfilter.CreateImage("dd-agent")
+		res := f.IsImageExcluded(image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImageSBOM}})
+		assert.Equal(t, false, res)
+	})
+
+	t.Run("Exclude image", func(t *testing.T) {
+		image := workloadfilter.CreateImage("nginx-123")
+		res := f.IsImageExcluded(image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImageSBOM}})
+		assert.Equal(t, true, res)
+	})
+
+	t.Run("Exclude pause image", func(t *testing.T) {
+		image := workloadfilter.CreateImage("kubernetes/pause")
+		res := f.IsImageExcluded(image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImageSBOM}})
+		assert.Equal(t, true, res)
+	})
+}
+
 // containsErrorWithMessage checks if any error in the slice contains the specified message
 func containsErrorWithMessage(errs []error, message string) bool {
 	for _, err := range errs {
@@ -760,4 +787,82 @@ func containsErrorWithMessage(errs []error, message string) bool {
 		}
 	}
 	return false
+}
+
+func TestPodFiltering(t *testing.T) {
+	tests := []struct {
+		name     string
+		include  []string
+		exclude  []string
+		wmetaPod *workloadmeta.KubernetesPod
+		filters  [][]workloadfilter.PodFilter
+		expected workloadfilter.Result
+	}{
+		{
+			name:    "Exclude by namespace",
+			exclude: []string{"kube_namespace:default"},
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "pod1",
+					Namespace: "default",
+				},
+			},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name:    "Include by namespace",
+			include: []string{"kube_namespace:test"},
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+				},
+			},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			expected: workloadfilter.Included,
+		},
+		{
+			name: "AD annotation exclude",
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "annotated-pod",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/exclude": "true",
+					},
+				},
+			},
+			// Testing PodADAnnotations filter
+			filters:  workloadfilter.GetPodSharedMetricFilters(),
+			expected: workloadfilter.Excluded,
+		},
+		{
+			name: "AD annotation metrics exclude",
+			wmetaPod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "metrics-excluded-pod",
+					Annotations: map[string]string{
+						"ad.datadoghq.com/metrics_exclude": "true",
+					},
+				},
+			},
+			// Testing PodADAnnotationsMetrics filter
+			filters:  workloadfilter.GetPodSharedMetricFilters(),
+			expected: workloadfilter.Excluded,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("container_include", tt.include)
+			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			f := newFilterObject(t, mockConfig)
+
+			pod := workloadfilter.CreatePod(tt.wmetaPod)
+
+			res := evaluateResource(f, pod, tt.filters)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
 }

@@ -177,9 +177,9 @@ type PodFilter int
 
 // Defined Pod filter kinds
 const (
-	PodMetrics PodFilter = iota
-	PodLogs
-	PodGlobal
+	LegacyPod PodFilter = iota
+	PodADAnnotationsMetrics
+	PodADAnnotations
 )
 
 //
@@ -304,6 +304,6 @@ type ImageFilter int
 // Defined Image filter kinds
 const (
 	LegacyImage ImageFilter = iota
+	LegacyImageSBOM
 	ImagePaused
-	ImageSBOM
 )
