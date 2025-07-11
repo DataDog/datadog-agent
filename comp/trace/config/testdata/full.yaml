@@ -12,7 +12,7 @@ dogstatsd_port: 18125
 dogstatsd_non_local_traffic: yes
 log_level: info
 otlp_config:
-  receiver:
+  enabled: true
   traces:
     internal_port: 50053
     span_name_remappings:
