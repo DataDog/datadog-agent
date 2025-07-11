@@ -466,10 +466,8 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
-
-	bitfield := binary.NativeEndian.Uint32(data[24:28])
-	m.Visible = bitfield&0b01 > 0
-	m.Detached = bitfield&0b10 > 0
+	m.Visible = binary.NativeEndian.Uint16(data[24:26]) != 0
+	m.Detached = binary.NativeEndian.Uint16(data[26:28]) != 0
 
 	return 64, nil
 }

@@ -156,11 +156,9 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     struct mount_event_t event = {
         .syscall.retval = 0,
         .syscall_ctx.id = syscall->ctx_id,
-        .mountfields = {
-            .params.visible = false,
-            .params.detached = true,
-        },
-        .source = SOURCE_OPEN_TREE
+        .source = SOURCE_OPEN_TREE,
+        .mountfields.visible = false,
+        .mountfields.detached = true,
     };
 
     if (syscall->type == EVENT_FSMOUNT) {
@@ -259,11 +257,9 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
         struct mount_event_t event = {
             .syscall.retval = 0,
             .syscall_ctx.id = syscall->ctx_id,
-            .mountfields = {
-                .params.visible = false,
-                .params.detached = false,
-            },
-            .source = SOURCE_OPEN_TREE
+            .source = SOURCE_OPEN_TREE,
+            .mountfields.visible = false,
+            .mountfields.detached = false,
         };
 
         fill_mount_fields(syscall, &event.mountfields);
@@ -274,7 +270,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             // Only the first mount of a detached copy is detached from the VFS
             // All the other mounts are ultimately attached to the detached mount
             // That's why they aren't detached but are visible
-            event.mountfields.params.visible = true;
+            event.mountfields.visible = true;
             event.source = SOURCE_MOUNT;
             pop_syscall(EVENT_MOUNT);
         }
