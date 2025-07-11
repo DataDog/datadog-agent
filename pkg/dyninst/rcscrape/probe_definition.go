@@ -67,16 +67,20 @@ type probeWhereV1 struct{}
 
 var _ ir.FunctionWhere = probeWhereV1{}
 
+const v1PassProbeConfiguration = "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"
+
 func (p probeWhereV1) Where() {}
 func (p probeWhereV1) Location() string {
-	return "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration"
+	return v1PassProbeConfiguration
 }
 
 type probeWhereV2 struct{}
 
 var _ ir.FunctionWhere = probeWhereV2{}
 
+const v2PassProbeConfiguration = "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.passProbeConfiguration"
+
 func (p probeWhereV2) Where() {}
 func (p probeWhereV2) Location() string {
-	return "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.passProbeConfiguration"
+	return v2PassProbeConfiguration
 }
