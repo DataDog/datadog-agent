@@ -257,8 +257,15 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 		_ = child.Wait()
 	}()
 
-	procMon := procmon.NewProcessMonitor(rcScraper.AsProcMonHandler())
-	procMon.NotifyExec(uint32(child.Process.Pid))
+	rcScraper.AsProcMonHandler().HandleUpdate(procmon.ProcessesUpdate{
+		Processes: []procmon.ProcessUpdate{
+			{
+				ProcessID:  procmon.ProcessID{PID: int32(child.Process.Pid)},
+				Executable: procmon.Executable{Path: prog},
+				Service:    "simple",
+			},
+		},
+	})
 	require.Eventually(t, func() bool {
 		processes := rcScraper.GetTrackedProcesses()
 		return len(processes) > 0
