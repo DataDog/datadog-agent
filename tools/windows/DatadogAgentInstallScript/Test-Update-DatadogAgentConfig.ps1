@@ -324,6 +324,71 @@ Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_LOGS_ENABLED set"
     -AssertMessage "Config should match expected content with logs_enabled set to true"
 
 
+# Test: does not modify indented tags block
+Test-ConfigUpdate -TestName "does not modify indented tags blocks" `
+    -InitialConfig @(
+        "# Config from earlier run",
+        "other_data:",
+        "  tags:",
+        "    - other tags",
+        "tags:",
+        "  - env:staging",
+        "  - team:infra"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# Config from earlier run",
+        "other_data:",
+        "  tags:",
+        "    - other tags",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should not modify indented tags blocks"
+
+
+# Test: replaces inline array form of tags
+Test-ConfigUpdate -TestName "replaces inline array form of tags" `
+    -InitialConfig @(
+        "# YAML with inline tags array",
+        "tags: ['env:staging', 'team:infra']"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# YAML with inline tags array",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should replace inline tags array with YAML block format"
+
+
+#Test: tags after comment block
+Test-ConfigUpdate -TestName "tags after comment block" `
+    -InitialConfig @(
+        "# Config from earlier run",
+        "# tags:",
+        "#   - team:infra",
+        "#   - <TAG_KEY>:<TAG_VALUE>",
+        "tags:",
+        "  - env:staging",
+        "  - team:infra"
+    ) `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,team:core" } `
+    -ExpectedConfig @(
+        "# Config from earlier run",
+        "# tags:",
+        "#   - team:infra",
+        "#   - <TAG_KEY>:<TAG_VALUE>",
+        "tags:",
+        "  - env:prod",
+        "  - team:core"
+    ) `
+    -AssertMessage "Should not modify tags in comment blocks"
+
+
+
 # Cleanup
 Cleanup-Tests
 
