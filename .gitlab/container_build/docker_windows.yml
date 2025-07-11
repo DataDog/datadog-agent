@@ -41,6 +41,7 @@
       --label 'org.opencontainers.image.created=${BUILD_DATE}'
       --label 'org.opencontainers.image.version=${AGENT_VERSION}'
       --label 'org.opencontainers.image.revision=${CI_COMMIT_SHA}'
+      --squash
       ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker push ${TARGET_TAG}"
@@ -55,7 +56,11 @@
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    ["setup_agent_version", "windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
+    [
+      "setup_agent_version",
+      "windows_msi_and_bosh_zip_x64-a7",
+      "build_windows_container_entrypoint",
+    ]
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
     BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
@@ -72,7 +77,10 @@
   extends:
     - .docker_build_agent7_windows_common
   needs:
-    ["windows_msi_and_bosh_zip_x64-a7-fips", "build_windows_container_entrypoint"]
+    [
+      "windows_msi_and_bosh_zip_x64-a7-fips",
+      "build_windows_container_entrypoint",
+    ]
   variables:
     AGENT_ZIP: "datadog-fips-agent-7*-x86_64.zip"
     BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg WITH_FIPS=true --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}-fips"
