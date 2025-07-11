@@ -50,3 +50,8 @@ func (n *NoOpResolver) SetMountPoint(_ *model.Event, _ *model.Mount) error {
 func (n *NoOpResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string, error) {
 	return "", nil
 }
+
+// ResolveMountAttributes resolves the mount attributes of the mountpoint of a file
+func (n *NoOpResolver) ResolveMountAttributes(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (bool, bool, error) {
+	return false, false, nil
+}

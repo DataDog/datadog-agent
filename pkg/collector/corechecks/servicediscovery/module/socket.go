@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	prefix = "socket:["
-	// readlinkBufferSize is the minimum size needed to read a socket path
-	// which looks like "socket:[165614651]"
-	readlinkBufferSize = 64
+	socketPrefix = "socket:["
+	// readlinkBufferSize is an arbitrary maximum size for log files (and
+	// sockets, but those look like "socket:[165614651]" and are much smaller)
+	readlinkBufferSize = 1024
 )
 
 func readlinkat(dirfd int, fd string, buf []byte) (int, error) {
@@ -43,39 +43,59 @@ func readlinkat(dirfd int, fd string, buf []byte) (int, error) {
 	return n, err
 }
 
-// getSockets get a list of socket inode numbers opened by a process
-func getSockets(pid int32, buf []byte) ([]uint64, error) {
+type fdPath struct {
+	fd   string
+	path string
+}
+
+type openFilesInfo struct {
+	sockets []uint64
+	logs    []fdPath
+}
+
+// getOpenFilesInfo gets a list of socket inode numbers opened by a process
+func getOpenFilesInfo(pid int32, buf []byte) (openFilesInfo, error) {
+	openFiles := openFilesInfo{}
 	if len(buf) < readlinkBufferSize {
-		return nil, io.ErrShortBuffer
+		return openFiles, io.ErrShortBuffer
 	}
 
 	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
 	d, err := os.Open(statPath)
 	if err != nil {
-		return nil, err
+		return openFiles, err
 	}
 	defer d.Close()
 	fnames, err := d.Readdirnames(-1)
 	if err != nil {
-		return nil, err
+		return openFiles, err
 	}
 
 	dirFd := int(d.Fd())
 
-	var sockets []uint64
 	for _, fd := range fnames {
 		n, err := readlinkat(dirFd, fd, buf)
 		if err != nil {
 			continue
 		}
-		if strings.HasPrefix(string(buf[:n]), prefix) {
-			sock, err := strconv.ParseUint(string(buf[len(prefix):n-1]), 10, 64)
+		path := string(buf[:n])
+
+		if strings.HasPrefix(path, socketPrefix) {
+			sock, err := strconv.ParseUint(path[len(socketPrefix):n-1], 10, 64)
 			if err != nil {
 				continue
 			}
-			sockets = append(sockets, sock)
+			openFiles.sockets = append(openFiles.sockets, sock)
+			continue
 		}
+
+		if isLogFile(path) {
+			openFiles.logs = append(openFiles.logs, fdPath{fd: fd, path: path})
+			continue
+		}
+
+		continue
 	}
 
-	return sockets, nil
+	return openFiles, nil
 }

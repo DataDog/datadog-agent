@@ -18,6 +18,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -78,7 +79,7 @@ func analyzeProcess(
 	}
 	defer exeFile.Close()
 
-	isGo, err := isGoElfBinary(exeFile)
+	isGo, err := isGoElfBinaryWithDDTraceGo(exeFile)
 	if errors.Is(err, os.ErrNotExist) {
 		isGo, err = false, nil
 	}
@@ -107,16 +108,24 @@ func analyzeProcess(
 		service:     ddEnv.serviceName,
 		exe:         exe,
 		interesting: true,
+		gitInfo: GitInfo{
+			CommitSha:     ddEnv.gitCommitSha,
+			RepositoryURL: ddEnv.gitRepositoryURL,
+		},
 	}, nil
 }
 
 type ddEnvVars struct {
-	serviceName string
-	diEnabled   bool
+	serviceName      string
+	diEnabled        bool
+	gitCommitSha     string
+	gitRepositoryURL string
 }
 
 const ddServiceEnvVar = "DD_SERVICE"
 const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
+const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
+const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
 
 func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 	procEnv := path.Join(procfsRoot, strconv.Itoa(int(pid)), "environ")
@@ -136,9 +145,10 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 			ddEnv.serviceName = val
 		case ddDynInstEnabledEnvVar:
 			ddEnv.diEnabled, _ = strconv.ParseBool(val)
-		}
-		if ddEnv.serviceName != "" && ddEnv.diEnabled {
-			break
+		case ddGitCommitShaEnvVar:
+			ddEnv.gitCommitSha = val
+		case ddGitRepositoryURLEnvVar:
+			ddEnv.gitRepositoryURL = val
 		}
 	}
 	return ddEnv, nil
@@ -174,34 +184,58 @@ var goSections = map[string]struct{}{
 	".go.buildinfo": {},
 }
 
-// isGoElfBinary returns true if the given executable is an ELF file that
-// contains go sections and debug info.
+// isGoElfBinaryWithDDTraceGo returns true if the given executable is an ELF
+// file that contains go sections and debug info, and contains the relevant
+// dd-trace-go symbols we need to instrument.
 //
 // In the future we may want to look and see here if there's a relevant
 // version of the trace agent that we care about, but for now we leave
 // that to later analysis of dwarf.
-func isGoElfBinary(f *os.File) (bool, error) {
-	elfFile, err := safeelf.NewFile(f)
+func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
+	elfFile, err := object.NewMMappingElfFile(f.Name())
 	if err != nil {
 		log.Tracef("isGoElfBinary(%s): not an ELF file: %v", f.Name(), err)
 		return false, nil
 	}
 	defer elfFile.Close() // no-op, but why not
 
+	var symtabSection *safeelf.Section
 	var hasDebugInfo, hasGoSections bool
-	for _, section := range elfFile.Sections {
+	for _, section := range elfFile.Elf.Sections {
 		if _, ok := goSections[section.Name]; ok {
 			hasGoSections = true
 		}
 		if section.Name == ".debug_info" {
 			hasDebugInfo = true
 		}
+		if section.Name == ".symtab" {
+			symtabSection = section
+		}
 	}
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef(
-			"isGoElfBinary(%s): hasGoSections: %v, hasDebugInfo: %v",
-			f.Name(), hasGoSections, hasDebugInfo,
+			"isGoElfBinary(%s): hasGoSections: %v, hasDebugInfo: %v, symtabSection: %v",
+			f.Name(), hasGoSections, hasDebugInfo, symtabSection == nil,
 		)
 	}
-	return hasGoSections && hasDebugInfo, nil
+	if !hasGoSections || !hasDebugInfo || symtabSection == nil {
+		return false, nil
+	}
+
+	// This is a pretty rough heuristic but it's cheap. The way it works is to
+	// find the string table for the symbol table and then scan it for the
+	// strings corresponding to the symbols we might care about.
+	symtabStringsSectionIdx := symtabSection.Link
+	if symtabStringsSectionIdx >= uint32(len(elfFile.Elf.Sections)) {
+		return false, nil
+	}
+	symtabStringsSection := elfFile.Elf.Sections[symtabStringsSectionIdx]
+	symtabStrings, err := elfFile.MMap(symtabStringsSection, 0, symtabStringsSection.Size)
+	if err != nil {
+		return false, fmt.Errorf("failed to get symbols: %w", err)
+	}
+	defer symtabStrings.Close()
+	return bytes.Contains(symtabStrings.Data, ddTraceSymbolSuffix), nil
 }
+
+var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")

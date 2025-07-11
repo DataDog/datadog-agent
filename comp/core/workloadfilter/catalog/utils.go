@@ -57,14 +57,21 @@ func createCELProgram(rules string, objectType workloadfilter.ResourceType) (cel
 
 // getFieldMapping creates a map to associate old filter prefixes with new filter fields
 func getFieldMapping(objectType workloadfilter.ResourceType) map[string]string {
+	if objectType == workloadfilter.ImageType {
+		// only support "image" which is the image name
+		return map[string]string{
+			"image": fmt.Sprintf("%s.name.matches", objectType),
+		}
+	}
 	return map[string]string{
 		"name":  fmt.Sprintf("%s.name.matches", objectType),
 		"image": fmt.Sprintf("%s.image.matches", objectType),
 		"kube_namespace": func() string {
-			if objectType == workloadfilter.PodType {
-				return fmt.Sprintf("%s.namespace.matches", objectType)
+			if objectType == workloadfilter.ContainerType {
+				return fmt.Sprintf("%s.%s.namespace.matches", objectType, workloadfilter.PodType)
 			}
-			return fmt.Sprintf("%s.%s.namespace.matches", objectType, workloadfilter.PodType)
+			return fmt.Sprintf("%s.namespace.matches", objectType)
+
 		}(),
 	}
 }
@@ -93,8 +100,11 @@ func convertOldToNewFilter(oldFilters []string, objectType workloadfilter.Resour
 			return "", fmt.Errorf("invalid filter format: %s", oldFilter)
 		}
 
-		// Check if the key is in the excluded
-		if objectType != workloadfilter.ContainerType && key == "image" {
+		// Check if the key applies for the particular workload type
+		if objectType != workloadfilter.ContainerType && objectType != workloadfilter.ImageType && key == "image" {
+			continue
+		}
+		if objectType == workloadfilter.ImageType && key != "image" {
 			continue
 		}
 
@@ -123,6 +133,8 @@ func convertTypeToProtoType(key workloadfilter.ResourceType) string {
 		return "datadog.filter.FilterKubeService"
 	case workloadfilter.EndpointType:
 		return "datadog.filter.FilterKubeEndpoint"
+	case workloadfilter.ImageType:
+		return "datadog.filter.FilterImage"
 	default:
 		return ""
 	}
