@@ -304,14 +304,12 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
         'new-e2e-cws',
         'new-e2e-language-detection',
         'new-e2e-npm-docker',
-        'new-e2e-eks-cleanup',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
         'new-e2e-package-signing-amazonlinux-a6-x86_64',
         'new-e2e-package-signing-debian-a7-x86_64',
         'new-e2e-package-signing-suse-a7-x86_64',
         'new-e2e_windows_powershell_module_test',
-        'new-e2e-eks-cleanup-on-failure',
         'trigger-flakes-finder',
         'trigger-fips-e2e',
     }
@@ -500,9 +498,9 @@ def extract_gitlab_ci_jobs(
     # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
 
     # Unfortunately a MultiGitlabCIDiff is not always truthy (see its __bool__), so we have to check explicitely
-    assert (configs is not None or diff is not None) and not (
-        configs is not None and diff is not None
-    ), "Please pass exactly one of a config object or a diff object"
+    assert (configs is not None or diff is not None) and not (configs is not None and diff is not None), (
+        "Please pass exactly one of a config object or a diff object"
+    )
 
     if diff is not None:
         jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
