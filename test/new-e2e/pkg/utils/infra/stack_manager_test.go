@@ -268,6 +268,11 @@ func TestStackManager(t *testing.T) {
 				errMessage:        "waiting for ECS Service (arn:aws:ecs:us-east-1:669783387624:service/fakeintake-ecs/ci-633219896-4670-e2e-dockersuite-80f62edf7bcc6194-aws-fakeintake-dockervm-srv) create: timeout while waiting for state to become 'tfSTABLE' (last state: 'tfPENDING', timeout: 20m0s)",
 				expectedRetryType: ReCreate,
 			},
+			{
+				name:              "ssh-dial-failure",
+				errMessage:        "command:remote:Command remote-aws-dockervm-cmd-wait-cloud-init creating (50s) Dial 9/100 failed: retrying",
+				expectedRetryType: ReCreate,
+			},
 		}
 
 		for _, te := range testErrors {
