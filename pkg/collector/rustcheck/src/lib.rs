@@ -1,10 +1,9 @@
 mod utils;
-use utils::base::AgentCheck;
-use std::ffi::c_char;
+use utils::base::{CheckID, AgentCheck};
 
 // function executed by RTLoader
 #[unsafe(no_mangle)]
-pub extern "C" fn Run(check_id: *mut c_char) {
+pub extern "C" fn Run(check_id: CheckID) {
     // create the check instance that will handle everything
     let mut check = AgentCheck::new(check_id);
 

@@ -1,6 +1,8 @@
 use super::aggregator::{MetricType, Aggregator};
 use std::ffi::{c_char, CString};
 
+pub type CheckID = *mut c_char;
+
 pub struct AgentCheck {
     check_id: String,
     aggregator: Aggregator,
