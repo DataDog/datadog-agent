@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // OpenSelfTest defines an open self test
@@ -44,8 +43,7 @@ func (o *OpenSelfTest) GenerateEvent(ctx context.Context) error {
 	// so the events would not be generated
 	cmd := exec.CommandContext(ctx, "touch", o.filename)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error running touch: %v", err)
-		return err
+		return fmt.Errorf("error running touch: %w", err)
 	}
 
 	return nil
