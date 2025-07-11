@@ -28,10 +28,11 @@ type processEvent struct {
 }
 
 type processAnalysis struct {
-	service     string
-	exe         Executable
-	interesting bool
-	gitInfo     GitInfo
+	service       string
+	exe           Executable
+	interesting   bool
+	gitInfo       GitInfo
+	containerInfo ContainerInfo
 }
 
 type analysisResult struct {
@@ -107,6 +108,7 @@ func (s *state) handle(ev event, eff effects) {
 				Executable: e.exe,
 				Service:    e.service,
 				GitInfo:    e.gitInfo,
+				Container:  e.containerInfo,
 			})
 		}
 	}
