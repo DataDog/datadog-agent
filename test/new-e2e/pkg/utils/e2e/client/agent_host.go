@@ -53,7 +53,7 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 	return ae.host.Execute(ae.baseCommand + " " + parameters)
 }
 
-// defaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.
+// DefaultWindowsAgentInstallPath returns a reasonable default for the AgentInstallPath.
 //
 // If the Agent is installed, the installPath is read from the registry.
 // If the registry key is not found, returns the default install path.
