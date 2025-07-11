@@ -182,23 +182,17 @@ build do
 
                 # Codesign everything
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
-                    set -o
                     set -euo pipefail
-                    set -o
-                    CORES=$(nproc)
-                    set -x
                     find #{install_dir} -type f -print0 |
-                        xargs -0 -P$CORES file --mime-type --no-buffer |
-                        grep application/x-mach-binary |
+                        xargs -t -0 -n1000 -P#{workers} file -n --mime-type |
+                        grep -E '[^)]:\\s*application/x-mach-binary' |
                         tee /dev/stderr |
                         cut -d: -f1 |
-                        sort -u |
                         tr '\\n' '\\0' |
-                        xargs -0 -P$CORES #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
-                    exit $CORES
-                    # `sort -u`: `file --mime-type` issues several lines for each multiarch binary
+                        xargs -t -0 -n20 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                    echo "ERROR $?""
+                    exit #{workers}
                 SH
-                #TODO(regis): timing with ';' >400s - with '+' >400s - with grep
                 command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end
