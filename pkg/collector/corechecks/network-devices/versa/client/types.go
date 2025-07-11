@@ -17,7 +17,7 @@ type Content interface {
 		ApplianceListResponse |
 		DirectorStatus |
 		SLAMetricsResponse |
-		LinkExtendedMetricsResponse |
+		LinkUsageMetricsResponse |
 		InterfaceListResponse |
 		InterfaceMetricsResponse |
 		InterfaceMetricsCollection |
@@ -418,8 +418,8 @@ type InterfaceMetrics struct {
 	TxPps     string `json:"tx-pps"`
 }
 
-// LinkExtendedMetricsResponse represents the response from the Versa Analytics API for link extended metrics
-type LinkExtendedMetricsResponse struct {
+// LinkUsageMetricsResponse represents the response from the Versa Analytics API for link extended metrics
+type LinkUsageMetricsResponse struct {
 	QTime                int             `json:"qTime"`
 	SEcho                int             `json:"sEcho"`
 	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
@@ -427,8 +427,8 @@ type LinkExtendedMetricsResponse struct {
 	AaData               [][]interface{} `json:"aaData"`
 }
 
-// LinkExtendedMetrics represents the columns to parse from the LinkExtendedMetricsResponse
-type LinkExtendedMetrics struct {
+// LinkUsageMetrics represents the columns to parse from the LinkExtendedMetricsResponse
+type LinkUsageMetrics struct {
 	DrillKey          string
 	Site              string
 	AccessCircuit     string

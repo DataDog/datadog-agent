@@ -403,8 +403,8 @@ func TestGetSLAMetrics(t *testing.T) {
 	require.Equal(t, expectedSLAMetrics, slaMetrics)
 }
 
-func TestGetLinkExtendedMetrics(t *testing.T) {
-	expectedLinkExtendedMetrics := []LinkExtendedMetrics{
+func TestGetLinkUsageMetrics(t *testing.T) {
+	expectedLinkUsageMetrics := []LinkUsageMetrics{
 		{
 			DrillKey:          "test-branch-2B,INET-1",
 			Site:              "test-branch-2B",
@@ -430,14 +430,14 @@ func TestGetLinkExtendedMetrics(t *testing.T) {
 	client.directorEndpoint = server.URL
 	require.NoError(t, err)
 
-	linkExtendedMetrics, err := client.GetLinkExtendedMetrics("datadog")
+	linkUsageMetrics, err := client.GetLinkUsageMetrics("datadog")
 	require.NoError(t, err)
 
-	require.Equal(t, len(linkExtendedMetrics), 1)
-	require.Equal(t, expectedLinkExtendedMetrics, linkExtendedMetrics)
+	require.Equal(t, len(linkUsageMetrics), 1)
+	require.Equal(t, expectedLinkUsageMetrics, linkUsageMetrics)
 }
 
-func TestParseLinkExtendedMetrics(t *testing.T) {
+func TestParseLinkUsageMetrics(t *testing.T) {
 	testData := [][]interface{}{
 		{
 			"test-branch-2B,INET-1",
@@ -456,7 +456,7 @@ func TestParseLinkExtendedMetrics(t *testing.T) {
 		},
 	}
 
-	expected := []LinkExtendedMetrics{
+	expected := []LinkUsageMetrics{
 		{
 			DrillKey:          "test-branch-2B,INET-1",
 			Site:              "test-branch-2B",
@@ -474,7 +474,7 @@ func TestParseLinkExtendedMetrics(t *testing.T) {
 		},
 	}
 
-	result, err := parseLinkExtendedMetrics(testData)
+	result, err := parseLinkUsageMetrics(testData)
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }

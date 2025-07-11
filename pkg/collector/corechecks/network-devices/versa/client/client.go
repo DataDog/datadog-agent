@@ -517,13 +517,13 @@ func (client *Client) GetLinkStatusMetrics(tenant string) error {
 	return nil
 }
 
-// parseLinkExtendedMetrics parses the raw AaData response into LinkExtendedMetrics structs
-func parseLinkExtendedMetrics(data [][]interface{}) ([]LinkExtendedMetrics, error) {
-	var rows []LinkExtendedMetrics
+// parseLinkUsageMetrics parses the raw AaData response into LinkUsageMetrics structs
+func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
+	var rows []LinkUsageMetrics
 	for _, row := range data {
-		m := LinkExtendedMetrics{}
-		if len(row) != 13 {
-			return nil, fmt.Errorf("expected 13 columns, got %d", len(row))
+		m := LinkUsageMetrics{}
+		if len(row) < 13 {
+			return nil, fmt.Errorf("missing columns in row: got %d columns, expected 13", len(row))
 		}
 		// Type assertions for each value
 		var ok bool
@@ -571,8 +571,8 @@ func parseLinkExtendedMetrics(data [][]interface{}) ([]LinkExtendedMetrics, erro
 	return rows, nil
 }
 
-// GetLinkExtendedMetrics gets link metrics for a Versa tenant
-func (client *Client) GetLinkExtendedMetrics(tenant string) ([]LinkExtendedMetrics, error) {
+// GetLinkUsageMetrics gets link metrics for a Versa tenant
+func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, error) {
 	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkusage(site,accckt,accckt.uplinkBW,accckt.downlinkBW,accckt.type,accckt.media,accckt.ip,accckt.isp)", "tableData", []string{
 		"volume-tx",
 		"volume-rx",
@@ -580,14 +580,14 @@ func (client *Client) GetLinkExtendedMetrics(tenant string) ([]LinkExtendedMetri
 		"bw-rx",
 	})
 
-	resp, err := get[LinkExtendedMetricsResponse](client, analyticsURL, nil, true)
+	resp, err := get[LinkUsageMetricsResponse](client, analyticsURL, nil, true)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get link extended metrics: %v", err)
+		return nil, fmt.Errorf("failed to get link usage metrics: %v", err)
 	}
 	aaData := resp.AaData
-	metrics, err := parseLinkExtendedMetrics(aaData)
+	metrics, err := parseLinkUsageMetrics(aaData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse link extended metrics: %v", err)
+		return nil, fmt.Errorf("failed to parse link usage metrics: %v", err)
 	}
 	return metrics, nil
 }

@@ -113,7 +113,7 @@ func SetupMockAPIServer() *httptest.Server {
 		if strings.Contains(query, "slam(") {
 			fixtureHandler(fixtures.GetSLAMetrics)(w, r)
 		} else if strings.Contains(query, "linkusage(") {
-			fixtureHandler(fixtures.GetLinkExtendedMetrics)(w, r)
+			fixtureHandler(fixtures.GetLinkUsageMetrics)(w, r)
 		} else {
 			http.Error(w, "Unknown query type", http.StatusBadRequest)
 		}

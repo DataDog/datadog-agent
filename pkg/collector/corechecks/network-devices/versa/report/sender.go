@@ -166,9 +166,9 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 	}
 }
 
-// SendLinkExtendedMetrics sends link extended metrics retrieved from Versa Analytics
-func (s *Sender) SendLinkExtendedMetrics(linkExtendedMetrics []client.LinkExtendedMetrics, deviceNameToIDMap map[string]string) {
-	for _, linkMetric := range linkExtendedMetrics {
+// SendLinkUsageMetrics sends link usage metrics retrieved from Versa Analytics
+func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics, deviceNameToIDMap map[string]string) {
+	for _, linkMetric := range linkUsageMetrics {
 		var tags = []string{
 			"interface:" + linkMetric.Site,
 			"site:" + linkMetric.Site,

@@ -431,8 +431,8 @@ const GetSLAMetrics = `
     ]
 }`
 
-// GetLinkExtendedMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
-const GetLinkExtendedMetrics = `
+// GetLinkUsageMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetLinkUsageMetrics = `
 {
     "qTime": 2,
     "sEcho": 0,

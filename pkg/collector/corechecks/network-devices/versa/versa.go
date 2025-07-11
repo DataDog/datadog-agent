@@ -68,7 +68,7 @@ type checkCfg struct {
 	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
 	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
 	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
-	CollectLinkExtendedMetrics      *bool    `yaml:"collect_link_extended_metrics"`
+	CollectLinkMetrics              *bool    `yaml:"collect_link_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -117,7 +117,7 @@ func (v *VersaCheck) Run() error {
 
 	// Determine if we need appliances for device mapping
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
-		*v.config.CollectSLAMetrics || *v.config.CollectLinkExtendedMetrics
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics
 
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
@@ -257,25 +257,25 @@ func (v *VersaCheck) Run() error {
 		if *v.config.CollectSLAMetrics {
 			slaMetrics, err := c.GetSLAMetrics(org.Name)
 			if err != nil {
-				log.Warnf("error getting SLA metrics from organization %s: %v", org.Name, err)
+				log.Errorf("error getting SLA metrics from organization %s: %v", org.Name, err)
 			} else {
 				v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 			}
 		}
 
 		// Collect link metrics if enabled
-		if *v.config.CollectLinkExtendedMetrics {
+		if *v.config.CollectLinkMetrics {
 			err := c.GetLinkStatusMetrics(org.Name)
 			if err != nil {
-				log.Warnf("error getting link status metrics from organization %s: %v", org.Name, err)
+				log.Errorf("error getting link status metrics from organization %s: %v", org.Name, err)
 			}
 			//TODO: send these metrics
 
-			linkExtendedMetrics, err := c.GetLinkExtendedMetrics(org.Name)
+			linkUsageMetrics, err := c.GetLinkUsageMetrics(org.Name)
 			if err != nil {
-				log.Warnf("error getting link extended metrics from organization %s: %v", org.Name, err)
+				log.Errorf("error getting link usage metrics from organization %s: %v", org.Name, err)
 			} else {
-				v.metricsSender.SendLinkExtendedMetrics(linkExtendedMetrics, deviceNameToIDMap)
+				v.metricsSender.SendLinkUsageMetrics(linkUsageMetrics, deviceNameToIDMap)
 			}
 		}
 	}
@@ -319,7 +319,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
-	instanceConfig.CollectLinkExtendedMetrics = boolPointer(false)
+	instanceConfig.CollectLinkMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
