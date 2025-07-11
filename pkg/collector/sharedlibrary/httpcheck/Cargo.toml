@@ -1,0 +1,10 @@
+[package]
+name = "datadog-agent-httpcheck"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libloading = "0.8.8"
+
+[lib]
+crate-type = ["cdylib"]
