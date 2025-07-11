@@ -57,6 +57,10 @@ func GetCloudServiceType() CloudService {
 		return &CloudRun{spanNamespace: cloudRunService}
 	}
 
+	if isCloudRunJob() {
+		return &CloudRunJobs{}
+	}
+
 	if isContainerAppService() {
 		return NewContainerApp()
 	}
