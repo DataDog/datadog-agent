@@ -16,11 +16,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	activeKeyCommentRegex  = regexp.MustCompile(`^(\s*)([\w\-]+)\s*:\s*([^\n#]*?)(\s*)(#.*)?$`)
+	commentedKeyValueRegex = regexp.MustCompile(`^(\s*)#\s*([\w\-]+)\s*:\s*(.*?)(\s*)(#.*)?$`)
+)
+
 func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
+
+	// Step 1: Marshal the given `config` to yaml.Node
+	updatedBytes, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	var updatedRoot yaml.Node
+	if err := yaml.Unmarshal(updatedBytes, &updatedRoot); err != nil {
+		return err
+	}
+
+	// Step 2: (maybe) Load original YAML & replace commented-out scalar keys (like "# site: xxx")
 	var originalBytes []byte
 	if merge {
 		// Read the original YAML (for preserving comments)
@@ -30,24 +47,14 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 		}
 	}
 	lines := strings.Split(string(originalBytes), "\n")
-
-	// Step 1: Marshal the given `config` to YAML bytes
-	updatedBytes, err := yaml.Marshal(config)
-	if err != nil {
-		return err
+	inlineComments := extractInlineComments(lines)
+	updatedLines, reactivatedComments := replaceCommentedKeysInLines(lines, &updatedRoot, inlineComments)
+	for k, v := range reactivatedComments {
+		inlineComments[k] = v
 	}
-
-	// Step 2: Unmarshal that into a typed node tree
-	var updatedRoot yaml.Node
-	if err := yaml.Unmarshal(updatedBytes, &updatedRoot); err != nil {
-		return err
-	}
-
-	// Step 3: Replace commented-out scalar keys (like "# site: xxx")
-	updatedLines := replaceCommentedKeysInLines(lines, &updatedRoot)
 	updatedYamlText := strings.Join(updatedLines, "\n")
 
-	// Step 4: Load original YAML into a node tree
+	// Step 3: Load original YAML into a node tree
 	var root yaml.Node
 	if err := yaml.Unmarshal([]byte(updatedYamlText), &root); err != nil {
 		return err
@@ -60,6 +67,9 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 		root = updatedRoot
 	}
 
+	// Attach any inline comments to final YAML node
+	attachInlineCommentsToNodes(&root, inlineComments)
+
 	// Step 6: Save result
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
@@ -69,8 +79,6 @@ func writeConfig(path string, config any, perms os.FileMode, merge bool) error {
 	}
 	return os.WriteFile(path, buf.Bytes(), perms)
 }
-
-var commentedKeyValueRegex = regexp.MustCompile(`^(\s*)#\s*([\w\-]+)\s*:\s*(.*?)(\s*)(#.*)?$`)
 
 type commentedLine struct {
 	lineIndex           int
@@ -99,7 +107,23 @@ func parseCommentedKeysFromLines(lines []string) map[string]commentedLine {
 	return result
 }
 
-func replaceCommentedKeysInLines(lines []string, updatedRoot *yaml.Node) []string {
+func extractInlineComments(lines []string) map[string]string {
+	comments := make(map[string]string)
+	for _, line := range lines {
+		m := activeKeyCommentRegex.FindStringSubmatch(line)
+		if m != nil && m[5] != "" {
+			key := m[2]
+			comments[key] = m[5]
+		}
+	}
+	return comments
+}
+
+func replaceCommentedKeysInLines(
+	lines []string,
+	updatedRoot *yaml.Node,
+	inlineComments map[string]string,
+) ([]string, map[string]string) {
 	commentedKeys := parseCommentedKeysFromLines(lines)
 
 	// Detect existing non-commented top-level keys
@@ -134,6 +158,9 @@ func replaceCommentedKeysInLines(lines []string, updatedRoot *yaml.Node) []strin
 	updatedLines := make([]string, len(lines))
 	copy(updatedLines, lines)
 
+	reactivatedComments := make(map[string]string)
+
+	// Reactivate commented-out keys
 	for key, commentLine := range commentedKeys {
 		valNode, ok := updatedValues[key]
 		if !ok {
@@ -147,9 +174,37 @@ func replaceCommentedKeysInLines(lines []string, updatedRoot *yaml.Node) []strin
 			commentLine.trailingComment,
 		)
 		updatedLines[commentLine.lineIndex] = newLine
+
+		if commentLine.trailingComment != "" {
+			reactivatedComments[key] = commentLine.trailingComment
+		}
 	}
 
-	return updatedLines
+	// Append missing scalar keys
+	for key, val := range updatedValues {
+		if _, inComments := commentedKeys[key]; !inComments && !actualKeys[key] {
+			comment := inlineComments[key]
+			if comment != "" {
+				updatedLines = append(updatedLines, fmt.Sprintf("%s: %s %s", key, val.Value, comment))
+			} else {
+				updatedLines = append(updatedLines, fmt.Sprintf("%s: %s", key, val.Value))
+			}
+		}
+	}
+
+	// Reapply preserved inline comments to active keys
+	for i, line := range updatedLines {
+		m := activeKeyCommentRegex.FindStringSubmatch(line)
+		if m != nil {
+			key := m[2]
+			if comment, exists := inlineComments[key]; exists {
+				updatedLines[i] = fmt.Sprintf("%s%s: %s%s%s",
+					m[1], key, strings.TrimSpace(m[3]), m[4], comment)
+			}
+		}
+	}
+
+	return updatedLines, reactivatedComments
 }
 
 func mergeNodes(dst *yaml.Node, src *yaml.Node) {
@@ -157,7 +212,6 @@ func mergeNodes(dst *yaml.Node, src *yaml.Node) {
 		return
 	}
 
-	// Build key->index for existing keys in dst
 	keyIndex := make(map[string]int)
 	for i := 0; i < len(dst.Content); i += 2 {
 		key := dst.Content[i].Value
@@ -171,13 +225,30 @@ func mergeNodes(dst *yaml.Node, src *yaml.Node) {
 		if idx, found := keyIndex[srcKey.Value]; found {
 			dstVal := dst.Content[idx+1]
 			if dstVal.Kind == yaml.MappingNode && srcVal.Kind == yaml.MappingNode {
-				// Recursively merge nested maps
 				mergeNodes(dstVal, srcVal)
 			} else {
 				dst.Content[idx+1] = srcVal
 			}
 		} else {
 			dst.Content = append(dst.Content, srcKey, srcVal)
+		}
+	}
+}
+
+func attachInlineCommentsToNodes(root *yaml.Node, inlineComments map[string]string) {
+	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
+		return
+	}
+	mapping := root.Content[0]
+	if mapping.Kind != yaml.MappingNode {
+		return
+	}
+	for i := 0; i < len(mapping.Content); i += 2 {
+		keyNode := mapping.Content[i]
+		valNode := mapping.Content[i+1]
+		key := keyNode.Value
+		if comment, ok := inlineComments[key]; ok {
+			valNode.LineComment = strings.TrimSpace(comment)
 		}
 	}
 }
