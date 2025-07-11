@@ -15,8 +15,14 @@
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
       },
       {
-        "matchDepNames": ["linux-images", "windows-images"],
-        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main"
+        "matchDepNames": ["linux-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 * * 1-5"]
+      },
+      {
+        "matchDepNames": ["windows-images"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main",
+        "schedule": ["* 2-6 2 * *"]
       },
       {
         "matchDepNames": ["DataDog/datadog-agent-dev"],
@@ -26,12 +32,12 @@
     ],
     "pre-commit": {
       "enabled": true,
-      "fileMatch": [".pre-commit-config.yaml"]
+      "managerFilePatterns": [".pre-commit-config.yaml"]
     },
     "customManagers" : [
       {
         "customType": "regex",
-        "fileMatch": [".gitlab-ci.yml"],
+        "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
         ],
@@ -41,7 +47,7 @@
       },
       {
         "customType": "regex",
-        "fileMatch": [".gitlab-ci.yml"],
+        "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
         ],
@@ -52,7 +58,7 @@
       },
       {
         "customType": "regex",
-        "fileMatch": [".protoc-version"],
+        "managerFilePatterns": [".protoc-version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+)"
         ],
@@ -61,7 +67,7 @@
       },
       {
         "customType": "regex",
-        "fileMatch": [".dda/version"],
+        "managerFilePatterns": [".dda/version"],
         "matchStrings": [
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
         ],
@@ -70,7 +76,7 @@
       },
       {
         "customType": "regex",
-        "fileMatch": ["release.json"],
+        "managerFilePatterns": ["release.json"],
         "matchStrings": [
           "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
         ],
@@ -81,7 +87,7 @@
       },
       {
         "customType": "regex",
-        "fileMatch": ["release.json"],
+        "managerFilePatterns": ["release.json"],
         "matchStrings": [
           "[ ]+\"INTEGRATIONS_CORE_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""
         ],

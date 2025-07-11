@@ -215,7 +215,7 @@ func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Compon
 	}
 
 	// Create HTTP client for workers
-	client := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withOneRedirect(), withTimeout(httpClientTimeout))
+	client := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withTimeout(httpClientTimeout))
 
 	return checkEndpoints(ctx, allEndpoints, client)
 }

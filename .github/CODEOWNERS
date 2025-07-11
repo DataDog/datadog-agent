@@ -513,7 +513,7 @@
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/quantile/                     @DataDog/opentelemetry-agent
 /pkg/util/tags/                         @DataDog/container-platform
-/pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
+/pkg/util/trivy/                        @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                         @DataDog/agent-runtimes
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-platform

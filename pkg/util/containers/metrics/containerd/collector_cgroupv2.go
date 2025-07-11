@@ -62,6 +62,7 @@ func getMemoryStatsCgroupV2(memStat *v2.MemoryStat, memEvents *v2.MemoryEvents) 
 		Swap:         pointer.Ptr(float64(memStat.SwapUsage)),
 		Pgfault:      pointer.Ptr(float64(memStat.Pgfault)),
 		Pgmajfault:   pointer.Ptr(float64(memStat.Pgmajfault)),
+		Peak:         pointer.Ptr(float64(memStat.MaxUsage)),
 	}
 
 	if memEvents != nil {

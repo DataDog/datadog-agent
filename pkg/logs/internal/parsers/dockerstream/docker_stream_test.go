@@ -88,6 +88,37 @@ func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 
 }
 
+func TestDockerStandaloneParserHandlesMalformedLargeMessage(t *testing.T) {
+	// Test case discovered by fuzzing - malformed large message that causes
+	// removePartialDockerMetadata to return content shorter than header length
+
+	// Create a message that will trigger removePartialDockerMetadata but result
+	// in content that's too short. This happens when the message claims to be
+	// large but doesn't have the expected partial headers structure
+	header := []byte{1, 0, 0, 0, 0, 0, 0x40, 0x83} // Size = 16515
+
+	// Create content that's larger than dockerBufferSize to trigger partial removal
+	// but doesn't have valid partial headers
+	content := make([]byte, dockerBufferSize+100)
+	for i := range content {
+		if i < len(header) {
+			content[i] = header[i]
+		} else {
+			content[i] = byte('A' + (i % 26))
+		}
+	}
+
+	// Add some bytes that will confuse the metadata parser
+	content[dockerHeaderLength] = 0 // This will make getDockerMetadataLength return 0
+
+	logMessage := message.NewMessage(content, nil, "", 0)
+
+	// Should return error instead of panicking
+	_, err := container1Parser.Parse(logMessage)
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "message too short after processing")
+}
+
 func TestDockerStandaloneParserShouldRemovePartialHeaders(t *testing.T) {
 	var msgToClean []byte
 	var expectedMsg []byte

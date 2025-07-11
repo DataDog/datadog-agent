@@ -26,13 +26,14 @@
             "arguments": {
               "x": {
                 "type": "[2]int8",
+                "size": "2",
                 "elements": [
                   {
-                    "type": "",
+                    "type": "int8",
                     "value": "1"
                   },
                   {
-                    "type": "",
+                    "type": "int8",
                     "value": "2"
                   }
                 ]
