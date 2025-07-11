@@ -181,11 +181,16 @@ build do
                 codesign = "../tools/ci/retry.sh codesign"
 
                 # Codesign everything
-                command "find #{install_dir} \\
-                    -type f \\
-                    -exec sh -c 'file --mime-type {} | grep -q application/x-mach-binary' ';' \\
-                    -exec #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' {} '+'", cwd: Dir.pwd
-                #TODO(regis): timing with ';' >400s - with '+' ???
+                command <<-SH, cwd: Dir.pwd
+                    set -euo pipefail
+                    CORES=$(sysctl -n hw.logicalcpu)
+                    find #{install_dir} -type f -print0 |
+                        xargs -0 -P$CORES sh -c 'file --mime-type "$@" | grep application/x-mach-binary | cut -d: -f1' |
+                        sort -u |
+                        xargs -P$CORES #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                    # `sort -u`: `file --mime-type` issues several lines for multiarch libs
+                SH
+                #TODO(regis): timing with ';' >400s - with '+' >400s - with grep
                 command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end
