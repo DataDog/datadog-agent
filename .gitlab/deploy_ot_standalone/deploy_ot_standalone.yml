@@ -18,6 +18,11 @@ deploy_containers-ot-standalone:
   rules: !reference [.on_deploy_manual_auto_on_rc]
 
 # Jobs to publish images to our internal registries.
+
+deploy_containers-ot-standalone_internal-rc:
+  extends: .deploy_containers-ot-standalone-base
+  rules: !reference [.on_deploy_internal_rc]
+
 deploy_containers-ot-standalone_internal:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_internal_manual_final]

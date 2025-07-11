@@ -18,6 +18,10 @@ deploy_containers-dca:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
 
+deploy_containers-dca_internal-rc:
+  extends: .deploy_containers-dca-base
+  rules: !reference [.on_deploy_internal_rc]
+
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
   rules: !reference [.on_deploy_internal_manual_final]
@@ -36,6 +40,10 @@ deploy_containers-dca_internal:
 deploy_containers-dca-fips:
   extends: .deploy_containers-dca-fips-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
+
+deploy_containers-dca-fips_internal-rc:
+  extends: .deploy_containers-dca-fips-base
+  rules: !reference [.on_deploy_internal_rc]
 
 deploy_containers-dca-fips_internal:
   extends: .deploy_containers-dca-fips-base
