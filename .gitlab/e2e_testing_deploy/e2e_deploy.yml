@@ -187,7 +187,7 @@ deploy_windows_testing-a7:
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     - $S3_CP_CMD
       --recursive
@@ -196,7 +196,7 @@ deploy_windows_testing-a7:
       --include "datadog-agent-upgrade-test-7.*.msi"
       --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.exe"
-      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
@@ -211,12 +211,12 @@ deploy_windows_testing-a7-fips:
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     - $S3_CP_CMD
       --recursive
       --exclude "*"
       --include "datadog-fips-agent-7.*.msi"
-      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
