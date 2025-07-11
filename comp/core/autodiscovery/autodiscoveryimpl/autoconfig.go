@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -55,13 +56,14 @@ var listenerCandidateIntl = 30 * time.Second
 // dependencies is the set of dependencies for the AutoConfig component.
 type dependencies struct {
 	fx.In
-	Lc         fx.Lifecycle
-	Config     configComponent.Component
-	Log        logComp.Component
-	TaggerComp tagger.Component
-	Secrets    secrets.Component
-	WMeta      option.Option[workloadmeta.Component]
-	Telemetry  telemetry.Component
+	Lc          fx.Lifecycle
+	Config      configComponent.Component
+	Log         logComp.Component
+	TaggerComp  tagger.Component
+	Secrets     secrets.Component
+	WMeta       option.Option[workloadmeta.Component]
+	FilterStore workloadfilter.Component
+	Telemetry   telemetry.Component
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -85,6 +87,7 @@ type AutoConfig struct {
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
+	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
@@ -171,7 +174,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			ac.start()
@@ -186,7 +189,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -204,6 +207,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
+		filterStore:              filterStore,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
 	return ac
@@ -517,6 +521,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 		factoryOptions := listeners.ServiceListernerDeps{
 			Config:    &c,
 			Telemetry: ac.telemetryStore,
+			Filter:    ac.filterStore,
 			Tagger:    ac.taggerComp,
 			Wmeta:     ac.wmeta,
 		}

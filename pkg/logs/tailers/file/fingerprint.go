@@ -170,6 +170,11 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 			buffer = append(buffer, line...)
 			linesRead++
 			bytesRead += len(line)
+
+			// If we've reached maxBytes, we have enough data for fingerprinting
+			if bytesRead >= maxBytes {
+				break
+			}
 		}
 
 		if err != nil {

@@ -40,6 +40,16 @@ import (
 
 const (
 
+	// DefaultFingerprintingStrategy refers how we will detect file rotation or truncation
+	// options:
+	// -"default" refers to the current practice of using os.getFile() to detect file recreation or file-size changes
+	// -"checksum" refers to using CRC-64 hashing function to generate a checksum based on the content of the file for comparison
+	DefaultFingerprintingStrategy = "default"
+
+	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
+	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+	DefaultFingerprintingMaxBytes = 256
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -1553,11 +1563,11 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// determines fingerprinting strategy to detect rotation and truncation
-	config.BindEnvAndSetDefault("logs_config.fingerprint_strategy", "default")
+	config.BindEnvAndSetDefault("logs_config.fingerprint_strategy", DefaultFingerprintingStrategy)
 	// determines maxLines before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_lines", 1)
 	// determines maxBytes before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", 2048)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
 	// determines lines to skip before we create fingerprint
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.lines_to_skip", 0)
 	//determine bytes to skip before we create a fingerprint
