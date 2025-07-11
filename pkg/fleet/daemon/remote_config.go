@@ -241,6 +241,10 @@ const (
 	methodStartConfigExperiment   = "start_experiment_config"
 	methodStopConfigExperiment    = "stop_experiment_config"
 	methodPromoteConfigExperiment = "promote_experiment_config"
+
+	methodStartMultiConfigExperiment   = "start_multi_config_experiment"
+	methodStopMultiConfigExperiment    = "stop_multi_config_experiment"
+	methodPromoteMultiConfigExperiment = "promote_multi_config_experiment"
 )
 
 type remoteAPIRequest struct {

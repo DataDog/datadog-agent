@@ -173,6 +173,27 @@ func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return cmd.Run()
 }
 
+// InstallMultiConfigExperiment installs a multi-config experiment.
+func (i *InstallerExec) InstallMultiConfigExperiment(ctx context.Context, pkg string, version string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-multi-config-experiment", pkg, version)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RemoveMultiConfigExperiment removes a multi-config experiment.
+func (i *InstallerExec) RemoveMultiConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "remove-multi-config-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PromoteMultiConfigExperiment promotes a multi-config experiment.
+func (i *InstallerExec) PromoteMultiConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "promote-multi-config-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")

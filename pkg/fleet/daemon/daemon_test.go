@@ -118,6 +118,21 @@ func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg st
 	return args.Error(0)
 }
 
+func (m *testPackageManager) PromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) InstallMultiConfigExperiment(ctx context.Context, pkg string, version string) error {
+	args := m.Called(ctx, pkg, version)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RemoveMultiConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)

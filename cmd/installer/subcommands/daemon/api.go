@@ -158,6 +158,40 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+	startMultiConfigExperimentCmd := &cobra.Command{
+		Use:   "start-multi-config-experiment package version",
+		Short: "Starts a multi-config experiment",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(startMultiConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
+	stopMultiConfigExperimentCmd := &cobra.Command{
+		Use:   "stop-multi-config-experiment package",
+		Short: "Stops a multi-config experiment",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(stopMultiConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	promoteMultiConfigExperimentCmd := &cobra.Command{
+		Use:   "promote-multi-config-experiment package",
+		Short: "Promotes a multi-config experiment",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(promoteMultiConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
 	remoteConfigStatusCmd := &cobra.Command{
 		Hidden: true,
 		Use:    "rc-status",
@@ -180,6 +214,9 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		stopConfigExperimentCmd,
 		promoteConfigExperimentCmd,
 		remoteConfigStatusCmd,
+		startMultiConfigExperimentCmd,
+		stopMultiConfigExperimentCmd,
+		promoteMultiConfigExperimentCmd,
 	}
 }
 
@@ -257,6 +294,21 @@ func stopConfig(params *cliParams, client localapiclient.Component) error {
 		fmt.Println("Error stopping config experiment:", err)
 		return err
 	}
+	return nil
+}
+
+func startMultiConfig(params *cliParams, client localapiclient.Component) error {
+	// TODO: implement
+	return nil
+}
+
+func stopMultiConfig(params *cliParams, client localapiclient.Component) error {
+	// TODO: implement
+	return nil
+}
+
+func promoteMultiConfig(params *cliParams, client localapiclient.Component) error {
+	// TODO: implement
 	return nil
 }
 

@@ -65,6 +65,10 @@ type Installer interface {
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
+	InstallMultiConfigExperiment(ctx context.Context, pkg string, version string) error
+	RemoveMultiConfigExperiment(ctx context.Context, pkg string) error
+	PromoteMultiConfigExperiment(ctx context.Context, pkg string) error
+
 	GarbageCollect(ctx context.Context) error
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
@@ -579,6 +583,30 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
+}
+
+// InstallMultiConfigExperiment installs a multi-config experiment on top of an existing package.
+func (i *installerImpl) InstallMultiConfigExperiment(ctx context.Context, pkg string, version string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	return nil
+}
+
+// RemoveMultiConfigExperiment removes a multi-config experiment.
+func (i *installerImpl) RemoveMultiConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	return nil
+}
+
+// PromoteMultiConfigExperiment promotes a multi-config experiment to stable.
+func (i *installerImpl) PromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	return nil
 }
 
 // Purge removes all packages.
