@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -91,6 +92,11 @@ func runTest(
 		for _, pcr := range sp.OutOfLinePCRanges {
 			pcs = append(pcs, pcr[0], (pcr[0]+pcr[1])/2)
 		}
+		var funcResolver FuncPCResolver
+		if len(pcs) > 0 {
+			funcResolver, err = symtab.FunctionPCResolver(pcs[0], nil /* inlinedPcRanges */)
+			require.NoError(t, err)
+		}
 		for _, pc := range pcs {
 			locations := symtab.LocatePC(pc)
 			require.NotEmpty(t, locations)
@@ -101,6 +107,11 @@ func runTest(
 				i := strings.LastIndex(location.File, "/")
 				fmt.Fprintf(&out, "\t%s@*%s:%d\n", location.Function, location.File[i:], location.Line)
 			}
+
+			// Check that funcResolver.PCToLine() agrees with symtab.LocatePC().
+			line, ok := funcResolver.PCToLine(pc)
+			require.True(t, ok)
+			require.Equal(t, locations[0].Line, line)
 		}
 	}
 
@@ -119,4 +130,54 @@ func runTest(
 		require.NoError(t, err)
 		require.Equal(t, string(expected), out.String())
 	}
+}
+
+func TestFuncPCResolverEndLine(t *testing.T) {
+	binPath := testprogs.MustGetBinary(t, "simple", testprogs.Config{
+		GOARCH:      runtime.GOARCH,
+		GOTOOLCHAIN: "go1.24.3",
+	})
+	mef, err := object.NewMMappingElfFile(binPath)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, mef.Close()) }()
+	obj, err := object.NewElfObject(mef.Elf)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, obj.Close()) }()
+
+	moduledata, err := object.ParseModuleData(mef)
+	require.NoError(t, err)
+
+	goVersion, err := object.ParseGoVersion(mef)
+	require.NoError(t, err)
+
+	goDebugSections, err := moduledata.GoDebugSections(mef)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, goDebugSections.Close()) }()
+
+	symtab, err := ParseGoSymbolTable(
+		goDebugSections.PcLnTab.Data,
+		goDebugSections.GoFunc.Data,
+		moduledata.Text,
+		moduledata.EText,
+		moduledata.MinPC,
+		moduledata.MaxPC,
+		goVersion,
+	)
+	require.NoError(t, err)
+
+	var testFunc *GoFunction
+	for _, f := range symtab.Functions() {
+		if f.Name != "main.funcArg" {
+			continue
+		}
+		testFunc = f
+		break
+	}
+	if testFunc == nil {
+		t.Fatal("main.stringArg not found")
+	}
+	// TODO: test EndLine() for a function containing other inlined funcs.
+	r, err := symtab.FunctionPCResolver(testFunc.Entry, nil /* inlinedPcRanges */)
+	require.NoError(t, err)
+	require.Equal(t, uint32(82), r.EndLine())
 }
