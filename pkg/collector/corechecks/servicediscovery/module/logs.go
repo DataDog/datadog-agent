@@ -21,18 +21,18 @@ import (
 // isLogFile is used from the getOpenFilesInfo function to filter paths which
 // look like log files.
 func isLogFile(path string) bool {
-	if !strings.HasSuffix(path, ".log") {
-		return false
+	// Files in /var/log are log files even if they don't end with .log.
+	if strings.HasPrefix(path, "/var/log/") {
+		// Ignore Kubernetes pods logs since they are collected by other means.
+		return !strings.HasPrefix(path, "/var/log/pods")
 	}
 
-	// Skip log files from Docker containers and Kubernetes pods since these
-	// are collected by other means.
-	if strings.HasPrefix(path, "/var/lib/docker/containers") ||
-		strings.HasPrefix(path, "/var/log/pods") {
-		return false
+	if strings.HasSuffix(path, ".log") {
+		// Ignore Docker container logs since they are collected by other means.
+		return !strings.HasPrefix(path, "/var/lib/docker/containers")
 	}
 
-	return true
+	return false
 }
 
 // getLogFiles takes a list of candidate file paths which look like log files

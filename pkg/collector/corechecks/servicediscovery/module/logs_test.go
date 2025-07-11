@@ -100,7 +100,7 @@ func TestIsLogFile(t *testing.T) {
 	}{
 		{
 			name:     "valid log file",
-			path:     "/var/log/application.log",
+			path:     "/tmp/foo/application.log",
 			expected: true,
 		},
 		{
@@ -115,18 +115,23 @@ func TestIsLogFile(t *testing.T) {
 		},
 		{
 			name:     "file without log extension",
-			path:     "/var/log/application.txt",
+			path:     "/usr/local/application.txt",
 			expected: false,
 		},
 		{
 			name:     "file with extensions after .log",
-			path:     "/var/log/application.log.gz",
+			path:     "/bar/tmp/application.log.gz",
 			expected: false,
 		},
 		{
 			name:     "file with log in name but not extension",
-			path:     "/var/log/logfile.txt",
+			path:     "/foo/logfile.txt",
 			expected: false,
+		},
+		{
+			name:     "/var/log file without .log extension",
+			path:     "/var/log/messages",
+			expected: true,
 		},
 		{
 			name:     "empty path",
