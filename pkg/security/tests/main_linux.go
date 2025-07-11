@@ -110,6 +110,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcessInterpreter",
 			"~TestConnectEvent/io-uring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
+			"TestOpenTree",
 		}
 
 		if disableSeccomp {
