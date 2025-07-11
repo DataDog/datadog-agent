@@ -1,0 +1,174 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+//go:build linux && nvml
+
+package nvidia
+
+import (
+	"fmt"
+
+	"github.com/hashicorp/go-multierror"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+)
+
+type apiCallInfo struct {
+	name     string
+	testFunc func(ddnvml.Device) error
+	callFunc func(*processCollector) ([]Metric, error)
+}
+
+var apiCallFactory = []apiCallInfo{
+	{
+		name: "memory_usage",
+		testFunc: func(d ddnvml.Device) error {
+			_, err := d.GetComputeRunningProcesses()
+			return err
+		},
+		callFunc: (*processCollector).collectComputeProcesses,
+	},
+	{
+		name: "process_utilization",
+		testFunc: func(d ddnvml.Device) error {
+			_, err := d.GetProcessUtilization(0)
+			return err
+		},
+		callFunc: (*processCollector).collectProcessUtilization,
+	},
+}
+
+type processCollector struct {
+	device            ddnvml.Device
+	lastTimestamp     uint64
+	supportedAPICalls []apiCallInfo
+}
+
+func newProcessCollector(device ddnvml.Device) (Collector, error) {
+	c := &processCollector{device: device}
+
+	c.removeUnsupportedMetrics()
+	if len(c.supportedAPICalls) == 0 {
+		return nil, errUnsupportedDevice
+	}
+
+	return c, nil
+}
+
+func (c *processCollector) removeUnsupportedMetrics() {
+	for _, apiCall := range apiCallFactory {
+		err := apiCall.testFunc(c.device)
+		if err == nil || !ddnvml.IsUnsupported(err) {
+			c.supportedAPICalls = append(c.supportedAPICalls, apiCall)
+		}
+	}
+}
+
+func (c *processCollector) DeviceUUID() string {
+	return c.device.GetDeviceInfo().UUID
+}
+
+func (c *processCollector) Name() CollectorName {
+	return process
+}
+
+func (c *processCollector) Collect() ([]Metric, error) {
+	var allMetrics []Metric
+	var multiErr error
+
+	for _, apiCall := range c.supportedAPICalls {
+		collectedMetrics, err := apiCall.callFunc(c)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to call %s: %w", apiCall.name, err))
+			continue
+		}
+
+		allMetrics = append(allMetrics, collectedMetrics...)
+	}
+
+	return allMetrics, multiErr
+}
+
+// Helper methods for metric collection
+// memory.usage and memory.limit metrics gets higher priority from process collector than from ebpf collector
+func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
+	procs, err := c.device.GetComputeRunningProcesses()
+	if err != nil {
+		return nil, err
+	}
+
+	devInfo := c.device.GetDeviceInfo()
+	var processMetrics []Metric
+	var allPidTags []string
+
+	// Collect per-process memory.usage metrics and aggregate PID tags
+	for _, proc := range procs {
+		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
+		// Only emit memory.usage per process
+		processMetrics = append(processMetrics,
+			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 1, Tags: pidTag},
+		)
+		// Collect PID tags for aggregated limit metrics
+		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", proc.Pid))
+	}
+
+	// Emit memory.limit once per device with all PID tags
+	processMetrics = append(processMetrics,
+		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Priority: 1, Tags: allPidTags},
+	)
+
+	return processMetrics, nil
+}
+
+func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
+	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
+	if err != nil {
+		return nil, err
+	}
+
+	var utilizationMetrics []Metric
+	var allPidTags []string
+	var totalSmUtil float64
+
+	coreCount := c.device.GetDeviceInfo().CoreCount
+	// Collect per-process utilization metrics and aggregate PID tags
+	for _, sample := range processSamples {
+		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
+
+		// Calculate core usage from utilization percentage: Usage = (SmUtil / 100) * CoreCount
+		// SmUtil is a percentage (0-100), so we convert it to actual core usage
+		coreUsage := (float64(sample.SmUtil) / 100.0) * float64(coreCount)
+
+		utilizationMetrics = append(utilizationMetrics,
+			Metric{Name: "core.usage", Value: coreUsage, Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
+			Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
+		)
+
+		// Collect PID tags for aggregated metrics and aggregate SmUtil for gr_engine_active
+		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
+		totalSmUtil += float64(sample.SmUtil)
+
+		//update the last timestamp if the current sample's timestamp is greater
+		if sample.TimeStamp > c.lastTimestamp {
+			c.lastTimestamp = sample.TimeStamp
+		}
+	}
+
+	// Emit aggregated metrics once per device with all PID tags
+	// Cap totalSmUtil at 100% since total utilization cannot exceed 100%
+	if totalSmUtil > 100 {
+		totalSmUtil = 100
+	}
+
+	utilizationMetrics = append(utilizationMetrics,
+		Metric{Name: "core.limit", Value: float64(coreCount), Type: metrics.GaugeType, Tags: allPidTags},
+		Metric{Name: "gr_engine_active", Value: totalSmUtil, Type: metrics.GaugeType, Tags: allPidTags},
+	)
+
+	return utilizationMetrics, nil
+}
