@@ -7,8 +7,6 @@
 #include "maps.h"
 #include "events_definition.h"
 
-#include "container.h"
-
 static __attribute__((always_inline)) void send_signal(u32 pid) {
     if (is_send_signal_available()) {
         u32 *sig = bpf_map_lookup_elem(&kill_list, &pid);
@@ -39,8 +37,7 @@ void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src,
 }
 
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
-    copy_container_id(src->container.container_id, dst->container.container_id);
-    dst->container.cgroup_context.cgroup_flags = src->container.cgroup_context.cgroup_flags;
+    dst->cgroup = src->cgroup;
     copy_proc_entry(&src->entry, &dst->entry);
 }
 
@@ -160,6 +157,16 @@ bool __attribute__((always_inline)) is_current_kworker_dying() {
     char comm[16];
     bpf_get_current_comm(comm, sizeof(comm));
     return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r' && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/' && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n' && comm[12] == 'g';
+}
+
+static void __attribute__((always_inline)) fill_cgroup_context(struct proc_cache_t *entry, struct cgroup_context_t *cgroup) {
+    if (entry) {
+        cgroup->cgroup_file = entry->cgroup.cgroup_file;
+    } else {
+        cgroup->cgroup_file.mount_id = 0;
+        cgroup->cgroup_file.path_id = 0;
+        cgroup->cgroup_file.ino = 0;
+    }
 }
 
 #endif
