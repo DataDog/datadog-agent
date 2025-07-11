@@ -31,6 +31,7 @@ const (
 	resourceNameTag      = "resource_name"
 )
 
+// CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct{}
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
