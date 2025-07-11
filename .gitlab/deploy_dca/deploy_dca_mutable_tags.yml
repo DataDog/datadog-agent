@@ -32,7 +32,7 @@ deploy_containers-dca_internal-rc:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - job: deploy_containers-dca_internal
+    - job: deploy_containers-dca_internal-rc
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc
@@ -77,7 +77,7 @@ deploy_containers-dca-fips_internal-rc:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - job: deploy_containers-dca-fips_internal
+    - job: deploy_containers-dca-fips_internal-rc
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc-fips

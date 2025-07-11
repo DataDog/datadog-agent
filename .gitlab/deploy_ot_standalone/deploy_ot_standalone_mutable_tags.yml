@@ -31,7 +31,7 @@ deploy_containers-ot-standalone_internal-rc:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - job: deploy_containers-ot-standalone_internal
+    - job: deploy_containers-ot-standalone_internal-rc
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc
