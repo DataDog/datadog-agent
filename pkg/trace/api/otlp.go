@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -138,6 +139,7 @@ func (o *OTLPReceiver) Stop() {
 func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer o.timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
+	log.Infof("KEISUKE | Dump Metadata: %+v | stack: %s", md, debug.Stack())
 	_ = o.statsd.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
 	o.processRequest(ctx, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
@@ -221,6 +223,7 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+	log.Infof("KEISUKE | Dump HTTP Header: %+v | stack: %s", httpHeader, debug.Stack())
 	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
 		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
 	}
