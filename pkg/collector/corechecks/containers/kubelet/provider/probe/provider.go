@@ -13,29 +13,29 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 // Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
 type Provider struct {
-	filter *containers.Filter
-	store  workloadmeta.Component
+	filterStore workloadfilter.Component
+	store       workloadmeta.Component
+	tagger      tagger.Component
 	prometheus.Provider
-	tagger tagger.Component
 }
 
 // NewProvider returns a metrics prometheus kubelet provider and an error
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, tagger tagger.Component) (*Provider, error) {
+func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, store workloadmeta.Component, tagger tagger.Component) (*Provider, error) {
 	provider := &Provider{
-		filter: filter,
-		store:  store,
-		tagger: tagger,
+		filterStore: filterStore,
+		store:       store,
+		tagger:      tagger,
 	}
 
 	transformers := prometheus.Transformers{
@@ -85,7 +85,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			continue
 		}
 
-		cID, _ := common.GetContainerID(p.store, metric.Metric, p.filter)
+		cID, _ := common.GetContainerID(p.store, metric.Metric, p.filterStore)
 		if cID == "" {
 			continue
 		}

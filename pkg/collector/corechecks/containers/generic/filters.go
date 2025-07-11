@@ -6,9 +6,8 @@
 package generic
 
 import (
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // ContainerFilter defines an interface to exclude containers based on Metadata
@@ -42,21 +41,18 @@ func (f ANDContainerFilter) IsExcluded(container *workloadmeta.Container) bool {
 
 // LegacyContainerFilter allows to use old containers.Filter within this new framework
 type LegacyContainerFilter struct {
-	OldFilter *containers.Filter
-	Store     workloadmeta.Component
+	FilterStore workloadfilter.Component
+	Store       workloadmeta.Component
 }
 
 // IsExcluded returns if a container should be excluded or not
 func (f LegacyContainerFilter) IsExcluded(container *workloadmeta.Container) bool {
-	if f.OldFilter == nil {
+	if f.FilterStore == nil {
 		return false
 	}
-	var annotations map[string]string
-	if pod, err := f.Store.GetKubernetesPodForContainer(container.ID); err == nil {
-		annotations = pod.Annotations
-	}
+	pod, _ := f.Store.GetKubernetesPodForContainer(container.ID)
 
-	return f.OldFilter.IsExcluded(annotations, container.Name, container.Image.RawName, container.Labels[kubernetes.CriContainerNamespaceLabel])
+	return f.FilterStore.IsContainerExcluded(workloadfilter.CreateContainer(container, workloadfilter.CreatePod(pod)), workloadfilter.GetContainerSharedMetricFilters())
 }
 
 // RuntimeContainerFilter filters containers by runtime
