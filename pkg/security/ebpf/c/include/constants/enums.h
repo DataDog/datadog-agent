@@ -54,7 +54,7 @@ enum event_type
     EVENT_ON_DEMAND,
     EVENT_LOGIN_UID_WRITE,
     EVENT_CGROUP_WRITE,
-    EVENT_RAW_PACKET,
+    EVENT_RAW_PACKET_FILTER,
     EVENT_NETWORK_FLOW_MONITOR,
     EVENT_STAT,
     EVENT_SYSCTL,
@@ -62,6 +62,7 @@ enum event_type
     EVENT_SETSOCKOPT,
     EVENT_FSMOUNT,
     EVENT_OPEN_TREE,
+    EVENT_RAW_PACKET_ACTION,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

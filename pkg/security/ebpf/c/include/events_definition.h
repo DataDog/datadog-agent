@@ -491,7 +491,7 @@ struct raw_packet_event_t {
     struct container_context_t container;
     struct network_device_context_t device;
 
-    int len;
+    u32 len;
     char data[256];
 };
 

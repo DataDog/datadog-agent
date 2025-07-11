@@ -10,6 +10,7 @@ package probes
 
 import (
 	"fmt"
+	"slices"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -25,6 +26,16 @@ const (
 	// TCActUnspec will continue packet processing
 	TCActUnspec = -1
 )
+
+// ProgAllowedToTCActShot programs allowed to use shot tc act
+var ProgAllowedToTCActShot = []string{
+	tailCallClassifierFnc("raw_packet_drop_action_cb"),
+}
+
+// IsProgAllowedToTCActShot checks if the program is allowed to use shot tc act
+func IsProgAllowedToTCActShot(prog string) bool {
+	return slices.Contains(ProgAllowedToTCActShot, prog)
+}
 
 // GetTCProbes returns the list of TCProbes
 func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
@@ -170,6 +181,9 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 func CheckUnspecReturnCode(progSpecs map[string]*ebpf.ProgramSpec) error {
 	for _, progSpec := range progSpecs {
 		if progSpec.Type == ebpf.SchedCLS {
+			if IsProgAllowedToTCActShot(progSpec.Name) {
+				continue
+			}
 
 			r0 := int32(255)
 
