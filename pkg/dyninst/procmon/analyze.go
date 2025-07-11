@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -42,24 +43,17 @@ type ContainerResolver interface {
 // analyzeProcess performs light analysis of the process and its binary
 // to determine if it's interesting, and what its executable is.
 func analyzeProcess(
-	pid uint32, procfsRoot string, resolver ContainerResolver,
+	pid uint32,
+	procfsRoot string,
+	resolver ContainerResolver,
+	executableAnalyzer *executableAnalyzer,
 ) (processAnalysis, error) {
-	ddEnv, err := analyzeEnviron(int32(pid), procfsRoot)
-	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to check if process %d is interesting: %w", pid, err,
-		)
-	}
-	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
-		log.Tracef(
-			"process %d is not interesting: service name is %q, %s=%t",
-			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
-		)
-		return processAnalysis{interesting: false}, nil
-	}
 
 	exeLinkPath := path.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
 	exePath, err := os.Readlink(exeLinkPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return processAnalysis{}, nil
+	}
 	if err != nil {
 		return processAnalysis{}, fmt.Errorf(
 			"failed to open exe link for pid %d: %w", pid, err,
@@ -90,7 +84,45 @@ func analyzeProcess(
 	}
 	defer exeFile.Close()
 
-	isGo, err := isGoElfBinaryWithDDTraceGo(exeFile)
+	statI, err := exeFile.Stat()
+	if err != nil {
+		return processAnalysis{}, fmt.Errorf("process %d: failed to stat exe: %w", pid, err)
+	}
+	statSys := statI.Sys()
+	st, ok := statSys.(*syscall.Stat_t)
+	if !ok {
+		return processAnalysis{}, fmt.Errorf(
+			"process %d: failed to cast stat: %T", pid, statSys,
+		)
+	}
+	fileKey := FileKey{
+		FileHandle: FileHandle{
+			Dev: uint64(st.Dev),
+			Ino: st.Ino,
+		},
+		LastModified: st.Mtim,
+	}
+
+	interesting, known := executableAnalyzer.checkFileKeyCache(fileKey)
+	if known && !interesting {
+		return processAnalysis{}, nil
+	}
+
+	ddEnv, err := analyzeEnviron(int32(pid), procfsRoot)
+	if err != nil {
+		return processAnalysis{}, fmt.Errorf(
+			"failed to check if process %d is interesting: %w", pid, err,
+		)
+	}
+	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
+		log.Tracef(
+			"process %d is not interesting: service name is %q, %s=%t",
+			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
+		)
+		return processAnalysis{interesting: false}, nil
+	}
+
+	isGo, err := executableAnalyzer.isInteresting(exeFile, fileKey)
 	if errors.Is(err, os.ErrNotExist) {
 		isGo, err = false, nil
 	}
@@ -98,28 +130,11 @@ func analyzeProcess(
 		return processAnalysis{}, err
 	}
 
-	exe := Executable{Path: exePath}
-	st, err := exeFile.Stat()
-	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to stat exe link for pid %v: %w", pid, err,
-		)
-	}
-	if st, ok := st.Sys().(*syscall.Stat_t); ok {
-		exe.Key = FileKey{
-			FileHandle: FileHandle{
-				Dev: uint64(st.Dev),
-				Ino: st.Ino,
-			},
-			LastModified: st.Mtim,
-		}
-	}
-
 	containerInfo := analyzeContainerInfo(resolver, pid)
 
 	return processAnalysis{
 		service:     ddEnv.serviceName,
-		exe:         exe,
+		exe:         Executable{Path: exePath, Key: fileKey},
 		interesting: true,
 		gitInfo: GitInfo{
 			CommitSha:     ddEnv.gitCommitSha,
@@ -296,3 +311,68 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 }
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
+
+type executableAnalyzer struct {
+	htlHashCache cache[string, bool]
+	fileKeyCache cache[FileKey, bool]
+}
+
+func (a *executableAnalyzer) checkFileKeyCache(key FileKey) (interesting bool, known bool) {
+	return a.fileKeyCache.Get(key)
+}
+
+func (a *executableAnalyzer) isInteresting(f *os.File, key FileKey) (bool, error) {
+	if interesting, ok := a.fileKeyCache.Get(key); ok {
+		return interesting, nil
+	}
+	hash, err := computeHtlHash(f)
+	if err != nil {
+		return false, err
+	}
+	if interesting, ok := a.htlHashCache.Get(hash); ok {
+		return interesting, nil
+	}
+	interesting, err := isGoElfBinaryWithDDTraceGo(f)
+	if err != nil {
+		return false, err
+	}
+	a.fileKeyCache.Add(key, interesting)
+	a.htlHashCache.Add(hash, interesting)
+	return interesting, nil
+}
+
+// cache is a wrapper around an LRU cache that can be disabled.
+type cache[K comparable, V any] struct {
+	cache *lru.Cache[K, V]
+}
+
+func (c *cache[K, V]) Get(key K) (v V, ok bool) {
+	if c.cache != nil {
+		v, ok = c.cache.Get(key)
+	}
+	return v, ok
+}
+
+func (c *cache[K, V]) Add(key K, value V) {
+	if c.cache != nil {
+		c.cache.Add(key, value)
+	}
+}
+
+func makeCache[K comparable, V any](size int) cache[K, V] {
+	if size <= 0 {
+		return cache[K, V]{}
+	}
+	c, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err) // can't happen because we checked the size
+	}
+	return cache[K, V]{cache: c}
+}
+
+func makeExecutableAnalyzer(cacheSize int) executableAnalyzer {
+	return executableAnalyzer{
+		htlHashCache: makeCache[string, bool](cacheSize),
+		fileKeyCache: makeCache[FileKey, bool](cacheSize),
+	}
+}

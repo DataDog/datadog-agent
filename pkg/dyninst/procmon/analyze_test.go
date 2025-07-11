@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"testing"
@@ -55,6 +57,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	)
 
 	const exeTargetName = "exe_target"
+	analyzer := makeExecutableAnalyzer(0)
 
 	// makeProcFS creates a minimal on-disk proc-like structure under a temp dir
 	// and returns the path that should be used as procfsRoot when calling
@@ -88,7 +91,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("not interesting env", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 102, envFalse, true)
 		defer cleanup()
-		res, err := analyzeProcess(102, procRoot, noopContainerResolver{})
+		res, err := analyzeProcess(102, procRoot, noopContainerResolver{}, &analyzer)
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 	})
@@ -96,7 +99,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("no interesting exe", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 101, envTrue, true)
 		defer cleanup()
-		res, err := analyzeProcess(101, procRoot, noopContainerResolver{})
+		res, err := analyzeProcess(101, procRoot, noopContainerResolver{}, &analyzer)
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 		require.Empty(t, res.exe)
@@ -105,8 +108,8 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("exe missing", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 103, envTrue, false)
 		defer cleanup()
-		res, err := analyzeProcess(103, procRoot, noopContainerResolver{})
-		require.Regexp(t, "failed to open exe link for pid 103.*: no such file or directory", err)
+		res, err := analyzeProcess(103, procRoot, noopContainerResolver{}, &analyzer)
+		require.NoError(t, err)
 		require.False(t, res.interesting)
 	})
 
@@ -128,7 +131,7 @@ func TestAnalyzeProcess(t *testing.T) {
 			require.NoError(t, f.Close())
 			require.NoError(t, binReader.Close())
 		}
-		res, err := analyzeProcess(104, procRoot, noopContainerResolver{})
+		res, err := analyzeProcess(104, procRoot, noopContainerResolver{}, &analyzer)
 		require.NoError(t, err)
 		require.True(t, res.interesting)
 		require.NotEmpty(t, res.exe.Path)
@@ -179,4 +182,66 @@ func benchmarkIsGoElfBinaryWithDDTraceGo(b *testing.B, binPath string, expect bo
 	b.StopTimer()
 	require.NoError(b, err)
 	require.Equal(b, expect, got)
+}
+
+func BenchmarkAnalyzeProcess(b *testing.B) {
+	cfgs := testprogs.MustGetCommonConfigs(b)
+	progs := testprogs.MustGetPrograms(b)
+	for _, prog := range progs {
+		b.Run(prog, func(b *testing.B) {
+			for _, cfg := range cfgs {
+				b.Run(cfg.String(), func(b *testing.B) {
+					if cfg.GOARCH != runtime.GOARCH {
+						b.Skipf("skipping %s on %s", cfg.String(), runtime.GOARCH)
+					}
+					for _, cached := range []bool{false, true} {
+						b.Run(fmt.Sprintf("cached=%t", cached), func(b *testing.B) {
+							for _, env := range []struct {
+								name string
+								env  []string
+							}{
+								{
+									name: "disabled",
+									env:  nil,
+								},
+								{
+									name: "enabled",
+									env: []string{
+										"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
+										"DD_SERVICE=foo",
+									},
+								},
+							} {
+								b.Run(fmt.Sprintf("env=%s", env.name), func(b *testing.B) {
+									var analyzer executableAnalyzer
+									if cached {
+										analyzer = makeExecutableAnalyzer(1)
+									} else {
+										analyzer = makeExecutableAnalyzer(0)
+									}
+									bin := testprogs.MustGetBinary(b, prog, cfg)
+									child := exec.Command(bin)
+									child.Env = env.env
+									child.Stdout = io.Discard
+									child.Stderr = io.Discard
+									require.NoError(b, child.Start())
+									b.Cleanup(func() {
+										_ = child.Process.Kill()
+										_, _ = child.Process.Wait()
+									})
+									pid := child.Process.Pid
+									for b.Loop() {
+										_, err := analyzeProcess(
+											uint32(pid), "/proc", noopContainerResolver{}, &analyzer,
+										)
+										require.NoError(b, err)
+									}
+								})
+							}
+						})
+					}
+				})
+			}
+		})
+	}
 }
