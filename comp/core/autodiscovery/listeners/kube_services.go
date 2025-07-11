@@ -234,17 +234,7 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 		return
 	}
 
-	svc := processService(ksvc)
-
-	svc.metricsExcluded = l.filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		nil,
-	)
-
-	svc.globalExcluded = l.filterStore.IsServiceExcluded(
-		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
-		nil,
-	)
+	svc := processService(ksvc, l.filterStore)
 
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
@@ -256,10 +246,20 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	}
 }
 
-func processService(ksvc *v1.Service) *KubeServiceService {
+func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {
 	svc := &KubeServiceService{
 		entity: apiserver.EntityForService(ksvc),
 	}
+
+	svc.metricsExcluded = filterStore.IsServiceExcluded(
+		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}, {workloadfilter.LegacyServiceMetrics}},
+	)
+
+	svc.globalExcluded = filterStore.IsServiceExcluded(
+		workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations()),
+		[][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}, {workloadfilter.LegacyServiceGlobal}},
+	)
 
 	// Service tags
 	svc.tags = []string{

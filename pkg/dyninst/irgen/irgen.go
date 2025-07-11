@@ -667,7 +667,7 @@ func populateEventExpressions(
 			Name:     fmt.Sprintf("Probe[%s]", probe.Subprogram.Name),
 			ByteSize: uint32(byteSize),
 		},
-		PresenseBitsetSize: presenceBitsetSize,
+		PresenceBitsetSize: presenceBitsetSize,
 		Expressions:        expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type

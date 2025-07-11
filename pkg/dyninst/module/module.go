@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
@@ -50,10 +51,16 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 		}
 	}()
 
-	logUploaderURL := config.LogUploaderURL
+	logUploaderURL, err := url.Parse(config.LogUploaderURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing log uploader URL: %w", err)
+	}
 	logUploader := uploader.NewLogsUploader(uploader.WithURL(logUploaderURL))
 
-	diagsUploaderURL := config.DiagsUploaderURL
+	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing diagnostics uploader URL: %w", err)
+	}
 	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
 
 	loader, err := loader.NewLoader()

@@ -278,6 +278,20 @@ probes:
   where:
     methodName: main.testUintSlice
   captureSnapshot: true
+- id: testVeryLargeSlice
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testVeryLargeSlice
+  captureSnapshot: true
+- id: testVeryLargeArray
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testVeryLargeArray
+  captureSnapshot: true
 - id: testEmptySlice
   type: LOG_PROBE
   tags:
