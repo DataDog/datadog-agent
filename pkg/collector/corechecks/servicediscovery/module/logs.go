@@ -12,8 +12,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // isLogFile is used from the getOpenFilesInfo function to filter paths which
@@ -63,10 +65,12 @@ func getLogFiles(pid int32, candidates []fdPath) []string {
 		if err != nil {
 			continue
 		}
-		// O_WRONLY is 1
-		if flags&1 == 1 {
+		const wanted = syscall.O_WRONLY | syscall.O_APPEND
+		if flags&wanted == wanted {
 			logs = append(logs, candidate.path)
 			seen[candidate.path] = struct{}{}
+		} else {
+			log.Tracef("Ignoring potential log file %s from pid %d due to flags: %#x (%O)", candidate.path, pid, flags, flags)
 		}
 	}
 	return logs

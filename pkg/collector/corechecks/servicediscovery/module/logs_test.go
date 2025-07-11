@@ -23,7 +23,12 @@ func TestGetLogFiles(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	writeLogPath := filepath.Join(tempDir, "test.log")
-	f, err := os.OpenFile(writeLogPath, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(writeLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	require.NoError(t, err)
+	defer f.Close()
+
+	noAppendLogPath := filepath.Join(tempDir, "noappend.log")
+	f, err = os.OpenFile(noAppendLogPath, os.O_CREATE|os.O_WRONLY, 0644)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -33,7 +38,7 @@ func TestGetLogFiles(t *testing.T) {
 	defer f.Close()
 
 	writeOtherPath := filepath.Join(tempDir, "test.log.txt")
-	f, err = os.OpenFile(writeOtherPath, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(writeOtherPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -46,12 +51,12 @@ func TestGetLogFiles(t *testing.T) {
 	defer f.Close()
 
 	writeLargePath := filepath.Join(tempDir, strings.Repeat("a", 128)+".log")
-	f, err = os.OpenFile(writeLargePath, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(writeLargePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	require.NoError(t, err)
 	defer f.Close()
 
 	// Add a duplicate fdPath for writeLogPath to test deduplication
-	f, err = os.OpenFile(writeLogPath, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(writeLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	require.NoError(t, err)
 	defer f.Close()
 
@@ -71,6 +76,7 @@ func TestGetLogFiles(t *testing.T) {
 	logFiles := getLogFiles(self, openFilesInfo.logs)
 
 	assert.Contains(t, logFiles, writeLogPath)
+	assert.NotContains(t, logFiles, noAppendLogPath)
 	assert.NotContains(t, logFiles, readWriteLogPath)
 	assert.Contains(t, logFiles, writeLargePath)
 	assert.NotContains(t, logFiles, writeOtherPath)
