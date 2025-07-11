@@ -224,7 +224,7 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "cgroup"
           ]
         }
       },

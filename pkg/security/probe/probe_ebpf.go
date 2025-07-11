@@ -133,9 +133,9 @@ type EBPFProbe struct {
 	ipc       ipc.Component
 
 	// TC Classifier & raw packets
-	newTCNetDevices            chan model.NetDevice
-	rawPacketFilterCollection  *lib.Collection
-	rawPacketShooterCollection *lib.Collection
+	newTCNetDevices           chan model.NetDevice
+	rawPacketFilterCollection *lib.Collection
+	rawPacketActionCollection *lib.Collection
 
 	// Ring
 	eventStream EventStream
@@ -183,7 +183,7 @@ type EBPFProbe struct {
 	BPFFilterTruncated *atomic.Uint64
 
 	// raw packet filter for actions
-	rawPacketDropActionFilters []rawpacket.Filter
+	rawPacketActionFilters []rawpacket.Filter
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -673,7 +673,9 @@ func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketMaxTailCall, &p.rawPacketFilterCollection)
 }
 
-func (p *EBPFProbe) setupRawPacketDropActions() error {
+func (p *EBPFProbe) applyRawPacketActionFilters() error {
+	// TODO check cgroupv2
+
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
 
@@ -690,7 +692,7 @@ func (p *EBPFProbe) setupRawPacketDropActions() error {
 	}
 
 	// compile the filters
-	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketDropActionFilters, opts)
+	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
 	if err != nil {
 		return err
 	}
@@ -699,7 +701,18 @@ func (p *EBPFProbe) setupRawPacketDropActions() error {
 		return nil
 	}
 
-	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketShooterCollection)
+	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection)
+}
+
+func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
+	if slices.ContainsFunc(p.rawPacketActionFilters, func(af rawpacket.Filter) bool {
+		return actionFilter.RuleID == af.RuleID
+	}) {
+		return nil
+	}
+	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
+
+	return p.applyRawPacketActionFilters()
 }
 
 // Start the probe
@@ -793,6 +806,11 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) 
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
 
+	if event.GetEventType() == model.RawPacketActionEventType {
+		fmt.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!: %+v\n", event)
+		return
+	}
+
 	// filter out event if already present on a profile
 	p.profileManager.LookupEventInProfiles(event)
 
@@ -868,7 +886,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	case model.ShortDNSResponseEventType,
 		model.DNSEventType,
 		model.IMDSEventType,
-		model.RawPacketEventType,
+		model.RawPacketFilterEventType,
 		model.LoadModuleEventType,
 		model.UnloadModuleEventType,
 		model.NetworkFlowMonitorEventType:
@@ -1140,6 +1158,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return
 	}
+
+	// resolve the container context
+	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	switch eventType {
 
@@ -1477,11 +1498,26 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
-	case model.RawPacketEventType:
+	case model.RawPacketFilterEventType:
 		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.RawPacketActionEventType:
+		if _, err = event.RawPacket.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode RawPacket event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
+		if service := p.probe.GetService(event); service != "" {
+			tags = append(tags, "service:"+service)
+		}
+		p.probe.DispatchCustomEvent(
+			events.NewCustomRule(events.RawPacketActionRuleID, events.RulesetLoadedRuleDesc),
+			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
+		)
+		return
 	case model.NetworkFlowMonitorEventType:
 		if _, err = event.NetworkFlowMonitor.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode NetworkFlowMonitor event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1552,9 +1588,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		event.Setrlimit.Target = &pce.ProcessContext
 
 	}
-
-	// resolve the container context
-	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
@@ -1949,8 +1982,8 @@ func (p *EBPFProbe) Close() error {
 		p.rawPacketFilterCollection.Close()
 	}
 
-	if p.rawPacketShooterCollection != nil {
-		p.rawPacketShooterCollection.Close()
+	if p.rawPacketActionCollection != nil {
+		p.rawPacketActionCollection.Close()
 	}
 
 	ddebpf.RemoveNameMappings(p.Manager)
@@ -2212,6 +2245,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		if err := p.setupRawPacketFilters(rs); err != nil {
 			seclog.Errorf("unable to load raw packet filter programs: %v", err)
 		}
+
+		// reset action filter
+		p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
+		p.applyRawPacketActionFilters()
 	}
 
 	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
@@ -3042,14 +3079,18 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
 
-				p.rawPacketDropActionFilters = append(p.rawPacketDropActionFilters, dropActionFilter)
-
-				// trigger rule reload
-				if err := p.setupRawPacketDropActions(); err != nil {
-					seclog.Errorf("failed to setup raw packet shooter programs: %s", err)
+				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
+					seclog.Errorf("failed to setup raw packet action programs: %s", err)
 				}
 
-				// trigger a refresh of the raw packet filter
+				report := &RawPacketActionReport{
+					Filter: action.Def.NetworkFilter.BPFFilter,
+					Policy: policy.String(),
+					rule:   rule,
+				}
+
+				ev.ActionReports = append(ev.ActionReports, report)
+
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}

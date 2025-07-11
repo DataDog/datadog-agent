@@ -267,7 +267,7 @@ func TestRawPacketFilters(t *testing.T) {
 	})
 }
 
-func TestRawPacketShooters(t *testing.T) {
+func TestRawPacketDropAction(t *testing.T) {
 	t.Run("syn-port-std-ok", func(t *testing.T) {
 		filters := []rawpacket.Filter{
 			{

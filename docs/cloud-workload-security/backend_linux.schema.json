@@ -1614,6 +1614,9 @@
         },
         "tls": {
           "$ref": "#/$defs/TLSContext"
+        },
+        "dropped": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
