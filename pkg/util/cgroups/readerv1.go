@@ -8,9 +8,9 @@
 package cgroups
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,7 +52,7 @@ func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
 	err := filepath.WalkDir(r.cgroupRoot, func(fullPath string, de fs.DirEntry, err error) error {
 		if err != nil {
 			// if the error is a permission issue skip the directory
-			if os.IsPermission(err) {
+			if errors.Is(err, fs.ErrPermission) {
 				log.Tracef("skipping %s due to permission error", fullPath)
 				return filepath.SkipDir
 			}
