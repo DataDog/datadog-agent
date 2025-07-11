@@ -37,6 +37,7 @@ include:
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/scan/windows.yml
+  - .gitlab/fuzz/infra.yaml
 
 default:
   retry:
@@ -246,14 +247,14 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
-  VIRUS_TOTAL: virus-total  # windows-agent
+  VIRUS_TOTAL: virus-total # windows-agent
   # End vault variables
 
   DD_PKG_VERSION: "latest"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
-  OVERRIDE_GIT_STRATEGY: "s3"
+  GIT_STRATEGY: "s3"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -1102,7 +1103,6 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
-
 
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline

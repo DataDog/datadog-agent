@@ -1,0 +1,11 @@
+process_config:
+  process_collection:
+    enabled: true
+    linux_use_wlm: true
+  container_collection:
+    enabled: false
+  process_discovery:
+    enabled: false
+
+  run_in_core_agent:
+    enabled: true
