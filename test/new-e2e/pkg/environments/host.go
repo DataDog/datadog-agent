@@ -6,6 +6,7 @@
 package environments
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -119,9 +120,10 @@ func (e *Host) getAgentCoverageCommands(family os.Family) (map[string]string, er
 			"system-probe":   fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath),
 		}, nil
 	}
-	return nil, fmt.Errorf("unsupported OS family: %s", family)
+	return nil, fmt.Errorf("unsupported OS family: %v", family)
 }
 
+// Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
 func (e *Host) Coverage(outputDir string) error {
 	coverageFolders := map[string]bool{} // Used as a set to avoid duplicates
 	failedCoverageAgents := map[string]error{}
@@ -144,15 +146,19 @@ func (e *Host) Coverage(outputDir string) error {
 		}
 		coverageFolders[matches[1]] = true
 	}
-	for folder := range coverageFolders {
-		e.RemoteHost.GetFolder(folder, filepath.Join(outputDir, filepath.Base(folder)))
-	}
 	errorStr := ""
+
+	for folder := range coverageFolders {
+		err := e.RemoteHost.GetFolder(folder, filepath.Join(outputDir, filepath.Base(folder)))
+		if err != nil {
+			errorStr += fmt.Sprintf("%s: error while getting folder:%v\n", folder, err)
+		}
+	}
 	for agent, err := range failedCoverageAgents {
 		errorStr += fmt.Sprintf("%s: %v\n", agent, err)
 	}
 	if errorStr != "" {
-		return fmt.Errorf(errorStr)
+		return errors.New(errorStr)
 	}
 	return nil
 }
