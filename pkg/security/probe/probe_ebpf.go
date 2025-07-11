@@ -3070,7 +3070,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 
 				if action.Def.NetworkFilter.Scope == "cgroup" {
-					dropActionFilter.CGroupPathKey = ev.CGroupContext.CGroupPathKey
+					dropActionFilter.CGroupPathKey = ev.CGroupContext.CGroupFile
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
