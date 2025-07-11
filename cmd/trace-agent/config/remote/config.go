@@ -43,7 +43,7 @@ func putBuffer(buffer *bytes.Buffer) {
 
 // ConfigHandler is the HTTP handler for configs
 func ConfigHandler(r *api.HTTPReceiver, cf rcclient.ConfigFetcher, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) http.Handler {
-	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot, config.NoopContainerIDFromOriginInfoFunc)
+	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 		tags := r.TagStats(api.V07, req.Header, "").AsTags()
