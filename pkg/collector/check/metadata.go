@@ -19,7 +19,14 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 
 	instanceID := string(c.ID())
 	instance["config.hash"] = instanceID
-	instance["config.provider"] = strings.Split(c.ConfigSource(), ":")[0]
+
+	splitSource := strings.SplitN(c.ConfigSource(), ":", 2)
+	instance["config.provider"] = splitSource[0]
+	if len(splitSource) > 1 {
+		instance["config.source"] = splitSource[1]
+	} else {
+		instance["config.source"] = "unknown"
+	}
 
 	if includeConfig {
 		if instanceScrubbed, err := scrubber.ScrubYamlString(c.InstanceConfig()); err != nil {
