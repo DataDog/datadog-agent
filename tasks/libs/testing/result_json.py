@@ -30,13 +30,16 @@ class ResultJsonLine:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ResultJsonLine":
-        return cls(
-            time=datetime.fromisoformat(data["Time"]),
-            action=ActionType(data["Action"]),
-            package=data["Package"],
-            test=data.get("Test"),
-            output=data.get("Output"),
-        )
+        try:
+            return cls(
+                time=datetime.fromisoformat(data["Time"]),
+                action=ActionType(data["Action"]),
+                package=data["Package"],
+                test=data.get("Test"),
+                output=data.get("Output"),
+            )
+        except (KeyError, ValueError) as e:
+            raise ValueError(f"Invalid data for ResultJsonLine: {data}") from e
 
 
 @dataclass
@@ -56,7 +59,11 @@ class ResultJson:
         with open(file) as f:
             for line in f:
                 data = json.loads(line)
-                res.append(ResultJsonLine.from_dict(data))
+                try:
+                    res.append(ResultJsonLine.from_dict(data))
+                except ValueError:
+                    # TODO(@agent-devx): Use a proper logging mechanism instead of print
+                    print(f"WARNING: Invalid line in result json file, skipping: {line.strip()}")
         return cls(res)
 
     def _sort_into_packages_and_tests(self) -> dict[str, dict[str, list[ResultJsonLine]]]:

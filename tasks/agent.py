@@ -15,12 +15,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -150,10 +152,6 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if flavor.is_ot():
-        # for agent build purposes the UA agent is just like base
-        flavor = AgentFlavor.base
-
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
@@ -214,28 +212,27 @@ def build(
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
     if include_sds:
         build_tags.append("sds")
 
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": agent_bin,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
-    }
+    flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
-        ctx.run(cmd.format(**args), env=env)
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/{flavor_cmd}",
+            mod=go_mod,
+            env=env,
+            bin_path=agent_bin,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        )
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -456,7 +453,15 @@ def hacky_dev_image_build(
     push=False,
     race=False,
     signed_pull=False,
+    arch=None,
 ):
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
+        raise Exit(code=1)
+
     if base_image is None:
         import requests
         import semver
@@ -477,7 +482,7 @@ def hacky_dev_image_build(
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
         ctx.run(
-            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+            f"docker run --platform linux/{arch} --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
         os.environ["DELVE"] = "1"
@@ -569,7 +574,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
             ctx.run(f'docker push {target_image}')
@@ -874,5 +879,4 @@ def build_remote_agent(ctx, env=None):
     """
     Builds the remote-agent example client.
     """
-    cmd = "go build -v -o bin/remote-agent ./internal/remote-agent"
-    return ctx.run(cmd, env=env or {})
+    return go_build(ctx, "./internal/remote-agent", verbose=True, bin_path="bin/remote-agent", env=env or {})

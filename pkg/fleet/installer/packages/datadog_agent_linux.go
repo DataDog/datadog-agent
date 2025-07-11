@@ -77,7 +77,6 @@ var (
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
-		{Path: "embedded/share/system-probe/java", Owner: "root", Group: "root", Recursive: true},
 	}
 
 	// agentPackageUninstallPaths are the paths that are deleted during an uninstall

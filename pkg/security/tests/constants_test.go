@@ -24,6 +24,7 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSockStructSKProtocol,
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
@@ -31,6 +32,7 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSockStructSKProtocol,
 }
 
 func TestOctogonConstants(t *testing.T) {

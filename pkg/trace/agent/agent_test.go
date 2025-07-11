@@ -103,6 +103,16 @@ func (c *mockConcentrator) Reset() []stats.Input {
 	return ret
 }
 
+type mockTracerPayloadModifier struct {
+	modifyCalled bool
+	lastPayload  *pb.TracerPayload
+}
+
+func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
+	m.modifyCalled = true
+	m.lastPayload = tp
+}
+
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
@@ -226,6 +236,36 @@ func TestProcess(t *testing.T) {
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
 		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+	})
+
+	t.Run("TracerPayloadModifier", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		// Create a mock TracerPayloadModifier that tracks calls
+		mockModifier := &mockTracerPayloadModifier{}
+		agnt.TracerPayloadModifier = mockModifier
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "test-resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		})
+
+		assert := assert.New(t)
+		assert.True(mockModifier.modifyCalled, "TracerPayloadModifier.Modify should have been called")
+		assert.NotNil(mockModifier.lastPayload, "TracerPayloadModifier should have received a payload")
 	})
 
 	t.Run("ReplacerMetrics", func(t *testing.T) {

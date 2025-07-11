@@ -16,9 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
+// FilterType defines the type of a rule filter
+type FilterType string
+
+const (
+	// FilterTypeRuleID defines a rule ID based filter
+	FilterTypeRuleID FilterType = "rule_id"
+	// FilterTypeAgentVersion defines a agent version based filter
+	FilterTypeAgentVersion FilterType = "agent_version"
+	// FilterTypeRuleFilter defines a SECL rule based filter
+	FilterTypeRuleFilter FilterType = "rule_filter"
+)
+
 // RuleFilter definition of a rule filter
 type RuleFilter interface {
 	IsRuleAccepted(*RuleDefinition) (bool, error)
+	GetType() FilterType
 }
 
 // MacroFilter definition of a macro filter
@@ -34,6 +47,11 @@ type RuleIDFilter struct {
 // IsRuleAccepted checks whether the rule is accepted
 func (r *RuleIDFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	return r.ID == rule.ID, nil
+}
+
+// GetType returns the type of this rule filter
+func (r *RuleIDFilter) GetType() FilterType {
+	return FilterTypeRuleID
 }
 
 // AgentVersionFilter defines a agent version filter
@@ -68,6 +86,11 @@ func (r *AgentVersionFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) 
 	return constraint.Check(r.version), nil
 }
 
+// GetType returns the type of this rule filter
+func (r *AgentVersionFilter) GetType() FilterType {
+	return FilterTypeAgentVersion
+}
+
 // IsMacroAccepted checks whether the macro is accepted
 func (r *AgentVersionFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
 	constraint, err := validators.ValidateAgentVersionConstraint(macro.AgentVersionConstraint)
@@ -93,6 +116,11 @@ func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 // IsRuleAccepted checks whether the rule is accepted
 func (r *SECLRuleFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	return r.inner.IsAccepted(rule.Filters)
+}
+
+// GetType returns the type of this rule filter
+func (r *SECLRuleFilter) GetType() FilterType {
+	return FilterTypeRuleFilter
 }
 
 // IsMacroAccepted checks whether the macro is accepted
