@@ -21,8 +21,10 @@ import (
 	"net/textproto"
 	"net/url"
 	"strings"
+	"time"
 
-	waf "github.com/DataDog/go-libddwaf/v3"
+	"github.com/DataDog/go-libddwaf/v4"
+	"github.com/DataDog/go-libddwaf/v4/timer"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,9 +41,10 @@ type Monitorer interface {
 // the WAF Result itself, the configuration of the WAF (Diagnostics)
 // and the Metrics (Stats) of the WAF call.
 type MonitorResult struct {
-	Result      waf.Result
-	Diagnostics waf.Diagnostics
-	Stats       waf.Stats
+	Result      libddwaf.Result
+	Diagnostics libddwaf.Diagnostics
+	Timeout     bool
+	Timings     map[timer.Key]time.Duration
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
