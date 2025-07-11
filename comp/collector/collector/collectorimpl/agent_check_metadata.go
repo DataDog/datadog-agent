@@ -13,11 +13,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,6 +42,12 @@ type Payload struct {
 	ExternalhostTags externalhost.Payload   `json:"external_host_tags"`
 }
 
+type agentCheck struct {
+	instanceType string
+	instanceName string
+	status       string
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	// use an alias to avoid infinite recursion while serializing
@@ -53,7 +62,7 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 }
 
 // GetPayload builds a payload of all the agentchecks metadata
-func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
+func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck) {
 	hostnameData, _ := c.hostname.Get(ctx)
 
 	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
@@ -66,24 +75,34 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		ExternalhostTags: *externalhost.GetPayload(),
 	}
 
+	agentChecks := make([]agentCheck, 0)
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
 			var status []interface{}
+			var checkStatus string
 			if s.LastError != "" {
 				status = []interface{}{
 					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "",
 				}
+				checkStatus = "ERROR"
 			} else if len(s.LastWarnings) != 0 {
 				status = []interface{}{
 					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "",
 				}
+				checkStatus = "WARNING"
 			} else {
 				status = []interface{}{
 					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
 				}
+				checkStatus = "OK"
 			}
 			payload.AgentChecks = append(payload.AgentChecks, status)
+			agentChecks = append(agentChecks, agentCheck{
+				instanceType: s.CheckName,
+				instanceName: string(s.CheckID),
+				status:       checkStatus,
+			})
 		}
 	}
 
@@ -97,6 +116,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			check, check, "initialization", "ERROR", string(jsonErrs),
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
+		agentChecks = append(agentChecks, agentCheck{
+			instanceType: "initialization",
+			instanceName: check,
+			status:       "ERROR",
+		})
 	}
 
 	configErrors := autodiscoveryimpl.GetConfigErrors()
@@ -105,6 +129,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			check, check, "initialization", "ERROR", e,
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
+		agentChecks = append(agentChecks, agentCheck{
+			instanceType: "initialization",
+			instanceName: check,
+			status:       "ERROR",
+		})
 	}
 
 	jmxStartupError := jmxStatus.GetStartupError()
@@ -148,11 +177,57 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 						checkName, checkName, checkID, checkStatus, checkError,
 					}
 					payload.AgentChecks = append(payload.AgentChecks, status)
+					agentChecks = append(agentChecks, agentCheck{
+						instanceType: checkName,
+						instanceName: checkID,
+						status:       checkStatus,
+					})
 				}
 			}
 		}
 	}
-	return payload
+	return payload, agentChecks
+}
+
+// sendAgentCheckMetrics creates and sends metrics series for monitored agent checks
+func (c *collectorImpl) sendAgentCheckMetrics(ctx context.Context, timestamp time.Time, agentChecks []agentCheck) error {
+	// Get hostname for the metrics
+	hostname, _ := c.hostname.Get(ctx)
+
+	// Create metrics series for each monitored check
+	ts := float64(timestamp.Unix())
+
+	for _, check := range agentChecks {
+
+		status := ""
+		switch check.status {
+		case "OK":
+			status = "healthy"
+		case "WARNING":
+			status = "warning"
+		case "ERROR":
+			status = "broken"
+		}
+		// Create tags for the check
+		tags := []string{
+			fmt.Sprintf("integration_type:%s", check.instanceType),
+			fmt.Sprintf("integration_name:%s", check.instanceName),
+			fmt.Sprintf("status:%s", status),
+		}
+
+		log.Debugf("Sending agent check metric: %s = %+v", "datadog.agent.integration.status", tags)
+
+		// Create individual check status metric
+		aggregator.AddRecurrentSeries(&metrics.Serie{
+			Name:   "datadog.agent.integration.status",
+			Points: []metrics.Point{{Value: 1.0, Ts: ts}},
+			Tags:   tagset.CompositeTagsFromSlice(tags),
+			Host:   hostname,
+			MType:  metrics.APIGaugeType,
+		})
+	}
+
+	return nil
 }
 
 func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
@@ -166,9 +241,15 @@ func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
 		return firstPayloadDelay - time.Since(c.createdAt)
 	}
 
-	payload := c.GetPayload(ctx)
+	payload, agentChecks := c.GetPayload(ctx)
 	if err := metricSerializer.SendAgentchecksMetadata(payload); err != nil {
 		c.log.Errorf("unable to submit agentchecks metadata payload, %s", err)
 	}
+
+	// Send agent check metrics for monitored checks
+	if err := c.sendAgentCheckMetrics(ctx, time.Now(), agentChecks); err != nil {
+		c.log.Errorf("unable to send agent check metrics: %s", err)
+	}
+
 	return defaultInterval
 }
