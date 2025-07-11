@@ -72,16 +72,17 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 
 	// Register for config change notifications
 	if config != nil {
-		config.OnUpdate(p.onConfigUpdate)
+		config.OnUpdate(p.onLogsFailoverSettingChanged)
 	}
 
 	return p
 }
 
-// onConfigUpdate is called when any config value changes
-func (p *Processor) onConfigUpdate(setting string, oldValue, newValue any, _ uint64) {
+// onLogsFailoverSettingChanged is called when any config value changes
+func (p *Processor) onLogsFailoverSettingChanged(setting string, _, _ any, _ uint64) {
 	// Only update if the changed setting affects failover configuration
-	if setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist" || oldValue == newValue {
+	failoverSettingChanged := setting == "multi_region_failover.failover_logs" || setting == "multi_region_failover.logs_allowlist"
+	if failoverSettingChanged {
 		p.updateFailoverConfig()
 	}
 }
