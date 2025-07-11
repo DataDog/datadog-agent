@@ -117,7 +117,6 @@ int __attribute__((always_inline)) get_path_mount_flags(struct path *path) {
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id));
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id());
     return mount_id;
 }

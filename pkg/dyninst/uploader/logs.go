@@ -19,29 +19,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LogsUploader is a factory for creating and managing log uploaders for different tags.
-type LogsUploader struct {
-	mu        sync.Mutex
-	uploaders map[string]*refCountedUploader
-	cfg       config
+// LogsUploaderFactory is a factory for creating and managing log uploaders for different tags.
+type LogsUploaderFactory struct {
+	mu            sync.Mutex
+	uploaders     map[LogsUploaderMetadata]*refCountedUploader
+	maxUploaderID uint64
+	cfg           config
+}
+
+// LogsUploaderMetadata is the metadata applied to the requests sent by this
+// uploader.
+type LogsUploaderMetadata struct {
+	Tags        string
+	EntityID    string
+	ContainerID string
+}
+
+func (m LogsUploaderMetadata) String() string {
+	return fmt.Sprintf(
+		"{tags: %q, entityID: %q, containerID: %q}",
+		m.Tags, m.EntityID, m.ContainerID,
+	)
 }
 
 type refCountedUploader struct {
-	*TaggedLogsUploader
+	*LogsUploader
 	refCount int
 }
 
-// TaggedLogsUploader is an uploader for sending log-like batches with a specific set of tags.
-type TaggedLogsUploader struct {
+// LogsUploader is an uploader for sending log-like batches with a specific set of tags.
+type LogsUploader struct {
 	*batcher
-	tags    string
-	factory *LogsUploader
+	metadata LogsUploaderMetadata
+	factory  *LogsUploaderFactory
 }
 
-// NewLogsUploader creates a new uploader factory.
-func NewLogsUploader(opts ...Option) *LogsUploader {
-	lu := &LogsUploader{
-		uploaders: make(map[string]*refCountedUploader),
+// NewLogsUploaderFactory creates a new uploader factory.
+func NewLogsUploaderFactory(opts ...Option) *LogsUploaderFactory {
+	lu := &LogsUploaderFactory{
+		uploaders: make(map[LogsUploaderMetadata]*refCountedUploader),
 		cfg:       defaultConfig(),
 	}
 	for _, opt := range opts {
@@ -50,84 +66,113 @@ func NewLogsUploader(opts ...Option) *LogsUploader {
 	return lu
 }
 
-// GetUploader returns a reference-counted uploader for the given tags.
+// See https://github.com/DataDog/dd-trace-java/blob/90a02cea/dd-java-agent/agent-debugger/src/main/java/com/datadog/debugger/uploader/BatchUploader.java#L78-L79
+const (
+	ddHeaderEntityID    = "Datadog-Entity-ID"
+	ddHeaderContainerID = "Datadog-Container-ID"
+)
+
+// GetUploader returns a reference-counted uploader for the given tags and
+// entity/container IDs.
+//
 // The caller is responsible for calling Close() on the returned uploader.
-func (u *LogsUploader) GetUploader(tags string) *TaggedLogsUploader {
-	log.Tracef("getting uploader for tags: %s", tags)
+func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUploader {
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("getting uploader for tags: %s", metadata)
+	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	if rc, ok := u.uploaders[tags]; ok {
+	if rc, ok := u.uploaders[metadata]; ok {
 		rc.refCount++
-		return rc.TaggedLogsUploader
+		return rc.LogsUploader
 	}
 
+	u.maxUploaderID++
+	uploaderID := u.maxUploaderID
+
+	var headers map[string]string
+	addHeader := func(key, value string) {
+		if value == "" {
+			return
+		}
+		if headers == nil {
+			headers = make(map[string]string)
+		}
+		headers[key] = value
+	}
 	var logsURL, name string
-	if tags == "" {
+	if metadata.Tags == "" {
 		logsURL = u.cfg.url.String()
-		name = "logs"
 	} else {
 		query, _ := url.ParseQuery(u.cfg.url.RawQuery)
 		// If we failed to parse the query, we'll use an empty query.
-		query.Set("ddtags", tags)
+		query.Set("ddtags", metadata.Tags)
 		tagURL := *u.cfg.url
 		tagURL.RawQuery = query.Encode()
 		logsURL = tagURL.String()
-		name = fmt.Sprintf("logs:%s", tags)
+		addHeader(ddHeaderEntityID, metadata.EntityID)
+		addHeader(ddHeaderContainerID, metadata.ContainerID)
+	}
+	name = fmt.Sprintf("logs:%d", uploaderID)
+	log.Debugf("creating uploader %s with metadata %v", name, metadata)
+
+	sender := newLogSender(u.cfg.client, logsURL, headers)
+	taggedUploader := &LogsUploader{
+		batcher:  newBatcher(name, sender, u.cfg.batcherConfig),
+		metadata: metadata,
+		factory:  u,
 	}
 
-	sender := newLogSender(u.cfg.client, logsURL)
-	taggedUploader := &TaggedLogsUploader{
-		batcher: newBatcher(name, sender, u.cfg.batcherConfig),
-		tags:    tags,
-		factory: u,
-	}
-
-	u.uploaders[tags] = &refCountedUploader{
-		TaggedLogsUploader: taggedUploader,
-		refCount:           1,
+	u.uploaders[metadata] = &refCountedUploader{
+		LogsUploader: taggedUploader,
+		refCount:     1,
 	}
 
 	return taggedUploader
 }
 
 // Enqueue adds a message to the uploader's queue.
-func (u *TaggedLogsUploader) Enqueue(data json.RawMessage) {
+func (u *LogsUploader) Enqueue(data json.RawMessage) {
 	u.enqueue(data)
 }
 
 // Close decrements the reference count of the uploader. If the ref count reaches zero,
 // the uploader is stopped and removed from the factory.
-func (u *TaggedLogsUploader) Close() {
+func (u *LogsUploader) Close() {
 	u.factory.mu.Lock()
 	defer u.factory.mu.Unlock()
 
-	rc, ok := u.factory.uploaders[u.tags]
+	rc, ok := u.factory.uploaders[u.metadata]
 	if !ok {
-		log.Warnf("closing a tagged uploader that is not in the factory: tags=%q", u.tags)
+		log.Warnf(
+			"closing a tagged uploader (%s) that is not in the factory: metadata=%v",
+			u.name, u.metadata,
+		)
 		return
 	}
 
 	rc.refCount--
 	if rc.refCount <= 0 {
-		delete(u.factory.uploaders, u.tags)
-		rc.TaggedLogsUploader.stop()
+		log.Debugf("stopping uploader %s with metadata %v", u.name, u.metadata)
+		delete(u.factory.uploaders, u.metadata)
+		rc.LogsUploader.stop()
 	}
 }
 
 // Stop gracefully stops all managed uploaders.
-func (u *LogsUploader) Stop() {
+func (u *LogsUploaderFactory) Stop() {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
 	for tags, rc := range u.uploaders {
-		rc.TaggedLogsUploader.stop()
+		rc.LogsUploader.stop()
 		delete(u.uploaders, tags)
 	}
 }
 
 // Stats returns the combined metrics of all managed uploaders.
-func (u *LogsUploader) Stats() map[string]int64 {
+func (u *LogsUploaderFactory) Stats() map[string]int64 {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
@@ -142,14 +187,16 @@ func (u *LogsUploader) Stats() map[string]int64 {
 }
 
 type logSender struct {
-	client *http.Client
-	url    string
+	client  *http.Client
+	url     string
+	headers map[string]string
 }
 
-func newLogSender(client *http.Client, url string) *logSender {
+func newLogSender(client *http.Client, url string, headers map[string]string) *logSender {
 	return &logSender{
-		client: client,
-		url:    url,
+		client:  client,
+		url:     url,
+		headers: headers,
 	}
 }
 
@@ -164,6 +211,9 @@ func (s *logSender) send(batch []json.RawMessage) error {
 		return fmt.Errorf("failed to create http request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	for k, v := range s.headers {
+		req.Header.Set(k, v)
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {

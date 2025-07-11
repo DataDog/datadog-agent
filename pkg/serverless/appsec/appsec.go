@@ -10,14 +10,12 @@ package appsec
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"os"
 
 	appsecLog "github.com/DataDog/appsec-internal-go/log"
-	"github.com/DataDog/go-libddwaf/v4"
-	"github.com/DataDog/go-libddwaf/v4/timer"
-	"github.com/DataDog/go-libddwaf/v4/waferrors"
+	waf "github.com/DataDog/go-libddwaf/v3"
+	wafErrors "github.com/DataDog/go-libddwaf/v3/errors"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/limiter"
@@ -78,10 +76,8 @@ func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycle
 //nolint:revive // TODO(ASM) Fix revive linter
 type AppSec struct {
 	cfg *config.Config
-	// Diagnostics corresponding to the current ruleset loaded in the `handle`.
-	rulesetDiagnostics libddwaf.Diagnostics
 	// WAF handle instance of the appsec event rules.
-	handle *libddwaf.Handle
+	handle *waf.Handle
 	// Events rate limiter to limit the max amount of appsec events we can send
 	// per second.
 	eventsRateLimiter *limiter.TokenTicker
@@ -115,58 +111,24 @@ func newAppSec() (*AppSec, error) {
 		return nil, err
 	}
 
-	builder, err := libddwaf.NewBuilder(cfg.Obfuscator.KeyRegex, cfg.Obfuscator.ValueRegex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create libddwaf.Builder: %w", err)
+	var rules map[string]any
+	if err := json.Unmarshal(cfg.Rules, &rules); err != nil {
+		return nil, err
 	}
-	defer builder.Close()
-	var diag libddwaf.Diagnostics
-	if cfg.Rules != nil {
-		var rules map[string]any
-		if err := json.Unmarshal(cfg.Rules, &rules); err != nil {
-			return nil, fmt.Errorf("failed to parse ruleset: %w", err)
-		}
-		diag, err = builder.AddOrUpdateConfig("configured", rules)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add ruleset: %w", err)
-		}
-	} else {
-		diag, err = builder.AddDefaultRecommendedRuleset()
-		if err != nil {
-			return nil, fmt.Errorf("failed to add default recommended ruleset: %w", err)
-		}
-	}
-	// Report errors & warnings reported by the ruleset for posterity
-	handleDiagnostics(diag)
 
-	handle := builder.Build()
+	handle, err := waf.NewHandle(rules, cfg.Obfuscator.KeyRegex, cfg.Obfuscator.ValueRegex)
+	if err != nil {
+		return nil, err
+	}
 
 	eventsRateLimiter := limiter.NewTokenTicker(int64(cfg.TraceRateLimit), int64(cfg.TraceRateLimit))
 	eventsRateLimiter.Start()
 
 	return &AppSec{
-		cfg:                cfg,
-		rulesetDiagnostics: diag,
-		handle:             handle,
-		eventsRateLimiter:  eventsRateLimiter,
+		cfg:               cfg,
+		handle:            handle,
+		eventsRateLimiter: eventsRateLimiter,
 	}, nil
-}
-
-func handleDiagnostics(diag libddwaf.Diagnostics) {
-	if diag.Version != "" {
-		log.Debugf("appsec: loaded ruleset version %s", diag.Version)
-	}
-	diag.EachFeature(func(name string, feat *libddwaf.Feature) {
-		if feat.Error != "" {
-			log.Warnf("appsec: %s feature reported error: %s", name, feat.Error)
-		}
-		for msg, ids := range feat.Errors {
-			log.Warnf("appsec: %s feature reported error: %q %s", name, ids, msg)
-		}
-		for msg, ids := range feat.Warnings {
-			log.Warnf("appsec: %s feature reported warning: %q %s", name, ids, msg)
-		}
-	})
 }
 
 // Close the AppSec instance.
@@ -187,8 +149,7 @@ func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
 	}
 
 	log.Debugf("appsec: monitoring the request context %v", addresses)
-	const timerKey = "waf.duration_ext"
-	ctx, err := a.handle.NewContext(timer.WithBudget(a.cfg.WafTimeout), timer.WithComponents(timerKey))
+	ctx, err := a.handle.NewContextWithBudget(a.cfg.WafTimeout)
 	if err != nil {
 		log.Errorf("appsec: failed to create waf context: %v", err)
 		return nil
@@ -203,21 +164,19 @@ func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
 		addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
 	}
 
-	timeout := false
-	res, err := ctx.Run(libddwaf.RunAddressData{TimerKey: timerKey, Persistent: addresses})
+	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses})
 	if err != nil {
-		if err == waferrors.ErrTimeout {
+		if err == wafErrors.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", a.cfg.WafTimeout)
-			timeout = true
 		} else {
 			log.Errorf("appsec: unexpected waf execution error: %v", err)
 			return nil
 		}
 	}
 
-	stats := ctx.Timer.Stats()
+	stats := ctx.Stats()
 	if res.HasEvents() {
-		log.Debugf("appsec: security events found in %s: %v", stats[timerKey], res.Events)
+		log.Debugf("appsec: security events found in %s: %v", stats.Timers["waf.duration_ext"], res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
@@ -226,20 +185,19 @@ func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
 
 	return &httpsec.MonitorResult{
 		Result:      res,
-		Diagnostics: a.rulesetDiagnostics,
-		Timeout:     timeout,
-		Timings:     stats,
+		Diagnostics: a.handle.Diagnostics(),
+		Stats:       stats,
 	}
 }
 
 // wafHealth is a simple test helper that returns the same thing as `waf.Health`
 // used to return in `go-libddwaf` prior to v1.4.0
 func wafHealth() error {
-	if ok, err := libddwaf.Usable(); !ok {
+	if ok, err := waf.SupportsTarget(); !ok {
 		return err
 	}
 
-	if ok, err := libddwaf.Load(); !ok {
+	if ok, err := waf.Load(); !ok {
 		return err
 	}
 	return nil
