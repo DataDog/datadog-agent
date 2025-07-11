@@ -64,9 +64,10 @@ type GitInfo struct {
 // monitor and translating them into actuator.ProcessesUpdate calls to the
 // actuator.
 type ProcessMonitor struct {
-	handler    Handler
-	procfsRoot string
-	resolver   ContainerResolver
+	handler            Handler
+	procfsRoot         string
+	resolver           ContainerResolver
+	executableAnalyzer executableAnalyzer
 
 	eventsCh chan event
 	doneCh   chan struct{}
@@ -91,14 +92,39 @@ func (pm *ProcessMonitor) NotifyExit(pid uint32) {
 	pm.sendEvent(&processEvent{kind: processEventKindExit, pid: pid})
 }
 
+// cacheSize is the size of the cache for the executable analyzer.
+//
+// The number is somewhat arbitrary, but the logic is something like:
+//   - We want to avoid redoing work when processes are created and destroyed
+//     frequently.
+//   - We don't want to use too much memory. Maybe we're cool with allocating
+//     <100K bytes of memory for the caches.
+//
+// The lru entries aren't super optimized, so they are 6 words per entry. Plus
+// some constant overheads and some map overheads due to load factor.
+//
+// FileKey: 32 bytes (16 for FileHandle + 16 for LastModified)
+// HashCacheEntry: 32 bytes (16 for the string header + 16 for the string data)
+//
+// Per entry: 2*32 bytes (Key) + 48 bytes (lru entry) + 8 bytes (bool) + 8 bytes
+// map value.
+//
+// Each cache entry in each cache works out to roughly ~128 bytes, and we have 2
+// caches, so that's ~256 bytes per entry here.
+//
+// By this math at 64 entries we're looking at <32KiB bytes of memory (16KiB
+// for the for the variable data plus some scattered overheads).
+const cacheSize = 64
+
 // newProcessMonitor is injectable with a fake FS for tests.
 func newProcessMonitor(h Handler, procFS string, resolver ContainerResolver) *ProcessMonitor {
 	pm := &ProcessMonitor{
-		handler:    h,
-		procfsRoot: procFS,
-		resolver:   resolver,
-		eventsCh:   make(chan event, 1024),
-		doneCh:     make(chan struct{}),
+		handler:            h,
+		procfsRoot:         procFS,
+		resolver:           resolver,
+		eventsCh:           make(chan event, 128),
+		doneCh:             make(chan struct{}),
+		executableAnalyzer: makeExecutableAnalyzer(cacheSize),
 	}
 
 	pm.wg.Add(1)
@@ -145,7 +171,9 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 	pm.wg.Add(1)
 	go func() {
 		defer pm.wg.Done()
-		pa, err := analyzeProcess(pid, pm.procfsRoot, pm.resolver)
+		pa, err := analyzeProcess(
+			pid, pm.procfsRoot, pm.resolver, &pm.executableAnalyzer,
+		)
 		shouldLog := err != nil &&
 			!os.IsNotExist(err) &&
 			analysisFailureLogLimiter.Allow()
