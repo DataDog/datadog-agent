@@ -8,6 +8,7 @@
 package msi
 
 import (
+	"context"
 	"fmt"
 
 	"golang.org/x/sys/windows/registry"
@@ -57,7 +58,7 @@ func IsProductInstalled(productName string) bool {
 // This is needed because in certain circumstances the installer database stored in the stable/experiment paths does not
 // reflect the installed version, and using those installers can lead to undefined behavior (either failure to uninstall,
 // or weird bugs from uninstalling a product with an installer from a different version).
-func RemoveProduct(productName string, opts ...MsiexecOption) error {
+func RemoveProduct(ctx context.Context, productName string, opts ...MsiexecOption) error {
 	options := []MsiexecOption{
 		Uninstall(),
 		WithProduct(productName),
@@ -67,7 +68,7 @@ func RemoveProduct(productName string, opts ...MsiexecOption) error {
 	if err != nil {
 		return fmt.Errorf("failed to remove product: %w", err)
 	}
-	output, err := cmd.Run()
+	output, err := cmd.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to remove product: %w\n%s", err, string(output))
 	}

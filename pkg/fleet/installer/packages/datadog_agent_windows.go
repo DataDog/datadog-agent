@@ -352,7 +352,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	var output []byte
 	if err == nil {
-		output, err = cmd.Run()
+		output, err = cmd.Run(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
@@ -371,7 +371,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct(product,
+		err := msi.RemoveProduct(ctx, product,
 			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
 		)
 		if err != nil {

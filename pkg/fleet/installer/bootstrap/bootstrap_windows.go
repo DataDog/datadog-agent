@@ -77,7 +77,7 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 		return nil, fmt.Errorf("failed to extract layers: %w", err)
 	}
 
-	installPath, err := getInstallerPath(tmpDir)
+	installPath, err := getInstallerPath(ctx, tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get installer path: %w", err)
 	}
@@ -85,8 +85,8 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	return iexec.NewInstallerExec(env, installPath), nil
 }
 
-func getInstallerPath(tmpDir string) (string, error) {
-	installPath, msiErr := getInstallerFromMSI(tmpDir)
+func getInstallerPath(ctx context.Context, tmpDir string) (string, error) {
+	installPath, msiErr := getInstallerFromMSI(ctx, tmpDir)
 	if msiErr != nil {
 		var err error
 		installPath, err = getInstallerFromOCI(tmpDir)
@@ -97,7 +97,7 @@ func getInstallerPath(tmpDir string) (string, error) {
 	return installPath, nil
 }
 
-func getInstallerFromMSI(tmpDir string) (string, error) {
+func getInstallerFromMSI(ctx context.Context, tmpDir string) (string, error) {
 	msis, err := filepath.Glob(filepath.Join(tmpDir, "datadog-agent-*-x86_64.msi"))
 	if err != nil {
 		return "", err
@@ -115,7 +115,7 @@ func getInstallerFromMSI(tmpDir string) (string, error) {
 	)
 	var output []byte
 	if err == nil {
-		output, err = cmd.Run()
+		output, err = cmd.Run(ctx)
 	}
 
 	if err != nil {
