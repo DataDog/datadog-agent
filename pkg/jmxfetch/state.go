@@ -133,6 +133,7 @@ func GetIntegrations() (map[string]interface{}, error) {
 		} else {
 			c["config.source"] = "unknown"
 		}
+		c["config.provider"] = splitSource[0]
 		c["instances"] = instances
 		c["check_name"] = config.Name
 
