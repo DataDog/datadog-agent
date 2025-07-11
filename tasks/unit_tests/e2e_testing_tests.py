@@ -3,7 +3,7 @@ import unittest
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
-from tasks.libs.testing.e2e import filter_only_leaf_tests
+from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.new_e2e_tests import post_process_output, pretty_print_logs, write_result_to_log_files
 
 
@@ -165,3 +165,36 @@ class TestFilterOnlyLeafTests(unittest.TestCase):
             ("mypackage", "TestParent/Child2"),
         }
         self.assertSetEqual(leaf_tests, expected_leaf_tests)
+
+
+class TestCreateTestSelectionGotestRegex(unittest.TestCase):
+    def test_empty(self):
+        self.assertEqual(create_test_selection_gotest_regex([]), "")
+
+    def test_single(self):
+        self.assertEqual(create_test_selection_gotest_regex(["TestFoo"]), '"^(?:TestFoo)$"')
+
+    def test_multiple_flat(self):
+        self.assertEqual(create_test_selection_gotest_regex(["TestFoo", "TestBar"]), '"^(?:TestBar|TestFoo)$"')
+
+    def test_nested(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestFoo", "TestBar/Baz"]), '"^(?:TestBar|TestFoo)$/^(?:Baz)$"'
+        )
+
+    def test_multiple_nested(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestFoo", "TestBar/Ba", "TestBar/Baz"]),
+            '"^(?:TestBar|TestFoo)$/^(?:Ba|Baz)$"',
+        )
+
+    def test_deep_nesting(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestA/B/C", "TestA/B/D", "TestX/Y"]),
+            '"^(?:TestA|TestX)$/^(?:B|Y)$/^(?:C|D)$"',
+        )
+
+    def test_segments_with_overlap(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestA/B", "TestA/C", "TestB/B"]), '"^(?:TestA|TestB)$/^(?:B|C)$"'
+        )
