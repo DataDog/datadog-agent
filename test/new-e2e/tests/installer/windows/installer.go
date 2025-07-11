@@ -49,6 +49,9 @@ type DatadogInstallerRunner interface {
 	StartConfigExperiment(packageName string, config ConfigExperiment) (string, error)
 	PromoteConfigExperiment(packageName string) (string, error)
 	StopConfigExperiment(packageName string) (string, error)
+	StartMultiConfigExperiment(packageName string, version string) (string, error)
+	StopMultiConfigExperiment(packageName string) (string, error)
+	PromoteMultiConfigExperiment(packageName string) (string, error)
 
 	// MSI commands
 	// TODO: we should separate installation from the command line interface
@@ -584,6 +587,21 @@ func (d *DatadogInstaller) PromoteConfigExperiment(packageName string) (string, 
 // StopConfigExperiment stops a config experiment through the daemon.
 func (d *DatadogInstaller) StopConfigExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("daemon stop-config-experiment %s", packageName))
+}
+
+// StartMultiConfigExperiment starts a multi-config experiment through the daemon.
+func (d *DatadogInstaller) StartMultiConfigExperiment(packageName string, version string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon start-multi-config-experiment %s %s", packageName, version))
+}
+
+// StopMultiConfigExperiment stops a multi-config experiment through the daemon.
+func (d *DatadogInstaller) StopMultiConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon stop-multi-config-experiment %s", packageName))
+}
+
+// PromoteMultiConfigExperiment promotes a multi-config experiment through the daemon.
+func (d *DatadogInstaller) PromoteMultiConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon promote-multi-config-experiment %s", packageName))
 }
 
 // ConfigExperiment represents a configuration experiment for the Datadog Installer.

@@ -162,6 +162,46 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 	return nil
 }
 
+func (h *testHooks) PreStartMultiConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostStartMultiConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreStopMultiConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostStopMultiConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PrePromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
 func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.userConfigsDir, f.Package))
 }

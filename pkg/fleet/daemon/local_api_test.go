@@ -72,6 +72,21 @@ func (m *testDaemon) PromoteConfigExperiment(ctx context.Context, pkg string) er
 	return args.Error(0)
 }
 
+func (m *testDaemon) StartMultiConfigExperiment(ctx context.Context, pkg string, version string) error {
+	args := m.Called(ctx, pkg, version)
+	return args.Error(0)
+}
+
+func (m *testDaemon) StopMultiConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testDaemon) PromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	args := m.Called(pkg, version)
 	return args.Get(0).(Package), args.Error(1)

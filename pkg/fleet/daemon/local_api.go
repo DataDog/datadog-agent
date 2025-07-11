@@ -83,6 +83,9 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/multi_config_experiment/start", l.startMultiConfigExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/multi_config_experiment/stop", l.stopMultiConfigExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/multi_config_experiment/promote", l.promoteMultiConfigExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/remove", l.remove).Methods(http.MethodPost)
 	return r
@@ -254,6 +257,64 @@ func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/multi_config_experiment/start -d '{"version":"1.21.5"}'
+func (l *localAPIImpl) startMultiConfigExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var request experimentTaskParams
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	log.Infof("Received local request to start multi-config experiment for package %s version %s", pkg, request.Version)
+	err = l.daemon.StartMultiConfigExperiment(r.Context(), pkg, request.Version)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/multi_config_experiment/stop -d '{}'
+func (l *localAPIImpl) stopMultiConfigExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	log.Infof("Received local request to stop multi-config experiment for package %s", pkg)
+	err := l.daemon.StopMultiConfigExperiment(r.Context(), pkg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/multi_config_experiment/promote -d '{}'
+func (l *localAPIImpl) promoteMultiConfigExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	log.Infof("Received local request to promote multi-config experiment for package %s", pkg)
+	err := l.daemon.PromoteMultiConfigExperiment(r.Context(), pkg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
 // example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/install -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
@@ -331,6 +392,9 @@ type LocalAPIClient interface {
 	StartConfigExperiment(pkg, version string) error
 	StopConfigExperiment(pkg string) error
 	PromoteConfigExperiment(pkg string) error
+	StartMultiConfigExperiment(pkg, version string) error
+	StopMultiConfigExperiment(pkg string) error
+	PromoteMultiConfigExperiment(pkg string) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed daemon API.
@@ -566,6 +630,85 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 		return fmt.Errorf("error promoting config experiment: %s", response.Error.Message)
 	}
 	defer resp.Body.Close()
+	return nil
+}
+
+// StartMultiConfigExperiment starts a multi-config experiment for a package.
+func (c *localAPIClientImpl) StartMultiConfigExperiment(pkg, version string) error {
+	params := experimentTaskParams{
+		Version: version,
+	}
+	body, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/multi_config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error starting multi-config experiment: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// StopMultiConfigExperiment stops a multi-config experiment for a package.
+func (c *localAPIClientImpl) StopMultiConfigExperiment(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/multi_config_experiment/stop", c.addr, pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error stopping multi-config experiment: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// PromoteMultiConfigExperiment promotes a multi-config experiment for a package.
+func (c *localAPIClientImpl) PromoteMultiConfigExperiment(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/multi_config_experiment/promote", c.addr, pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error promoting multi-config experiment: %s", response.Error.Message)
+	}
 	return nil
 }
 

@@ -56,6 +56,12 @@ type Hooks interface {
 	PostStartConfigExperiment(ctx context.Context, pkg string) error
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
+
+	PreStartMultiConfigExperiment(ctx context.Context, pkg string) error
+	PostStartMultiConfigExperiment(ctx context.Context, pkg string) error
+	PreStopMultiConfigExperiment(ctx context.Context, pkg string) error
+	PostStopMultiConfigExperiment(ctx context.Context, pkg string) error
+	PrePromoteMultiConfigExperiment(ctx context.Context, pkg string) error
 }
 
 // NewHooks creates a new Hooks instance that will execute hooks via the CLI.
@@ -129,6 +135,36 @@ func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) erro
 // PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
 func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PreStartMultiConfigExperiment calls the pre-start-multi-config-experiment hook for the package.
+func (h *hooksCLI) PreStartMultiConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "preStartMultiConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostStartMultiConfigExperiment calls the post-start-multi-config-experiment hook for the package.
+func (h *hooksCLI) PostStartMultiConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postStartMultiConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PreStopMultiConfigExperiment calls the pre-stop-multi-config-experiment hook for the package.
+func (h *hooksCLI) PreStopMultiConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "preStopMultiConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostStopMultiConfigExperiment calls the post-stop-multi-config-experiment hook for the package.
+func (h *hooksCLI) PostStopMultiConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postStopMultiConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PrePromoteMultiConfigExperiment calls the pre-promote-multi-config-experiment hook for the package.
+func (h *hooksCLI) PrePromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "prePromoteMultiConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostPromoteMultiConfigExperiment calls the post-promote-multi-config-experiment hook for the package.
+func (h *hooksCLI) PostPromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postPromoteMultiConfigExperiment", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.

@@ -72,6 +72,9 @@ type Daemon interface {
 	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
+	StartMultiConfigExperiment(ctx context.Context, pkg string, version string) error
+	StopMultiConfigExperiment(ctx context.Context, pkg string) error
+	PromoteMultiConfigExperiment(ctx context.Context, pkg string) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState(ctx context.Context) (map[string]PackageState, error)
@@ -508,6 +511,68 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
+	return nil
+}
+
+func (d *daemonImpl) StartMultiConfigExperiment(ctx context.Context, pkg string, version string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.startMultiConfigExperiment(ctx, pkg, version)
+}
+func (d *daemonImpl) startMultiConfigExperiment(ctx context.Context, pkg string, version string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "start_multi_config_experiment")
+	defer func() { span.Finish(err) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Starting multi-config experiment version %s for package %s", version, pkg)
+	err = d.installer(d.env).InstallMultiConfigExperiment(ctx, pkg, version)
+	if err != nil {
+		return fmt.Errorf("could not start multi-config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully started multi-config experiment version %s for package %s", version, pkg)
+	return nil
+}
+
+func (d *daemonImpl) PromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.promoteMultiConfigExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) promoteMultiConfigExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_multi_config_experiment")
+	defer func() { span.Finish(err) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Promoting multi-config experiment for package %s", pkg)
+	err = d.installer(d.env).PromoteMultiConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not promote multi-config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully promoted multi-config experiment for package %s", pkg)
+	return nil
+}
+
+func (d *daemonImpl) StopMultiConfigExperiment(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.stopMultiConfigExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) stopMultiConfigExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_multi_config_experiment")
+	defer func() { span.Finish(err) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Promoting multi-config experiment for package %s", pkg)
+	err = d.installer(d.env).PromoteMultiConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not promote multi-config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully promoted multi-config experiment for package %s", pkg)
 	return nil
 }
 
