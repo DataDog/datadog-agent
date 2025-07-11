@@ -1035,3 +1035,123 @@ func TestSendDeviceStatusMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestSendInterfaceStatus(t *testing.T) {
+	tts := []struct {
+		name                string
+		interfaces          []client.Interface
+		deviceNameToIPMap   map[string]string
+		expectedMetrics     []expectedMetric
+		expectedLogWarnings []string
+	}{
+		{
+			name: "single interface",
+			interfaces: []client.Interface{
+				{
+					DeviceName: "device1",
+					TenantName: "tenant1",
+					Name:       "eth0",
+					Type:       "ethernet",
+					VRF:        "default",
+				},
+			},
+			deviceNameToIPMap: map[string]string{
+				"device1": "192.168.1.1",
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "interface.status",
+					value: 1.0,
+					tags: []string{
+						"device_ip:192.168.1.1",
+						"device_namespace:default",
+						"interface:eth0",
+						"tenant:tenant1",
+						"device_name:device1",
+					},
+				},
+			},
+		},
+		{
+			name: "multiple interfaces",
+			interfaces: []client.Interface{
+				{
+					DeviceName: "device1",
+					TenantName: "tenant1",
+					Name:       "eth0",
+					Type:       "ethernet",
+					VRF:        "default",
+				},
+				{
+					DeviceName: "device2",
+					TenantName: "tenant2",
+					Name:       "eth1",
+					Type:       "ethernet",
+					VRF:        "vrf1",
+				},
+			},
+			deviceNameToIPMap: map[string]string{
+				"device1": "192.168.1.1",
+				"device2": "192.168.1.2",
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "interface.status",
+					value: 1.0,
+					tags: []string{
+						"device_ip:192.168.1.1",
+						"device_namespace:default",
+						"interface:eth0",
+						"tenant:tenant1",
+						"device_name:device1",
+					},
+				},
+				{
+					name:  versaMetricPrefix + "interface.status",
+					value: 1.0,
+					tags: []string{
+						"device_ip:192.168.1.2",
+						"device_namespace:default",
+						"interface:eth1",
+						"tenant:tenant2",
+						"device_name:device2",
+					},
+				},
+			},
+		},
+		{
+			name: "interface with missing device IP",
+			interfaces: []client.Interface{
+				{
+					DeviceName: "device1",
+					TenantName: "tenant1",
+					Name:       "eth0",
+					Type:       "ethernet",
+					VRF:        "default",
+				},
+			},
+			deviceNameToIPMap: map[string]string{
+				"device2": "192.168.1.2", // device1 is not in the map
+			},
+			expectedMetrics:     []expectedMetric{},
+			expectedLogWarnings: []string{"device IP not found for device device1, skipping interface status"},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendInterfaceStatus(tt.interfaces, tt.deviceNameToIPMap)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}
