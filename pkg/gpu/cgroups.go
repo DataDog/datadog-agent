@@ -8,82 +8,169 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/link"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
 func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
-	cgroups, err := utils.GetProcControlGroups(pid, pid)
+	cgroupReader, err := cgroups.NewReader(cgroups.WithHostPrefix(rootfs))
 	if err != nil {
-		return fmt.Errorf("failed to get cgroups for pid %d: %w", pid, err)
+		return fmt.Errorf("failed to get cgroups reader: %w", err)
 	}
 
-	if len(cgroups) == 0 {
-		return fmt.Errorf("no cgroups found for pid %d", pid)
+	cgroup, err := getCgroupForProcess(cgroupReader, pid)
+	if err != nil {
+		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
 	}
-
-	// Each cgroup is for a different subsystem, we only want the cgroup ID
-	// and we can extract that from any cgroup
-	cgroup := cgroups[0]
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
-	systemdContainerID := filepath.Base(string(cgroup.Path))
-	if err := configureDeviceAllow(systemdContainerID, rootfs, systemdDev); err != nil {
-		return fmt.Errorf("failed to configure systemd device allow for container %s: %w", systemdContainerID, err)
+	if err := configureSystemDAllow(cgroup.Identifier(), rootfs); err != nil {
+		return fmt.Errorf("failed to configure systemd device allow for cgroup %s: %w", cgroup.Identifier(), err)
 	}
 
-	// Configure cgroup device allow
-	if err := configureDeviceAllow(string(cgroup.Path), rootfs, cgroupDev); err != nil {
-		return fmt.Errorf("failed to configure cgroup device allow for container %s: %w", cgroup.Path, err)
+	cgroupPath := getFullCgroupPath(cgroup)
+
+	// Now configure the cgroup device allow, depending on the cgroup version
+	if cgroupReader.CgroupVersion() == 1 {
+		err = configureCgroupV1DeviceAllow(cgroupPath, rootfs)
+	} else {
+		err = configureCgroupV2DeviceAllow(cgroupPath, rootfs, nvidiaDeviceMajor)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s: %w", cgroupPath, err)
 	}
 
 	return nil
 }
 
 const (
-	systemdDeviceAllowFile = "50-DeviceAllow.conf"
-	systemdDeviceAllowDir  = "run/systemd/transient"
-	cgroupDeviceAllowFile  = "devices.allow"
-	cgroupDeviceAllowDir   = "sys/fs/cgroup/devices"
-	nvidiaDeviceAllow      = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
-	nvidiaCgroupAllow      = "c 195:* rwm\n"                 // 195 is the major number for the NVIDIA character devices
+	systemdDeviceAllowFile     = "50-DeviceAllow.conf"
+	systemdTransientConfigPath = "run/systemd/transient"
+	cgroupv1DeviceAllowFile    = "devices.allow"
+	cgroupv1DeviceAllowDir     = "sys/fs/cgroup/devices"
+	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
+	nvidiaCgroupv1Allow        = "c 195:* rwm\n"                 // 195 is the major number for the NVIDIA character devices
+	nvidiaDeviceMajor          = 195
 )
 
-type deviceType string
-
-const (
-	systemdDev deviceType = "systemd"
-	cgroupDev  deviceType = "cgroup"
-)
-
-func configureDeviceAllow(containerID, rootfs string, devType deviceType) error {
-	var deviceAllowPath string
-	var err error
-	var allowString string
-
-	switch devType {
-	case systemdDev:
-		deviceAllowPath, err = buildSafePath(rootfs, systemdDeviceAllowDir, containerID+".d", systemdDeviceAllowFile)
-		allowString = nvidiaDeviceAllow
-	case cgroupDev:
-		deviceAllowPath, err = buildSafePath(rootfs, cgroupDeviceAllowDir, containerID, cgroupDeviceAllowFile)
-		allowString = nvidiaCgroupAllow
-	default:
-		return fmt.Errorf("unknown device type: %s", devType)
+func getCgroupForProcess(cgroupReader *cgroups.Reader, pid uint32) (cgroups.Cgroup, error) {
+	for _, cgroup := range cgroupReader.ListCgroups() {
+		pids, err := cgroup.GetPIDs(5 * time.Second)
+		if err != nil {
+			log.Debugf("failed to get pids for cgroup %s: %v", cgroup.Identifier(), err)
+			// Ignore the error and continue to the next cgroup
+			continue
+		}
+		if slices.Contains(pids, int(pid)) {
+			return cgroup, nil
+		}
 	}
 
+	return nil, fmt.Errorf("failed to get cgroup for pid %d", pid)
+}
+
+func getFullCgroupPath(cgroup cgroups.Cgroup) string {
+	path := cgroup.Identifier()
+	parent, err := cgroup.GetParent()
+	for err == nil { // GetParent returns nil if the cgroup is the root cgroup
+		path = filepath.Join(parent.Identifier(), path)
+
+		parent, err = parent.GetParent()
+	}
+
+	return path
+}
+
+// insertAfterSection finds a section header in the lines and inserts the new line after it
+func insertAfterSection(lines []string, sectionHeader, newLine string) ([]string, error) {
+	// Find the section header line
+	sectionIndex := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line) == sectionHeader {
+			sectionIndex = i
+			break
+		}
+	}
+
+	if sectionIndex == -1 {
+		return nil, fmt.Errorf("failed to find section header %s", sectionHeader)
+	}
+
+	// Insert the new line after the section header
+	newLines := make([]string, len(lines)+1)
+	copy(newLines, lines[:sectionIndex+1])
+	newLines[sectionIndex+1] = newLine
+	copy(newLines[sectionIndex+2:], lines[sectionIndex+1:])
+
+	return newLines, nil
+}
+
+func configureSystemDAllow(containerID, rootfs string) error {
+	// The SystemD device configuration might be either in a 50-DeviceAllow.conf file
+	// in a service configuration directory, or in a service file directly. Default to the .conf
+	// file and fall back to the service file if it doesn't exist.
+	configFilePath, err := buildSafePath(rootfs, systemdTransientConfigPath, containerID+".d", systemdDeviceAllowFile)
 	if err != nil {
-		return fmt.Errorf("failed to build path for %s: %w", devType, err)
+		return fmt.Errorf("failed to build path for systemd device allow: %w", err)
 	}
 
-	log.Debugf("configuring %s device allow for container %s: %s", devType, containerID, deviceAllowPath)
+	if _, err := os.Stat(configFilePath); errors.Is(err, os.ErrNotExist) {
+		configFilePath, err := buildSafePath(rootfs, systemdTransientConfigPath, containerID, ".service")
+		if err != nil {
+			return fmt.Errorf("failed to build path for systemd service file: %w", err)
+		}
+
+		if _, err := os.Stat(configFilePath); errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to find either a SystemD configuration directory or configuration file for container %s", containerID)
+		}
+	}
+
+	// Read the entire file
+	content, err := os.ReadFile(configFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file %s: %w", configFilePath, err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+
+	// Insert the nvidiaDeviceAllow line after [Service]
+	newLines, err := insertAfterSection(lines, "[Service]", nvidiaSystemdDeviceAllow)
+	if err != nil {
+		return fmt.Errorf("failed to insert device allow line: %w", err)
+	}
+
+	// Write the modified content back to the file
+	newContent := strings.Join(newLines, "\n")
+	err = os.WriteFile(configFilePath, []byte(newContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write modified config to %s: %w", configFilePath, err)
+	}
+
+	return nil
+}
+
+func configureCgroupV1DeviceAllow(rootfs, cgroupPath string) error {
+	deviceAllowPath, err := buildSafePath(rootfs, cgroupv1DeviceAllowDir, cgroupPath, cgroupv1DeviceAllowFile)
+	if err != nil {
+		return fmt.Errorf("failed to build path for cgroupv1 device allow: %w", err)
+	}
+
+	log.Debugf("configuring cgroupv1 device allow for cgroup path %s: %s", cgroupPath, deviceAllowPath)
 
 	deviceAllowFile, err := os.OpenFile(deviceAllowPath, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -91,11 +178,71 @@ func configureDeviceAllow(containerID, rootfs string, devType deviceType) error 
 	}
 	defer deviceAllowFile.Close()
 
-	_, err = deviceAllowFile.WriteString(allowString)
+	_, err = deviceAllowFile.WriteString(nvidiaCgroupv1Allow)
 	if err != nil {
 		return fmt.Errorf("failed to write to %s: %w", deviceAllowPath, err)
 	}
 
+	return nil
+}
+
+// configureCgroupV2DeviceAllow configures device permissions for cgroupv2 using BPF programs
+func configureCgroupV2DeviceAllow(rootfs, cgroupPath string, deviceMajor int) error {
+	// Create a BPF program that allows access to devices with the specified major number
+	// The program receives a pointer to a structure with three uint32 values:
+	// - First field: device type (1=block, 2=char)
+	// - Second field: major number
+	// - Third field: minor number
+	prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{
+		Type: ebpf.CGroupDevice,
+		Instructions: asm.Instructions{
+			// R1 contains pointer to the structure
+			// Load major number (second uint32 at offset 4)
+			asm.LoadMem(asm.R2, asm.R1, 4, asm.Word),
+			// Check if this is the target device major number
+			asm.LoadImm(asm.R3, int64(deviceMajor), asm.DWord),
+			asm.JNE.Reg(asm.R2, asm.R3, "deny"),
+
+			// Allow access to matching character devices
+			asm.LoadImm(asm.R0, 1, asm.DWord),
+			asm.Return(),
+
+			// Deny all other devices
+			asm.LoadImm(asm.R0, 0, asm.DWord).WithSymbol("deny"),
+			asm.Return(),
+		},
+		License: "GPL",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create BPF program: %w", err)
+	}
+	defer prog.Close()
+
+	cgroupHostPath, err := buildSafePath(rootfs, "sys/fs/cgroup", cgroupPath)
+	if err != nil {
+		return fmt.Errorf("failed to build host path for cgroup %s: %w", cgroupPath, err)
+	}
+
+	cgroup, err := os.Open(cgroupHostPath)
+	if err != nil {
+		return fmt.Errorf("failed to open cgroup %s: %w", cgroupHostPath, err)
+	}
+	defer cgroup.Close()
+
+	// Attach the program to the cgroup
+	log.Debugf("attaching BPF program to cgroup path %s", cgroupHostPath)
+
+	err = link.RawAttachProgram(link.RawAttachProgramOptions{
+		Target:  int(cgroup.Fd()),
+		Program: prog,
+		Attach:  ebpf.AttachCGroupDevice,
+		Flags:   0, // AttachCgroup will try to attach with the MULTI flag, which we don't want because then other programs will override our behavior
+	})
+	if err != nil {
+		return fmt.Errorf("failed to attach BPF program to cgroup %s: %w", cgroupPath, err)
+	}
+
+	log.Debugf("successfully attached BPF device allow program to cgroup %s", cgroupPath)
 	return nil
 }
 
