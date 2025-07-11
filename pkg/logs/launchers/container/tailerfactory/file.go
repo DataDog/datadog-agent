@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -112,7 +112,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 
 	// check access to the file; if it is not readable, then returning an error will
 	// try to fall back to reading from a socket.
-	f, err := filesystem.OpenShared(path)
+	f, err := client.OpenShared(path)
 	if err != nil {
 		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
 		return nil, err
