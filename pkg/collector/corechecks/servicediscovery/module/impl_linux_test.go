@@ -362,7 +362,7 @@ func TestPorts(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	logFilePath := filepath.Join(tempDir, "test.log")
-	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	require.NoError(t, err)
 	t.Cleanup(func() { logFile.Close() })
 
