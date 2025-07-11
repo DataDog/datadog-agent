@@ -60,13 +60,9 @@ func IsStandalone() bool {
 
 // NewConfig returns a new appsec configuration read from the environment
 func NewConfig() (*Config, error) {
-	var rules []byte
-	if filename := os.Getenv(appsec.EnvRules); filename != "" {
-		var err error
-		rules, err = os.ReadFile(filename)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read rules file from $"+appsec.EnvRules+"=%s: %w", filename, err)
-		}
+	rules, err := appsec.RulesFromEnv()
+	if err != nil {
+		return nil, err
 	}
 	return &Config{
 		Rules:          rules,

@@ -135,10 +135,11 @@ func TestMonitor(t *testing.T) {
 			"Failed rules count exceeds threshold")
 
 		// No timeout expected
-		require.False(t, res.Timeout)
+		require.EqualValues(t, 0, res.Stats.TimeoutCount)
+		require.EqualValues(t, 0, res.Stats.TimeoutRASPCount)
 
 		// This almost empty WAF call duration should be less than 50µs
-		require.NotEqualValues(t, 0, res.Timings["waf.duration_ext"])
+		require.NotEqualValues(t, 0, res.Stats.Timers["waf.duration_ext"])
 	})
 
 	t.Run("events-detection", func(t *testing.T) {
