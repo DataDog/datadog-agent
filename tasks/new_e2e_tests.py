@@ -33,7 +33,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
-from tasks.libs.testing.e2e import create_test_selection_regex, filter_only_leaf_tests
+from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
@@ -369,8 +369,8 @@ def run(
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": ('-test.run ' + create_test_selection_regex(clean_run)) if run else "",
-        "skip": ('-test.skip ' + create_test_selection_regex(clean_skip)) if skip else "",
+        "run": ('-test.run ' + create_test_selection_gotest_regex(clean_run)) if run else "",
+        "skip": ('-test.skip ' + create_test_selection_gotest_regex(clean_skip)) if skip else "",
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else "",
         "platform": f"-platform {platform}" if platform else "",
@@ -453,7 +453,7 @@ def run(
                     for package, _ in to_retry
                 }
                 e2e_module.test_targets = list(affected_packages)
-                args["run"] = '-test.run ' + create_test_selection_regex([test for _, test in to_retry])
+                args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_retry])
             else:
                 break
 
@@ -470,7 +470,7 @@ def run(
             os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
         }
         e2e_module.test_targets = list(affected_packages)
-        args["run"] = '-test.run ' + create_test_selection_regex([test for _, test in to_teardown])
+        args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
         env_vars["E2E_TEARDOWN_ONLY"] = "true"
         test_flavor(
             ctx,
