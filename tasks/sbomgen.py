@@ -44,6 +44,7 @@ def build(
         build_tags=build_tags,
         bin_path=BIN_PATH,
         env=env,
+        check_deadcode_in_ci=True,
     )
 
     ctx.run(f"ls -alh {BIN_PATH}")
