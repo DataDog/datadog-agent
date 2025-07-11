@@ -129,14 +129,14 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	rootPath := []string{}
 	switch outValue.Kind() {
 	case reflect.Map:
-		return copyMap(cfg, outValue, input, rootPath, fs)
+		return copyMap(outValue, input, rootPath, fs)
 	case reflect.Struct:
-		return copyStruct(cfg, outValue, input, rootPath, fs)
+		return copyStruct(outValue, input, rootPath, fs)
 	case reflect.Slice:
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			thing := leaf.Get()
 			if arr, ok := thing.([]interface{}); ok {
-				return copyList(cfg, outValue, makeNodeArray(arr), rootPath, fs)
+				return copyList(outValue, makeNodeArray(arr), rootPath, fs)
 			}
 		}
 		if isEmptyString(input) {
@@ -184,7 +184,7 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 	return strings.ToLower(name), specifiers
 }
 
-func copyStruct(cfg model.Reader, target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
+func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	targetType := target.Type()
 	usedFields := make(map[string]struct{})
 	for i := 0; i < targetType.NumField(); i++ {
@@ -200,14 +200,10 @@ func copyStruct(cfg model.Reader, target reflect.Value, input nodetreemodel.Node
 				return fmt.Errorf("feature 'squash' not allowed for UnmarshalKey without EnableSquash option")
 			}
 
-			err := copyAny(cfg, target.FieldByName(f.Name), input, nextPath, fs)
+			err := copyAny(target.FieldByName(f.Name), input, nextPath, fs)
 			if err != nil {
 				warning := fmt.Sprintf("Failed to parse key %q at %v: %v", fieldKey, strings.Join(nextPath, "."), err)
-				if wr, ok := cfg.(interface{ AddWarning(string) }); ok {
-					wr.AddWarning(warning)
-				} else {
-					log.Warn(warning)
-				}
+				log.Warn(warning)
 				continue // don't fail, just warn
 			}
 			usedFields[fieldKey] = struct{}{}
@@ -221,7 +217,7 @@ func copyStruct(cfg model.Reader, target reflect.Value, input nodetreemodel.Node
 		if err != nil {
 			return err
 		}
-		err = copyAny(cfg, target.FieldByName(f.Name), child, nextPath, fs)
+		err = copyAny(target.FieldByName(f.Name), child, nextPath, fs)
 		if err != nil {
 			return err
 		}
@@ -246,7 +242,7 @@ func copyStruct(cfg model.Reader, target reflect.Value, input nodetreemodel.Node
 	return nil
 }
 
-func copyMap(cfg model.Reader, target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
+func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	ktype := target.Type().Key()
 	vtype := target.Type().Elem()
 	mtype := reflect.MapOf(ktype, vtype)
@@ -303,7 +299,7 @@ func copyMap(cfg model.Reader, target reflect.Value, input nodetreemodel.Node, c
 			} else {
 				elem := reflect.New(vtype).Elem()
 				nextPath := append(currPath, mkey)
-				err := copyAny(cfg, elem, child, nextPath, fs)
+				err := copyAny(elem, child, nextPath, fs)
 				if err != nil {
 					return err
 				}
@@ -359,7 +355,7 @@ func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet)
 	return fmt.Errorf("unsupported scalar type %v", target.Kind())
 }
 
-func copyList(cfg model.Reader, target reflect.Value, inputList []nodetreemodel.Node, currPath []string, fs *featureSet) error {
+func copyList(target reflect.Value, inputList []nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	if inputList == nil {
 		return fmt.Errorf("input value is not a list")
 	}
@@ -372,7 +368,7 @@ func copyList(cfg model.Reader, target reflect.Value, inputList []nodetreemodel.
 		ptrOut := reflect.New(elemType)
 		outTarget := ptrOut.Elem()
 		nextPath := append(currPath, fmt.Sprintf("%d", k))
-		err := copyAny(cfg, outTarget, elemSource, nextPath, fs)
+		err := copyAny(outTarget, elemSource, nextPath, fs)
 		if err != nil {
 			return err
 		}
@@ -382,7 +378,7 @@ func copyList(cfg model.Reader, target reflect.Value, inputList []nodetreemodel.
 	return nil
 }
 
-func copyAny(cfg model.Reader, target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
+func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	if target.Kind() == reflect.Pointer {
 		allocPtr := reflect.New(target.Type().Elem())
 		target.Set(allocPtr)
@@ -400,9 +396,9 @@ func copyAny(cfg model.Reader, target reflect.Value, input nodetreemodel.Node, c
 		}
 		return fmt.Errorf("at %v: scalar required, but input is not a leaf: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Map {
-		return copyMap(cfg, target, input, currPath, fs)
+		return copyMap(target, input, currPath, fs)
 	} else if target.Kind() == reflect.Struct {
-		return copyStruct(cfg, target, input, currPath, fs)
+		return copyStruct(target, input, currPath, fs)
 	} else if target.Kind() == reflect.Slice {
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			leafValue := leaf.Get()
@@ -410,7 +406,7 @@ func copyAny(cfg model.Reader, target reflect.Value, input nodetreemodel.Node, c
 				return nil
 			}
 			if arr, ok := leafValue.([]interface{}); ok {
-				return copyList(cfg, target, makeNodeArray(arr), currPath, fs)
+				return copyList(target, makeNodeArray(arr), currPath, fs)
 			}
 		}
 		return fmt.Errorf("at %v: []T required, but input is not an array: %v of %T", currPath, input, input)
