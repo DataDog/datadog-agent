@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 libloading = "0.8.8"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
 
 [lib]
 crate-type = ["cdylib"]
