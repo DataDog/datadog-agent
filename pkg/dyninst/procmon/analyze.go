@@ -16,9 +16,12 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -42,27 +45,24 @@ type ContainerResolver interface {
 // analyzeProcess performs light analysis of the process and its binary
 // to determine if it's interesting, and what its executable is.
 func analyzeProcess(
-	pid uint32, procfsRoot string, resolver ContainerResolver,
+	pid uint32,
+	procfsRoot string,
+	resolver ContainerResolver,
+	executableAnalyzer *executableAnalyzer,
 ) (processAnalysis, error) {
-	ddEnv, err := analyzeEnviron(int32(pid), procfsRoot)
-	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to check if process %d is interesting: %w", pid, err,
-		)
-	}
-	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
-		log.Tracef(
-			"process %d is not interesting: service name is %q, %s=%t",
-			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
-		)
-		return processAnalysis{interesting: false}, nil
+	maybeWrapErr := func(msg string, err error) error {
+		if err == nil || errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		pid, msg, err := pid, msg, err
+		return fmt.Errorf("analyzeProcess: pid %d: %s: %w", pid, msg, err)
 	}
 
 	exeLinkPath := path.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
 	exePath, err := os.Readlink(exeLinkPath)
 	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to open exe link for pid %d: %w", pid, err,
+		return processAnalysis{}, maybeWrapErr(
+			"failed to open exe link", err,
 		)
 	}
 
@@ -74,52 +74,70 @@ func analyzeProcess(
 			procfsRoot, strconv.Itoa(int(pid)), "root",
 			strings.TrimPrefix(exePath, "/"),
 		)
-		log.Debugf(
-			"exe for pid %d does not exist in root fs, trying under proc_root: %s",
-			pid, exePath,
-		)
+		if log.ShouldLog(log.TraceLvl) {
+			exePath := exePath
+			log.Tracef(
+				"exe for pid %d does not exist in root fs, trying under proc_root: %s",
+				pid, exePath,
+			)
+		}
 		exeFile, err = os.Open(exePath)
 	}
 	if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			err = fmt.Errorf("failed to open exe: %w", err)
-		} else {
-			err = nil
-		}
-		return processAnalysis{}, err
+		return processAnalysis{}, maybeWrapErr("failed to open exe", err)
 	}
 	defer exeFile.Close()
 
-	isGo, err := isGoElfBinaryWithDDTraceGo(exeFile)
-	if errors.Is(err, os.ErrNotExist) {
-		isGo, err = false, nil
-	}
-	if !isGo || err != nil {
-		return processAnalysis{}, err
-	}
-
-	exe := Executable{Path: exePath}
-	st, err := exeFile.Stat()
+	statI, err := exeFile.Stat()
 	if err != nil {
-		return processAnalysis{}, fmt.Errorf(
-			"failed to stat exe link for pid %v: %w", pid, err,
+		return processAnalysis{}, maybeWrapErr("failed to stat exe", err)
+	}
+	statSys := statI.Sys()
+	st, ok := statSys.(*syscall.Stat_t)
+	if !ok {
+		return processAnalysis{}, maybeWrapErr(
+			"failed to cast stat", fmt.Errorf("got %T", statSys),
 		)
 	}
-	if st, ok := st.Sys().(*syscall.Stat_t); ok {
-		exe.Key = FileKey{
-			FileHandle: FileHandle{
-				Dev: uint64(st.Dev),
-				Ino: st.Ino,
-			},
-			LastModified: st.Mtim,
-		}
+	fileKey := FileKey{
+		FileHandle: FileHandle{
+			Dev: uint64(st.Dev),
+			Ino: st.Ino,
+		},
+		LastModified: st.Mtim,
+	}
+
+	interesting, known := executableAnalyzer.checkFileKeyCache(fileKey)
+	if known && !interesting {
+		return processAnalysis{}, nil
+	}
+
+	ddEnv, err := analyzeEnviron(int32(pid), procfsRoot)
+	if err != nil {
+		return processAnalysis{}, maybeWrapErr(
+			"failed to analyze environ", err,
+		)
+	}
+	if ddEnv.serviceName == "" || !ddEnv.diEnabled {
+		log.Tracef(
+			"process %d is not interesting: service name is %q, %s=%t",
+			pid, ddEnv.serviceName, ddDynInstEnabledEnvVar, ddEnv.diEnabled,
+		)
+		return processAnalysis{interesting: false}, nil
+	}
+
+	isGo, err := executableAnalyzer.isInteresting(exeFile, fileKey)
+	if !isGo || err != nil {
+		return processAnalysis{}, maybeWrapErr(
+			"failed to check if exe is interesting", err,
+		)
 	}
 
 	containerInfo := analyzeContainerInfo(resolver, pid)
 
 	return processAnalysis{
 		service:     ddEnv.serviceName,
-		exe:         exe,
+		exe:         Executable{Path: exePath, Key: fileKey},
 		interesting: true,
 		gitInfo: GitInfo{
 			CommitSha:     ddEnv.gitCommitSha,
@@ -141,28 +159,44 @@ const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
 const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
 const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
 
+var ddEnvVarBufPool = sync.Pool{
+	New: func() any {
+		return bytes.NewBuffer(make([]byte, 0, 16<<10))
+	},
+}
+
 func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
+	buf := ddEnvVarBufPool.Get().(*bytes.Buffer)
+	defer ddEnvVarBufPool.Put(buf)
+	defer buf.Reset()
 	procEnv := path.Join(procfsRoot, strconv.Itoa(int(pid)), "environ")
-	env, err := os.ReadFile(procEnv)
-	if errors.Is(err, os.ErrNotExist) {
-		return ddEnvVars{}, nil
-	}
+
+	f, err := os.Open(procEnv)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ddEnvVars{}, nil
+		}
 		return ddEnvVars{}, fmt.Errorf(
-			"failed to read proc env at %s: %w", procEnv, err,
+			"failed to open proc env at %s: %w", procEnv, err,
 		)
 	}
+	defer f.Close()
+	_, err = buf.ReadFrom(f)
+	if err != nil {
+		return ddEnvVars{}, fmt.Errorf("failed to copy proc env: %w", err)
+	}
+	env := buf.Bytes()
 	var ddEnv ddEnvVars
 	for envVar, val := range envVars(env) {
-		switch envVar {
+		switch unsafe.String(unsafe.SliceData(envVar), len(envVar)) {
 		case ddServiceEnvVar:
-			ddEnv.serviceName = val
+			ddEnv.serviceName = string(val)
 		case ddDynInstEnabledEnvVar:
-			ddEnv.diEnabled, _ = strconv.ParseBool(val)
+			ddEnv.diEnabled, _ = strconv.ParseBool(string(val))
 		case ddGitCommitShaEnvVar:
-			ddEnv.gitCommitSha = val
+			ddEnv.gitCommitSha = string(val)
 		case ddGitRepositoryURLEnvVar:
-			ddEnv.gitRepositoryURL = val
+			ddEnv.gitRepositoryURL = string(val)
 		}
 	}
 	return ddEnv, nil
@@ -170,8 +204,8 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 
 // envVars returns an iterator over the environment variables in the given
 // procfs environment file.
-func envVars(procEnviron []byte) iter.Seq2[string, string] {
-	return func(yield func(string, string) bool) {
+func envVars(procEnviron []byte) iter.Seq2[[]byte, []byte] {
+	return func(yield func(k, v []byte) bool) {
 		cur := procEnviron
 		for len(cur) > 0 {
 			curVar := cur
@@ -185,7 +219,7 @@ func envVars(procEnviron []byte) iter.Seq2[string, string] {
 			if eqIdx == -1 { // shouldn't happen, just skip it
 				continue
 			}
-			if !yield(string(curVar[:eqIdx]), string(curVar[eqIdx+1:])) {
+			if !yield(curVar[:eqIdx], curVar[eqIdx+1:]) {
 				return
 			}
 		}
@@ -221,10 +255,6 @@ func analyzeContainerInfo(resolver ContainerResolver, pid uint32) ContainerInfo 
 		}
 	}
 	if cgroupContext.CGroupFile.Inode != hostCgroupNamespaceInode {
-		log.Tracef(
-			"analyzeContainerInfo(%d): cgroupContext.CGroupFile.Inode: %d",
-			pid, cgroupContext.CGroupFile.Inode,
-		)
 		return ContainerInfo{
 			EntityID: fmt.Sprintf("in-%d", cgroupContext.CGroupFile.Inode),
 		}
@@ -296,3 +326,68 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 }
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
+
+type executableAnalyzer struct {
+	htlHashCache cache[string, bool]
+	fileKeyCache cache[FileKey, bool]
+}
+
+func (a *executableAnalyzer) checkFileKeyCache(key FileKey) (interesting bool, known bool) {
+	return a.fileKeyCache.Get(key)
+}
+
+func (a *executableAnalyzer) isInteresting(f *os.File, key FileKey) (bool, error) {
+	if interesting, ok := a.fileKeyCache.Get(key); ok {
+		return interesting, nil
+	}
+	hash, err := computeHtlHash(f)
+	if err != nil {
+		return false, err
+	}
+	if interesting, ok := a.htlHashCache.Get(hash); ok {
+		return interesting, nil
+	}
+	interesting, err := isGoElfBinaryWithDDTraceGo(f)
+	if err != nil {
+		return false, err
+	}
+	a.fileKeyCache.Add(key, interesting)
+	a.htlHashCache.Add(hash, interesting)
+	return interesting, nil
+}
+
+// cache is a wrapper around an LRU cache that can be disabled.
+type cache[K comparable, V any] struct {
+	cache *lru.Cache[K, V]
+}
+
+func (c *cache[K, V]) Get(key K) (v V, ok bool) {
+	if c.cache != nil {
+		v, ok = c.cache.Get(key)
+	}
+	return v, ok
+}
+
+func (c *cache[K, V]) Add(key K, value V) {
+	if c.cache != nil {
+		c.cache.Add(key, value)
+	}
+}
+
+func makeCache[K comparable, V any](size int) cache[K, V] {
+	if size <= 0 {
+		return cache[K, V]{}
+	}
+	c, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err) // can't happen because we checked the size
+	}
+	return cache[K, V]{cache: c}
+}
+
+func makeExecutableAnalyzer(cacheSize int) executableAnalyzer {
+	return executableAnalyzer{
+		htlHashCache: makeCache[string, bool](cacheSize),
+		fileKeyCache: makeCache[FileKey, bool](cacheSize),
+	}
+}
