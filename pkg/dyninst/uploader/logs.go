@@ -13,38 +13,132 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LogsUploader is an uploader for sending log-like batches.
+// LogsUploader is a factory for creating and managing log uploaders for different tags.
 type LogsUploader struct {
-	*batcher
+	mu        sync.Mutex
+	uploaders map[string]*refCountedUploader
+	cfg       config
 }
 
-// NewLogsUploader creates a new uploader for sending log-like batches.
+type refCountedUploader struct {
+	*TaggedLogsUploader
+	refCount int
+}
+
+// TaggedLogsUploader is an uploader for sending log-like batches with a specific set of tags.
+type TaggedLogsUploader struct {
+	*batcher
+	tags    string
+	factory *LogsUploader
+}
+
+// NewLogsUploader creates a new uploader factory.
 func NewLogsUploader(opts ...Option) *LogsUploader {
-	cfg := defaultConfig()
+	lu := &LogsUploader{
+		uploaders: make(map[string]*refCountedUploader),
+		cfg:       defaultConfig(),
+	}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&lu.cfg)
 	}
-	sender := newLogSender(cfg.client, cfg.url)
-	return &LogsUploader{
-		batcher: newBatcher("logs", sender, opts...),
+	return lu
+}
+
+// GetUploader returns a reference-counted uploader for the given tags.
+// The caller is responsible for calling Close() on the returned uploader.
+func (u *LogsUploader) GetUploader(tags string) *TaggedLogsUploader {
+	log.Tracef("getting uploader for tags: %s", tags)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	if rc, ok := u.uploaders[tags]; ok {
+		rc.refCount++
+		return rc.TaggedLogsUploader
 	}
+
+	var logsURL, name string
+	if tags == "" {
+		logsURL = u.cfg.url.String()
+		name = "logs"
+	} else {
+		query, _ := url.ParseQuery(u.cfg.url.RawQuery)
+		// If we failed to parse the query, we'll use an empty query.
+		query.Set("ddtags", tags)
+		tagURL := *u.cfg.url
+		tagURL.RawQuery = query.Encode()
+		logsURL = tagURL.String()
+		name = fmt.Sprintf("logs:%s", tags)
+	}
+
+	sender := newLogSender(u.cfg.client, logsURL)
+	taggedUploader := &TaggedLogsUploader{
+		batcher: newBatcher(name, sender, u.cfg.batcherConfig),
+		tags:    tags,
+		factory: u,
+	}
+
+	u.uploaders[tags] = &refCountedUploader{
+		TaggedLogsUploader: taggedUploader,
+		refCount:           1,
+	}
+
+	return taggedUploader
 }
 
 // Enqueue adds a message to the uploader's queue.
-func (u *LogsUploader) Enqueue(data json.RawMessage) {
+func (u *TaggedLogsUploader) Enqueue(data json.RawMessage) {
 	u.enqueue(data)
 }
 
-// Stop gracefully stops the uploader.
-func (u *LogsUploader) Stop() {
-	u.stop()
+// Close decrements the reference count of the uploader. If the ref count reaches zero,
+// the uploader is stopped and removed from the factory.
+func (u *TaggedLogsUploader) Close() {
+	u.factory.mu.Lock()
+	defer u.factory.mu.Unlock()
+
+	rc, ok := u.factory.uploaders[u.tags]
+	if !ok {
+		log.Warnf("closing a tagged uploader that is not in the factory: tags=%q", u.tags)
+		return
+	}
+
+	rc.refCount--
+	if rc.refCount <= 0 {
+		delete(u.factory.uploaders, u.tags)
+		rc.TaggedLogsUploader.stop()
+	}
 }
 
-// Stats returns the uploader's metrics.
+// Stop gracefully stops all managed uploaders.
+func (u *LogsUploader) Stop() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	for tags, rc := range u.uploaders {
+		rc.TaggedLogsUploader.stop()
+		delete(u.uploaders, tags)
+	}
+}
+
+// Stats returns the combined metrics of all managed uploaders.
 func (u *LogsUploader) Stats() map[string]int64 {
-	return u.state.metrics.Stats()
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	totalStats := make(map[string]int64)
+	for _, rc := range u.uploaders {
+		stats := rc.state.metrics.Stats()
+		for k, v := range stats {
+			totalStats[k] += v
+		}
+	}
+	return totalStats
 }
 
 type logSender struct {

@@ -107,16 +107,24 @@ func analyzeProcess(
 		service:     ddEnv.serviceName,
 		exe:         exe,
 		interesting: true,
+		gitInfo: GitInfo{
+			CommitSha:     ddEnv.gitCommitSha,
+			RepositoryURL: ddEnv.gitRepositoryURL,
+		},
 	}, nil
 }
 
 type ddEnvVars struct {
-	serviceName string
-	diEnabled   bool
+	serviceName      string
+	diEnabled        bool
+	gitCommitSha     string
+	gitRepositoryURL string
 }
 
 const ddServiceEnvVar = "DD_SERVICE"
 const ddDynInstEnabledEnvVar = "DD_DYNAMIC_INSTRUMENTATION_ENABLED"
+const ddGitCommitShaEnvVar = "DD_GIT_COMMIT_SHA"
+const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
 
 func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 	procEnv := path.Join(procfsRoot, strconv.Itoa(int(pid)), "environ")
@@ -136,9 +144,10 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 			ddEnv.serviceName = val
 		case ddDynInstEnabledEnvVar:
 			ddEnv.diEnabled, _ = strconv.ParseBool(val)
-		}
-		if ddEnv.serviceName != "" && ddEnv.diEnabled {
-			break
+		case ddGitCommitShaEnvVar:
+			ddEnv.gitCommitSha = val
+		case ddGitRepositoryURLEnvVar:
+			ddEnv.gitRepositoryURL = val
 		}
 	}
 	return ddEnv, nil
