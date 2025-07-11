@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,6 +28,7 @@ type sink struct {
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
 	service      string
+	logUploader  *uploader.TaggedLogsUploader
 }
 
 var _ actuator.Sink = &sink{}
@@ -42,11 +44,14 @@ func (s *sink) HandleEvent(event output.Event) error {
 		return fmt.Errorf("error decoding event: %w", err)
 	}
 	s.controller.setProbeMaybeEmitting(s.programID, probe)
-	s.controller.logUploader.Enqueue(json.RawMessage(buf.Bytes()))
+	s.logUploader.Enqueue(json.RawMessage(buf.Bytes()))
 	return nil
 }
 
 func (s *sink) Close() {
+	if s.logUploader != nil {
+		s.logUploader.Close()
+	}
 	if closer, ok := s.symbolicator.(io.Closer); ok {
 		if err := closer.Close(); err != nil {
 			log.Warnf("failed to close symbolicator: %v", err)

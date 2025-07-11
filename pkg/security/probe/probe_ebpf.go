@@ -1487,7 +1487,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		seclog.Debugf("setsockopt event truncated")
 		if event.SetSockOpt.IsFilterTruncated {
 			p.BPFFilterTruncated.Add(1)
 		}

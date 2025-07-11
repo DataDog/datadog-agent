@@ -948,7 +948,11 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 			})
 		}
 
-		instructions, _ := bpf.Disassemble(raw)
+		instructions, allDecoded := bpf.Disassemble(raw)
+		if !allDecoded {
+			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
+			return ""
+		}
 
 		for i, inst := range instructions {
 			e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)
