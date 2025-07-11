@@ -1,0 +1,22 @@
+---
+features:
+  - |
+    Prometheus auto discovery now supports including or excluding targets using a regexp over
+    Kubernetes Annoations. The new `exclude_regexp` and `include_regexp` fields allow for more
+    complex filtering of Prometheus scrape targets.
+    ```json
+    [
+      {
+        "autodiscovery": {
+          "kubernetes_annotations": {
+            "include_regexp": {
+              "app": "my-app.*"
+            },
+            "exclude_regexp": {
+              "app": "my-app(10|20|30)"
+            }
+          },
+        }
+      }
+    ]
+    ```"[{\"autodiscovery\":{\"kubernetes_annotations\":{\"include\":{\"app\":\"my-app\"}},\"kubernetes_container_names\":[\"my-app\"]},\"configurations\":[{\"send_distribution_buckets\":true,\"timeout\":5}]}]"
