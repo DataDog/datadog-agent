@@ -10,6 +10,7 @@ import (
 	"os"
 )
 
+// CloudRunJobsOrigin origin tag value
 const CloudRunJobsOrigin = "cloudrun"
 
 const (
