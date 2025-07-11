@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -33,11 +32,6 @@ func isScalar(v interface{}) bool {
 	default:
 		return false
 	}
-}
-
-func isSlice(v interface{}) bool {
-	rval := reflect.ValueOf(v)
-	return rval.Kind() == reflect.Slice
 }
 
 func newLeafNode(v interface{}, source model.Source) Node {
