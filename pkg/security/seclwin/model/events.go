@@ -185,10 +185,6 @@ func (t EventType) String() string {
 		return "utimes"
 	case FileMountEventType:
 		return "mount"
-	case FileOpenTreeEventType:
-		return "open_tree"
-	case FileFsmountEventType:
-		return "fsmount"
 	case FileUmountEventType:
 		return "umount"
 	case FileSetXAttrEventType:
