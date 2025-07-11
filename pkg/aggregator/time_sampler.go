@@ -202,6 +202,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 		// part of the pipeline but also, here is a stage where all series have been
 		// generated & processed (even the ones generated from a histogram metric).
 		if blocklist != nil && blocklist.Test(serie.Name) {
+			tlmDogstatsdBlockedMetrics.Inc()
 			continue
 		}
 		serieSink.Append(serie)
