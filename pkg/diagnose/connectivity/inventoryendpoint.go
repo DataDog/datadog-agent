@@ -321,13 +321,7 @@ func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *
 }
 
 func (e resolvedEndpoint) checkHead(ctx context.Context, client *http.Client) (string, error) {
-	if e.limitRedirect {
-		withOneRedirect()(client)
-	}
 	statusCode, _, err := sendHead(ctx, client, e.url)
-	if e.limitRedirect {
-		client.CheckRedirect = nil
-	}
 	if err != nil {
 		return "Failed to connect", err
 	}
