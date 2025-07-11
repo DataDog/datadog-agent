@@ -7,7 +7,6 @@
 package checknetwork
 
 import (
-	"math"
 	"slices"
 
 	gocmp "github.com/google/go-cmp/cmp"
@@ -26,8 +25,7 @@ import (
 type networkCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor                  e2eos.Descriptor
-	metricCompareFraction       float64
-	metricCompareDecimals       int
+	metricCompareDistance       int
 	excludedFromValueComparison []string
 }
 
@@ -79,7 +77,6 @@ instances:
 		},
 	}
 
-	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
 			continue
@@ -102,7 +99,7 @@ instances:
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					return checkUtils.CompareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
+					return checkUtils.CompareValuesWithDistance(aValue, bValue, v.metricCompareDistance)
 				}),
 				gocmpopts.SortSlices(checkUtils.MetricPayloadCompare), // sort metrics
 			)
