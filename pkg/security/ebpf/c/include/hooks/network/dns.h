@@ -186,6 +186,12 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
     } else {
         send_packet_with_context = true;
         fill_network_process_context_from_pkt(&map_elem->full_dns_response.process, pkt);
+        u64 sched_cls_has_current_pid_tgid_helper = 0;
+        LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+        if (sched_cls_has_current_pid_tgid_helper) {
+            // fill span context (that was previously reset by reset_dns_response_event)
+            fill_span_context(&map_elem->full_dns_response.span);
+        }
         fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
         err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->full_dns_response.header, sizeof(struct dnshdr));
         header_id = map_elem->full_dns_response.header.id;

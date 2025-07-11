@@ -464,7 +464,7 @@ func loadAttacherTestConfigs() {
 		},
 		ExcludeTargets:        ExcludeInternal | ExcludeSelf,
 		EnableDetailedLogging: true,
-		SharedLibsLibset:      sharedlibraries.LibsetCrypto,
+		SharedLibsLibsets:     []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
 	}
 }
 

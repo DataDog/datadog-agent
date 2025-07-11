@@ -173,6 +173,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ContainerID:     tags.containerID,
 		GitCommitSha:    pt.GitCommitSha,
 		ImageTag:        pt.ImageTag,
+		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
 	}
 	for _, s := range pt.TraceChunk.Spans {

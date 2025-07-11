@@ -7,6 +7,7 @@ import sys
 
 from invoke import task
 
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.libs.releasing.version import get_version_numeric_only
 
@@ -49,16 +50,16 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, major_vers
         subsystem = 'windows'
     ldflags += f"-X {REPO_PATH}/cmd/systray/command/command.subsystem={subsystem} "
     ldflags += f"-linkmode external -extldflags '-Wl,--subsystem,{subsystem}' "
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -o {agent_bin} -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/systray"
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
-        "agent_bin": os.path.join(BIN_PATH, bin_name("ddtray")),
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
-    ctx.run(cmd.format(**args), env=env)
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/systray",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        bin_path=os.path.join(BIN_PATH, bin_name("ddtray")),
+        ldflags=ldflags,
+        env=env,
+    )
 
 
 @task

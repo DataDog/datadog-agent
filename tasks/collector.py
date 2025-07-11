@@ -28,7 +28,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.128.0"
+OCB_VERSION = "0.129.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [

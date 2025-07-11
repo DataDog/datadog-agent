@@ -1028,6 +1028,7 @@ type MutableSECLVariable interface {
 
 // ScopedVariables holds a set of scoped variables
 type ScopedVariables struct {
+	scoperName     string
 	scoper         Scoper
 	vars           map[string]map[string]MutableSECLVariable
 	expirablesLock sync.RWMutex
@@ -1040,7 +1041,7 @@ func (v *ScopedVariables) Len() int {
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
-func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
+func (v *ScopedVariables) NewSECLVariable(name string, value any, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
 		scope := v.scoper(ctx)
 		if scope == nil {
@@ -1060,10 +1061,10 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 		return vars[name]
 	}
 
-	setVariable := func(ctx *Context, value interface{}) error {
+	setVariable := func(ctx *Context, value any) error {
 		scope := v.scoper(ctx)
 		if scope == nil {
-			return fmt.Errorf("failed to scope variable '%s'", name)
+			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
 		}
 
 		key := scope.Hash()
@@ -1175,8 +1176,9 @@ func (v *ScopedVariables) ReleaseVariable(key string) {
 }
 
 // NewScopedVariables returns a new set of scope variables
-func NewScopedVariables(scoper Scoper) *ScopedVariables {
+func NewScopedVariables(scoperName string, scoper Scoper) *ScopedVariables {
 	return &ScopedVariables{
+		scoperName: scoperName,
 		scoper:     scoper,
 		vars:       make(map[string]map[string]MutableSECLVariable),
 		expirables: make(map[string][]expirableVariable),

@@ -83,6 +83,10 @@ type SafeDevice interface {
 	GetUtilizationRates() (nvml.Utilization, error)
 	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
 	IsMigDeviceHandle() (bool, error)
+	// GpmQueryDeviceSupport returns true if the device supports GPM
+	GpmQueryDeviceSupport() (nvml.GpmSupport, error)
+	// GpmSampleGet gets a sample for GPM
+	GpmSampleGet(sample nvml.GpmSample) error
 }
 
 // DeviceInfo holds common cached properties for a GPU device

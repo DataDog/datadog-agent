@@ -82,6 +82,12 @@ func TestPodParser(t *testing.T) {
 						},
 					},
 				},
+				EphemeralContainers: []kubelet.ContainerSpec{
+					{
+						Name:  "ephemeral-container",
+						Image: "busybox:latest",
+					},
+				},
 			},
 			Status: kubelet.Status{
 				Phase: string(corev1.PodRunning),
@@ -102,12 +108,24 @@ func TestPodParser(t *testing.T) {
 						Ready:   true,
 					},
 				},
+				EphemeralContainers: []kubelet.ContainerStatus{
+					{
+						Name:    "ephemeral-container",
+						ImageID: "12345",
+						Image:   "busybox:latest",
+						ID:      "docker://ephemeral-container-id",
+						Ready:   false,
+					},
+				},
 			},
 		},
 	}
 
-	events := parsePods(referencePod)
-	containerEvent, podEvent := events[0], events[1]
+	events := parsePods(referencePod, true)
+	parsedEntities := make([]workloadmeta.Entity, 0, len(events))
+	for _, event := range events {
+		parsedEntities = append(parsedEntities, event.Entity)
+	}
 
 	expectedContainer := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -144,6 +162,37 @@ func TestPodParser(t *testing.T) {
 			Health: "healthy",
 		},
 	}
+
+	expectedEphemeralContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "ephemeral-container-id",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "ephemeral-container",
+			Labels: map[string]string{
+				kubernetes.CriContainerNamespaceLabel: "namespace",
+			},
+		},
+		Image: workloadmeta.ContainerImage{
+			ID:        "12345",
+			Name:      "busybox",
+			ShortName: "busybox",
+			Tag:       "latest",
+			RawName:   "busybox:latest",
+		},
+		Runtime: "docker",
+		Owner: &workloadmeta.EntityID{
+			Kind: "kubernetes_pod",
+			ID:   "uniqueIdentifier",
+		},
+		Ports:   []workloadmeta.ContainerPort{},
+		EnvVars: map[string]string{},
+		State: workloadmeta.ContainerState{
+			Health: "unhealthy", // Ephemeral containers are not ready
+		},
+	}
+
 	expectedPod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -180,6 +229,19 @@ func TestPodParser(t *testing.T) {
 				},
 			},
 		},
+		EphemeralContainers: []workloadmeta.OrchestratorContainer{
+			{
+				Name: "ephemeral-container",
+				ID:   "ephemeral-container-id",
+				Image: workloadmeta.ContainerImage{
+					ID:        "12345",
+					Name:      "busybox",
+					ShortName: "busybox",
+					Tag:       "latest",
+					RawName:   "busybox:latest",
+				},
+			},
+		},
 		InitContainers:             []workloadmeta.OrchestratorContainer{},
 		PersistentVolumeClaimNames: []string{"pvcName"},
 		Ready:                      true,
@@ -189,7 +251,7 @@ func TestPodParser(t *testing.T) {
 		QOSClass:                   "Guaranteed",
 	}
 
-	assert.Equal(t, expectedPod, podEvent.Entity)
+	expectedEntities := []workloadmeta.Entity{expectedContainer, expectedEphemeralContainer, expectedPod}
 
-	assert.Equal(t, expectedContainer, containerEvent.Entity)
+	assert.ElementsMatch(t, expectedEntities, parsedEntities)
 }

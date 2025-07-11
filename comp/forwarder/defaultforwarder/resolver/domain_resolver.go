@@ -84,7 +84,7 @@ type SingleDomainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
-	config.OnUpdate(func(setting string, oldValue, newValue any) {
+	config.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
 		found := false
 
 		apiKeys, _ := resolver.GetAPIKeysInfo()

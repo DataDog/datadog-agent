@@ -15,6 +15,9 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
             if (nlink > syscall->exec.file.metadata.nlink) {
                 syscall->exec.file.metadata.nlink = nlink;
             }
+            if (is_overlayfs(dentry)) {
+                set_overlayfs_nlink(dentry, &syscall->exec.file);
+            }
         }
         return 0;
     }

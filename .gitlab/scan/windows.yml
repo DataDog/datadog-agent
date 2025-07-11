@@ -1,0 +1,117 @@
+.scan_windows_package:
+  stage: scan
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  tags: ["arch:amd64"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    # TODO: Put that in the buildimage
+    - curl -L -o vt-cli.zip "https://github.com/VirusTotal/vt-cli/releases/download/1.1.1/Linux64.zip"
+    - |
+      echo "82107394601c5669771be1f11d2ceb2f13f4117d72a3e6346b4ed13a6f10878c vt-cli.zip" > vt-cli.zip.sha256
+      sha256sum -c vt-cli.zip.sha256
+      if [ $? -ne 0 ]; then
+        echo "vt-cli.zip checksum verification failed!" >&2
+        exit 1
+      fi
+    - unzip vt-cli.zip
+    - chmod +x vt
+    - ./vt version
+    # Find the MSI file for this pipeline
+    - MSI_FILE=$(find "$OMNIBUS_PACKAGE_DIR" -name "$SCAN_ARTIFACT_PATTERN" | head -n 1)
+    - |
+      if [ -z "$MSI_FILE" ]; then
+        echo "No MSI file found for pattern $SCAN_ARTIFACT_PATTERN and pipeline ID $CI_PIPELINE_ID"
+        exit 1
+      fi
+    - VT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $VIRUS_TOTAL api-key) || exit $?; export VT_API_KEY
+    - echo "Scanning $MSI_FILE"
+    - |
+      SHA256=$(sha256sum < "$MSI_FILE" | awk '{print $1}')
+      echo "SHA256: $SHA256"
+
+      print_report() {
+        ./vt --apikey "$VT_API_KEY" file "$SHA256" --format json | jq '
+        .[0] | {
+          malicious_matches: (
+            .last_analysis_results
+            | to_entries
+            | map(select(.value.category=="malicious")
+              | "\(.value.engine_name) (\(.value.engine_version // "N/A") - \(.value.engine_update)) -> malicious: \(.value.result)"
+            )
+          ),
+          suspicious_matches: (
+            .last_analysis_results
+            | to_entries
+            | map(select(.value.category=="suspicious")
+              | "\(.value.engine_name) (\(.value.engine_version // "N/A") - \(.value.engine_update)) -> suspicious: \(.value.result)"
+            )
+          ),
+          metadata: {
+            name: .meaningful_name,
+            size_mb: ((.size / 1024 / 1024) * 100 | round / 100),
+            last_modification_date: (.last_modification_date|strflocaltime("%Y-%m-%d %H:%M:%S")),
+            last_submission_date: (.last_submission_date|strflocaltime("%Y-%m-%d %H:%M:%S")),
+            first_submission_date: (.first_submission_date|strflocaltime("%Y-%m-%d %H:%M:%S")),
+            times_submitted: .times_submitted,
+            tags: .tags,
+            last_analysis_stats: .last_analysis_stats,
+            total_votes: .total_votes,
+            signature_verified: .signature_info.verified
+          }
+        }
+        '
+        echo "Go to https://www.virustotal.com/gui/file/$SHA256 for more details"
+      }
+
+      ANALYSIS_ID=$(./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" | awk '{print $2}')
+      echo "Submitted file for analysis, analysis id: $ANALYSIS_ID"
+
+      # Poll for analysis results
+      while true; do
+          echo "Checking analysis results..."
+          RESULT=$(./vt --apikey "$VT_API_KEY" analysis "$ANALYSIS_ID" --format json)
+          STATUS=$(echo "$RESULT" | jq -r '.[0].status // empty')
+          if [[ -z "$STATUS" || "$STATUS" != "completed" ]]; then
+              echo "Analysis results not available yet, waiting..."
+              sleep 60
+          else
+              MALICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.malicious')
+              SUSPICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.suspicious')
+              if [[ "$MALICIOUS_COUNT" -ne 0 || "$SUSPICIOUS_COUNT" -ne 0 ]]; then
+                  echo "Malicious or suspicious file detected!"
+                  print_report
+                  exit 1
+              else
+                  echo "ALL GOOD"
+                  print_report
+              exit 0
+              fi
+          fi
+      done
+
+scan_packages_windows-x64:
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_main]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+  allow_failure: true
+
+scan_packages_windows-fips-x64:
+  rules:
+    - !reference [.on_deploy]
+    - !reference [.on_main]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+  allow_failure: true

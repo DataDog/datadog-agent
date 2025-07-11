@@ -78,6 +78,7 @@ from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
+from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
     check_go_mod_replaces,
     check_go_version,
@@ -160,6 +161,7 @@ ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
 ns.add_task(mod_diffs)
+ns.add_task(build_and_upload_fuzz)
 # To deprecate
 ns.add_task(lint_go)
 

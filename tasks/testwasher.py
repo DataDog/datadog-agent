@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 import os
 import re
 from collections import defaultdict
@@ -15,6 +14,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.generation import remove_fields, update_child_job_variables, update_needs_parent
 from tasks.libs.testing.flakes import consolidate_flaky_failures
+from tasks.libs.testing.result_json import ResultJson
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult
 
 FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
@@ -35,6 +35,7 @@ class TestWasher:
         # If FLAKY_PATTERNS_CONFIG is set in the environment, it will be used to determine which tests are flaky. Should have the same format as flakes.yaml
 
         self.test_output_json_file = test_output_json_file
+        self.test_output_json = ResultJson.from_file(test_output_json_file)  # type: ignore[attribute-defined-outside-init]
         self.flaky_test_indicator = flaky_test_indicator
         self.flakes_file_paths = flakes_file_paths or ["flakes.yaml"]
         if os.environ.get("FLAKY_PATTERNS_CONFIG"):
@@ -54,16 +55,15 @@ class TestWasher:
         """
         marked_flaky_test = defaultdict(set)  # dict[package] =  {TestName, TestName2}
 
-        with open(self.test_output_json_file, encoding='utf-8') as f:
-            for line in f:
-                test_result = json.loads(line)
-                if "Test" not in test_result:
+        for package, tests in self.test_output_json.package_tests_dict.items():
+            for test_name, actions in tests.items():
+                if test_name == "_":
+                    # This is a package-level action list, we don't care about it for flaky tests
                     continue
-                if "Output" in test_result and self.is_marked_flaky(
-                    test_result["Package"], test_result["Test"], test_result["Output"]
-                ):
-                    print("Test is marked as flaky", test_result["Package"], test_result["Test"])
-                    marked_flaky_test[test_result["Package"]].add(test_result["Test"])
+                # If the test is marked as flaky, we add it to the marked flaky tests
+                if any(self.is_marked_flaky(package, test_name, action.output) for action in actions if action.output):
+                    marked_flaky_test[package].add(test_name)
+
         return marked_flaky_test
 
     def is_marked_flaky(self, package: str, test: str, log: str) -> bool:
@@ -78,56 +78,30 @@ class TestWasher:
             or (package in self.known_flaky_tests and test in self.known_flaky_tests[package])
         )
 
-    def get_failing_tests(self) -> dict:
+    def get_failing_tests(self) -> dict[str, set[str]]:
         """
         Read the test output json file and return the tests that are failing
         """
-        failing_tests = defaultdict(set)
-        with open(self.test_output_json_file, encoding='utf-8') as f:
-            for line in f:
-                test_result = json.loads(line)
-                if "Test" not in test_result:
-                    continue
-                if "Action" in test_result and test_result["Action"] == "fail":
-                    failing_tests[test_result["Package"]].add(test_result["Test"])
-                if "Output" in test_result and "panic:" in test_result["Output"]:
-                    failing_tests[test_result["Package"]].add(test_result["Test"])
+        return self.test_output_json.failing_tests  # type: ignore[assignment]
 
-        return failing_tests
-
-    def get_flaky_failures(self) -> dict:
+    def get_flaky_failures(self) -> dict[str, set[str]]:
         """
         Return failures that are due to flakiness. A test is considered flaky if it failed because of a flake.
         In the following cases the test failure is considered a flaky failure:
         - The test failed and is marked as flaky
         - Test failed and is not marked as flaky but all its failing children are marked as flaky or are flaky failures.
         """
-        flaky_failures = defaultdict(set)  # dict[package] =  {TestName, TestName2}
-        failing_tests = defaultdict(set)
-        with open(self.test_output_json_file, encoding='utf-8') as f:
-            for line in f:
-                test_result = json.loads(line)
-                if "Test" not in test_result:
-                    continue
-                if "Package" not in test_result:
-                    continue
-                if "Action" in test_result and test_result["Action"] == "fail":
-                    failing_tests[test_result["Package"]].add(test_result["Test"])
+        # TODO[ACIX-913]: Fix the semantics of this function - it actually returns all flaky tests, not just *failing* tests.
+        # See for example the test_pretty_print_inner_depth2 test in tasks/unit_tests/e2e_testing_tests.py.
+        # When running the test, this function returns a non-empty result, even though all the tests in the dummy json output are passing.
+        # This is not super easy to fix, because it is used in many places that now rely on this behavior.
+        failing_tests = self.test_output_json.failing_tests
 
-                if "Output" in test_result and "panic:" in test_result["Output"]:
-                    failing_tests[test_result["Package"]].add(test_result["Test"])
-
-                if (
-                    test_result["Package"] in flaky_failures
-                    and test_result["Test"] in flaky_failures[test_result["Package"]]
-                ):
-                    # Already added to the flaky failures, no need to try again
-                    continue
-
-                if "Output" in test_result and self.is_flaky_failure(
-                    test_result["Package"], test_result["Test"], test_result["Output"]
-                ):
-                    flaky_failures[test_result["Package"]].add(test_result["Test"])
+        flaky_failures = defaultdict(set)
+        for package, tests in self.test_output_json.package_tests_dict.items():
+            for test, lines in tests.items():
+                if any(self.is_flaky_failure(package, test, line.output) for line in lines if line.output):
+                    flaky_failures[package].add(test)
 
         for pkg, test in failing_tests.items():
             if pkg not in flaky_failures:
@@ -218,7 +192,6 @@ class TestWasher:
         If only known flaky tests are failing, we should succeed.
         If failing, displays the failing tests that are not known to be flaky
         """
-
         should_succeed = True
         failed_command = False
         failed_tests = []

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import fnmatch
 import glob
-import json
 import operator
 import os
 import re
@@ -37,6 +36,7 @@ from tasks.libs.common.utils import (
     running_in_ci,
 )
 from tasks.libs.releasing.json import _get_release_json_value
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
@@ -119,6 +119,8 @@ def test_flavor(
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
+    recursive: bool = True,
+    attempt_number: int = 0,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -143,14 +145,15 @@ def test_flavor(
 
     # Produce the junit file only if a junit tarball needs to be produced
     if junit_tar:
-        junit_file = f"junit-out-{flavor.name}.xml"
-        result.junit_file_path = os.path.join('.', junit_file)
+        # Include attempt number in the junit file name to avoid overwriting previous runs
+        junit_file = f"junit-out-{flavor.name}-{attempt_number}.xml"
+        result.junit_file_paths.append(os.path.join('.', junit_file))
 
-        junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
+        junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
         args["junit_file_flag"] = junit_file_flag
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(modules)
+    packages = compute_gotestsum_cli_args(modules, recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -181,7 +184,7 @@ def test_flavor(
             return
 
     if junit_tar:
-        enrich_junitxml(result.junit_file_path, flavor)
+        enrich_junitxml(junit_file, flavor)  # type: ignore
 
     return result
 
@@ -211,9 +214,7 @@ def sanitize_env_vars():
 
 def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
-        junit_file = test_result.junit_file_path
-
-        produce_junit_tar(junit_file, junit_tar)
+        produce_junit_tar(test_result.junit_file_paths, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
 
@@ -388,6 +389,7 @@ def test(
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
+            recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
     # Output (only if tests ran)
@@ -617,22 +619,15 @@ def send_unit_tests_stats(_, job_name, extra_tag=None):
 
 
 def parse_test_log(log_file):
-    failed_tests = []
-    n_test_executed = 0
-    with open(log_file) as f:
-        for line in f:
-            json_line = json.loads(line)
-            if (
-                json_line["Action"] == "fail"
-                and "Test" in json_line
-                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
-            ):
-                n_test_executed += 1
-                failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
-            if json_line["Action"] == "pass" and "Test" in json_line:
-                n_test_executed += 1
-                if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
-                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
+    obj: ResultJson = ResultJson.from_file(log_file)
+    failed_tests = [
+        f"{package}/{test_name}"
+        for package, tests in obj.failing_tests.items()
+        for test_name in tests
+        if test_name != "_"  # Exclude package-level failures
+    ]
+
+    n_test_executed = len([line for line in obj.lines if line.action in (ActionType.PASS, ActionType.FAIL)])
     return failed_tests, n_test_executed
 
 
@@ -878,7 +873,7 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule]):
+def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
     targets = []
     for module in modules:
         if not module.should_test():
@@ -888,8 +883,10 @@ def compute_gotestsum_cli_args(modules: list[GoModule]):
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    if recursive:
+        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    else:
+        packages = ' '.join(targets)
     return packages
 
 

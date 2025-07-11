@@ -220,6 +220,12 @@ Package tagger provides the tagger interface for the Datadog Agent
 
 Package telemetry implements a component for all agent telemetry.
 
+### [comp/core/workloadfilter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadfilter)
+
+*Datadog Team*: container-platform
+
+Package workloadfilter provides the interface for the filter component
+
 ### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadmeta)
 
 *Datadog Team*: container-platform
@@ -680,6 +686,12 @@ Package updater is the updater component.
 *Datadog Team*: container-integrations
 
 Package datadogclient provides a client to query the datadog API
+
+### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
+
+*Datadog Team*: fleet
+
+Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 

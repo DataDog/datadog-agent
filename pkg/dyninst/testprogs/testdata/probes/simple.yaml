@@ -43,20 +43,27 @@ probes:
     snapshotsPerSecond: 2
   where:
     methodName: main.inlined
-# - id: mapArg
-#   type: LOG_PROBE
-#   captureSnapshot: true
-#   where:
-#     methodName: main.mapArg
-# - id: bigMapArg
-#   type: LOG_PROBE
-#   captureSnapshot: true
-#   where:
-#     methodName: main.bigMapArg
-# - id: PointerChainArg
-#   type: LOG_PROBE
-#   captureSnapshot: true
-#   where:
-#     methodName: main.PointerChainArg
-#   capture:
-#     maxReferenceDepth: 3
+- id: mapArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.mapArg
+- id: bigMapArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.bigMapArg
+- id: PointerChainArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.PointerChainArg
+  capture:
+    maxReferenceDepth: 3
+- id: PointerSmallChainArg
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.PointerSmallChainArg
+  capture:
+    maxReferenceDepth: 5

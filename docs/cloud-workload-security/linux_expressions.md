@@ -1720,9 +1720,16 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
+| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter using sha256 |
+| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Filter instructions |
+| [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
+| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
+| [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
+| [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
 
 ### Event `setuid`
 
@@ -3783,6 +3790,34 @@ Definition: Maximum (hard) limit value
 
 
 
+### `setsockopt.filter_hash` {#setsockopt-filter_hash-doc}
+Type: string
+
+Definition: Hash of the socket filter using sha256
+
+
+
+### `setsockopt.filter_instructions` {#setsockopt-filter_instructions-doc}
+Type: string
+
+Definition: Filter instructions
+
+
+
+### `setsockopt.filter_len` {#setsockopt-filter_len-doc}
+Type: int
+
+Definition: Length of the filter
+
+
+
+### `setsockopt.is_filter_truncated` {#setsockopt-is_filter_truncated-doc}
+Type: bool
+
+Definition: Indicates that the filter is truncated
+
+
+
 ### `setsockopt.level` {#setsockopt-level-doc}
 Type: int
 
@@ -3794,6 +3829,27 @@ Definition: Socket level
 Type: int
 
 Definition: Socket option name
+
+
+
+### `setsockopt.socket_family` {#setsockopt-socket_family-doc}
+Type: int
+
+Definition: Socket family
+
+
+
+### `setsockopt.socket_protocol` {#setsockopt-socket_protocol-doc}
+Type: int
+
+Definition: Socket protocol
+
+
+
+### `setsockopt.socket_type` {#setsockopt-socket_type-doc}
+Type: int
+
+Definition: Socket type
 
 
 
@@ -5121,7 +5177,7 @@ SetSockopt Levels are the supported levels for the setsockopt event.
 | `IPPROTO_ICMPV6` | all |
 
 ### `SetSockopt Options` {#setsockopt-options}
-SetSockopt Options are the supported options for the setsockopt event.
+SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.
 
 | Name | Architectures |
 | ---- |---------------|
@@ -5380,6 +5436,19 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPOLL` | all |
 | `SIGPWR` | all |
 | `SIGSYS` | all |
+
+### `Socket types` {#socket-types}
+Socket types are the supported socket types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `SOCK_STREAM` | all |
+| `SOCK_DGRAM` | all |
+| `SOCK_RAW` | all |
+| `SOCK_RDM` | all |
+| `SOCK_SEQPACKET` | all |
+| `SOCK_DCCP` | all |
+| `SOCK_PACKET` | all |
 
 ### `SysCtl Actions` {#sysctl-actions}
 SysCtl Actions are the supported actions for the sysctl event.

@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import abc
-import json
 import os
-from collections import defaultdict
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import running_in_ci
+from tasks.libs.testing.result_json import ResultJson
 from tasks.modules import GoModule
 
 DEFAULT_TEST_OUTPUT_JSON = "test_output.json"
@@ -65,68 +64,43 @@ class TestResult(ExecResult):
         self.result_type = "Tests"
         # Path to the result.json file output by gotestsum (should always be present)
         self.result_json_path = None
-        # Path to the junit file output by gotestsum (only present if specified in dda inv test)
-        self.junit_file_path = None
+        # List of paths to the junit files output by gotestsum (only present if specified in dda inv test)
+        # We have multiple because each retry will produce a new junit file
+        self.junit_file_paths = []
+
+    def get_failing_tests(self) -> tuple[set[str], dict[str, set[str]]]:
+        obj: ResultJson = ResultJson.from_file(self.result_json_path)
+        return obj.failing_packages, obj.failing_tests
 
     def get_failure(self, flavor):
         failure_string = ""
 
-        if self.failed:
-            failure_string = self.failure_string(flavor)
-            failed_packages = set()
-            failed_tests = defaultdict(set)
+        if not self.failed:
+            return self.failed, failure_string
 
-            # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
-            # here, in system-probe.py, and in libs/pipeline_notifications.py
-            # We should have some common result.json parsing lib.
-            if self.result_json_path is not None and os.path.exists(self.result_json_path):
-                with open(self.result_json_path, encoding="utf-8") as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        # This logic assumes that the lines in result.json are "in order", i.e. that retries
-                        # are logged after the initial test run.
+        if self.result_json_path is None or not os.path.exists(self.result_json_path):
+            failure_string += "No result json saved, cannot determine whether tests failed or not."
+            return self.failed, failure_string
 
-                        # The line is a "Package" line, but not a "Test" line.
-                        # We take these into account, because in some cases (panics, race conditions),
-                        # individual test failures are not reported, only a package-level failure is.
-                        if 'Package' in json_test and 'Test' not in json_test:
-                            package = json_test['Package']
-                            action = json_test["Action"]
+        failure_string = self.failure_string(flavor)
 
-                            if action == "fail":
-                                failed_packages.add(package)
-                            elif action == "pass" and package in failed_tests:
-                                # The package was retried and fully succeeded, removing from the list of packages to report
-                                failed_packages.remove(package)
+        failed_packages, failed_tests = self.get_failing_tests()
 
-                        # The line is a "Test" line.
-                        elif 'Package' in json_test and 'Test' in json_test:
-                            name = json_test['Test']
-                            package = json_test['Package']
-                            action = json_test["Action"]
-                            if action == "fail":
-                                failed_tests[package].add(name)
-                            elif action == "pass" and name in failed_tests.get(package, set()):
-                                # The test was retried and succeeded, removing from the list of tests to report
-                                failed_tests[package].remove(name)
+        if not failed_packages:
+            failure_string += "The test command failed, but no test failures detected in the result json."
+            return self.failed, failure_string
+
+        failure_string += "Test failures:\n"
+        for package in sorted(failed_packages):
+            tests = failed_tests.get(package, set())
+            if not tests:
+                failure_string += f"- {package} package failed due to panic / race condition\n"
             else:
-                failure_string += "No result json saved, cannot determine whether tests failed or not."
-                return self.failed, failure_string
+                for name in sorted(tests):
+                    failure_string += f"- {package} {name}\n"
 
-            if failed_packages:
-                failure_string += "Test failures:\n"
-                for package in sorted(failed_packages):
-                    tests = failed_tests.get(package, set())
-                    if not tests:
-                        failure_string += f"- {package} package failed due to panic / race condition\n"
-                    else:
-                        for name in sorted(tests):
-                            failure_string += f"- {package} {name}\n"
-
-                            if running_in_ci():
-                                failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
-            else:
-                failure_string += "The test command failed, but no test failures detected in the result json."
+                    if running_in_ci():
+                        failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
 
         return self.failed, failure_string
 

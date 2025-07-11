@@ -83,10 +83,6 @@ build do
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
             end
 
-            if ot_target?
-              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
-            end
-
             # Create the installer symlink
             link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
 
@@ -189,6 +185,8 @@ build do
                 command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
                 command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
                 command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                #TODO(regis.desgroppes): reconsider below short-term countermeasure (hardcoded path) taken to mitigate incident-40404
+                command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/embedded/lib/python3.12/site-packages/ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe-unknown-x86_64'", cwd: Dir.pwd
                 command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end

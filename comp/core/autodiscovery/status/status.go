@@ -12,15 +12,30 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // populateStatus populates the status stats
-func populateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
+func populateStatus(ac autodiscovery.Component, wf workloadfilter.Component, stats map[string]interface{}) {
 	stats["adEnabledFeatures"] = env.GetDetectedFeatures()
 	stats["adConfigErrors"] = ac.GetAutodiscoveryErrors()
-	stats["filterErrors"] = containers.GetFilterErrors()
+	stats["filterErrors"] = getAutodiscoveryFilterErrors(wf)
+}
+
+// GetAutodiscoveryFilterErrors returns a map of all autodiscovery filter errors
+func getAutodiscoveryFilterErrors(wf workloadfilter.Component) map[string]struct{} {
+	var workloadfilterList []workloadfilter.ContainerFilter
+	for _, filterScope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter, workloadfilter.GlobalFilter} {
+		workloadfilterList = append(workloadfilterList, workloadfilter.FlattenFilterSets(workloadfilter.GetAutodiscoveryFilters(filterScope))...)
+	}
+	workloadfilterErrors := wf.GetContainerFilterInitializationErrors(workloadfilterList)
+
+	filterErrorsSet := make(map[string]struct{})
+	for _, err := range workloadfilterErrors {
+		filterErrorsSet[err.Error()] = struct{}{}
+	}
+	return filterErrorsSet
 }
 
 //go:embed status_templates
@@ -28,13 +43,14 @@ var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
-	ac autodiscovery.Component
+	ac          autodiscovery.Component
+	filterStore workloadfilter.Component
 }
 
 // GetProvider if agent is running in a container environment returns status.Provider otherwise returns nil
-func GetProvider(acComp autodiscovery.Component) status.Provider {
+func GetProvider(acComp autodiscovery.Component, filterStore workloadfilter.Component) status.Provider {
 	if env.IsContainerized() {
-		return Provider{ac: acComp}
+		return Provider{ac: acComp, filterStore: filterStore}
 	}
 
 	return nil
@@ -43,7 +59,7 @@ func GetProvider(acComp autodiscovery.Component) status.Provider {
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(p.ac, stats)
+	populateStatus(p.ac, p.filterStore, stats)
 
 	return stats
 }
@@ -60,7 +76,7 @@ func (p Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(p.ac, stats)
+	populateStatus(p.ac, p.filterStore, stats)
 
 	return nil
 }

@@ -163,11 +163,12 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 
 	metadataMessages := []model.MessageBody{
 		&model.CollectorCluster{
-			ClusterName: pctx.Cfg.KubeClusterName,
-			ClusterId:   pctx.ClusterID,
-			GroupId:     pctx.MsgGroupID,
-			Cluster:     clusterModel,
-			Tags:        util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+			ClusterName:  pctx.Cfg.KubeClusterName,
+			ClusterId:    pctx.ClusterID,
+			GroupId:      pctx.MsgGroupID,
+			Cluster:      clusterModel,
+			Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
+			AgentVersion: ctx.GetAgentVersion(),
 		},
 	}
 	manifestMessages := []model.MessageBody{
@@ -189,7 +190,8 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Tags: pctx.GetCollectorTags(),
 				},
 			},
-			Tags: pctx.Cfg.ExtraTags,
+			Tags:         pctx.Cfg.ExtraTags,
+			AgentVersion: ctx.GetAgentVersion(),
 		},
 	}
 	processResult = processors.ProcessResult{

@@ -32,8 +32,11 @@ type TlsConnLayout struct {
 	Tcp_conn_inner_conn_offset     uint64
 	Limited_conn_inner_conn_offset uint64
 	Conn_fd_offset                 uint64
-	Net_fd_pfd_offset              uint64
-	Fd_sysfd_offset                uint64
+	Conn_fd_family_offset          uint64
+	Conn_fd_laddr_offset           uint64
+	Conn_fd_raddr_offset           uint64
+	Tcp_addr_port_offset           uint64
+	Tcp_addr_ip_offset             uint64
 }
 type TlsOffsetsData struct {
 	Goroutine_id       GoroutineIDMetadata

@@ -28,6 +28,14 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
+    u64 sched_cls_has_current_pid_tgid_helper = 0;
+    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+    if (sched_cls_has_current_pid_tgid_helper) {
+        // reset and fill span context
+        reset_span_context(&evt->span);
+        fill_span_context(&evt->span);
+    }
+
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     if (entry == NULL) {
         evt->container.container_id[0] = 0;

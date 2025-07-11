@@ -1,0 +1,46 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testCombinedByte",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testCombinedByte",
+          "location": {
+            "method": "main.testCombinedByte"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "uint8",
+                "value": "2"
+              },
+              "x": {
+                "type": "uint8",
+                "value": "3"
+              },
+              "y": {
+                "type": "float32",
+                "notCapturedReason": "unavailable"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

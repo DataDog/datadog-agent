@@ -17,7 +17,7 @@ import (
 	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -128,8 +128,15 @@ type CommonGlobalConfig struct {
 // AdvancedADIdentifier contains user-defined autodiscovery information
 // It replaces ADIdentifiers for advanced use-cases. Typically, file-based k8s service and endpoint checks.
 type AdvancedADIdentifier struct {
-	KubeService   KubeNamespacedName `yaml:"kube_service,omitempty"`
-	KubeEndpoints KubeNamespacedName `yaml:"kube_endpoints,omitempty"`
+	KubeService   KubeNamespacedName      `yaml:"kube_service,omitempty"`
+	KubeEndpoints KubeEndpointsIdentifier `yaml:"kube_endpoints,omitempty"`
+}
+
+// KubeEndpointsIdentifier identifies a kubernetes endpoints object
+// alongside the method to resolve the endpoints.
+type KubeEndpointsIdentifier struct {
+	KubeNamespacedName `yaml:",inline"`
+	Resolve            string `yaml:"resolve,omitempty"` // Endpoint resolve mode: "auto" (default) or "ip"
 }
 
 // KubeNamespacedName identifies a kubernetes object.
@@ -198,13 +205,13 @@ func (c *Config) IsLogConfig() bool {
 }
 
 // HasFilter returns true if metrics or logs collection must be disabled for this config.
-func (c *Config) HasFilter(filter containers.FilterType) bool {
+func (c *Config) HasFilter(fs workloadfilter.Scope) bool {
 	// no containers.GlobalFilter case here because we don't create services
 	// that are globally excluded in AD
-	switch filter {
-	case containers.MetricsFilter:
+	switch fs {
+	case workloadfilter.MetricsFilter:
 		return c.MetricsExcluded
-	case containers.LogsFilter:
+	case workloadfilter.LogsFilter:
 		return c.LogsExcluded
 	}
 	return false

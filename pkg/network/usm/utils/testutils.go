@@ -9,6 +9,10 @@ package utils
 
 import (
 	"sync"
+	"testing"
+	"unsafe"
+
+	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
@@ -76,4 +80,35 @@ func NewUSMEmptyConfig() *config.Config {
 	cfg.EnableGoTLSSupport = false
 
 	return cfg
+}
+
+// CountMapEntries counts entries in a specific BPF map.
+func CountMapEntries(t *testing.T, m *ebpf.Map) int {
+	t.Helper()
+	if m == nil {
+		t.Logf("Map: %s provided to countMapEntries is nil", m.String())
+		return -1
+	}
+
+	keySize := m.KeySize()
+	valueSize := m.ValueSize()
+
+	if keySize == 0 || valueSize == 0 {
+		t.Logf("Invalid map sizes: keySize=%d, valueSize=%d", keySize, valueSize)
+		return -1
+	}
+
+	count := 0
+	value := make([]byte, valueSize)
+	key := make([]byte, keySize)
+	iter := m.Iterate()
+
+	for iter.Next(unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0])) {
+		count++
+	}
+
+	if err := iter.Err(); err != nil {
+		t.Logf("Error iterating map %s: %v", m.String(), err)
+	}
+	return count
 }

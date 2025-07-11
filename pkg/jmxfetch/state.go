@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -98,4 +100,39 @@ func StopJmxfetch() {
 // InitRunner inits the runner and injects the dogstatsd server component and the IPC component (used to get the auth token for the jmxfetch process).
 func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component, ipc ipc.Component) {
 	state.runner.initRunner(server, logger, ipc)
+}
+
+// GetIntegrations returns the JMXFetch integrations' instances as a map[string]interface{}.
+func GetIntegrations() (map[string]interface{}, error) {
+	integrations := map[string]interface{}{}
+	configs := map[string]integration.JSONMap{}
+
+	for name, config := range GetScheduledConfigs() {
+		var rawInitConfig integration.RawMap
+		err := yaml.Unmarshal(config.InitConfig, &rawInitConfig)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
+		}
+
+		c := map[string]interface{}{}
+		c["init_config"] = GetJSONSerializableMap(rawInitConfig)
+		instances := []integration.JSONMap{}
+		for _, instance := range config.Instances {
+			var rawInstanceConfig integration.JSONMap
+			err := yaml.Unmarshal(instance, &rawInstanceConfig)
+			if err != nil {
+				return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
+			}
+			instances = append(instances, GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
+		}
+
+		c["instances"] = instances
+		c["check_name"] = config.Name
+
+		configs[name] = c
+	}
+	integrations["configs"] = configs
+	integrations["timestamp"] = time.Now().Unix()
+
+	return integrations, nil
 }

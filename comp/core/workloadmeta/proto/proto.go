@@ -351,6 +351,11 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		protoInitContainers = append(protoInitContainers, toProtoOrchestratorContainer(container))
 	}
 
+	var protoEphemeralContainers []*pb.OrchestratorContainer
+	for _, container := range kubernetesPod.EphemeralContainers {
+		protoEphemeralContainers = append(protoEphemeralContainers, toProtoOrchestratorContainer(container))
+	}
+
 	return &pb.KubernetesPod{
 		EntityId:                   protoEntityID,
 		EntityMeta:                 toProtoEntityMetaFromKubernetesPod(kubernetesPod),
@@ -358,6 +363,7 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		PersistentVolumeClaimNames: kubernetesPod.PersistentVolumeClaimNames,
 		InitContainers:             protoInitContainers,
 		Containers:                 protoOrchestratorContainers,
+		EphemeralContainers:        protoEphemeralContainers,
 		Ready:                      kubernetesPod.Ready,
 		Phase:                      kubernetesPod.Phase,
 		Ip:                         kubernetesPod.IP,
@@ -791,12 +797,18 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		containers = append(containers, toWorkloadmetaOrchestratorContainer(protoContainer))
 	}
 
+	var ephemeralContainers []workloadmeta.OrchestratorContainer
+	for _, protoContainer := range protoKubernetesPod.EphemeralContainers {
+		ephemeralContainers = append(ephemeralContainers, toWorkloadmetaOrchestratorContainer(protoContainer))
+	}
+
 	return &workloadmeta.KubernetesPod{
 		EntityID:                   entityID,
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoKubernetesPod.EntityMeta),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: protoKubernetesPod.PersistentVolumeClaimNames,
 		Containers:                 containers,
+		EphemeralContainers:        ephemeralContainers,
 		Ready:                      protoKubernetesPod.Ready,
 		Phase:                      protoKubernetesPod.Phase,
 		IP:                         protoKubernetesPod.Ip,

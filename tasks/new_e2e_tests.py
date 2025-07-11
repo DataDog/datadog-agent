@@ -33,6 +33,8 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.testing.e2e import create_test_selection_regex, filter_only_leaf_tests
+from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack
@@ -218,6 +220,7 @@ def build_binaries(
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
+        "max_retries": "Maximum number of retries for failed tests, default 3",
     },
 )
 def run(
@@ -252,6 +255,7 @@ def run(
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
     use_prebuilt_binaries=False,
+    max_retries=0,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -273,6 +277,23 @@ def run(
         env_vars["E2E_PROFILE"] = profile
 
     parsed_params = {}
+
+    # Outside of CI try to automatically configure the secret to pull agent image
+    if not running_in_ci():
+        # Authentication against agent-qa is required for all kubernetes tests, to use the cache
+        parsed_params["ddagent:imagePullPassword"] = ctx.run(
+            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True
+        ).stdout.strip()
+        parsed_params["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
+        parsed_params["ddagent:imagePullUsername"] = "AWS"
+        # If we use an agent image from sandbox registry we need to authenticate against it
+        if "376334461865" in agent_image or "376334461865" in cluster_agent_image:
+            parsed_params["ddagent:imagePullPassword"] += (
+                f",{ctx.run('aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password', hide=True).stdout.strip()}"
+            )
+            parsed_params["ddagent:imagePullRegistry"] += ",376334461865.dkr.ecr.us-east-1.amazonaws.com"
+            parsed_params["ddagent:imagePullUsername"] += ",AWS"
+
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -348,8 +369,8 @@ def run(
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
-        "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
+        "run": ('-test.run ' + create_test_selection_regex(clean_run)) if run else "",
+        "skip": ('-test.skip ' + create_test_selection_regex(clean_skip)) if skip else "",
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else "",
         "platform": f"-platform {platform}" if platform else "",
@@ -365,18 +386,109 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    test_res = test_flavor(
-        ctx,
-        flavor=AgentFlavor.base,
-        build_tags=tags,
-        modules=[e2e_module],
-        args=args,
-        cmd=cmd,
-        env=env_vars,
-        junit_tar=junit_tar,
-        result_json=result_json,
-        test_profiler=None,
-    )
+    to_teardown: set[tuple[str, str]] = set()
+    result_jsons: list[str] = []
+    for attempt in range(max_retries + 1):
+        remaining_tries = max_retries - attempt
+        if remaining_tries > 0:
+            # If any tries are left, avoid destroying infra on failure
+            env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
+        else:
+            env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
+
+        partial_result_json = f"{result_json}.{attempt}.part"
+        result_jsons.append(partial_result_json)
+
+        test_res = test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar=junit_tar,
+            result_json=partial_result_json,
+            test_profiler=None,
+        )
+
+        washer = TestWasher(test_output_json_file=partial_result_json)
+
+        if remaining_tries > 0:
+            failed_tests = filter_only_leaf_tests(
+                (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
+            )
+
+            # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
+            # By using an `intersection` we ensure that we only get tests that have actually failed.
+            known_flaky_failures = failed_tests.intersection(
+                {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
+            )
+
+            # Retry any failed tests that are not known to be flaky
+            to_retry = failed_tests - known_flaky_failures
+
+            if known_flaky_failures:
+                print(
+                    color_message(
+                        f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
+                        "yellow",
+                    )
+                )
+                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
+                to_teardown.update(known_flaky_failures)
+
+            if to_retry:
+                print(
+                    color_message(
+                        f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                        "yellow",
+                    )
+                )
+
+                # Retry the failed tests only
+                affected_packages = {
+                    os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/")
+                    for package, _ in to_retry
+                }
+                e2e_module.test_targets = list(affected_packages)
+                args["run"] = '-test.run ' + create_test_selection_regex([test for _, test in to_retry])
+            else:
+                break
+
+    # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
+    # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
+    if to_teardown:
+        print(
+            color_message(
+                f"Tearing down {len(to_teardown)} leftover test infras",
+                "yellow",
+            )
+        )
+        affected_packages = {
+            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
+        }
+        e2e_module.test_targets = list(affected_packages)
+        args["run"] = '-test.run ' + create_test_selection_regex([test for _, test in to_teardown])
+        env_vars["E2E_TEARDOWN_ONLY"] = "true"
+        test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar="",  # No need to store JUnit results for teardown-only runs
+            result_json="/dev/null",  # No need to store results for teardown-only runs
+            test_profiler=None,
+        )
+
+    # Merge all the partial result JSON files into the final result JSON
+    with open(result_json, "w") as merged_file:
+        for partial_file in result_jsons:
+            with open(partial_file) as f:
+                merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
@@ -551,32 +663,30 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
 
         return True
 
-    with open(path) as f:
-        lines = [json.loads(line) for line in f]
+    result_json = ResultJson.from_file(path)
 
-    lines = [
-        json_line for json_line in lines if "Package" in json_line and "Test" in json_line and "Output" in json_line
-    ]
+    lines = [line for line in result_json.lines if line.output and line.test]
 
-    tests = {(json_line["Package"], json_line["Test"]): [] for json_line in lines}
+    tests: dict[tuple[str, str], list] = {(json_line.package, json_line.test): [] for json_line in lines}  # type: ignore
 
     # Used to preserve order, line where a test appeared first
-    test_order = {(json_line["Package"], json_line["Test"]): i for (i, json_line) in list(enumerate(lines))[::-1]}
+    test_order = {(json_line.package, json_line.test): i for (i, json_line) in list(enumerate(lines))[::-1]}
 
     for json_line in lines:
-        if json_line["Action"] == "output":
-            output: str = json_line["Output"]
+        assert json_line.output and json_line.test  # Just making mypy happy
+        if json_line.action == ActionType.OUTPUT:
+            output: str = json_line.output
             if "===" in output:
                 continue
 
             # Append logs to all children tests + this test
-            current_test_name_splitted = json_line["Test"].split("/")
+            current_test_name_splitted = json_line.test.split("/")
             for (package, test_name), logs in tests.items():
-                if package != json_line["Package"]:
+                if package != json_line.package:
                     continue
 
                 if is_parent(current_test_name_splitted, test_name.split("/")):
-                    logs.append(json_line["Output"])
+                    logs.append(json_line.output)
 
     # Rebuild order
     return sorted(

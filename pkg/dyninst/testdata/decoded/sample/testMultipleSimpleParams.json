@@ -1,0 +1,54 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMultipleSimpleParams",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMultipleSimpleParams",
+          "location": {
+            "method": "main.testMultipleSimpleParams"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "bool",
+                "value": "false"
+              },
+              "b": {
+                "type": "uint8",
+                "value": "42"
+              },
+              "c": {
+                "type": "int32",
+                "value": "122"
+              },
+              "d": {
+                "type": "uint",
+                "value": "1337"
+              },
+              "e": {
+                "type": "string",
+                "value": "xyz"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

@@ -8,13 +8,15 @@ package defaultforwarder
 import (
 	"encoding/json"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -54,6 +56,10 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 
 	// update the APIKey by setting it on the config
 	mockConfig.Set("api_key", "api_key4", pkgconfigmodel.SourceAgentRuntime)
+
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, mockConfig.Get("api_key"), "api_key4")
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// API keys still match after the update
 	expectData = `{"example1.com":["api_key4","api_key2"],"example2.com":["api_key3"]}`
@@ -95,6 +101,10 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 		map[string][]string{"example1.com": {"api_key2"}},
 		pkgconfigmodel.SourceAgentRuntime,
 	)
+
+	assert.Eventually(t, func() bool {
+		return assert.Equal(t, mockConfig.Get("additional_endpoints"), map[string][]string{"example1.com": {"api_key2"}})
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// The endpoint has both api keys
 	expectData = `{"example1.com":["api_key1","api_key2"],"example2.com":["api_key3"]}`

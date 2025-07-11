@@ -40,7 +40,22 @@ func (s *NoopStrategy) ContentEncoding() string {
 	return "identity"
 }
 
-// NewStreamCompressor returns a nil when there is no compression implementation.
-func (s *NoopStrategy) NewStreamCompressor(_ *bytes.Buffer) compression.StreamCompressor {
+// NewStreamCompressor implements the NewStreamCompressor method for NoopStrategy to satisfy the Compressor interface
+func (s *NoopStrategy) NewStreamCompressor(buf *bytes.Buffer) compression.StreamCompressor {
+	return &noopStreamCompressor{buf}
+}
+
+// NoopStreamCompressor is a no-op implementation of StreamCompressor
+type noopStreamCompressor struct {
+	*bytes.Buffer
+}
+
+// Close closes the underlying writer
+func (n *noopStreamCompressor) Close() error {
+	return nil
+}
+
+// Flush is a no-op
+func (n *noopStreamCompressor) Flush() error {
 	return nil
 }

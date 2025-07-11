@@ -9,6 +9,8 @@
 package types
 
 import (
+	"testing"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -20,4 +22,22 @@ type MockCheckParams[T checks.Check] struct {
 	fx.In
 
 	OrchestrateMock func(mock *checkMocks.Check) `optional:"true"`
+}
+
+type mockCheck struct {
+	mock *checkMocks.Check
+}
+
+func (m *mockCheck) Object() checks.Check {
+	return m.mock
+}
+
+func NewMockCheckComponent(t *testing.T, name string, isEnabled bool) CheckComponent {
+	mock := checkMocks.NewCheck(t)
+	mock.On("Name").Return(name).Maybe()
+	mock.On("IsEnabled").Return(isEnabled).Maybe()
+
+	return &mockCheck{
+		mock: mock,
+	}
 }

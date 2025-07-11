@@ -15,6 +15,8 @@ package nvidia
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -36,13 +38,15 @@ const (
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	nvlink       CollectorName = "nvlink"
+	gpm          CollectorName = "gpm"
 )
 
 // Metric represents a single metric collected from the NVML library.
 type Metric struct {
-	Name  string  // Name holds the name of the metric.
-	Value float64 // Value holds the value of the metric.
-	Type  metrics.MetricType
+	Name     string  // Name holds the name of the metric.
+	Value    float64 // Value holds the value of the metric.
+	Type     metrics.MetricType
+	Priority int // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -70,11 +74,11 @@ var factory = map[CollectorName]subsystemBuilder{
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
 	nvlink:       newNVLinkCollector,
+	gpm:          newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-
 	// DeviceCache is a cache of GPU devices.
 	DeviceCache ddnvml.DeviceCache
 }
@@ -132,4 +136,17 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	}
 
 	return tagsMapping
+}
+
+// RemoveDuplicateMetrics removes duplicate metrics from the given list, keeping the highest priority metric.
+func RemoveDuplicateMetrics(metrics []Metric) []Metric {
+	metricsByName := make(map[string]Metric)
+
+	for _, metric := range metrics {
+		if existing, ok := metricsByName[metric.Name]; !ok || existing.Priority < metric.Priority {
+			metricsByName[metric.Name] = metric
+		}
+	}
+
+	return slices.Collect(maps.Values(metricsByName))
 }

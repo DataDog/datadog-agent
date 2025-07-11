@@ -56,7 +56,7 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
 
 __attribute__((always_inline)) u32 is_cgroup_activity_dumps_supported(struct cgroup_context_t *cgroup) {
     u32 cgroup_manager = cgroup->cgroup_flags & CGROUP_MANAGER_MASK;
-    u32 supported = (cgroup->cgroup_flags != 0) && (bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup_manager) != NULL);
+    u32 supported = (cgroup_manager != CGROUP_MANAGER_UNDEFINED) && (bpf_map_lookup_elem(&activity_dump_config_defaults, &cgroup_manager) != NULL);
     return supported;
 }
 

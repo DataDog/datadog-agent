@@ -1,8 +1,0 @@
-inlined: '{"captures":{"probe_id":"inlined","x":0},"stack_frames":""}'
-intArg: '{"captures":{"probe_id":"intArg","x":81985529216486900},"stack_frames":""}'
-intArrayArg: '{"captures":{"probe_id":"intArrayArg","s":[1,2,3]},"stack_frames":""}'
-intArrayArgFrameless: '{"captures":{"probe_id":"intArrayArgFrameless","s":["foo","bar","baz"]},"stack_frames":""}'
-intSliceArg: '{"captures":{"probe_id":"intSliceArg","s":[1,2,3]},"stack_frames":""}'
-stringArg: '{"captures":{"probe_id":"stringArg","s":"d"},"stack_frames":""}'
-stringArrayArg: '{"captures":{"probe_id":"stringArrayArg","s":["a","b","c"]},"stack_frames":""}'
-stringSliceArg: '{"captures":{"probe_id":"stringSliceArg","s":["a","b","c"]},"stack_frames":""}'

@@ -277,7 +277,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 // onConfigUpdate handles configuration change notification to update the internal API key of the Endpoint if needed
 func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, oldVal interface{}, newVal interface{}) {
+	l.getConfig().OnUpdate(func(key string, oldVal interface{}, newVal interface{}, _ uint64) {
 		if key != e.configSettingPath {
 			return
 		}

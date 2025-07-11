@@ -18,30 +18,32 @@ build do
     end
   end
 
-  # Merge version manifests together
-  # The agent file is the main one, with no .$product suffix.
-  # We will merge suffixed files into the main one
-  block "Merge version-manifest.json" do
-    main_json_manifest = "#{install_dir}/version-manifest.json"
-    versions = FFI_Yajl::Parser.parse(File.read(main_json_manifest))
-    Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
-      additional_versions = FFI_Yajl::Parser.parse(File.read(version_manifest_json_path))
+  unless project.name == "ddot"
+    # Merge version manifests together
+    # The agent file is the main one, with no .$product suffix.
+    # We will merge suffixed files into the main one
+    block "Merge version-manifest.json" do
+      main_json_manifest = "#{install_dir}/version-manifest.json"
+      versions = FFI_Yajl::Parser.parse(File.read(main_json_manifest))
+      Dir.glob("#{install_dir}/version-manifest.*.json").each do |version_manifest_json_path|
+        additional_versions = FFI_Yajl::Parser.parse(File.read(version_manifest_json_path))
 
-      versions["software"].merge!(additional_versions["software"])
-      FileUtils.rm version_manifest_json_path
+        versions["software"].merge!(additional_versions["software"])
+        FileUtils.rm version_manifest_json_path
+      end
+      File.open(main_json_manifest, "w") do |f|
+        f.write(FFI_Yajl::Encoder.encode(versions.to_hash, pretty: true))
+      end
     end
-    File.open(main_json_manifest, "w") do |f|
-      f.write(FFI_Yajl::Encoder.encode(versions.to_hash, pretty: true))
-    end
-  end
 
-  block "Merge version-manifest.txt" do
-    main_txt_manifest = "#{install_dir}/version-manifest.txt"
-    Dir.glob("#{install_dir}/version-manifest.*.txt").each do |version_manifest_txt_path|
-      # Simply append the listing part. The first 4 lines are the package name, blank lines
-      # listing headers and a separator.
-      shellout! "tail -n +5 #{version_manifest_txt_path} >> #{main_txt_manifest}"
-      FileUtils.rm version_manifest_txt_path
+    block "Merge version-manifest.txt" do
+      main_txt_manifest = "#{install_dir}/version-manifest.txt"
+      Dir.glob("#{install_dir}/version-manifest.*.txt").each do |version_manifest_txt_path|
+        # Simply append the listing part. The first 4 lines are the package name, blank lines
+        # listing headers and a separator.
+        shellout! "tail -n +5 #{version_manifest_txt_path} >> #{main_txt_manifest}"
+        FileUtils.rm version_manifest_txt_path
+      end
     end
   end
 

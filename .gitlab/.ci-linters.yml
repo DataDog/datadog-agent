@@ -63,6 +63,7 @@ job-owners:
     - build_otel_agent_binary_arm64
     - build_otel_agent_binary_x64
     - cancel-prev-pipelines
+    - clone
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
     - deploy_cluster_agent_cloudfoundry
@@ -87,8 +88,6 @@ job-owners:
     - new-e2e-package-signing-debian-a7-x86_64
     - new-e2e-package-signing-suse-a7-x86_64
     - new-e2e-unit-tests
-    - ot_agent_deb-arm64-a7
-    - ot_agent_deb-x64-a7
     - publish_fakeintake
     - publish_fakeintake_latest
     - rc_kubernetes_deploy

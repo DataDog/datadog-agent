@@ -3,7 +3,6 @@
 # runtime compilation asset integrity files
 conntrack.go
 dynamicinstrumentation.go
-dyninst_event.go
 http.go
 logdebug-test.go
 offsetguess-test.go

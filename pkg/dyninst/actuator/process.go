@@ -8,10 +8,8 @@
 package actuator
 
 import (
-	"fmt"
-	"syscall"
-
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 )
 
 // ProcessesUpdate is a set of updates to the actuator's state.
@@ -36,60 +34,11 @@ type ProcessUpdate struct {
 	//
 	// If a previous update contained a different set of probes, they
 	// will be wholly replaced by the new set.
-	Probes []irgen.ProbeDefinition
+	Probes []ir.ProbeDefinition
 }
 
-// Executable is a reference to an executable file that a process is running.
-type Executable struct {
-	// Path is the path to the executable file.
-	Path string
+// Executable forwards the definition from procmon.
+type Executable = procmon.Executable
 
-	// Key is a unique identifier for the executable file.
-	Key FileKey
-}
-
-// ProcessID is a unique identifier for a process.
-type ProcessID struct {
-	// PID is the operating system process ID.
-	PID int32
-
-	// Realistically this should include something about the start time of
-	// the process to be robust to PID wraparound. This is less of a problem
-	// these days now that pids in linux are 32 bits, but technically it's
-	// possible.
-}
-
-// String returns a string representation of the process ID.
-func (p ProcessID) String() string {
-	return fmt.Sprintf("{PID:%d}", p.PID)
-}
-
-// FileHandle identifies a file on a device.
-type FileHandle struct {
-	Dev uint64
-	Ino uint64
-}
-
-// FileCookie identifies a file on a device, and the time it was
-// last modified.
-type FileCookie syscall.Timespec
-
-// FileKey identifies a file on a device, and the time it was
-// last modified.
-type FileKey struct {
-	// The device and inode of the file.
-	FileHandle
-	// The time the file was last modified.
-	FileCookie
-}
-
-// String returns a string representation of the file key.
-func (k FileKey) String() string {
-	h, c := k.FileHandle, k.FileCookie
-	return fmt.Sprintf("%d.%dm%d.%d", h.Dev, h.Ino, c.Sec, c.Nsec)
-}
-
-// String returns a string representation of the executable.
-func (e Executable) String() string {
-	return fmt.Sprintf("%s@%s", e.Path, e.Key)
-}
+// ProcessID forwards the definition from procmon.
+type ProcessID = procmon.ProcessID

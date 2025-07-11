@@ -6,11 +6,13 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -234,6 +236,12 @@ func TestInfoHandler(t *testing.T) {
 		Memcached:         obfuscate.MemcachedConfig{Enabled: false},
 	}
 	conf := &config.AgentConfig{
+		ContainerTags: func(cid string) ([]string, error) {
+			if cid == "id1" {
+				return []string{"kube_cluster_name:clusterA", "kube_namespace:namespace1", "pod_name:pod1"}, nil
+			}
+			return nil, fmt.Errorf("container tags not found for %s", cid)
+		},
 		Enabled:      true,
 		AgentVersion: "0.99.0",
 		GitCommit:    "fab047e10",
@@ -340,10 +348,13 @@ func TestInfoHandler(t *testing.T) {
 	_, h := rcv.makeInfoHandler()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/info", nil)
+	req.Header.Add("Datadog-Container-ID", "id1")
 	h.ServeHTTP(rec, req)
 	var m map[string]interface{}
 	if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&m)) {
 		return
 	}
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
+	expectedContainerHash := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join([]string{"kube_cluster_name:clusterA", "kube_namespace:namespace1"}, ","))))
+	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
 }

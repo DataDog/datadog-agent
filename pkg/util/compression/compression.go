@@ -51,21 +51,3 @@ type StreamCompressor interface {
 
 // ZstdCompressionLevel is a wrapper type over int for the compression level for zstd compression, if that is selected.
 type ZstdCompressionLevel int
-
-// NoopStreamCompressor is a no-op implementation of StreamCompressor
-type NoopStreamCompressor struct {
-	io.Writer
-}
-
-// Close closes the underlying writer
-func (n *NoopStreamCompressor) Close() error {
-	if c, ok := n.Writer.(io.Closer); ok {
-		return c.Close()
-	}
-	return nil
-}
-
-// Flush is a no-op
-func (n *NoopStreamCompressor) Flush() error {
-	return nil
-}

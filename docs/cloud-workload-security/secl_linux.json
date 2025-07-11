@@ -7183,6 +7183,26 @@
       "experimental": false,
       "properties": [
         {
+          "name": "setsockopt.filter_hash",
+          "definition": "Hash of the socket filter using sha256",
+          "property_doc_link": "setsockopt-filter_hash-doc"
+        },
+        {
+          "name": "setsockopt.filter_instructions",
+          "definition": "Filter instructions",
+          "property_doc_link": "setsockopt-filter_instructions-doc"
+        },
+        {
+          "name": "setsockopt.filter_len",
+          "definition": "Length of the filter",
+          "property_doc_link": "setsockopt-filter_len-doc"
+        },
+        {
+          "name": "setsockopt.is_filter_truncated",
+          "definition": "Indicates that the filter is truncated",
+          "property_doc_link": "setsockopt-is_filter_truncated-doc"
+        },
+        {
           "name": "setsockopt.level",
           "definition": "Socket level",
           "property_doc_link": "setsockopt-level-doc"
@@ -7196,6 +7216,21 @@
           "name": "setsockopt.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setsockopt.socket_family",
+          "definition": "Socket family",
+          "property_doc_link": "setsockopt-socket_family-doc"
+        },
+        {
+          "name": "setsockopt.socket_protocol",
+          "definition": "Socket protocol",
+          "property_doc_link": "setsockopt-socket_protocol-doc"
+        },
+        {
+          "name": "setsockopt.socket_type",
+          "definition": "Socket type",
+          "property_doc_link": "setsockopt-socket_type-doc"
         }
       ]
     },
@@ -12875,6 +12910,54 @@
       "examples": []
     },
     {
+      "name": "setsockopt.filter_hash",
+      "link": "setsockopt-filter_hash-doc",
+      "type": "string",
+      "definition": "Hash of the socket filter using sha256",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.filter_instructions",
+      "link": "setsockopt-filter_instructions-doc",
+      "type": "string",
+      "definition": "Filter instructions",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.filter_len",
+      "link": "setsockopt-filter_len-doc",
+      "type": "int",
+      "definition": "Length of the filter",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.is_filter_truncated",
+      "link": "setsockopt-is_filter_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the filter is truncated",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "setsockopt.level",
       "link": "setsockopt-level-doc",
       "type": "int",
@@ -12891,6 +12974,42 @@
       "link": "setsockopt-optname-doc",
       "type": "int",
       "definition": "Socket option name",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.socket_family",
+      "link": "setsockopt-socket_family-doc",
+      "type": "int",
+      "definition": "Socket family",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.socket_protocol",
+      "link": "setsockopt-socket_protocol-doc",
+      "type": "int",
+      "definition": "Socket protocol",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.socket_type",
+      "link": "setsockopt-socket_type-doc",
+      "type": "int",
+      "definition": "Socket type",
       "prefixes": [
         "setsockopt"
       ],
@@ -17242,7 +17361,7 @@
     {
       "name": "SetSockopt Options",
       "link": "setsockopt-options",
-      "description": "SetSockopt Options are the supported options for the setsockopt event.",
+      "description": "SetSockopt Options are the supported options for the setsockopt event when the level is IPPROTO_IP.",
       "all": [
         {
           "name": "IP_TOS",
@@ -18245,6 +18364,41 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Socket types",
+      "link": "socket-types",
+      "description": "Socket types are the supported socket types.",
+      "all": [
+        {
+          "name": "SOCK_STREAM",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_DGRAM",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_RAW",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_RDM",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_SEQPACKET",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_DCCP",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_PACKET",
           "architecture": "all"
         }
       ]

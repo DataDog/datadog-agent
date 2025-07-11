@@ -16,7 +16,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestProcessService(t *testing.T) {
@@ -46,7 +48,7 @@ func TestProcessService(t *testing.T) {
 		},
 	}
 
-	svc := processService(ksvc)
+	svc := processService(ksvc, workloadfilterfxmock.SetupMockFilter(t))
 	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
 	adID := svc.GetADIdentifiers()
@@ -425,7 +427,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 		metricsExcluded bool
 		globalExcluded  bool
 		want            bool
-		filter          containers.FilterType
+		filterScope     workloadfilter.Scope
 	}{
 		{
 			name: "metrics excluded is true",
@@ -455,7 +457,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  false,
 			want:            true,
-			filter:          containers.MetricsFilter,
+			filterScope:     workloadfilter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is false",
@@ -485,7 +487,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            false,
-			filter:          containers.MetricsFilter,
+			filterScope:     workloadfilter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is true with logs filter",
@@ -515,7 +517,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  true,
 			want:            false,
-			filter:          containers.LogsFilter,
+			filterScope:     workloadfilter.LogsFilter,
 		},
 		{
 			name: "metrics excluded is false with logs filter",
@@ -545,7 +547,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  false,
 			want:            false,
-			filter:          containers.LogsFilter,
+			filterScope:     workloadfilter.LogsFilter,
 		},
 		{
 			name: "global excluded is true",
@@ -575,7 +577,7 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            true,
-			filter:          containers.GlobalFilter,
+			filterScope:     workloadfilter.GlobalFilter,
 		},
 		{
 			name: "global excluded is false",
@@ -605,16 +607,150 @@ func TestHasFilterKubeServices(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  false,
 			want:            false,
-			filter:          containers.GlobalFilter,
+			filterScope:     workloadfilter.GlobalFilter,
 		},
 	}
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := processService(tt.ksvc)
+			svc := processService(tt.ksvc, filterStore)
 			svc.metricsExcluded = tt.metricsExcluded
 			svc.globalExcluded = tt.globalExcluded
-			isFilter := svc.HasFilter(tt.filter)
+			isFilter := svc.HasFilter(tt.filterScope)
 			assert.Equal(t, isFilter, tt.want)
+		})
+	}
+}
+
+func TestKubeServiceFiltering(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude_metrics", []string{"kube_namespace:excluded-namespace"})
+	mockConfig.SetWithoutSource("container_exclude", []string{"name:global-excluded"})
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
+	// Create test services with different scenarios
+	testCases := []struct {
+		name                string
+		service             *v1.Service
+		expectedMetricsExcl bool
+		expectedGlobalExcl  bool
+	}{
+		{
+			name: "normal service - not excluded",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "normal-service",
+					Namespace: "default",
+					UID:       types.UID("normal-uid"),
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.1",
+					Ports: []v1.ServicePort{
+						{Name: "http", Port: 80},
+					},
+				},
+			},
+			expectedMetricsExcl: false,
+			expectedGlobalExcl:  false,
+		},
+		{
+			name: "service in excluded namespace - metrics excluded",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "service-in-excluded-ns",
+					Namespace: "excluded-namespace",
+					UID:       types.UID("excluded-ns-uid"),
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.2",
+					Ports: []v1.ServicePort{
+						{Name: "http", Port: 80},
+					},
+				},
+			},
+			expectedMetricsExcl: true,
+			expectedGlobalExcl:  false,
+		},
+		{
+			name: "globally excluded service",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "global-excluded",
+					Namespace: "default",
+					UID:       types.UID("global-excluded-uid"),
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.3",
+					Ports: []v1.ServicePort{
+						{Name: "http", Port: 80},
+					},
+				},
+			},
+			expectedMetricsExcl: false,
+			expectedGlobalExcl:  true,
+		},
+		{
+			name: "service with AD annotations - metrics excluded",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ad-excluded",
+					Namespace: "default",
+					UID:       types.UID("ad-excluded-uid"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names": "[\"http_check\"]",
+						"ad.datadoghq.com/metrics_exclude":     "true",
+						"ad.datadoghq.com/exclude":             "false",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.4",
+					Ports: []v1.ServicePort{
+						{Name: "http", Port: 80},
+					},
+				},
+			},
+			expectedMetricsExcl: true,
+			expectedGlobalExcl:  false,
+		},
+		{
+			name: "service with global AD exclusion",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ad-global-excluded",
+					Namespace: "default",
+					UID:       types.UID("ad-global-excluded-uid"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names": "[\"http_check\"]",
+						"ad.datadoghq.com/exclude":             "true",
+					},
+				},
+				Spec: v1.ServiceSpec{
+					ClusterIP: "10.0.0.5",
+					Ports: []v1.ServicePort{
+						{Name: "http", Port: 80},
+					},
+				},
+			},
+			expectedMetricsExcl: false,
+			expectedGlobalExcl:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Call processService directly with the mock filter store
+			svc := processService(tc.service, mockFilterStore)
+
+			// Verify that service was created
+			assert.NotNil(t, svc, "Service should be created")
+
+			// Verify filtering results
+			assert.Equal(t, tc.expectedMetricsExcl, svc.metricsExcluded,
+				"Expected metricsExcluded to be %v for service %s/%s",
+				tc.expectedMetricsExcl, tc.service.Namespace, tc.service.Name)
+			assert.Equal(t, tc.expectedGlobalExcl, svc.globalExcluded,
+				"Expected globalExcluded to be %v for service %s/%s",
+				tc.expectedGlobalExcl, tc.service.Namespace, tc.service.Name)
 		})
 	}
 }

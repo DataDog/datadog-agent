@@ -101,6 +101,7 @@ type CollectorRunConfig struct {
 	Config              *config.OrchestratorConfig
 	MsgGroupRef         *atomic.Int32
 	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
 }
 
 // CollectorRunResult contains information about what the collector has done.

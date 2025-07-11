@@ -363,7 +363,7 @@ func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 
 	p.selector = selector
 	// Once per workload, when tags are resolved and the first time we successfully get the selector, tag all the existing nodes
-	p.ActivityTree.TagAllNodes(selector.Tag)
+	p.ActivityTree.TagAllNodes(selector.Tag, time.Now())
 
 	return &p.selector
 }

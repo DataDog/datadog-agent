@@ -1,0 +1,13 @@
+binary: rc_tester_v1
+probes:
+  - id: look_at_the_request
+    type: LOG_PROBE
+    where:
+      methodName: main.LookAtTheRequest
+    captureSnapshot: true
+  - id: http_handler
+    type: LOG_PROBE
+    where:
+      methodName: main.HandleHTTP
+    captureSnapshot: true
+

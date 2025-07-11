@@ -164,6 +164,7 @@ func (fr *Framer) Process(input *message.Message) {
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
+				input.ParsingExtra.IsTruncated = true
 			} else {
 				// matcher didn't find a frame, so leave the remainder in
 				// buffer

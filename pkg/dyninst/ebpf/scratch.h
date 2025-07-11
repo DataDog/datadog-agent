@@ -20,6 +20,10 @@
 #undef noinline
 #endif
 
+// Note that this cannot just be uintptr_t because the BPF target has 32-bit
+// pointers.
+typedef uint64_t target_ptr_t;
+
 typedef uint64_t buf_offset_t;
 
 #define RINGBUF_CAPACITY ((uint64_t)1 << 23)
@@ -33,7 +37,7 @@ struct {
 // A helper to check if the scratch buffer has enough space.
 static bool scratch_buf_bounds_check(buf_offset_t* offset, uint64_t len) {
   return *(volatile buf_offset_t*)(offset) <
-         (SCRATCH_BUF_LEN - sizeof(event_header_t) - len);
+         (SCRATCH_BUF_LEN - sizeof(di_event_header_t) - len);
 }
 
 typedef char scratch_buf_t[SCRATCH_BUF_LEN];
@@ -58,19 +62,19 @@ struct {
   __type(value, scratch_buf_t);
 } events_scratch_buf_map SEC(".maps");
 
-static event_header_t* events_scratch_buf_init(scratch_buf_t** scratch_buf) {
+static di_event_header_t* events_scratch_buf_init(scratch_buf_t** scratch_buf) {
   const uint32_t zero = 0;
   scratch_buf_t* buf = bpf_map_lookup_elem(&events_scratch_buf_map, &zero);
   if (!buf) {
     return NULL;
   }
   *scratch_buf = buf;
-  scratch_buf_set_len(*scratch_buf, sizeof(event_header_t));
-  return (event_header_t*)*scratch_buf;
+  scratch_buf_set_len(*scratch_buf, sizeof(di_event_header_t));
+  return (di_event_header_t*)*scratch_buf;
 }
 
 static bool events_scratch_buf_submit(scratch_buf_t* scratch_buf) {
-  event_header_t* header = (event_header_t*)scratch_buf;
+  di_event_header_t* header = (di_event_header_t*)scratch_buf;
   header->ktime_ns = bpf_ktime_get_ns();
   uint64_t len = scratch_buf_len(scratch_buf);
   if (len > SCRATCH_BUF_LEN) {
@@ -110,10 +114,10 @@ const uint64_t FAILED_READ_OFFSET_BIT = 1LL << 63;
 // data in the scratch buffer on success or 0 on failure.
 static buf_offset_t
 scratch_buf_serialize_inner(scratch_buf_t* scratch_buf,
-                            data_item_header_t* data_item_header,
+                            di_data_item_header_t* data_item_header,
                             const uint64_t len) {
   buf_offset_t offset = scratch_buf_len(scratch_buf);
-  if (!scratch_buf_bounds_check(&offset, sizeof(data_item_header_t))) {
+  if (!scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
     LOG(2, "failed to write data_item_header to scratch buffer %lld", offset);
     return 0;
   }
@@ -129,8 +133,8 @@ scratch_buf_serialize_inner(scratch_buf_t* scratch_buf,
     read_len = len;
   }
   data_item_header->length = read_len;
-  *(data_item_header_t*)(&(*scratch_buf)[offset]) = *data_item_header;
-  offset += sizeof(data_item_header_t);
+  *(di_data_item_header_t*)(&(*scratch_buf)[offset]) = *data_item_header;
+  offset += sizeof(di_data_item_header_t);
   if (!scratch_buf_bounds_check(&offset, len)) {
     LOG(2, "failed to write %d data to scratch buffer %lld", len, offset);
     return 0;
@@ -152,7 +156,7 @@ scratch_buf_serialize_inner(scratch_buf_t* scratch_buf,
 // a static max_size.
 static inline buf_offset_t
 scratch_buf_serialize_bounded(scratch_buf_t* scratch_buf,
-                              data_item_header_t* data_item_header,
+                              di_data_item_header_t* data_item_header,
                               const uint64_t len, const uint64_t max_size) {
   // Global functions need to check for NULL pointers.
   if (!data_item_header) {
@@ -188,7 +192,7 @@ scratch_buf_serialize_bounded(scratch_buf_t* scratch_buf,
 
 #define X(max_size)                                                            \
   buf_offset_t CONCAT(scratch_buf_serialize_, max_size)(                       \
-      scratch_buf_t * scratch_buf, data_item_header_t * data_item_header,      \
+      scratch_buf_t * scratch_buf, di_data_item_header_t * data_item_header,      \
       const uint64_t len) {                                                    \
     return scratch_buf_serialize_bounded(scratch_buf, data_item_header, len,   \
                                          max_size);                            \
@@ -199,7 +203,7 @@ SIZE_LIST
 #undef X
 
 buf_offset_t scratch_buf_serialize_whole(scratch_buf_t* scratch_buf,
-                                         data_item_header_t* data_item_header,
+                                         di_data_item_header_t* data_item_header,
                                          const uint64_t len) {
   // Use macro to also define the checking for the size classes.
 #define X(max_size)                                                            \
@@ -246,7 +250,7 @@ static long read_by_frame_loop(unsigned long i, void* _ctx) {
 
 static buf_offset_t
 scratch_buf_serialize_fallback(scratch_buf_t* scratch_buf,
-                               data_item_header_t* data_item_header,
+                               di_data_item_header_t* data_item_header,
                                buf_offset_t offset) {
   // There might be a valid, never fully accessed object. First access to parts
   // of this object trigger a page fault. We assume that first page containing
@@ -286,7 +290,7 @@ scratch_buf_serialize_fallback(scratch_buf_t* scratch_buf,
 
 static buf_offset_t
 scratch_buf_serialize_with_fallback(scratch_buf_t* scratch_buf,
-                                    data_item_header_t* data_item_header,
+                                    di_data_item_header_t* data_item_header,
                                     uint64_t len) {
   buf_offset_t offset =
       scratch_buf_serialize_whole(scratch_buf, data_item_header, len);
@@ -300,14 +304,14 @@ scratch_buf_serialize_with_fallback(scratch_buf_t* scratch_buf,
     // truncate the message to indicate hitting the buffer space limit error
     // condition, and not the read failure error condition.
     scratch_buf_set_len(scratch_buf, scratch_buf_len(scratch_buf) -
-                                         sizeof(data_item_header_t) -
+                                         sizeof(di_data_item_header_t) -
                                          data_item_header->length);
   }
   return offset;
 }
 
 buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,
-                                   data_item_header_t* data_item_header,
+                                   di_data_item_header_t* data_item_header,
                                    uint64_t len) {
   if (!scratch_buf) {
     return 0;
@@ -326,9 +330,9 @@ buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,
   LOG(3, "failed to read %lld bytes from %llx",
       data_item_header->length, data_item_header->address);
   offset &= ~FAILED_READ_OFFSET_BIT;
-  offset -= sizeof(data_item_header_t);
-  if (scratch_buf_bounds_check(&offset, sizeof(data_item_header_t))) {
-    ((data_item_header_t*)(&(*scratch_buf)[offset]))->type |= (1 << 31);
+  offset -= sizeof(di_data_item_header_t);
+  if (scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
+    ((di_data_item_header_t*)(&(*scratch_buf)[offset]))->type |= (1 << 31);
   }
   return 0;
 }
@@ -397,7 +401,7 @@ bool scratch_buf_dereference(scratch_buf_t* scratch_buf, buf_offset_t offset,
 // caller populate it.
 __maybe_unused static buf_offset_t
 scratch_buf_reserve(scratch_buf_t* scratch_buf,
-                    data_item_header_t* data_item_header) {
+                    di_data_item_header_t* data_item_header) {
   if (!scratch_buf) {
     return 0;
   }
@@ -411,16 +415,16 @@ scratch_buf_reserve(scratch_buf_t* scratch_buf,
   }
   buf_offset_t offset = scratch_buf_len(scratch_buf);
   if (!scratch_buf_bounds_check(&offset,
-                                sizeof(data_item_header_t) + padded_len)) {
+                                sizeof(di_data_item_header_t) + padded_len)) {
     return 0;
   }
-  if (!scratch_buf_bounds_check(&offset, sizeof(data_item_header_t))) {
+  if (!scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
     return 0;
   }
-  *(data_item_header_t*)(&(*scratch_buf)[offset]) = *data_item_header;
+  *(di_data_item_header_t*)(&(*scratch_buf)[offset]) = *data_item_header;
   scratch_buf_increment_len(scratch_buf,
-                            sizeof(data_item_header_t) + padded_len);
-  return offset + sizeof(data_item_header_t);
+                            sizeof(di_data_item_header_t) + padded_len);
+  return offset + sizeof(di_data_item_header_t);
 }
 
 #endif // __SCRATCH_H__

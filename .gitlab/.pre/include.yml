@@ -2,5 +2,6 @@
 # Define preliminary jobs, which can start as soon as possible
 
 include:
+  - .gitlab/.pre/clone.yml
   - .gitlab/.pre/cancel-prev-pipelines.yml
   - .gitlab/.pre/ci_configuration.yml

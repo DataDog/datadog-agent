@@ -213,7 +213,6 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
 	env = append(env, baseEnv...)
 	env = append(env,
 		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
-		"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 	)
 
 	if testConfig.extraEnv != "" {

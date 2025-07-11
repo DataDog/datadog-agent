@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
@@ -34,6 +35,12 @@ type systemContext struct {
 	// Note that this is the device index as seen by the process itself, which might
 	// be modified by the CUDA_VISIBLE_DEVICES environment variable later
 	selectedDeviceByPIDAndTID map[int]map[int]int32
+
+	// cudaVisibleDevicesPerProcess maps each process ID to the latest visible
+	// devices environment variable that was set by the process. This is used to
+	// keep track of updates during process runtime, which aren't visible in
+	// /proc/pid/environ.
+	cudaVisibleDevicesPerProcess map[int]string
 
 	// deviceCache is a cache of GPU devices on the system
 	deviceCache ddnvml.DeviceCache
@@ -104,10 +111,11 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 	opts := newSystemContextOptions(optList...)
 
 	ctx := &systemContext{
-		procRoot:                  opts.procRoot,
-		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
-		visibleDevicesCache:       make(map[int][]ddnvml.Device),
-		workloadmeta:              opts.wmeta,
+		procRoot:                     opts.procRoot,
+		selectedDeviceByPIDAndTID:    make(map[int]map[int]int32),
+		visibleDevicesCache:          make(map[int][]ddnvml.Device),
+		cudaVisibleDevicesPerProcess: make(map[int]string),
+		workloadmeta:                 opts.wmeta,
 	}
 
 	var err error
@@ -135,6 +143,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 func (ctx *systemContext) removeProcess(pid int) {
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
+	delete(ctx.cudaVisibleDevicesPerProcess, pid)
 
 	if ctx.cudaKernelCache != nil {
 		ctx.cudaKernelCache.CleanProcessData(pid)
@@ -251,7 +260,15 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
 
-		visibleDevices, err = cuda.GetVisibleDevicesForProcess(visibleDevices, pid, ctx.procRoot)
+		envVar, ok := ctx.cudaVisibleDevicesPerProcess[pid]
+		if !ok {
+			envVar, err = kernel.GetProcessEnvVariable(pid, ctx.procRoot, cuda.CudaVisibleDevicesEnvVar)
+			if err != nil {
+				return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+			}
+		}
+
+		visibleDevices, err = cuda.ParseVisibleDevices(visibleDevices, envVar)
 		if err != nil {
 			return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
 		}
@@ -283,4 +300,11 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 	}
 
 	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
+}
+
+func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string) {
+	ctx.cudaVisibleDevicesPerProcess[pid] = envVar
+
+	// Invalidate the visible devices cache to force a re-scan of the devices
+	delete(ctx.visibleDevicesCache, pid)
 }
