@@ -111,6 +111,9 @@ func TestPackages(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture, method)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
+				if suite.Name() == "agent_ubuntu_24_04_arm64_install_script" {
+					t.Fail()
+				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),

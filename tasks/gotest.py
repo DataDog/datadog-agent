@@ -115,12 +115,11 @@ def test_flavor(
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
-    junit_tar: str,
+    result_junit: str,
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
-    attempt_number: int = 0,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -143,17 +142,13 @@ def test_flavor(
         result.result_json_path = os.path.join(result.path, result_json)
         args["json_flag"] = "--jsonfile " + result.result_json_path
 
-    # Produce the junit file only if a junit tarball needs to be produced
-    if junit_tar:
-        # Include attempt number in the junit file name to avoid overwriting previous runs
-        junit_file = f"junit-out-{flavor.name}-{attempt_number}.xml"
-        result.junit_file_paths.append(os.path.join('.', junit_file))
-
-        junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
-        args["junit_file_flag"] = junit_file_flag
+    # Produce the junit file if needed
+    if result_junit:
+        result_junit_path = os.path.join(result.path, result_junit)
+        args["junit_file_flag"] = "--junitfile " + result_junit_path
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(modules, recursive)
+    packages = compute_gotestsum_cli_args(list(modules), recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -183,8 +178,8 @@ def test_flavor(
                 print(f"Could not remove coverage file {cov_path}\n{e}")
             return
 
-    if junit_tar:
-        enrich_junitxml(junit_file, flavor)  # type: ignore
+    if result_junit:
+        enrich_junitxml(result_junit, flavor)  # type: ignore
 
     return result
 
@@ -212,9 +207,11 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
+) -> bool:
     if junit_tar:
-        produce_junit_tar(test_result.junit_file_paths, junit_tar)
+        produce_junit_tar(junit_files, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
 
@@ -377,6 +374,7 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     with gitlab_section("Running unit tests", collapsed=True):
+        result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
         test_result = test_flavor(
             ctx,
             flavor=flavor,
@@ -385,7 +383,7 @@ def test(
             cmd=cmd,
             env=env,
             args=args,
-            junit_tar=junit_tar,
+            result_junit=result_junit,
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
@@ -403,7 +401,7 @@ def test(
             # print("\n--- Top 15 packages sorted by run time:")
             test_profiler.print_sorted(15)
 
-        success = process_test_result(test_result, junit_tar, flavor, test_washer)
+        success = process_test_result(test_result, junit_tar, [result_junit], flavor, test_washer)
         if not success:
             raise Exit(code=1)
 
