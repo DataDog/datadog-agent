@@ -1633,6 +1633,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "tls": {
                     "$ref": "#/$defs/TLSContext"
+                },
+                "dropped": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -4599,6 +4602,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "tls": {
             "$ref": "#/$defs/TLSContext"
+        },
+        "dropped": {
+            "type": "boolean"
         }
     },
     "additionalProperties": false,

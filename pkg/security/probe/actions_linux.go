@@ -94,3 +94,42 @@ func (k *HashActionReport) PatchEvent(ev *serializers.EventSerializer) {
 	ev.FileEventSerializer.HashState = k.fileEvent.HashState.String()
 	ev.FileEventSerializer.Hashes = k.fileEvent.Hashes
 }
+
+// RawPacketActionReport defines a raw packet action reports
+// easyjson:json
+type RawPacketActionReport struct {
+	sync.RWMutex
+
+	Filter string `json:"filter"`
+	Policy string `json:"policy"`
+
+	// internal
+	resolved bool
+	rule     *rules.Rule
+}
+
+// IsResolved return if the action is resolved
+func (k *RawPacketActionReport) IsResolved() error {
+	return nil
+}
+
+// ToJSON marshal the action
+func (k *RawPacketActionReport) ToJSON() ([]byte, error) {
+	k.Lock()
+	defer k.Unlock()
+
+	data, err := utils.MarshalEasyJSON(k)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+// IsMatchingRule returns true if this action report is targeted at the given rule ID
+func (k *RawPacketActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
+	k.RLock()
+	defer k.RUnlock()
+
+	return k.rule.ID == ruleID
+}

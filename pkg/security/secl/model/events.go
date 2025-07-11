@@ -111,8 +111,8 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
-	// RawPacketEventType raw packet event
-	RawPacketEventType
+	// RawPacketEventType raw packet filter event
+	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
 	// StatEventType stat event (used kernel side only)
@@ -127,6 +127,8 @@ const (
 	FileFsmountEventType
 	// FileOpenTreeEventType Open Tree event
 	FileOpenTreeEventType
+	// RawPacketActionEventType raw packet action event
+	RawPacketActionEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -257,8 +259,10 @@ func (t EventType) String() string {
 		return "imds"
 	case OnDemandEventType:
 		return "ondemand"
-	case RawPacketEventType:
+	case RawPacketFilterEventType:
 		return "packet"
+	case RawPacketActionEventType:
+		return "packet_action"
 	case NetworkFlowMonitorEventType:
 		return "network_flow_monitor"
 	case StatEventType:

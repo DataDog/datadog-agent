@@ -492,7 +492,7 @@ struct raw_packet_event_t {
     struct cgroup_context_t cgroup;
     struct network_device_context_t device;
 
-    int len;
+    u32 len;
     char data[256];
 };
 

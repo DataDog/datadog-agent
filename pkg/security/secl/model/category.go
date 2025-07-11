@@ -67,7 +67,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	// Network
 	case
 		IMDSEventType.String(),
-		RawPacketEventType.String(),
+		RawPacketFilterEventType.String(),
+		RawPacketActionEventType.String(),
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
 		NetworkFlowMonitorEventType.String():

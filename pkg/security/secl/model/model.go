@@ -101,6 +101,8 @@ type NetworkContext struct {
 	Destination      IPPortContext `field:"destination"`       // destination of the network packet
 	NetworkDirection uint32        `field:"network_direction"` // SECLDoc[network_direction] Definition:`Network direction of the network packet` Constants:`Network directions`
 	Size             uint32        `field:"size"`              // SECLDoc[size] Definition:`Size in bytes of the network packet`
+
+	Action uint32 `field:"-"`
 }
 
 // IsZero returns if there is a network context

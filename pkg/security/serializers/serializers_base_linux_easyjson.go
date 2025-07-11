@@ -454,6 +454,16 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers4(i
 				}
 				(*out.TLSContext).UnmarshalEasyJSON(in)
 			}
+		case "dropped":
+			if in.IsNull() {
+				in.Skip()
+				out.Dropped = nil
+			} else {
+				if out.Dropped == nil {
+					out.Dropped = new(bool)
+				}
+				*out.Dropped = bool(in.Bool())
+			}
 		case "device":
 			if in.IsNull() {
 				in.Skip()
@@ -495,6 +505,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers4(o
 		first = false
 		out.RawString(prefix[1:])
 		(*in.TLSContext).MarshalEasyJSON(out)
+	}
+	if in.Dropped != nil {
+		const prefix string = ",\"dropped\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(*in.Dropped))
 	}
 	if in.Device != nil {
 		const prefix string = ",\"device\":"

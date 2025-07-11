@@ -5,14 +5,8 @@
 #include "helpers/network/raw.h"
 #include "perf_ring.h"
 
-TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
-    u64 rate = 10;
-    LOAD_CONSTANT("raw_packet_limiter_rate", rate);
 
-    if (!global_limiter_allow(RAW_PACKET_LIMITER, rate, 1)) {
-        return TC_ACT_UNSPEC;
-    }
-
+__attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, u32 event_type, u32 action) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
@@ -43,15 +37,30 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
         len = sizeof(*evt);
     }
 
-    send_event_with_size_ptr(skb, EVENT_RAW_PACKET, evt, len);
+    send_event_with_size_ptr(skb, event_type, evt, len);
 
-    return TC_ACT_UNSPEC;
+    bpf_printk("raw_packet_drop_action_shot: %d", action);
+
+    return action;
+}
+
+TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
+    u64 rate = 10;
+    LOAD_CONSTANT("raw_packet_limiter_rate", rate);
+
+    if (!global_limiter_allow(RAW_PACKET_FILTER_LIMITER, rate, 1)) {
+        return TC_ACT_UNSPEC;
+    }
+
+    return send_raw_packet_event(skb, EVENT_RAW_PACKET_FILTER, TC_ACT_UNSPEC);
 }
 
 TAIL_CALL_CLASSIFIER_FNC(raw_packet_drop_action_cb, struct __sk_buff *skb) {
-    bpf_printk("raw_packet_drop_action_shot");
+    if (!global_limiter_allow(RAW_PACKET_ACTION_LIMITER, 1, 1)) {
+        return TC_ACT_SHOT;
+    }
 
-    return TC_ACT_SHOT;
+    return send_raw_packet_event(skb, EVENT_RAW_PACKET_ACTION, TC_ACT_SHOT);
 }
 
 #endif

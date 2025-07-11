@@ -263,7 +263,8 @@ enum link_target_dentry_origin {
 };
 
 enum global_rate_limiter_type {
-    RAW_PACKET_LIMITER = 0,
+    RAW_PACKET_FILTER_LIMITER = 0,
+    RAW_PACKET_ACTION_LIMITER,
 };
 
 #define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)

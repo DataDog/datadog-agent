@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -18,7 +19,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/samber/lo"
@@ -151,6 +154,75 @@ func TestRawPacket(t *testing.T) {
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
 		})
+	})
+}
+
+func TestRawPacketAction(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
+	}
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_raw_packet_drop",
+		Expression: `exec.file.name == "free"`,
+		Actions: []*rules.ActionDefinition{
+			{
+				NetworkFilter: &rules.NetworkFilterDefinition{
+					BPFFilter: "port 53",
+					Scope:     "cgroup",
+					Policy:    "drop",
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	t.Run("drop", func(t *testing.T) {
+		cmd := cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdWrapper.Command("free", []string{}, []string{})
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
+		})
+
+		time.Sleep(time.Second)
+
+		cmd = cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
+		if err := cmd.Run(); err == nil {
+			t.Error("should return an error")
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("rawpacket_action")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 	})
 }
 
