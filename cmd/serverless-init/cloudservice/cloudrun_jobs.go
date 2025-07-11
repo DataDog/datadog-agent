@@ -6,13 +6,28 @@
 package cloudservice
 
 import (
+	"fmt"
 	"os"
 )
 
 const CloudRunJobsOrigin = "cloudrun"
 
 const (
-	cloudRunJobNameEnvVar = "CLOUD_RUN_JOB"
+	cloudRunJobNameEnvVar     = "CLOUD_RUN_JOB"
+	cloudRunExecutionEnvVar   = "CLOUD_RUN_EXECUTION"
+	cloudRunTaskIndexEnvVar   = "CLOUD_RUN_TASK_INDEX"
+	cloudRunTaskAttemptEnvVar = "CLOUD_RUN_TASK_ATTEMPT"
+	cloudRunTaskCountEnvVar   = "CLOUD_RUN_TASK_COUNT"
+)
+
+const (
+	cloudRunJobNamespace = "gcrjob."
+	jobNameTag           = "job_name"
+	executionNameTag     = "execution_name"
+	taskIndexTag         = "task_index"
+	taskAttemptTag       = "task_attempt"
+	taskCountTag         = "task_count"
+	resourceNameTag      = "resource_name"
 )
 
 type CloudRunJobs struct{}
@@ -20,7 +35,36 @@ type CloudRunJobs struct{}
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
 	tags := metadataHelperFunc(GetDefaultConfig(), false)
-	// TODO
+	tags["origin"] = CloudRunJobsOrigin
+	tags["_dd.origin"] = CloudRunJobsOrigin
+
+	jobNameVal := os.Getenv(cloudRunJobNameEnvVar)
+	executionNameVal := os.Getenv(cloudRunExecutionEnvVar)
+	taskIndexVal := os.Getenv(cloudRunTaskIndexEnvVar)
+	taskAttemptVal := os.Getenv(cloudRunTaskAttemptEnvVar)
+	taskCountVal := os.Getenv(cloudRunTaskCountEnvVar)
+
+	if jobNameVal != "" {
+		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
+	}
+
+	if executionNameVal != "" {
+		tags[cloudRunJobNamespace+executionNameTag] = executionNameVal
+	}
+
+	if taskIndexVal != "" {
+		tags[cloudRunJobNamespace+taskIndexTag] = taskIndexVal
+	}
+
+	if taskAttemptVal != "" {
+		tags[cloudRunJobNamespace+taskAttemptTag] = taskAttemptVal
+	}
+
+	if taskCountVal != "" {
+		tags[cloudRunJobNamespace+taskCountTag] = taskCountVal
+	}
+
+	tags[cloudRunJobNamespace+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
 	return tags
 }
 
