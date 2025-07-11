@@ -105,34 +105,50 @@ func (v *VersaCheck) Run() error {
 	organizations = filterOrganizations(organizations, v.config.IncludedTenants, v.config.ExcludedTenants)
 	log.Tracef("Filtered organizations: %v", organizations)
 
-	// Gather appliances for each organization if we need device metadata or hardware metrics
-	var appliances []client.Appliance
-	if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics {
-		for _, org := range organizations {
-			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
-			if err != nil {
-				return fmt.Errorf("error getting appliances from Versa client: %w", err)
-			}
-
-			for _, appliance := range orgAppliances {
-				log.Tracef("Processing appliance: %+v", appliance)
-			}
-			appliances = append(appliances, orgAppliances...)
-		}
-	}
-	// appliances, err = c.GetAppliances()
-	// if err != nil {
-	// 	return fmt.Errorf("error getting appliances from Versa client: %w", err)
-	// }
-
-	// Get director status
+	// Get director status (independent of organizations)
 	directorStatus, err := c.GetDirectorStatus()
 	if err != nil {
 		return fmt.Errorf("error getting director status from Versa client: %w", err)
 	}
 
+	// Process each organization and collect all required data
+	var appliances []client.Appliance
+	var interfaces []client.Interface
+
+	// Determine if we need appliances for device mapping
+	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkExtendedMetrics
+
+	for _, org := range organizations {
+		log.Tracef("Processing organization: %s", org.Name)
+
+		// Gather appliances if we need device metadata, hardware metrics, or device mapping
+		if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
+			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+			if err != nil {
+				log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
+			} else {
+				for _, appliance := range orgAppliances {
+					log.Tracef("Processing appliance: %+v", appliance)
+				}
+				appliances = append(appliances, orgAppliances...)
+			}
+		}
+
+		// Grab interfaces if we need interface metadata or interface metrics
+		if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
+			orgInterfaces, err := c.GetInterfaces(org.Name)
+			if err != nil {
+				// not getting interfaces shouldn't stop the rest of the check
+				log.Errorf("error getting interfaces from organization %s: %v", org.Name, err)
+			} else {
+				interfaces = append(interfaces, orgInterfaces...)
+			}
+		}
+	}
+
 	// Convert Versa objects to device metadata
-	// We need device metadata for deviceNameToIDMap even if SendDeviceMetadata is false
+	// If we collected appliances for any reason, always send device metadata since we already have it
 	var deviceMetadata []devicemetadata.DeviceMetadata
 	if len(appliances) > 0 {
 		deviceMetadata = make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
@@ -160,20 +176,6 @@ func (v *VersaCheck) Run() error {
 
 	deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
 
-	// Grab interfaces for each organization if we need interface metadata or interface metrics
-	var interfaces []client.Interface
-	if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
-		for _, org := range organizations {
-			orgInterfaces, err := c.GetInterfaces(org.Name)
-			if err != nil {
-				// not getting interfaces shouldn't stop the rest of the check
-				log.Errorf("error getting interfaces from Versa client: %v", err)
-				continue
-			}
-			interfaces = append(interfaces, orgInterfaces...)
-		}
-	}
-
 	var interfaceMetadata []devicemetadata.InterfaceMetadata
 	if *v.config.SendInterfaceMetadata {
 		var err error
@@ -190,12 +192,8 @@ func (v *VersaCheck) Run() error {
 	}
 
 	// Send the metadata to the metrics sender
-	if *v.config.SendDeviceMetadata && *v.config.SendInterfaceMetadata {
+	if len(deviceMetadata) > 0 || len(interfaceMetadata) > 0 {
 		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil)
-	} else if *v.config.SendDeviceMetadata {
-		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
-	} else if *v.config.SendInterfaceMetadata {
-		v.metricsSender.SendMetadata(nil, interfaceMetadata, nil)
 	}
 
 	// Send interface status metrics
@@ -237,7 +235,7 @@ func (v *VersaCheck) Run() error {
 		for _, id := range deviceWithInterfaceMap {
 			interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
 			if err != nil {
-				log.Warnf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
+				log.Errorf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
 				continue
 			}
 
@@ -245,7 +243,7 @@ func (v *VersaCheck) Run() error {
 			if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
 				interfaceMetricsByDevice[deviceIP] = interfaceMetrics
 			} else {
-				log.Warnf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
+				log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
 			}
 		}
 
@@ -253,27 +251,29 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
 	}
 
-	if *v.config.CollectSLAMetrics {
-		for _, org := range organizations {
+	// Now collect organization-specific metrics that need deviceNameToIDMap
+	for _, org := range organizations {
+		// Collect SLA metrics if enabled
+		if *v.config.CollectSLAMetrics {
 			slaMetrics, err := c.GetSLAMetrics(org.Name)
 			if err != nil {
-				log.Warnf("error getting SLA metrics from Versa client: %v", err)
+				log.Warnf("error getting SLA metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 			}
-			v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 		}
-	}
 
-	if *v.config.CollectLinkExtendedMetrics {
-		for _, org := range organizations {
-			err = c.GetLinkStatusMetrics(org.Name)
+		// Collect link metrics if enabled
+		if *v.config.CollectLinkExtendedMetrics {
+			err := c.GetLinkStatusMetrics(org.Name)
 			if err != nil {
-				log.Warnf("error getting link metrics: %v", err)
+				log.Warnf("error getting link status metrics from organization %s: %v", org.Name, err)
 			}
 			//TODO: send these metrics
 
 			linkExtendedMetrics, err := c.GetLinkExtendedMetrics(org.Name)
 			if err != nil {
-				log.Warnf("error getting link extended metrics from Versa client: %v", err)
+				log.Warnf("error getting link extended metrics from organization %s: %v", org.Name, err)
 			} else {
 				v.metricsSender.SendLinkExtendedMetrics(linkExtendedMetrics, deviceNameToIDMap)
 			}
