@@ -250,7 +250,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		apmProcessName := "trace-loader"
+		apmProcessName := "(trace-loader)|(trace-agent)"
 		if client.Host.OSFamily == componentos.WindowsFamily {
 			apmProcessName = "trace-agent"
 		}
