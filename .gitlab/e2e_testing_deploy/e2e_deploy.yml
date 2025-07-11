@@ -91,8 +91,8 @@ deploy_deb_testing-a7_arm64:
     # and gpg-vault does not support the operations required by setup_signing_keys_package
     - *setup_signing_keys_package
     - *setup_signing
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - deb-s3 upload -c "stable-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
+    - deb-s3 upload -c "stable-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$GPG_TEST_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
