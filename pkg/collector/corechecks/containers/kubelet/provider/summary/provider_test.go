@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,13 +22,13 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
@@ -357,11 +356,10 @@ func TestProvider_Provide(t *testing.T) {
 				},
 				UseStatsSummaryAsSource: &useStatsSummaryAsSource,
 			}
+			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 			p := NewProvider(
-				&containers.Filter{
-					Enabled: true,
-				},
+				mockFilterStore,
 				config,
 				store,
 				fakeTagger,
@@ -369,7 +367,7 @@ func TestProvider_Provide(t *testing.T) {
 			assert.NoError(t, err)
 
 			err = p.Provide(kubeletMock, mockSender)
-			if !reflect.DeepEqual(err, tt.want.err) {
+			if err != tt.want.err {
 				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
 				return
 			}

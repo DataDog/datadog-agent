@@ -8,7 +8,6 @@
 package docker
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -19,14 +18,15 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -193,6 +193,11 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 	}
 
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
+	mockConfig.SetWithoutSource("container_exclude_logs", "name:agent2 image:datadog/agent") // shouldn't be applied to metrics
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
 	// Create Docker check
 	check := DockerCheck{
 		instance: &DockerConfig{
@@ -205,12 +210,9 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 		eventTransformer: newBundledTransformer("testhostname", []string{}, fakeTagger),
 		dockerHostname:   "testhostname",
-		containerFilter: &containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
-		store:  fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
-		tagger: fakeTagger,
+		filterStore:      mockFilterStore,
+		store:            fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:           fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -285,11 +287,11 @@ func TestContainersRunning(t *testing.T) {
 
 	// Create Docker check
 	check := DockerCheck{
-		instance:        &DockerConfig{},
-		dockerHostname:  "testhostname",
-		containerFilter: &containers.Filter{},
-		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
-		tagger:          fakeTagger,
+		instance:       &DockerConfig{},
+		dockerHostname: "testhostname",
+		filterStore:    workloadfilterfxmock.SetupMockFilter(t),
+		store:          fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
+		tagger:         fakeTagger,
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)

@@ -10,6 +10,7 @@ package kubelet
 
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -20,6 +21,6 @@ const (
 	CheckName = "kubelet"
 )
 
-func Factory(workloadmeta.Component, tagger.Component) option.Option[func() check.Check] {
+func Factory(workloadmeta.Component, workloadfilter.Component, tagger.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }
