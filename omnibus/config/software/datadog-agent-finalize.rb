@@ -181,12 +181,18 @@ build do
                 codesign = "../tools/ci/retry.sh codesign"
 
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                #TODO(regis.desgroppes): reconsider below short-term countermeasure (hardcoded path) taken to mitigate incident-40404
-                command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/embedded/lib/python3.12/site-packages/ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe-unknown-x86_64'", cwd: Dir.pwd
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    find #{install_dir} -type f -print0 |
+                        xargs -t -0 -n1000 -P#{workers} file -n --mime-type |
+                        grep -E '[^)]:\\s*application/x-mach-binary' |
+                        tee /dev/stderr |
+                        cut -d: -f1 |
+                        tr '\\n' '\\0' |
+                        xargs -t -0 -n20 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                    echo "ERROR $?""
+                    exit #{workers}
+                SH
                 command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end
