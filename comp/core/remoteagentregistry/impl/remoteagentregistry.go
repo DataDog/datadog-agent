@@ -9,6 +9,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -69,10 +71,11 @@ func NewComponent(reqs Requires) Provides {
 func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
 	comp := &remoteAgentRegistry{
-		conf:         reqs.Config,
-		agentMap:     make(map[string]*remoteAgentDetails),
-		shutdownChan: shutdownChan,
-		telemetry:    reqs.Telemetry,
+		conf:             reqs.Config,
+		agentMap:         make(map[string]*remoteAgentDetails),
+		shutdownChan:     shutdownChan,
+		telemetry:        reqs.Telemetry,
+		configEventsChan: make(chan *settingsUpdates),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -92,11 +95,18 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf         config.Component
-	agentMap     map[string]*remoteAgentDetails
-	agentMapMu   sync.Mutex
-	shutdownChan chan struct{}
-	telemetry    telemetry.Component
+	conf             config.Component
+	agentMap         map[string]*remoteAgentDetails
+	agentMapMu       sync.Mutex
+	shutdownChan     chan struct{}
+	telemetry        telemetry.Component
+	configEventsChan chan *settingsUpdates
+}
+
+type settingsUpdates struct {
+	setting    string
+	newValue   interface{}
+	sequenceID uint64
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -124,13 +134,19 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		//
 		// This won't try and connect to the given gRPC endpoint immediately, but will instead surface any errors with
 		// connecting when we try to query the remote agent for status or flare data.
-		details, err := newRemoteAgentDetails(registration)
+		newEntry, err := newRemoteAgentDetails(registration)
 		if err != nil {
 			return 0, err
 		}
 
+		if err := newEntry.startConfigStream(ra.conf); err != nil {
+			return 0, err
+		}
+
+		ra.agentMap[agentID] = newEntry
+
 		log.Infof("Remote agent '%s' registered.", agentID)
-		ra.agentMap[agentID] = details
+
 		return recommendedRefreshInterval, nil
 	}
 
@@ -144,6 +160,10 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 			return 0, err
 		}
 		entry.client = client
+
+		if err := entry.restartConfigStream(ra.conf); err != nil {
+			return 0, err
+		}
 	}
 
 	entry.displayName = registration.DisplayName
@@ -160,6 +180,13 @@ func (ra *remoteAgentRegistry) registerCollector() {
 func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
 	ra.registerCollector()
+	ra.conf.OnUpdate(func(setting string, _ interface{}, newValue interface{}, sequenceID uint64) {
+		ra.configEventsChan <- &settingsUpdates{
+			setting:    setting,
+			newValue:   newValue,
+			sequenceID: sequenceID,
+		}
+	})
 
 	go func() {
 		log.Info("Remote Agent registry started.")
@@ -172,6 +199,8 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ra.shutdownChan:
 				log.Info("Remote Agent registry stopped.")
 				return
+			case update := <-ra.configEventsChan:
+				ra.handleConfigUpdate(update)
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
 
@@ -183,8 +212,16 @@ func (ra *remoteAgentRegistry) start() {
 				}
 
 				for _, id := range agentsToRemove {
-					delete(ra.agentMap, id)
-					log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
+					details, ok := ra.agentMap[id]
+					if ok {
+						configStream := details.configStream
+						if configStream != nil {
+							configStream.Cancel()
+						}
+
+						delete(ra.agentMap, id)
+						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
+					}
 				}
 
 				ra.agentMapMu.Unlock()
@@ -473,6 +510,82 @@ collect:
 	return nil
 }
 
+func (ra *remoteAgentRegistry) handleConfigUpdate(update *settingsUpdates) {
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	pbValue, err := structpb.NewValue(update.newValue)
+	if err != nil {
+		log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", update.setting, err)
+		return
+	}
+
+	source := ra.conf.GetSource(update.setting).String()
+	configUpdate := &pb.ConfigUpdate{
+		SequenceId: int32(update.sequenceID),
+		Setting: &pb.ConfigSetting{
+			Key:    update.setting,
+			Value:  pbValue,
+			Source: source,
+		},
+	}
+
+	for agentID, details := range ra.agentMap {
+		configStream := details.configStream
+		if configStream == nil {
+			log.Warnf("Remote agent '%s' has no active configuration stream.", agentID)
+			continue
+		}
+
+		if !configStream.TrySendUpdate(configUpdate) {
+			log.Warnf("Remote agent '%s' not processing configuration updates in a timely manner. Dropping update.", agentID)
+		}
+	}
+}
+
+func createConfigSnapshot(conf config.Component) (*pb.ConfigEvent, uint64, error) {
+	allSettings, sequenceID := conf.AllSettingsWithSequenceID()
+
+	// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to
+	// handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
+	data, err := json.Marshal(allSettings)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Unmarshal the data into a map[string]interface{} so that the values have a type that structpb.NewValue can handle.
+	var intermediateMap map[string]interface{}
+	if err := json.Unmarshal(data, &intermediateMap); err != nil {
+		return nil, 0, err
+	}
+
+	settings := make([]*pb.ConfigSetting, 0, len(intermediateMap))
+	for setting, value := range intermediateMap {
+		pbValue, err := structpb.NewValue(value)
+		source := conf.GetSource(setting).String()
+		if err != nil {
+			log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+			continue
+		}
+		settings = append(settings, &pb.ConfigSetting{
+			Source: source,
+			Key:    setting,
+			Value:  pbValue,
+		})
+	}
+
+	snapshot := &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: int32(sequenceID),
+				Settings:   settings,
+			},
+		},
+	}
+
+	return snapshot, sequenceID, nil
+}
+
 func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (pb.RemoteAgentClient, error) {
 	// NOTE: we're using InsecureSkipVerify because the gRPC server only
 	// persists its TLS certs in memory, and we currently have no
@@ -496,23 +609,83 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 	return pb.NewRemoteAgentClient(conn), nil
 }
 
-type remoteAgentDetails struct {
-	lastSeen    time.Time
-	displayName string
-	apiEndpoint string
-	client      pb.RemoteAgentClient
+type configStream struct {
+	ctxCancel     context.CancelFunc
+	configUpdates chan *pb.ConfigUpdate
 }
 
-func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
-	client, err := newRemoteAgentClient(registration)
-	if err != nil {
-		return nil, err
-	}
+func (cs *configStream) Cancel() {
+	cs.ctxCancel()
+}
 
-	return &remoteAgentDetails{
-		displayName: registration.DisplayName,
-		apiEndpoint: registration.APIEndpoint,
-		client:      client,
-		lastSeen:    time.Now(),
-	}, nil
+func (cs *configStream) TrySendUpdate(update *pb.ConfigUpdate) bool {
+	select {
+	case cs.configUpdates <- update:
+		return true
+	default:
+		return false
+	}
+}
+
+func runConfigStream(ctx context.Context, config config.Component, stream pb.RemoteAgent_StreamConfigEventsClient, configUpdates chan *pb.ConfigUpdate) {
+outer:
+	for {
+		lastEventSequenceID := uint64(0)
+
+		// Start by sending an initial snapshot of the current configuration.
+		//
+		// We do this to ensure that when we restart this outer loop, we always resynchronize the remote agent by
+		// providing a complete snapshot of the current configuration. This lets us handle any errors during send
+		// by just restarting the outer loop.
+		initialSnapshot, sequenceID, err := createConfigSnapshot(config)
+		if err != nil {
+			log.Errorf("Failed to create initial config snapshot: %v", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		err = stream.Send(initialSnapshot)
+		if err != nil {
+			log.Errorf("Failed to send initial config snapshot to remote agent: %v", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		lastEventSequenceID = sequenceID
+
+		// Start processing config updates.
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case configUpdate := <-configUpdates:
+				// If this update is older than the last event we sent, ignore it.
+				//
+				// If the sequence ID doesn't immediately follow our last event's sequence ID, then we've out of sync and
+				// need to restart the outer loop to resynchronize.
+				currentSequenceID := uint64(configUpdate.SequenceId)
+				if currentSequenceID <= lastEventSequenceID {
+					continue
+				}
+
+				if currentSequenceID > lastEventSequenceID+1 {
+					continue outer
+				}
+
+				update := &pb.ConfigEvent{
+					Event: &pb.ConfigEvent_Update{
+						Update: configUpdate,
+					},
+				}
+
+				err := stream.Send(update)
+				if err != nil {
+					log.Errorf("Failed to send config update to remote agent: %v", err)
+					continue outer
+				}
+
+				lastEventSequenceID = currentSequenceID
+			}
+		}
+	}
 }
