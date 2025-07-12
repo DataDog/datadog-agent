@@ -91,7 +91,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("not interesting env", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 102, envFalse, true)
 		defer cleanup()
-		res, err := analyzeProcess(102, procRoot, noopContainerResolver{}, &analyzer)
+		res, err := analyzeProcess(102, procRoot, noopContainerResolver{}, analyzer)
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 	})
@@ -99,7 +99,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("no interesting exe", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 101, envTrue, true)
 		defer cleanup()
-		res, err := analyzeProcess(101, procRoot, noopContainerResolver{}, &analyzer)
+		res, err := analyzeProcess(101, procRoot, noopContainerResolver{}, analyzer)
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 		require.Empty(t, res.exe)
@@ -108,7 +108,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("exe missing", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 103, envTrue, false)
 		defer cleanup()
-		res, err := analyzeProcess(103, procRoot, noopContainerResolver{}, &analyzer)
+		res, err := analyzeProcess(103, procRoot, noopContainerResolver{}, analyzer)
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 	})
@@ -131,7 +131,7 @@ func TestAnalyzeProcess(t *testing.T) {
 			require.NoError(t, f.Close())
 			require.NoError(t, binReader.Close())
 		}
-		res, err := analyzeProcess(104, procRoot, noopContainerResolver{}, &analyzer)
+		res, err := analyzeProcess(104, procRoot, noopContainerResolver{}, analyzer)
 		require.NoError(t, err)
 		require.True(t, res.interesting)
 		require.NotEmpty(t, res.exe.Path)
@@ -194,8 +194,8 @@ func BenchmarkAnalyzeProcess(b *testing.B) {
 					if cfg.GOARCH != runtime.GOARCH {
 						b.Skipf("skipping %s on %s", cfg.String(), runtime.GOARCH)
 					}
-					for _, cached := range []bool{false, true} {
-						b.Run(fmt.Sprintf("cached=%t", cached), func(b *testing.B) {
+					for _, cached := range []string{"None", "FileKey", "HtlHash"} {
+						b.Run(fmt.Sprintf("cached=%s", cached), func(b *testing.B) {
 							for _, env := range []struct {
 								name string
 								env  []string
@@ -214,10 +214,15 @@ func BenchmarkAnalyzeProcess(b *testing.B) {
 							} {
 								b.Run(fmt.Sprintf("env=%s", env.name), func(b *testing.B) {
 									var analyzer executableAnalyzer
-									if cached {
-										analyzer = makeExecutableAnalyzer(1)
-									} else {
-										analyzer = makeExecutableAnalyzer(0)
+									switch cached {
+									case "None":
+										analyzer = &baseExecutableAnalyzer{}
+									case "FileKey":
+										analyzer = newFileKeyCacheExecutableAnalyzer(1, &baseExecutableAnalyzer{})
+									case "HtlHash":
+										analyzer = newHtlHashCacheExecutableAnalyzer(10, &baseExecutableAnalyzer{})
+									default:
+										b.Fatalf("unknown cache type: %s", cached)
 									}
 									bin := testprogs.MustGetBinary(b, prog, cfg)
 									child := exec.Command(bin)
@@ -232,7 +237,7 @@ func BenchmarkAnalyzeProcess(b *testing.B) {
 									pid := child.Process.Pid
 									for b.Loop() {
 										_, err := analyzeProcess(
-											uint32(pid), "/proc", noopContainerResolver{}, &analyzer,
+											uint32(pid), "/proc", noopContainerResolver{}, analyzer,
 										)
 										require.NoError(b, err)
 									}

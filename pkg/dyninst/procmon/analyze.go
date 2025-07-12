@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"os"
 	"path"
@@ -48,7 +49,7 @@ func analyzeProcess(
 	pid uint32,
 	procfsRoot string,
 	resolver ContainerResolver,
-	executableAnalyzer *executableAnalyzer,
+	executableAnalyzer executableAnalyzer,
 ) (processAnalysis, error) {
 	maybeWrapErr := func(msg string, err error) error {
 		if err == nil || errors.Is(err, os.ErrNotExist) {
@@ -327,19 +328,90 @@ func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
 
 var ddTraceSymbolSuffix = []byte("ddtrace/tracer.passProbeConfiguration")
 
-type executableAnalyzer struct {
-	htlHashCache cache[string, bool]
-	fileKeyCache cache[FileKey, bool]
+// executableAnalyzer is an interface for analyzing executables to determine if
+// they are interesting for dynamic instrumentation.
+type executableAnalyzer interface {
+	// checkFileKeyCache is used to check if the executable is interesting
+	// without loading anything about the file. If known is false, the value
+	// of interesting is meaningless.
+	checkFileKeyCache(key FileKey) (interesting bool, known bool)
+	// isInteresting is used to check if the executable is interesting.
+	// It is called after checkFileKeyCache has returned true.
+	//
+	// Note that the file will be left in an unknown state after this call.
+	isInteresting(f *os.File, key FileKey) (bool, error)
 }
 
-func (a *executableAnalyzer) checkFileKeyCache(key FileKey) (interesting bool, known bool) {
+// baseExecutableAnalyzer implements executableAnalyzer without any caching.
+type baseExecutableAnalyzer struct{}
+
+func (a *baseExecutableAnalyzer) checkFileKeyCache(
+	_ FileKey,
+) (interesting bool, known bool) {
+	return false, false
+}
+
+func (a *baseExecutableAnalyzer) isInteresting(
+	f *os.File, _ FileKey,
+) (bool, error) {
+	return isGoElfBinaryWithDDTraceGo(f)
+}
+
+type fileKeyCacheExecutableAnalyzer struct {
+	inner        executableAnalyzer
+	fileKeyCache *lru.Cache[FileKey, bool]
+}
+
+func newFileKeyCacheExecutableAnalyzer(
+	cacheSize int,
+	inner executableAnalyzer,
+) executableAnalyzer {
+	return &fileKeyCacheExecutableAnalyzer{
+		inner:        inner,
+		fileKeyCache: mustNewLruCache[FileKey, bool](cacheSize),
+	}
+}
+
+func (a *fileKeyCacheExecutableAnalyzer) checkFileKeyCache(
+	key FileKey,
+) (interesting bool, known bool) {
 	return a.fileKeyCache.Get(key)
 }
 
-func (a *executableAnalyzer) isInteresting(f *os.File, key FileKey) (bool, error) {
+func (a *fileKeyCacheExecutableAnalyzer) isInteresting(
+	f *os.File,
+	key FileKey,
+) (bool, error) {
 	if interesting, ok := a.fileKeyCache.Get(key); ok {
 		return interesting, nil
 	}
+	interesting, err := a.inner.isInteresting(f, key)
+	if err != nil {
+		return false, err
+	}
+	a.fileKeyCache.Add(key, interesting)
+	return interesting, nil
+}
+
+type htlHashCacheExecutableAnalyzer struct {
+	inner        executableAnalyzer
+	htlHashCache *lru.Cache[string, bool]
+}
+
+func newHtlHashCacheExecutableAnalyzer(
+	cacheSize int,
+	inner executableAnalyzer,
+) executableAnalyzer {
+	return &htlHashCacheExecutableAnalyzer{
+		inner:        inner,
+		htlHashCache: mustNewLruCache[string, bool](cacheSize),
+	}
+}
+
+func (a *htlHashCacheExecutableAnalyzer) isInteresting(
+	f *os.File,
+	key FileKey,
+) (bool, error) {
 	hash, err := computeHtlHash(f)
 	if err != nil {
 		return false, err
@@ -347,47 +419,40 @@ func (a *executableAnalyzer) isInteresting(f *os.File, key FileKey) (bool, error
 	if interesting, ok := a.htlHashCache.Get(hash); ok {
 		return interesting, nil
 	}
-	interesting, err := isGoElfBinaryWithDDTraceGo(f)
+	// Seek to the start of the file for the next call to isInteresting.
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return false, fmt.Errorf("failed to seek to start of file: %w", err)
+	}
+	interesting, err := a.inner.isInteresting(f, key)
 	if err != nil {
 		return false, err
 	}
-	a.fileKeyCache.Add(key, interesting)
 	a.htlHashCache.Add(hash, interesting)
 	return interesting, nil
 }
 
-// cache is a wrapper around an LRU cache that can be disabled.
-type cache[K comparable, V any] struct {
-	cache *lru.Cache[K, V]
-}
-
-func (c *cache[K, V]) Get(key K) (v V, ok bool) {
-	if c.cache != nil {
-		v, ok = c.cache.Get(key)
-	}
-	return v, ok
-}
-
-func (c *cache[K, V]) Add(key K, value V) {
-	if c.cache != nil {
-		c.cache.Add(key, value)
-	}
-}
-
-func makeCache[K comparable, V any](size int) cache[K, V] {
-	if size <= 0 {
-		return cache[K, V]{}
-	}
-	c, err := lru.New[K, V](size)
-	if err != nil {
-		panic(err) // can't happen because we checked the size
-	}
-	return cache[K, V]{cache: c}
+func (a *htlHashCacheExecutableAnalyzer) checkFileKeyCache(
+	key FileKey,
+) (interesting bool, known bool) {
+	return a.inner.checkFileKeyCache(key)
 }
 
 func makeExecutableAnalyzer(cacheSize int) executableAnalyzer {
-	return executableAnalyzer{
-		htlHashCache: makeCache[string, bool](cacheSize),
-		fileKeyCache: makeCache[FileKey, bool](cacheSize),
+	if cacheSize <= 0 {
+		return &baseExecutableAnalyzer{}
 	}
+	return newFileKeyCacheExecutableAnalyzer(
+		cacheSize,
+		newHtlHashCacheExecutableAnalyzer(cacheSize, &baseExecutableAnalyzer{}),
+	)
+}
+
+// mustNewLruCache panics if the cache creation fails which will only happen
+// if the size is non-positive.
+func mustNewLruCache[K comparable, V any](size int) *lru.Cache[K, V] {
+	c, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err)
+	}
+	return c
 }

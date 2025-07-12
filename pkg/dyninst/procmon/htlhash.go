@@ -19,10 +19,9 @@ import (
 
 // computeHtlHash computes a hash of the first 4096 bytes of the file and the
 // last 4096 bytes of the file, and the length of the file. This is a cheap to
-// compute hash that is extremely likely to be unique for the executable.
+// compute hash that is practically unique for the executable.
 //
-// If the function returns an error, the file will be left in an unknown state.
-// Otherwise, the file will have been seeked to the original position.
+// Note that the file's position will be left in an unknown state after this.
 //
 // Derived from https://github.com/open-telemetry/opentelemetry-ebpf-profiler/blob/ec6ee459/libpf/fileid.go#L122-L128
 // See also https://opentelemetry.io/docs/specs/otel/profiles/mappings/#algorithm-for-processexecutablebuild_idhtlhash
@@ -33,19 +32,6 @@ func computeHtlHash(f io.ReadSeeker) (_ string, retErr error) {
 		}
 		return fmt.Errorf("computeHtlHash: %s: %w", msg, err)
 	}
-	origOffset, err := f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return "", maybeWrapErr("failed to seek to current position", err)
-	}
-	defer func() {
-		if retErr != nil {
-			if _, err := f.Seek(origOffset, io.SeekStart); err != nil {
-				retErr = maybeWrapErr(
-					"failed to seek to original position", err,
-				)
-			}
-		}
-	}()
 	h := sha256.New()
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return "", maybeWrapErr("failed to seek to original position", err)
