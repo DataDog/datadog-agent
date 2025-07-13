@@ -27,7 +27,7 @@ __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protoc
     case PROTOCOL_HTTP2:
         return PROG_HTTP2_HANDLE_FIRST_FRAME;
     case PROTOCOL_KAFKA:
-        return PROG_KAFKA;
+        return PROG_KAFKA_FETCH_AND_PRODUCE;
     case PROTOCOL_POSTGRES:
         return PROG_POSTGRES;
     case PROTOCOL_REDIS:

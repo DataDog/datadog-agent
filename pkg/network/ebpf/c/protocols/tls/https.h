@@ -79,7 +79,7 @@ update_stack:
  * For each supported protocol, the function performs a tail call to a dedicated handler:
  * - HTTP: PROG_HTTP
  * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
- * - Kafka: PROG_KAFKA
+ * - Kafka: PROG_KAFKA_FETCH_AND_PRODUCE
  * - PostgreSQL: PROG_POSTGRES
  * - Redis: PROG_REDIS
  *
@@ -150,7 +150,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         final_tuple = *t;
         break;
     case PROTOCOL_KAFKA:
-        prog = PROG_KAFKA;
+        prog = PROG_KAFKA_FETCH_AND_PRODUCE;
         final_tuple = *t;
         break;
     case PROTOCOL_POSTGRES:
@@ -210,7 +210,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     }
 
     set_protocol(stack, PROTOCOL_KAFKA);
-    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA_FETCH_AND_PRODUCE);
 }
 
 static __always_inline void tls_dispatch_kafka_api_versions(struct pt_regs *ctx)
@@ -243,7 +243,7 @@ static __always_inline void tls_dispatch_kafka_api_versions(struct pt_regs *ctx)
     }
 
     set_protocol(stack, PROTOCOL_KAFKA);
-    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA_FETCH_AND_PRODUCE);
 }
 
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {

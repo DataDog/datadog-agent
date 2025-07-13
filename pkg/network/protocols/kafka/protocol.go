@@ -51,7 +51,7 @@ const (
 	produceResponsePartitionParserV0TailCall  = "socket__kafka_produce_response_partition_parser_v0"
 	produceResponsePartitionParserV9TailCall  = "socket__kafka_produce_response_partition_parser_v9"
 
-	dispatcher1TailCall = "socket__protocol_dispatcher_kafka2"
+	dispatcher1TailCall = "socket__protocol_dispatcher_kafka1"
 	dispatcher2TailCall = "socket__protocol_dispatcher_kafka2"
 	kafkaHeapMap        = "kafka_heap"
 	inFlightMap         = "kafka_in_flight"
@@ -87,6 +87,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: responseMap,
+		},
+		{
+			Name: "kafka_client_id",
 		},
 		{
 			Name: "kafka_client_string",

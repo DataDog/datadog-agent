@@ -54,8 +54,8 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
     0x8 <= (topic_id[8] >> 4) && (topic_id[8] >> 4) <= 0xB
 
 // Buffers
-PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
-//PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(kafka_client_string, CLIENT_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(kafka_client_string, CLIENT_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
@@ -86,8 +86,7 @@ static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16
         return false;
     }
 
-//    bpf_memset(client_string, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
-//    pktbuf_read_into_buffer_kafka_client_string(client_string, pkt, offset);
+    pktbuf_read_into_buffer_kafka_client_string(client_string, pkt, offset);
 
     // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_STRING(CLIENT_STRING_SIZE_TO_VALIDATE, real_string_size, client_string);
@@ -290,7 +289,7 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
     if (topic_name == NULL) {
         return false;
     }
-    bpf_memset(topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE);
+//    bpf_memset(topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE);
 
     pktbuf_read_into_buffer_topic_name((char *)topic_name, pkt, offset);
     offset += topic_name_size;
@@ -300,18 +299,15 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 
 // Reads the first topic id (can be multiple) from the given offset,
 // verifies if it is a valid UUID version 4
-static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
+// This function is used for v13+ and so it assumes flexible is true
+static __always_inline bool validate_first_topic_id(pktbuf_t pkt, u32 offset) {
     // The topic id is a UUID, which is 16 bytes long.
     // It is in network byte order (big-endian)
     u8 topic_id[16] = {};
 
     // Skipping number of entries for now
-    if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
-            return false;
-        }
-    } else {
-        offset += sizeof(s32);
+    if (!skip_varint_number_of_topics(pkt, &offset)) {
+        return false;
     }
 
     if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
@@ -320,7 +316,6 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
 
     pktbuf_load_bytes(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
-
     return IS_UUID_V4(topic_id);
 }
 
@@ -428,26 +423,24 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
     bool flexible = false;
     bool topic_id_instead_of_name = false;
-    switch (kafka_header->api_key) {
-    case KAFKA_PRODUCE:
+    if (kafka_header->api_key == KAFKA_PRODUCE) {
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
             return false;
         }
         flexible = kafka_header->api_version >= 9;
-        break;
-    case KAFKA_FETCH:
+    } else if (kafka_header->api_key == KAFKA_FETCH) {
         if (!get_topic_offset_from_fetch_request(kafka_header, pkt, &offset)) {
             return false;
         }
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
-        break;
-    default:
+    } else {
+        // We are only interested in fetch and produce requests
         return false;
     }
 
     if (topic_id_instead_of_name) {
-        return validate_first_topic_id(pkt, flexible, offset);
+        return validate_first_topic_id(pkt, offset);
     }
 
     return validate_first_topic_name(pkt, flexible, offset);

@@ -51,8 +51,8 @@ const (
 	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
 	// ProgramHTTP2Termination is tail call to process HTTP2 termination.
 	ProgramHTTP2Termination ProgramType = C.PROG_HTTP2_TERMINATION
-	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
-	ProgramKafka ProgramType = C.PROG_KAFKA
+	// ProgramKafka is the Golang representation of the C.PROG_KAFKA_FETCH_AND_PRODUCE enum
+	ProgramKafka ProgramType = C.PROG_KAFKA_FETCH_AND_PRODUCE
 	// ProgramKafkaFetchResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0 enum
 	ProgramKafkaFetchResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0
 	// ProgramKafkaFetchResponsePartitionParserV12 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12 enum
