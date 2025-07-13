@@ -645,6 +645,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func getHTTPCfg() *networkConfig.Config {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
+	cfg.BPFDebug = true
 	return cfg
 }
 
