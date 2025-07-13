@@ -174,14 +174,15 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 }
 
 func (p *protocol) PreStart() (err error) {
-	//p.eventsConsumer, err = events.NewBatchConsumer(
-	//	"http",
-	//	p.mgr,
-	//	p.processHTTP,
-	//)
-	//if err != nil {
-	//	return
-	//}
+	// TODO: Remove this, it's only needed for the batching mechanism to work
+	_, err = events.NewBatchConsumer(
+		"http",
+		p.mgr,
+		p.processHTTP,
+	)
+	if err != nil {
+		return
+	}
 
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
 	//p.eventsConsumer.Start()
