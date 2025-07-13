@@ -160,6 +160,16 @@ func (h *StatKeeper) add(tx Transaction) {
 		return
 	}
 
+	// Validate HTTP status code
+	statusCode := tx.StatusCode()
+	if statusCode < 100 || statusCode > 599 {
+		h.telemetry.invalidStatus.Add(1)
+		if h.oversizedLogLimit.ShouldLog() {
+			log.Warnf("invalid status code: %s", tx.String())
+		}
+		return
+	}
+
 	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 	if h.connectionAggregator != nil {
 		key.ConnectionKey = h.connectionAggregator.RollupKey(key.ConnectionKey)
