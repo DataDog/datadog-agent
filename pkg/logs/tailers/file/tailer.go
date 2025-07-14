@@ -117,9 +117,9 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info            *status.InfoRegistry
-	bytesRead       *status.CountInfo
-	movingSum       *util.MovingSum
+	info                  *status.InfoRegistry
+	bytesRead             *status.CountInfo
+	movingSum             *util.MovingSum
 	fingerprintConfig     *logsconfig.FingerprintConfig
 	fingerprint           uint64
 	fingerprintingEnabled bool
@@ -231,16 +231,16 @@ func (t *Tailer) NewRotatedTailer(
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   t.sleepDuration,
-		Decoder:         decoder,
-		Info:            info,
-		Rotated:         true,
-		TagAdder:        tagAdder,
-		CapacityMonitor: capacityMonitor,
+		OutputChan:        outputChan,
+		File:              file,
+		SleepDuration:     t.sleepDuration,
+		Decoder:           decoder,
+		Info:              info,
+		Rotated:           true,
+		TagAdder:          tagAdder,
+		CapacityMonitor:   capacityMonitor,
 		FingerprintConfig: t.fingerprintConfig,
-		Registry:        registry,
+		Registry:          registry,
 	}
 
 	return NewTailer(options)
