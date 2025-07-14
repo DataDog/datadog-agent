@@ -25,7 +25,6 @@ service:
               prometheus:
                 host: "localhost"
                 port: 1234
-                without_scope_info: true
                 without_type_suffix: true
                 without_units: true
   extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
