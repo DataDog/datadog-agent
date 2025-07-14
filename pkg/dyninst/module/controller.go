@@ -23,16 +23,17 @@ import (
 
 type procRuntimeID struct {
 	procmon.ProcessID
-	service   string
-	runtimeID string
-	gitInfo   *procmon.GitInfo
+	service       string
+	runtimeID     string
+	gitInfo       *procmon.GitInfo
+	containerInfo *procmon.ContainerInfo
 }
 
 type controller struct {
 	rcScraper    *rcscrape.Scraper
 	actuator     *actuator.Tenant
 	diagUploader *uploader.DiagnosticsUploader
-	logUploader  *uploader.LogsUploader
+	logUploader  *uploader.LogsUploaderFactory
 	store        *processStore
 	diagnostics  *diagnosticsManager
 
@@ -41,7 +42,7 @@ type controller struct {
 
 func newController(
 	a *actuator.Actuator,
-	logUploader *uploader.LogsUploader,
+	logUploader *uploader.LogsUploaderFactory,
 	diagUploader *uploader.DiagnosticsUploader,
 	rcScraper *rcscrape.Scraper,
 ) *controller {
