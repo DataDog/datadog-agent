@@ -126,7 +126,7 @@ func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
 			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
-			agentparams.WithAgentConfig("gpum:\n  enabled: true"),
+			agentparams.WithAgentConfig("gpum:\n  enabled: true\n  use_sp_process_metrics: true"),
 		},
 		kubernetesAgentOptions: nil,
 		instanceType:           gpuInstanceType,
