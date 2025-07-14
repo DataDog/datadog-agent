@@ -2,11 +2,11 @@ module github.com/DataDog/datadog-agent/comp/otelcol/converter/def
 
 go 1.24.0
 
-require go.opentelemetry.io/collector/confmap v1.35.0
+require go.opentelemetry.io/collector/confmap v1.36.0
 
 require (
 	github.com/gobwas/glob v0.2.3 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 )
 
 require (
@@ -20,7 +20,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.35.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.36.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 )
