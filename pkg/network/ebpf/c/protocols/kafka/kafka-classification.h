@@ -9,6 +9,11 @@
 
 #define STRINGIFY(a) #a
 
+// The UUID must be v4 and its variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
+#define IS_UUID_V4(topic_id) \
+    (topic_id[6] >> 4) == 4 && \
+    0x8 <= (topic_id[8] >> 4) && (topic_id[8] >> 4) <= 0xB
+
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-",
 // or, optionally, allowing any printable characters.
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -43,6 +48,10 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
+// Client string (client id/software name/software version) allows any UTF-8 chars but we restrict it to printable ASCII characters
+// for now to avoid false positives.
+#define CHECK_STRING_VALID_CLIENT_STRING(max_buffer_size, real_size, buffer)   \
+    CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
@@ -59,6 +68,28 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
+}
+
+// Buffers
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(client_string, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
+
+// Used to validate the client_id, software name and software version.
+// The same buffer is used for all of them to cut down on instruction count in the verifier.
+// valid means composed only from characters from [a-zA-Z0-9._-].
+static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16 real_string_size, char *client_string) {
+    if (real_string_size == 0) {
+        return true;
+    }
+    // Explicitly check to lower verifier instruction count.
+//    if (real_string_size > CLIENT_STRING_MAX_ALLOWED_SIZE) {
+//        return false;
+//    }
+
+    pktbuf_read_into_buffer_client_string(client_string, pkt, offset);
+
+    // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
+    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_ID_SIZE_TO_VALIDATE, real_string_size, client_string);
 }
 
 // Checks the given kafka header represents a valid one.
@@ -102,6 +133,14 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
             return false;
         }
         break;
+    case KAFKA_API_VERSIONS:
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
+            // We have seen some false positives when both request_api_version and request_api_key are 0,
+            // so dropping support for this case
+            return false;
+        } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
+            return false;
+        }
     default:
         // We are only interested in fetch and produce requests
         return false;
@@ -110,8 +149,6 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
     // if we didn't hit any of the above checks, we are good to go.
     return true;
 }
-
-PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
 static __always_inline bool isMSBSet(uint8_t byte) {
     return (byte & 0x80) != 0;
@@ -270,18 +307,15 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
 
 // Reads the first topic id (can be multiple) from the given offset,
 // verifies if it is a valid UUID version 4
-static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible, u32 offset) {
+// This function is used for v13+ and so it assumes flexible is true
+static __always_inline bool validate_first_topic_id(pktbuf_t pkt, u32 offset) {
     // The topic id is a UUID, which is 16 bytes long.
     // It is in network byte order (big-endian)
     u8 topic_id[16] = {};
 
     // Skipping number of entries for now
-    if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
-            return false;
-        }
-    } else {
-        offset += sizeof(s32);
+    if (!skip_varint_number_of_topics(pkt, &offset)) {
+        return false;
     }
 
     if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
@@ -291,16 +325,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
 
-    // The UUID version (13th digit 4 MSB) must be 4
-    __u8 uuid_version = topic_id[6] >> 4;
-    if (uuid_version != 4) {
-        // The UUID version is not 4
-        return false;
-    }
-
-    // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
-    __u8 uuid_variant = topic_id[8] >> 4;
-    return 0x8 <= uuid_variant && uuid_variant <= 0xB;
+    return IS_UUID_V4(topic_id);
 }
 
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
@@ -421,12 +446,52 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
+    case KAFKA_API_VERSIONS:
+        // we only support flexible versions
+        if (!skip_request_tagged_fields(pkt, &offset)) {
+            return false;
+        }
+
+        const u32 key = 0;
+        // Use a buffer from per-cpu array as the stack is limited.
+        char *client_string = bpf_map_lookup_elem(&client_string, &key);
+        if (client_string == NULL) {
+            return false;
+        }
+
+        // Verify client software name
+        s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
+        if (client_software_name_size <= 0 || client_software_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+            return false;
+        }
+        if (!is_valid_client_string(pkt, offset, client_software_name_size, client_string)) {
+            return false;
+        }
+        offset += client_software_name_size;
+
+        // Verify client software version
+        s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
+        if (client_software_version_size <= 0 || client_software_version_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+            return false;
+        }
+        if (!is_valid_client_string(pkt, offset, client_software_version_size, client_string)) {
+            return false;
+        }
+        offset += client_software_version_size;
+
+        // Another tagged fields at the end of the request
+        if (!skip_request_tagged_fields(pkt, &offset)) {
+            return false;
+        }
+
+        // we should be at the end of the packet now
+        return offset == pktbuf_data_end(pkt);
     default:
         return false;
     }
 
     if (topic_id_instead_of_name) {
-        return validate_first_topic_id(pkt, flexible, offset);
+        return validate_first_topic_id(pkt, offset);
     }
 
     return validate_first_topic_name(pkt, flexible, offset);

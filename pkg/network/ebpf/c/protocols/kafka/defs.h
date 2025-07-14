@@ -9,6 +9,12 @@
 #define KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION 12
 #define KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION 1
 
+// Range for supported versions of the API versions request used to classify kafka connections
+// as early as possible (api versions request is the first request that is sent).
+// It is used so we can decode the metadata request that is sent right after.
+#define KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 3
+#define KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 4
+
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 #define CLIENT_ID_SIZE_TO_VALIDATE 30
 #define TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
