@@ -18,6 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+// Test device specifications constants
+const (
+	testDeviceUUID      = "test-uuid"
+	testDeviceMemory    = 8589934592 // 8GB
+	testDeviceCoreCount = 80
+)
+
 // TestNewProcessCollector tests process collector initialization
 func TestNewProcessCollector(t *testing.T) {
 	tests := []struct {
@@ -53,7 +60,7 @@ func TestNewProcessCollector(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := &mockProcessDevice{
-				deviceInfo:              &safenvml.DeviceInfo{UUID: "test-uuid"},
+				deviceInfo:              &safenvml.DeviceInfo{UUID: testDeviceUUID},
 				computeProcessesError:   tt.computeProcessesError,
 				processUtilizationError: tt.processUtilizationError,
 			}
@@ -113,6 +120,14 @@ func TestProcessScenarios(t *testing.T) {
 				assert.Equal(t, float64(60), metricsByName["dram_active"].Value)
 				assert.Equal(t, float64(30), metricsByName["encoder_utilization"].Value)
 				assert.Equal(t, float64(15), metricsByName["decoder_utilization"].Value)
+
+				// Validate limit metrics values match device specs
+				assert.Equal(t, float64(testDeviceMemory), metricsByName["memory.limit"].Value)  // Device memory
+				assert.Equal(t, float64(testDeviceCoreCount), metricsByName["core.limit"].Value) // Device core count
+
+				// Validate limit metrics have aggregated PID tags
+				assert.Contains(t, metricsByName["memory.limit"].Tags, "pid:1234")
+				assert.Contains(t, metricsByName["core.limit"].Tags, "pid:1234")
 			},
 		},
 		{
@@ -132,6 +147,28 @@ func TestProcessScenarios(t *testing.T) {
 				"1001": 8, // 1 compute per-process + 4 utilization per-process + 3 aggregated
 				"1002": 1, // 1 compute per-process only
 				"1003": 5, // 1 compute per-process + 4 utilization per-process
+			},
+			specificValidations: func(t *testing.T, metrics []Metric) {
+				metricsByName := make(map[string]Metric)
+				for _, metric := range metrics {
+					metricsByName[metric.Name] = metric
+				}
+
+				// Validate limit metrics values match device specs
+				assert.Equal(t, float64(testDeviceMemory), metricsByName["memory.limit"].Value)  // Device memory
+				assert.Equal(t, float64(testDeviceCoreCount), metricsByName["core.limit"].Value) // Device core count
+
+				// Validate memory.limit has all compute process PIDs aggregated
+				memoryLimitTags := metricsByName["memory.limit"].Tags
+				assert.Contains(t, memoryLimitTags, "pid:1001")
+				assert.Contains(t, memoryLimitTags, "pid:1002")
+				assert.Contains(t, memoryLimitTags, "pid:1003")
+
+				// Validate core.limit has only utilization process PIDs aggregated
+				coreLimitTags := metricsByName["core.limit"].Tags
+				assert.Contains(t, coreLimitTags, "pid:1001")
+				assert.Contains(t, coreLimitTags, "pid:1003")
+				assert.NotContains(t, coreLimitTags, "pid:1002") // No utilization sample for 1002
 			},
 		},
 		{
@@ -198,9 +235,9 @@ func TestProcessScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := &mockProcessDevice{
 				deviceInfo: &safenvml.DeviceInfo{
-					UUID:      "test-uuid",
-					Memory:    8589934592,
-					CoreCount: 80,
+					UUID:      testDeviceUUID,
+					Memory:    testDeviceMemory,
+					CoreCount: testDeviceCoreCount,
 				},
 				processes: tt.processes,
 				samples:   tt.samples,
@@ -274,9 +311,9 @@ func TestTimestampManagement(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := &mockProcessDevice{
 				deviceInfo: &safenvml.DeviceInfo{
-					UUID:      "test-uuid",
-					Memory:    8589934592,
-					CoreCount: 80,
+					UUID:      testDeviceUUID,
+					Memory:    testDeviceMemory,
+					CoreCount: testDeviceCoreCount,
 				},
 				computeProcessesError:   &safenvml.NvmlAPIError{APIName: "GetComputeRunningProcesses", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED},
 				processUtilizationError: nil,
