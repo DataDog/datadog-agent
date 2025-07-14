@@ -10,10 +10,35 @@ import (
 	"fmt"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+/*
+#cgo LDFLAGS: -lnetapi32 -ladvapi32
+#include "users.h"
+*/
+import "C"
+
+// Common Windows error codes and NTSTATUS values
+const (
+	// NTSTATUS values
+	STATUS_SUCCESS                = 0x00000000
+	STATUS_ACCESS_DENIED          = 0xC0000022
+	STATUS_OBJECT_NAME_NOT_FOUND  = 0xC0000034
+	STATUS_INSUFFICIENT_RESOURCES = 0xC000009A
+	STATUS_NO_SUCH_PRIVILEGE      = 0xC0000060
+
+	// Win32 error codes
+	ERROR_ACCESS_DENIED     = 5
+	ERROR_NOT_ENOUGH_MEMORY = 8
+	ERROR_INVALID_PARAMETER = 87
+	NERR_UserNotFound       = 2221
+	NERR_InternalError      = 2140
 )
 
 // GetSidFromUser grabs and returns the windows SID for the current user or an error.
@@ -132,4 +157,193 @@ func getUserFromServiceUser(user string) (string, error) {
 // GetDDAgentUserSID returns the SID of the DataDog Agent account
 func GetDDAgentUserSID() (*windows.SID, error) {
 	return GetServiceUserSID("datadogagent")
+}
+
+// get DDAgent user name from registry
+// the registry key is: HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent
+// the user name is stored in the "installedUser" value
+func getDDAgentUserName() (string, error) {
+	regKey, err := registry.OpenKey(
+		registry.LOCAL_MACHINE,
+		`SOFTWARE\Datadog\Datadog Agent`,
+		registry.QUERY_VALUE)
+	if err != nil {
+		return "", fmt.Errorf("could not open registry key: %s", err)
+	}
+	defer regKey.Close()
+
+	installedUser, _, err := regKey.GetStringValue("installedUser")
+	if err != nil {
+		return "", fmt.Errorf("could not get installedUser value: %s", err)
+	}
+
+	return installedUser, nil
+}
+
+// GetDDUserGroups retrieves the local groups that the DDAgent user is a member of
+func GetDDUserGroups() ([]string, error) {
+	// Get the DDAgent username
+	username, err := getDDAgentUserName()
+	if err != nil {
+		return nil, fmt.Errorf("could not get DDAgent username: %w", err)
+	}
+
+	// Convert username to C string
+	cUsername := C.CString(username)
+	defer C.free(unsafe.Pointer(cUsername))
+
+	// Call C function to get groups with error code
+	var errorCode C.int
+	cGroups := C.getLocalUserGroups(cUsername, &errorCode)
+	if cGroups == nil {
+		return nil, handleUserError("get user groups", username, int(errorCode))
+	}
+	defer C.free(unsafe.Pointer(cGroups))
+
+	// Convert C string to Go string
+	groupsStr := C.GoString(cGroups)
+
+	// Split comma-separated string into slice
+	if groupsStr == "" {
+		return []string{}, nil
+	}
+
+	groups := strings.Split(groupsStr, ",")
+	return groups, nil
+}
+
+// check if the DD user has desired groups:
+// - Event Log Readers
+// - Performance Log Users
+// - Performance Monitor Users
+// Returns: (actualGroups, hasAllDesiredGroups, error)
+func DoesAgentUserHaveDesiredGroups() ([]string, bool, error) {
+	groups, err := GetDDUserGroups()
+	if err != nil {
+		return nil, false, fmt.Errorf("could not get DDAgent user groups: %w", err)
+	}
+
+	hasEventLogReaders := false
+	hasPerformanceLogUsers := false
+	hasPerformanceMonitorUsers := false
+
+	// check if the groups contain the desired groups
+	for _, group := range groups {
+		if group == "Event Log Readers" {
+			hasEventLogReaders = true
+		}
+		if group == "Performance Log Users" {
+			hasPerformanceLogUsers = true
+		}
+		if group == "Performance Monitor Users" {
+			hasPerformanceMonitorUsers = true
+		}
+	}
+
+	hasAllDesired := hasEventLogReaders && hasPerformanceLogUsers && hasPerformanceMonitorUsers
+	return groups, hasAllDesired, nil
+}
+
+// GetDDUserRights retrieves the account rights that the DDAgent user has
+func GetDDUserRights() ([]string, error) {
+	// Get the DDAgent username
+	username, err := getDDAgentUserName()
+	if err != nil {
+		return nil, fmt.Errorf("could not get DDAgent username: %w", err)
+	}
+
+	// Convert username to C string
+	cUsername := C.CString(username)
+	defer C.free(unsafe.Pointer(cUsername))
+
+	// Call C function to get rights with error code
+	var errorCode C.int
+	cRights := C.getLocalAccountRights(cUsername, &errorCode)
+	if cRights == nil {
+		return nil, handleUserError("get user rights", username, int(errorCode))
+	}
+	defer C.free(unsafe.Pointer(cRights))
+
+	// Convert C string to Go string
+	rightsStr := C.GoString(cRights)
+
+	// Split comma-separated string into slice
+	if rightsStr == "" {
+		return []string{}, nil
+	}
+
+	rights := strings.Split(rightsStr, ",")
+	return rights, nil
+}
+
+// check if agent account has desired right
+// - SeServiceLogonRight
+// - SeDenyInteractiveLogonRight
+// - SeDenyNetworkLogonRight
+// - SeDenyRemoteInteractiveLogonRight
+// Returns: (actualRights, hasAllDesiredRights, error)
+func DoesAgentUserHaveDesiredRights() ([]string, bool, error) {
+	rights, err := GetDDUserRights()
+	if err != nil {
+		return nil, false, fmt.Errorf("could not get DDAgent user rights: %w", err)
+	}
+
+	hasSeServiceLogonRight := false
+	hasSeDenyInteractiveLogonRight := false
+	hasSeDenyNetworkLogonRight := false
+	hasSeDenyRemoteInteractiveLogonRight := false
+
+	// check if the rights contain the desired rights
+	for _, right := range rights {
+		if right == "SeServiceLogonRight" {
+			hasSeServiceLogonRight = true
+		}
+		if right == "SeDenyInteractiveLogonRight" {
+			hasSeDenyInteractiveLogonRight = true
+		}
+		if right == "SeDenyNetworkLogonRight" {
+			hasSeDenyNetworkLogonRight = true
+		}
+		if right == "SeDenyRemoteInteractiveLogonRight" {
+			hasSeDenyRemoteInteractiveLogonRight = true
+		}
+	}
+
+	hasAllDesired := hasSeServiceLogonRight && hasSeDenyInteractiveLogonRight && hasSeDenyNetworkLogonRight && hasSeDenyRemoteInteractiveLogonRight
+	return rights, hasAllDesired, nil
+}
+
+// handleUserError provides detailed error messages based on Windows error codes
+// NTSTATUS: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781
+func handleUserError(operation, username string, errorCode int) error {
+	switch uint32(errorCode) {
+	case STATUS_SUCCESS:
+		// This shouldn't happen if we got NULL, but handle gracefully
+		return fmt.Errorf("failed to %s for user '%s': unknown error (success code returned)", operation, username)
+
+	case STATUS_ACCESS_DENIED:
+		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
+
+	case STATUS_OBJECT_NAME_NOT_FOUND, NERR_UserNotFound:
+		return fmt.Errorf("user '%s' not found while trying to %s", username, operation)
+
+	case STATUS_INSUFFICIENT_RESOURCES, ERROR_NOT_ENOUGH_MEMORY:
+		return fmt.Errorf("insufficient memory while trying to %s for user '%s'", operation, username)
+
+	case STATUS_NO_SUCH_PRIVILEGE:
+		return fmt.Errorf("no privileges found for user '%s' while trying to %s", username, operation)
+
+	case ERROR_ACCESS_DENIED:
+		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
+
+	case ERROR_INVALID_PARAMETER:
+		return fmt.Errorf("invalid parameter while trying to %s for user '%s'", operation, username)
+
+	default:
+		// NTSTATUS codes are typically displayed in hex
+		if errorCode < 0 {
+			return fmt.Errorf("failed to %s for user '%s': NTSTATUS 0x%08X", operation, username, uint32(errorCode))
+		}
+		return fmt.Errorf("failed to %s for user '%s': Win32 error %d", operation, username, errorCode)
+	}
 }

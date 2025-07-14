@@ -324,14 +324,62 @@ func getIISData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("iis_application_pools.txt", out.Bytes())
 }
 
+func getDDUserGroupsAndRightsStatus(fb flaretypes.FlareBuilder) error {
+	return fb.AddFileFromFunc(
+		"agent_user_info.json",
+		func() ([]byte, error) {
+			// Get user groups and rights status
+			var hasDesiredGroups, hasDesiredRights bool
+			var groupsErr, rightsErr error
+			var actualGroups, actualRights []string
+
+			actualGroups, hasDesiredGroups, groupsErr = winutil.DoesAgentUserHaveDesiredGroups()
+			actualRights, hasDesiredRights, rightsErr = winutil.DoesAgentUserHaveDesiredRights()
+
+			// We don't use/report actualGroups or actualRights in this flare function
+			_ = actualGroups
+			_ = actualRights
+
+			// Helper function to convert bool + error to simple status
+			getStatusString := func(hasDesired bool, err error) string {
+				if err != nil {
+					return "ERROR"
+				}
+				if hasDesired {
+					return "YES"
+				}
+				return "NO"
+			}
+
+			// Simple result structure - just YES/NO
+			result := map[string]interface{}{
+				"hasDesiredGroups": hasDesiredGroups,
+				"hasDesiredRights": hasDesiredRights,
+				"groupsStatus":     getStatusString(hasDesiredGroups, groupsErr),
+				"rightsStatus":     getStatusString(hasDesiredRights, rightsErr),
+			}
+
+			// Marshal to JSON
+			ddUserStatusJSON, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				log.Warnf("Error marshaling DDAgent user status to JSON %v", err)
+				return nil, err
+			}
+
+			return ddUserStatusJSON, nil
+		},
+	)
+}
+
 func getWindowsData(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	getTypeperfData(ctx, fb)    //nolint:errcheck
-	getLodctrOutput(ctx, fb)    //nolint:errcheck
-	getCounterStrings(fb)       //nolint:errcheck
-	getWindowsEventLogs(fb)     //nolint:errcheck
-	getServiceStatus(fb)        //nolint:errcheck
-	getDatadogRegistry(ctx, fb) //nolint:errcheck
-	getEventLogConfig(ctx, fb)  //nolint:errcheck
-	getIISData(ctx, fb)         //nolint:errcheck
+	getTypeperfData(ctx, fb)           //nolint:errcheck
+	getLodctrOutput(ctx, fb)           //nolint:errcheck
+	getCounterStrings(fb)              //nolint:errcheck
+	getWindowsEventLogs(fb)            //nolint:errcheck
+	getServiceStatus(fb)               //nolint:errcheck
+	getDatadogRegistry(ctx, fb)        //nolint:errcheck
+	getEventLogConfig(ctx, fb)         //nolint:errcheck
+	getIISData(ctx, fb)                //nolint:errcheck
+	getDDUserGroupsAndRightsStatus(fb) //nolint:errcheck
 	return nil
 }
