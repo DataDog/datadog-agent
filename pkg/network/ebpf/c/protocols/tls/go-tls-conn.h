@@ -27,23 +27,14 @@ static __always_inline bool read_ip(slice_t *address_ptr, __u32 family, __u64 *o
     // Taking 16 bytes as it is the maximum size for an IPv6 address (128 bits) and an IPv4 address (32 bits) can fit in this space.
     unsigned char ip[IP_ADDR_LEN_MAX] = {0};
     if (address_ptr->len == IPV4_ADDR_LEN && family == AF_INET) {
-        log_debug("[go-tls-conn] reading IPv4 address from %p", (void*)address_ptr->ptr);
         if (bpf_probe_read_user(ip, IPV4_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
-            log_debug("[go-tls-conn] read IPv4 address: %u.%u", ip[0], ip[1]);
-            log_debug("[go-tls-conn] read IPv4 address: %u.%u", ip[2], ip[3]);
             *out_address_h = 0;
             *out_address_l = *((__u32*)ip);
             return true;
         }
     } else if (address_ptr->len == IPV6_ADDR_LEN && family == AF_INET6) {
-        log_debug("[go-tls-conn] reading IPv6 address from %p", (void*)address_ptr->ptr);
         if (bpf_probe_read_user(ip, IPV6_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
-            log_debug("[go-tls-conn] ipv6 [0-2]: %02x:%02x:%02x", ip[0], ip[1], ip[2]);
-            log_debug("[go-tls-conn] ipv6 [3-5]: %02x:%02x:%02x", ip[3], ip[4], ip[5]);
-            log_debug("[go-tls-conn] ipv6 [6-8]: %02x:%02x:%02x", ip[6], ip[7], ip[8]);
-            log_debug("[go-tls-conn] ipv6 [9-11]: %02x:%02x:%02x", ip[9], ip[10], ip[11]);
-            log_debug("[go-tls-conn] ipv6 [12-14]: %02x:%02x:%02x", ip[12], ip[13], ip[14]);
-            log_debug("[go-tls-conn] ipv6 [15]: %02x", ip[15]);
+            // IPv4 representation as IPv6. We traverse the operation and extract the last 4bytes.
             if (ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 &&
                 ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
                 ip[8] == 0 && ip[9] == 0 && ip[10] == 0xff && ip[11] == 0xff) {
@@ -83,7 +74,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         log_debug("[go-tls-conn] failed to read family from conn_fd_ptr %p", conn_fd_ptr);
         return false;
     }
-    log_debug("[go-tls-conn] family: %u", family);
 
     // read laddr
     void *addr_ptr = resolve_interface(conn_fd_ptr + cl->conn_fd_laddr_offset);
