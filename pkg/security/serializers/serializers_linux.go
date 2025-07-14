@@ -82,6 +82,10 @@ type FileSerializer struct {
 	MountSource string `json:"mount_source,omitempty"`
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
+	// MountVisible origin of the mount
+	MountVisible bool `json:"mount_visible"`
+	// MountDetached origin of the mount
+	MountDetached bool `json:"mount_detached"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }
@@ -493,6 +497,10 @@ type MountEventSerializer struct {
 	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
+	// Mount is not attached to the VFS tree
+	Detached bool `json:"detached,omitempty"`
+	// Mount is not visible in the VFS tree
+	Visible bool `json:"visible,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -773,6 +781,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
+		MountVisible:        fe.MountVisible,
+		MountDetached:       fe.MountDetached,
 	}
 
 	if metadata != nil {
@@ -1089,9 +1099,6 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	fh := e.FieldHandlers
 
-	//src, srcErr := , e.Mount.MountPointPathResolutionError
-	//resolvers.PathResolver.ResolveMountRoot(e, &e.Mount.Mount)
-	//dst, dstErr := resolvers.PathResolver.ResolveMountPoint(e, &e.Mount.Mount)
 	mountPointPath := fh.ResolveMountPointPath(e, &e.Mount)
 	mountSourcePath := fh.ResolveMountSourcePath(e, &e.Mount)
 
@@ -1113,6 +1120,8 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		FSType:          e.Mount.GetFSType(),
 		MountPointPath:  mountPointPath,
 		MountSourcePath: mountSourcePath,
+		Detached:        e.Mount.Detached,
+		Visible:         e.Mount.Visible,
 	}
 
 	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
