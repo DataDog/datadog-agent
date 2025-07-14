@@ -53,6 +53,11 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_CLIENT_STRING(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
+// Buffers
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(client_id, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(client_string, CLIENT_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 real_client_id_size) {
@@ -64,32 +69,25 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_id(client_id, pkt, offset);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
 }
 
-// Buffers
-PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
-PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(client_string, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
-
-// Used to validate the client_id, software name and software version.
+// Used to validate client software name and software version.
 // The same buffer is used for all of them to cut down on instruction count in the verifier.
 // valid means composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool is_valid_client_string(pktbuf_t pkt, u32 offset, u16 real_string_size, char *client_string) {
     if (real_string_size == 0) {
         return true;
     }
-    // Explicitly check to lower verifier instruction count.
-//    if (real_string_size > CLIENT_STRING_MAX_ALLOWED_SIZE) {
-//        return false;
-//    }
 
+    bpf_memset(client_string, 0, CLIENT_STRING_SIZE_TO_VALIDATE);
     pktbuf_read_into_buffer_client_string(client_string, pkt, offset);
 
     // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
-    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_ID_SIZE_TO_VALIDATE, real_string_size, client_string);
+    CHECK_STRING_VALID_CLIENT_STRING(CLIENT_STRING_SIZE_TO_VALIDATE, real_string_size, client_string);
 }
 
 // Checks the given kafka header represents a valid one.
@@ -133,14 +131,6 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
             return false;
         }
         break;
-    case KAFKA_API_VERSIONS:
-        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
-            // We have seen some false positives when both request_api_version and request_api_key are 0,
-            // so dropping support for this case
-            return false;
-        } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
-            return false;
-        }
     default:
         // We are only interested in fetch and produce requests
         return false;
@@ -149,6 +139,17 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
     // if we didn't hit any of the above checks, we are good to go.
     return true;
 }
+//static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version) {
+//    return (api_key == KAFKA_FETCH &&
+//         api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION &&
+//         api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) ||
+//        (api_key == KAFKA_PRODUCE &&
+//         api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION &&
+//         api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) ||
+//        (api_key == KAFKA_API_VERSIONS &&
+//         api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION &&
+//         api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION);
+//}
 
 static __always_inline bool isMSBSet(uint8_t byte) {
     return (byte & 0x80) != 0;
@@ -432,61 +433,18 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
     bool flexible = false;
     bool topic_id_instead_of_name = false;
-    switch (kafka_header->api_key) {
-    case KAFKA_PRODUCE:
+    if (kafka_header->api_key == KAFKA_PRODUCE) {
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
             return false;
         }
         flexible = kafka_header->api_version >= 9;
-        break;
-    case KAFKA_FETCH:
+    } else if (kafka_header->api_key == KAFKA_FETCH) {
         if (!get_topic_offset_from_fetch_request(kafka_header, pkt, &offset)) {
             return false;
         }
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
-        break;
-    case KAFKA_API_VERSIONS:
-        // we only support flexible versions
-        if (!skip_request_tagged_fields(pkt, &offset)) {
-            return false;
-        }
-
-        const u32 key = 0;
-        // Use a buffer from per-cpu array as the stack is limited.
-        char *client_string = bpf_map_lookup_elem(&client_string, &key);
-        if (client_string == NULL) {
-            return false;
-        }
-
-        // Verify client software name
-        s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
-        if (client_software_name_size <= 0 || client_software_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-            return false;
-        }
-        if (!is_valid_client_string(pkt, offset, client_software_name_size, client_string)) {
-            return false;
-        }
-        offset += client_software_name_size;
-
-        // Verify client software version
-        s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
-        if (client_software_version_size <= 0 || client_software_version_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-            return false;
-        }
-        if (!is_valid_client_string(pkt, offset, client_software_version_size, client_string)) {
-            return false;
-        }
-        offset += client_software_version_size;
-
-        // Another tagged fields at the end of the request
-        if (!skip_request_tagged_fields(pkt, &offset)) {
-            return false;
-        }
-
-        // we should be at the end of the packet now
-        return offset == pktbuf_data_end(pkt);
-    default:
+    } else {
         return false;
     }
 
@@ -533,14 +491,99 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     return is_kafka_request(&kafka_header, pkt, offset);
 }
 
+// Checks if the packet represents a kafka request.
+// Classification flags are used to split the classification into multiple programs (0 will match all requests).
+// (e.g. one for produce and fetch requests, another for api versions).
+static __always_inline bool __is_kafka_api_versions(pktbuf_t pkt, const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
+
+    const kafka_header_t *header_view = (kafka_header_t *)buf;
+    kafka_header_t kafka_header;
+    bpf_memset(&kafka_header, 0, sizeof(kafka_header));
+    kafka_header.message_size = bpf_ntohl(header_view->message_size);
+    kafka_header.api_key = bpf_ntohs(header_view->api_key);
+    kafka_header.api_version = bpf_ntohs(header_view->api_version);
+    kafka_header.correlation_id = bpf_ntohl(header_view->correlation_id);
+    kafka_header.client_id_size = bpf_ntohs(header_view->client_id_size);
+
+    if (!is_valid_kafka_request_header(&kafka_header)) {
+        return false;
+    }
+
+    if(kafka_header.api_key != KAFKA_API_VERSIONS ||
+        kafka_header.api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION ||
+        kafka_header.api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
+        return false;
+    }
+
+    const u32 key = 0;
+    // Use a buffer from per-cpu array as the stack is limited.
+    char *client_string = bpf_map_lookup_elem(&kafka_client_string, &key);
+    if (client_string == NULL) {
+        return false;
+    }
+
+    u32 offset = pktbuf_data_offset(pkt) + sizeof(kafka_header_t);
+    // Validate client ID
+    // Client ID size can be equal to '-1' if the client id is null.
+    if (kafka_header.client_id_size <= 0) {
+        return false;
+    }
+    if (!is_valid_client_string(pkt, offset, kafka_header.client_id_size, client_string)) {
+        return false;
+    }
+    offset += kafka_header.client_id_size;
+
+    // API versions request is special, it doesn't have a topic name.
+    // We handle it separately.
+    if (kafka_header.api_key != KAFKA_API_VERSIONS) {
+        return false;
+    }
+
+    // we only support flexible versions
+    if (!skip_request_tagged_fields(pkt, &offset)) {
+        return false;
+    }
+
+    // Verify client software name
+    s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
+    if (client_software_name_size <= 0) {
+        return false;
+    }
+    if (!is_valid_client_string(pkt, offset, client_software_name_size, client_string)) {
+        return false;
+    }
+    offset += client_software_name_size;
+
+    // Verify client software version
+    s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
+    if (client_software_version_size <= 0) {
+        return false;
+    }
+    if (!is_valid_client_string(pkt, offset, client_software_version_size, client_string)) {
+        return false;
+    }
+    offset += client_software_version_size;
+
+    // Another tagged fields at the end of the request
+    if (!skip_request_tagged_fields(pkt, &offset)) {
+        return false;
+    }
+
+    // we should be at the end of the packet now
+    return offset == pktbuf_data_end(pkt);
+}
+
 static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
 {
-    return __is_kafka(pktbuf_from_skb(skb, skb_info), buf, buf_size);
+    pktbuf_t pkt = pktbuf_from_skb(skb, skb_info);
+    return __is_kafka(pkt, buf, buf_size) || __is_kafka_api_versions(pkt, buf, buf_size);
 }
 
 static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
 {
-    return __is_kafka(pktbuf_from_tls(ctx, tls), buf, buf_size);
+    pktbuf_t pkt = pktbuf_from_tls(ctx, tls);
+    return __is_kafka(pkt, buf, buf_size) || __is_kafka_api_versions(pkt, buf, buf_size);
 }
 
 #endif
