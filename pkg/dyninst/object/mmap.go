@@ -99,12 +99,16 @@ func (m *MMappingElfFile) mmap(offset uint64, size uint64) (*MMappedData, error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to mmap section: %w", err)
 	}
+	return newMMappedData(mmaped[offsetDelta:], mmaped), nil
+}
+
+func newMMappedData(data, mmaped []byte) *MMappedData {
 	md := &MMappedData{
-		Data:   mmaped[offsetDelta:],
+		Data:   data,
 		mmaped: mmaped,
 	}
 	md.cleanup = runtime.AddCleanup(md, munmapCleanup, md.mmaped)
-	return md, nil
+	return md
 }
 
 func munmapCleanup(m []byte) {
@@ -117,7 +121,7 @@ func (m *MMappedData) Close() error {
 		return nil
 	}
 	m.cleanup.Stop()
-	runtime.KeepAlive(m)
+	runtime.KeepAlive(m) // out of an abundance of caution
 	err := syscall.Munmap(m.mmaped)
 	m.mmaped = nil
 	return err

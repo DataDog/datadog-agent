@@ -26,6 +26,23 @@ type Reader struct {
 	unitVersions map[dwarf.Offset]uint8
 }
 
+// MakeReader creates a new Reader.
+func MakeReader(
+	dataLoc []byte,
+	dataLocLists []byte,
+	debugAddr []byte,
+	ptrSize uint8,
+	unitVersions map[dwarf.Offset]uint8,
+) Reader {
+	return Reader{
+		dataLoc:      dataLoc,
+		dataLocLists: dataLocLists,
+		debugAddr:    debugAddr,
+		ptrSize:      ptrSize,
+		unitVersions: unitVersions,
+	}
+}
+
 // NewReader creates a new Reader.
 func NewReader(
 	dataLoc []byte,
@@ -34,13 +51,8 @@ func NewReader(
 	ptrSize uint8,
 	unitVersions map[dwarf.Offset]uint8,
 ) *Reader {
-	return &Reader{
-		dataLoc:      dataLoc,
-		dataLocLists: dataLocLists,
-		debugAddr:    debugAddr,
-		ptrSize:      ptrSize,
-		unitVersions: unitVersions,
-	}
+	r := MakeReader(dataLoc, dataLocLists, debugAddr, ptrSize, unitVersions)
+	return &r
 }
 
 // Loclist represents a DWARF loclist.
