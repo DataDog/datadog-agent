@@ -18,7 +18,7 @@ import (
 // systemAPI abstracts system-level API calls
 type systemAPI interface {
 	GetServiceProcessID(serviceName string) (uint32, error)
-	IsServiceRunning(serviceName string) (bool, error)
+	GetServiceState(serviceName string) (svc.State, error)
 	StopService(serviceName string) error
 	StartService(serviceName string) error
 	OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error)
@@ -62,14 +62,14 @@ func (api *winSystemAPI) GetServiceProcessID(serviceName string) (uint32, error)
 	return status.ProcessId, nil
 }
 
-// IsServiceRunning returns false if the service is stopped, true otherwise.
-func (api *winSystemAPI) IsServiceRunning(serviceName string) (bool, error) {
+// GetServiceState returns the current state of the service.
+func (api *winSystemAPI) GetServiceState(serviceName string) (svc.State, error) {
 	status, err := api.queryServiceStatus(serviceName)
 	if err != nil {
-		return false, err
+		return svc.Stopped, err
 	}
-	// return true for all non-stopped states (start_pending, stop_pending, etc.)
-	return status.State != svc.Stopped, nil
+
+	return status.State, nil
 }
 
 func (api *winSystemAPI) StopService(serviceName string) error {
