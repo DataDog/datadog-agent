@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -97,7 +98,10 @@ func NewModule(
 			log.Errorf("error syncing process monitor: %v", err)
 		}
 	}()
-	go controller.Run(ctx)
+	// This is arbitrary. It's fast enough to not be a major source of
+	// latency and slow enough to not be a problem.
+	const defaultInterval = 200 * time.Millisecond
+	go controller.Run(ctx, defaultInterval)
 	return m, nil
 }
 

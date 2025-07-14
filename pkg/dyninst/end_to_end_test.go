@@ -95,12 +95,18 @@ func TestEndToEnd(t *testing.T) {
 	ts.subscriber.NotifyExec(uint32(ts.serviceCmd.Process.Pid))
 
 	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
-	waitForProbeStatus(t, ts.backend.diagPayloadCh, uploader.StatusInstalled, expectedProbeIDs)
+	waitForProbeStatus(
+		t, ts.backend.diagPayloadCh,
+		makeTargetStatus(uploader.StatusInstalled, expectedProbeIDs...),
+	)
 
 	const numRequests = 3
 	sendTestRequests(t, serverPort, numRequests)
 	waitForLogMessages(t, ts.backend, numRequests*len(expectedProbeIDs), expectationsPath)
-	waitForProbeStatus(t, ts.backend.diagPayloadCh, uploader.StatusEmitting, expectedProbeIDs)
+	waitForProbeStatus(
+		t, ts.backend.diagPayloadCh,
+		makeTargetStatus(uploader.StatusEmitting, expectedProbeIDs...),
+	)
 }
 
 func (ts *testState) setupRemoteConfig(t *testing.T) {
@@ -289,23 +295,30 @@ func sendTestRequests(t *testing.T, serverPort int, numRequests int) {
 	}
 }
 
+func makeTargetStatus(status uploader.Status, probeIDs ...string) map[string]uploader.Status {
+	m := make(map[string]uploader.Status, len(probeIDs))
+	for _, probeID := range probeIDs {
+		m[probeID] = status
+	}
+	return m
+}
+
 func waitForProbeStatus(
 	t *testing.T,
 	diagPayloadCh <-chan []byte,
-	targetStatus uploader.Status,
-	expectedProbeIDs []string,
+	targetStatus map[string]uploader.Status,
 ) {
 	t.Logf("Waiting for probes to be %s...", targetStatus)
 	const timeout = 10 * time.Second
 
 	probeStatus := make(map[string]uploader.Status)
 	allInStatus := func() bool {
-		for _, probeID := range expectedProbeIDs {
+		for probeID, expectedStatus := range targetStatus {
 			status, ok := probeStatus[probeID]
 			if !ok {
 				return false
 			}
-			if status != targetStatus {
+			if status != expectedStatus {
 				return false
 			}
 		}

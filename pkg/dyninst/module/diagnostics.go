@@ -51,6 +51,7 @@ type diagnosticsManager struct {
 	received  *diagnosticTracker
 	installed *diagnosticTracker
 	emitted   *diagnosticTracker
+	errors    *diagnosticTracker
 }
 
 func newDiagnosticsManager(uploader *uploader.DiagnosticsUploader) *diagnosticsManager {
@@ -59,6 +60,7 @@ func newDiagnosticsManager(uploader *uploader.DiagnosticsUploader) *diagnosticsM
 		received:  newDiagnosticTracker("received"),
 		installed: newDiagnosticTracker("installed"),
 		emitted:   newDiagnosticTracker("emitted"),
+		errors:    newDiagnosticTracker("errors"),
 	}
 }
 
@@ -98,9 +100,15 @@ func (m *diagnosticsManager) reportEmitting(runtimeID procRuntimeID, probe ir.Pr
 	}
 }
 
-func (m *diagnosticsManager) reportError(runtimeID procRuntimeID, probe ir.ProbeIDer, e error, errType string) {
+func (m *diagnosticsManager) reportError(
+	runtimeID procRuntimeID, probe ir.ProbeIDer, e error, errType string,
+) (reported bool) {
+	if !m.errors.mark(runtimeID.runtimeID, probe.GetID()) {
+		return false
+	}
 	m.enqueue(runtimeID, probe, uploader.StatusError, &uploader.DiagnosticException{
 		Type:    errType,
 		Message: e.Error(),
 	})
+	return true
 }
