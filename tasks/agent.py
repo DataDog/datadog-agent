@@ -231,6 +231,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
     if embedded_path is None:

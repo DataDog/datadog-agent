@@ -8,6 +8,8 @@ Probes:
         maxReferenceDepth: 3
         maxFieldCount: 0
         maxCollectionSize: 0
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -23,6 +25,8 @@ Probes:
         maxReferenceDepth: 5
         maxFieldCount: 0
         maxCollectionSize: 0
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
@@ -34,6 +38,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.bigMapArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
@@ -46,6 +52,8 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.inlined}
       sampling: {snapshotsPerSecond: 2}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
@@ -61,6 +69,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
@@ -72,6 +82,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intArrayArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
@@ -83,6 +95,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArrayArgFrameless}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
@@ -94,6 +108,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intSliceArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
@@ -105,6 +121,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.mapArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
@@ -116,6 +134,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
@@ -127,6 +147,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArrayArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
@@ -138,6 +160,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringSliceArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
@@ -818,7 +842,7 @@ Types:
       ID: 53
       Name: Probe[main.intArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -833,7 +857,7 @@ Types:
       ID: 54
       Name: Probe[main.stringArg]
       ByteSize: 17
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -848,7 +872,7 @@ Types:
       ID: 55
       Name: Probe[main.intSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -863,7 +887,7 @@ Types:
       ID: 56
       Name: Probe[main.intArrayArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -878,7 +902,7 @@ Types:
       ID: 57
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -893,7 +917,7 @@ Types:
       ID: 58
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -908,7 +932,7 @@ Types:
       ID: 59
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -923,7 +947,7 @@ Types:
       ID: 60
       Name: Probe[main.mapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -938,7 +962,7 @@ Types:
       ID: 61
       Name: Probe[main.bigMapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -953,7 +977,7 @@ Types:
       ID: 62
       Name: Probe[main.inlined]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -968,7 +992,7 @@ Types:
       ID: 63
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1
@@ -983,7 +1007,7 @@ Types:
       ID: 64
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1

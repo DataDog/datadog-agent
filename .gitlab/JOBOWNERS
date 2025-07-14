@@ -152,7 +152,9 @@ trace_agent_integration_tests @DataDog/agent-apm
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 serverless_cold_start_performance-deb_x64_dind @DataDog/agent-devx
 static_quality_gates                           @DataDog/agent-build
+debug_static_quality_gates                     @DataDog/agent-build
 manual_gate_threshold_update                   @DataDog/agent-build
+
 oracle*                                        @DataDog/database-monitoring
 
 # E2E
@@ -185,3 +187,6 @@ run_codeql_scan                   @DataDog/sdlc-security
 
 # Experiment systemd units
 validate_experiment_systemd_units @DataDog/fleet
+
+# Fuzz testing
+test_fuzz                         @DataDog/chaos-engineering

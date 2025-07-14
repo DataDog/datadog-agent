@@ -55,7 +55,6 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/ebpf/...",
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
-    "./pkg/dynamicinstrumentation/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
@@ -855,6 +854,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
 

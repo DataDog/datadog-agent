@@ -120,6 +120,7 @@ def test_flavor(
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
     recursive: bool = True,
+    attempt_number: int = 0,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -144,10 +145,11 @@ def test_flavor(
 
     # Produce the junit file only if a junit tarball needs to be produced
     if junit_tar:
-        junit_file = f"junit-out-{flavor.name}.xml"
-        result.junit_file_path = os.path.join('.', junit_file)
+        # Include attempt number in the junit file name to avoid overwriting previous runs
+        junit_file = f"junit-out-{flavor.name}-{attempt_number}.xml"
+        result.junit_file_paths.append(os.path.join('.', junit_file))
 
-        junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
+        junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
         args["junit_file_flag"] = junit_file_flag
 
     # Compute full list of targets to run tests against
@@ -182,7 +184,7 @@ def test_flavor(
             return
 
     if junit_tar:
-        enrich_junitxml(result.junit_file_path, flavor)
+        enrich_junitxml(junit_file, flavor)  # type: ignore
 
     return result
 
@@ -212,9 +214,7 @@ def sanitize_env_vars():
 
 def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
-        junit_file = test_result.junit_file_path
-
-        produce_junit_tar(junit_file, junit_tar)
+        produce_junit_tar(test_result.junit_file_paths, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
 

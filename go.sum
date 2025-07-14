@@ -135,8 +135,8 @@ github.com/CycloneDX/cyclonedx-go v0.9.2 h1:688QHn2X/5nRezKe2ueIVCt+NRqf7fl3AVQk
 github.com/CycloneDX/cyclonedx-go v0.9.2/go.mod h1:vcK6pKgO1WanCdd61qx4bFnSsDJQ6SbM2ZuMIgq86Jg=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.157 h1:d6LuZ/A1DFad1XyQAcf+fDlYsKLg8TQu8AAkFsNEtH4=
-github.com/DataDog/agent-payload/v5 v5.0.157/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.158 h1:RwzP7qJpTNXwPCM7MeBU4JSbcEOszGA096MiVFq9oYQ=
+github.com/DataDog/agent-payload/v5 v5.0.158/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/appsec-internal-go v1.12.0 h1:pfeFYcCQ5r0qGLsnzeQKfKLfkCqqwsULG7g5y7ziKu8=
 github.com/DataDog/appsec-internal-go v1.12.0/go.mod h1:9YppRCpElfGX+emXOKruShFYsdPq7WEPq/Fen4tYYpk=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=

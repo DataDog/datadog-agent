@@ -22,9 +22,9 @@ func TestWindowsNetworkSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsNetworkCheckSuite{
 		networkCheckSuite{
-			descriptor:            e2eos.WindowsDefault,
-			metricCompareFraction: 0.1,
-			metricCompareDecimals: 1,
+			descriptor:                  e2eos.WindowsDefault,
+			metricCompareDistance:       3,
+			excludedFromValueComparison: []string{},
 		},
 	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)

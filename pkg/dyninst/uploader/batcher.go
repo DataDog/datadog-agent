@@ -48,12 +48,7 @@ type batcher struct {
 	stopOnce     sync.Once
 }
 
-func newBatcher(name string, sender sender, opts ...Option) *batcher {
-	cfg := defaultConfig()
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
+func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
@@ -66,7 +61,7 @@ func newBatcher(name string, sender sender, opts ...Option) *batcher {
 		sendResultCh: make(chan sendResult),
 		ctx:          ctx,
 		cancel:       cancel,
-		state:        newBatcherState(cfg.batcherConfig),
+		state:        newBatcherState(batcherConfig),
 		timer:        timer,
 		sender:       sender,
 	}
@@ -85,6 +80,8 @@ func (b *batcher) enqueue(data json.RawMessage) {
 
 func (b *batcher) stop() {
 	b.stopOnce.Do(func() {
+		log.Debugf("stopping batcher %s", b.name)
+		defer log.Debugf("batcher %s stopped", b.name)
 		// Cancel the run loop as well as any goroutines trying to signal it.
 		b.cancel()
 
@@ -100,13 +97,13 @@ func (b *batcher) run() {
 	for {
 		select {
 		case data := <-b.enqueueCh:
-			log.Debugf(
+			log.Tracef(
 				"uploader %s: received enqueue event of %d bytes",
 				b.name, len(data),
 			)
 			b.state.handleEnqueueEvent(data, time.Now(), b)
 		case <-b.timer.C:
-			log.Debugf(
+			log.Tracef(
 				"uploader %s: timer fired event", b.name,
 			)
 			if err := b.state.handleTimerFiredEvent(b); err != nil {
@@ -117,12 +114,12 @@ func (b *batcher) run() {
 			}
 		case result := <-b.sendResultCh:
 			if result.err != nil {
-				log.Infof(
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: err=%v",
 					b.name, result.id, result.err,
 				)
 			} else {
-				log.Debugf(
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: success",
 					b.name, result.id,
 				)
