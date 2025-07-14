@@ -36,6 +36,7 @@ type metricRecorder struct {
 	series           []*metrics.Serie
 }
 
+// SendSketch implements the MetricSerializer interface
 func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 	for s.MoveNext() {
 		c := s.Current()
@@ -47,6 +48,7 @@ func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 	return nil
 }
 
+// SendIterableSeries implements the MetricSerializer interface
 func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 	for s.MoveNext() {
 		c := s.Current()
@@ -57,6 +59,7 @@ func (r *metricRecorder) SendIterableSeries(s metrics.SerieSource) error {
 	}
 	return nil
 }
+
 
 const (
 	histogramMetricName        = "test.histogram"
@@ -209,7 +212,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage())
+			}, nil, otel.NewDisabledGatewayUsage(), nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
@@ -326,7 +329,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage())
+			}, nil, otel.NewDisabledGatewayUsage(), nil)
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -377,7 +380,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, otel.NewDisabledGatewayUsage())
+	}, nil, otel.NewDisabledGatewayUsage(), nil)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,

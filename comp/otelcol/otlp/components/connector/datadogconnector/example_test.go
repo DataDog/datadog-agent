@@ -58,7 +58,7 @@ func newTestComponents(t *testing.T) otelcol.Factories {
 	require.NoError(t, err)
 	factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
 		[]exporter.Factory{
-			datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.GatewayUsage{}),
+			datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.GatewayUsage{}, nil),
 			debugexporter.NewFactory(),
 		}...,
 	)
