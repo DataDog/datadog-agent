@@ -20,7 +20,7 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
-ExecStart={{.InstallDir}}/embedded/bin/otel-agent --config /etc/otel-agent/otel-config.yaml --core-config {{.EtcDir}}/datadog.yaml --pidfile {{.InstallDir}}/run/otel-agent.pid
+ExecStart={{.InstallDir}}/embedded/bin/otel-agent --config {{.EtcDir}}/otel-config.yaml --core-config {{.EtcDir}}/datadog.yaml --pidfile {{.InstallDir}}/run/otel-agent.pid
 StartLimitInterval=10
 StartLimitBurst=5
 
