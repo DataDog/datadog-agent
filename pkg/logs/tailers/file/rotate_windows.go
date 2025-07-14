@@ -46,12 +46,12 @@ func (t *Tailer) DidRotate() (bool, error) {
 	return false, nil
 }
 
-// Detects rotation by comparing a checksum fingerprint
-// when a log rotation occurs, the file can be either:
+// DidRotateViaFingerprint returns true if the file has been log-rotated via fingerprint.
+//
+// On windows, when a log rotation occurs, the file can be either:
 // - renamed and recreated
 // - removed and recreated
 // - truncated
-
 func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
 	newFingerprint := ComputeFingerprint(t.file.Path, t.fingerprintConfig)
 
