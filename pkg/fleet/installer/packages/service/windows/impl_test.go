@@ -326,7 +326,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil).Once()
 				// Mock the GetServiceProcessID calls within TerminateServiceProcess
 				api.On("GetServiceProcessID", "datadog-trace-agent").Return(uint32(1234), errors.New("access denied"))
-				// after failed termiantion, the service ended up being stopped
+				// after failed termination, the service ended up being stopped
 				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Stopped, nil).Once()
 
 				// Other services are not running
