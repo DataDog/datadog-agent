@@ -162,7 +162,7 @@ func (h *StatKeeper) add(tx Transaction) {
 
 	// Validate HTTP status code
 	statusCode := tx.StatusCode()
-	if statusCode < 100 || statusCode > 599 {
+	if !isValidStatusCode(statusCode) {
 		h.telemetry.invalidStatusCode.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("invalid status code: %s", tx.String())
