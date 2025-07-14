@@ -251,6 +251,44 @@ func (w *WinCertChk) Run() error {
 				"",
 			)
 		}
+
+		if w.config.CertChainValidation.EnableCertChainValidation {
+			if cert.TrustStatusError != 0 {
+				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
+				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
+				sender.ServiceCheck("windows_certificate.cert_chain_verification",
+					servicecheck.ServiceCheckCritical,
+					"",
+					tags,
+					fmt.Sprintf("Certificate chain verification failed with the following errors: %s", strings.Join(trustStatusErrors, ", ")),
+				)
+			} else {
+				sender.ServiceCheck("windows_certificate.cert_chain_verification",
+					servicecheck.ServiceCheckOK,
+					"",
+					tags,
+					"",
+				)
+			}
+
+			if cert.ChainPolicyError != 0 {
+				log.Debugf("Certificate %s has chain policy error: %d", cert.Certificate.Subject.String(), cert.ChainPolicyError)
+				chainPolicyErrors := getCertChainPolicyErrors(cert.ChainPolicyError)
+				sender.ServiceCheck("windows_certificate.cert_chain_policy_verification",
+					servicecheck.ServiceCheckCritical,
+					"",
+					tags,
+					fmt.Sprintf("Certificate chain policy verification failed with the following errors: %s", strings.Join(chainPolicyErrors, ", ")),
+				)
+			} else {
+				sender.ServiceCheck("windows_certificate.cert_chain_policy_verification",
+					servicecheck.ServiceCheckOK,
+					"",
+					tags,
+					"",
+				)
+			}
+		}
 	}
 
 	for _, crl := range crlInfo {
@@ -611,7 +649,13 @@ func validateCertificateChain(certContext *windows.CertContext, storeHandle wind
 	chainPara.Size = uint32(unsafe.Sizeof(chainPara))
 
 	var pChainContext *windows.CertChainContext
-	defer windows.CertFreeCertificateChain(pChainContext)
+	defer func() {
+		if pChainContext != nil {
+			log.Debugf("Freeing certificate chain")
+			windows.CertFreeCertificateChain(pChainContext)
+		}
+	}()
+	log.Debugf("Getting certificate chain")
 	err := windows.CertGetCertificateChain(
 		hcceLocalMachine, // hChainEngine (use local machine engine)
 		certContext,      // pCertContext
@@ -626,6 +670,7 @@ func validateCertificateChain(certContext *windows.CertContext, storeHandle wind
 		log.Errorf("Error getting certificate chain: %v", err)
 		return 0, 0, err
 	}
+	log.Debugf("Certificate chain retrieved successfully")
 	trustStatusError = pChainContext.TrustStatus.ErrorStatus
 
 	var pPolicyPara windows.CertChainPolicyPara
@@ -634,6 +679,7 @@ func validateCertificateChain(certContext *windows.CertContext, storeHandle wind
 	pPolicyStatus.Size = uint32(unsafe.Sizeof(pPolicyStatus))
 	pPolicyPara.Flags = setCertChainValidationFlags(ignoreFlags)
 
+	log.Debugf("Verifying certificate chain policy")
 	err = windows.CertVerifyCertificateChainPolicy(
 		windows.CERT_CHAIN_POLICY_BASE,
 		pChainContext,
@@ -644,6 +690,7 @@ func validateCertificateChain(certContext *windows.CertContext, storeHandle wind
 		log.Errorf("Error verifying certificate chain policy: %v", err)
 		return 0, 0, err
 	}
+	log.Debugf("Certificate chain policy verified successfully")
 	chainPolicyError = pPolicyStatus.Error
 
 	return trustStatusError, chainPolicyError, nil
@@ -659,34 +706,77 @@ func setCertChainValidationFlags(ignoreFlags []string) uint32 {
 
 func getCertChainFlagFromString(flag string) uint32 {
 	switch flag {
-	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_VALID":
+	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_VALID_FLAG":
 		return 0x00000001
-	case "CERT_CHAIN_POLICY_IGNORE_CTL_NOT_TIME_VALID":
+	case "CERT_CHAIN_POLICY_IGNORE_CTL_NOT_TIME_VALID_FLAG":
 		return 0x00000002
-	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED":
+	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED_FLAG":
 		return 0x00000004
-	case "CERT_CHAIN_POLICY_IGNORE_INVALID_BASIC_CONSTRAINTS":
+	case "CERT_CHAIN_POLICY_IGNORE_INVALID_BASIC_CONSTRAINTS_FLAG":
 		return 0x00000008
 	case "CERT_CHAIN_POLICY_ALLOW_UNKNOWN_CA_FLAG":
 		return 0x00000010
-	case "CERT_CHAIN_POLICY_IGNORE_WRONG_USAGE":
+	case "CERT_CHAIN_POLICY_IGNORE_WRONG_USAGE_FLAG":
 		return 0x00000020
-	case "CERT_CHAIN_POLICY_IGNORE_INVALID_NAME":
+	case "CERT_CHAIN_POLICY_IGNORE_INVALID_NAME_FLAG":
 		return 0x00000040
-	case "CERT_CHAIN_POLICY_IGNORE_INVALID_POLICY":
+	case "CERT_CHAIN_POLICY_IGNORE_INVALID_POLICY_FLAG":
 		return 0x00000080
-	case "CERT_CHAIN_POLICY_IGNORE_END_REV_UNKNOWN":
+	case "CERT_CHAIN_POLICY_IGNORE_END_REV_UNKNOWN_FLAG":
 		return 0x00000100
-	case "CERT_CHAIN_POLICY_IGNORE_CTL_SIGNER_REV_UNKNOWN":
+	case "CERT_CHAIN_POLICY_IGNORE_CTL_SIGNER_REV_UNKNOWN_FLAG":
 		return 0x00000200
-	case "CERT_CHAIN_POLICY_IGNORE_CA_REV_UNKNOWN":
+	case "CERT_CHAIN_POLICY_IGNORE_CA_REV_UNKNOWN_FLAG":
 		return 0x00000400
-	case "CERT_CHAIN_POLICY_IGNORE_ROOT_REV_UNKNOWN":
+	case "CERT_CHAIN_POLICY_IGNORE_ROOT_REV_UNKNOWN_FLAG":
 		return 0x00000800
 	default:
 		log.Warnf("Unknown certificate chain validation flag, %s. Flag will be ignored.", flag)
 		return 0
 	}
+}
+
+func getCertChainTrustStatusErrors(trustStatusError uint32) []string {
+	var errors []string
+	if trustStatusError&windows.CERT_TRUST_IS_NOT_TIME_VALID != 0 {
+		errors = append(errors, "Not time valid")
+	}
+	if trustStatusError&windows.CERT_TRUST_IS_REVOKED != 0 {
+		errors = append(errors, "Revoked")
+	}
+	if trustStatusError&windows.CERT_TRUST_IS_NOT_SIGNATURE_VALID != 0 {
+		errors = append(errors, "Not signature valid")
+	}
+	if trustStatusError&windows.CERT_TRUST_IS_NOT_VALID_FOR_USAGE != 0 {
+		errors = append(errors, "Not valid for usage")
+	}
+	if trustStatusError&windows.CERT_TRUST_IS_UNTRUSTED_ROOT != 0 {
+		errors = append(errors, "Untrusted root")
+	}
+	if errors == nil {
+		errors = append(errors, "Unknown error")
+	}
+	return errors
+}
+
+func getCertChainPolicyErrors(chainPolicyError uint32) []string {
+	var errors []string
+	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_UNTRUSTEDROOT) {
+		errors = append(errors, "Untrusted root")
+	}
+	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_REVOKED) {
+		errors = append(errors, "Revoked")
+	}
+	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_EXPIRED) {
+		errors = append(errors, "Expired")
+	}
+	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_INVALID_NAME) {
+		errors = append(errors, "Invalid name")
+	}
+	if errors == nil {
+		errors = append(errors, "Unknown error")
+	}
+	return errors
 }
 
 func freeContext(certContext *windows.CertContext) {
