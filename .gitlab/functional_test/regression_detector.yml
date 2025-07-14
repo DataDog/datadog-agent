@@ -296,6 +296,19 @@ single-machine-performance-regression_detector-pr-comment:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.on_dev_branches]
+    - changes:
+        - "**/*.md"
+        - "**/*_test.go"
+        - "docs/**/*"
+        - "README*"
+        - ".vscode/**/*"
+        - "examples/**/*"
+        - "LICENSE*"
+        - "NOTICE*"
+        - "CHANGELOG*"
+        - "releasenotes/**/*"
+        - "releasenotes-dca/**/*"
+      when: never
     - when: always
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
