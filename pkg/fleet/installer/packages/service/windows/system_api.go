@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 )
 
 // systemAPI abstracts system-level API calls
@@ -31,29 +32,44 @@ type systemAPI interface {
 // winSystemAPI implements SystemAPI using winutil and Windows API
 type winSystemAPI struct{}
 
-func (api *winSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) {
+func (api *winSystemAPI) queryServiceStatus(serviceName string) (svc.Status, error) {
 	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
-		return 0, fmt.Errorf("could not open SCM for service %s: %w", serviceName, err)
+		return svc.Status{}, err
 	}
 	defer manager.Disconnect()
 
 	service, err := winutil.OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
 	if err != nil {
-		return 0, fmt.Errorf("could not open service %s: %w", serviceName, err)
+		return svc.Status{}, err
 	}
 	defer service.Close()
 
 	status, err := service.Query()
 	if err != nil {
-		return 0, fmt.Errorf("could not query service %s: %w", serviceName, err)
+		return svc.Status{}, fmt.Errorf("could not query service %s: %w", serviceName, err)
+	}
+
+	return status, nil
+}
+
+func (api *winSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) {
+	status, err := api.queryServiceStatus(serviceName)
+	if err != nil {
+		return 0, err
 	}
 
 	return status.ProcessId, nil
 }
 
+// IsServiceRunning returns false if the service is stopped, true otherwise.
 func (api *winSystemAPI) IsServiceRunning(serviceName string) (bool, error) {
-	return winutil.IsServiceRunning(serviceName)
+	status, err := api.queryServiceStatus(serviceName)
+	if err != nil {
+		return false, err
+	}
+	// return true for all non-stopped states (start_pending, stop_pending, etc.)
+	return status.State != svc.Stopped, nil
 }
 
 func (api *winSystemAPI) StopService(serviceName string) error {
