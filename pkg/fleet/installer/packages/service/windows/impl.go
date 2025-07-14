@@ -37,17 +37,6 @@ func NewWinServiceManagerWithAPI(api systemAPI) *WinServiceManager {
 	}
 }
 
-// isServiceRunning returns false if the service is stopped, true otherwise.
-func (w *WinServiceManager) isServiceRunning(serviceName string) (bool, error) {
-	state, err := w.api.GetServiceState(serviceName)
-	if err != nil {
-		return false, err
-	}
-	// return true for all non-stopped states (start_pending, stop_pending, etc.)
-	// so we can terminate the process if it's stuck
-	return state != svc.Stopped, nil
-}
-
 // terminateServiceProcess terminates a service by killing its process.
 // Returns nil if the service is not running or does not exist.
 func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, serviceName string) (err error) {
@@ -154,12 +143,13 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 	var failedServices []error
 	for _, serviceName := range serviceNames {
 
-		running, err := w.isServiceRunning(serviceName)
+		state, err := w.api.GetServiceState(serviceName)
 		if err != nil {
-			if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-				continue
+			if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+				failedServices = append(failedServices, fmt.Errorf("could not get service state for %s: %w", serviceName, err))
 			}
-		} else if !running {
+			continue
+		} else if state == svc.Stopped {
 			continue
 		}
 
@@ -167,10 +157,10 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 		err = w.terminateServiceProcess(ctx, serviceName)
 		if err != nil {
 			// Check if service is actually stopped despite the termination error
-			running, runningErr := w.isServiceRunning(serviceName)
-			if runningErr != nil {
-				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, runningErr))
-			} else if running {
+			state, stateErr := w.api.GetServiceState(serviceName)
+			if stateErr != nil {
+				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, stateErr))
+			} else if state != svc.Stopped {
 				failedServices = append(failedServices, fmt.Errorf("%s: termination failed and service still running: %w", serviceName, err))
 			}
 		}

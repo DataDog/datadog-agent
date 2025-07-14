@@ -20,47 +20,6 @@ import (
 
 // Test functions
 
-func TestWinServiceManager_IsServiceRunning(t *testing.T) {
-	tests := []struct {
-		name          string
-		serviceState  svc.State
-		expectRunning bool
-	}{
-		{
-			name:          "service stopped",
-			serviceState:  svc.Stopped,
-			expectRunning: false,
-		},
-		{
-			name:          "service running",
-			serviceState:  svc.Running,
-			expectRunning: true,
-		},
-		{
-			name:          "service start pending",
-			serviceState:  svc.StartPending,
-			expectRunning: true,
-		},
-		{
-			name:          "service stop pending",
-			serviceState:  svc.StopPending,
-			expectRunning: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockAPI := &mockSystemAPI{}
-			mockAPI.On("GetServiceState", "testservice").Return(tt.serviceState, nil)
-			manager := NewWinServiceManagerWithAPI(mockAPI)
-			running, err := manager.isServiceRunning("testservice")
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectRunning, running)
-			mockAPI.AssertExpectations(t)
-		})
-	}
-}
-
 func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -139,6 +98,22 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 				// Second call to verify PID (PID has changed - race condition)
 				api.On("GetServiceProcessID", "testservice").Return(uint32(5678), nil).Once() // new PID
 				// Should not proceed with termination since PID changed
+			},
+		},
+		{
+			name:        "service stopped during termination",
+			serviceName: "testservice",
+			expectError: false,
+			setupMocks: func(api *mockSystemAPI) {
+				pid := uint32(1234)
+				proc := windows.Handle(0x80000000 | pid)
+				// First call to get PID
+				api.On("GetServiceProcessID", "testservice").Return(pid, nil).Once()
+				// Open process
+				api.On("OpenProcess", mock.Anything, false, pid).Return(proc, nil)
+				api.On("CloseHandle", proc).Return(nil)
+				// Second call to verify PID (service stopped)
+				api.On("GetServiceProcessID", "testservice").Return(uint32(0), nil).Once()
 			},
 		},
 		{
@@ -339,6 +314,33 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				}
 				// Still check if first service is running after failed termination
 				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil)
+			},
+		},
+		{
+			name:        "some services running but termination fails and services stopped anyway",
+			expectError: false,
+			setupMocks: func(api *mockSystemAPI) {
+				api.On("StopService", "datadogagent").Return(nil)
+
+				// First service is running but termination fails
+				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Running, nil).Once()
+				// Mock the GetServiceProcessID calls within TerminateServiceProcess
+				api.On("GetServiceProcessID", "datadog-trace-agent").Return(uint32(1234), errors.New("access denied"))
+				// after failed termiantion, the service ended up being stopped
+				api.On("GetServiceState", "datadog-trace-agent").Return(svc.Stopped, nil).Once()
+
+				// Other services are not running
+				serviceNames := []string{
+					"datadog-process-agent",
+					"datadog-security-agent",
+					"datadog-system-probe",
+					"Datadog Installer",
+					"datadogagent",
+				}
+				for _, name := range serviceNames {
+					api.On("GetServiceState", name).Return(svc.Stopped, nil)
+				}
+
 			},
 		},
 	}
