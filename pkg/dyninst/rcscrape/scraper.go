@@ -151,7 +151,7 @@ func (s *scraperReporter) ReportAttached(
 	procID actuator.ProcessID,
 	_ *ir.Program,
 ) {
-	log.Debugf("rcscrape: attached to process %v", procID)
+	log.Tracef("rcscrape: attached to process %v", procID)
 }
 
 // ReportAttachingFailed implements actuator.Reporter.
@@ -169,7 +169,7 @@ func (s *scraperReporter) ReportDetached(
 	procID actuator.ProcessID,
 	_ *ir.Program,
 ) {
-	log.Debugf("rcscrape: detached from process %v", procID)
+	log.Tracef("rcscrape: detached from process %v", procID)
 	s.untrack(procID)
 }
 

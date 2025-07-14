@@ -512,7 +512,7 @@ func (a *Actuator) shutdown(err error) {
 	a.shutdownOnce.Do(func() {
 		defer log.Debugf("actuator shut down")
 		if err != nil {
-			log.Infof("shutting down actuator due to error: %v", err)
+			log.Warnf("shutting down actuator due to error: %v", err)
 		} else {
 			log.Debugf("shutting down actuator")
 		}

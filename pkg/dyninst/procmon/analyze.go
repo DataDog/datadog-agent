@@ -17,8 +17,13 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -28,10 +33,16 @@ import (
 //
 // [0] https://opentelemetry.io/docs/specs/otel/profiles/mappings/#algorithm-for-processexecutablebuild_idhtlhash
 
+// ContainerResolver is an interface that can be used to resolve the container
+// context of a process.
+type ContainerResolver interface {
+	GetContainerContext(pid uint32) (containerutils.ContainerID, model.CGroupContext, string, error)
+}
+
 // analyzeProcess performs light analysis of the process and its binary
 // to determine if it's interesting, and what its executable is.
 func analyzeProcess(
-	pid uint32, procfsRoot string,
+	pid uint32, procfsRoot string, resolver ContainerResolver,
 ) (processAnalysis, error) {
 	ddEnv, err := analyzeEnviron(int32(pid), procfsRoot)
 	if err != nil {
@@ -104,6 +115,8 @@ func analyzeProcess(
 		}
 	}
 
+	containerInfo := analyzeContainerInfo(resolver, pid)
+
 	return processAnalysis{
 		service:     ddEnv.serviceName,
 		exe:         exe,
@@ -112,6 +125,7 @@ func analyzeProcess(
 			CommitSha:     ddEnv.gitCommitSha,
 			RepositoryURL: ddEnv.gitRepositoryURL,
 		},
+		containerInfo: containerInfo,
 	}, nil
 }
 
@@ -176,6 +190,49 @@ func envVars(procEnviron []byte) iter.Seq2[string, string] {
 			}
 		}
 	}
+}
+
+// From https://github.com/torvalds/linux/blob/5859a2b1991101d6b978f3feb5325dad39421f29/include/linux/proc_ns.h#L41-L49
+// Currently, host namespace inode number are hardcoded, which can be used to detect
+// if we're running in host namespace or not (does not work when running in DinD)
+const hostCgroupNamespaceInode = 0xEFFFFFFB
+
+var containerResolverErrLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
+
+func analyzeContainerInfo(resolver ContainerResolver, pid uint32) ContainerInfo {
+	containerID, cgroupContext, _, err := resolver.GetContainerContext(pid)
+	if err != nil {
+		if containerResolverErrLogLimiter.Allow() {
+			log.Infof(
+				"failed to get container context for pid %d: %v", pid, err,
+			)
+		}
+		return ContainerInfo{}
+	}
+	// See https://github.com/DataDog/dd-trace-go/blob/0bf59472/internal/container_linux.go#L151-L155
+	if containerID != "" {
+		log.Tracef(
+			"analyzeContainerInfo(%d): containerID: %s",
+			pid, containerID,
+		)
+		return ContainerInfo{
+			EntityID:    "ci-" + string(containerID),
+			ContainerID: string(containerID),
+		}
+	}
+	if cgroupContext.CGroupFile.Inode != hostCgroupNamespaceInode {
+		log.Tracef(
+			"analyzeContainerInfo(%d): cgroupContext.CGroupFile.Inode: %d",
+			pid, cgroupContext.CGroupFile.Inode,
+		)
+		return ContainerInfo{
+			EntityID: fmt.Sprintf("in-%d", cgroupContext.CGroupFile.Inode),
+		}
+	}
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("analyzeContainerInfo(%d): no container info found", pid)
+	}
+	return ContainerInfo{}
 }
 
 var goSections = map[string]struct{}{
