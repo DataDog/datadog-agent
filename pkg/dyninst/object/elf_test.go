@@ -110,6 +110,7 @@ func benchmarkLoadElfFile(b *testing.B, binaryPath string) *object.DebugSections
 			total += len(data)
 		}
 		b.SetBytes(int64(total))
+		require.NoError(b, obj.Close())
 	}
 	b.StopTimer()
 	return ds
