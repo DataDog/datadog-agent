@@ -3,9 +3,7 @@ ad_identifiers:
 init_config:
 
 instances:
-
-    -
-
+  -
     ## @param collect_disk - boolean - optional - default: true
     ## Specify if the check should collect disk metrics (unsupported by CRI-O for now)
     #
