@@ -12,4 +12,4 @@ enhancements:
     The enhancement helps correct misconfigured Agent accounts on Windows.
 other:
   - |
-    The agent user/account verification is now available with `agent flare`and `agent diagnose` commands.
+    The Agent user/account verification is now available with `agent flare` and `agent diagnose` commands.
