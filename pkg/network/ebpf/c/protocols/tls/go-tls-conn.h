@@ -22,12 +22,6 @@ static __always_inline void* resolve_interface(void *iface_addr) {
 #define IPV6_ADDR_LEN 16
 #define IP_ADDR_LEN_MAX IPV6_ADDR_LEN
 
-#define IPV4_PREFIX (unsigned char[12]){ \
-    0x00, 0x00, 0x00, 0x00,              \
-    0x00, 0x00, 0x00, 0x00,              \
-    0x00, 0x00, 0xff, 0xff               \
-}
-
 // Reads an IP address from the provided slice_t structure.
 static __always_inline bool read_ip(slice_t *address_ptr, __u32 family, __u64 *out_address_h, __u64 *out_address_l) {
     // Taking 16 bytes as it is the maximum size for an IPv6 address (128 bits) and an IPv4 address (32 bits) can fit in this space.
@@ -40,14 +34,8 @@ static __always_inline bool read_ip(slice_t *address_ptr, __u32 family, __u64 *o
         }
     } else if (address_ptr->len == IPV6_ADDR_LEN && family == AF_INET6) {
         if (bpf_probe_read_user(ip, IPV6_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
-            // IPv4 representation as IPv6. We traverse the operation and extract the last 4 bytes.
-            if (bpf_memcmp(ip, IPV4_PREFIX, sizeof(IPV4_PREFIX)) == 0) {
-                *out_address_h = 0;
-                *out_address_l = *((__u32*)(ip+sizeof(IPV4_PREFIX)));
-            } else {
-                *out_address_h = *((__u64*)ip);
-                *out_address_l = *((__u64*)(ip + 8));
-            }
+            *out_address_h = *((__u64*)ip);
+            *out_address_l = *((__u64*)(ip + 8));
             return true;
         }
     }
@@ -120,8 +108,19 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         return false;
     }
 
-    if (family == AF_INET6 && output->saddr_h != 0 && output->saddr_l != 0) {
-        output->metadata |= CONN_V6;
+    // Similar behavior as in read_conn_tuple_partial
+    // See documentation of is_ipv4_mapped_ipv6 for further details.
+    if (family == AF_INET6) {
+        // Check if we can map IPv6 to IPv4
+        if (is_ipv4_mapped_ipv6(output->saddr_h, output->saddr_l, output->daddr_h, output->daddr_l)) {
+            output->metadata |= CONN_V4;
+            output->saddr_h = 0;
+            output->daddr_h = 0;
+            output->saddr_l = (__u32)(output->saddr_l >> 32);
+            output->daddr_l = (__u32)(output->daddr_l >> 32);
+        } else {
+            output->metadata |= CONN_V6;
+        }
     } else {
         output->metadata |= CONN_V4;
     }
