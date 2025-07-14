@@ -6,7 +6,6 @@ package datadogexporter // import "github.com/open-telemetry/opentelemetry-colle
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -67,7 +66,7 @@ func (exp *traceExporter) consumeTraces(
 ) (err error) {
 	rspans := td.ResourceSpans()
 	hosts := make(map[string]struct{})
-	ecsFargateTags := make(map[string]struct{})
+	ecsFargateArns := make(map[string]struct{})
 	header := make(http.Header)
 	header[headerComputedStats] = []string{"true"}
 	for i := 0; i < rspans.Len(); i++ {
@@ -77,17 +76,17 @@ func (exp *traceExporter) consumeTraces(
 		case source.HostnameKind:
 			hosts[src.Identifier] = struct{}{}
 		case source.AWSECSFargateKind:
-			ecsFargateTags[src.Tag()] = struct{}{}
+			ecsFargateArns[src.Identifier] = struct{}{}
 		case source.InvalidKind:
 		}
 	}
 
-	exp.exportUsageMetrics(hosts, ecsFargateTags)
+	exp.exportUsageMetrics(hosts, ecsFargateArns)
 	return nil
 }
 
 // exportUsageMetrics exports usage tracking metrics on traces in DDOT
-func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFargateTags map[string]struct{}) {
+func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFargateArns map[string]struct{}) {
 	if exp.usageMetric == nil {
 		return
 	}
@@ -95,8 +94,7 @@ func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFarga
 	for host := range hosts {
 		exp.usageMetric.Inc(buildInfo.Version, buildInfo.Command, host, "")
 	}
-	for ecsFargateTag := range ecsFargateTags {
-		taskArn := strings.Split(ecsFargateTag, ":")[1]
+	for taskArn := range ecsFargateArns {
 		exp.usageMetric.Inc(buildInfo.Version, buildInfo.Command, "", taskArn)
 	}
 }
