@@ -432,3 +432,13 @@ type LinkUsageMetrics struct {
 	BandwidthTx       float64
 	BandwidthRx       float64
 }
+
+// TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
+type TunnelMetrics struct {
+	Appliance   string
+	LocalIP     string
+	RemoteIP    string
+	VpnProfName string
+	VolumeRx    float64
+	VolumeTx    float64
+}
