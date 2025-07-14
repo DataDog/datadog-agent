@@ -156,7 +156,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
 		// Only emit memory.usage per process
 		processMetrics = append(processMetrics,
-			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 1, Tags: pidTag},
+			Metric{Name: "memory.usage", Value: float64(proc.UsedGpuMemory), Type: metrics.GaugeType, Priority: 10, Tags: pidTag},
 		)
 		// Collect PID tags for aggregated limit metrics
 		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", proc.Pid))
@@ -164,7 +164,7 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 
 	// Emit memory.limit once per device with all PID tags
 	processMetrics = append(processMetrics,
-		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Priority: 1, Tags: allPidTags},
+		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Priority: 10, Tags: allPidTags},
 	)
 
 	return processMetrics, nil
