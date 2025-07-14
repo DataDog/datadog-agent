@@ -5,7 +5,7 @@ fixes:
     version information from [MsiGetProductInfo](https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msigetproductinfow).
 
     When upgrading from an Agent version lower than 7.56,
-    if ``MsiGetProductInfo`` fails and the MSI fails and rolls back then
+    if ``MsiGetProductInfo`` fails and the MSI fails and rolls back, then
     the system may be missing some drivers. If this happens, repair
     or reinstall the Agent to restore the missing drivers.
     These cases are usually caused by a corrupted Windows Installer registry.
