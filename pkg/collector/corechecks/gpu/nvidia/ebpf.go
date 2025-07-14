@@ -113,8 +113,8 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	}
 
 	// Get device info for filtering and limit metrics
-	deviceUUID := c.device.GetDeviceInfo().UUID
 	devInfo := c.device.GetDeviceInfo()
+	deviceUUID := devInfo.UUID
 
 	// Set all existing metrics to inactive for this device
 	for key := range c.activeMetrics {
@@ -135,7 +135,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 
 		// Create PID tag for this process
 		pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", key.PID))
+		allPidTags = append(allPidTags, pidTag[0])
 
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
@@ -161,7 +161,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	for key, active := range c.activeMetrics {
 		if !active {
 			pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", key.PID))
+			allPidTags = append(allPidTags, pidTag[0])
 
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
