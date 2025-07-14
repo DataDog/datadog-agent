@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
@@ -300,12 +299,12 @@ type noDdTraceGoReporter struct {
 func (wa *wrappedActuator) NewTenant(
 	name string,
 	reporter actuator.Reporter,
-	opts ...irgen.Option,
+	irGenerator actuator.IRGenerator,
 ) *actuator.Tenant {
 	return wa.inner.NewTenant(name, &noDdTraceGoReporter{
 		Reporter:       reporter,
 		irGenFailureCh: wa.irGenFailureCh,
-	}, opts...)
+	}, irGenerator)
 }
 
 func (r *noDdTraceGoReporter) ReportIRGenFailed(
