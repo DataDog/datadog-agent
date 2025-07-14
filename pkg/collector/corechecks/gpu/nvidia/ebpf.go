@@ -169,7 +169,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 					Name:     "core.usage",
 					Value:    0,
 					Type:     ddmetrics.GaugeType,
-					Priority: 1,
+					Priority: 10,
 					Tags:     pidTag,
 				},
 				Metric{
@@ -191,7 +191,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 			Name:     "core.limit",
 			Value:    float64(devInfo.CoreCount),
 			Type:     ddmetrics.GaugeType,
-			Priority: 1,
+			Priority: 10,
 			Tags:     allPidTags,
 		},
 		Metric{
