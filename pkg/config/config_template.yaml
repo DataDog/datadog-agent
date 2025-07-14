@@ -206,7 +206,7 @@ api_key:
 ## @env DD_LOGS_TAG_CARDINALITY - string - optional - default: high
 ## Configure the level of granularity of tags to send for logs. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
-##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
+##   * orchestrator: add tags about pod (in Kubernetes), or task (in ECS or Mesos) level of cardinality
 ##   * high: add tags about high-cardinality objects (individual containers, user IDs in requests, ...)
 ##
 ## WARNING: sending container tags for logs may create larger payloads.
