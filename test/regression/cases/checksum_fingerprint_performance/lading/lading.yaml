@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Config
+name: checksum-fingerprint-performance
+
+generator:
+  - file_tree:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+             59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      root: /lading-data/
+      # Create many more files to stress test fingerprinting with 1000 files
+      rename_per_second: 100
+      # Generate files with varying content to test fingerprint diversity
+      content_variation: true
+      # Add timestamps to ensure unique fingerprints
+      include_timestamps: true
+      # Simulate log rotation more frequently to create more files
+      rotation_frequency: 2
+      # Create more files by increasing the file generation rate
+      max_files: 1000
+      # Ensure we have enough concurrent file operations
+      concurrent_files: 50
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+      body_variant: "nothing"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry" 
