@@ -382,3 +382,75 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 		return nil, fmt.Errorf("invalid registry version number")
 	}
 }
+
+// GetOffset returns the offset for the given identifier
+func (a *registryAuditor) GetOffset(identifier string) string {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		return entry.Offset
+	}
+	return ""
+}
+
+// GetTailingMode returns the tailing mode for the given identifier
+func (a *registryAuditor) GetTailingMode(identifier string) string {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		return entry.TailingMode
+	}
+	return ""
+}
+
+// KeepAlive signals that the identifier still exists and should not be removed from the registry
+func (a *registryAuditor) KeepAlive(identifier string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		entry.LastUpdated = time.Now().UTC()
+	} else {
+		// Create a new entry if it doesn't exist
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated: time.Now().UTC(),
+			Offset:      "",
+			TailingMode: "",
+		}
+	}
+}
+
+// SetTailed signals that the identifier is still being tailed and should not be removed from the registry
+func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if isTailed {
+		if entry, exists := a.registry[identifier]; exists {
+			entry.LastUpdated = time.Now().UTC()
+		} else {
+			// Create a new entry if it doesn't exist
+			a.registry[identifier] = &RegistryEntry{
+				LastUpdated: time.Now().UTC(),
+				Offset:      "",
+				TailingMode: "",
+			}
+		}
+	}
+	// If isTailed is false, we don't need to do anything special - the cleanup will handle removal
+}
+
+// SetOffset allows direct setting of an offset for an identifier, marking it as tailed
+func (a *registryAuditor) SetOffset(identifier string, offset string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if entry, exists := a.registry[identifier]; exists {
+		entry.Offset = offset
+		entry.LastUpdated = time.Now().UTC()
+	} else {
+		// Create a new entry if it doesn't exist
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated: time.Now().UTC(),
+			Offset:      offset,
+			TailingMode: "", // Default to empty, can be set later
+		}
+	}
+}

@@ -110,13 +110,6 @@ func (r *Registry) GetOffset(identifier string) string {
 	return ""
 }
 
-// SetOffset sets the offset.
-func (r *Registry) SetOffset(identifier string, offset string) {
-	r.Lock()
-	defer r.Unlock()
-	r.StoredOffsets[identifier] = offset
-}
-
 // GetTailingMode returns the tailing mode.
 func (r *Registry) GetTailingMode(_ string) string {
 	r.Lock()
@@ -131,16 +124,17 @@ func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
 }
 
-// SetTailed stores the tailed status of the identifier.
-func (r *Registry) SetTailed(identifier string, isTailed bool) {
-	r.Lock()
-	defer r.Unlock()
-	r.TailedSources[identifier] = isTailed
+// KeepAlive does nothing in the mock registry
+func (r *Registry) KeepAlive(_ string) {
+	// No-op for mock
 }
 
-// KeepAlive stores the keep alive status of the identifier.
-func (r *Registry) KeepAlive(identifier string) {
-	r.Lock()
-	defer r.Unlock()
-	r.KeepAlives[identifier] = true
+// SetTailed does nothing in the mock registry
+func (r *Registry) SetTailed(_ string, _ bool) {
+	// No-op for mock
+}
+
+// SetOffset sets the offset (new interface signature with identifier)
+func (r *Registry) SetOffset(_ string, offset string) {
+	r.offset = offset
 }
