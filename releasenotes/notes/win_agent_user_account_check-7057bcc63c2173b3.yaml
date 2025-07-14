@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    This is Windows-specific enhancement -- added checking on the agent user groups and account rights.
+    [Windows] Added checking on the Agent user groups and account rights.
     The enhancement helps correct miconfigured agent account on Windows.
 other:
   - |
