@@ -146,7 +146,7 @@ type DatadogConfig struct {
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
 	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
-	GPUCheck             GPUCheckConfig             `yaml:"gpum,omitempty"`
+	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
