@@ -108,7 +108,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         return false;
     }
 
-    output->metadata = CONN_TYPE_TCP;
     if (family == AF_INET6) {
         output->metadata |= CONN_V6;
     } else { // If we reached here, we already know the family is AF_INET or AF_INET6.
@@ -140,7 +139,10 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         return NULL;
     }
 
-    conn_tuple_t tuple = {0};
+    conn_tuple_t tuple = {
+        .pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid()),
+        .metadata = CONN_TYPE_TCP,
+    };
     if (!__tuple_via_tcp_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
         if (!__tuple_via_limited_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
             log_debug("[go-tls-conn] failed to resolve tuple from conn at %p", conn);
