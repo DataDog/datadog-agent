@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -33,6 +35,14 @@ func makeEnviron(t *testing.T, keyVals ...string) []byte {
 		fmt.Fprintf(&buf, "%s=%s\x00", keyVals[i], keyVals[i+1])
 	}
 	return buf.Bytes()
+}
+
+type noopContainerResolver struct{}
+
+func (r noopContainerResolver) GetContainerContext(uint32) (
+	containerutils.ContainerID, model.CGroupContext, string, error,
+) {
+	return "", model.CGroupContext{}, "", nil
 }
 
 func TestAnalyzeProcess(t *testing.T) {
@@ -78,7 +88,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("not interesting env", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 102, envFalse, true)
 		defer cleanup()
-		res, err := analyzeProcess(102, procRoot)
+		res, err := analyzeProcess(102, procRoot, noopContainerResolver{})
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 	})
@@ -86,7 +96,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("no interesting exe", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 101, envTrue, true)
 		defer cleanup()
-		res, err := analyzeProcess(101, procRoot)
+		res, err := analyzeProcess(101, procRoot, noopContainerResolver{})
 		require.NoError(t, err)
 		require.False(t, res.interesting)
 		require.Empty(t, res.exe)
@@ -95,7 +105,7 @@ func TestAnalyzeProcess(t *testing.T) {
 	t.Run("exe missing", func(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 103, envTrue, false)
 		defer cleanup()
-		res, err := analyzeProcess(103, procRoot)
+		res, err := analyzeProcess(103, procRoot, noopContainerResolver{})
 		require.Regexp(t, "failed to open exe link for pid 103.*: no such file or directory", err)
 		require.False(t, res.interesting)
 	})
@@ -118,7 +128,7 @@ func TestAnalyzeProcess(t *testing.T) {
 			require.NoError(t, f.Close())
 			require.NoError(t, binReader.Close())
 		}
-		res, err := analyzeProcess(104, procRoot)
+		res, err := analyzeProcess(104, procRoot, noopContainerResolver{})
 		require.NoError(t, err)
 		require.True(t, res.interesting)
 		require.NotEmpty(t, res.exe.Path)
