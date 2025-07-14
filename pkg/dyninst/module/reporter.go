@@ -109,6 +109,19 @@ func (c *controllerReporter) ReportLoaded(
 		containerID = ci.ContainerID
 		entityID = ci.EntityID
 	}
+	for i := range program.Issues {
+		issue := &program.Issues[i]
+		issueErr := (*irIssueError)(&issue.Issue)
+		if ctrl.diagnostics.reportError(
+			runtimeID, issue.ProbeDefinition, issueErr, issue.Kind.String(),
+		) {
+			log.Debugf(
+				"reported issue %v for probe %v %v: %v",
+				issue.Kind, issue.ProbeDefinition.GetID(),
+				issue.ProbeDefinition.GetVersion(), issueErr,
+			)
+		}
+	}
 
 	s := &sink{
 		controller:   ctrl,
@@ -124,6 +137,10 @@ func (c *controllerReporter) ReportLoaded(
 	}
 	return s, nil
 }
+
+type irIssueError ir.Issue
+
+func (e *irIssueError) Error() string { return e.Message }
 
 // ReportLoadingFailed implements actuator.Reporter.
 func (c *controllerReporter) ReportLoadingFailed(

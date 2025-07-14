@@ -579,3 +579,66 @@ func TestController_MultipleProcesses(t *testing.T) {
 		assert.Equal(t, uploader.StatusReceived, msg.Debugger.Diagnostic.Status)
 	}
 }
+
+// TestController_ProbeIssueReporting verifies that probe issues in a program
+// are properly reported as error diagnostics during the program loading phase.
+func TestController_ProbeIssueReporting(t *testing.T) {
+	scraper := &fakeScraper{}
+	a := &fakeActuator{}
+	decoder := &fakeDecoder{}
+	decoderFactory := &fakeDecoderFactory{decoder: decoder}
+	diagUploader := &fakeDiagnosticsUploader{}
+	logUploaderFactory := &fakeLogsUploaderFactory{}
+
+	processUpdate := createTestProcessUpdate()
+	procID := processUpdate.ProcessID
+
+	// Create a program with probe issues
+	program := &ir.Program{
+		ID: ir.ProgramID(42),
+		Probes: []*ir.Probe{
+			{ProbeDefinition: createTestProbe("probe-1")},
+		},
+		Issues: []ir.ProbeIssue{
+			{
+				ProbeDefinition: createTestProbe("probe-2"),
+				Issue: ir.Issue{
+					Kind:    ir.IssueKindTargetNotFoundInBinary,
+					Message: "target function not found in binary",
+				},
+			},
+		},
+	}
+
+	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+	)
+
+	controller.CheckForUpdates()
+
+	sink, err := a.tenant.reporter.ReportLoaded(procID, processUpdate.Executable, program)
+	require.NoError(t, err)
+	require.NotNil(t, sink)
+
+	// Verify that probe-1 succeeded (received diagnostic) and probe-2 failed (error diagnostic)
+	receivedCount := 0
+	issueErrorCount := 0
+	for _, msg := range diagUploader.messages {
+		switch msg.Debugger.Diagnostic.Status {
+		case uploader.StatusReceived:
+			if msg.Debugger.Diagnostic.ProbeID == "probe-1" {
+				receivedCount++
+			}
+		case uploader.StatusError:
+			if msg.Debugger.Diagnostic.ProbeID == "probe-2" {
+				assert.Equal(t, "TargetNotFoundInBinary", msg.Debugger.Diagnostic.DiagnosticException.Type)
+				assert.Equal(t, "target function not found in binary", msg.Debugger.Diagnostic.DiagnosticException.Message)
+				issueErrorCount++
+			}
+		}
+	}
+	assert.Equal(t, 1, receivedCount)
+	assert.Equal(t, 1, issueErrorCount)
+}
