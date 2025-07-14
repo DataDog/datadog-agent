@@ -147,9 +147,17 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
             return NULL;
         }
     }
+    
+    bpf_printk("tasik0: tcp_close tuple: saddr_l=%u", (u32)tuple.saddr_l);
+    bpf_printk("tasik0: tcp_close tuple: daddr_l=%u", (u32)tuple.daddr_l);
+    bpf_printk("tasik0: tcp_close tuple: sport=%u", tuple.sport);
+    bpf_printk("tasik0: tcp_close tuple: dport=%u", tuple.dport);
+    bpf_printk("tasik0: tcp_close tuple: pid=%u", tuple.pid);
+    bpf_printk("tasik0: tcp_close tuple: metadata=%u", tuple.metadata);
+    
 
     bpf_map_update_with_telemetry(conn_tup_by_go_tls_conn, &conn, &tuple, BPF_ANY);
-    bpf_map_update_elem(&go_tls_conn_by_tuple, &tuple, &conn, BPF_ANY);
+    bpf_map_update_with_telemetry(go_tls_conn_by_tuple, &tuple, &conn, BPF_ANY);
     return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
 }
 

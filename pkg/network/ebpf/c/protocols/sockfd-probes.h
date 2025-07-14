@@ -30,6 +30,7 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
 
     pid_fd_t *pid_fd = bpf_map_lookup_elem(&pid_fd_by_tuple, &t);
     if (pid_fd != NULL) {
+        bpf_printk("tasik0");
         // Copy map value to stack so we can use it as a map key (needed for older kernels)
         pid_fd_t pid_fd_copy = *pid_fd;
         bpf_map_delete_elem(&tuple_by_pid_fd, &pid_fd_copy);
@@ -44,6 +45,24 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
             bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
         }
     }
+
+    normalize_tuple(&t);
+    t.pid = 0;
+    t.netns = 0;
+    
+    bpf_printk("tasik1");
+    // Debug: Print just one tuple value to start
+    bpf_printk("tasik: tcp_close tuple: saddr_h=%u", (u32)t.saddr_h);
+    bpf_printk("tasik: tcp_close tuple: saddr_l=%u", (u32)t.saddr_l);
+    bpf_printk("tasik: tcp_close tuple: daddr_h=%u", (u32)t.daddr_h);
+    bpf_printk("tasik: tcp_close tuple: daddr_l=%u", (u32)t.daddr_l);
+    bpf_printk("tasik: tcp_close tuple: sport=%u", t.sport);
+    bpf_printk("tasik: tcp_close tuple: dport=%u", t.dport);
+    bpf_printk("tasik: tcp_close tuple: netns=%u", t.netns);
+    bpf_printk("tasik: tcp_close tuple: pid=%u", t.pid);
+    bpf_printk("tasik: tcp_close tuple: metadata=%u", t.metadata);
+    
+
     
     
     // Cleanup Go TLS connections map
@@ -54,7 +73,11 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         // Remove both the forward and reverse mappings
         bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &go_tls_conn);
         bpf_map_delete_elem(&go_tls_conn_by_tuple, &t);
+        bpf_printk("tasik2!!!");
+    } else {
+        bpf_printk("tasik-error");
     }
+    bpf_printk("tasik3");
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,
     // as it does not have access to the PID and NETNS.
