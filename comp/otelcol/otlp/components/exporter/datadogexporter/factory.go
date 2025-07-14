@@ -84,6 +84,7 @@ func newFactoryWithRegistry(
 		h:              h,
 		mclientwrapper: mclientwrapper,
 		gatewayUsage:   gatewayUsage,
+		telemetry:      telemetry,
 	}
 
 	return exporter.NewFactory(

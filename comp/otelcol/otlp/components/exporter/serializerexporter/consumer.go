@@ -192,7 +192,7 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 			usageMetric.Inc(buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
-		usageMetric.Inc(buildInfo.Version, buildInfo.Command, agentHostname, "")
+		usageMetric.Inc(buildInfo.Version, buildInfo.Command, agentHostname)
 	case ossCollector:
 		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
 	default:

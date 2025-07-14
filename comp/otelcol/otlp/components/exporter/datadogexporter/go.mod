@@ -14,6 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.68.0-devel
 	github.com/DataDog/datadog-agent/pkg/serializer v0.67.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.0
@@ -129,7 +130,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.67.0 // indirect
