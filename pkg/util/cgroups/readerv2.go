@@ -51,7 +51,7 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 		if err != nil {
 			// if the error is a permission issue skip the directory
 			if errors.Is(err, fs.ErrPermission) {
-				log.Tracef("skipping %s due to permission error", fullPath)
+				log.Debugf("skipping %s due to permission error", fullPath)
 				return filepath.SkipDir
 			}
 			return err
