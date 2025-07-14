@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,6 +39,25 @@ type ProcessUpdate struct {
 	ProcessID  ProcessID
 	Executable Executable
 	Service    string
+	GitInfo    GitInfo
+	Container  ContainerInfo
+}
+
+// ContainerInfo is information about the container the process is running in.
+type ContainerInfo struct {
+	// EntityID is the entity id of the process. It is either derived from the
+	// container id or inode of the cgroup root.
+	EntityID string
+	// ContainerID is the container id of the process.
+	ContainerID string
+}
+
+// GitInfo is information about the git repository and commit sha of the process.
+type GitInfo struct {
+	// CommitSha is the git commit sha of the process.
+	CommitSha string
+	// RepositoryURL is the git repository url of the process.
+	RepositoryURL string
 }
 
 // ProcessMonitor encapsulates the logic of processing events from an event
@@ -46,6 +66,7 @@ type ProcessUpdate struct {
 type ProcessMonitor struct {
 	handler    Handler
 	procfsRoot string
+	resolver   ContainerResolver
 
 	eventsCh chan event
 	doneCh   chan struct{}
@@ -57,7 +78,7 @@ type ProcessMonitor struct {
 // NewProcessMonitor creates a new ProcessMonitor that will send updates to the
 // given Actuator.
 func NewProcessMonitor(h Handler) *ProcessMonitor {
-	return newProcessMonitor(h, kernel.ProcFSRoot())
+	return newProcessMonitor(h, kernel.ProcFSRoot(), container.New())
 }
 
 // NotifyExec is a callback to notify the monitor that a process has started.
@@ -71,10 +92,11 @@ func (pm *ProcessMonitor) NotifyExit(pid uint32) {
 }
 
 // newProcessMonitor is injectable with a fake FS for tests.
-func newProcessMonitor(h Handler, procFS string) *ProcessMonitor {
+func newProcessMonitor(h Handler, procFS string, resolver ContainerResolver) *ProcessMonitor {
 	pm := &ProcessMonitor{
 		handler:    h,
 		procfsRoot: procFS,
+		resolver:   resolver,
 		eventsCh:   make(chan event, 1024),
 		doneCh:     make(chan struct{}),
 	}
@@ -123,7 +145,7 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 	pm.wg.Add(1)
 	go func() {
 		defer pm.wg.Done()
-		pa, err := analyzeProcess(pid, pm.procfsRoot)
+		pa, err := analyzeProcess(pid, pm.procfsRoot, pm.resolver)
 		shouldLog := err != nil &&
 			!os.IsNotExist(err) &&
 			analysisFailureLogLimiter.Allow()

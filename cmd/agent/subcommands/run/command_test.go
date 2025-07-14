@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestCommand(t *testing.T) {
@@ -30,6 +31,8 @@ func TestCommand(t *testing.T) {
 }
 
 func TestCommandPidfile(t *testing.T) {
+	// Test is flaky since PR https://github.com/DataDog/datadog-agent/pull/38643 was merged
+	flake.Mark(t)
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},

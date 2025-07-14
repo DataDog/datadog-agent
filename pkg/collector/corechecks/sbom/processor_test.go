@@ -307,6 +307,82 @@ func TestProcessEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "no repo digest",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name: "my-image:latest",
+						},
+						RepoTags: []string{
+							"my-image:latest",
+						},
+						SBOM: &workloadmeta.SBOM{
+							CycloneDXBOM: &cyclonedx.BOM{
+								SpecVersion: cyclonedx.SpecVersion1_4,
+								Version:     42,
+								Components: &[]cyclonedx.Component{
+									{
+										Name: "Foo",
+									},
+									{
+										Name: "Bar",
+									},
+									{
+										Name: "Baz",
+									},
+								},
+							},
+							GenerationTime:     sbomGenerationTime,
+							GenerationDuration: 10 * time.Second,
+							Status:             workloadmeta.Success,
+						},
+					},
+				},
+			},
+			expectedSBOMs: []*model.SBOMEntity{
+				{
+					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+					Id:   "my-image@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+					DdTags: []string{
+						"image_id:my-image@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+						"image_name:my-image",
+						"short_image:my-image",
+						"image_tag:latest",
+					},
+					RepoTags: []string{
+						"latest",
+					},
+					InUse:              false,
+					GeneratedAt:        timestamppb.New(sbomGenerationTime),
+					GenerationDuration: durationpb.New(10 * time.Second),
+					Sbom: &model.SBOMEntity_Cyclonedx{
+						Cyclonedx: &cyclonedx_v1_4.Bom{
+							SpecVersion: "1.4",
+							Version:     pointer.Ptr(int32(42)),
+							Components: []*cyclonedx_v1_4.Component{
+								{
+									Name: "Foo",
+								},
+								{
+									Name: "Bar",
+								},
+								{
+									Name: "Baz",
+								},
+							},
+						},
+					},
+					Status: model.SBOMStatus_SUCCESS,
+				},
+			},
+		},
+		{
 			name: "Validate InUse flag",
 			inputEvents: []workloadmeta.Event{
 				{
@@ -604,8 +680,9 @@ func TestProcessEvents(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Replace(configcomp.MockParams{
 			Overrides: map[string]interface{}{
-				"sbom.cache_directory":         cacheDir,
-				"sbom.container_image.enabled": true,
+				"sbom.cache_directory":                          cacheDir,
+				"sbom.container_image.enabled":                  true,
+				"sbom.container_image.allow_missing_repodigest": true,
 			},
 		}),
 	))
@@ -632,7 +709,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, sender, fakeTagger, 1, 50*time.Millisecond, false, false, time.Second)
+			p, err := newProcessor(workloadmetaStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -663,6 +740,8 @@ func TestProcessEvents(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				return SBOMsSent.Load() == int32(len(test.expectedSBOMs))
 			}, 1*time.Second, 5*time.Millisecond)
+
+			envVarEnv := cfg.GetString("env")
 
 			for _, expectedSBOM := range test.expectedSBOMs {
 				encoded, err := proto.Marshal(&model.SBOMPayload{

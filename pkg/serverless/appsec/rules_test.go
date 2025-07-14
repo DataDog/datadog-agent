@@ -6,9 +6,12 @@
 package appsec
 
 import (
+	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/go-libddwaf/v4"
+	"github.com/DataDog/appsec-internal-go/appsec"
+	waf "github.com/DataDog/go-libddwaf/v3"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,13 +21,11 @@ func TestStaticRule(t *testing.T) {
 		return
 	}
 
-	builder, err := libddwaf.NewBuilder("", "")
-	require.NoError(t, err)
-	defer builder.Close()
-	_, err = builder.AddDefaultRecommendedRuleset()
+	var rules map[string]any
+	err := json.Unmarshal([]byte(appsec.StaticRecommendedRules), &rules)
 	require.NoError(t, err)
 
-	waf := builder.Build()
+	waf, err := waf.NewHandle(rules, "", "")
 	require.NoError(t, err)
 	waf.Close()
 }

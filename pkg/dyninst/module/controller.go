@@ -15,21 +15,25 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
 type procRuntimeID struct {
-	actuator.ProcessID
-	service   string
-	runtimeID string
+	procmon.ProcessID
+	service       string
+	runtimeID     string
+	gitInfo       *procmon.GitInfo
+	containerInfo *procmon.ContainerInfo
 }
 
 type controller struct {
 	rcScraper    *rcscrape.Scraper
 	actuator     *actuator.Tenant
 	diagUploader *uploader.DiagnosticsUploader
-	logUploader  *uploader.LogsUploader
+	logUploader  *uploader.LogsUploaderFactory
 	store        *processStore
 	diagnostics  *diagnosticsManager
 
@@ -38,7 +42,7 @@ type controller struct {
 
 func newController(
 	a *actuator.Actuator,
-	logUploader *uploader.LogsUploader,
+	logUploader *uploader.LogsUploaderFactory,
 	diagUploader *uploader.DiagnosticsUploader,
 	rcScraper *rcscrape.Scraper,
 ) *controller {
@@ -49,7 +53,9 @@ func newController(
 		store:        newProcessStore(),
 		diagnostics:  newDiagnosticsManager(diagUploader),
 	}
-	c.actuator = a.NewTenant("rc-scrape", (*controllerReporter)(c))
+	c.actuator = a.NewTenant(
+		"dyninst", (*controllerReporter)(c), irgen.NewGenerator(),
+	)
 	return c
 }
 

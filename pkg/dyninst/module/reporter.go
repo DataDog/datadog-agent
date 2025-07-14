@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -97,12 +98,30 @@ func (c *controllerReporter) ReportLoaded(
 		return nil, fmt.Errorf("creating decoder: %w", err)
 	}
 
+	var tags string
+	if gi := runtimeID.gitInfo; gi != nil {
+		tags = fmt.Sprintf(
+			"git.commit.sha:%s,git.repository_url:%s",
+			gi.CommitSha, gi.RepositoryURL,
+		)
+	}
+	var containerID, entityID string
+	if ci := runtimeID.containerInfo; ci != nil {
+		containerID = ci.ContainerID
+		entityID = ci.EntityID
+	}
+
 	s := &sink{
 		controller:   ctrl,
 		decoder:      decoder,
 		symbolicator: ctrl.store.getSymbolicator(program.ID),
 		programID:    program.ID,
 		service:      runtimeID.service,
+		logUploader: ctrl.logUploader.GetUploader(uploader.LogsUploaderMetadata{
+			Tags:        tags,
+			EntityID:    entityID,
+			ContainerID: containerID,
+		}),
 	}
 	return s, nil
 }
