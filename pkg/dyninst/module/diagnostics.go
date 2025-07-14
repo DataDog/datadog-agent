@@ -47,14 +47,14 @@ func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) 
 }
 
 type diagnosticsManager struct {
-	uploader  *uploader.DiagnosticsUploader
+	uploader  DiagnosticsUploader
 	received  *diagnosticTracker
 	installed *diagnosticTracker
 	emitted   *diagnosticTracker
 	errors    *diagnosticTracker
 }
 
-func newDiagnosticsManager(uploader *uploader.DiagnosticsUploader) *diagnosticsManager {
+func newDiagnosticsManager(uploader DiagnosticsUploader) *diagnosticsManager {
 	return &diagnosticsManager{
 		uploader:  uploader,
 		received:  newDiagnosticTracker("received"),
