@@ -140,10 +140,11 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
 			Metric{
-				Name:  "core.usage",
-				Value: metrics.UsedCores,
-				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Name:     "core.usage",
+				Value:    metrics.UsedCores,
+				Type:     ddmetrics.GaugeType,
+				Priority: 10,
+				Tags:     pidTag,
 			},
 			Metric{
 				Name:  "memory.usage",
