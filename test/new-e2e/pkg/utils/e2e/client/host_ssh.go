@@ -23,6 +23,8 @@ func execute(sshClient *ssh.Client, command string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create session: %v", err)
 	}
+	defer session.Close()
+
 	stdout, err := session.CombinedOutput(command)
 	return string(stdout), err
 }

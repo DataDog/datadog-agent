@@ -1,0 +1,13 @@
+test_fuzz:
+  rules:
+    - !reference [.on_scheduled_main]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  tags: ["arch:amd64"]
+  stage: source_test
+  needs: []
+  allow_failure: true
+  script:
+    - |
+      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+      dda self dep sync -f legacy-tasks
+    - dda inv -- build-and-upload-fuzz

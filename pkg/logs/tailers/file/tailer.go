@@ -120,12 +120,11 @@ type Tailer struct {
 	info            *status.InfoRegistry
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
-	PipelineMonitor metrics.PipelineMonitor
-
 	fingerprintConfig     *logsconfig.FingerprintConfig
 	fingerprint           uint64
 	fingerprintingEnabled bool
 	registry              auditor.Registry
+	CapacityMonitor       *metrics.CapacityMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -137,9 +136,9 @@ type TailerOptions struct {
 	Info              *status.InfoRegistry          // Required
 	Rotated           bool                          // Optional
 	TagAdder          tag.EntityTagAdder            // Required
-	PipelineMonitor   metrics.PipelineMonitor       // Required
 	FingerprintConfig *logsconfig.FingerprintConfig //Optional
 	Registry          auditor.Registry              //Required
+	CapacityMonitor   *metrics.CapacityMonitor      // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -197,10 +196,10 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
-		PipelineMonitor:        opts.PipelineMonitor,
 		fingerprintConfig:      fingerprintConfig,
 		fingerprint:            0,
 		fingerprintingEnabled:  fingerprintingEnabled,
+		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
 	}
 
@@ -225,23 +224,23 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 func (t *Tailer) NewRotatedTailer(
 	file *File,
 	outputChan chan *message.Message,
-	pipelineMonitor metrics.PipelineMonitor,
+	capacityMonitor *metrics.CapacityMonitor,
 	decoder *decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
-		OutputChan:        outputChan,
-		File:              file,
-		SleepDuration:     t.sleepDuration,
-		Decoder:           decoder,
-		Info:              info,
-		Rotated:           true,
-		TagAdder:          tagAdder,
-		PipelineMonitor:   pipelineMonitor,
+		OutputChan:      outputChan,
+		File:            file,
+		SleepDuration:   t.sleepDuration,
+		Decoder:         decoder,
+		Info:            info,
+		Rotated:         true,
+		TagAdder:        tagAdder,
+		CapacityMonitor: capacityMonitor,
 		FingerprintConfig: t.fingerprintConfig,
-		Registry:          registry,
+		Registry:        registry,
 	}
 
 	return NewTailer(options)
@@ -410,14 +409,16 @@ func (t *Tailer) forwardMessages() {
 			continue
 		}
 
-		msg := message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
+		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
+		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
+
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
 		case t.outputChan <- msg:
-			t.PipelineMonitor.ReportComponentIngress(msg, "processor")
+			t.CapacityMonitor.AddIngress(msg)
 		case <-t.forwardContext.Done():
 		}
 	}

@@ -245,7 +245,7 @@ class GateMetricHandler:
             send_metrics(series=series)
         print(color_message("Metric sending finished !", "blue"))
 
-    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None):
+    def generate_metric_reports(self, ctx, filename="static_gate_report.json", branch=None, is_nightly=False):
         if not self.series_is_complete:
             print(
                 color_message(
@@ -258,7 +258,7 @@ class GateMetricHandler:
             json.dump(self.metrics, f)
 
         CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
-        if branch == "main" and CI_COMMIT_SHA:
+        if not is_nightly and branch == "main" and CI_COMMIT_SHA:
             ctx.run(
                 f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {self.S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
                 hide="stdout",

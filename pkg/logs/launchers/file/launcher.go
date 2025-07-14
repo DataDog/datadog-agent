@@ -506,7 +506,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, capacityMonitor *metrics.CapacityMonitor) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
@@ -516,7 +516,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Decoder:         decoder.NewDecoderFromSource(file.Source, tailerInfo),
 		Info:            tailerInfo,
 		TagAdder:        s.tagger,
-		PipelineMonitor: pipelineMonitor,
+		CapacityMonitor: capacityMonitor,
 		Registry:        s.registry,
 	}
 

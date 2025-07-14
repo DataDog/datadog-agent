@@ -1,0 +1,27 @@
+# NOTE: Used for the git s3 strategy for the gitlab runners, see
+# https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/3622535770/GitLab+Runners+Fork+Features#%F0%9F%AA%A3--Git-S3-Strategy
+clone:
+  stage: .pre
+  tags:
+    - arch:amd64
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "64Mi"
+    KUBERNETES_MEMORY_LIMIT: "64Mi"
+    KUBERNETES_CPU_REQUEST: "0.1"
+    KUBERNETES_CPU_LIMIT: "0.1"
+    OVERRIDE_GIT_STRATEGY: "fetch"
+    DD_METRICS_TAGS: "clone:true"
+    CACHE_COMPRESSION_LEVEL: "fastest"
+    CACHE_COMPRESSION_FORMAT: "tarzstd"
+    CLONE_TO_S3: "true"
+  script: "echo 'Repo is cloned from Gitaly, will upload to s3...'"
+  retry:
+    max: 2
+    when:
+      - api_failure
+      - data_integrity_failure
+      - runner_system_failure
+      - scheduler_failure
+      - unknown_failure
+      - unmet_prerequisites
+

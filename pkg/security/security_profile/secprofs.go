@@ -364,6 +364,11 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+	if !workload.CGroupFlags.IsContainer() {
+		return
+	}
+
 	defaultConfigs, err := m.getDefaultLoadConfigs()
 	if err != nil {
 		seclog.Errorf("couldn't get default load configs: %v", err)
