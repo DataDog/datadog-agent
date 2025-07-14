@@ -316,11 +316,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 
 	// All metrics should be for PID 123 only
 	for _, metric := range metrics {
-		if metric.Name == "core.limit" || metric.Name == "memory.limit" {
-			assert.Equal(t, []string{"pid:123"}, metric.Tags)
-		} else {
-			assert.Equal(t, []string{"pid:123"}, metric.Tags)
-		}
+		assert.Equal(t, []string{"pid:123"}, metric.Tags)
 	}
 }
 

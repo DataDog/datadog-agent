@@ -5,7 +5,7 @@
 
 //go:build linux && nvml
 
-// Package gpu contains gpum core-check implementation.
+// Package gpu contains gpu core-check implementation.
 package gpu
 
 import (
@@ -87,7 +87,7 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 // Configure parses the check configuration and init the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	// Check if GPU check is enabled (follows SBOM pattern)
-	if !pkgconfigsetup.Datadog().GetBool("gpum.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("gpu.enabled") {
 		return fmt.Errorf("GPU check is disabled")
 	}
 
@@ -97,7 +97,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	// Compute whether we should prefer system-probe process metrics
 	gpuProbeEnabled := pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled")
-	preferSP := pkgconfigsetup.Datadog().GetBool("gpum.use_sp_process_metrics")
+	preferSP := pkgconfigsetup.Datadog().GetBool("gpu.use_sp_process_metrics")
 	c.useSystemProbeProcessMetrics = gpuProbeEnabled && preferSP
 
 	// Initialize system-probe cache only if we actually want to use SP process metrics
@@ -181,7 +181,7 @@ func (c *Check) Run() error {
 	gpuToContainersMap := c.getGPUToContainersMap()
 
 	if err := c.emitMetrics(snd, gpuToContainersMap); err != nil {
-		log.Warnf("error while sending gpum metrics: %s", err)
+		log.Warnf("error while sending gpu metrics: %s", err)
 	}
 
 	return nil
