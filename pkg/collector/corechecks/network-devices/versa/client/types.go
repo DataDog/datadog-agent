@@ -16,8 +16,7 @@ type Content interface {
 		OrganizationListResponse |
 		ApplianceListResponse |
 		DirectorStatus |
-		SLAMetricsResponse |
-		LinkUsageMetricsResponse |
+		AnalyticsMetricsResponse |
 		InterfaceListResponse |
 		InterfaceMetricsResponse |
 		InterfaceMetricsCollection |
@@ -325,9 +324,9 @@ type Organization struct {
 	PushCaConfig            bool     `json:"pushCaConfig"`
 }
 
-// SLAMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+// AnalyticsMetricsResponse /versa/analytics/v1.0.0/data/provider/tenants/<tenantName>/features/<feature>
 // with query parameters
-type SLAMetricsResponse struct {
+type AnalyticsMetricsResponse struct {
 	QTime                int             `json:"qTime"`
 	SEcho                int             `json:"sEcho"`
 	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
@@ -416,15 +415,6 @@ type InterfaceMetrics struct {
 	TxBytes   string `json:"tx-bytes"`
 	TxBps     string `json:"tx-bps"`
 	TxPps     string `json:"tx-pps"`
-}
-
-// LinkUsageMetricsResponse represents the response from the Versa Analytics API for link extended metrics
-type LinkUsageMetricsResponse struct {
-	QTime                int             `json:"qTime"`
-	SEcho                int             `json:"sEcho"`
-	ITotalDisplayRecords int             `json:"iTotalDisplayRecords"`
-	ITotalRecords        int             `json:"iTotalRecords"`
-	AaData               [][]interface{} `json:"aaData"`
 }
 
 // LinkUsageMetrics represents the columns to parse from the LinkExtendedMetricsResponse

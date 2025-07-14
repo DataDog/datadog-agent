@@ -433,7 +433,7 @@ func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 }
 
 // TODO: clean this up to be more generalizable
-func parseAaData(data [][]interface{}) ([]SLAMetrics, error) {
+func parseSLAMetrics(data [][]interface{}) ([]SLAMetrics, error) {
 	var rows []SLAMetrics
 	for _, row := range data {
 		m := SLAMetrics{}
@@ -489,12 +489,12 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 		"pduLossRatio",
 	})
 
-	resp, err := get[SLAMetricsResponse](client, analyticsURL, nil, true)
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SLA metrics: %v", err)
 	}
 	aaData := resp.AaData
-	metrics, err := parseAaData(aaData)
+	metrics, err := parseSLAMetrics(aaData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse SLA metrics: %v", err)
 	}
@@ -580,7 +580,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 		"bw-rx",
 	})
 
-	resp, err := get[LinkUsageMetricsResponse](client, analyticsURL, nil, true)
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get link usage metrics: %v", err)
 	}
