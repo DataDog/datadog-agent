@@ -25,17 +25,34 @@ static __always_inline void* resolve_interface(void *iface_addr) {
 // Reads an IP address from the provided slice_t structure.
 static __always_inline bool read_ip(slice_t *address_ptr, __u32 family, __u64 *out_address_h, __u64 *out_address_l) {
     // Taking 16 bytes as it is the maximum size for an IPv6 address (128 bits) and an IPv4 address (32 bits) can fit in this space.
-    char ip[IP_ADDR_LEN_MAX] = {0};
+    unsigned char ip[IP_ADDR_LEN_MAX] = {0};
     if (address_ptr->len == IPV4_ADDR_LEN && family == AF_INET) {
+        log_debug("[go-tls-conn] reading IPv4 address from %p", (void*)address_ptr->ptr);
         if (bpf_probe_read_user(ip, IPV4_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
+            log_debug("[go-tls-conn] read IPv4 address: %u.%u", ip[0], ip[1]);
+            log_debug("[go-tls-conn] read IPv4 address: %u.%u", ip[2], ip[3]);
             *out_address_h = 0;
             *out_address_l = *((__u32*)ip);
             return true;
         }
     } else if (address_ptr->len == IPV6_ADDR_LEN && family == AF_INET6) {
+        log_debug("[go-tls-conn] reading IPv6 address from %p", (void*)address_ptr->ptr);
         if (bpf_probe_read_user(ip, IPV6_ADDR_LEN, (void*)address_ptr->ptr) == 0) {
-            *out_address_h = *((__u64*)ip);
-            *out_address_l = *((__u64*)(ip + 8));
+            log_debug("[go-tls-conn] ipv6 [0-2]: %02x:%02x:%02x", ip[0], ip[1], ip[2]);
+            log_debug("[go-tls-conn] ipv6 [3-5]: %02x:%02x:%02x", ip[3], ip[4], ip[5]);
+            log_debug("[go-tls-conn] ipv6 [6-8]: %02x:%02x:%02x", ip[6], ip[7], ip[8]);
+            log_debug("[go-tls-conn] ipv6 [9-11]: %02x:%02x:%02x", ip[9], ip[10], ip[11]);
+            log_debug("[go-tls-conn] ipv6 [12-14]: %02x:%02x:%02x", ip[12], ip[13], ip[14]);
+            log_debug("[go-tls-conn] ipv6 [15]: %02x", ip[15]);
+            if (ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 &&
+                ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
+                ip[8] == 0 && ip[9] == 0 && ip[10] == 0xff && ip[11] == 0xff) {
+                *out_address_h = 0;
+                *out_address_l = *((__u32*)(ip+12));
+            } else {
+                *out_address_h = *((__u64*)ip);
+                *out_address_l = *((__u64*)(ip + 8));
+            }
             return true;
         }
     }
@@ -66,6 +83,7 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         log_debug("[go-tls-conn] failed to read family from conn_fd_ptr %p", conn_fd_ptr);
         return false;
     }
+    log_debug("[go-tls-conn] family: %u", family);
 
     // read laddr
     void *addr_ptr = resolve_interface(conn_fd_ptr + cl->conn_fd_laddr_offset);
@@ -108,12 +126,16 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
         return false;
     }
 
-    output->metadata = CONN_TYPE_TCP;
-    if (family == AF_INET6) {
+    if (family == AF_INET6 && output->saddr_h != 0 && output->daddr_h != 0) {
         output->metadata |= CONN_V6;
-    } else { // If we reached here, we already know the family is AF_INET or AF_INET6.
+    } else {
         output->metadata |= CONN_V4;
     }
+
+    struct task_struct *task = (struct task_struct *) bpf_get_current_task();
+    u32 netns_inode = BPF_CORE_READ(task, nsproxy, net_ns, ns.inum);
+    output->netns = netns_inode;
+
     return true;
 }
 
@@ -140,7 +162,10 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         return NULL;
     }
 
-    conn_tuple_t tuple = {0};
+    conn_tuple_t tuple = {
+        .pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid()),
+        .metadata = CONN_TYPE_TCP,
+    };
     if (!__tuple_via_tcp_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
         if (!__tuple_via_limited_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
             log_debug("[go-tls-conn] failed to resolve tuple from conn at %p", conn);

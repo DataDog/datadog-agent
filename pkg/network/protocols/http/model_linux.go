@@ -8,7 +8,6 @@
 package http
 
 import (
-	"encoding/hex"
 	"strconv"
 	"strings"
 
@@ -102,8 +101,9 @@ func (e *EbpfEvent) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
 	output.WriteString("Method: '" + Method(e.Http.Request_method).String() + "', ")
+	output.WriteString("ConnTuple: '" + e.ConnTuple().String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(e.Http.Tags, 16) + "', ")
-	output.WriteString("Fragment: '" + hex.EncodeToString(e.Http.Request_fragment[:]) + "', ")
+	output.WriteString("Fragment: '" + string(e.Http.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }

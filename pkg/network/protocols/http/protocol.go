@@ -213,6 +213,10 @@ func (p *protocol) processHTTP(events []EbpfEvent) {
 		tx := &events[i]
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
+		key := tx.ConnTuple()
+		if key.DstPort == 8443 || key.SrcPort == 8443 {
+			log.Debugf("HTTP transaction on port 8443: %s", tx)
+		}
 	}
 }
 
