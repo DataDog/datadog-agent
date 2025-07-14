@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,7 +21,7 @@ import (
 // configPoller keeps track of the configurations loaded by a certain
 // `ConfigProvider` and whether it should be polled or not.
 type configPoller struct {
-	provider types.ConfigProvider
+	provider providers.ConfigProvider
 
 	isRunning bool
 
@@ -36,7 +35,7 @@ type configPoller struct {
 	telemetryStore *telemetry.Store
 }
 
-func newConfigPoller(provider types.ConfigProvider, canPoll bool, interval time.Duration, telemetryStore *telemetry.Store) *configPoller {
+func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration, telemetryStore *telemetry.Store) *configPoller {
 	return &configPoller{
 		provider:       provider,
 		configs:        make(map[uint64]integration.Config),
@@ -60,14 +59,14 @@ func (cp *configPoller) stop() {
 // returns all the known configs.
 func (cp *configPoller) start(ctx context.Context, ac *AutoConfig) {
 	switch provider := cp.provider.(type) {
-	case types.StreamingConfigProvider:
+	case providers.StreamingConfigProvider:
 		cp.stopChan = make(chan struct{})
 
 		ch := make(chan struct{})
 		go cp.stream(ch, provider, ac)
 		<-ch
 
-	case types.CollectingConfigProvider:
+	case providers.CollectingConfigProvider:
 		cp.collectOnce(ctx, provider, ac)
 
 		if !cp.canPoll {
@@ -81,7 +80,7 @@ func (cp *configPoller) start(ctx context.Context, ac *AutoConfig) {
 }
 
 // stream streams config from the corresponding config provider
-func (cp *configPoller) stream(ch chan struct{}, provider types.StreamingConfigProvider, ac *AutoConfig) {
+func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingConfigProvider, ac *AutoConfig) {
 	var ranOnce bool
 	ctx, cancel := context.WithCancel(context.Background())
 	changesCh := provider.Stream(ctx)
@@ -125,7 +124,7 @@ func (cp *configPoller) stream(ch chan struct{}, provider types.StreamingConfigP
 }
 
 // poll polls config of the corresponding config provider
-func (cp *configPoller) poll(provider types.CollectingConfigProvider, ac *AutoConfig) {
+func (cp *configPoller) poll(provider providers.CollectingConfigProvider, ac *AutoConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ticker := time.NewTicker(cp.pollInterval)
 	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
@@ -163,7 +162,7 @@ func (cp *configPoller) poll(provider types.CollectingConfigProvider, ac *AutoCo
 	}
 }
 
-func (cp *configPoller) collectOnce(ctx context.Context, provider types.CollectingConfigProvider, ac *AutoConfig) {
+func (cp *configPoller) collectOnce(ctx context.Context, provider providers.CollectingConfigProvider, ac *AutoConfig) {
 	// retrieve the list of newly added configurations as well
 	// as removed configurations
 	newConfigs, removedConfigs := cp.collect(ctx, provider)
@@ -203,7 +202,7 @@ func (cp *configPoller) collectOnce(ctx context.Context, provider types.Collecti
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (cp *configPoller) collect(ctx context.Context, provider types.CollectingConfigProvider) ([]integration.Config, []integration.Config) {
+func (cp *configPoller) collect(ctx context.Context, provider providers.CollectingConfigProvider) ([]integration.Config, []integration.Config) {
 	start := time.Now()
 	defer func() {
 		if cp.telemetryStore != nil {

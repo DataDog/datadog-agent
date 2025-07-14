@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -23,7 +22,7 @@ type KubeServiceFileConfigProvider struct {
 }
 
 // NewKubeServiceFileConfigProvider returns a new KubeServiceFileConfigProvider
-func NewKubeServiceFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeServiceFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
 	return &KubeServiceFileConfigProvider{}, nil
 }
 
@@ -49,8 +48,8 @@ func (c *KubeServiceFileConfigProvider) String() string {
 }
 
 // GetConfigErrors is not implemented for the KubeServiceFileConfigProvider.
-func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return make(map[string]types.ErrorMsgSet)
+func (c *KubeServiceFileConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }
 
 // toKubernetesServiceChecks generates integration configs to target

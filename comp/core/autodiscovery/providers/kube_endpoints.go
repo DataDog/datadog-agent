@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -42,7 +41,7 @@ type kubeEndpointsConfigProvider struct {
 	endpointsLister    listersv1.EndpointsLister
 	upToDate           bool
 	monitoredEndpoints map[string]bool
-	configErrors       map[string]types.ErrorMsgSet
+	configErrors       map[string]ErrorMsgSet
 	telemetryStore     *telemetry.Store
 }
 
@@ -56,7 +55,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -71,7 +70,7 @@ func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, te
 	p := &kubeEndpointsConfigProvider{
 		serviceLister:      servicesInformer.Lister(),
 		monitoredEndpoints: make(map[string]bool),
-		configErrors:       make(map[string]types.ErrorMsgSet),
+		configErrors:       make(map[string]ErrorMsgSet),
 		telemetryStore:     telemetryStore,
 	}
 
@@ -247,7 +246,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		}
 
 		if len(errors) > 0 {
-			errMsgSet := make(types.ErrorMsgSet)
+			errMsgSet := make(ErrorMsgSet)
 			for _, err := range errors {
 				log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 				errMsgSet[err.Error()] = struct{}{}
@@ -340,6 +339,6 @@ func (k *kubeEndpointsConfigProvider) cleanErrorsOfDeletedEndpoints(setCurrentEn
 }
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes endpoint
-func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	return k.configErrors
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +54,7 @@ type ConsulConfigProvider struct {
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-func NewConsulConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewConsulConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
 	if providerConfig == nil {
 		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
 	}
@@ -293,6 +292,6 @@ func isTemplateField(key string) bool {
 }
 
 // GetConfigErrors is not implemented for the ConsulConfigProvider
-func (p *ConsulConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return make(map[string]types.ErrorMsgSet)
+func (p *ConsulConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

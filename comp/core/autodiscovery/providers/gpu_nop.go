@@ -8,11 +8,10 @@
 package providers
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // NewGPUConfigProvider is a no-op for the serverless build, as we don't have GPU support there
-var NewGPUConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, telemetry *telemetry.Store) (types.ConfigProvider, error)
+var NewGPUConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, telemetry *telemetry.Store) (ConfigProvider, error)

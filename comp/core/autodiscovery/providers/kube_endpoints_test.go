@@ -22,7 +22,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -958,24 +957,24 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name                          string
-		currentErrors                 map[string]providerTypes.ErrorMsgSet
+		currentErrors                 map[string]ErrorMsgSet
 		collectedServicesAndEndpoints []runtime.Object
 		expectedNumCollectedConfigs   int
-		expectedErrorsAfterCollect    map[string]providerTypes.ErrorMsgSet
+		expectedErrorsAfterCollect    map[string]ErrorMsgSet
 	}{
 		{
 			name:          "case without errors",
-			currentErrors: map[string]providerTypes.ErrorMsgSet{},
+			currentErrors: map[string]ErrorMsgSet{},
 			collectedServicesAndEndpoints: []runtime.Object{
 				&serviceWithoutErrors,
 				&endpointsOfServiceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
 		},
 		{
 			name: "endpoint that has been deleted and had errors",
-			currentErrors: map[string]providerTypes.ErrorMsgSet{
+			currentErrors: map[string]ErrorMsgSet{
 				"kube_endpoint_uid://default/deletedService/": {"error1": struct{}{}},
 			},
 			collectedServicesAndEndpoints: []runtime.Object{
@@ -983,11 +982,11 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 				&endpointsOfServiceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
 		},
 		{
 			name: "endpoint with error that has been fixed",
-			currentErrors: map[string]providerTypes.ErrorMsgSet{
+			currentErrors: map[string]ErrorMsgSet{
 				"kube_endpoint_uid://default/withoutErrors/": {"error1": struct{}{}},
 			},
 			collectedServicesAndEndpoints: []runtime.Object{
@@ -995,17 +994,17 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 				&endpointsOfServiceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
 		},
 		{
 			name:          "endpoint that did not have an error but now does",
-			currentErrors: map[string]providerTypes.ErrorMsgSet{},
+			currentErrors: map[string]ErrorMsgSet{},
 			collectedServicesAndEndpoints: []runtime.Object{
 				&serviceWithErrors,
 				&endpointsOfServiceWithErrors,
 			},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect: map[string]providerTypes.ErrorMsgSet{
+			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
 				"kube_endpoint_uid://default/withErrors/": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -1013,7 +1012,7 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 		},
 		{
 			name: "endpoint that had an error and still does",
-			currentErrors: map[string]providerTypes.ErrorMsgSet{
+			currentErrors: map[string]ErrorMsgSet{
 				"kube_endpoint_uid://default/withErrors/": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -1023,7 +1022,7 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 				&endpointsOfServiceWithErrors,
 			},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect: map[string]providerTypes.ErrorMsgSet{
+			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
 				"kube_endpoint_uid://default/withErrors/": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -1031,10 +1030,10 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 		},
 		{
 			name:                          "nothing collected",
-			currentErrors:                 map[string]providerTypes.ErrorMsgSet{},
+			currentErrors:                 map[string]ErrorMsgSet{},
 			collectedServicesAndEndpoints: []runtime.Object{},
 			expectedNumCollectedConfigs:   0,
-			expectedErrorsAfterCollect:    map[string]providerTypes.ErrorMsgSet{},
+			expectedErrorsAfterCollect:    map[string]ErrorMsgSet{},
 		},
 	}
 
