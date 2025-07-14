@@ -37,7 +37,7 @@ func ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
 		LinesToSkip: &linesToSkip,
 	}
 
-	if validFingerprintConfig(config) != nil {
+	if validFingerprintConfig(config) == nil {
 		return config
 	}
 	return nil
