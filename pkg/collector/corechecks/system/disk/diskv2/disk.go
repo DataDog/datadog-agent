@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -443,7 +444,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			rootDevices = map[string]string{}
 		}
 	}
-	log.Debugf("rootDevices '%s'", rootDevices)
+	log.Debugf("rootDevices: '%+v'", rootDevices)
+	allPartitionMetrics := make(map[string]metric)
 	for _, partition := range partitions {
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
@@ -455,9 +457,24 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			continue
 		}
 		if usage := c.getPartitionUsage(partition); usage != nil {
-			tags := c.getPartitionTags(partition)
-			c.sendPartitionMetrics(sender, usage, tags)
-
+			partitionTags := c.getPartitionTags(partition)
+			log.Debugf("partitionTags: '%s'", partitionTags)
+			partitionMetrics := c.getPartitionMetrics(usage, partitionTags)
+			log.Debugf("partitionMetrics: '%+v'", partitionMetrics)
+			for k, m := range partitionMetrics {
+				if existing, ok := allPartitionMetrics[k]; ok {
+					// already seen: add to the Value
+					existing.Value += m.Value
+				} else {
+					// first time: store a new Metric
+					allPartitionMetrics[k] = metric{
+						Name:  m.Name,
+						Value: m.Value,
+						Tags:  m.Tags,
+					}
+				}
+			}
+			c.sendInodesMetrics(sender, usage, partitionTags)
 			if c.instanceConfig.ServiceCheckRw {
 				checkStatus := servicecheck.ServiceCheckUnknown
 				for _, opt := range partition.Opts {
@@ -469,9 +486,13 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 						break
 					}
 				}
-				sender.ServiceCheck("disk.read_write", checkStatus, "", tags, "")
+				sender.ServiceCheck("disk.read_write", checkStatus, "", partitionTags, "")
 			}
 		}
+	}
+	log.Debugf("allPartitionMetrics: '%+v'", allPartitionMetrics)
+	for _, m := range allPartitionMetrics {
+		sender.Gauge(m.Name, m.Value, "", m.Tags)
 	}
 	return nil
 }
@@ -491,17 +512,32 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	return nil
 }
 
-func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {
+// tagsKey returns a canonical string representation of the sorted tags slice.
+// e.g. []string{"beta","alpha"} → "alpha,beta"
+func tagsKey(tags []string) string {
+	sorted := append([]string{}, tags...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
+}
+
+type metric struct {
+	Name  string
+	Value float64
+	Tags  []string
+}
+
+func (c *Check) getPartitionMetrics(usage *gopsutil_disk.UsageStat, tags []string) map[string]metric {
+	partitionMetrics := make(map[string]metric)
+	tagsKey := tagsKey(tags)
 	// Disk metrics
 	// For legacy reasons,  the standard unit it kB
-	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "used"), float64(usage.Used)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "free"), float64(usage.Free)/1024, "", tags)
-	sender.Gauge(fmt.Sprintf(diskMetric, "utilized"), usage.UsedPercent, "", tags)
+	partitionMetrics[fmt.Sprintf(diskMetric, "total")+"|"+tagsKey] = metric{Name: fmt.Sprintf(diskMetric, "total"), Value: float64(usage.Total) / 1024, Tags: tags}
+	partitionMetrics[fmt.Sprintf(diskMetric, "used")+"|"+tagsKey] = metric{Name: fmt.Sprintf(diskMetric, "used"), Value: float64(usage.Used) / 1024, Tags: tags}
+	partitionMetrics[fmt.Sprintf(diskMetric, "free")+"|"+tagsKey] = metric{Name: fmt.Sprintf(diskMetric, "free"), Value: float64(usage.Free) / 1024, Tags: tags}
+	partitionMetrics[fmt.Sprintf(diskMetric, "utilized")+"|"+tagsKey] = metric{Name: fmt.Sprintf(diskMetric, "utilized"), Value: usage.UsedPercent, Tags: tags}
 	// FIXME(8.x): use percent, a lot more logical than in_use
-	sender.Gauge(fmt.Sprintf(diskMetric, "in_use"), usage.UsedPercent/100, "", tags)
-
-	c.sendInodesMetrics(sender, usage, tags)
+	partitionMetrics[fmt.Sprintf(diskMetric, "in_use")+"|"+tagsKey] = metric{Name: fmt.Sprintf(diskMetric, "in_use"), Value: usage.UsedPercent / 100, Tags: tags}
+	return partitionMetrics
 }
 
 func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IOCountersStat, tags []string) {
