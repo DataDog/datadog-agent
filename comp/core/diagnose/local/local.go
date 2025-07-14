@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/agentaccountcheck"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -56,6 +57,9 @@ func Run(
 		},
 		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.Diagnose(diagCfg, log)
+		},
+		diagnose.AgentAccountCheck: func(_ diagnose.Config) []diagnose.Diagnosis {
+			return agentaccountcheck.Diagnose()
 		},
 	}
 

@@ -37,7 +37,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/datastreams"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/agentaccountcheck"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -691,6 +691,10 @@ func startAgent(
 
 	diagnosecatalog.Register(diagnose.FirewallScan, func(_ diagnose.Config) []diagnose.Diagnosis {
 		return firewallscanner.Diagnose(cfg)
+	})
+
+	diagnosecatalog.Register(diagnose.AgentAccountCheck, func(_ diagnose.Config) []diagnose.Diagnosis {
+		return agentaccountcheck.Diagnose()
 	})
 
 	// start dependent services
