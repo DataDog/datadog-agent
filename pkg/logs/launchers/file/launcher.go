@@ -418,7 +418,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		Decoder:         decoderInstance,
 		Info:            tailerInfo,
 		TagAdder:        s.tagger,
-		PipelineMonitor: monitor,
+		CapacityMonitor: monitor,
 	}
 
 	tailer := tailer.NewTailer(tailerOptions)
