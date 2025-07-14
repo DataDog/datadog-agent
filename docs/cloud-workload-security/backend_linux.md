@@ -552,6 +552,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
                 },
+                "mount_visible": {
+                    "type": "boolean",
+                    "description": "MountVisible origin of the mount"
+                },
+                "mount_detached": {
+                    "type": "boolean",
+                    "description": "MountDetached origin of the mount"
+                },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
                 }
@@ -560,7 +568,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "uid",
-                "gid"
+                "gid",
+                "mount_visible",
+                "mount_detached"
             ],
             "description": "FileSerializer serializes a file to JSON"
         },
@@ -675,6 +685,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
                 },
+                "mount_visible": {
+                    "type": "boolean",
+                    "description": "MountVisible origin of the mount"
+                },
+                "mount_detached": {
+                    "type": "boolean",
+                    "description": "MountDetached origin of the mount"
+                },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
                 },
@@ -699,7 +717,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "uid",
-                "gid"
+                "gid",
+                "mount_visible",
+                "mount_detached"
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
         },
@@ -1042,6 +1062,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "source.path_error": {
                     "type": "string",
                     "description": "Mount source path error"
+                },
+                "detached": {
+                    "type": "boolean",
+                    "description": "Mount is not attached to the VFS tree"
+                },
+                "visible": {
+                    "type": "boolean",
+                    "description": "Mount is not visible in the VFS tree"
                 }
             },
             "additionalProperties": false,
@@ -3010,6 +3038,14 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "MountOrigin origin of the mount"
         },
+        "mount_visible": {
+            "type": "boolean",
+            "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+            "type": "boolean",
+            "description": "MountDetached origin of the mount"
+        },
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
         }
@@ -3018,7 +3054,9 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "uid",
-        "gid"
+        "gid",
+        "mount_visible",
+        "mount_detached"
     ],
     "description": "FileSerializer serializes a file to JSON"
 }
@@ -3052,6 +3090,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_path` | MountPath path of the mount |
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
+| `mount_visible` | MountVisible origin of the mount |
+| `mount_detached` | MountDetached origin of the mount |
 
 | References |
 | ---------- |
@@ -3172,6 +3212,14 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "MountOrigin origin of the mount"
         },
+        "mount_visible": {
+            "type": "boolean",
+            "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+            "type": "boolean",
+            "description": "MountDetached origin of the mount"
+        },
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
         },
@@ -3196,7 +3244,9 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "uid",
-        "gid"
+        "gid",
+        "mount_visible",
+        "mount_detached"
     ],
     "description": "FileEventSerializer serializes a file event to JSON"
 }
@@ -3230,6 +3280,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_path` | MountPath path of the mount |
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
+| `mount_visible` | MountVisible origin of the mount |
+| `mount_detached` | MountDetached origin of the mount |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -3730,6 +3782,14 @@ Workload Protection events for Linux systems have the following JSON schema:
         "source.path_error": {
             "type": "string",
             "description": "Mount source path error"
+        },
+        "detached": {
+            "type": "boolean",
+            "description": "Mount is not attached to the VFS tree"
+        },
+        "visible": {
+            "type": "boolean",
+            "description": "Mount is not visible in the VFS tree"
         }
     },
     "additionalProperties": false,
@@ -3758,6 +3818,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source.path` | Mount source path |
 | `mountpoint.path_error` | Mount point path error |
 | `source.path_error` | Mount source path error |
+| `detached` | Mount is not attached to the VFS tree |
+| `visible` | Mount is not visible in the VFS tree |
 
 | References |
 | ---------- |

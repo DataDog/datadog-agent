@@ -161,7 +161,8 @@ var (
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
-	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
+	tlmDogstatsdBlockedMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_blocked_metrics", "How many metrics were blocked in the time samplers")
+	tlmChecksContexts          = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")

@@ -15,6 +15,7 @@ import (
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -24,6 +25,8 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
+
+	tlmBlockedPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_blocked_points", "How many points were blocked")
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -141,6 +144,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	}
 
 	if blocklist != nil && blocklist.Test(metricName) {
+		tlmBlockedPoints.Inc()
 		return []metrics.MetricSample{}
 	}
 
