@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
 type procRuntimeID struct {
@@ -31,26 +30,26 @@ type procRuntimeID struct {
 // Controller is the main controller for the module.
 type Controller struct {
 	rcScraper      Scraper
-	actuator       *actuator.Tenant
-	diagUploader   *uploader.DiagnosticsUploader
-	logUploader    *uploader.LogsUploaderFactory
-	store          *processStore
-	diagnostics    *diagnosticsManager
+	actuator       ActuatorTenant
 	decoderFactory DecoderFactory
+	diagUploader   DiagnosticsUploader
+	logUploader    erasedLogsUploaderFactory
 
+	store                    *processStore
+	diagnostics              *diagnosticsManager
 	procRuntimeIDbyProgramID sync.Map // map[ir.ProgramID]procRuntimeID
 }
 
 // NewController creates a new Controller.
-func NewController(
-	a *actuator.Actuator,
-	logUploader *uploader.LogsUploaderFactory,
-	diagUploader *uploader.DiagnosticsUploader,
+func NewController[AT ActuatorTenant, LU LogsUploader](
+	a Actuator[AT],
+	logUploader LogsUploaderFactory[LU],
+	diagUploader DiagnosticsUploader,
 	rcScraper Scraper,
 	decoderFactory DecoderFactory,
 ) *Controller {
 	c := &Controller{
-		logUploader:    logUploader,
+		logUploader:    logsUploaderFactoryImpl[LU]{factory: logUploader},
 		diagUploader:   diagUploader,
 		rcScraper:      rcScraper,
 		store:          newProcessStore(),

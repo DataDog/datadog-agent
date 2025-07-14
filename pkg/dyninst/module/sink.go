@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +29,7 @@ type sink struct {
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
 	service      string
-	logUploader  *uploader.LogsUploader
+	logUploader  LogsUploader
 }
 
 var _ actuator.Sink = &sink{}
