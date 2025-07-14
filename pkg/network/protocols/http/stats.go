@@ -258,7 +258,7 @@ func (r *RequestStats) Close() {
 	}
 }
 
-// isValidStatusCode checks if the status code is in the range of valid HTTP responses.
+// isValidStatusCode checks if the status code is in the range of valid HTTP responses
 func isValidStatusCode(statusCode uint16) bool {
 	return statusCode >= 100 && statusCode < 600
 }
