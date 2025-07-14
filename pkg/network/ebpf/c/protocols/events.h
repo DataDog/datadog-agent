@@ -16,6 +16,7 @@
                    _STR(name)" batch is too large");                                                    \
                                                                                                         \
     BPF_PERCPU_ARRAY_MAP(name##_batch_state, batch_state_t, 1)                                          \
+    /* Map type dynamically changed to RINGBUF at load time if use_ring_buffer=1 (events/configuration.go) */ \
     BPF_PERF_EVENT_ARRAY_MAP(name##_batch_events, __u32)                                                \
     BPF_HASH_MAP(name##_batches, batch_key_t, batch_data_t, 1)                                          \
                                                                                                         \
