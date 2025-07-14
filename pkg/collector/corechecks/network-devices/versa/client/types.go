@@ -20,8 +20,7 @@ type Content interface {
 		InterfaceListResponse |
 		InterfaceMetricsResponse |
 		InterfaceMetricsCollection |
-		[]InterfaceMetrics |
-		interface{} // for generic responses
+		[]InterfaceMetricsCollection
 }
 
 // DirectorStatus /versa/ncs-services/vnms/dashboard/vdStatus
