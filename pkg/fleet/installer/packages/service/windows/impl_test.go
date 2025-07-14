@@ -280,6 +280,41 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 			},
 		},
 		{
+			name:        "successful termination of pending services",
+			expectError: false,
+			setupMocks: func(api *mockSystemAPI) {
+				api.On("StopService", "datadogagent").Return(nil)
+
+				// Two services are running and need termination
+				runningServices := []string{"datadog-trace-agent", "datadog-system-probe"}
+				for _, serviceName := range runningServices {
+					// Service is stuck in stop pending state
+					api.On("GetServiceState", serviceName).Return(svc.StopPending, nil).Once()
+
+					// Successful termination process
+					pid := uint32(1234)
+					p := windows.Handle(0x80000000 | pid)
+					api.On("GetServiceProcessID", serviceName).Return(pid, nil).Once() // First call
+					api.On("OpenProcess", mock.Anything, false, pid).Return(p, nil)
+					api.On("CloseHandle", p).Return(nil)
+					api.On("GetServiceProcessID", serviceName).Return(pid, nil).Once() // Verification call
+					api.On("TerminateProcess", p, uint32(1)).Return(nil)
+					api.On("WaitForSingleObject", p, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
+				}
+
+				// Other services are not running
+				otherServices := []string{
+					"datadog-process-agent",
+					"datadog-security-agent",
+					"Datadog Installer",
+					"datadogagent",
+				}
+				for _, name := range otherServices {
+					api.On("GetServiceState", name).Return(svc.Stopped, nil)
+				}
+			},
+		},
+		{
 			name:          "some services running but termination fails",
 			expectError:   true,
 			errorContains: "failed to stop services",
