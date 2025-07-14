@@ -109,8 +109,8 @@ agents:
       env:
         - name: DD_GPU_ENABLED
           value: "true"
-		- name: DD_GPU_USE_SP_PROCESS_METRICS
-		  value: "true"
+        - name: DD_GPU_USE_SP_PROCESS_METRICS
+          value: "true"
 `
 
 const dockerPullMaxRetries = 3
