@@ -93,7 +93,7 @@ func (suite *FingerprintTestSuite) createTailer() *Tailer {
 		SleepDuration:   10 * time.Millisecond,
 		Decoder:         decoder.NewDecoderFromSource(source, info),
 		Info:            info,
-		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
 	}
 
 	tailer := NewTailer(tailerOptions)
