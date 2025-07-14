@@ -69,6 +69,7 @@ type checkCfg struct {
 	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
 	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
 	CollectLinkMetrics              *bool    `yaml:"collect_link_metrics"`
+	UseApplianceDetail              *bool    `yaml:"use_appliance_detail"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -124,7 +125,15 @@ func (v *VersaCheck) Run() error {
 
 		// Gather appliances if we need device metadata, hardware metrics, or device mapping
 		if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
-			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+			var orgAppliances []client.Appliance
+			var err error
+
+			if *v.config.UseApplianceDetail {
+				orgAppliances, err = c.GetChildAppliancesDetail(org.Name)
+			} else {
+				orgAppliances, err = c.GetAppliances()
+			}
+
 			if err != nil {
 				log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
 			} else {
@@ -320,6 +329,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
+	instanceConfig.UseApplianceDetail = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
