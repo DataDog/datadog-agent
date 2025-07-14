@@ -156,9 +156,9 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.3.0
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.2.5
-	github.com/uptrace/bun/dialect/pgdialect v1.2.5
-	github.com/uptrace/bun/driver/pgdriver v1.2.5
+	github.com/uptrace/bun v1.2.14
+	github.com/uptrace/bun/dialect/pgdialect v1.2.14
+	github.com/uptrace/bun/driver/pgdriver v1.2.14
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.3.0
 	github.com/vishvananda/netns v0.0.5
@@ -919,7 +919,7 @@ require (
 	github.com/prometheus/prometheus v0.304.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	github.com/rs/zerolog v1.33.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/samber/oops v1.15.0 // indirect
@@ -1190,5 +1190,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
-
 )
