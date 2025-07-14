@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -33,6 +34,11 @@ var (
 )
 
 func enabledHelper(config config.Component, checkComponents []types.CheckComponent, l log.Component) bool {
+	// never run the process component in the cluster worker
+	if setup.IsCLCRunner(config) {
+		return false
+	}
+
 	runInCoreAgent := config.GetBool("process_config.run_in_core_agent.enabled")
 
 	var npmEnabled bool

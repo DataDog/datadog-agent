@@ -8,7 +8,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -120,8 +119,6 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
-
-	fmt.Printf("%s\n", ntmConf.Stringify("root"))
 
 	expectedYaml = `additional_endpoints:
   "0": apple
@@ -287,6 +284,22 @@ customKey2: unused
 		assert.NotContains(t, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())), "customkey2")
 		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey2")
 	})
+
+	t.Run("SetWithoutSource won't create known key", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+		})
+		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+
+		wantKeys := []string{"port"}
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+	})
+
 }
 
 func TestCompareAllKeysLowercased(t *testing.T) {
@@ -352,6 +365,21 @@ customKey2: unused
 		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
 		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
 	})
+
+	t.Run("SetWithoutSource will create unknown key", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+		})
+		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+
+		wantKeys := []string{"port", "unknown_key.unknown_subkey"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
 }
 
 func TestCompareIsConfigured(t *testing.T) {
@@ -389,4 +417,28 @@ apm_config:
 	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 
+}
+
+func TestCompareConflictDataType(t *testing.T) {
+	var yamlPayload = `
+a: orange
+c: 1234
+`
+	viperConf, ntmConf := constructBothConfigs(yamlPayload, true, func(cfg model.Setup) {
+		cfg.SetDefault("a", "apple")
+		cfg.SetDefault("c.d", true)
+	})
+
+	cvalue := viperConf.Get("c")
+	assert.Equal(t, cvalue, 1234)
+
+	dvalue := viperConf.Get("c.d")
+	assert.Equal(t, dvalue, nil)
+
+	// NOTE: Behavior difference, but it requires an error in the config
+	cvalue = ntmConf.Get("c")
+	assert.Equal(t, cvalue, map[string]interface{}{"d": true})
+
+	dvalue = ntmConf.Get("c.d")
+	assert.Equal(t, dvalue, true)
 }

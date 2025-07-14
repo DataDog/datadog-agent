@@ -67,7 +67,7 @@ var (
 func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
-	cfg.BindEnvAndSetDefault(join(spNS, "disable_thp"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "disable_thp"), true)
 
 	// SBOM configuration
 	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
@@ -219,7 +219,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpf_conntracker"), true)
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_cilium_lb_conntracker"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_cilium_lb_conntracker"), true)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})

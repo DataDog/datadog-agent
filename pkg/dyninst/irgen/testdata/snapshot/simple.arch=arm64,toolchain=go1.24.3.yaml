@@ -1,300 +1,337 @@
 ID: 1
 Probes:
-    - ID: a
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 3}
-      Events:
+    - id: PointerChainArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.PointerChainArg}
+      capture:
+        maxReferenceDepth: 3
+        maxFieldCount: 0
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 2}
+      events:
+        - ID: 11
+          Type: 63 EventRootType Probe[main.PointerChainArg]
+          InjectionPoints: [{PC: 741836, Frameless: true}]
+          Condition: null
+    - id: PointerSmallChainArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.PointerSmallChainArg}
+      capture:
+        maxReferenceDepth: 5
+        maxFieldCount: 0
+        maxCollectionSize: 0
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 3}
+      events:
+        - ID: 12
+          Type: 64 EventRootType Probe[main.PointerSmallChainArg]
+          InjectionPoints: [{PC: 741892, Frameless: true}]
+          Condition: null
+    - id: bigMapArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.bigMapArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 12}
+      events:
+        - ID: 9
+          Type: 61 EventRootType Probe[main.bigMapArg]
+          InjectionPoints: [{PC: 743056, Frameless: false}]
+          Condition: null
+    - id: inlined
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.inlined}
+      sampling: {snapshotsPerSecond: 2}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 1}
+      events:
+        - ID: 10
+          Type: 62 EventRootType Probe[main.inlined]
+          InjectionPoints:
+            - PC: 742748
+              Frameless: false
+            - PC: 741356
+              Frameless: true
+          Condition: null
+    - id: intArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 4}
+      events:
         - ID: 1
           Type: 53 EventRootType Probe[main.intArg]
-          InjectionPCs: [741868]
+          InjectionPoints: [{PC: 741980, Frameless: false}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: b
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 4}
-      Events:
-        - ID: 2
-          Type: 54 EventRootType Probe[main.stringArg]
-          InjectionPCs: [741980]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: c
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 5}
-      Events:
-        - ID: 3
-          Type: 55 EventRootType Probe[main.intSliceArg]
-          InjectionPCs: [742108]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: d
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 6}
-      Events:
+    - id: intArrayArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intArrayArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 7}
+      events:
         - ID: 4
           Type: 56 EventRootType Probe[main.intArrayArg]
-          InjectionPCs: [742236]
+          InjectionPoints: [{PC: 742348, Frameless: false}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: e
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 7}
-      Events:
-        - ID: 5
-          Type: 57 EventRootType Probe[main.stringSliceArg]
-          InjectionPCs: [742364]
+    - id: intArrayArgFrameless
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArrayArgFrameless}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 10}
+      events:
+        - ID: 7
+          Type: 59 EventRootType Probe[main.stringArrayArgFrameless]
+          InjectionPoints: [{PC: 742720, Frameless: true}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: f
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 8}
-      Events:
+    - id: intSliceArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.intSliceArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 6}
+      events:
+        - ID: 3
+          Type: 55 EventRootType Probe[main.intSliceArg]
+          InjectionPoints: [{PC: 742220, Frameless: false}]
+          Condition: null
+    - id: mapArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.mapArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 11}
+      events:
+        - ID: 8
+          Type: 60 EventRootType Probe[main.mapArg]
+          InjectionPoints: [{PC: 742940, Frameless: false}]
+          Condition: null
+    - id: stringArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 5}
+      events:
+        - ID: 2
+          Type: 54 EventRootType Probe[main.stringArg]
+          InjectionPoints: [{PC: 742092, Frameless: false}]
+          Condition: null
+    - id: stringArrayArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringArrayArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 9}
+      events:
         - ID: 6
           Type: 58 EventRootType Probe[main.stringArrayArg]
-          InjectionPCs: [742492]
+          InjectionPoints: [{PC: 742604, Frameless: false}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: h
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 9}
-      Events:
-        - ID: 7
-          Type: 59 EventRootType Probe[main.mapArg]
-          InjectionPCs: [742812]
+    - id: stringSliceArg
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.stringSliceArg}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      subprogram: {subprogram: 8}
+      events:
+        - ID: 5
+          Type: 57 EventRootType Probe[main.stringSliceArg]
+          InjectionPoints: [{PC: 742476, Frameless: false}]
           Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: i
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 10}
-      Events:
-        - ID: 8
-          Type: 60 EventRootType Probe[main.bigMapArg]
-          InjectionPCs: [742928]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: g
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 1}
-      Events:
-        - ID: 9
-          Type: 61 EventRootType Probe[main.inlined]
-          InjectionPCs: [742620, 741304]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 4.294967295e+09
-    - ID: j
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 2}
-      Events:
-        - ID: 10
-          Type: 62 EventRootType Probe[main.PointerChainArg]
-          InjectionPCs: [741784]
-          Condition: null
-      Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
-      PointerChasingLimit: 3
 Subprograms:
-    - ID: 3
+    - ID: 4
       Name: main.intArg
-      OutOfLinePCRanges: [0xb51e0..0xb5250]
+      OutOfLinePCRanges: [0xb5250..0xb52c0]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 1 BaseType int
           Locations:
-            - Range: 0xb51e0..0xb5200
-              Pieces: [{Size: 8, InReg: true, StackOffset: 0, Register: 0}]
+            - Range: 0xb5250..0xb5270
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
-    - ID: 4
+    - ID: 5
       Name: main.stringArg
-      OutOfLinePCRanges: [0xb5250..0xb52d0]
+      OutOfLinePCRanges: [0xb52c0..0xb5340]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 7 GoStringHeaderType string
           Locations:
-            - Range: 0xb5250..0xb5274
+            - Range: 0xb52c0..0xb52e4
               Pieces:
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
+                  Op: {RegNo: 0, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 1
+                  Op: {RegNo: 1, Shift: 0}
           IsParameter: true
           IsReturn: false
-    - ID: 5
+    - ID: 6
       Name: main.intSliceArg
-      OutOfLinePCRanges: [0xb52d0..0xb5350]
+      OutOfLinePCRanges: [0xb5340..0xb53c0]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 10 GoSliceHeaderType []int
           Locations:
-            - Range: 0xb52d0..0xb52f4
+            - Range: 0xb5340..0xb5364
               Pieces:
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
+                  Op: {RegNo: 0, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 1
+                  Op: {RegNo: 1, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 2
+                  Op: {RegNo: 2, Shift: 0}
           IsParameter: true
           IsReturn: false
-    - ID: 6
+    - ID: 7
       Name: main.intArrayArg
-      OutOfLinePCRanges: [0xb5350..0xb53d0]
+      OutOfLinePCRanges: [0xb53c0..0xb5440]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 11 ArrayType [3]int
           Locations:
-            - Range: 0xb5350..0xb53d0
-              Pieces: [{Size: 24, InReg: false, StackOffset: 8, Register: 0}]
+            - Range: 0xb53c0..0xb5440
+              Pieces: [{Size: 24, Op: {CfaOffset: 8}}]
           IsParameter: true
           IsReturn: false
-    - ID: 7
+    - ID: 8
       Name: main.stringSliceArg
-      OutOfLinePCRanges: [0xb53d0..0xb5450]
+      OutOfLinePCRanges: [0xb5440..0xb54c0]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 12 GoSliceHeaderType []string
           Locations:
-            - Range: 0xb53d0..0xb53f4
+            - Range: 0xb5440..0xb5464
               Pieces:
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
+                  Op: {RegNo: 0, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 1
+                  Op: {RegNo: 1, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 2
+                  Op: {RegNo: 2, Shift: 0}
           IsParameter: true
           IsReturn: false
-    - ID: 8
+    - ID: 9
       Name: main.stringArrayArg
-      OutOfLinePCRanges: [0xb5450..0xb54d0]
+      OutOfLinePCRanges: [0xb54c0..0xb5540]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 14 ArrayType [3]string
           Locations:
-            - Range: 0xb5450..0xb54d0
-              Pieces: [{Size: 48, InReg: false, StackOffset: 8, Register: 0}]
+            - Range: 0xb54c0..0xb5540
+              Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
           IsParameter: true
           IsReturn: false
-    - ID: 9
+    - ID: 10
+      Name: main.stringArrayArgFrameless
+      OutOfLinePCRanges: [0xb5540..0xb5550]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 14 ArrayType [3]string
+          Locations:
+            - Range: 0xb5540..0xb5550
+              Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
+          IsParameter: true
+          IsReturn: false
+    - ID: 11
       Name: main.mapArg
-      OutOfLinePCRanges: [0xb5590..0xb5600]
+      OutOfLinePCRanges: [0xb5610..0xb5680]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 15 GoMapType map[string]int
           Locations:
-            - Range: 0xb5590..0xb55c8
-              Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
+            - Range: 0xb5610..0xb5648
+              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
-    - ID: 10
+    - ID: 12
       Name: main.bigMapArg
-      OutOfLinePCRanges: [0xb5600..0xb56c0]
+      OutOfLinePCRanges: [0xb5680..0xb5740]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 29 GoMapType map[string]main.bigStruct
           Locations:
-            - Range: 0xb5600..0xb5638
-              Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
-            - Range: 0xb5638..0xb56c0
-              Pieces: [{Size: 0, InReg: false, StackOffset: 8, Register: 0}]
+            - Range: 0xb5680..0xb56b8
+              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xb56b8..0xb5740
+              Pieces: [{Size: 0, Op: {CfaOffset: 8}}]
           IsParameter: true
           IsReturn: false
     - ID: 1
       Name: main.inlined
-      OutOfLinePCRanges: [0xb54d0..0xb5540]
-      InlinePCRanges: [[0xb4fb8..0xb4ff4]]
+      OutOfLinePCRanges: [0xb5550..0xb55c0]
+      InlinePCRanges: [[0xb4fec..0xb5028]]
       Variables:
         - Name: x
           Type: 1 BaseType int
           Locations:
-            - Range: 0xb4fb8..0xb4ff4
+            - Range: 0xb4fec..0xb5028
               Pieces: []
-            - Range: 0xb54d0..0xb54f0
-              Pieces: [{Size: 8, InReg: true, StackOffset: 0, Register: 0}]
+            - Range: 0xb5550..0xb5570
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 2
       Name: main.PointerChainArg
       OutOfLinePCRanges: []
-      InlinePCRanges: [[0xb5198..0xb51c8]]
+      InlinePCRanges: [[0xb51cc..0xb51fc]]
       Variables:
         - Name: ptr
           Type: 2 PointerType *****int
           Locations:
-            - Range: 0xb5170..0xb51b8
-              Pieces: [{Size: 8, InReg: true, StackOffset: 0, Register: 0}]
+            - Range: 0xb51a4..0xb51ec
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          IsParameter: true
+          IsReturn: false
+    - ID: 3
+      Name: main.PointerSmallChainArg
+      OutOfLinePCRanges: []
+      InlinePCRanges: [[0xb5204..0xb5234]]
+      Variables:
+        - Name: ptr
+          Type: 5 PointerType **int
+          Locations:
+            - Range: 0xb5204..0xb5234
+              Pieces: [{Size: 8, Op: {RegNo: 5, Shift: 0}}]
           IsParameter: true
           IsReturn: false
 Types:
@@ -805,7 +842,7 @@ Types:
       ID: 53
       Name: Probe[main.intArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -813,14 +850,14 @@ Types:
             Type: 1 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 3, index: 0, name: x}
+                  Variable: {subprogram: 4, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
       ID: 54
       Name: Probe[main.stringArg]
       ByteSize: 17
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -828,14 +865,14 @@ Types:
             Type: 7 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 4, index: 0, name: s}
+                  Variable: {subprogram: 5, index: 0, name: s}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
       ID: 55
       Name: Probe[main.intSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -843,14 +880,14 @@ Types:
             Type: 10 GoSliceHeaderType []int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 5, index: 0, name: s}
+                  Variable: {subprogram: 6, index: 0, name: s}
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
       ID: 56
       Name: Probe[main.intArrayArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -858,14 +895,14 @@ Types:
             Type: 11 ArrayType [3]int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 6, index: 0, name: s}
+                  Variable: {subprogram: 7, index: 0, name: s}
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
       ID: 57
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -873,14 +910,14 @@ Types:
             Type: 12 GoSliceHeaderType []string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 7, index: 0, name: s}
+                  Variable: {subprogram: 8, index: 0, name: s}
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
       ID: 58
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -888,14 +925,29 @@ Types:
             Type: 14 ArrayType [3]string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 8, index: 0, name: s}
+                  Variable: {subprogram: 9, index: 0, name: s}
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
       ID: 59
+      Name: Probe[main.stringArrayArgFrameless]
+      ByteSize: 49
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: s
+          Offset: 1
+          Expression:
+            Type: 14 ArrayType [3]string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 10, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 48
+    - __kind: EventRootType
+      ID: 60
       Name: Probe[main.mapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -903,14 +955,14 @@ Types:
             Type: 15 GoMapType map[string]int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 9, index: 0, name: m}
+                  Variable: {subprogram: 11, index: 0, name: m}
                   Offset: 0
                   ByteSize: 0
     - __kind: EventRootType
-      ID: 60
+      ID: 61
       Name: Probe[main.bigMapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -918,14 +970,14 @@ Types:
             Type: 29 GoMapType map[string]main.bigStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 10, index: 0, name: m}
+                  Variable: {subprogram: 12, index: 0, name: m}
                   Offset: 0
                   ByteSize: 0
     - __kind: EventRootType
-      ID: 61
+      ID: 62
       Name: Probe[main.inlined]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -937,10 +989,10 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 62
+      ID: 63
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1
@@ -951,4 +1003,20 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: ptr}
                   Offset: 0
                   ByteSize: 8
-MaxTypeID: 62
+    - __kind: EventRootType
+      ID: 64
+      Name: Probe[main.PointerSmallChainArg]
+      ByteSize: 9
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: ptr
+          Offset: 1
+          Expression:
+            Type: 5 PointerType **int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 3, index: 0, name: ptr}
+                  Offset: 0
+                  ByteSize: 8
+MaxTypeID: 64
+Issues: []

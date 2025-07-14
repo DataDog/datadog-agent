@@ -49,10 +49,11 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
-			name: "with job, run ids",
+			name: "with job, run ids but not job cluster",
 			env: map[string]string{
 				"DB_CLUSTER_NAME": "job-123-run-456",
 			},
@@ -62,6 +63,24 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:job-123-run-456",
 				"jobid:123",
 				"runid:456",
+				"dd.internal.resource:databricks_job:123",
+			},
+		},
+		{
+			name: "with job, run ids and is job cluster",
+			env: map[string]string{
+				"DB_CLUSTER_NAME":   "job-123-run-456",
+				"DB_IS_JOB_CLUSTER": "TRUE",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-123-run-456",
+				"databricks_is_job_cluster:TRUE",
+				"cluster_name:job-123-run-456",
+				"jobid:123",
+				"runid:456",
+				"dd.internal.resource:databricks_job:123",
+				"dd.internal.resource:databricks_cluster:123",
 			},
 		},
 		{
@@ -94,6 +113,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:\"example_workspace\"",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -119,6 +139,74 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_cluster:cluster123",
+			},
+		},
+		{
+			name: "job cluster with cluster ID and DB_IS_JOB_CLUSTER=TRUE",
+			env: map[string]string{
+				"DB_CLUSTER_ID":     "cluster-67890",
+				"DB_CLUSTER_NAME":   "job-999-run-888",
+				"DB_IS_JOB_CLUSTER": "TRUE",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-999-run-888",
+				"databricks_cluster_id:cluster-67890",
+				"databricks_is_job_cluster:TRUE",
+				"cluster_id:cluster-67890",
+				"cluster_name:job-999-run-888",
+				"jobid:999",
+				"runid:888",
+				"dd.internal.resource:databricks_job:999",
+				"dd.internal.resource:databricks_cluster:999",
+			},
+		},
+		{
+			name: "job pattern but not a job cluster (DB_IS_JOB_CLUSTER not TRUE)",
+			env: map[string]string{
+				"DB_CLUSTER_ID":   "cluster-67890",
+				"DB_CLUSTER_NAME": "job-999-run-888",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-999-run-888",
+				"databricks_cluster_id:cluster-67890",
+				"cluster_id:cluster-67890",
+				"cluster_name:job-999-run-888",
+				"jobid:999",
+				"runid:888",
+				"dd.internal.resource:databricks_job:999",
+				"dd.internal.resource:databricks_cluster:cluster-67890",
+			},
+		},
+		{
+			name: "only cluster ID env var",
+			env: map[string]string{
+				"DB_CLUSTER_ID": "cluster-only-12345",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_id:cluster-only-12345",
+				"cluster_id:cluster-only-12345",
+				"dd.internal.resource:databricks_cluster:cluster-only-12345",
+			},
+		},
+		{
+			name: "DB_IS_JOB_CLUSTER=TRUE but no job pattern in cluster name",
+			env: map[string]string{
+				"DB_CLUSTER_ID":     "regular-cluster",
+				"DB_CLUSTER_NAME":   "my-regular-cluster",
+				"DB_IS_JOB_CLUSTER": "TRUE",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:my-regular-cluster",
+				"databricks_cluster_id:regular-cluster",
+				"databricks_is_job_cluster:TRUE",
+				"cluster_id:regular-cluster",
+				"cluster_name:my-regular-cluster",
+				"dd.internal.resource:databricks_cluster:regular-cluster",
 			},
 		},
 	}
@@ -512,6 +600,79 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 			for _, tag := range tt.wantTags {
 				assert.Contains(t, s.Config.DatadogYAML.Tags, tag)
 			}
+		})
+	}
+}
+
+func TestSetupGPUIntegration(t *testing.T) {
+	tests := []struct {
+		name                   string
+		env                    map[string]string
+		expectedCollectGPUTags bool
+		expectedEnableNVML     bool
+		expectedSystemProbeGPU bool
+	}{
+		{
+			name: "GPU monitoring enabled",
+			env: map[string]string{
+				"DD_GPU_MONITORING_ENABLED": "true",
+			},
+			expectedCollectGPUTags: true,
+			expectedEnableNVML:     true,
+			expectedSystemProbeGPU: true,
+		},
+		{
+			name: "GPU monitoring enabled with empty string value",
+			env: map[string]string{
+				"DD_GPU_MONITORING_ENABLED": "",
+			},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
+		},
+		{
+			name:                   "GPU monitoring not set",
+			env:                    map[string]string{},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+				setupGPUIntegration(s)
+			}
+
+			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
+			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
+
+			// Check system-probe configuration
+			if tt.expectedSystemProbeGPU {
+				assert.NotNil(t, s.Config.SystemProbeYAML)
+				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+			} else {
+				if s.Config.SystemProbeYAML != nil {
+					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+				}
+			}
+
 		})
 	}
 }
