@@ -143,6 +143,10 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         .pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid()),
         .metadata = CONN_TYPE_TCP,
     };
+
+    struct task_struct *task = (struct task_struct *) bpf_get_current_task();
+    tuple.netns = BPF_CORE_READ(task, nsproxy, net_ns, ns.inum);
+
     if (!__tuple_via_tcp_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
         if (!__tuple_via_limited_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
             log_debug("[go-tls-conn] failed to resolve tuple from conn at %p", conn);
