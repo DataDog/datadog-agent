@@ -55,6 +55,24 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				OOMEvents:        pointer.Ptr(10.0),
 				PartialStallTime: pointer.Ptr(97000.0),
 				Peak:             pointer.Ptr(50000.0),
+
+				Pgfault:    pointer.Ptr(97001.0),
+				Pgmajfault: pointer.Ptr(50002.0),
+
+				// metrics
+				Shmem:         pointer.Ptr(1480.0),
+				FileMapped:    pointer.Ptr(1480.0),
+				FileDirty:     pointer.Ptr(1480.0),
+				FileWriteback: pointer.Ptr(1480.0),
+				RefaultAnon:   pointer.Ptr(1480.0),
+				RefaultFile:   pointer.Ptr(1480.0),
+
+				PageTables:   pointer.Ptr(661.0),
+				ActiveAnon:   pointer.Ptr(661.0),
+				InactiveAnon: pointer.Ptr(661.0),
+				ActiveFile:   pointer.Ptr(661.0),
+				InactiveFile: pointer.Ptr(661.0),
+				Unevictable:  pointer.Ptr(661.0),
 			},
 			IO: &metrics.ContainerIOStats{
 				Devices: map[string]metrics.DeviceIOStats{
