@@ -47,8 +47,8 @@ type FlowAggregator struct {
 	stopChan                     chan struct{}
 	flushLoopDone                chan struct{}
 	runDone                      chan struct{}
-	receivedFlowCount            *atomic.Uint64
-	flushedFlowCount             *atomic.Uint64
+	ReceivedFlowCount            *atomic.Uint64
+	FlushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
@@ -94,8 +94,8 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		stopChan:                     make(chan struct{}),
 		runDone:                      make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
-		receivedFlowCount:            atomic.NewUint64(0),
-		flushedFlowCount:             atomic.NewUint64(0),
+		ReceivedFlowCount:            atomic.NewUint64(0),
+		FlushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
@@ -131,7 +131,7 @@ func (agg *FlowAggregator) run() {
 			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
-			agg.receivedFlowCount.Inc()
+			agg.ReceivedFlowCount.Inc()
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -150,6 +150,8 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
+		// JMWTUE add config option to be able to skip sending flows to the forwarder for performance testing
+		// JMWPERF if tghis blocks due to channel being full, does it block processing of incoming flows?
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
@@ -202,6 +204,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
+			// JMWTUE add config option to be able to skip sending flows to the forwarder for performance testing
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
 			if err != nil {
 				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
@@ -276,7 +279,7 @@ func (agg *FlowAggregator) flush() int {
 	flushCount := len(flowsToFlush)
 
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
-	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.ReceivedFlowCount.Load()), "", nil)
 	agg.sender.Count("datadog.netflow.aggregator.flows_flushed", float64(flushCount), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
@@ -289,9 +292,9 @@ func (agg *FlowAggregator) flush() int {
 		agg.logger.Warnf("error submitting collector metrics: %s", err)
 	}
 
-	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
-	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
-	agg.flushedFlowCount.Add(uint64(flushCount))
+	// We increase `FlushedFlowCount` at the end to be sure that the metrics are submitted before hand.
+	// Tests will wait for `FlushedFlowCount` to be increased before asserting the metrics.
+	agg.FlushedFlowCount.Add(uint64(flushCount))
 	return len(flowsToFlush)
 }
 

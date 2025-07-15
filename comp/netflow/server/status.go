@@ -24,6 +24,7 @@ type netflowServerStatus struct {
 	ClosedListeners        int
 	WorkingListenerDetails []netflowListenerStatus
 	ClosedListenerDetails  []netflowListenerStatus
+	FlowAggregatorDetails  flowAggregatorDetails
 }
 
 // netflowListenerStatus handles logic related to pulling config information and associating it to an error.
@@ -31,6 +32,13 @@ type netflowListenerStatus struct {
 	Config    nfconfig.ListenerConfig
 	Error     string
 	FlowCount int64
+}
+
+type flowAggregatorDetails struct {
+	Received         uint64
+	Flushed          uint64
+	Dropped          int64
+	AggregationRatio float64
 }
 
 // Provider provides the functionality to populate the status output
@@ -84,12 +92,28 @@ func (p Provider) getStatus(stats map[string]interface{}) {
 		}
 	}
 
+	received := p.server.FlowAgg.ReceivedFlowCount.Load()
+	flushed := p.server.FlowAgg.FlushedFlowCount.Load()
+
+	var aggregationRatio float64
+	if flushed > 0 {
+		aggregationRatio = float64(received) / float64(flushed)
+	}
+
+	flowAggregatorDetails := flowAggregatorDetails{
+		Received:         received,
+		Flushed:          flushed,
+		Dropped:          0,
+		AggregationRatio: aggregationRatio,
+	}
+
 	status := netflowServerStatus{
 		TotalListeners:         int(len(p.server.listeners)),
 		OpenListeners:          int(len(workingListeners)),
 		ClosedListeners:        int(len(closedListenersList)),
 		WorkingListenerDetails: workingListeners,
 		ClosedListenerDetails:  closedListenersList,
+		FlowAggregatorDetails:  flowAggregatorDetails,
 	}
 
 	stats["netflowStats"] = status
