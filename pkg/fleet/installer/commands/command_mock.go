@@ -112,6 +112,18 @@ func (m *installerMock) PromoteConfigExperiment(_ context.Context, _ string) err
 	return nil
 }
 
+func (m *installerMock) InstallMultiConfigExperiment(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *installerMock) RemoveMultiConfigExperiment(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *installerMock) PromoteMultiConfigExperiment(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *installerMock) GarbageCollect(_ context.Context) error {
 	return nil
 }
