@@ -103,6 +103,7 @@ def format(ctx, raise_if_changed=False):
             print("Following files were not correctly formated:")
             for f in changed_files:
                 print(f"  - {f}")
+            print(ctx.run("git diff rtloader").stdout)
             raise Exit(code=1)
 
 
