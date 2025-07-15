@@ -560,19 +560,19 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 		s.Require().NoError(err, "should clear %s event log", logName)
 	}
 	// Clear agent logs
-	s.T().Logf("Clearing agent logs")
-	logsFolder, err := host.GetLogsFolder()
-	s.Require().NoError(err, "should get logs folder")
-	entries, err := host.ReadDir(logsFolder)
-	if s.Assert().NoError(err, "should read log folder") {
-		for _, entry := range entries {
-			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
-			s.Assert().NoError(err, "should remove %s", entry.Name())
-		}
-	}
+	// s.T().Logf("Clearing agent logs")
+	// logsFolder, err := host.GetLogsFolder()
+	// s.Require().NoError(err, "should get logs folder")
+	// entries, err := host.ReadDir(logsFolder)
+	// if s.Assert().NoError(err, "should read log folder") {
+	// 	for _, entry := range entries {
+	// 		err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+	// 		s.Assert().NoError(err, "should remove %s", entry.Name())
+	// 	}
+	// }
 	// Clear dump folder
 	s.T().Logf("Clearing dump folder")
-	err = windowsCommon.CleanDirectory(host, s.dumpFolder)
+	err := windowsCommon.CleanDirectory(host, s.dumpFolder)
 	s.Require().NoError(err, "should clean dump folder")
 }
 
