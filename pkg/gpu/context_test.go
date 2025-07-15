@@ -75,6 +75,23 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		ResolvedAllocatedResources: nil,
 	}
 
+	containerIDGke := "gke-1234567890"
+	containerGke := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDGke,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDGke,
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: string(gpuutil.GpuNvidiaGeneric),
+				ID:   "nvidia0",
+			},
+		},
+	}
+
 	wmetaMock.Set(container)
 	storeContainer, err := wmetaMock.GetContainer(containerID)
 	require.NoError(t, err, "container should be found in the store")
@@ -82,6 +99,11 @@ func TestFilterDevicesForContainer(t *testing.T) {
 
 	wmetaMock.Set(containerNoGpu)
 	storeContainer, err = wmetaMock.GetContainer(containerIDNoGpu)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
+	wmetaMock.Set(containerGke)
+	storeContainer, err = wmetaMock.GetContainer(containerIDGke)
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
@@ -115,6 +137,13 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
 		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysDevices)
+	})
+
+	t.Run("ContainerWithGKEPlugin", func(t *testing.T) {
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerIDGke)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()[0:1])
 	})
 }
 
