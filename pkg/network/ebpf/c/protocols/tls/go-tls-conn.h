@@ -130,7 +130,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
 static __always_inline bool __tuple_via_limited_conn(tls_conn_layout_t* cl, void* limited_conn_ptr, conn_tuple_t *output) {
     void *inner_conn_iface_ptr = resolve_interface(limited_conn_ptr + cl->limited_conn_inner_conn_offset);
     if (inner_conn_iface_ptr == NULL) {
-        log_debug("[go-tls-conn] failed to resolve inner conn interface at %p", limited_conn_ptr + cl->limited_conn_inner_conn_offset);
         return false;
     }
 
@@ -160,7 +159,6 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
 
     if (!__tuple_via_tcp_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
         if (!__tuple_via_limited_conn(&pd->conn_layout, inner_conn_iface_ptr, &tuple)) {
-            log_debug("[go-tls-conn] failed to resolve tuple from conn at %p", conn);
             return NULL;
         }
     }
