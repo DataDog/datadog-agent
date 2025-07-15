@@ -52,6 +52,7 @@ type FlowAggregator struct {
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
+	dropFlowsBeforeEPForwarder   bool             // config option to drop flows before sending to EP forwarder for performance testing
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -99,6 +100,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
+		dropFlowsBeforeEPForwarder:   config.DropFlowsBeforeEPForwarder,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 	}
@@ -150,14 +152,18 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
-		// JMWTUE add config option to be able to skip sending flows to the forwarder for performance testing
-		// JMWPERF if tghis blocks due to channel being full, does it block processing of incoming flows?
-		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
-		if err != nil {
-			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
-			agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
-			continue
+		if !agg.dropFlowsBeforeEPForwarder {
+			// JMWPERF if tghis blocks due to channel being full, does it block processing of incoming flows?
+			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesNetFlow)
+			if err != nil {
+				// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
+				agg.logger.Errorf("Error sending to event platform forwarder: %s", err)
+				continue
+			}
 		}
+	}
+	if agg.dropFlowsBeforeEPForwarder {
+		agg.logger.Infof("Dropped %d flows before EP forwarder as configured for performance testing", len(flows))
 	}
 }
 
@@ -204,12 +210,16 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
-			// JMWTUE add config option to be able to skip sending flows to the forwarder for performance testing
-			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
-			if err != nil {
-				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+			if !agg.dropFlowsBeforeEPForwarder {
+				err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
+				if err != nil {
+					agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
+				}
 			}
 		}
+	}
+	if agg.dropFlowsBeforeEPForwarder {
+		agg.logger.Infof("Dropped exporter metadata for %d flows before EP forwarder as configured for performance testing", len(flows))
 	}
 }
 
