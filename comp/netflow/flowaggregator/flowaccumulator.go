@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
-	"go.uber.org/atomic"
 )
 
 var timeNow = time.Now
@@ -39,7 +40,8 @@ type flowAccumulator struct {
 	portRollupThreshold int
 	portRollupDisabled  bool
 
-	hashCollisionFlowCount *atomic.Uint64
+	skipHashCollisionDetection bool
+	hashCollisionFlowCount     *atomic.Uint64
 
 	logger      log.Component
 	rdnsQuerier rdnsquerier.Component
@@ -53,17 +55,18 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
-		flows:                  make(map[uint64]flowContext),
-		flowFlushInterval:      aggregatorFlushInterval,
-		flowContextTTL:         aggregatorFlowContextTTL,
-		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
-		portRollupThreshold:    portRollupThreshold,
-		portRollupDisabled:     portRollupDisabled,
-		hashCollisionFlowCount: atomic.NewUint64(0),
-		logger:                 logger,
-		rdnsQuerier:            rdnsQuerier,
+		flows:                      make(map[uint64]flowContext),
+		flowFlushInterval:          aggregatorFlushInterval,
+		flowContextTTL:             aggregatorFlowContextTTL,
+		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
+		portRollupThreshold:        portRollupThreshold,
+		portRollupDisabled:         portRollupDisabled,
+		skipHashCollisionDetection: skipHashCollisionDetection,
+		hashCollisionFlowCount:     atomic.NewUint64(0),
+		logger:                     logger,
+		rdnsQuerier:                rdnsQuerier,
 	}
 }
 
@@ -135,7 +138,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
-		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+		if !f.skipHashCollisionDetection {
+			go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+		}
 
 		// accumulate flowToAdd with existing flow(s) with same hash
 		aggFlow.flow.Bytes += flowToAdd.Bytes

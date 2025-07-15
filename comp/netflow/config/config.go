@@ -38,6 +38,7 @@ type NetflowConfig struct {
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
 
 	DropFlowsBeforeEPForwarder bool `mapstructure:"drop_flows_before_ep_forwarder"`
+	SkipHashCollisionDetection bool `mapstructure:"skip_hash_collision_detection"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
