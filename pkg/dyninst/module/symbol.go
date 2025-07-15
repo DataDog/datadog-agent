@@ -45,7 +45,7 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, _ i
 			_ = closer.Close()
 		}
 	}()
-	mef, err := object.NewMMappingElfFile(executable.Path)
+	mef, err := object.OpenMMappingElfFile(executable.Path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating mmapping elf file: %w", err)
 	}

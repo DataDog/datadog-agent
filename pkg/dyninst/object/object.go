@@ -11,6 +11,7 @@ package object
 
 import (
 	"debug/dwarf"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -21,6 +22,8 @@ type Architecture = bininspect.GoArch
 
 // File is an interface that represents an object file.
 type File interface {
+	io.Closer
+
 	// Access to the DWARF sections.
 	DwarfSections() *DebugSections
 	// Access to the DWARF data.

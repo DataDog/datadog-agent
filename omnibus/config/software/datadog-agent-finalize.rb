@@ -188,14 +188,6 @@ build do
                         awk -F: '$0 ~ /[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }' |
                         xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
-                # Also sequentially codesign PNGs (`Contents/MacOS/agent.png` out of ~20 files under 'Datadog Agent.app')
-                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
-                    set -euo pipefail
-                    find '#{install_dir}/Datadog Agent.app' -type f -print0 |
-                        xargs -0 file --mime-type |
-                        awk -F: '$2 ~ /image\\/png/ { printf "%s%c", $1, 0 }' |
-                        xargs -0 #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
-                SH
             end
         end
     end
