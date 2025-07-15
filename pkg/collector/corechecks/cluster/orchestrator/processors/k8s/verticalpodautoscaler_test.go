@@ -266,12 +266,12 @@ func TestVerticalPodAutoscalerProcessor_Process(t *testing.T) {
 	// Create test vpas with unique UIDs
 	vpa1 := createTestVerticalPodAutoscaler()
 	vpa1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	vpa1.ResourceVersion = "1234"
+	vpa1.ResourceVersion = "1226"
 
 	vpa2 := createTestVerticalPodAutoscaler()
 	vpa2.Name = "vpa2"
 	vpa2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	vpa2.ResourceVersion = "5678"
+	vpa2.ResourceVersion = "1326"
 
 	// Create fake client
 	client := fake.NewClientset()
@@ -368,7 +368,7 @@ func createTestVerticalPodAutoscaler() *v1.VerticalPodAutoscaler {
 			Name:            "test-vpa",
 			Namespace:       "default",
 			UID:             "test-vpa-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1226",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

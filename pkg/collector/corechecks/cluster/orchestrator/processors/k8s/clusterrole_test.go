@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -272,11 +271,11 @@ func TestClusterRoleProcessor_Process(t *testing.T) {
 	// Create test cluster roles with unique UIDs
 	clusterRole1 := createTestClusterRole("clusterrole-1", "namespace-1")
 	clusterRole1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	clusterRole1.ResourceVersion = "1234"
+	clusterRole1.ResourceVersion = "1200"
 
 	clusterRole2 := createTestClusterRole("clusterrole-2", "namespace-2")
 	clusterRole2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	clusterRole2.ResourceVersion = "5678"
+	clusterRole2.ResourceVersion = "1300"
 
 	// Create fake client
 	client := fake.NewClientset(clusterRole1, clusterRole2)
@@ -375,7 +374,7 @@ func createTestClusterRole(name, namespace string) *rbacv1.ClusterRole {
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1200",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Rules: []rbacv1.PolicyRule{

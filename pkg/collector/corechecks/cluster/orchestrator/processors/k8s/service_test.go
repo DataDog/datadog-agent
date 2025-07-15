@@ -261,12 +261,12 @@ func TestServiceProcessor_Process(t *testing.T) {
 	// Create test services with unique UIDs
 	service1 := createTestService()
 	service1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	service1.ResourceVersion = "1234"
+	service1.ResourceVersion = "1222"
 
 	service2 := createTestService()
 	service2.Name = "service2"
 	service2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	service2.ResourceVersion = "5678"
+	service2.ResourceVersion = "1322"
 
 	// Create fake client
 	client := fake.NewClientset(service1, service2)
@@ -353,7 +353,7 @@ func createTestService() *corev1.Service {
 			Name:            "test-service",
 			Namespace:       "default",
 			UID:             "test-service-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1222",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -261,11 +260,11 @@ func TestDeploymentProcessor_Process(t *testing.T) {
 	// Create test deployments with unique UIDs
 	deployment1 := createTestDeployment("deployment-1", "namespace-1")
 	deployment1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	deployment1.ResourceVersion = "1234"
+	deployment1.ResourceVersion = "1207"
 
 	deployment2 := createTestDeployment("deployment-2", "namespace-2")
 	deployment2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	deployment2.ResourceVersion = "5678"
+	deployment2.ResourceVersion = "1307"
 
 	// Create fake client
 	client := fake.NewClientset(deployment1, deployment2)
@@ -373,7 +372,7 @@ func createTestDeployment(name, namespace string) *appsv1.Deployment {
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1207",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: appsv1.DeploymentSpec{

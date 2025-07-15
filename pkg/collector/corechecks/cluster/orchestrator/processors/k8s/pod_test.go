@@ -31,7 +31,7 @@ import (
 // mockPodTagProvider is a simple mock implementation for testing
 type mockPodTagProvider struct{}
 
-func (m *mockPodTagProvider) GetTags(pod *corev1.Pod, cardinality taggertypes.TagCardinality) ([]string, error) {
+func (m *mockPodTagProvider) GetTags(pod *corev1.Pod, _ taggertypes.TagCardinality) ([]string, error) {
 	// Return some basic tags for testing
 	return []string{"kube_namespace:default", "kube_pod_name:" + pod.Name}, nil
 }
@@ -301,11 +301,11 @@ func TestPodProcessor_Process(t *testing.T) {
 	// Create test pods with unique UIDs
 	pod1 := createTestPod("pod-1", "namespace-1")
 	pod1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	pod1.ResourceVersion = "1234"
+	pod1.ResourceVersion = "1217"
 
 	pod2 := createTestPod("pod-2", "namespace-2")
 	pod2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	pod2.ResourceVersion = "5678"
+	pod2.ResourceVersion = "1317"
 
 	// Create fake client
 	client := fake.NewClientset(pod1, pod2)
@@ -408,7 +408,7 @@ func createTestPod(name, namespace string) *corev1.Pod {
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1217",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: corev1.PodSpec{

@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -269,11 +268,11 @@ func TestClusterRoleBindingProcessor_Process(t *testing.T) {
 	// Create test cluster role bindings with unique UIDs
 	clusterRoleBinding1 := createTestClusterRoleBinding("clusterrolebinding-1", "namespace-1")
 	clusterRoleBinding1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	clusterRoleBinding1.ResourceVersion = "1234"
+	clusterRoleBinding1.ResourceVersion = "1201"
 
 	clusterRoleBinding2 := createTestClusterRoleBinding("clusterrolebinding-2", "namespace-2")
 	clusterRoleBinding2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	clusterRoleBinding2.ResourceVersion = "5678"
+	clusterRoleBinding2.ResourceVersion = "1301"
 
 	// Create fake client
 	client := fake.NewClientset(clusterRoleBinding1, clusterRoleBinding2)
@@ -365,7 +364,7 @@ func createTestClusterRoleBinding(name, namespace string) *rbacv1.ClusterRoleBin
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1201",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		RoleRef: rbacv1.RoleRef{

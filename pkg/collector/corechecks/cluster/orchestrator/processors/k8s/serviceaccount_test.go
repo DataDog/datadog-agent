@@ -18,13 +18,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	model "github.com/DataDog/agent-payload/v5/process"
 )
 
 func TestServiceAccountHandlers_ExtractResource(t *testing.T) {
@@ -261,12 +261,12 @@ func TestServiceAccountProcessor_Process(t *testing.T) {
 	// Create test serviceaccounts with unique UIDs
 	serviceAccount1 := createTestServiceAccount()
 	serviceAccount1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	serviceAccount1.ResourceVersion = "1234"
+	serviceAccount1.ResourceVersion = "1223"
 
 	serviceAccount2 := createTestServiceAccount()
 	serviceAccount2.Name = "serviceaccount2"
 	serviceAccount2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	serviceAccount2.ResourceVersion = "5678"
+	serviceAccount2.ResourceVersion = "1323"
 
 	// Create fake client
 	client := fake.NewClientset(serviceAccount1, serviceAccount2)
@@ -354,7 +354,7 @@ func createTestServiceAccount() *corev1.ServiceAccount {
 			Name:            "test-serviceaccount",
 			Namespace:       "default",
 			UID:             "test-serviceaccount-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1223",
 			Labels: map[string]string{
 				"app": "test-app",
 			},
@@ -375,4 +375,4 @@ func createTestServiceAccount() *corev1.ServiceAccount {
 			},
 		},
 	}
-} 
+}

@@ -278,11 +278,11 @@ func TestNodeProcessor_Process(t *testing.T) {
 	// Create test nodes with unique UIDs
 	node1 := createTestNode("node-1", "namespace-1")
 	node1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	node1.ResourceVersion = "1234"
+	node1.ResourceVersion = "1214"
 
 	node2 := createTestNode("node-2", "namespace-2")
 	node2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	node2.ResourceVersion = "5678"
+	node2.ResourceVersion = "1314"
 
 	// Create fake client
 	client := fake.NewClientset(node1, node2)
@@ -376,7 +376,7 @@ func createTestNode(name, namespace string) *corev1.Node {
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1214",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: corev1.NodeSpec{

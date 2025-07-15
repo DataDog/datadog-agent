@@ -266,12 +266,12 @@ func TestStorageClassProcessor_Process(t *testing.T) {
 	// Create test storageclasses with unique UIDs
 	storageClass1 := createTestStorageClass()
 	storageClass1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	storageClass1.ResourceVersion = "1234"
+	storageClass1.ResourceVersion = "1225"
 
 	storageClass2 := createTestStorageClass()
 	storageClass2.Name = "storageclass2"
 	storageClass2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	storageClass2.ResourceVersion = "5678"
+	storageClass2.ResourceVersion = "1325"
 
 	// Create fake client
 	client := fake.NewClientset(storageClass1, storageClass2)
@@ -367,7 +367,7 @@ func createTestStorageClass() *storagev1.StorageClass {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "test-storageclass",
 			UID:             "test-storageclass-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1225",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

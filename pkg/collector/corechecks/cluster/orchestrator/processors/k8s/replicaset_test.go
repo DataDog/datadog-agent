@@ -259,12 +259,12 @@ func TestReplicaSetProcessor_Process(t *testing.T) {
 	// Create test replica sets with unique UIDs
 	rs1 := createTestReplicaSet()
 	rs1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	rs1.ResourceVersion = "1234"
+	rs1.ResourceVersion = "1219"
 
 	rs2 := createTestReplicaSet()
 	rs2.Name = "rs2"
 	rs2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	rs2.ResourceVersion = "5678"
+	rs2.ResourceVersion = "1319"
 
 	// Create fake client
 	client := fake.NewClientset(rs1, rs2)
@@ -359,7 +359,7 @@ func createTestReplicaSet() *appsv1.ReplicaSet {
 			Name:            "test-rs",
 			Namespace:       "default",
 			UID:             "test-rs-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1219",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

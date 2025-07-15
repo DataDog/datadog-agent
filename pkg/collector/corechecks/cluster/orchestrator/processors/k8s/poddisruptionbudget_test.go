@@ -257,12 +257,12 @@ func TestPodDisruptionBudgetProcessor_Process(t *testing.T) {
 	// Create test pod disruption budgets with unique UIDs
 	pdb1 := createTestPodDisruptionBudget()
 	pdb1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	pdb1.ResourceVersion = "1234"
+	pdb1.ResourceVersion = "1218"
 
 	pdb2 := createTestPodDisruptionBudget()
 	pdb2.Name = "pdb2"
 	pdb2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	pdb2.ResourceVersion = "5678"
+	pdb2.ResourceVersion = "1318"
 
 	// Create fake client
 	client := fake.NewClientset(pdb1, pdb2)
@@ -358,7 +358,7 @@ func createTestPodDisruptionBudget() *policyv1.PodDisruptionBudget {
 			Name:            "test-pdb",
 			Namespace:       "default",
 			UID:             "test-pdb-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1218",
 			Labels: map[string]string{
 				"app": "test-app",
 			},
