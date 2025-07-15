@@ -232,7 +232,7 @@ func TestCgroupV2MemoryStatsKernel6_8(t *testing.T) {
 		Swap:          pointer.Ptr(uint64(0)),
 		RSS:           pointer.Ptr(uint64(15941632)),
 		RSSHuge:       pointer.Ptr(uint64(0)),
-		MappedFile:    pointer.Ptr(uint64(2301952)),
+		FileMapped:    pointer.Ptr(uint64(2301952)),
 		Pgfault:       pointer.Ptr(uint64(8146)),
 		Pgmajfault:    pointer.Ptr(uint64(30)),
 		InactiveAnon:  pointer.Ptr(uint64(15888384)),
