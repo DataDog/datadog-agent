@@ -819,9 +819,18 @@ func cleanConfigName(p string) string {
 	return path.Clean(p)
 }
 
+type configFileAction string
+
+const (
+	configFileActionUnknown configFileAction = ""
+	configFileActionAdd     configFileAction = "add"
+	configFileActionRemove  configFileAction = "remove"
+)
+
 type configFile struct {
-	Path     string          `json:"path"`
-	Contents json.RawMessage `json:"contents"`
+	Path     string           `json:"path"`
+	Action   configFileAction `json:"action"`
+	Contents json.RawMessage  `json:"contents"`
 }
 
 func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
@@ -831,26 +840,39 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
 	for _, file := range files {
+		if file.Action == configFileActionUnknown {
+			// Default to add if action is unknown
+			file.Action = configFileActionAdd
+		}
 		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
-		var c interface{}
-		err = json.Unmarshal(file.Contents, &c)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal config file contents: %w", err)
-		}
-		serialized, err := yaml.Marshal(c)
-		if err != nil {
-			return fmt.Errorf("could not serialize config file contents: %w", err)
-		}
-		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
-		if err != nil {
-			return fmt.Errorf("could not create config file directory: %w", err)
-		}
-		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
-		if err != nil {
-			return fmt.Errorf("could not write config file: %w", err)
+
+		if file.Action == configFileActionRemove {
+			err = os.Remove(filepath.Join(dir, file.Path))
+			if err != nil {
+				return fmt.Errorf("could not remove config file: %w", err)
+			}
+			continue
+		} else if file.Action == configFileActionAdd {
+			var c interface{}
+			err = json.Unmarshal(file.Contents, &c)
+			if err != nil {
+				return fmt.Errorf("could not unmarshal config file contents: %w", err)
+			}
+			serialized, err := yaml.Marshal(c)
+			if err != nil {
+				return fmt.Errorf("could not serialize config file contents: %w", err)
+			}
+			err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+			if err != nil {
+				return fmt.Errorf("could not create config file directory: %w", err)
+			}
+			err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
+			if err != nil {
+				return fmt.Errorf("could not write config file: %w", err)
+			}
 		}
 	}
 	return nil
