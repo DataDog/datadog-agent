@@ -1078,7 +1078,6 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 				log.Errorf("failed to get singular resource name for %q: %v", resource, err)
 				continue
 			}
-			log.Debugf("using singular resource name %q for %q", singularName, resource)
 		}
 
 		_, found := instanceMap[singularName]
