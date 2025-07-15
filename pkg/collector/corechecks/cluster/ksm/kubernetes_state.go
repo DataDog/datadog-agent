@@ -1228,6 +1228,5 @@ func toSingularResourceName(resourceGroup string) (string, error) {
 	// Expected input in the form of: resourceTypePlural.apiGroup
 	resourceType, group, _ := strings.Cut(resourceGroup, ".")
 	kind, err := apiserver.GetResourceKind(resourceType, group)
-	log.Debugf("Converted resourceType: %s, group: %s, kind: %s, err: %v", resourceType, group, kind, err)
 	return strings.ToLower(kind), err
 }
