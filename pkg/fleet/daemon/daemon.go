@@ -693,6 +693,23 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
 		return d.promoteConfigExperiment(ctx, request.Package)
 
+	case methodStartMultiConfigExperiment:
+		var params experimentTaskParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		log.Infof("Installer: Received remote request %s to start multi-config experiment for package %s", request.ID, request.Package)
+		return d.startMultiConfigExperiment(ctx, request.Package, params.Version)
+
+	case methodStopMultiConfigExperiment:
+		log.Infof("Installer: Received remote request %s to stop multi-config experiment for package %s", request.ID, request.Package)
+		return d.stopMultiConfigExperiment(ctx, request.Package)
+
+	case methodPromoteMultiConfigExperiment:
+		log.Infof("Installer: Received remote request %s to promote multi-config experiment for package %s", request.ID, request.Package)
+		return d.promoteMultiConfigExperiment(ctx, request.Package)
+
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}

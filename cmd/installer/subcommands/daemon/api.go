@@ -297,17 +297,17 @@ func stopConfig(params *cliParams, client localapiclient.Component) error {
 	return nil
 }
 
-func startMultiConfig(params *cliParams, client localapiclient.Component) error {
+func startMultiConfig(_ *cliParams, _ localapiclient.Component) error {
 	// TODO: implement
 	return nil
 }
 
-func stopMultiConfig(params *cliParams, client localapiclient.Component) error {
+func stopMultiConfig(_ *cliParams, _ localapiclient.Component) error {
 	// TODO: implement
 	return nil
 }
 
-func promoteMultiConfig(params *cliParams, client localapiclient.Component) error {
+func promoteMultiConfig(_ *cliParams, _ localapiclient.Component) error {
 	// TODO: implement
 	return nil
 }

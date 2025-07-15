@@ -392,32 +392,32 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 }
 
 // preStartMultiConfigExperimentDatadogAgent performs pre-start steps for the multi-config experiment.
-func preStartMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+func preStartMultiConfigExperimentDatadogAgent(_ HookContext) error {
 	return nil
 }
 
 // postStartMultiConfigExperimentDatadogAgent performs post-start steps for the multi-config experiment.
-func postStartMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+func postStartMultiConfigExperimentDatadogAgent(_ HookContext) error {
 	return nil
 }
 
 // preStopMultiConfigExperimentDatadogAgent performs pre-stop steps for the multi-config experiment.
-func preStopMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+func preStopMultiConfigExperimentDatadogAgent(_ HookContext) error {
 	return nil
 }
 
 // postStopMultiConfigExperimentDatadogAgent performs post-stop steps for the multi-config experiment.
-func postStopMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+func postStopMultiConfigExperimentDatadogAgent(_ HookContext) error {
 	return nil
 }
 
 // prePromoteMultiConfigExperimentDatadogAgent performs pre-promote steps for the multi-config experiment.
-func prePromoteMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+func prePromoteMultiConfigExperimentDatadogAgent(_ HookContext) error {
 	return nil
 }
 
 // postPromoteMultiConfigExperimentDatadogAgent performs post-promote steps for the multi-config experiment.
-func postPromoteMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+func postPromoteMultiConfigExperimentDatadogAgent(_ HookContext) error {
 	return nil
 }
 

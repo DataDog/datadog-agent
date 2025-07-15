@@ -586,7 +586,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 }
 
 // InstallMultiConfigExperiment installs a multi-config experiment on top of an existing package.
-func (i *installerImpl) InstallMultiConfigExperiment(ctx context.Context, pkg string, version string) error {
+func (i *installerImpl) InstallMultiConfigExperiment(_ context.Context, _ string, _ string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -594,7 +594,7 @@ func (i *installerImpl) InstallMultiConfigExperiment(ctx context.Context, pkg st
 }
 
 // RemoveMultiConfigExperiment removes a multi-config experiment.
-func (i *installerImpl) RemoveMultiConfigExperiment(ctx context.Context, pkg string) error {
+func (i *installerImpl) RemoveMultiConfigExperiment(_ context.Context, _ string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -602,7 +602,7 @@ func (i *installerImpl) RemoveMultiConfigExperiment(ctx context.Context, pkg str
 }
 
 // PromoteMultiConfigExperiment promotes a multi-config experiment to stable.
-func (i *installerImpl) PromoteMultiConfigExperiment(ctx context.Context, pkg string) error {
+func (i *installerImpl) PromoteMultiConfigExperiment(_ context.Context, _ string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
