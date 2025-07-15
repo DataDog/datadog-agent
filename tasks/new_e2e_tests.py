@@ -400,13 +400,11 @@ def run(
         partial_result_json = f"{result_json}.{attempt}.part"
         result_jsons.append(partial_result_json)
 
-        # TODO(agent-devx): Check if this is the right flavor, we are not using the flavor passed in argument
         partial_result_junit = f"junit-out-{str(AgentFlavor.base)}-{attempt}.xml"
         result_junits.append(partial_result_junit)
 
         test_res = test_flavor(
             ctx,
-            # TODO(agent-devx): Same comment about flavor as above
             flavor=AgentFlavor.base,
             build_tags=tags,
             modules=[e2e_module],
