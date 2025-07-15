@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -87,9 +88,10 @@ func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
 }
 
-func mandatoryMetricTagRegexes() []*regexp.Regexp {
-	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
-	for _, tag := range mandatoryMetricTags {
+func mandatoryMetricTagRegexes(additionalTags ...string) []*regexp.Regexp {
+	allTags := append(mandatoryMetricTags, additionalTags...)
+	regexes := make([]*regexp.Regexp, 0, len(allTags))
+	for _, tag := range allTags {
 		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
 	}
 
@@ -388,8 +390,13 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
+	// Check if we're in a Kubernetes environment using the generic type parameter
+	var env Env
+	isKubernetes := reflect.TypeOf(env) == reflect.TypeOf(environments.Kubernetes{})
+
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
+
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
 		metrics := []struct {
 			name           string
@@ -406,7 +413,14 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 			var options []client.MatchOpt[*aggregator.MetricSeries]
 			if metric.deviceSpecific {
 				// device-specific metrics should be tagged with device tags
-				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+				var tagRegexes []*regexp.Regexp
+				if isKubernetes {
+					// In Kubernetes environments, device-specific metrics should also have pod_name tag
+					tagRegexes = mandatoryMetricTagRegexes("pod_name")
+				} else {
+					tagRegexes = mandatoryMetricTagRegexes()
+				}
+				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
 			}
 
 			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric.name, options...)
