@@ -57,7 +57,10 @@ func WithNS(procRoot string, ns netns.NsHandle, fn func() error) error {
 	if fnErr != nil {
 		return fnErr
 	}
-	return fmt.Errorf("failed to go back to previous cgroup namespace: %w", nsErr)
+	if nsErr != nil {
+		return fmt.Errorf("failed to go back to previous cgroup namespace: %w", nsErr)
+	}
+	return nil
 }
 
 // GetCgroupNamespaceFromPid gets the cgroup namespace for a given pid.
