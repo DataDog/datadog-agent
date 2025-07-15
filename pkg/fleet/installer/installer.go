@@ -852,6 +852,11 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		if file.Action == configFileActionRemove {
 			err = os.Remove(filepath.Join(dir, file.Path))
 			if err != nil {
+				if os.IsNotExist(err) {
+					// Ignore if the file doesn't exist
+					log.Warnf("config file %s does not exist, skipping", file.Path)
+					continue
+				}
 				return fmt.Errorf("could not remove config file: %w", err)
 			}
 		} else if file.Action == configFileActionAdd {

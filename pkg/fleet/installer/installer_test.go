@@ -531,3 +531,271 @@ func TestConfigNames(t *testing.T) {
 		}
 	})
 }
+
+func TestWriteConfigRemoveAction(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create a test file that should be removed
+	testFilePath := filepath.Join(tmpDir, "datadog.yaml")
+	testContent := []byte("test: content")
+	err := os.WriteFile(testFilePath, testContent, 0644)
+	assert.NoError(t, err)
+
+	// Verify the file exists
+	_, err = os.Stat(testFilePath)
+	assert.NoError(t, err)
+
+	// Create config JSON with remove action
+	configJSON := `[
+		{
+			"path": "/datadog.yaml",
+			"action": "remove",
+			"contents": null
+		}
+	]`
+
+	// Call writeConfig with remove action
+	err = installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.NoError(t, err)
+
+	// Verify the file was removed
+	_, err = os.Stat(testFilePath)
+	assert.True(t, os.IsNotExist(err), "File should have been removed")
+}
+
+func TestWriteConfigRemoveActionWithMultipleFiles(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create multiple test files
+	files := []string{
+		"datadog.yaml",
+		"security-agent.yaml",
+		"system-probe.yaml",
+	}
+
+	for _, fileName := range files {
+		filePath := filepath.Join(tmpDir, fileName)
+		testContent := []byte("test: content for " + fileName)
+		err := os.WriteFile(filePath, testContent, 0644)
+		assert.NoError(t, err)
+
+		// Verify the file exists
+		_, err = os.Stat(filePath)
+		assert.NoError(t, err)
+	}
+
+	// Create config JSON with multiple remove actions
+	configJSON := `[
+		{
+			"path": "/datadog.yaml",
+			"action": "remove",
+			"contents": null
+		},
+		{
+			"path": "/security-agent.yaml",
+			"action": "remove",
+			"contents": null
+		},
+		{
+			"path": "/system-probe.yaml",
+			"action": "remove",
+			"contents": null
+		}
+	]`
+
+	// Call writeConfig with remove actions
+	err := installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.NoError(t, err)
+
+	// Verify all files were removed
+	for _, fileName := range files {
+		filePath := filepath.Join(tmpDir, fileName)
+		_, err := os.Stat(filePath)
+		assert.True(t, os.IsNotExist(err), "File %s should have been removed", fileName)
+	}
+}
+
+func TestWriteConfigRemoveActionWithMixedActions(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create a test file that should be removed
+	removeFilePath := filepath.Join(tmpDir, "datadog.yaml")
+	testContent := []byte("test: content")
+	err := os.WriteFile(removeFilePath, testContent, 0644)
+	assert.NoError(t, err)
+
+	// Verify the file exists
+	_, err = os.Stat(removeFilePath)
+	assert.NoError(t, err)
+
+	// Create config JSON with both add and remove actions
+	configJSON := `[
+		{
+			"path": "/datadog.yaml",
+			"action": "remove",
+			"contents": null
+		},
+		{
+			"path": "/security-agent.yaml",
+			"action": "add",
+			"contents": {"enabled": true, "port": 6062}
+		}
+	]`
+
+	// Call writeConfig with mixed actions
+	err = installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.NoError(t, err)
+
+	// Verify the remove file was removed
+	_, err = os.Stat(removeFilePath)
+	assert.True(t, os.IsNotExist(err), "File should have been removed")
+
+	// Verify the add file was created
+	addFilePath := filepath.Join(tmpDir, "security-agent.yaml")
+	_, err = os.Stat(addFilePath)
+	assert.NoError(t, err, "File should have been created")
+
+	// Verify the content of the created file
+	content, err := os.ReadFile(addFilePath)
+	assert.NoError(t, err)
+	assert.Contains(t, string(content), "enabled: true")
+	assert.Contains(t, string(content), "port: 6062")
+}
+
+func TestWriteConfigRemoveActionWithNonExistentFile(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create config JSON with remove action for non-existent file
+	configJSON := `[
+		{
+			"path": "/conf.d/non-existent.yaml",
+			"action": "remove",
+			"contents": null
+		}
+	]`
+
+	// Call writeConfig with remove action for non-existent file
+	// This should not error as os.Remove() doesn't error if file doesn't exist
+	err := installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.NoError(t, err)
+}
+
+func TestWriteConfigRemoveActionWithInvalidPath(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create config JSON with remove action for invalid path
+	configJSON := `[
+		{
+			"path": "/invalid/path/../../etc/passwd",
+			"action": "remove",
+			"contents": null
+		}
+	]`
+
+	// Call writeConfig with invalid path - should fail validation
+	err := installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "is not allowed")
+	assert.Contains(t, err.Error(), "/etc/passwd")
+	assert.Contains(t, err.Error(), "config file")
+
+	configJSON2 := `[
+		{
+			"path": "~/.my_secret",
+			"action": "remove"
+		}
+	]`
+	err = installer.writeConfig(tmpDir, []byte(configJSON2))
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "is not allowed")
+	assert.Contains(t, err.Error(), "~/.my_secret")
+	assert.Contains(t, err.Error(), "config file")
+}
+
+func TestWriteConfigRemoveActionAfterAdd(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create a test file
+	testFilePath := filepath.Join(tmpDir, "conf.d/test.yaml")
+
+	// Create config JSON with add and remove actions
+	configJSON := `[
+		{
+			"path": "/conf.d/test.yaml",
+			"action": "add",
+			"contents": {"new": "content"}
+		},
+		{
+			"path": "/conf.d/test.yaml",
+			"action": "remove"
+		}
+	]`
+
+	// Call writeConfig with add and remove actions
+	err := installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.NoError(t, err)
+
+	// Verify the file was removed
+	_, err = os.Stat(testFilePath)
+	assert.True(t, os.IsNotExist(err), "File should have been removed")
+}
+
+func TestWriteConfigRemoveActionWithEmptyAction(t *testing.T) {
+	// Create a temporary directory for testing
+	tmpDir := t.TempDir()
+
+	// Create a test installer instance
+	installer := &installerImpl{}
+
+	// Create a test file
+	testFilePath := filepath.Join(tmpDir, "datadog.yaml")
+	testContent := []byte("test: content")
+	err := os.WriteFile(testFilePath, testContent, 0644)
+	assert.NoError(t, err)
+
+	// Create config JSON with empty action (should default to add)
+	configJSON := `[
+		{
+			"path": "/datadog.yaml",
+			"action": "",
+			"contents": {"new": "content"}
+		}
+	]`
+
+	// Call writeConfig with empty action
+	err = installer.writeConfig(tmpDir, []byte(configJSON))
+	assert.NoError(t, err)
+
+	// Verify the file was updated (not removed) since empty action defaults to add
+	_, err = os.Stat(testFilePath)
+	assert.NoError(t, err, "File should still exist")
+
+	// Verify the content was updated
+	content, err := os.ReadFile(testFilePath)
+	assert.NoError(t, err)
+	assert.Contains(t, string(content), "new: content")
+}
