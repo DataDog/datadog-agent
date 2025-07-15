@@ -9,6 +9,7 @@
 package debugger
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,5 +46,22 @@ func GetHTTPDebugEndpoint(tracer *tracer.Tracer) func(http.ResponseWriter, *http
 			w.WriteHeader(500)
 			return
 		}
+	}
+}
+
+func GetHTTPDebugEndpointTraffic(tracer *tracer.Tracer) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mon := tracer.USMMonitor()
+		if mon == nil {
+			log.Error("unable to retrieve USM monitor")
+			w.WriteHeader(500)
+			return
+		}
+
+		path := r.URL.Query().Get("path")
+		if path == "" {
+			w.WriteHeader(400)
+		}
+		fmt.Print(path)
 	}
 }
