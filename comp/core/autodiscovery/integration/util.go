@@ -10,6 +10,7 @@ package integration
 
 import "strings"
 
+// ConfigSourceToMetadataMap converts a config source string to a metadata map.
 func ConfigSourceToMetadataMap(source string, instance map[string]interface{}) {
 	if instance == nil {
 		instance = make(map[string]interface{})
