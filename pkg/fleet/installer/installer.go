@@ -854,7 +854,6 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 			if err != nil {
 				return fmt.Errorf("could not remove config file: %w", err)
 			}
-			continue
 		} else if file.Action == configFileActionAdd {
 			var c interface{}
 			err = json.Unmarshal(file.Contents, &c)
