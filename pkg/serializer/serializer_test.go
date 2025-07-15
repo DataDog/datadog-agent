@@ -263,6 +263,7 @@ func TestSendV1Events(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_use_events_marshaler_v2", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
@@ -274,6 +275,53 @@ func TestSendV1Events(t *testing.T) {
 			err := s.SendEvents([]*event.Event{})
 			require.Nil(t, err)
 			f.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSendV1EventsNew(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			f := &forwarder.MockedForwarder{}
+
+			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{"api":[{"msg_title":"","msg_text":"","timestamp":0,"host":""}]},"internalHostname"`, s)
+			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+
+			err := s.SendEvents([]*event.Event{{}})
+			require.Nil(t, err)
+			f.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSendV1EventsNewNoEmpty(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			f := &forwarder.MockedForwarder{}
+
+			compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
+			s := NewSerializer(f, nil, compressor, mockConfig, logmock.New(t), "testhost")
+			err := s.SendEvents([]*event.Event{})
+			require.Nil(t, err)
+			f.AssertNotCalled(t, "SubmitV1Events")
 		})
 	}
 }
@@ -290,6 +338,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_use_events_marshaler_v2", false)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			f := &forwarder.MockedForwarder{}
 
