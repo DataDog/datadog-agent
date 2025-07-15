@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
@@ -38,7 +39,7 @@ func TestIrGenFailed(t *testing.T) {
 		ch: make(chan irGenFailedMessage, 1),
 	}
 	pid := actuator.ProcessID{PID: 1234}
-	at := a.NewTenant("test", reporter)
+	at := a.NewTenant("test", reporter, irgen.NewGenerator())
 	at.HandleUpdate(actuator.ProcessesUpdate{
 		Processes: []actuator.ProcessUpdate{{
 			ProcessID: pid,
@@ -59,7 +60,7 @@ func TestIrGenFailed(t *testing.T) {
 	msg, ok := <-reporter.ch
 	require.True(t, ok)
 	require.Equal(t, pid, msg.processID)
-	require.Regexp(t, "failed to open executable", msg.err.Error())
+	require.Regexp(t, "failed to load elf file", msg.err.Error())
 	require.ErrorIs(t, msg.err, os.ErrNotExist)
 }
 
@@ -113,7 +114,7 @@ func testNoSuccessfulProbesError(t *testing.T, cfg testprogs.Config) {
 		t:  t,
 		ch: make(chan irGenFailedMessage, 1),
 	}
-	at := a.NewTenant("test", reporter)
+	at := a.NewTenant("test", reporter, irgen.NewGenerator())
 
 	pid := actuator.ProcessID{PID: int32(cmd.Process.Pid)}
 	at.HandleUpdate(actuator.ProcessesUpdate{

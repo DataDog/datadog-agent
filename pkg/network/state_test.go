@@ -589,7 +589,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
+	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 7500, 7500, 7500, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -2632,4 +2632,116 @@ func getIPProtocol(nt ConnectionType) uint8 {
 	default:
 		panic("unknown connection type")
 	}
+}
+
+func TestResetEmptyStartInvariant(t *testing.T) {
+	// This test protects against the removal of c.closed.emptyStart = 0 in the Reset() method.
+	// Without this line, the closedConnections data structure would violate its invariant
+	// that empty connections are stored at the end of the slice.
+
+	clientID := "test-client"
+	state := newDefaultState()
+	state.maxClosedConns = 10
+	state.RegisterClient(clientID)
+
+	// Create a non-empty connection
+	nonEmptyConn := ConnectionStats{
+		ConnectionTuple: ConnectionTuple{
+			Pid:    123,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  31890,
+			DPort:  80,
+		},
+		Monotonic: StatCounters{
+			SentBytes:   100,
+			RecvBytes:   50,
+			Retransmits: 1,
+		},
+		Cookie: 1,
+	}
+
+	// Create an empty connection
+	emptyConn := ConnectionStats{
+		Cookie: 2,
+	}
+
+	// Store connections to establish the data structure with emptyStart > 0
+	state.storeClosedConnection(&nonEmptyConn)
+	state.storeClosedConnection(&emptyConn)
+
+	// Verify initial state: non-empty connection should be at index 0, empty at index 1
+	client := state.clients[clientID]
+	require.Len(t, client.closed.conns, 2)
+	assert.Equal(t, nonEmptyConn, client.closed.conns[0])
+	assert.Equal(t, emptyConn, client.closed.conns[1])
+	assert.Equal(t, 1, client.closed.emptyStart) // emptyStart should be 1
+
+	// Call GetDelta which will trigger Reset() via defer
+	state.GetDelta(clientID, latestEpochTime(), nil, nil, nil)
+
+	// After Reset(), the slice should be empty and emptyStart should be 0
+	assert.Len(t, client.closed.conns, 0)
+	assert.Equal(t, 0, client.closed.emptyStart)
+
+	// Now test the critical scenario: if emptyStart wasn't reset to 0,
+	// the next operations would violate the data structure invariant
+
+	// First, store an empty connection - this should go to index 0
+	newEmptyConn := ConnectionStats{Cookie: 3}
+	state.storeClosedConnection(&newEmptyConn)
+
+	// Then store a non-empty connection - this should also go to index 0, moving empty to index 1
+	newNonEmptyConn := ConnectionStats{
+		ConnectionTuple: ConnectionTuple{
+			Pid:    124,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  31891,
+			DPort:  80,
+		},
+		Monotonic: StatCounters{
+			SentBytes: 200,
+		},
+		Cookie: 4,
+	}
+	state.storeClosedConnection(&newNonEmptyConn)
+
+	// Verify the invariant is maintained: non-empty connections first, then empty connections
+	require.Len(t, client.closed.conns, 2)
+	assert.Equal(t, newNonEmptyConn, client.closed.conns[0], "Non-empty connection should be at index 0")
+	assert.Equal(t, newEmptyConn, client.closed.conns[1], "Empty connection should be at index 1")
+	assert.Equal(t, 1, client.closed.emptyStart, "emptyStart should be 1 after storing one non-empty connection")
+
+	// Test that the byCookie map is consistent
+	assert.Equal(t, 0, client.closed.byCookie[newNonEmptyConn.Cookie])
+	assert.Equal(t, 1, client.closed.byCookie[newEmptyConn.Cookie])
+
+	// Additional verification: store another non-empty connection and verify it doesn't break the invariant
+	anotherNonEmptyConn := ConnectionStats{
+		ConnectionTuple: ConnectionTuple{
+			Pid:    125,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  31892,
+			DPort:  80,
+		},
+		Monotonic: StatCounters{
+			SentBytes: 300,
+		},
+		Cookie: 5,
+	}
+	state.storeClosedConnection(&anotherNonEmptyConn)
+
+	require.Len(t, client.closed.conns, 3)
+	assert.Equal(t, newNonEmptyConn, client.closed.conns[0], "First non-empty connection should remain at index 0")
+	assert.Equal(t, anotherNonEmptyConn, client.closed.conns[1], "Second non-empty connection should be at index 1")
+	assert.Equal(t, newEmptyConn, client.closed.conns[2], "Empty connection should be moved to index 2")
+	assert.Equal(t, 2, client.closed.emptyStart, "emptyStart should be 2 after storing two non-empty connections")
 }

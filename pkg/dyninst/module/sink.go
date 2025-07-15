@@ -28,7 +28,7 @@ type sink struct {
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
 	service      string
-	logUploader  *uploader.TaggedLogsUploader
+	logUploader  *uploader.LogsUploader
 }
 
 var _ actuator.Sink = &sink{}
