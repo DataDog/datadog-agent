@@ -54,7 +54,6 @@ var (
 type DatadogLogger struct {
 	inner LoggerInterface
 	level LogLevel
-	extra map[string]LoggerInterface
 	l     sync.RWMutex
 }
 
@@ -78,7 +77,6 @@ func SetupLogger(i LoggerInterface, level string) {
 func setupCommonLogger(i LoggerInterface, level string) *DatadogLogger {
 	l := &DatadogLogger{
 		inner: i,
-		extra: make(map[string]LoggerInterface),
 	}
 
 	lvl, ok := LogLevelFromString(level)
@@ -212,36 +210,6 @@ func ValidateLogLevel(logLevel string) (string, error) {
 *	Operation on the **logger**
  */
 
-// RegisterAdditionalLogger registers an additional logger for logging
-func RegisterAdditionalLogger(n string, li LoggerInterface) error {
-	return logger.registerAdditionalLogger(n, li)
-}
-func (sw *loggerPointer) registerAdditionalLogger(n string, li LoggerInterface) error {
-	l := sw.Load()
-	if l == nil {
-		return errors.New("cannot register: logger not initialized")
-	}
-
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.inner == nil {
-		return errors.New("cannot register: logger not initialized")
-	}
-
-	if l.extra == nil {
-
-		return errors.New("logger not fully initialized, additional logging unavailable")
-	}
-
-	if _, ok := l.extra[n]; ok {
-		return errors.New("logger already registered with that name")
-	}
-	l.extra[n] = li
-
-	return nil
-}
-
 // ReplaceLogger allows replacing the internal logger, returns old logger
 func ReplaceLogger(li LoggerInterface) LoggerInterface {
 	return logger.replaceInnerLogger(li)
@@ -307,7 +275,6 @@ func log(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string), v .
 		s := BuildLogEntry(v...)
 		scrubAndLogFunc(s)
 	}
-
 }
 func logWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
 	l := logger.Load()
@@ -481,10 +448,6 @@ func (sw *loggerPointer) trace(s string) {
 
 	scrubbed := l.scrub(s)
 	l.inner.Trace(scrubbed)
-
-	for _, l := range l.extra {
-		l.Trace(scrubbed)
-	}
 }
 
 // trace logs at the trace level and the current stack depth plus the
@@ -496,10 +459,6 @@ func (sw *loggerPointer) traceStackDepth(s string, depth int) {
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Trace(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
-
-	for _, l := range l.extra {
-		l.Trace(scrubbed)
-	}
 }
 
 // debug logs at the debug level, called with sw.l held
@@ -507,10 +466,6 @@ func (sw *loggerPointer) debug(s string) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	l.inner.Debug(scrubbed)
-
-	for _, l := range l.extra {
-		l.Debug(scrubbed)
-	}
 }
 
 // debug logs at the debug level and the current stack depth plus the additional given one, called with sw.l held
@@ -520,10 +475,6 @@ func (sw *loggerPointer) debugStackDepth(s string, depth int) {
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Debug(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
-
-	for _, l := range l.extra {
-		l.Debug(scrubbed)
-	}
 }
 
 // info logs at the info level, called with sw.l held
@@ -531,9 +482,6 @@ func (sw *loggerPointer) info(s string) {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	l.inner.Info(scrubbed)
-	for _, l := range l.extra {
-		l.Info(scrubbed)
-	}
 }
 
 // info logs at the info level and the current stack depth plus the additional given one, called with sw.l held
@@ -543,10 +491,6 @@ func (sw *loggerPointer) infoStackDepth(s string, depth int) {
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
 	l.inner.Info(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
-
-	for _, l := range l.extra {
-		l.Info(scrubbed)
-	}
 }
 
 // warn logs at the warn level, called with sw.l held
@@ -554,10 +498,6 @@ func (sw *loggerPointer) warn(s string) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	err := l.inner.Warn(scrubbed)
-
-	for _, l := range l.extra {
-		_ = l.Warn(scrubbed)
-	}
 
 	return err
 }
@@ -570,10 +510,6 @@ func (sw *loggerPointer) warnStackDepth(s string, depth int) error {
 	err := l.inner.Warn(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
-	for _, l := range l.extra {
-		_ = l.Warn(scrubbed)
-	}
-
 	return err
 }
 
@@ -582,10 +518,6 @@ func (sw *loggerPointer) error(s string) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	err := l.inner.Error(scrubbed)
-
-	for _, l := range l.extra {
-		_ = l.Error(scrubbed)
-	}
 
 	return err
 }
@@ -598,10 +530,6 @@ func (sw *loggerPointer) errorStackDepth(s string, depth int) error {
 	err := l.inner.Error(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
-	for _, l := range l.extra {
-		_ = l.Error(scrubbed)
-	}
-
 	return err
 }
 
@@ -610,10 +538,6 @@ func (sw *loggerPointer) critical(s string) error {
 	l := sw.Load()
 	scrubbed := l.scrub(s)
 	err := l.inner.Critical(scrubbed)
-
-	for _, l := range l.extra {
-		_ = l.Critical(scrubbed)
-	}
 
 	return err
 }
@@ -626,10 +550,6 @@ func (sw *loggerPointer) criticalStackDepth(s string, depth int) error {
 	err := l.inner.Critical(scrubbed)
 	_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 
-	for _, l := range l.extra {
-		_ = l.Critical(scrubbed)
-	}
-
 	return err
 }
 
@@ -638,10 +558,6 @@ func (sw *loggerPointer) tracef(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	l.inner.Trace(scrubbed)
-
-	for _, l := range l.extra {
-		l.Trace(scrubbed)
-	}
 }
 
 // debugf logs with format at the debug level, called with sw.l held
@@ -649,10 +565,6 @@ func (sw *loggerPointer) debugf(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	l.inner.Debug(scrubbed)
-
-	for _, l := range l.extra {
-		l.Debug(scrubbed)
-	}
 }
 
 // infof logs with format at the info level, called with sw.l held
@@ -660,10 +572,6 @@ func (sw *loggerPointer) infof(format string, params ...interface{}) {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	l.inner.Info(scrubbed)
-
-	for _, l := range l.extra {
-		l.Info(scrubbed)
-	}
 }
 
 // warnf logs with format at the warn level, called with sw.l held
@@ -671,10 +579,6 @@ func (sw *loggerPointer) warnf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	err := l.inner.Warn(scrubbed)
-
-	for _, l := range l.extra {
-		_ = l.Warn(scrubbed)
-	}
 
 	return err
 }
@@ -685,10 +589,6 @@ func (sw *loggerPointer) errorf(format string, params ...interface{}) error {
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	err := l.inner.Error(scrubbed)
 
-	for _, l := range l.extra {
-		_ = l.Error(scrubbed)
-	}
-
 	return err
 }
 
@@ -697,10 +597,6 @@ func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
 	l := sw.Load()
 	scrubbed := l.scrub(fmt.Sprintf(format, params...))
 	err := l.inner.Critical(scrubbed)
-
-	for _, l := range l.extra {
-		_ = l.Critical(scrubbed)
-	}
 
 	return err
 }
