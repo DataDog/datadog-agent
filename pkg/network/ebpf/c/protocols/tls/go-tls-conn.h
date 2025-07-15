@@ -63,14 +63,12 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
 
     __u32 family = 0;
     if (bpf_probe_read_user(&family, sizeof(family), conn_fd_ptr + cl->conn_fd_family_offset)) {
-        log_debug("[go-tls-conn] failed to read family from conn_fd_ptr %p", conn_fd_ptr);
         return false;
     }
 
     // read laddr
     void *addr_ptr = resolve_interface(conn_fd_ptr + cl->conn_fd_laddr_offset);
     if (addr_ptr == NULL) {
-        log_debug("[go-tls-conn] failed to resolve laddr interface at %p", conn_fd_ptr + cl->conn_fd_laddr_offset);
         return false;
     }
 
@@ -80,7 +78,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
 
     slice_t addr_ip_slice = {0};
     if (bpf_probe_read_user(&addr_ip_slice, sizeof(slice_t), addr_ptr + cl->tcp_addr_ip_offset)) {
-        log_debug("[go-tls-conn] failed to read laddr slice at %p", addr_ptr + cl->tcp_addr_ip_offset);
         return false;
     }
 
@@ -91,7 +88,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
     // read raddr
     addr_ptr = resolve_interface(conn_fd_ptr + cl->conn_fd_raddr_offset);
     if (addr_ptr == NULL) {
-        log_debug("[go-tls-conn] failed to resolve raddr interface at %p", conn_fd_ptr + cl->conn_fd_raddr_offset);
         return false;
     }
 
@@ -100,7 +96,6 @@ static __always_inline bool __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tc
     }
 
     if (bpf_probe_read_user(&addr_ip_slice, sizeof(slice_t), addr_ptr + cl->tcp_addr_ip_offset)) {
-        log_debug("[go-tls-conn] failed to read raddr slice at %p", addr_ptr + cl->tcp_addr_ip_offset);
         return false;
     }
 
