@@ -153,7 +153,7 @@ days_critical: 5`)
 
 	m.AssertExpectations(t)
 	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", servicecheck.ServiceCheckWarning, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	// Certififcates that are expired will always be reported as critical
+	// Certificates that are expired will always be reported as critical
 	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", servicecheck.ServiceCheckCritical, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
 	m.AssertNumberOfCalls(t, "Commit", 1)
 }
