@@ -712,6 +712,8 @@ func getCertChainFlagFromString(flag string) uint32 {
 		return 0x00000002
 	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED_FLAG":
 		return 0x00000004
+	case "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS":
+		return (0x00000001 | 0x00000002 | 0x00000004)
 	case "CERT_CHAIN_POLICY_IGNORE_INVALID_BASIC_CONSTRAINTS_FLAG":
 		return 0x00000008
 	case "CERT_CHAIN_POLICY_ALLOW_UNKNOWN_CA_FLAG":
@@ -730,6 +732,8 @@ func getCertChainFlagFromString(flag string) uint32 {
 		return 0x00000400
 	case "CERT_CHAIN_POLICY_IGNORE_ROOT_REV_UNKNOWN_FLAG":
 		return 0x00000800
+	case "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS":
+		return (0x00000100 | 0x00000200 | 0x00000400 | 0x00000800)
 	default:
 		log.Warnf("Unknown certificate chain validation flag, %s. Flag will be ignored.", flag)
 		return 0
