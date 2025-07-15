@@ -46,7 +46,17 @@ impl AgentCheck {
             return Err(format!("Failed to fetch {}: {}", url, response.status()).into());
         }
 
+        // response time metric
         self.gauge("network.http.response_time", duration.as_secs_f64(), &tags, "", false);
+
+        // can connect metrics
+        let can_connect = if response.status().is_success() { 1.0 } else { 0.0 };
+        
+        self.gauge("network.http.can_connect", can_connect, &tags, "", false);
+        self.gauge("network.http.cant_connect", 1.0 - can_connect, &tags, "", true);
+
+        // ssl metrics
+        // TODO
 
         Ok(())
     }
