@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Remove call to api server resource type cache when kubernetes_state_core check is running on node agent, as cache is not initialized.
+    Remove the call to the API server resource type cache when the kubernetes_state_core check is running on the node Agent, as the cache is not initialized.
