@@ -456,3 +456,20 @@ const GetLinkUsageMetrics = `
         ]
     ]
 }`
+
+// GetLinkStatusMetrics /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetLinkStatusMetrics = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,INET-1",
+            "test-branch-2B",
+            "INET-1",
+            98.5
+        ]
+    ]
+}`

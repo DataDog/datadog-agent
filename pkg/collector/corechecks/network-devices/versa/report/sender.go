@@ -188,6 +188,20 @@ func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics
 	}
 }
 
+// SendLinkStatusMetrics sends link status metrics retrieved from Versa Analytics
+func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetrics, deviceNameToIDMap map[string]string) {
+	for _, linkMetric := range linkStatusMetrics {
+		var tags = []string{
+			"site:" + linkMetric.Site,
+			"access_circuit:" + linkMetric.AccessCircuit,
+		}
+		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"link.availability", linkMetric.Availability, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {

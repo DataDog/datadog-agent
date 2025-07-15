@@ -57,7 +57,7 @@ type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
 func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, skipCertVerification bool, options ...ClientOptions) (*Client, error) {
-	err := validateParams(directorEndpoint, analyticsEndpoint, username, password)
+	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
 	}
@@ -67,21 +67,9 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		return nil, err
 	}
 
-	// TODO: remove this in favor of allowing certs to be
-	// added, this is just for triage/testing
-	if skipCertVerification {
-		log.Warnf("TLS Certificate Verification disabled!")
-	}
-	httpTransport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: skipCertVerification,
-		},
-	}
-
 	httpClient := &http.Client{
-		Transport: httpTransport,
-		Timeout:   defaultHTTPTimeout * time.Second,
-		Jar:       cookieJar,
+		Timeout: defaultHTTPTimeout * time.Second,
+		Jar:     cookieJar,
 	}
 
 	scheme := defaultHTTPScheme
@@ -120,9 +108,12 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	return client, nil
 }
 
-func validateParams(directorEndpoint, analyticsEndpoint, username, password string) error {
+func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint, username, password string) error {
 	if directorEndpoint == "" {
 		return fmt.Errorf("invalid director endpoint")
+	}
+	if directorPort == 0 {
+		return fmt.Errorf("invalid director port")
 	}
 	if analyticsEndpoint == "" {
 		return fmt.Errorf("invalid analytics endpoint")
@@ -501,20 +492,49 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 	return metrics, nil
 }
 
-// GetLinkStatusMetrics retrieves link metrics from the Versa Analytics API
-func (client *Client) GetLinkStatusMetrics(tenant string) error {
-	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkstatus(site,accckt)", "table", []string{
+// parseLinkStatusMetrics parses the raw AaData response into LinkStatusMetrics structs
+func parseLinkStatusMetrics(data [][]interface{}) ([]LinkStatusMetrics, error) {
+	var rows []LinkStatusMetrics
+	for _, row := range data {
+		m := LinkStatusMetrics{}
+		if len(row) < 4 {
+			return nil, fmt.Errorf("missing columns in row: got %d columns, expected 4", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.AccessCircuit, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for AccessCircuit")
+		}
+		if m.Availability, ok = row[3].(float64); !ok {
+			return nil, fmt.Errorf("expected float64 for Availability")
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
+// GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
+func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, error) {
+	analyticsURL := client.buildAnalyticsPath(tenant, "SDWAN", "linkstatus(site,accckt)", "tableData", []string{
 		"availability",
 	})
 
-	resp, err := client.get(analyticsURL, nil, true)
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
 	if err != nil {
-		return fmt.Errorf("failed to get Link Metrics: %v", err)
+		return nil, fmt.Errorf("failed to get Link Status Metrics: %v", err)
 	}
-
-	log.Tracef("Link Metrics Response: %s", string(resp))
-
-	return nil
+	aaData := resp.AaData
+	metrics, err := parseLinkStatusMetrics(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Link Status metrics: %v", err)
+	}
+	return metrics, nil
 }
 
 // parseLinkUsageMetrics parses the raw AaData response into LinkUsageMetrics structs

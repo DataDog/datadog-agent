@@ -265,11 +265,12 @@ func (v *VersaCheck) Run() error {
 
 		// Collect link metrics if enabled
 		if *v.config.CollectLinkMetrics {
-			err := c.GetLinkStatusMetrics(org.Name)
+			linkStatusMetrics, err := c.GetLinkStatusMetrics(org.Name)
 			if err != nil {
 				log.Errorf("error getting link status metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendLinkStatusMetrics(linkStatusMetrics, deviceNameToIDMap)
 			}
-			//TODO: send these metrics
 
 			linkUsageMetrics, err := c.GetLinkUsageMetrics(org.Name)
 			if err != nil {

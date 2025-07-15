@@ -432,3 +432,11 @@ type LinkUsageMetrics struct {
 	BandwidthTx       float64
 	BandwidthRx       float64
 }
+
+// LinkStatusMetrics represents the columns to parse from the LinkStatusMetricsResponse
+type LinkStatusMetrics struct {
+	DrillKey      string
+	Site          string
+	AccessCircuit string
+	Availability  float64
+}

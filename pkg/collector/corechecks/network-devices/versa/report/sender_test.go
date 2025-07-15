@@ -1155,3 +1155,109 @@ func TestSendInterfaceStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestSendLinkStatusMetrics(t *testing.T) {
+	tests := []struct {
+		name              string
+		linkStatusMetrics []client.LinkStatusMetrics
+		deviceNameToIDMap map[string]string
+		expectedMetrics   []expectedMetric
+	}{
+		{
+			name: "Single link status metric with device mapping",
+			linkStatusMetrics: []client.LinkStatusMetrics{
+				{
+					DrillKey:      "test-branch-2B,INET-1",
+					Site:          "test-branch-2B",
+					AccessCircuit: "INET-1",
+					Availability:  98.5,
+				},
+			},
+			deviceNameToIDMap: map[string]string{
+				"test-branch-2B": "192.168.1.1",
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "link.availability",
+					value: 98.5,
+					tags:  []string{"site:test-branch-2B", "access_circuit:INET-1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+			},
+		},
+		{
+			name: "Single link status metric without device mapping",
+			linkStatusMetrics: []client.LinkStatusMetrics{
+				{
+					DrillKey:      "test-branch-3C,INET-2",
+					Site:          "test-branch-3C",
+					AccessCircuit: "INET-2",
+					Availability:  95.0,
+				},
+			},
+			deviceNameToIDMap: map[string]string{},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "link.availability",
+					value: 95.0,
+					tags:  []string{"site:test-branch-3C", "access_circuit:INET-2"},
+				},
+			},
+		},
+		{
+			name: "Multiple link status metrics with mixed device mapping",
+			linkStatusMetrics: []client.LinkStatusMetrics{
+				{
+					DrillKey:      "branch-1,MPLS-1",
+					Site:          "branch-1",
+					AccessCircuit: "MPLS-1",
+					Availability:  99.9,
+				},
+				{
+					DrillKey:      "branch-2,INET-1",
+					Site:          "branch-2",
+					AccessCircuit: "INET-1",
+					Availability:  97.2,
+				},
+			},
+			deviceNameToIDMap: map[string]string{
+				"branch-1": "10.0.0.1",
+				// branch-2 is intentionally missing to test the no mapping case
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "link.availability",
+					value: 99.9,
+					tags:  []string{"site:branch-1", "access_circuit:MPLS-1", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "link.availability",
+					value: 97.2,
+					tags:  []string{"site:branch-2", "access_circuit:INET-1"},
+				},
+			},
+		},
+		{
+			name:              "Empty link status metrics",
+			linkStatusMetrics: []client.LinkStatusMetrics{},
+			deviceNameToIDMap: map[string]string{},
+			expectedMetrics:   []expectedMetric{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendLinkStatusMetrics(tt.linkStatusMetrics, tt.deviceNameToIDMap)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}
