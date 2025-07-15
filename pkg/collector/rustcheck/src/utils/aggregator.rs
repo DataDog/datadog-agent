@@ -54,8 +54,8 @@ type SubmitEventFn = extern "C" fn(
     Event,       // event
 );
 
-pub fn to_cstring(string: &String) -> *mut c_char {
-    CString::new(string.as_str()).expect("Can't cast Rust string to char*").into_raw()
+pub fn to_cstring(string: &str) -> *mut c_char {
+    CString::new(string).expect("Can't cast Rust string to char*").into_raw()
 }
 
 pub fn to_cstring_array(vec: &[String]) -> *mut *mut c_char {
@@ -113,7 +113,7 @@ impl Aggregator {
     }
 
     // TODO: optional arguements should use Option
-    pub fn submit_metric(&self, check_id: &String, metric_type: MetricType, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         (self.cb_submit_metric)(
             to_cstring(check_id),
             metric_type,
@@ -125,7 +125,7 @@ impl Aggregator {
         )
     }
 
-    pub fn submit_service_check(&self, check_id: &String, name: &String, status: i32, tags: &Vec<String>, hostname: &String, message: &String) {
+    pub fn submit_service_check(&self, check_id: &str, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) {
         // code example to handle Option<String>
         // let message_cstr = match message {
         //     Some(msg) => to_cstring(msg),

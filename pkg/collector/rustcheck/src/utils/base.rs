@@ -20,36 +20,36 @@ impl AgentCheck {
     // use Option for optional arguments (tags, hostname, flush_first_value)
 
     // metric functions
-    pub fn gauge(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn gauge(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::Gauge, name, value, tags, hostname, flush_first_value);
     }
 
-    pub fn rate(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn rate(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::Rate, name, value, tags, hostname, flush_first_value);
     }
 
-    pub fn count(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn count(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::Count, name, value, tags, hostname, flush_first_value);
     }
 
-    pub fn monotonic_count(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn monotonic_count(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::MonotonicCount, name, value, tags, hostname, flush_first_value);
     }
 
-    pub fn decrement(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn decrement(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::Counter, name, value, tags, hostname, flush_first_value);
     }
 
-    pub fn histogram(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn histogram(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::Histogram, name, value, tags, hostname, flush_first_value);
     }
 
-    pub fn historate(&mut self, name: &String, value: f64, tags: &Vec<String>, hostname: &String, flush_first_value: bool) {
+    pub fn historate(&mut self, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) {
         self.aggregator.submit_metric(&self.check_id, MetricType::Historate, name, value, tags, hostname, flush_first_value);
     }
 
     // service check functions
-    pub fn service_check(&mut self, name: &String, status: i32, tags: &Vec<String>, hostname: &String, message: &String) {
+    pub fn service_check(&mut self, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) {
         self.aggregator.submit_service_check(&self.check_id, name, status, tags, hostname, message);
     }
 }

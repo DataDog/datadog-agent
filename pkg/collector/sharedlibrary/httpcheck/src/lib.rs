@@ -37,7 +37,6 @@ impl AgentCheck {
         // hardcoded variables (should be passed as parameters in an instance)
         let url = "https://datadoghq.com";
         let tags = Vec::<String>::new();
-        let hostname = String::new();
 
         let start = Instant::now();
         let response = reqwest::blocking::get(url)?;
@@ -47,7 +46,7 @@ impl AgentCheck {
             return Err(format!("Failed to fetch {}: {}", url, response.status()).into());
         }
 
-        self.gauge(&String::from("network.http.response_time"), duration.as_secs_f64(), &tags, &hostname, false);
+        self.gauge("network.http.response_time", duration.as_secs_f64(), &tags, "", false);
 
         Ok(())
     }

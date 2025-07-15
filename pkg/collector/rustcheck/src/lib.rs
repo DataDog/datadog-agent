@@ -26,16 +26,15 @@ impl AgentCheck {
     pub fn check(&mut self) -> Result<(), Box<dyn Error>> {
         /* check implementation goes here */
 
-        let metric_name = String::from("so.metric");
+        let metric_name = "so.metric";
         let tags = vec![String::from("tag:long-description-of-rust-check"), String::from("tag2:another-very-long-description-used-for-testing")];
-        let hostname = String::new();
 
-        self.gauge(&metric_name, 3.14, &tags, &hostname, false);
+        self.gauge(metric_name, 3.14, &tags, "", false);
 
-        let service_name = String::from("so.service.check");
-        let message = String::from("Some service check message");
+        let service_name = "so.service.check";
+        let message = "Some service check message";
 
-        self.service_check(&service_name, 0, &tags, &hostname, &message);
+        self.service_check(service_name, 0, &tags, "", message);
 
         Ok(())
     }
