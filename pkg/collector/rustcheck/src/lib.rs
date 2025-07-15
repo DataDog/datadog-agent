@@ -1,6 +1,8 @@
 mod utils;
 use utils::base::{CheckID, AgentCheck};
 
+use std::error::Error;
+
 // function executed by RTLoader
 #[unsafe(no_mangle)]
 pub extern "C" fn Run(check_id: CheckID) {
@@ -8,12 +10,20 @@ pub extern "C" fn Run(check_id: CheckID) {
     let mut check = AgentCheck::new(check_id);
 
     // run the custom implementation
-    check.check();
+    // NOTE: may later change the prints to logs
+    match check.check() {
+        Ok(_) => {
+            println!("Check completed successfully.");
+        }
+        Err(e) => {
+            eprintln!("Error when running check: {}", e);
+        }
+    }
 }
 
 // custom check implementation
 impl AgentCheck {
-    pub fn check(&mut self) {
+    pub fn check(&mut self) -> Result<(), Box<dyn Error>> {
         /* check implementation goes here */
 
         let metric_name = String::from("so.metric");
@@ -26,5 +36,7 @@ impl AgentCheck {
         let message = String::from("Some service check message");
 
         self.service_check(&service_name, 0, &tags, &hostname, &message);
+
+        Ok(())
     }
 }

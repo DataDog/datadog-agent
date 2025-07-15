@@ -1,33 +1,14 @@
-#![deny(warnings)]
+use std::error::Error;
+use serde::Deserialize;
 
-// This is using the `tokio` runtime. You'll need the following dependency:
-// 
-// `tokio = { version = "1", features = ["full"] }`
-#[cfg(not(target_arch = "wasm32"))]
-#[tokio::main]
-async fn main() -> Result<(), reqwest::Error> {
-    // Some simple CLI args requirements...
-    let url = if let Some(url) = std::env::args().nth(1) {
-        url
-    } else {
-        println!("No CLI URL provided, using default.");
-        "https://hyper.rs".into()
-    };
+#[derive(Deserialize)]
+struct Ip {
+    origin: String,
+}
 
-    eprintln!("Fetching {url:?}...");
 
-    // reqwest::get() is a convenience function.
-    //
-    // In most cases, you should create/build a reqwest::Client and reuse
-    // it for all requests.
-    let res = reqwest::get(url).await?;
-
-    eprintln!("Response: {:?} {}", res.version(), res.status());
-    eprintln!("Headers: {:#?}\n", res.headers());
-
-    let body = res.text().await?;
-
-    println!("{body}");
-
+fn main() -> Result<(), Box<dyn Error>> {
+    let json: Ip = reqwest::blocking::get("http://httpbin.org/ip")?.json()?;
+    println!("IP: {}", json.origin);
     Ok(())
 }
