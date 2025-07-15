@@ -228,3 +228,54 @@ func getHTTPUnixClientArray(size int, unixPath string) []*http.Client {
 
 	return res
 }
+
+func TestGoTLSMapCleanup(t *testing.T) {
+	if !gotlsutils.GoTLSSupported(t, config.New()) {
+		t.Skip("GoTLS not supported on this platform")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableGoTLSSupport = true
+	cfg.GoTLSExcludeSelf = false
+
+	srvDoneFn := testutil.HTTPServer(t, serverAddrIPV4, testutil.Options{
+		EnableTLS:       true,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	goTLSMap, ok, err := monitor.ebpfProgram.Manager.GetMap(connectionTupleByGoTLSMap)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	require.Equal(t, 0, utils.CountMapEntries(t, goTLSMap))
+
+	for j := 0; j < 10; j++ {
+		proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddrIPV4, true, false)
+		require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+
+		clients := getHTTPUnixClientArray(5, unixPath)
+		for i := 0; i < 10; i++ {
+			req, err := clients[getClientsIndex(i, len(clients))].Get("https://" + serverAddrIPV4 + "/200/hello")
+			require.NoError(t, err, "could not make request")
+			_ = req.Body.Close()
+		}
+		cancel()
+
+		for _, client := range clients {
+			client.CloseIdleConnections()
+		}
+	}
+
+	require.Eventually(t, func() bool {
+		final := utils.CountMapEntries(t, goTLSMap)
+		if final != 0 {
+			t.Logf("Map still has %d entries", final)
+		}
+		return final == 0
+	}, 5*time.Second, 100*time.Millisecond, "map should be empty after proxy exit")
+}
