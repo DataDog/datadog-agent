@@ -7,14 +7,18 @@
 package diagnose
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type windowsDiagnoseSuite struct {
@@ -45,4 +49,57 @@ func (v *windowsDiagnoseSuite) TestDiagnoseInclude() {
 func (v *windowsDiagnoseSuite) TestDiagnoseExclude() {
 	v.AssertDiagnoseExclude()
 	v.AssertDiagnoseJSONExclude()
+}
+
+// TestDiagnoseJSON overrides the base method to specifically handle agent-account-check warnings
+func (v *windowsDiagnoseSuite) TestDiagnoseJSON() {
+	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite, agentclient.WithArgs([]string{"-v", "--json"}))
+
+	// Parse the full JSON structure to check warnings per suite
+	var fullResult struct {
+		Runs []struct {
+			Name      string `json:"suite_name"`
+			Diagnoses []struct {
+				Status int    `json:"result"`
+				Name   string `json:"name"`
+			} `json:"diagnoses"`
+		} `json:"runs"`
+		Summary struct {
+			Total         int `json:"total"`
+			Success       int `json:"success"`
+			Fail          int `json:"fail"`
+			Warnings      int `json:"warnings"`
+			UnexpectedErr int `json:"unexpected_error"`
+		} `json:"summary"`
+	}
+
+	err := json.Unmarshal([]byte(diagnose), &fullResult)
+	require.NoError(v.T(), err, "Failed to parse diagnose JSON output")
+
+	// Verify no failures or unexpected errors occurred
+	assert.Zero(v.T(), fullResult.Summary.Fail, "Expected no failed checks")
+	assert.Zero(v.T(), fullResult.Summary.UnexpectedErr, "Expected no unexpected errors")
+
+	// Count warnings specifically from agent-account-check and validate warning sources
+	agentAccountWarnings := 0
+	for _, run := range fullResult.Runs {
+		for _, diagnosis := range run.Diagnoses {
+			if diagnosis.Status == 2 { // DiagnosisWarning = 2
+				if run.Name == "agent-account-check" {
+					agentAccountWarnings++
+				} else {
+					assert.Fail(v.T(), "Unexpected warning found",
+						"Warning found in suite '%s' (check: '%s'), but warnings should only come from agent-account-check",
+						run.Name, diagnosis.Name)
+				}
+			}
+		}
+	}
+
+	// Verify global math using only agent-account-check warnings
+	assert.Equal(v.T(), fullResult.Summary.Success+agentAccountWarnings, fullResult.Summary.Total,
+		"Expected Success + AgentAccountWarnings to equal Total (Success: %d, AgentAccountWarnings: %d, Total: %d)",
+		fullResult.Summary.Success, agentAccountWarnings, fullResult.Summary.Total)
+
+	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
