@@ -38,7 +38,7 @@ func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) 
 	}
 	_, ok := byProbeID.LoadOrStore(probeID, struct{}{})
 	if !ok {
-		log.Debugf(
+		log.Tracef(
 			"mark %s: probeId %v marked for runtimeId %v",
 			e.name, probeID, runtimeID,
 		)
