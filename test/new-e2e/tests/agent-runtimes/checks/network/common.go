@@ -65,16 +65,17 @@ instances:
 			``,
 			true, // this setting is not only for Linux but the windows python check is missing some metrics
 		},
-		{
-			"collect connection queues",
-			`init_config:
-instances:
-  - collect_connection_state: true
-    collect_connection_queues: true
-`,
-			``,
-			true,
-		},
+		// XXX: unfortunately the python version does not initialize all of the queue metrics so we cannot reliably compare them without them being "new"
+		//{
+		//	"collect connection queues",
+		//	`init_config:
+		//instances:
+		//  - collect_connection_state: true
+		//    collect_connection_queues: true
+		//`,
+		//	``,
+		//	true,
+		//},
 	}
 
 	for _, testCase := range testCases {
