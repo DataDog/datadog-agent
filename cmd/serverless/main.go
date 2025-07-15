@@ -354,6 +354,8 @@ func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStart
 		LambdaSpanChan:  lambdaSpanChan,
 		ColdStartSpanID: coldStartSpanId,
 		RCService:       rcService,
+		// We have not yet wired up FunctionTags for the lambda go agent.
+		FunctionTags: "",
 	})
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }

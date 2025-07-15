@@ -82,6 +82,10 @@ type FileSerializer struct {
 	MountSource string `json:"mount_source,omitempty"`
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
+	// MountVisible origin of the mount
+	MountVisible bool `json:"mount_visible"`
+	// MountDetached origin of the mount
+	MountDetached bool `json:"mount_detached"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }
@@ -493,6 +497,10 @@ type MountEventSerializer struct {
 	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
+	// Mount is not attached to the VFS tree
+	Detached bool `json:"detached,omitempty"`
+	// Mount is not visible in the VFS tree
+	Visible bool `json:"visible,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -552,10 +560,25 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
+	// Socket file descriptor
+	SocketType string `json:"socket_type"`
+	// Socket family
+	SocketFamily string `json:"socket_family"`
+	// Length of the filter
+	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Socket protocol
+	SocketProtocol string `json:"socket_protocol"`
+
 	// Level at which the option is defined
-	Level uint32 `json:"level"`
+	Level string `json:"level"`
 	// Name of the option being set
-	OptName uint32 `json:"optname"`
+	OptName string `json:"optname"`
+	// Filter truncated
+	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
+	// Filter instructions
+	FilterInstructions string `json:"filter,omitempty"`
+	//Filter hash
+	FilterHash string `json:"filter_hash,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -758,6 +781,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
+		MountVisible:        fe.MountVisible,
+		MountDetached:       fe.MountDetached,
 	}
 
 	if metadata != nil {
@@ -1074,9 +1099,6 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	fh := e.FieldHandlers
 
-	//src, srcErr := , e.Mount.MountPointPathResolutionError
-	//resolvers.PathResolver.ResolveMountRoot(e, &e.Mount.Mount)
-	//dst, dstErr := resolvers.PathResolver.ResolveMountPoint(e, &e.Mount.Mount)
 	mountPointPath := fh.ResolveMountPointPath(e, &e.Mount)
 	mountSourcePath := fh.ResolveMountSourcePath(e, &e.Mount)
 
@@ -1098,6 +1120,8 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		FSType:          e.Mount.GetFSType(),
 		MountPointPath:  mountPointPath,
 		MountSourcePath: mountSourcePath,
+		Detached:        e.Mount.Detached,
+		Visible:         e.Mount.Visible,
 	}
 
 	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
@@ -1309,10 +1333,29 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 }
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
-	return &SetSockOptEventSerializer{
-		Level:   e.SetSockOpt.Level,
-		OptName: e.SetSockOpt.OptName,
+	SetSockOptEventSerializer := SetSockOptEventSerializer{
+		SocketType:         model.SocketType(e.SetSockOpt.SocketType).String(),
+		SocketProtocol:     model.SocketProtocol(e.SetSockOpt.SocketProtocol).String(),
+		SocketFamily:       model.SocketFamily(e.SetSockOpt.SocketFamily).String(),
+		Level:              model.SetSockOptLevel(e.SetSockOpt.Level).String(),
+		IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
+		FilterLen:          e.SetSockOpt.FilterLen,
+		FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+		FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
 	}
+	switch e.SetSockOpt.Level {
+	case syscall.SOL_SOCKET:
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameSolSocket(e.SetSockOpt.OptName).String()
+	case syscall.SOL_TCP:
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameTCP(e.SetSockOpt.OptName).String()
+	case syscall.SOL_IP:
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameIP(e.SetSockOpt.OptName).String()
+	case syscall.SOL_IPV6:
+		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameIPv6(e.SetSockOpt.OptName).String()
+	default:
+		SetSockOptEventSerializer.OptName = fmt.Sprintf("%d", e.SetSockOpt.OptName)
+	}
+	return &SetSockOptEventSerializer
 }
 
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {

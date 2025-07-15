@@ -15,6 +15,7 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -115,9 +116,12 @@ def get_flaky_failures_and_marked_flaky_tests_from_test_output(result_json):
     flaky_failures = defaultdict(set)
     flaky_tests = defaultdict(set)
 
-    tw = TestWasher(test_output_json_file=result_json)
-    flaky_failures.update(tw.get_flaky_failures())
-    flaky_tests.update(tw.get_flaky_marked_tests())
+    if os.path.exists(result_json):
+        tw = TestWasher(test_output_json_file=result_json)
+        flaky_failures.update(tw.get_flaky_failures())
+        flaky_tests.update(tw.get_flaky_marked_tests())
+    else:
+        print(f"{color_message('Warning', 'yellow')}: No test output file found at {result_json}")
 
     return flaky_failures, flaky_tests
 
@@ -322,7 +326,7 @@ def _normalize_architecture(architecture):
     return normalize_table.get(architecture, architecture)
 
 
-def produce_junit_tar(file, result_path):
+def produce_junit_tar(files: list[str], result_path):
     """
     Produce a tgz file containing all given files JUnit XML files and add a special file
     with additional tags.
@@ -335,7 +339,8 @@ def produce_junit_tar(file, result_path):
         "os.architecture": _normalize_architecture(platform.machine()),
     }
     with tarfile.open(result_path, "w:gz") as tgz:
-        tgz.add(file, arcname=file.replace(os.path.sep, "-"))
+        for file in files:
+            tgz.add(file, arcname=file.replace(os.path.sep, "-"))
 
         tags_file = io.BytesIO()
         for k, v in tags.items():

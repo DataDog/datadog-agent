@@ -77,6 +77,11 @@ type trigger struct {
 	// service checks and such have to be waited for before returning
 	// from Flush()
 	waitForSerializer bool
+
+	// used to flush all available data during a flush procedure, event data belonging to
+	// incomplete buckets. Is generally only appropriate to set during shutdown, since
+	// subsequent transmissions of the same bucket will override earlier entries in the backend.
+	forceFlushAll bool
 }
 
 // flushTrigger is a trigger used to flush data, results is expected to be written

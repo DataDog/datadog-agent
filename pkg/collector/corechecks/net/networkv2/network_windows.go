@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
@@ -13,7 +13,6 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strings"
 	"syscall"
 	"unsafe"
 
@@ -38,21 +37,20 @@ const (
 
 var (
 	tcpStateMetricsSuffixMapping = map[string]string{
-		"ESTABLISHED": "established",
-		"SYN_SENT":    "opening",
-		"SYN_RECV":    "opening",
-		"FIN_WAIT1":   "closing",
-		"FIN_WAIT2":   "closing",
-		"TIME_WAIT":   "time_wait",
-		"CLOSE":       "closing",
-		"CLOSE_WAIT":  "closing",
-		"LAST_ACK":    "closing",
-		"LISTEN":      "listening",
-		"CLOSING":     "closing",
-		"NONE":        "connections", // CONN_NONE is always returned for udp connections
+		"ESTABLISHED":  "established",
+		"SYN_SENT":     "opening",
+		"SYN_RECEIVED": "opening",
+		"FIN_WAIT_1":   "closing",
+		"FIN_WAIT_2":   "closing",
+		"TIME_WAIT":    "time_wait",
+		"CLOSED":       "closing",
+		"CLOSE_WAIT":   "closing",
+		"LAST_ACK":     "closing",
+		"LISTEN":       "listening",
+		"CLOSING":      "closing",
 	}
 	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
+		"": "connections", // gopsutil does not return a ConnectionStat.Status for UDP so it is an empty string
 	}
 )
 
@@ -84,7 +82,7 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
-	TcpStats(kind string) (*mibTcpStats, error)
+	TCPStats(kind string) (*mibTCPStats, error)
 }
 
 type defaultNetworkStats struct{}
@@ -101,8 +99,8 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
-func (n defaultNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
-	return getTcpStats(kind)
+func (n defaultNetworkStats) TCPStats(kind string) (*mibTCPStats, error) {
+	return getTCPStats(kind)
 }
 
 // Run executes the check
@@ -136,7 +134,7 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	// _tcp_stats
-	c.submitTcpStats(sender)
+	c.submitTCPStats(sender)
 
 	sender.Commit()
 	return nil
@@ -151,12 +149,17 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, connect
 	case "tcp4", "tcp6":
 		stateMetricSuffixMapping = tcpStateMetricsSuffixMapping
 	}
+
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
 	}
 
 	for _, connectionStats := range connectionsStats {
-		metricCount[stateMetricSuffixMapping[connectionStats.Status]]++
+		if suffix, ok := stateMetricSuffixMapping[connectionStats.Status]; ok {
+			metricCount[suffix]++
+		} else {
+			log.Debugf("%s state mapping not found for %s", protocolName, connectionStats.Status)
+		}
 	}
 
 	for suffix, count := range metricCount {
@@ -165,37 +168,37 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, connect
 }
 
 const (
-	AF_INET  = 2
-	AF_INET6 = 23
+	AF_INET  = 2  //revive:disable-line
+	AF_INET6 = 23 //revive:disable-line
 )
 
 // TCPSTATS DWORD mappings
 // https://learn.microsoft.com/en-us/windows/win32/api/tcpmib/ns-tcpmib-mib_tcpstats_lh
-type mibTcpStats struct {
+type mibTCPStats struct {
 	DwRtoAlgorithm uint32
 	DwRtoMin       uint32
 	DwRtoMax       uint32
 	DwMaxConn      uint32
-	DwActiveOpens  uint32
-	DwPassiveOpens uint32
-	DwAttemptFails uint32
-	DwEstabResets  uint32
-	DwCurrEstab    uint32
-	DwInSegs       uint32
-	DwOutSegs      uint32
-	DwRetransSegs  uint32
-	DwInErrs       uint32
-	DwOutRsts      uint32
-	DwNumConns     uint32
+	DwActiveOpens  uint32 `metric_name:"active_opens"`
+	DwPassiveOpens uint32 `metric_name:"passive_opens"`
+	DwAttemptFails uint32 `metric_name:"attempt_fails"`
+	DwEstabResets  uint32 `metric_name:"established_resets"`
+	DwCurrEstab    uint32 `metric_name:"current_established" metric_type:"gauge"`
+	DwInSegs       uint32 `metric_name:"in_segs"`
+	DwOutSegs      uint32 `metric_name:"out_segs"`
+	DwRetransSegs  uint32 `metric_name:"retrans_segs"`
+	DwInErrs       uint32 `metric_name:"in_errors"`
+	DwOutRsts      uint32 `metric_name:"out_resets"`
+	DwNumConns     uint32 `metric_name:"connections" metric_type:"gauge"`
 }
 
 var (
 	iphlpapi               = windows.NewLazySystemDLL("iphlpapi.dll")
-	procGetTcpStatisticsEx = iphlpapi.NewProc("GetTcpStatisticsEx")
+	procGetTCPStatisticsEx = iphlpapi.NewProc("GetTcpStatisticsEx")
 )
 
 // gopsutil does not call GetTcpStatisticsEx so we need to do so manually for these stats
-func getTcpStats(protocolName string) (*mibTcpStats, error) {
+func getTCPStats(protocolName string) (*mibTCPStats, error) {
 	var inet uint
 	switch protocolName {
 	case "tcp4":
@@ -203,9 +206,9 @@ func getTcpStats(protocolName string) (*mibTcpStats, error) {
 	case "tcp6":
 		inet = AF_INET6
 	}
-	tcpStats := &mibTcpStats{}
+	tcpStats := &mibTCPStats{}
 	// the syscall will always populate the struct on success
-	r0, _, _ := procGetTcpStatisticsEx.Call(uintptr(unsafe.Pointer(tcpStats)), uintptr(inet))
+	r0, _, _ := procGetTCPStatisticsEx.Call(uintptr(unsafe.Pointer(tcpStats)), uintptr(inet))
 	if r0 != 0 {
 		err := syscall.Errno(r0)
 		return nil, err
@@ -214,34 +217,20 @@ func getTcpStats(protocolName string) (*mibTcpStats, error) {
 }
 
 // Collect metrics from Microsoft's TCPSTATS
-func (c *NetworkCheck) submitTcpStats(sender sender.Sender) {
-	tcpStatsMapping := map[string]string{
-		"DwActiveOpens":  ".active_opens",
-		"DwPassiveOpens": ".passive_opens",
-		"DwAttemptFails": ".attempt_fails",
-		"DwEstabResets":  ".established_resets",
-		"DwCurrEstab":    ".current_established", // Gauge
-		"DwInSegs":       ".in_segs",
-		"DwOutSegs":      ".out_segs",
-		"DwRetransSegs":  ".retrans_segs",
-		"DwInErrs":       ".in_errors",
-		"DwOutRsts":      ".out_resets",
-		"DwNumConns":     ".connections", // Gauge
-	}
-
-	tcp4Stats, err := c.net.TcpStats("tcp4")
+func (c *NetworkCheck) submitTCPStats(sender sender.Sender) {
+	tcp4Stats, err := c.net.TCPStats("tcp4")
 	if err != nil {
 		log.Errorf("OSError getting TCP4 stats from GetTcpStatisticsEx: %s", err)
 	}
 
-	tcp6Stats, err := c.net.TcpStats("tcp6")
+	tcp6Stats, err := c.net.TCPStats("tcp6")
 	if err != nil {
 		log.Errorf("OSError getting TCP6 stats from GetTcpStatisticsEx: %s", err)
 	}
 
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
 	if tcp4Stats != nil && tcp6Stats != nil {
-		tcpAllStats := &mibTcpStats{
+		tcpAllStats := &mibTCPStats{
 			DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
 			DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
 			DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
@@ -258,13 +247,13 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) {
 			DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
 			DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
 		}
-		c.submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
+		c.submitMetricsFromStruct(sender, "system.net.tcp.", tcpAllStats)
 	}
-	c.submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
-	c.submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
+	c.submitMetricsFromStruct(sender, "system.net.tcp4.", tcp4Stats)
+	c.submitMetricsFromStruct(sender, "system.net.tcp6.", tcp6Stats)
 }
 
-func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
+func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTCPStats) {
 	if tcpStats == nil {
 		return
 	}
@@ -272,10 +261,15 @@ func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefi
 	s := reflect.ValueOf(tcpStats).Elem()
 	sType := s.Type()
 	for i := 0; i < s.NumField(); i++ {
-		fieldName := sType.Field(i).Name
-		metricName := metricPrefix + tcpStatsMapping[fieldName]
+		tag := sType.Field(i).Tag
+		metricNameTag := tag.Get("metric_name")
+		if metricNameTag == "" {
+			continue
+		}
+
+		metricName := metricPrefix + metricNameTag
 		metricValue := s.Field(i).Uint()
-		if strings.HasSuffix(metricName, ".connections") || strings.HasSuffix(metricName, ".current_established") {
+		if tag.Get("metric_type") == "gauge" {
 			sender.Gauge(metricName, float64(metricValue), "", nil)
 		} else {
 			if c.config.instance.CollectRateMetrics {

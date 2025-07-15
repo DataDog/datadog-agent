@@ -138,6 +138,11 @@ func TestProcessDefaultConfig(t *testing.T) {
 			key:          "process_config.intervals.connections",
 			defaultValue: nil,
 		},
+		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		{
+			key:          "process_config.process_collection.use_wlm",
+			defaultValue: false,
+		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
 			assert.Equal(t, tc.defaultValue, cfg.Get(tc.key))
@@ -453,6 +458,13 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS",
 			value:    "10",
 			expected: "10",
+		},
+		// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+		{
+			key:      "process_config.process_collection.use_wlm",
+			env:      "DD_PROCESS_CONFIG_PROCESS_COLLECTION_USE_WLM",
+			value:    "false",
+			expected: false,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {

@@ -238,7 +238,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 // handleCheck is the handler for the /check endpoint.
 // Returns the list of service discovery events.
 func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
-	params, err := core.ParseParams(req.URL.Query())
+	params, err := core.ParseParamsFromRequest(req)
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -256,7 +256,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
-	params, err := core.ParseParams(req.URL.Query())
+	params, err := core.ParseParamsFromRequest(req)
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -525,11 +525,7 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 // service.
 const maxNumberOfPorts = 50
 
-func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid, context.readlinkBuffer)
-	if err != nil {
-		return nil, err
-	}
+func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64) ([]uint16, error) {
 	if len(sockets) == 0 {
 		return nil, nil
 	}
@@ -605,7 +601,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	ports, err := s.getPorts(context, pid)
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	ports, err := s.getPorts(context, pid, openFileInfo.sockets)
 	if err != nil {
 		return nil
 	}
@@ -650,6 +650,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	service := &model.Service{}
 	info.ToModelService(pid, service)
 	service.Ports = ports
+	service.LogFiles = getLogFiles(pid, openFileInfo.logs)
 
 	return service
 }
@@ -702,7 +703,11 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	ports, err := s.getPorts(context, pid)
+	openFileInfo, err := getOpenFilesInfo(pid, context.readlinkBuffer)
+	if err != nil {
+		return nil
+	}
+	ports, err := s.getPorts(context, pid, openFileInfo.sockets)
 	if err != nil {
 		return nil
 	}
@@ -715,7 +720,9 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
 		return nil
 	}
+
 	info.Ports = ports
+	info.LogFiles = getLogFiles(pid, openFileInfo.logs)
 
 	out := &model.Service{}
 	info.ToModelService(pid, out)

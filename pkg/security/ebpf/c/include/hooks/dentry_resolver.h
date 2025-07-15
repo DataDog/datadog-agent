@@ -28,7 +28,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
@@ -181,7 +183,9 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, en
 
     state->iteration++;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
@@ -263,7 +267,9 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
 
     state->iteration++;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);

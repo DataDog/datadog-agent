@@ -331,5 +331,5 @@ func GetCgroup2MountPoint() (string, error) {
 		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: error reading mountinfo: %w", err)
 	}
 
-	return "", fmt.Errorf("cgroup v2 not found")
+	return "", nil
 }

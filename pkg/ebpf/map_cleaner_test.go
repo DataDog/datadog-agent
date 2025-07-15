@@ -88,7 +88,7 @@ func TestMapCleaner(t *testing.T) {
 			}
 
 			// Clean all the even entries
-			cleaner.Clean(cleanerInterval, nil, nil, func(_ int64, k int64, _ int64) bool {
+			cleaner.Start(cleanerInterval, nil, nil, func(_ int64, k int64, _ int64) bool {
 				return k%2 == 0
 			})
 

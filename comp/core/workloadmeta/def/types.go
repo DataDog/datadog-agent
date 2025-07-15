@@ -714,6 +714,7 @@ type KubernetesPod struct {
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
+	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
 	IP                         string
@@ -779,6 +780,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		}
 	}
 
+	if len(p.EphemeralContainers) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Ephemeral Containers -----------")
+		for _, c := range p.EphemeralContainers {
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
+		}
+	}
+
 	_, _ = fmt.Fprintln(&sb, "----------- Pod Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Ready:", p.Ready)
 	_, _ = fmt.Fprintln(&sb, "Phase:", p.Phase)
@@ -808,9 +816,9 @@ func (p KubernetesPod) String(verbose bool) string {
 	return sb.String()
 }
 
-// GetAllContainers returns init containers and containers.
+// GetAllContainers returns all containers, including init containers and ephemeral containers.
 func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
-	return append(p.InitContainers, p.Containers...)
+	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
 }
 
 var _ Entity = &KubernetesPod{}
@@ -1206,6 +1214,9 @@ type Service struct {
 	// GeneratedName is the name generated from the process info
 	GeneratedName string
 
+	// LogFiles are the log files associated with this service
+	LogFiles []string
+
 	// GeneratedNameSource indicates the source of the generated name
 	GeneratedNameSource string
 
@@ -1235,18 +1246,18 @@ type Service struct {
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
-	Pid          int32
-	NsPid        int32
-	Ppid         int32
-	Name         string
-	Cwd          string
-	Exe          string
-	Comm         string
-	Cmdline      []string
-	Uids         []int32
-	Gids         []int32
+	Pid          int32    // Process ID -- /proc/[pid]
+	NsPid        int32    // Namespace PID -- /proc/[pid]/status
+	Ppid         int32    // Parent Process ID -- /proc/[pid]/stat
+	Name         string   // Name -- /proc/[pid]/status
+	Cwd          string   // Current Working Directory -- /proc/[pid]/cwd
+	Exe          string   // Exceutable Path -- /proc[pid]/exe
+	Comm         string   // Short Command Name -- /proc/[pid]/comm
+	Cmdline      []string // Command Line -- /proc/[pid]/cmdline
+	Uids         []int32  // User IDs -- /proc/[pid]/status
+	Gids         []int32  // Group IDs -- /proc/[pid]/status
 	ContainerID  string
-	CreationTime time.Time
+	CreationTime time.Time // Process Start Time -- /proc/[pid]/stat
 	Language     *languagemodels.Language
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
@@ -1307,6 +1318,13 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+
+			if len(p.Service.LogFiles) > 0 {
+				_, _ = fmt.Fprintln(&sb, "----------- Log Files -----------")
+				for _, logFile := range p.Service.LogFiles {
+					_, _ = fmt.Fprintln(&sb, logFile)
+				}
+			}
 		}
 	}
 	// TODO: add new fields once the new wlm process collector can be enabled

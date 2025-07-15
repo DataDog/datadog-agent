@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -28,15 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type endpointResolveMode string
-
 const (
 	kubeEndpointID               = "endpoints"
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubeEndpointResolvePath      = "resolve"
-
-	kubeEndpointResolveAuto endpointResolveMode = "auto"
-	kubeEndpointResolveIP   endpointResolveMode = "ip"
 )
 
 // kubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.
@@ -46,7 +42,7 @@ type kubeEndpointsConfigProvider struct {
 	endpointsLister    listersv1.EndpointsLister
 	upToDate           bool
 	monitoredEndpoints map[string]bool
-	configErrors       map[string]ErrorMsgSet
+	configErrors       map[string]types.ErrorMsgSet
 	telemetryStore     *telemetry.Store
 }
 
@@ -60,7 +56,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -75,7 +71,7 @@ func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, te
 	p := &kubeEndpointsConfigProvider{
 		serviceLister:      servicesInformer.Lister(),
 		monitoredEndpoints: make(map[string]bool),
-		configErrors:       make(map[string]ErrorMsgSet),
+		configErrors:       make(map[string]types.ErrorMsgSet),
 		telemetryStore:     telemetryStore,
 	}
 
@@ -251,7 +247,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		}
 
 		if len(errors) > 0 {
-			errMsgSet := make(ErrorMsgSet)
+			errMsgSet := make(types.ErrorMsgSet)
 			for _, err := range errors {
 				log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 				errMsgSet[err.Error()] = struct{}{}
@@ -297,24 +293,10 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 		return []integration.Config{tpl}
 	}
 	generatedConfigs := make([]integration.Config, 0)
-	namespace := kep.Namespace
-	name := kep.Name
+	namespace, name := kep.Namespace, kep.Name
 
 	// Check resolve annotation to know how we should process this endpoint
-	var resolveFunc func(*integration.Config, v1.EndpointAddress)
-	switch resolveMode {
-	// IP: we explicitly ignore what's behind this address (nothing to do)
-	case kubeEndpointResolveIP:
-	// In case of unknown value, fallback to auto
-	default:
-		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - fallback to auto mode", resolveMode, namespace, name)
-		fallthrough
-	// Auto or empty (default to auto): we try to resolve the POD behind this address
-	case "":
-		fallthrough
-	case kubeEndpointResolveAuto:
-		resolveFunc = utils.ResolveEndpointConfigAuto
-	}
+	resolveFunc := getEndpointResolveFunc(resolveMode, namespace, name)
 
 	for i := range kep.Subsets {
 		for j := range kep.Subsets[i].Addresses {
@@ -358,6 +340,6 @@ func (k *kubeEndpointsConfigProvider) cleanErrorsOfDeletedEndpoints(setCurrentEn
 }
 
 // GetConfigErrors returns a map of configuration errors for each Kubernetes endpoint
-func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (k *kubeEndpointsConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
 	return k.configErrors
 }
