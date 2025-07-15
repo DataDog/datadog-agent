@@ -99,7 +99,6 @@ version = "0.1.0"
 dependencies = [
  "libloading",
  "reqwest",
- "serde",
 ]
 
 [[package]]

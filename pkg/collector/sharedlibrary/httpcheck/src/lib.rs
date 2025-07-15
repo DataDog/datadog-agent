@@ -2,12 +2,8 @@ mod utils;
 use utils::base::{CheckID, AgentCheck};
 
 use std::error::Error;
-use serde::Deserialize;
 
-#[derive(Deserialize)]
-struct Ip {
-    origin: String,
-}
+use std::time::Instant;
 
 // function executed by RTLoader
 // instead of passing CheckID, it will be more flexible to pass a struct that contains
@@ -25,10 +21,10 @@ pub extern "C" fn Run(check_id: CheckID) {
     // NOTE: may later change the prints to logs
     match check.check() {
         Ok(_) => {
-            println!("Check completed successfully.");
+            println!("[SharedLibraryCheck] Check completed successfully.");
         }
         Err(e) => {
-            eprintln!("Error when running check: {}", e);
+            eprintln!("[SharedLibraryCheck] Error when running check: {}", e);
         }
     }
 }
@@ -38,8 +34,21 @@ impl AgentCheck {
     pub fn check(&mut self) -> Result<(), Box<dyn Error>> {
         /* check implementation goes here */
 
-        let json: Ip = reqwest::blocking::get("http://httpbin.org/ip")?.json()?;
-        println!("IP: {}", json.origin);
+        // hardcoded variables (should be passed as parameters in an instance)
+        let url = "https://datadoghq.com";
+        let tags = Vec::<String>::new();
+        let hostname = String::new();
+
+        let start = Instant::now();
+        let response = reqwest::blocking::get(url)?;
+        let duration = start.elapsed();
+
+        if !response.status().is_success() {
+            return Err(format!("Failed to fetch {}: {}", url, response.status()).into());
+        }
+
+        self.gauge(&String::from("network.http.response_time"), duration.as_secs_f64(), &tags, &hostname, false);
+
         Ok(())
     }
 }

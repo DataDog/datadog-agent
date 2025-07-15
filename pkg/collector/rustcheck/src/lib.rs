@@ -13,10 +13,10 @@ pub extern "C" fn Run(check_id: CheckID) {
     // NOTE: may later change the prints to logs
     match check.check() {
         Ok(_) => {
-            println!("Check completed successfully.");
+            println!("[SharedLibraryCheck] Check completed successfully.");
         }
         Err(e) => {
-            eprintln!("Error when running check: {}", e);
+            eprintln!("[SharedLibraryCheck] Error when running check: {}", e);
         }
     }
 }

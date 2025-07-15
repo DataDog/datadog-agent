@@ -1,15 +1,18 @@
 use std::error::Error;
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-struct Ip {
-    origin: String,
-}
+use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let url = "http://httpbin.org/ip";
+    // hardcoded variables
+    let url = "https://datadoghq.com";
 
-    let json: Ip = reqwest::blocking::get(url)?.json()?;
-    println!("IP: {}", json.origin);
+    let start = Instant::now();
+    let response = reqwest::blocking::get(url)?;
+    let duration = start.elapsed();
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to fetch {}: {}", url, response.status()).into());
+    }
+
+    println!("Fetched {} in {} ms", url, duration.as_millis());
     Ok(())
 }
