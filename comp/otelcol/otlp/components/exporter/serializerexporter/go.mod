@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.67.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.29.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.29.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
@@ -86,7 +86,7 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
@@ -136,11 +136,11 @@ require (
 	go.opentelemetry.io/collector/consumer/consumertest v0.129.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.129.0 // indirect
 	go.opentelemetry.io/collector/pipeline v0.129.0 // indirect
-	go.opentelemetry.io/otel v1.36.0 // indirect
-	go.opentelemetry.io/otel/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/trace v1.36.0 // indirect
+	go.opentelemetry.io/otel v1.37.0 // indirect
+	go.opentelemetry.io/otel/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.37.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
+	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0
