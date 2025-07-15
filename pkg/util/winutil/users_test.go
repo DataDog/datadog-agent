@@ -147,6 +147,10 @@ func TestDoesAgentUserHaveDesiredGroups(t *testing.T) {
 		if strings.Contains(err.Error(), "access denied") {
 			t.Skip("Skipping test - requires administrator privileges")
 		}
+		// skip test on a system which does not have DDAgent installed
+		if strings.Contains(err.Error(), "cannot find the file specified") || strings.Contains(err.Error(), "could not open registry key") {
+			t.Skip("Skipping test - DDAgent not installed (registry key not found)")
+		}
 		t.Fatalf("Failed to check groups: %v", err)
 	}
 
@@ -164,6 +168,10 @@ func TestDoesAgentUserHaveDesiredRights(t *testing.T) {
 		t.Logf("Error checking rights: %v", err)
 		if strings.Contains(err.Error(), "access denied") {
 			t.Skip("Skipping test - requires administrator privileges")
+		}
+		// skip test on a system which does not have DDAgent installed
+		if strings.Contains(err.Error(), "cannot find the file specified") || strings.Contains(err.Error(), "could not open registry key") {
+			t.Skip("Skipping test - DDAgent not installed (registry key not found)")
 		}
 		t.Fatalf("Failed to check rights: %v", err)
 	}
