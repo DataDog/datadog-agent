@@ -36,21 +36,19 @@ const (
 // Configuration for the Versa check
 type checkCfg struct {
 	// add versa specific fields
-	Name                      string `yaml:"name"` // TODO: remove this field, only added it for testing
-	DirectorEndpoint          string `yaml:"director_endpoint"`
-	DirectorPort              int    `yaml:"director_port"`
-	AnalyticsEndpoint         string `yaml:"analytics_endpoint"`
-	Username                  string `yaml:"username"`
-	Password                  string `yaml:"password"`
-	MaxAttempts               int    `yaml:"max_attempts"`
-	MaxPages                  int    `yaml:"max_pages"`
-	MaxCount                  int    `yaml:"max_count"`
-	LookbackTimeWindowMinutes int    `yaml:"lookback_time_window_minutes"`
-	UseHTTP                   bool   `yaml:"use_http"`
-	Insecure                  bool   `yaml:"insecure"`
-	CAFile                    string `yaml:"ca_file"`
-	// TODO: remove this in favor of allowing custom certs
-	SkipCertVerification            bool     `yaml:"skip_cert_verification"`
+	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
+	DirectorEndpoint                string   `yaml:"director_endpoint"`
+	DirectorPort                    int      `yaml:"director_port"`
+	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
+	Username                        string   `yaml:"username"`
+	Password                        string   `yaml:"password"`
+	MaxAttempts                     int      `yaml:"max_attempts"`
+	MaxPages                        int      `yaml:"max_pages"`
+	MaxCount                        int      `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int      `yaml:"lookback_time_window_minutes"`
+	UseHTTP                         bool     `yaml:"use_http"`
+	Insecure                        bool     `yaml:"insecure"`
+	CAFile                          string   `yaml:"ca_file"`
 	Namespace                       string   `yaml:"namespace"`
 	IncludedTenants                 []string `yaml:"included_tenants"`
 	ExcludedTenants                 []string `yaml:"excluded_tenants"`
@@ -88,7 +86,7 @@ func (v *VersaCheck) Run() error {
 		return err
 	}
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, v.config.SkipCertVerification, clientOptions...)
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, clientOptions...)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}

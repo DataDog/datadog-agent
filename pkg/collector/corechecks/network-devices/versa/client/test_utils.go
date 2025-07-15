@@ -54,7 +54,7 @@ func testClient(server *httptest.Server) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := NewClient(host, port, "https://10.0.0.1:8443", "testuser", "testpass", true, false)
+	client, err := NewClient(host, port, "https://10.0.0.1:8443", "testuser", "testpass", true)
 	if err != nil {
 		return nil, err
 	}

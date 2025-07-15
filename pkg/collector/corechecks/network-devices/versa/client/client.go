@@ -56,7 +56,7 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, skipCertVerification bool, options ...ClientOptions) (*Client, error) {
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
 	err := validateParams(directorEndpoint, directorPort, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
