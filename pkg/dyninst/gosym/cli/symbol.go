@@ -19,7 +19,7 @@ import (
 )
 
 func run(binary string, pc uint64) error {
-	mef, err := object.NewMMappingElfFile(binary)
+	mef, err := object.OpenMMappingElfFile(binary)
 	if err != nil {
 		return err
 	}
