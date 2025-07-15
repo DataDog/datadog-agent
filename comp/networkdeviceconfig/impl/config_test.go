@@ -99,3 +99,28 @@ network_config_management:
 		})
 	}
 }
+
+func TestConfig_Errors(t *testing.T) {
+	var tests = []struct {
+		name        string
+		configYaml  string
+		expectedErr string
+	}{
+		{
+			name: "NCM malformed config, wrong type for devices (string instead of map)",
+			configYaml: `
+network_config_management:
+  namespace: test
+  devices: blah`,
+			expectedErr: "'devices[0]' expected a map, got 'string'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := mock.NewFromYAML(t, tt.configYaml)
+			_, err := newConfig(mockConfig)
+			assert.NotNil(t, err)
+			assert.ErrorContains(t, err, tt.expectedErr)
+		})
+	}
+}
