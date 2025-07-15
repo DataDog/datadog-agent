@@ -6,9 +6,10 @@ struct Ip {
     origin: String,
 }
 
-
 fn main() -> Result<(), Box<dyn Error>> {
-    let json: Ip = reqwest::blocking::get("http://httpbin.org/ip")?.json()?;
+    let url = "http://httpbin.org/ip";
+
+    let json: Ip = reqwest::blocking::get(url)?.json()?;
     println!("IP: {}", json.origin);
     Ok(())
 }
