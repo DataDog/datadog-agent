@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // MinimumKernelVersion is the minimum kernel version required by the ebpf program.
@@ -95,13 +94,9 @@ func GenerateIr(
 	binPath string,
 	cfgName string,
 ) (*object.ElfFile, *ir.Program) {
-	binary, err := safeelf.Open(binPath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, binary.Close()) }()
-
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
-	obj, err := object.NewElfObject(binary)
+	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
 
 	irp, err := irgen.GenerateIR(1, obj, probes)
@@ -168,7 +163,7 @@ func AttachBPFProbes(
 ) func() {
 	sampleLink, err := link.OpenExecutable(binPath)
 	require.NoError(t, err)
-	textSection, err := object.FindTextSectionHeader(obj.File)
+	textSection, err := object.FindTextSectionHeader(obj.Underlying.Elf)
 	require.NoError(t, err)
 
 	var allAttached []link.Link
