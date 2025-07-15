@@ -115,6 +115,11 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		return nil, nil
 	}
 
+	prog := &goTLSProgram{
+		cfg:     c,
+		manager: mgr,
+	}
+
 	attacherCfg := uprobes.AttacherConfig{
 		EbpfConfig: &c.Config,
 		Rules: []*uprobes.AttachRule{{
@@ -148,26 +153,21 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		attacherCfg.ExcludeTargets |= uprobes.ExcludeSelf
 	}
 
-	inspector := &goTLSBinaryInspector{
+	prog.inspector = &goTLSBinaryInspector{
 		structFieldsLookupFunctions: structFieldsLookupFunctions,
 		paramLookupFunctions:        paramLookupFunctions,
 		binAnalysisMetric:           libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 		binNoSymbolsMetric:          libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 	}
 
-	procMon := monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, inspector, procMon)
+	prog.procMon = monitor.GetProcessMonitor()
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, GoTLSAttacherName, attacherCfg, mgr, uprobes.NopOnAttachCallback, prog.inspector, prog.procMon)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
+	prog.attacher = attacher
 
-	return &goTLSProgram{
-		cfg:       c,
-		inspector: inspector,
-		attacher:  attacher,
-		procMon:   procMon,
-		manager:   mgr,
-	}, nil
+	return prog, nil
 }
 
 // Name return the program's name.
