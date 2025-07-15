@@ -27,18 +27,18 @@ import "C"
 // Common Windows error codes and NTSTATUS values
 const (
 	// NTSTATUS values
-	STATUS_SUCCESS                = 0x00000000
-	STATUS_ACCESS_DENIED          = 0xC0000022
-	STATUS_OBJECT_NAME_NOT_FOUND  = 0xC0000034
-	STATUS_INSUFFICIENT_RESOURCES = 0xC000009A
-	STATUS_NO_SUCH_PRIVILEGE      = 0xC0000060
+	StatusSuccess               = 0x00000000
+	StatusAccessDenied          = 0xC0000022
+	StatusObjectNameNotFound    = 0xC0000034
+	StatusInsufficientResources = 0xC000009A
+	StatusNoSuchPrivilege       = 0xC0000060
 
 	// Win32 error codes
-	ERROR_ACCESS_DENIED     = 5
-	ERROR_NOT_ENOUGH_MEMORY = 8
-	ERROR_INVALID_PARAMETER = 87
-	NERR_UserNotFound       = 2221
-	NERR_InternalError      = 2140
+	ErrorAccessDenied     = 5
+	ErrorNotEnoughMemory  = 8
+	ErrorInvalidParameter = 87
+	NerrUserNotFound      = 2221
+	NerrInternalError     = 2140
 )
 
 // GetSidFromUser grabs and returns the windows SID for the current user or an error.
@@ -212,7 +212,7 @@ func GetDDUserGroups() ([]string, error) {
 	return groups, nil
 }
 
-// check if the DD user has desired groups:
+// DoesAgentUserHaveDesiredGroups checks if the DD user has desired groups:
 // - Event Log Readers
 // - Performance Log Users
 // - Performance Monitor Users
@@ -276,7 +276,7 @@ func GetDDUserRights() ([]string, error) {
 	return rights, nil
 }
 
-// check if agent account has desired right
+// DoesAgentUserHaveDesiredRights checks if agent account has desired rights:
 // - SeServiceLogonRight
 // - SeDenyInteractiveLogonRight
 // - SeDenyNetworkLogonRight
@@ -317,26 +317,26 @@ func DoesAgentUserHaveDesiredRights() ([]string, bool, error) {
 // NTSTATUS: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781
 func handleUserError(operation, username string, errorCode int) error {
 	switch uint32(errorCode) {
-	case STATUS_SUCCESS:
+	case StatusSuccess:
 		// This shouldn't happen if we got NULL, but handle gracefully
 		return fmt.Errorf("failed to %s for user '%s': unknown error (success code returned)", operation, username)
 
-	case STATUS_ACCESS_DENIED:
+	case StatusAccessDenied:
 		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
 
-	case STATUS_OBJECT_NAME_NOT_FOUND, NERR_UserNotFound:
+	case StatusObjectNameNotFound, NerrUserNotFound:
 		return fmt.Errorf("user '%s' not found while trying to %s", username, operation)
 
-	case STATUS_INSUFFICIENT_RESOURCES, ERROR_NOT_ENOUGH_MEMORY:
+	case StatusInsufficientResources, ErrorNotEnoughMemory:
 		return fmt.Errorf("insufficient memory while trying to %s for user '%s'", operation, username)
 
-	case STATUS_NO_SUCH_PRIVILEGE:
+	case StatusNoSuchPrivilege:
 		return fmt.Errorf("no privileges found for user '%s' while trying to %s", username, operation)
 
-	case ERROR_ACCESS_DENIED:
+	case ErrorAccessDenied:
 		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
 
-	case ERROR_INVALID_PARAMETER:
+	case ErrorInvalidParameter:
 		return fmt.Errorf("invalid parameter while trying to %s for user '%s'", operation, username)
 
 	default:
