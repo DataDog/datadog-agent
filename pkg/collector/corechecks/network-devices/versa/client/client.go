@@ -409,7 +409,7 @@ func (client *Client) closeQuery(queryID string) {
 	// We don't expect any meaningful response from the close endpoint
 	_, err := client.get(closeEndpoint, params, false)
 	if err != nil {
-		log.Warnf("failed to close query %s: %v", queryID, err)
+		log.Debugf("failed to close query %s: %v", queryID, err)
 	}
 }
 
