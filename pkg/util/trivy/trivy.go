@@ -120,6 +120,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
+			"/usr/share/rpm/*",
 		}
 	} else if looselyCompareAnalyzers(opts.Analyzers, []string{OSAnalyzers, LanguagesAnalyzers}) {
 		option.WalkerOption.SkipDirs = append(
