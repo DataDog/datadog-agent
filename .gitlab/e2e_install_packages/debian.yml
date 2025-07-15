@@ -150,6 +150,9 @@ new-e2e-agent-platform-ddot-debian-a7-x86_64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x86_64
   rules: !reference [.on_default_new_e2e_tests]
+  variables:
+    # TODO(@alopezz): Avoids debian 10 on purpose, revert when #incident-40625 is fixed
+    E2E_OSVERS: "debian-9,debian-11,debian-12"
 
 new-e2e-agent-platform-ddot-debian-a7-arm64:
   extends:
@@ -158,3 +161,7 @@ new-e2e-agent-platform-ddot-debian-a7-arm64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_arm64
   rules: !reference [.on_default_new_e2e_tests]
+  variables:
+    # TODO(@alopezz): Avoids debian 10 on purpose, revert when #incident-40625 is fixed
+    E2E_OSVERS: "debian-11"
+    E2E_BRANCH_OSVERS: "debian-11"

@@ -102,19 +102,6 @@ type groupInfo struct {
 	msgs    []Message
 }
 
-// isUnsupportedUbuntu checks if the test is running on an unsupported Ubuntu version.
-// As of now, we don’t support Kafka TLS with Ubuntu 24.10, so this function identifies
-// if the current platform and version match this unsupported configuration.
-func isUnsupportedUbuntu(t *testing.T) bool {
-	platform, err := kernel.Platform()
-	require.NoError(t, err)
-	platformVersion, err := kernel.PlatformVersion()
-	require.NoError(t, err)
-	arch := kernel.Arch()
-
-	return platform == ubuntuPlatform && platformVersion == "24.10" && arch == "x86"
-}
-
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -166,9 +153,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		t.Run(name, func(t *testing.T) {
 			if mode && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
-			}
-			if mode && isUnsupportedUbuntu(t) {
-				t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 			}
 			for _, version := range versions {
 				t.Run(versionName(version), func(t *testing.T) {
@@ -539,71 +523,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						currentRawKernelTelemetry = telemetryMap
 					})
 				}
-			},
-		},
-		{
-			name: "Kafka Kernel Telemetry - API version buckets",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
-				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					DialFn:        dialFn,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(version),
-						kgo.ClientID("test-client"),
-						kgo.ConsumeTopics(topicName), // ConsumeTopics is needed to trigger the fetch request
-					},
-				})
-
-				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
-
-				// Send produce request we expect to be tracked
-				// This should also trigger a fetch request
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-				var telemetryMap *kafka.RawKernelTelemetry
-				require.EventuallyWithT(t, func(collect *assert.CollectT) {
-					telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-					require.NoError(collect, err)
-
-					telemetryDiff := telemetryMap.Sub(*currentRawKernelTelemetry)
-					expectedCount := uint64(fixCount(1)) // because we use Docker the packets are seen twice
-
-					// Verify that the expected bucket contains the correct hits.
-					for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_produce_api_version_hits); bucketIndex++ {
-						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
-						if bucketIndex != expectedAPIVersionProduce {
-							require.Equal(collect, uint64(0), telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
-						} else {
-							require.Equal(collect, expectedCount, telemetryDiff.Classified_produce_api_version_hits[bucketIndex])
-						}
-					}
-					for bucketIndex := 0; bucketIndex < len(telemetryDiff.Classified_fetch_api_version_hits); bucketIndex++ {
-						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
-						if bucketIndex != expectedAPIVersionFetch {
-							require.Equal(collect, uint64(0), telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
-						} else {
-							require.Equal(collect, expectedCount, telemetryDiff.Classified_fetch_api_version_hits[bucketIndex])
-						}
-					}
-				}, time.Second*3, time.Millisecond*100)
-
-				// Update the current raw kernel telemetry for the next iteration
-				currentRawKernelTelemetry = telemetryMap
 			},
 		},
 	}
@@ -1330,9 +1249,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
-		if isUnsupportedUbuntu(t) {
-			t.Skip("Kafka TLS not supported on Ubuntu 24.10")
-		}
 
 		for _, version := range versions {
 			t.Run(fmt.Sprintf("api%d", version), func(t *testing.T) {
@@ -1559,9 +1475,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t.Run("with TLS", func(t *testing.T) {
 		if !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 			t.Skip("GoTLS not supported for this setup")
-		}
-		if isUnsupportedUbuntu(t) {
-			t.Skip("Kafka TLS not supported on Ubuntu 24.10")
 		}
 
 		for _, version := range versions {

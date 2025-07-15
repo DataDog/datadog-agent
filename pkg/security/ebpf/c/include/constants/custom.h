@@ -280,4 +280,6 @@ enum global_rate_limiter_type {
 #define TAIL_CALL_CLASSIFIER_FNC(name, ...) TAIL_CALL_CLASSIFIER_TARGET("\"" #name "\"") \
     int TAIL_CALL_CLASSIFIER_FNC_NAME(name, __VA_ARGS__)
 
+#define OPEN_TREE_CLONE 1
+
 #endif

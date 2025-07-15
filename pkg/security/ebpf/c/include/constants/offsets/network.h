@@ -24,7 +24,7 @@ __attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
     u64 sock_sk_protocol_offset;
     LOAD_CONSTANT("sock_sk_protocol_offset", sock_sk_protocol_offset);
     u16 protocol = 0;
-    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset + sizeof(protocol) < sizeof(struct sock)) {
+    if (sock_sk_protocol_offset + sizeof(protocol) < sizeof(struct sock)) {
         bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);
         }
         return protocol & 0xff;
