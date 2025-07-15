@@ -762,6 +762,71 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 	return nil
 }
 
+// preStartMultiConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to experiment,
+// and launches a new process to start the experiment in the background.
+func preStartMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+	// open event that signal the end of the experiment
+	// this will terminate other running instances of the watchdog
+	// this allows for running multiple experiments in sequence
+	_ = setWatchdogStopEvent()
+
+	// Set the registry key to point to the experiment config
+	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
+	err := setFleetPoliciesDir(experimentPath)
+	if err != nil {
+		return err
+	}
+
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStartMultiConfigExperimentBackground")
+}
+
+// preStopMultiConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to stable,
+// and launches a new process to stop the experiment in the background.
+func preStopMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
+	// Set the registry key to point to the stable config
+	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err := setFleetPoliciesDir(stablePath)
+	if err != nil {
+		return err
+	}
+
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStopMultiConfigExperimentBackground")
+}
+
+// prePromoteMultiConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to stable,
+// and launches a new process to promote the experiment in the background.
+func prePromoteMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
+	// Set the registry key to point to the stable config
+	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err := setFleetPoliciesDir(stablePath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// postStartMultiConfigExperimentDatadogAgentBackground restarts the Agent services.
+func postStartMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+	return nil
+}
+
+// postStopMultiConfigExperimentDatadogAgentBackground restarts the Agent services.
+func postStopMultiConfigExperimentDatadogAgent(ctx HookContext) error {
+	return nil
+}
+
+// postPromoteMultiConfigExperimentDatadogAgentBackground restarts the Agent services.
+
 // runDatadogAgentPackageCommand maps the package specific command names to their corresponding functions.
 func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, command)

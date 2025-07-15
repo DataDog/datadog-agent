@@ -38,6 +38,13 @@ type hooks struct {
 	postStartConfigExperiment   packageHook
 	preStopConfigExperiment     packageHook
 	postPromoteConfigExperiment packageHook
+
+	preStartMultiConfigExperiment    packageHook
+	postStartMultiConfigExperiment   packageHook
+	preStopMultiConfigExperiment     packageHook
+	postStopMultiConfigExperiment    packageHook
+	prePromoteMultiConfigExperiment  packageHook
+	postPromoteMultiConfigExperiment packageHook
 }
 
 // Hooks is the interface for the hooks.
@@ -302,6 +309,18 @@ func getHook(pkg string, name string) packageHook {
 		return h.preStopConfigExperiment
 	case "postPromoteConfigExperiment":
 		return h.postPromoteConfigExperiment
+	case "preStartMultiConfigExperiment":
+		return h.preStartMultiConfigExperiment
+	case "postStartMultiConfigExperiment":
+		return h.postStartMultiConfigExperiment
+	case "preStopMultiConfigExperiment":
+		return h.preStopMultiConfigExperiment
+	case "postStopMultiConfigExperiment":
+		return h.postStopMultiConfigExperiment
+	case "prePromoteMultiConfigExperiment":
+		return h.prePromoteMultiConfigExperiment
+	case "postPromoteMultiConfigExperiment":
+		return h.postPromoteMultiConfigExperiment
 	}
 	return nil
 }
