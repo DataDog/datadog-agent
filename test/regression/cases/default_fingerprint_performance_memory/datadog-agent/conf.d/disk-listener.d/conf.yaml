@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: "/smp-shared/*.log"
+    service: "performance-test"
+    source: "default-test" 
