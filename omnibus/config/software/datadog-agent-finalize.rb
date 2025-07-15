@@ -180,13 +180,17 @@ build do
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
 
-                # Codesign all Mach-O binaries leveraging parallelism (~280 binaries out of ~28000 files)
+                # Codesign ~480 files (out of ~28000)
                 command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
                     set -euo pipefail
-                    find #{install_dir} -type f -print0 |
-                        xargs -0 -n1000 -P#{workers} file -n --mime-type |
-                        awk -F: '$0 ~ /[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }' |
-                        xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                    (
+                        # Gather all executables, whether binaries or scripts
+                        find #{install_dir} -type f -perm +111 -print0
+                        # Gather non executable Mach-O binaries leveraging parallelism
+                        find #{install_dir} -type f ! -perm +111 -print0 |
+                            xargs -0 -n1000 -P#{workers} file -n --mime-type |
+                            awk -F: '/[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }'
+                    ) | xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
                 SH
             end
         end
