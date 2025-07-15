@@ -4,6 +4,7 @@ clone:
   stage: .pre
   tags:
     - arch:amd64
+    - specific:true
   variables:
     KUBERNETES_MEMORY_REQUEST: "64Mi"
     KUBERNETES_MEMORY_LIMIT: "64Mi"
