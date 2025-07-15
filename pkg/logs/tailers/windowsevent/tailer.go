@@ -98,7 +98,7 @@ func (t *Tailer) Start(bookmark string) {
 	t.done = make(chan struct{})
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.cancelTail = ctxCancel
-	// t.registry.SetTailed(t.Identifier(), true) // TODO: Check if this method exists
+	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.tail(ctx, bookmark)
@@ -107,7 +107,7 @@ func (t *Tailer) Start(bookmark string) {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
-	// t.registry.SetTailed(t.Identifier(), false) // TODO: Check if this method exists
+	t.registry.SetTailed(t.Identifier(), false)
 	t.cancelTail()
 	<-t.doneTail
 
@@ -181,31 +181,15 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 			return
 		}
 
-		// Save the initial bookmark to the registry immediately by sending a synthetic message
+		// Save the initial bookmark to the registry immediately using direct SetOffset
 		// This ensures the bookmark is persisted even if no real events are processed
 		if t.bookmark != nil {
 			offset, err := t.bookmark.Render()
 			if err == nil {
 				log.Debugf("Saving initial bookmark to registry: %s", offset)
-
-				// Create a synthetic message just to persist the bookmark
-				// The message content is empty as it's only used for bookmark persistence
-				origin := message.NewOrigin(t.source)
-				origin.Identifier = t.Identifier()
-				origin.Offset = offset
-				origin.SetSource(t.Identifier())
-
-				// Create a synthetic message with minimal content
-				msg := message.NewMessage([]byte("[Initial bookmark seeded]"), origin, "", time.Now().UnixNano())
-
-				// Send through the output channel so it flows through the pipeline
-				// and the auditor will persist the bookmark
-				select {
-				case t.outputChan <- msg:
-					log.Debug("Initial bookmark sent for persistence")
-				default:
-					log.Warn("Failed to send initial bookmark for persistence - output channel may be full")
-				}
+				// Use direct SetOffset call for immediate persistence
+				t.registry.SetOffset(t.Identifier(), offset)
+				log.Debug("Initial bookmark saved to registry")
 			} else {
 				log.Warnf("Failed to render initial bookmark: %v", err)
 			}

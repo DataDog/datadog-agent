@@ -17,7 +17,9 @@
       "Bash(\"/mnt/c/Program Files/Go/bin/go.exe\" test -v ./pkg/logs/tailers/windowsevent -list=\".*\")",
       "Bash(\"/mnt/c/Program Files/Go/bin/go.exe\" test -v ./pkg/logs/tailers/windowsevent -evtapi=Windows -timeout=30s)",
       "Bash(go test:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags test -o /dev/null ./comp/logs/auditor/mock/...)",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags \"test,windows\" ./pkg/logs/tailers/windowsevent/... ./comp/logs/auditor/impl/... ./comp/logs/auditor/mock/...)"
     ],
     "deny": []
   }
