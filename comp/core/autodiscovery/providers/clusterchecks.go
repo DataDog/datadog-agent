@@ -118,6 +118,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 
 	status := types.NodeStatus{
 		LastChange: c.lastChange,
+		NodeType:   "clc-runner",
 	}
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
@@ -216,6 +217,7 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 
 	status := types.NodeStatus{
 		LastChange: types.ExtraHeartbeatLastChangeValue,
+		NodeType:   "clc-runner",
 	}
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)

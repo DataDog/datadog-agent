@@ -24,6 +24,7 @@ import (
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -211,6 +212,13 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 			dca.metadata["is_leader"] = leaderEngine.IsLeader()
 		}
 	}
+
+	// Add cluster check runner count
+	// Import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	if count, err := clusterchecks.GetCLCRunnerCount(); err == nil {
+		dca.metadata["cluster_check_runner_count"] = count
+	}
+
 	//Sending dca configuration can be disabled using `inventories_configuration_enabled`.
 	//By default, it is true and enabled.
 	if !dca.conf.GetBool("inventories_configuration_enabled") {

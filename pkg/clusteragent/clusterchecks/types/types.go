@@ -19,7 +19,8 @@ const (
 
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
-	LastChange int64 `json:"last_change"`
+	LastChange int64  `json:"last_change"`
+	NodeType   string `json:"node_type,omitempty"`
 }
 
 // StatusResponse holds the DCA response for a status report
