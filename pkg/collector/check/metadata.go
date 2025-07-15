@@ -8,6 +8,7 @@ package check
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -20,13 +21,7 @@ func GetMetadata(c Info, includeConfig bool) map[string]interface{} {
 	instanceID := string(c.ID())
 	instance["config.hash"] = instanceID
 
-	splitSource := strings.SplitN(c.ConfigSource(), ":", 2)
-	instance["config.provider"] = splitSource[0]
-	if len(splitSource) > 1 {
-		instance["config.source"] = splitSource[1]
-	} else {
-		instance["config.source"] = "unknown"
-	}
+	integration.ConfigSourceToMetadataMap(c.ConfigSource(), instance)
 
 	if includeConfig {
 		if instanceScrubbed, err := scrubber.ScrubYamlString(c.InstanceConfig()); err != nil {

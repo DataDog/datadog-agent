@@ -9,7 +9,6 @@ package jmxfetch
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,13 +126,7 @@ func GetIntegrations() (map[string]interface{}, error) {
 			instances = append(instances, GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
 		}
 
-		splitSource := strings.SplitN(config.Source, ":", 2)
-		if len(splitSource) > 1 {
-			c["config.source"] = splitSource[1]
-		} else {
-			c["config.source"] = "unknown"
-		}
-		c["config.provider"] = splitSource[0]
+		integration.ConfigSourceToMetadataMap(config.Source, c)
 		c["instances"] = instances
 		c["check_name"] = config.Name
 
