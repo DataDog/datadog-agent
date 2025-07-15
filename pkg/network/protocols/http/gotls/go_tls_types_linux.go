@@ -51,8 +51,9 @@ type TlsOffsetsData struct {
 	Close_conn_pointer Location
 }
 type TlsFunctionsArgsKey struct {
-	Pid uint32
-	Id  int64
+	Id        int64
+	Pid       uint32
+	Pad_cgo_0 [4]byte
 }
 type TlsReadArgsData struct {
 	Conn_pointer uint64
