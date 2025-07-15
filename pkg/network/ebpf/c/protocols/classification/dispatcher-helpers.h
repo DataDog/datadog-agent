@@ -19,6 +19,7 @@
 #include "protocols/postgres/usm-events.h"
 #include "protocols/redis/helpers.h"
 #include "protocols/redis/usm-events.h"
+#include "protocols/classification/classification-context.h"
 
 __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
     switch(proto) {
@@ -158,12 +159,14 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
         log_debug("[protocol_dispatcher_entrypoint]: %p was not classified", skb);
-        char request_fragment[CLASSIFICATION_MAX_BUFFER];
-        bpf_memset(request_fragment, 0, sizeof(request_fragment));
-        read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
-        const size_t payload_length = skb_info.data_end - skb_info.data_off;
-        const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-        classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
+
+        classification_context_t *classification_ctx = classification_context(skb);
+        if (!classification_ctx) {
+            return;
+        }
+        const char *buffer = &(classification_ctx->buffer.data[0]);
+
+        classify_protocol_for_dispatcher(&cur_fragment_protocol, &classification_ctx->tuple, buffer, classification_ctx->buffer.size);
         if (is_kafka_monitoring_enabled() && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
             bpf_tail_call_compat(skb, &dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
         }
@@ -205,27 +208,21 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
 }
 
 static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
-    skb_info_t skb_info = {0};
-    conn_tuple_t skb_tup = {0};
-    // Exporting the conn tuple from the skb, alongside couple of relevant fields from the skb.
-    if (!read_conn_tuple_skb(skb, &skb_info, &skb_tup)) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
         return;
     }
+    const char *buffer = &(classification_ctx->buffer.data[0]);
 
-    char request_fragment[CLASSIFICATION_MAX_BUFFER];
-    bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
-    const size_t payload_length = skb_info.data_end - skb_info.data_off;
-    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-    if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
+    if (is_kafka(skb, &classification_ctx->skb_info, buffer, classification_ctx->buffer.size)) {
         cur_fragment_protocol = PROTOCOL_KAFKA;
-        update_protocol_stack(&skb_tup, cur_fragment_protocol);
+        update_protocol_stack(&classification_ctx->tuple, cur_fragment_protocol);
     }
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // We need to make sure we don't dispatch the same packet multiple times.
-        cache_tcp_seq(&skb_tup, &skb_info);
+        cache_tcp_seq(&classification_ctx->tuple, &classification_ctx->skb_info);
         // dispatch if possible
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
@@ -234,8 +231,8 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
             return;
         }
         bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
-        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
-        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+        bpf_memcpy(&args->tup, &classification_ctx->tuple, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &classification_ctx->skb_info, sizeof(skb_info_t));
 
         // dispatch if possible
         log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
