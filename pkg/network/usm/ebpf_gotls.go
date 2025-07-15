@@ -17,10 +17,12 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -60,6 +62,11 @@ type goTLSProgram struct {
 	cfg       *config.Config
 	procMon   *monitor.ProcessMonitor
 	manager   *manager.Manager
+
+	// goTLSReadArgsMapCleaner a cleaner for the goTLSReadArgsMap.
+	goTLSReadArgsMapCleaner *ddebpf.MapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsReadArgsData]
+	// goTLSWriteArgsMapCleaner a cleaner for the goTLSWriteArgsMap.
+	goTLSWriteArgsMapCleaner *ddebpf.MapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsWriteArgsData]
 }
 
 var goTLSSpec = &protocols.ProtocolSpec{
@@ -147,6 +154,7 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 		PerformInitialScan:             false, // the process monitor will scan for new processes at startup
 		EnablePeriodicScanNewProcesses: true,
 		ScanProcessesInterval:          scanTerminatedProcessesInterval,
+		OnSyncCallback:                 prog.cleanupDeadPids,
 	}
 
 	if c.GoTLSExcludeSelf {
@@ -192,9 +200,26 @@ func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 	}
 }
 
+// initMapCleaner creates and assigns a MapCleaner for the given eBPF map.
+func (p *goTLSProgram) initAllMapCleaners() error {
+	var err error
+
+	p.goTLSReadArgsMapCleaner, err = initMapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsReadArgsData](p.manager, goTLSReadArgsMap, GoTLSAttacherName)
+	if err != nil {
+		return err
+	}
+
+	p.goTLSWriteArgsMapCleaner, err = initMapCleaner[gotls.TlsFunctionsArgsKey, gotls.TlsWriteArgsData](p.manager, goTLSWriteArgsMap, GoTLSAttacherName)
+
+	return err
+}
+
 // PreStart launches the goTLS main goroutine to handle events.
 func (p *goTLSProgram) PreStart() error {
-	var err error
+	err := p.initAllMapCleaners()
+	if err != nil {
+		return fmt.Errorf("could not initialize map cleaners: %w", err)
+	}
 
 	p.inspector.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
@@ -226,6 +251,19 @@ func (p *goTLSProgram) GetStats() (*protocols.ProtocolStats, func()) {
 func (p *goTLSProgram) Stop() {
 	p.procMon.Stop()
 	p.attacher.Stop()
+}
+
+// cleanupDeadPids clears maps of terminated processes.
+func (p *goTLSProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
+	p.goTLSReadArgsMapCleaner.Clean(nil, nil, func(_ int64, key gotls.TlsFunctionsArgsKey, _ gotls.TlsReadArgsData) bool {
+		_, isAlive := alivePIDs[key.Pid]
+		return !isAlive
+	})
+
+	p.goTLSWriteArgsMapCleaner.Clean(nil, nil, func(_ int64, key gotls.TlsFunctionsArgsKey, _ gotls.TlsWriteArgsData) bool {
+		_, isAlive := alivePIDs[key.Pid]
+		return !isAlive
+	})
 }
 
 // GoTLSAttachPID attaches Go TLS hooks on the binary of process with
