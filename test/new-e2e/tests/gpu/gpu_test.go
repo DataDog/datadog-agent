@@ -398,35 +398,24 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
-		metrics := []struct {
-			name           string
-			deviceSpecific bool
-		}{
-			{"gpu.temperature", true},
-			{"gpu.pci.throughput.tx", true},
-			{"gpu.power.usage", true},
-			{"gpu.device.total", false},
-		}
+		metrics := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage", "gpu.device.total"}
 		for _, metric := range metrics {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
 			var options []client.MatchOpt[*aggregator.MetricSeries]
-			if metric.deviceSpecific {
-				// device-specific metrics should be tagged with device tags
-				var tagRegexes []*regexp.Regexp
-				if isKubernetes {
-					// In Kubernetes environments, device-specific metrics should also have pod_name tag
-					tagRegexes = mandatoryMetricTagRegexes("pod_name")
-				} else {
-					tagRegexes = mandatoryMetricTagRegexes()
-				}
-				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
+			var tagRegexes []*regexp.Regexp
+			if isKubernetes {
+				// In Kubernetes environments, device-specific metrics should also have pod_name tag
+				tagRegexes = mandatoryMetricTagRegexes("pod_name")
+			} else {
+				tagRegexes = mandatoryMetricTagRegexes()
 			}
+			options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
 
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric.name, options...)
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric, options...)
 			assert.NoError(c, err)
 
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
