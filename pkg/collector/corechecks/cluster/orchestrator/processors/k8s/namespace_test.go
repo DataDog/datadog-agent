@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -264,11 +263,11 @@ func TestNamespaceProcessor_Process(t *testing.T) {
 	// Create test namespaces with unique UIDs
 	namespace1 := createTestNamespace("namespace-1")
 	namespace1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	namespace1.ResourceVersion = "1234"
+	namespace1.ResourceVersion = "1212"
 
 	namespace2 := createTestNamespace("namespace-2")
 	namespace2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	namespace2.ResourceVersion = "5678"
+	namespace2.ResourceVersion = "1312"
 
 	// Create fake client
 	client := fake.NewClientset(namespace1, namespace2)
@@ -360,7 +359,7 @@ func createTestNamespace(name string) *corev1.Namespace {
 				"app": "my-app",
 			},
 			Name:            name,
-			ResourceVersion: "1234",
+			ResourceVersion: "1212",
 			Finalizers:      []string{"final", "izers"},
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},

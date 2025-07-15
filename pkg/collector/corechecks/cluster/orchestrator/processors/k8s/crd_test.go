@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -94,7 +93,7 @@ func TestCRDHandlers_BuildManifestMessageBody(t *testing.T) {
 	// Create test manifest objects
 	manifest1 := &model.Manifest{
 		Uid:             "test-uid-1",
-		ResourceVersion: "1234",
+		ResourceVersion: "1203",
 		Type:            int32(orchestrator.K8sCRD),
 		Version:         "v1",
 		ContentType:     "json",
@@ -227,11 +226,11 @@ func TestCRDProcessor_Process(t *testing.T) {
 	// Create test custom resource definitions with unique UIDs
 	crd1 := createTestCustomResourceDefinition("crd-1")
 	crd1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	crd1.ResourceVersion = "1234"
+	crd1.ResourceVersion = "1203"
 
 	crd2 := createTestCustomResourceDefinition("crd-2")
 	crd2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	crd2.ResourceVersion = "5678"
+	crd2.ResourceVersion = "1303"
 
 	// Create fake client
 	client := fake.NewClientset()

@@ -267,11 +267,11 @@ func TestNetworkPolicyProcessor_Process(t *testing.T) {
 	// Create test network policies with unique UIDs
 	networkPolicy1 := createTestNetworkPolicy("networkpolicy-1", "namespace-1")
 	networkPolicy1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	networkPolicy1.ResourceVersion = "1234"
+	networkPolicy1.ResourceVersion = "1213"
 
 	networkPolicy2 := createTestNetworkPolicy("networkpolicy-2", "namespace-2")
 	networkPolicy2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	networkPolicy2.ResourceVersion = "5678"
+	networkPolicy2.ResourceVersion = "1313"
 
 	// Create fake client
 	client := fake.NewClientset(networkPolicy1, networkPolicy2)
@@ -362,7 +362,7 @@ func createTestNetworkPolicy(name, namespace string) *networkingv1.NetworkPolicy
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1213",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: networkingv1.NetworkPolicySpec{

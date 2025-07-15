@@ -262,12 +262,12 @@ func TestStatefulSetProcessor_Process(t *testing.T) {
 	// Create test statefulsets with unique UIDs
 	statefulSet1 := createTestStatefulSet()
 	statefulSet1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	statefulSet1.ResourceVersion = "1234"
+	statefulSet1.ResourceVersion = "1224"
 
 	statefulSet2 := createTestStatefulSet()
 	statefulSet2.Name = "statefulset2"
 	statefulSet2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	statefulSet2.ResourceVersion = "5678"
+	statefulSet2.ResourceVersion = "1324"
 
 	// Create fake client
 	client := fake.NewClientset(statefulSet1, statefulSet2)
@@ -360,7 +360,7 @@ func createTestStatefulSet() *appsv1.StatefulSet {
 			Name:            "test-statefulset",
 			Namespace:       "default",
 			UID:             "test-statefulset-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1224",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

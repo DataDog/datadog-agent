@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -261,11 +260,11 @@ func TestIngressProcessor_Process(t *testing.T) {
 	// Create test ingresses with unique UIDs
 	ingress1 := createTestIngress("ingress-1", "namespace-1")
 	ingress1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	ingress1.ResourceVersion = "1234"
+	ingress1.ResourceVersion = "1209"
 
 	ingress2 := createTestIngress("ingress-2", "namespace-2")
 	ingress2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	ingress2.ResourceVersion = "5678"
+	ingress2.ResourceVersion = "1309"
 
 	// Create fake client
 	client := fake.NewClientset(ingress1, ingress2)
@@ -352,7 +351,7 @@ func createTestIngress(name, namespace string) *netv1.Ingress {
 			Name:              name,
 			Namespace:         namespace,
 			UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
-			ResourceVersion:   "1234",
+			ResourceVersion:   "1209",
 			CreationTimestamp: creationTime,
 			Labels: map[string]string{
 				"app": "my-app",

@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -263,11 +262,11 @@ func TestLimitRangeProcessor_Process(t *testing.T) {
 	// Create test limit ranges with unique UIDs
 	limitRange1 := createTestLimitRange("limitrange-1", "namespace-1")
 	limitRange1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	limitRange1.ResourceVersion = "1234"
+	limitRange1.ResourceVersion = "1211"
 
 	limitRange2 := createTestLimitRange("limitrange-2", "namespace-2")
 	limitRange2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	limitRange2.ResourceVersion = "5678"
+	limitRange2.ResourceVersion = "1311"
 
 	// Create fake client
 	client := fake.NewClientset(limitRange1, limitRange2)
@@ -352,7 +351,7 @@ func createTestLimitRange(name, namespace string) *corev1.LimitRange {
 			Name:              name,
 			Namespace:         namespace,
 			UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
-			ResourceVersion:   "1234",
+			ResourceVersion:   "1211",
 			CreationTimestamp: creationTime,
 			Labels: map[string]string{
 				"app": "my-app",

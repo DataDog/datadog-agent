@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -262,11 +261,11 @@ func TestJobProcessor_Process(t *testing.T) {
 	// Create test jobs with unique UIDs
 	job1 := createTestJob("job-1", "namespace-1")
 	job1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	job1.ResourceVersion = "1234"
+	job1.ResourceVersion = "1210"
 
 	job2 := createTestJob("job-2", "namespace-2")
 	job2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	job2.ResourceVersion = "5678"
+	job2.ResourceVersion = "1310"
 
 	// Create fake client
 	client := fake.NewClientset(job1, job2)
@@ -366,7 +365,7 @@ func createTestJob(name, namespace string) *batchv1.Job {
 			Name:              name,
 			Namespace:         namespace,
 			UID:               types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
-			ResourceVersion:   "1234",
+			ResourceVersion:   "1210",
 			CreationTimestamp: creationTime,
 			Labels: map[string]string{
 				"app": "my-app",

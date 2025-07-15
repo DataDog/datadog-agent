@@ -264,12 +264,12 @@ func TestPersistentVolumeProcessor_Process(t *testing.T) {
 	// Create test persistent volumes with unique UIDs
 	pv1 := createTestPersistentVolume()
 	pv1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	pv1.ResourceVersion = "1234"
+	pv1.ResourceVersion = "1215"
 
 	pv2 := createTestPersistentVolume()
 	pv2.Name = "pv2"
 	pv2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	pv2.ResourceVersion = "5678"
+	pv2.ResourceVersion = "1315"
 
 	// Create fake client
 	client := fake.NewClientset(pv1, pv2)
@@ -363,7 +363,7 @@ func createTestPersistentVolume() *corev1.PersistentVolume {
 			Finalizers:      []string{"foo.com/x", metav1.FinalizerOrphanDependents, "bar.com/y"},
 			Name:            "test-pv",
 			Namespace:       "default",
-			ResourceVersion: "123",
+			ResourceVersion: "1215",
 			UID:             types.UID("test-pv-uid"),
 		},
 		Spec: corev1.PersistentVolumeSpec{

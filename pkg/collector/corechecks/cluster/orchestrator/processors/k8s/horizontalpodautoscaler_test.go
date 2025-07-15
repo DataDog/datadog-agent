@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -261,11 +260,11 @@ func TestHorizontalPodAutoscalerProcessor_Process(t *testing.T) {
 	// Create test HPAs with unique UIDs
 	hpa1 := createTestHorizontalPodAutoscaler("hpa-1", "namespace-1")
 	hpa1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	hpa1.ResourceVersion = "1234"
+	hpa1.ResourceVersion = "1208"
 
 	hpa2 := createTestHorizontalPodAutoscaler("hpa-2", "namespace-2")
 	hpa2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	hpa2.ResourceVersion = "5678"
+	hpa2.ResourceVersion = "1308"
 
 	// Create fake client
 	client := fake.NewClientset(hpa1, hpa2)
@@ -368,7 +367,7 @@ func createTestHorizontalPodAutoscaler(name, namespace string) *v2.HorizontalPod
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1208",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: v2.HorizontalPodAutoscalerSpec{

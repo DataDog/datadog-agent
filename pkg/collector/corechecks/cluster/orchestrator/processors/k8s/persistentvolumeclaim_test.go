@@ -265,12 +265,12 @@ func TestPersistentVolumeClaimProcessor_Process(t *testing.T) {
 	// Create test persistent volume claims with unique UIDs
 	pvc1 := createTestPersistentVolumeClaim()
 	pvc1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	pvc1.ResourceVersion = "1234"
+	pvc1.ResourceVersion = "1216"
 
 	pvc2 := createTestPersistentVolumeClaim()
 	pvc2.Name = "pvc2"
 	pvc2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	pvc2.ResourceVersion = "5678"
+	pvc2.ResourceVersion = "1316"
 
 	// Create fake client
 	client := fake.NewClientset(pvc1, pvc2)
@@ -363,7 +363,7 @@ func createTestPersistentVolumeClaim() *corev1.PersistentVolumeClaim {
 			Finalizers:      []string{"foo.com/x", metav1.FinalizerOrphanDependents, "bar.com/y"},
 			Name:            "test-pvc",
 			Namespace:       "default",
-			ResourceVersion: "123",
+			ResourceVersion: "1216",
 			UID:             types.UID("test-pvc-uid"),
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{

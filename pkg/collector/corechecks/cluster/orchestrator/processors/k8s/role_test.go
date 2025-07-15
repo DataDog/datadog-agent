@@ -257,12 +257,12 @@ func TestRoleProcessor_Process(t *testing.T) {
 	// Create test roles with unique UIDs
 	role1 := createTestRole()
 	role1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	role1.ResourceVersion = "1234"
+	role1.ResourceVersion = "1220"
 
 	role2 := createTestRole()
 	role2.Name = "role2"
 	role2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	role2.ResourceVersion = "5678"
+	role2.ResourceVersion = "1320"
 
 	// Create fake client
 	client := fake.NewClientset(role1, role2)
@@ -347,7 +347,7 @@ func createTestRole() *rbacv1.Role {
 			Name:            "test-role",
 			Namespace:       "default",
 			UID:             "test-role-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1220",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

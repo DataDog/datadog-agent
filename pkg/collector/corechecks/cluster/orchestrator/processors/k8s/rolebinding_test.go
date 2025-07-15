@@ -259,12 +259,12 @@ func TestRoleBindingProcessor_Process(t *testing.T) {
 	// Create test rolebindings with unique UIDs
 	roleBinding1 := createTestRoleBinding()
 	roleBinding1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	roleBinding1.ResourceVersion = "1234"
+	roleBinding1.ResourceVersion = "1221"
 
 	roleBinding2 := createTestRoleBinding()
 	roleBinding2.Name = "rolebinding2"
 	roleBinding2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	roleBinding2.ResourceVersion = "5678"
+	roleBinding2.ResourceVersion = "1321"
 
 	// Create fake client
 	client := fake.NewClientset(roleBinding1, roleBinding2)
@@ -351,7 +351,7 @@ func createTestRoleBinding() *rbacv1.RoleBinding {
 			Name:            "test-rolebinding",
 			Namespace:       "default",
 			UID:             "test-rolebinding-uid",
-			ResourceVersion: "1",
+			ResourceVersion: "1221",
 			Labels: map[string]string{
 				"app": "test-app",
 			},

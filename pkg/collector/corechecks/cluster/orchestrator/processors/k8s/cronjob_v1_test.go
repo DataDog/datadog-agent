@@ -262,11 +262,11 @@ func TestCronJobV1Processor_Process(t *testing.T) {
 	// Create test cron jobs with unique UIDs
 	cronJob1 := createTestCronJobV1("cronjob-1", "namespace-1")
 	cronJob1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	cronJob1.ResourceVersion = "1234"
+	cronJob1.ResourceVersion = "1204"
 
 	cronJob2 := createTestCronJobV1("cronjob-2", "namespace-2")
 	cronJob2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	cronJob2.ResourceVersion = "5678"
+	cronJob2.ResourceVersion = "1304"
 
 	// Create fake client
 	client := fake.NewClientset(cronJob1, cronJob2)
@@ -366,7 +366,7 @@ func createTestCronJobV1(name, namespace string) *batchv1.CronJob {
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "220593670",
+			ResourceVersion: "1204",
 			UID:             types.UID("0ff96226-578d-4679-b3c8-72e8a485c0ef"),
 		},
 		Spec: batchv1.CronJobSpec{

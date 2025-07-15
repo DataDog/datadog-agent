@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package k8s defines handlers for processing kubernetes resources
 package k8s
 
 import (
@@ -261,11 +260,11 @@ func TestDaemonSetProcessor_Process(t *testing.T) {
 	// Create test daemon sets with unique UIDs
 	daemonSet1 := createTestDaemonSet("daemonset-1", "namespace-1")
 	daemonSet1.UID = types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6")
-	daemonSet1.ResourceVersion = "1234"
+	daemonSet1.ResourceVersion = "1206"
 
 	daemonSet2 := createTestDaemonSet("daemonset-2", "namespace-2")
 	daemonSet2.UID = types.UID("f53f6bed-0749-11e8-a2b8-000c29dea4f7")
-	daemonSet2.ResourceVersion = "5678"
+	daemonSet2.ResourceVersion = "1306"
 
 	// Create fake client
 	client := fake.NewClientset(daemonSet1, daemonSet2)
@@ -359,7 +358,7 @@ func createTestDaemonSet(name, namespace string) *appsv1.DaemonSet {
 			},
 			Name:            name,
 			Namespace:       namespace,
-			ResourceVersion: "1234",
+			ResourceVersion: "1206",
 			UID:             types.UID("e42e5adc-0749-11e8-a2b8-000c29dea4f6"),
 		},
 		Spec: appsv1.DaemonSetSpec{
