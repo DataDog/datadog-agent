@@ -18,7 +18,7 @@ logs_config:
   # Increase file limits for high load testing
   open_files_limit: 1500
   # Optimize file scanning for high file count - monitor scan duration
-  file_scan_period: 5
+  file_scan_period: 10
   # Use by_name selection for better performance with many files
   file_wildcard_selection_mode: "by_name"
   # Enable detailed scan monitoring

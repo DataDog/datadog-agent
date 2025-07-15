@@ -69,7 +69,7 @@ checks:
       lower_bound: 0.01
       # Component name should be "scanner" or similar
       tags:
-        name: "scanner"
+        name: "processor"
 
   - name: file_scan_period_compliance
     description: "Ensure file scan period is respected (5 seconds configured)"
@@ -79,4 +79,4 @@ checks:
       lower_bound: 0.001
       # Should see regular scan activity
       tags:
-        name: "file_launcher" 
+        name: "worker" 
