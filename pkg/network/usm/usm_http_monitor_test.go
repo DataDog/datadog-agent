@@ -230,6 +230,12 @@ func getHTTPUnixClientArray(size int, unixPath string) []*http.Client {
 }
 
 func TestGoTLSMapCleanup(t *testing.T) {
+	// This test reproduces the Go-TLS map leak by:
+	// 1. Creating proxy processes that make HTTPS requests (populates conn_tup_by_go_tls_conn map)
+	// 2. Abruptly terminating each proxy with cancel() (simulates SIGKILL)
+	// 3. Repeating 10 times to create multiple leak opportunities
+	// 4. Verifying all map entries are eventually cleaned up by tcp_close kprobe
+
 	if !gotlsutils.GoTLSSupported(t, config.New()) {
 		t.Skip("GoTLS not supported on this platform")
 	}
@@ -248,6 +254,10 @@ func TestGoTLSMapCleanup(t *testing.T) {
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	goTLSMap, ok, err := monitor.ebpfProgram.Manager.GetMap(connectionTupleByGoTLSMap)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	goTLSConnByTupleMap, ok, err := monitor.ebpfProgram.Manager.GetMap(goTLSConnByTupleMap)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -272,10 +282,14 @@ func TestGoTLSMapCleanup(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		final := utils.CountMapEntries(t, goTLSMap)
-		if final != 0 {
-			t.Logf("Map still has %d entries", final)
+		goTLSMapFinal := utils.CountMapEntries(t, goTLSMap)
+		goTLSConnByTupleMapFinal := utils.CountMapEntries(t, goTLSConnByTupleMap)
+		if goTLSMapFinal != 0 {
+			t.Logf("Map goTLSMap still has %d entries", goTLSMapFinal)
 		}
-		return final == 0
+		if goTLSConnByTupleMapFinal != 0 {
+			t.Logf("Map goTLSConnByTupleMap still has %d entries", goTLSConnByTupleMapFinal)
+		}
+		return goTLSMapFinal*goTLSConnByTupleMapFinal == 0
 	}, 5*time.Second, 100*time.Millisecond, "map should be empty after proxy exit")
 }
