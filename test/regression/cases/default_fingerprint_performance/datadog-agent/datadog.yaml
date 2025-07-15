@@ -9,12 +9,7 @@ logs_enabled: true
 
 # Enable checksum fingerprinting for performance testing with high file load
 logs_config:
-  fingerprint_strategy: "checksum"
-  fingerprint_config:
-    max_lines: 1
-    max_bytes: 256
-    bytes_to_skip: 0
-    lines_to_skip: 0
+  fingerprint_strategy: "default"
   # Increase file limits for high load testing
   open_files_limit: 1500
   # Optimize file scanning for high file count - monitor scan duration

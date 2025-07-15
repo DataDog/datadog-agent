@@ -1,0 +1,82 @@
+optimization_goal: memory
+erratic: false
+
+target:
+  name: datadog-agent
+  cpu_allotment: 4
+  memory_allotment: 2GiB
+
+  environment:
+    DD_API_KEY: a0000001
+    DD_HOSTNAME: smp-regression
+    DD_RUNTIME_SECURITY_CONFIG_ENABLED: true
+    DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED: true
+    DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED: true
+
+  profiling_environment:
+    # internal profiling
+    DD_INTERNAL_PROFILING_ENABLED: true
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED: true
+    # run all the time
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_PERIOD: 1m
+    DD_INTERNAL_PROFILING_PERIOD: 1m
+    DD_SYSTEM_PROBE_INTERNAL_PROFILING_CPU_DURATION: 1m
+    DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+    # destination
+    DD_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_UNIX_SOCKET: /smp-host/apm.socket
+    # tags
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:checksum_fingerprint_performance
+    DD_SYSTEM_PROBE_CONFIG_INTERNAL_PROFILING_EXTRA_TAGS: experiment:checksum_fingerprint_performance
+
+    DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+    DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+    DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+    DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+
+    # ddprof options
+    DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+    DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+    DD_PROFILING_WAIT_PROFILE: true
+
+checks:
+  - name: memory_usage_checksum
+    description: "Memory usage under high load with 1000 files and checksum fingerprinting"
+    bounds:
+      series: total_pss_bytes
+      # Conservative memory bound for fair comparison with default
+      upper_bound: 1.8GiB
+
+  - name: cpu_usage_checksum
+    description: "CPU usage under high load with checksum fingerprinting"
+    bounds:
+      series: cpu_usage_percent
+      # Allow higher CPU usage due to fingerprinting calculations
+      upper_bound: 80
+
+  - name: file_processing_performance_checksum
+    description: "Ensure agent can handle 1000 files with checksum fingerprinting"
+    bounds:
+      series: logs_agent_logs_processed
+      # Should process logs continuously
+      lower_bound: 1
+
+  - name: scan_activity_checksum
+    description: "Monitor scan activity to ensure scans are running and not stalling"
+    bounds:
+      series: logs_component_utilization_ratio
+      # Ensure scan operations are active (not stalling)
+      lower_bound: 0.01
+      # Component name should be "scanner" or similar
+      tags:
+        name: "scanner"
+
+  - name: file_scan_period_compliance
+    description: "Ensure file scan period is respected (5 seconds configured)"
+    bounds:
+      series: logs_component_utilization_ratio
+      # Monitor that scans happen regularly
+      lower_bound: 0.001
+      # Should see regular scan activity
+      tags:
+        name: "file_launcher" 
