@@ -13,9 +13,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
 
 	containerdcgroups "github.com/containerd/cgroups/v3"
+	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/containerd/cgroups/v3/cgroup2"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -151,10 +153,6 @@ func TestBuildSafePath(t *testing.T) {
 }
 
 func TestGetCgroupForProcess(t *testing.T) {
-	if containerdcgroups.Mode() != containerdcgroups.Unified {
-		t.Skip("Test requires cgroupv2")
-	}
-
 	if os.Geteuid() != 0 {
 		t.Skip("Test requires root privileges")
 	}
@@ -176,6 +174,10 @@ func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
 	// Skip if not running as root or if cgroupv2 is not available
 	if os.Geteuid() != 0 {
 		t.Skip("Test requires root privileges")
+	}
+
+	if containerdcgroups.Mode() != containerdcgroups.Unified {
+		t.Skip("Test requires cgroupv2")
 	}
 
 	// We will be testing by reading /dev/null, so we need to make sure it's accessible
@@ -252,23 +254,95 @@ func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
 	f.Close()
 }
 
+func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("Test requires root privileges")
+	}
+
+	if containerdcgroups.Mode() != containerdcgroups.Legacy {
+		t.Skip("Test requires cgroupv1")
+	}
+
+	// We will be testing by reading /dev/null, so we need to make sure it's accessible
+	// before we start the test
+	devnull, err := os.Open("/dev/null")
+	if err != nil {
+		t.Skip("Test requires /dev/null to be accessible")
+	} else {
+		devnull.Close()
+	}
+
+	testCgroupName := fmt.Sprintf("test-cgroup-device-allow-%s", utils.RandString(10))
+	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
+	moveSelfToCgroup(t, testCgroupName)
+
+	// Test that /dev/null is still accessible after moving to cgroup
+	f, err := os.Open("/dev/null")
+	require.NoError(t, err)
+	f.Close()
+
+	// Update the device allow file to deny ourselves access to /dev/null
+	devDenyFilePath := filepath.Join("/", cgroupv1DeviceAllowDir, testCgroupName, "devices.deny")
+	devDenyFile, err := os.OpenFile(devDenyFilePath, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		devDenyFile.Close()
+	})
+
+	_, err = devDenyFile.WriteString("c 1:* rwm\n")
+	require.NoError(t, err)
+
+	// Test that /dev/null is now inaccessible
+	_, err = os.Open("/dev/null")
+	require.Error(t, err, "expected /dev/null open to fail after updating device allow file, but it succeeded")
+
+	// Now configure the cgroup device allow
+	require.NoError(t, configureCgroupV1DeviceAllow(testCgroupPath, testCgroupName, 1))
+
+	// Test that /dev/null is now accessible
+	f, err = os.Open("/dev/null")
+	require.NoError(t, err)
+	f.Close()
+
+}
+
 func moveSelfToCgroup(t *testing.T, cgroupName string) {
-	prevCgroupPath, err := cgroup2.PidGroupPath(os.Getpid())
-	require.NoError(t, err)
+	if containerdcgroups.Mode() == containerdcgroups.Unified {
+		prevCgroupPath, err := cgroup2.PidGroupPath(os.Getpid())
+		require.NoError(t, err)
 
-	prevCgroup, err := cgroup2.Load(prevCgroupPath)
-	require.NoError(t, err)
+		prevCgroup, err := cgroup2.Load(prevCgroupPath)
+		require.NoError(t, err)
 
-	cgroup, err := cgroup2.NewManager("/sys/fs/cgroup", "/"+cgroupName, &cgroup2.Resources{})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		cgroup.Delete()
-	})
+		cgroup, err := cgroup2.NewManager("/sys/fs/cgroup", "/"+cgroupName, &cgroup2.Resources{})
+		require.NoError(t, err, "failed to create cgroup")
+		t.Cleanup(func() {
+			cgroup.Delete()
+		})
 
-	require.NoError(t, cgroup.AddProc(uint64(os.Getpid())))
-	t.Cleanup(func() {
-		if err := prevCgroup.AddProc(uint64(os.Getpid())); err != nil {
-			t.Logf("Failed to add process to root cgroup: %v", err)
-		}
-	})
+		require.NoError(t, cgroup.AddProc(uint64(os.Getpid())))
+		t.Cleanup(func() {
+			if err := prevCgroup.AddProc(uint64(os.Getpid())); err != nil {
+				t.Logf("Failed to add process to root cgroup: %v", err)
+			}
+		})
+	} else {
+		prevCgroupPath := cgroup1.PidPath(os.Getpid())
+		prevCgroup, err := cgroup1.Load(prevCgroupPath)
+		require.NoError(t, err)
+
+		cgroup, err := cgroup1.New(cgroup1.StaticPath("/"+cgroupName), &specs.LinuxResources{})
+		require.NoError(t, err, "failed to create cgroup")
+		t.Cleanup(func() {
+			cgroup.Delete()
+		})
+
+		proc := cgroup1.Process{Pid: os.Getpid()}
+		require.NoError(t, cgroup.Add(proc))
+		t.Cleanup(func() {
+			if err := prevCgroup.Add(proc); err != nil {
+				t.Logf("Failed to add process to root cgroup: %v", err)
+			}
+		})
+	}
 }

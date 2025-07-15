@@ -39,7 +39,7 @@ func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 
 	// Now configure the cgroup device allow, depending on the cgroup version
 	if cgroups.Mode() == cgroups.Legacy {
-		err = configureCgroupV1DeviceAllow(cgroupPath, rootfs)
+		err = configureCgroupV1DeviceAllow(cgroupPath, rootfs, nvidiaDeviceMajor)
 	} else {
 		err = detachAllDeviceCgroupPrograms(cgroupPath, rootfs)
 	}
@@ -57,7 +57,6 @@ const (
 	cgroupv1DeviceAllowFile    = "devices.allow"
 	cgroupv1DeviceAllowDir     = "sys/fs/cgroup/devices"
 	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
-	nvidiaCgroupv1Allow        = "c 195:* rwm\n"                 // 195 is the major number for the NVIDIA character devices
 	nvidiaDeviceMajor          = 195
 )
 
@@ -157,7 +156,7 @@ func configureSystemDAllow(containerID, rootfs string) error {
 	return nil
 }
 
-func configureCgroupV1DeviceAllow(rootfs, cgroupPath string) error {
+func configureCgroupV1DeviceAllow(rootfs, cgroupPath string, majorNumber int) error {
 	deviceAllowPath, err := buildSafePath(rootfs, cgroupv1DeviceAllowDir, cgroupPath, cgroupv1DeviceAllowFile)
 	if err != nil {
 		return fmt.Errorf("failed to build path for cgroupv1 device allow: %w", err)
@@ -171,7 +170,8 @@ func configureCgroupV1DeviceAllow(rootfs, cgroupPath string) error {
 	}
 	defer deviceAllowFile.Close()
 
-	_, err = deviceAllowFile.WriteString(nvidiaCgroupv1Allow)
+	cgroupAllowLine := fmt.Sprintf("c %d:* rwm\n", majorNumber)
+	_, err = deviceAllowFile.WriteString(cgroupAllowLine)
 	if err != nil {
 		return fmt.Errorf("failed to write to %s: %w", deviceAllowPath, err)
 	}
