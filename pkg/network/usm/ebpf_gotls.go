@@ -200,7 +200,7 @@ func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 	}
 }
 
-// initMapCleaner creates and assigns a MapCleaner for the given eBPF map.
+// initAllMapCleaners creates map cleaner for `go_tls_read_args` and `go_tls_write_args` maps.
 func (p *goTLSProgram) initAllMapCleaners() error {
 	var err error
 
