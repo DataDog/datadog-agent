@@ -21,7 +21,9 @@ import (
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,7 @@ var (
 
 type ddotInstallSuite struct {
 	e2e.BaseSuite[environments.Host]
+	host      *host.Host
 	osVersion float64
 }
 
@@ -99,6 +102,13 @@ func TestDDOTInstallScript(t *testing.T) {
 	}
 }
 
+func (is *ddotInstallSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer is.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer is.CleanupOnSetupFailure()
+
+	is.host = host.New(is.T, is.Env().RemoteHost, e2eos.NewDescriptor(e2eos.FlavorFromString(*platform), *osVersion), e2eos.ArchitectureFromString(*architecture))
+}
 func (is *ddotInstallSuite) TestDDOTInstall() {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnix()
@@ -126,7 +136,17 @@ func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
 	is.T().Run("check otel-agent example config exists", func(tt *testing.T) {
 		_, err := VMclient.FileManager.FileExists("/etc/datadog-agent/otel-config.yaml.example")
 		require.NoError(tt, err, "otel-agent example config file should be present")
+
+		is.T().Log("--- CheckDDOTInstallation 1---", is.T().Name(), is.host.State().Units)
+		for s, u := range is.host.State().Units {
+			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+		}
 	})
+
+	is.T().Log("--- CheckDDOTInstallation 2---", is.T().Name(), is.host.State().Units)
+	for s, u := range is.host.State().Units {
+		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+	}
 }
 
 func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
@@ -174,7 +194,15 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 
 		require.Equal(t, strings.TrimSpace(agentVersion), strings.TrimSpace(ddotVersion),
 			"datadog-agent and datadog-agent-ddot should have the same version")
+		is.T().Log("--- ddotDebianTest 1---", is.T().Name(), is.host.State().Units)
+		for s, u := range is.host.State().Units {
+			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+		}
 	})
+	is.T().Log("--- ddotDebianTest 2---", is.T().Name(), is.host.State().Units)
+	for s, u := range is.host.State().Units {
+		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+	}
 }
 
 func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
@@ -227,7 +255,15 @@ func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
 
 		require.Equal(t, strings.TrimSpace(agentVersion), strings.TrimSpace(ddotVersion),
 			"datadog-agent and datadog-agent-ddot should have the same version")
+		is.T().Log("--- ddotRhelTest 1 ---", is.T().Name(), is.host.State().Units)
+		for s, u := range is.host.State().Units {
+			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+		}
 	})
+	is.T().Log("--- ddotRhelTest 2 ---", is.T().Name(), is.host.State().Units)
+	for s, u := range is.host.State().Units {
+		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+	}
 }
 
 func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
@@ -289,5 +325,13 @@ func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
 
 		require.Equal(t, strings.TrimSpace(agentVersion), strings.TrimSpace(ddotVersion),
 			"datadog-agent and datadog-agent-ddot should have the same version")
+		is.T().Log("--- ddotSuseTest 1 ---", is.T().Name(), is.host.State().Units)
+		for s, u := range is.host.State().Units {
+			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+		}
 	})
+	is.T().Log("--- ddotSuseTest 2 ---", is.T().Name(), is.host.State().Units)
+	for s, u := range is.host.State().Units {
+		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+	}
 }
