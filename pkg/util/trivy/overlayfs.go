@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
+	"github.com/samber/lo"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
@@ -32,8 +33,11 @@ type fakeContainer struct {
 }
 
 func newFakeContainer(layerIDs []string, imgMeta *workloadmeta.ContainerImageMetadata, layerPaths []string) (*fakeContainer, error) {
-	if len(layerIDs) != len(layerPaths) || len(layerIDs) != len(imgMeta.Layers) {
-		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta.Layers)
+	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
+		return layer.Digest != ""
+	})
+	if len(layerIDs) != len(layerPaths) || len(layerIDs) != len(imageLayers) {
+		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta)
 	}
 
 	return &fakeContainer{
