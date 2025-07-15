@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+other:
   - |
     Exclude Kaspersky from being shipped with the agent.
