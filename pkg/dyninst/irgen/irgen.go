@@ -54,15 +54,33 @@ import (
 
 // TODO: Support hmaps.
 
-// This is an arbitrary limit for how much data will be captured for
-// dynamically sized types (strings and slices).
-const maxDynamicTypeSize = 512
+// Generator is used to generate IR programs from binary files and probe
+// configurations.
+type Generator struct {
+	config config
+}
 
-// Same limit, but for hashmap buckets slice (both hmaps and swiss maps,
-// both using pointers and embedded key/value types). Limit is higher
-// than for strings and slices, given that not all bucket slots are
-// occupied.
-const maxHashBucketsSize = 4 * maxDynamicTypeSize
+// NewGenerator creates a new Generator with the given options.
+func NewGenerator(options ...Option) *Generator {
+	g := &Generator{
+		config: defaultConfig,
+	}
+	for _, option := range options {
+		option.apply(&g.config)
+	}
+	return g
+}
+
+// GenerateIR generates an IR program from a binary and a list of probes.
+// It returns a GeneratedProgram containing both the successful IR program
+// and any probes that failed during generation.
+func (g *Generator) GenerateIR(
+	programID ir.ProgramID,
+	objFile *object.ElfFile,
+	probeDefs []ir.ProbeDefinition,
+) (*ir.Program, error) {
+	return generateIR(g.config, programID, objFile, probeDefs)
+}
 
 // GenerateIR generates an IR program from a binary and a list of probes.
 // It returns a GeneratedProgram containing both the successful IR program
@@ -70,9 +88,23 @@ const maxHashBucketsSize = 4 * maxDynamicTypeSize
 func GenerateIR(
 	programID ir.ProgramID,
 	objFile object.File,
-	config []ir.ProbeDefinition,
+	probeDefs []ir.ProbeDefinition,
+	options ...Option,
 ) (_ *ir.Program, retErr error) {
-	slices.SortFunc(config, func(a, b ir.ProbeDefinition) int {
+	cfg := defaultConfig
+	for _, option := range options {
+		option.apply(&cfg)
+	}
+	return generateIR(cfg, programID, objFile, probeDefs)
+}
+
+func generateIR(
+	cfg config,
+	programID ir.ProgramID,
+	objFile object.File,
+	probeDefs []ir.ProbeDefinition,
+) (_ *ir.Program, retErr error) {
+	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
 	})
 	// Given that the go dwarf library is not intentionally safe when
@@ -91,7 +123,7 @@ func GenerateIR(
 		}
 	}()
 
-	interests, issues := makeInterests(config)
+	interests, issues := makeInterests(probeDefs)
 
 	ptrSize := objFile.PointerSize()
 
@@ -108,10 +140,14 @@ func GenerateIR(
 		subprograms:         nil,
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
 		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
-		typeCatalog:         newTypeCatalog(d, ptrSize),
-		object:              objFile,
-		loclistReader:       loclistReader,
-		issues:              issues,
+		typeCatalog: newTypeCatalog(
+			d, ptrSize,
+			cfg.maxDynamicTypeSize,
+			cfg.maxHashBucketsSize,
+		),
+		object:        objFile,
+		loclistReader: loclistReader,
+		issues:        issues,
 	}
 	if err := visitDwarf(d.Reader(), v); err != nil {
 		return nil, err
@@ -142,7 +178,7 @@ func GenerateIR(
 	issues = append(v.issues, issues...)
 
 	// Note that findUnusedConfigs will sort the issues and probes.
-	unused := findUnusedConfigs(probes, issues, config)
+	unused := findUnusedConfigs(probes, issues, probeDefs)
 	for _, probe := range unused {
 		issues = append(issues, ir.ProbeIssue{
 			ProbeDefinition: probe,
@@ -152,7 +188,7 @@ func GenerateIR(
 			},
 		})
 	}
-	slices.SortFunc(issues, compareProbes)
+	slices.SortFunc(issues, ir.CompareProbeIDs)
 
 	return &ir.Program{
 		ID:          programID,
@@ -164,27 +200,14 @@ func GenerateIR(
 	}, nil
 }
 
-type probeIDer interface {
-	GetID() string
-	GetVersion() int
-}
-
-func compareProbes[A, B probeIDer](a A, b B) int {
-	return cmp.Or(
-		cmp.Compare(a.GetID(), b.GetID()),
-		cmp.Compare(b.GetVersion(), a.GetVersion()), // reverse version order
-	)
-}
-
 func findUnusedConfigs(
 	successes []*ir.Probe,
 	failures []ir.ProbeIssue,
 	configs []ir.ProbeDefinition,
-) []ir.ProbeDefinition {
-	slices.SortFunc(configs, compareProbes)
-	slices.SortFunc(failures, compareProbes)
-	slices.SortFunc(successes, compareProbes)
-	var unused []ir.ProbeDefinition
+) (unused []ir.ProbeDefinition) {
+	slices.SortFunc(successes, ir.CompareProbeIDs)
+	slices.SortFunc(failures, ir.CompareProbeIDs)
+	slices.SortFunc(configs, ir.CompareProbeIDs)
 	for _, config := range configs {
 		var inSuccesses, inFailures bool
 		successes, inSuccesses = skipPast(successes, config)
@@ -196,8 +219,8 @@ func findUnusedConfigs(
 	return unused
 }
 
-func skipPast[A, B probeIDer](items []A, target B) (_ []A, found bool) {
-	idx, found := slices.BinarySearchFunc(items, target, compareProbes)
+func skipPast[A, B ir.ProbeIDer](items []A, target B) (_ []A, found bool) {
+	idx, found := slices.BinarySearchFunc(items, target, ir.CompareProbeIDs)
 	if found {
 		idx++
 	}
@@ -502,7 +525,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: maxHashBucketsSize,
+			ByteSize: tc.maxHashBucketsSize,
 		},
 		Element: tablePtrType,
 	}
@@ -512,7 +535,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: maxDynamicTypeSize,
+			ByteSize: uint32(tc.maxDynamicTypeSize),
 		},
 		Element: groupType,
 	}
@@ -548,7 +571,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: maxDynamicTypeSize,
+			ByteSize: tc.maxDynamicTypeSize,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -583,7 +606,7 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: maxDynamicTypeSize,
+			ByteSize: tc.maxDynamicTypeSize,
 		},
 		Element: elementType,
 	}
@@ -680,7 +703,7 @@ func populateEventExpressions(
 			Name:     fmt.Sprintf("Probe[%s]", probe.Subprogram.Name),
 			ByteSize: uint32(byteSize),
 		},
-		PresenseBitsetSize: presenceBitsetSize,
+		PresenceBitsetSize: presenceBitsetSize,
 		Expressions:        expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type

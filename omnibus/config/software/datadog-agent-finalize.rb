@@ -180,12 +180,22 @@ build do
                 # Sometimes the timestamp service is not available, so we retry
                 codesign = "../tools/ci/retry.sh codesign"
 
-                # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
-                command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
+                # Codesign all Mach-O binaries leveraging parallelism (~280 binaries out of ~28000 files)
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    find #{install_dir} -type f -print0 |
+                        xargs -0 -n1000 -P#{workers} file -n --mime-type |
+                        awk -F: '$0 ~ /[^)]:[[:space:]]*application\\/x-mach-binary/ { printf "%s%c", $1, 0 }' |
+                        xargs -0 -n10 -P#{workers} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                SH
+                # Also sequentially codesign PNGs (`Contents/MacOS/agent.png` out of ~20 files under 'Datadog Agent.app')
+                command <<-SH.gsub(/^ {20}/, ""), cwd: Dir.pwd
+                    set -euo pipefail
+                    find '#{install_dir}/Datadog Agent.app' -type f -print0 |
+                        xargs -0 file --mime-type |
+                        awk -F: '$2 ~ /image\\/png/ { printf "%s%c", $1, 0 }' |
+                        xargs -0 #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}'
+                SH
             end
         end
     end

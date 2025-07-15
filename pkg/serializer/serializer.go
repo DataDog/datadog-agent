@@ -7,7 +7,6 @@
 package serializer
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -131,8 +130,6 @@ type Serializer struct {
 
 // NewSerializer returns a new Serializer initialized
 func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string) *Serializer {
-	streamAvailable := compressor.NewStreamCompressor(&bytes.Buffer{}) != nil
-
 	s := &Serializer{
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
@@ -143,10 +140,10 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		enableServiceChecks:                 config.GetBool("enable_payloads.service_checks"),
 		enableSketches:                      config.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake:                config.GetBool("enable_payloads.json_to_v1_intake"),
-		enableJSONStream:                    streamAvailable && config.GetBool("enable_stream_payload_serialization"),
-		enableServiceChecksJSONStream:       streamAvailable && config.GetBool("enable_service_checks_stream_payload_serialization"),
-		enableEventsJSONStream:              streamAvailable && config.GetBool("enable_events_stream_payload_serialization"),
-		enableSketchProtobufStream:          streamAvailable && config.GetBool("enable_sketch_stream_payload_serialization"),
+		enableJSONStream:                    config.GetBool("enable_stream_payload_serialization"),
+		enableServiceChecksJSONStream:       config.GetBool("enable_service_checks_stream_payload_serialization"),
+		enableEventsJSONStream:              config.GetBool("enable_events_stream_payload_serialization"),
+		enableSketchProtobufStream:          config.GetBool("enable_sketch_stream_payload_serialization"),
 		hostname:                            hostName,
 		Strategy:                            compressor,
 		jsonExtraHeaders:                    make(http.Header),

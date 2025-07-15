@@ -15,13 +15,16 @@ import (
 )
 
 type loadedProgram struct {
-	program loader.Program
-	ir      *ir.Program
+	tenantID tenantID
+	program  loader.Program
+	ir       *ir.Program
+	sink     Sink
 }
 
 type attachedProgram struct {
 	ir             *ir.Program
 	procID         ProcessID
+	tenantID       tenantID
 	executableLink *link.Executable
 	attachedLinks  []link.Link
 }

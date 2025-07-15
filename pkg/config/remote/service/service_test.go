@@ -921,14 +921,12 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}
 	updatedKey := "notUpdated"
-
+	notifications := make(chan string, 10)
 	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
 		updatedKey = args.Get(0).(string)
+		notifications <- updatedKey
 	})
-	orgResponse := pbgo.OrgDataResponse{
-		Uuid: "firstUuid",
-	}
-	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
+	api.On("FetchOrgData", mock.Anything).Return(&pbgo.OrgDataResponse{Uuid: "firstUuid"}, nil)
 	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
 
 	cfg := configmock.New(t)
@@ -948,13 +946,22 @@ func TestWithApiKeyUpdate(t *testing.T) {
 	service.uptane = uptaneClient
 
 	cfg.SetWithoutSource("api_key", "updated")
-	assert.Equal(t, "updated", updatedKey)
+	select {
+	case <-notifications:
+		assert.Equal(t, "updated", updatedKey)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for notification")
+	}
 
 	// We still use the new key even if the new org doesn't match the old org.
-	orgResponse.Uuid = "badUuid"
+	api.On("FetchOrgData", mock.Anything).Return(&pbgo.OrgDataResponse{Uuid: "badUuid"}, nil)
 	cfg.SetWithoutSource("api_key", "BAD_ORG")
-	assert.Equal(t, "BAD_ORG", updatedKey)
-
+	select {
+	case <-notifications:
+		assert.Equal(t, "BAD_ORG", updatedKey)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for notification")
+	}
 }
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {

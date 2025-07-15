@@ -157,7 +157,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg)),
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -419,10 +419,11 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
+func httpClientFactory(cfg pkgconfigmodel.Reader) func() *http.Client {
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
+	timeout := time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
 
 	// Configure transport based on user setting
 	switch transportConfig {

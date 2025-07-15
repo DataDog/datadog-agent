@@ -63,7 +63,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.158 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0 // indirect
@@ -74,6 +74,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.67.0 // indirect
@@ -148,6 +149,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

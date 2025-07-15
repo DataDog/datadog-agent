@@ -19,6 +19,7 @@ import (
 )
 
 type serializedProgram struct {
+	programID               uint32
 	code                    []byte
 	maxOpLen                uint32
 	chasePointersEntrypoint uint32
@@ -62,7 +63,10 @@ func (s *ByteSerializer) SerializeInstruction(opcode compiler.Opcode, paramBytes
 	return nil
 }
 
-func serializeProgram(program compiler.Program, additionalSerializer compiler.CodeSerializer) (*serializedProgram, error) {
+func serializeProgram(
+	program compiler.Program,
+	additionalSerializer compiler.CodeSerializer,
+) (*serializedProgram, error) {
 	buf := &bytes.Buffer{}
 	serializer := compiler.CodeSerializer(&ByteSerializer{
 		buf: buf,
@@ -77,8 +81,9 @@ func serializeProgram(program compiler.Program, additionalSerializer compiler.Co
 		return nil, fmt.Errorf("failed to serialize code: %w", err)
 	}
 	serialized := &serializedProgram{
-		code:     buf.Bytes(),
-		maxOpLen: metadata.MaxOpLen,
+		programID: program.ID,
+		code:      buf.Bytes(),
+		maxOpLen:  metadata.MaxOpLen,
 	}
 	var ok bool
 	serialized.chasePointersEntrypoint, ok = metadata.FunctionLoc[compiler.ChasePointers{}]

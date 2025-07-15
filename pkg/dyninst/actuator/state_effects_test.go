@@ -25,6 +25,7 @@ type effect interface {
 // Effect implementations
 
 type effectSpawnBpfLoading struct {
+	processID  ProcessID
 	programID  ir.ProgramID
 	executable Executable
 	probes     []ir.ProbeDefinition
@@ -41,6 +42,7 @@ func (e effectSpawnBpfLoading) yamlData() map[string]any {
 	}
 	slices.Sort(probeKeys)
 	return map[string]any{
+		"process_id": int(e.processID.PID),
 		"program_id": int(e.programID),
 		"executable": e.executable.String(),
 		"probes":     probeKeys,
@@ -81,29 +83,15 @@ func (e effectDetachFromProcess) yamlData() map[string]any {
 	}
 }
 
-type effectRegisterProgramWithDispatcher struct {
+type effectUnloadProgram struct {
 	programID ir.ProgramID
 }
 
-func (e effectRegisterProgramWithDispatcher) yamlTag() string {
-	return "!register-program-with-dispatcher"
+func (e effectUnloadProgram) yamlTag() string {
+	return "!unload-program"
 }
 
-func (e effectRegisterProgramWithDispatcher) yamlData() map[string]any {
-	return map[string]any{
-		"program_id": int(e.programID),
-	}
-}
-
-type effectUnregisterProgramWithDispatcher struct {
-	programID ir.ProgramID
-}
-
-func (e effectUnregisterProgramWithDispatcher) yamlTag() string {
-	return "!unregister-program-with-dispatcher"
-}
-
-func (e effectUnregisterProgramWithDispatcher) yamlData() map[string]any {
+func (e effectUnloadProgram) yamlData() map[string]any {
 	return map[string]any{
 		"program_id": int(e.programID),
 	}
@@ -137,11 +125,14 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 // Implementation of effectHandler interface using the unified system
 
 func (er *effectRecorder) loadProgram(
+	_ tenantID,
 	programID ir.ProgramID,
 	executable Executable,
+	processID ProcessID,
 	probes []ir.ProbeDefinition,
 ) {
 	er.recordEffect(effectSpawnBpfLoading{
+		processID:  processID,
 		programID:  programID,
 		executable: executable,
 		probes:     probes,
@@ -167,14 +158,9 @@ func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	})
 }
 
-func (er *effectRecorder) registerProgramWithDispatcher(program *ir.Program) {
-	er.recordEffect(effectRegisterProgramWithDispatcher{
-		programID: program.ID,
-	})
-}
-
-func (er *effectRecorder) unregisterProgramWithDispatcher(programID ir.ProgramID) {
-	er.recordEffect(effectUnregisterProgramWithDispatcher{
-		programID: programID,
+func (er *effectRecorder) unloadProgram(lp *loadedProgram) {
+	// For tests we just record that the sink and program are being closed.
+	er.recordEffect(effectUnloadProgram{
+		programID: lp.ir.ID,
 	})
 }
