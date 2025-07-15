@@ -210,10 +210,6 @@ func ValidateLogLevel(logLevel string) (string, error) {
 *	Operation on the **logger**
  */
 
-// ReplaceLogger allows replacing the internal logger, returns old logger
-func ReplaceLogger(li LoggerInterface) LoggerInterface {
-	return logger.replaceInnerLogger(li)
-}
 func (sw *loggerPointer) replaceInnerLogger(li LoggerInterface) LoggerInterface {
 	l := sw.Load()
 	if l == nil {

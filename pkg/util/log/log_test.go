@@ -814,27 +814,6 @@ func TestValidateLogLevelUnknownLevel(t *testing.T) {
 	assert.Equal(t, "unknown log level: "+strings.ToLower("unknownLogLevel"), err.Error())
 }
 
-func TestReplaceLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-
-	assert.Equal(t, Default(), ReplaceLogger(l)) // old logger should be returned
-}
-
-func TestReplaceLoggerNilLogger(t *testing.T) {
-	logger.Store(nil)
-
-	// should return nil and not change the inner logger
-	assert.Nil(t, ReplaceLogger(Default()))
-}
-
-func TestReplaceLoggerNilInnerLogger(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-	logger.Load().inner = nil
-
-	assert.Nil(t, ReplaceLogger(Default()))
-}
-
 func TestTraceNilLogger(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
