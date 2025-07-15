@@ -94,7 +94,7 @@ type serializerConsumer struct {
 	sketches        metrics.SketchSeriesList
 	apmstats        []io.Reader
 	apmReceiverAddr string
-	path            ingestionPath
+	ipath           ingestionPath
 	hosts           map[string]struct{}
 	ecsFargateTags  map[string]struct{}
 }
@@ -182,7 +182,7 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 	}
 
 	buildInfo := params.BuildInfo
-	switch c.path {
+	switch c.ipath {
 	case ddot:
 		for host := range c.hosts {
 			usageMetric.Inc(buildInfo.Version, buildInfo.Command, host, "")
@@ -196,7 +196,7 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 	case ossCollector:
 		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
 	default:
-		params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.path)))
+		params.Logger.Fatal("ingestion path unset or unknown", zap.Int("ingestion path enum", int(c.ipath)))
 	}
 }
 

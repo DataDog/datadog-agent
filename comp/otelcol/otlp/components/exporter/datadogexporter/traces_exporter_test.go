@@ -14,6 +14,7 @@ import (
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -110,7 +111,15 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), telemetryComp)
+	store := serializerexporter.TelemetryStore{
+		DDOTTraces: telemetryComp.NewGauge(
+			"runtime",
+			"datadog.agent.ddot.traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		),
+	}
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -159,7 +168,15 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 
 	// The client should have been created correctly
 	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), telemetryComp)
+	store := serializerexporter.TelemetryStore{
+		DDOTTraces: telemetryComp.NewGauge(
+			"runtime",
+			"datadog.agent.ddot.traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		),
+	}
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)

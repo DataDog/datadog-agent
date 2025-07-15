@@ -134,10 +134,25 @@ func newConfigProviderSettings(uris []string, converter confmap.Converter, enhan
 }
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
+	store := serializerexporter.TelemetryStore{}
+	if reqs.Telemetry != nil {
+		store.DDOTTraces = reqs.Telemetry.NewGauge(
+			"runtime",
+			"datadog.agent.ddot.traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		)
+		store.DDOTMetrics = reqs.Telemetry.NewGauge(
+			"runtime",
+			"datadog.agent.ddot.metrics",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP metrics in DDOT",
+		)
+	}
 	if v, ok := reqs.LogsAgent.Get(); ok {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, reqs.Telemetry)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
 	} else {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, reqs.Telemetry)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)

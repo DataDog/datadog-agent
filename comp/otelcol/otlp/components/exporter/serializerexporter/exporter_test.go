@@ -214,7 +214,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{})
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
@@ -331,7 +331,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, otel.NewDisabledGatewayUsage(), nil)
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{})
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
@@ -382,7 +382,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	ctx := context.Background()
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	}, nil, otel.NewDisabledGatewayUsage(), nil)
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{})
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -463,9 +463,17 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
 	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	store := TelemetryStore{
+		OTLPIngestMetrics: telemetryComp.NewGauge(
+			"runtime",
+			"datadog.agent.otlp.ingest.metrics",
+			[]string{"version", "command", "host"},
+			"Usage metric of OTLP metrics in OTLP ingestion",
+		),
+	}
 	f := NewFactoryForAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, telemetryComp)
+	}, store)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -498,10 +506,18 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 func TestUsageMetric_DDOT(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	store := TelemetryStore{
+		DDOTMetrics: telemetryComp.NewGauge(
+			"runtime",
+			"datadog.agent.ddot.metrics",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP metrics in OTLP ingestion",
+		),
+	}
 	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "agent-host", nil
-	}, nil, otel.NewDisabledGatewayUsage(), telemetry)
+	}, nil, otel.NewDisabledGatewayUsage(), store)
 	cfg := f.CreateDefaultConfig().(*ExporterConfig)
 	exp, err := f.CreateMetrics(
 		ctx,
@@ -528,12 +544,12 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
-	usageMetric, err := telemetry.GetGaugeMetric("runtime", "datadog.agent.ddot.metrics")
+	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog.agent.ddot.metrics")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
 	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
 	assert.Equal(t, 1.0, usageMetric[0].Value())
 
-	_, err = telemetry.GetGaugeMetric("runtime", "datadog.agent.otlp.ingest.metrics")
+	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog.agent.otlp.ingest.metrics")
 	assert.ErrorContains(t, err, "runtime__datadog.agent.otlp.ingest.metrics not found")
 }

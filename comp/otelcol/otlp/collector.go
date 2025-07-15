@@ -120,9 +120,18 @@ func getComponents(
 		errs = append(errs, err)
 	}
 
+	store := serializerexporter.TelemetryStore{}
+	if telemetry != nil {
+		store.OTLPIngestMetrics = telemetry.NewGauge(
+			"runtime",
+			"datadog.agent.otlp.ingest.metrics",
+			[]string{"version", "command", "host"},
+			"Usage metric of OTLP metrics in OTLP ingestion",
+		)
+	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, telemetry),
+		serializerexporter.NewFactoryForAgent(s, &tagEnricher{cardinality: types.LowCardinality, tagger: tagger}, hostname.Get, store),
 		debugexporter.NewFactory(),
 	}
 

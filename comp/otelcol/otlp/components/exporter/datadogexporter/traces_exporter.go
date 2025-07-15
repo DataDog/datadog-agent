@@ -33,7 +33,7 @@ func newTracesExporter(
 	cfg *datadogconfig.Config,
 	traceagentcmp traceagent.Component,
 	gatewayUsage otel.GatewayUsage,
-	telemetry telemetry.Component,
+	usageMetric telemetry.Gauge,
 ) *traceExporter {
 	exp := &traceExporter{
 		params:        params,
@@ -41,14 +41,7 @@ func newTracesExporter(
 		ctx:           ctx,
 		traceagentcmp: traceagentcmp,
 		gatewayUsage:  gatewayUsage,
-	}
-	if telemetry != nil {
-		exp.usageMetric = telemetry.NewGauge(
-			"runtime",
-			"datadog.agent.ddot.traces",
-			[]string{"version", "command", "host", "task_arn"},
-			"Usage metric of OTLP traces in DDOT",
-		)
+		usageMetric:   usageMetric,
 	}
 	return exp
 }
