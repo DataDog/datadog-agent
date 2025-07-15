@@ -32,6 +32,11 @@ packages:
     interfaces:
       Probe:
 
+  # workloadmeta
+  github.com/DataDog/datadog-agent/comp/core/workloadmeta/def:
+    interfaces:
+      Component:
+
   # serializer
   github.com/DataDog/datadog-agent/pkg/serializer:
     interfaces:
