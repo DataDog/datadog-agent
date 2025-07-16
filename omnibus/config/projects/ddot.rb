@@ -76,7 +76,7 @@ elsif do_package
 end
 
 disable_version_manifest do_package
-extra_package_file "/etc/datadog-agent/"
+extra_package_file "#{install_dir}/etc/"
 
 exclude '\.git*'
 exclude 'bundler\/git'
