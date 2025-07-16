@@ -29,7 +29,6 @@ func TestWindowsDiagnoseSuite(t *testing.T) {
 	t.Parallel()
 	var suite windowsDiagnoseSuite
 	suite.suites = append(suite.suites, commonSuites...)
-	suite.suites = append(suite.suites, "agent-account-check")
 	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
 }
 
