@@ -73,7 +73,7 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
-    MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
+    MAX_RETRIES_FLAG: "--max-retries=3" # Retry failed tests up to 3 times by default
   script:
     - dda inv -- -e new-e2e-tests.run $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
@@ -578,7 +578,6 @@ new-e2e-installer-script:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
     E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer:
   extends: .new_e2e_template
@@ -601,7 +600,6 @@ new-e2e-installer:
     FLEET_INSTALL_METHOD: "install_script"
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-installer-windows:
   extends: .new_e2e_template
@@ -627,7 +625,6 @@ new-e2e-installer-windows:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
     E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
   parallel:
     matrix:
       # agent-package
@@ -703,7 +700,6 @@ new-e2e-installer-ansible:
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=3"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
