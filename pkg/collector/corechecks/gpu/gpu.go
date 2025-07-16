@@ -344,6 +344,16 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		}
 	}
 
+	// Debug: print the content of gpuToContainers map
+	log.Errorf("gpuToContainers map content: %d GPU(s) found", len(gpuToContainers))
+	for gpuID, cs := range gpuToContainers {
+		containerNames := make([]string, 0, len(cs))
+		for _, container := range cs {
+			containerNames = append(containerNames, fmt.Sprintf("%s (ID: %s)", container.Name, container.ID))
+		}
+		log.Errorf("GPU %s -> %d container(s): %v", gpuID, len(cs), containerNames)
+	}
+
 	return gpuToContainers
 }
 
