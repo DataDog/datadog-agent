@@ -6,7 +6,6 @@ replace (
 	github.com/DataDog/datadog-secret-backend/backend => ./backend
 	github.com/DataDog/datadog-secret-backend/backend/aws => ./backend/aws
 	github.com/DataDog/datadog-secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
-	github.com/hashicorp/vault => github.com/DataDog/vault v0.10.5-0.20250716193101-44fb30472101
 	github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 )
 
@@ -58,7 +57,6 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.2.0 // indirect
-	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
@@ -66,6 +64,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.200.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.53.8 // indirect
+	github.com/axiomhq/hyperloglog v0.0.0-20220105174342-98591331716a // indirect
 	github.com/benbjohnson/immutable v0.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
@@ -81,6 +80,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/denverdino/aliyungo v0.0.0-20190125010748-a747050bb1ba // indirect
+	github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc // indirect
 	github.com/digitalocean/godo v1.7.5 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dnaeon/go-vcr v1.2.0 // indirect
