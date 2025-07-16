@@ -309,7 +309,7 @@ type eventsMarshaler2 struct {
 	compressor     *stream.Compressor
 	header, footer []byte
 
-	// last source type name succesfully added to the compressor
+	// last source type name successfully added to the compressor
 	sourceTypeName string
 	// if any events were added to the compressor since starting new payload
 	eventsInPayload bool
@@ -320,6 +320,7 @@ type eventsMarshaler2 struct {
 	payloads []*transaction.BytesPayload
 }
 
+// MarshalEvents serializes an array of events into one or more compressed intake payloads.
 func MarshalEvents(
 	events event.Events,
 	hostname string,
@@ -350,7 +351,7 @@ func createMarshaler2(
 	stream.Reset(nil)
 
 	stream.WriteArrayEnd()
-	writeEventsFooter(stream, hostname)
+	_ = writeEventsFooter(stream, hostname)
 	footer := slices.Clone(stream.Buffer())
 	stream.Reset(nil)
 
