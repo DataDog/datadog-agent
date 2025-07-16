@@ -59,20 +59,20 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				Pgfault:    pointer.Ptr(97001.0),
 				Pgmajfault: pointer.Ptr(50002.0),
 
-				// metrics
-				Shmem:         pointer.Ptr(1480.0),
-				FileMapped:    pointer.Ptr(1480.0),
-				FileDirty:     pointer.Ptr(1480.0),
-				FileWriteback: pointer.Ptr(1480.0),
-				RefaultAnon:   pointer.Ptr(1480.0),
-				RefaultFile:   pointer.Ptr(1480.0),
+				// extended metrics
+				Shmem:         pointer.Ptr(1481.0),
+				FileMapped:    pointer.Ptr(1482.0),
+				FileDirty:     pointer.Ptr(1483.0),
+				FileWriteback: pointer.Ptr(1484.0),
+				RefaultAnon:   pointer.Ptr(1485.0),
+				RefaultFile:   pointer.Ptr(1486.0),
 
 				PageTables:   pointer.Ptr(661.0),
-				ActiveAnon:   pointer.Ptr(661.0),
-				InactiveAnon: pointer.Ptr(661.0),
-				ActiveFile:   pointer.Ptr(661.0),
-				InactiveFile: pointer.Ptr(661.0),
-				Unevictable:  pointer.Ptr(661.0),
+				ActiveAnon:   pointer.Ptr(662.0),
+				InactiveAnon: pointer.Ptr(663.0),
+				ActiveFile:   pointer.Ptr(664.0),
+				InactiveFile: pointer.Ptr(665.0),
+				Unevictable:  pointer.Ptr(666.0),
 			},
 			IO: &metrics.ContainerIOStats{
 				Devices: map[string]metrics.DeviceIOStats{
