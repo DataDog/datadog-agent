@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -240,6 +241,7 @@ func TestGoTLSMapCleanup(t *testing.T) {
 		t.Skip("GoTLS not supported on this platform")
 	}
 
+	SetGoTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -253,15 +255,21 @@ func TestGoTLSMapCleanup(t *testing.T) {
 
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
-	goTLSMap, ok, err := monitor.ebpfProgram.Manager.GetMap(connectionTupleByGoTLSMap)
-	require.NoError(t, err)
-	require.True(t, ok)
+	mapsName := []string{
+		connectionTupleByGoTLSMap,
+		goTLSConnByTupleMap,
+		goTLSReadArgsMap,
+		goTLSWriteArgsMap,
+	}
+	mapsInstances := make([]*ebpf.Map, len(mapsName))
+	for i, name := range mapsName {
+		m, ok, err := monitor.ebpfProgram.Manager.GetMap(name)
+		require.NoError(t, err)
+		require.True(t, ok, "map %s should exist", name)
+		mapsInstances[i] = m
 
-	goTLSConnByTupleMap, ok, err := monitor.ebpfProgram.Manager.GetMap(goTLSConnByTupleMap)
-	require.NoError(t, err)
-	require.True(t, ok)
-
-	require.Equal(t, 0, utils.CountMapEntries(t, goTLSMap))
+		require.Zero(t, utils.CountMapEntries(t, m), "map %s should be empty at start", name)
+	}
 
 	for j := 0; j < 10; j++ {
 		proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddrIPV4, true, false)
@@ -281,15 +289,10 @@ func TestGoTLSMapCleanup(t *testing.T) {
 		}
 	}
 
-	require.Eventually(t, func() bool {
-		goTLSMapFinal := utils.CountMapEntries(t, goTLSMap)
-		goTLSConnByTupleMapFinal := utils.CountMapEntries(t, goTLSConnByTupleMap)
-		if goTLSMapFinal != 0 {
-			t.Logf("Map goTLSMap still has %d entries", goTLSMapFinal)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for _, m := range mapsInstances {
+			count := utils.CountMapEntries(t, m)
+			assert.Zero(collect, count, "map %s should be empty after proxy exit", m.String())
 		}
-		if goTLSConnByTupleMapFinal != 0 {
-			t.Logf("Map goTLSConnByTupleMap still has %d entries", goTLSConnByTupleMapFinal)
-		}
-		return goTLSMapFinal*goTLSConnByTupleMapFinal == 0
-	}, 5*time.Second, 100*time.Millisecond, "map should be empty after proxy exit")
+	}, 5*time.Second, 100*time.Millisecond, "maps should be empty after proxy exit")
 }
