@@ -362,7 +362,6 @@ func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
 	// Execute with retry
 	_, err := backoff.Retry(ctx, operation,
 		backoff.WithBackOff(m.backoff),
-		backoff.WithMaxElapsedTime(10*time.Minute),
 	)
 
 	// Process log file once after all retries are complete
