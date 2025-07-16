@@ -25,8 +25,9 @@ type MMappingElfFile struct {
 // MMappedData is a portion of a file that has been mmapped into memory.
 // Call Close() to release resources.
 type MMappedData struct {
-	Data   []byte
-	mmaped []byte
+	Data    []byte
+	mmaped  []byte
+	cleanup runtime.Cleanup
 }
 
 // OpenMMappingElfFile creates a new MMappingElfFile for the given path.
@@ -102,8 +103,12 @@ func (m *MMappingElfFile) mmap(offset uint64, size uint64) (*MMappedData, error)
 		Data:   mmaped[offsetDelta:],
 		mmaped: mmaped,
 	}
-	runtime.SetFinalizer(md, (*MMappedData).Close)
+	md.cleanup = runtime.AddCleanup(md, munmapCleanup, md.mmaped)
 	return md, nil
+}
+
+func munmapCleanup(m []byte) {
+	_ = syscall.Munmap(m) // ignore errors
 }
 
 // Close unmaps the section from memory.
@@ -111,6 +116,8 @@ func (m *MMappedData) Close() error {
 	if m.mmaped == nil {
 		return nil
 	}
+	m.cleanup.Stop()
+	runtime.KeepAlive(m)
 	err := syscall.Munmap(m.mmaped)
 	m.mmaped = nil
 	return err
