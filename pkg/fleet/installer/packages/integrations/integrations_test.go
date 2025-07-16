@@ -27,7 +27,7 @@ func TestRemoveCustomIntegrations(t *testing.T) {
 		"embedded/lib/python3.12/site-packages/botocore-1.38.8.dist-info/WHEEL",
 		"embedded/lib/python3.12/site-packages/botocore-1.38.8.dist-info/entry_points.txt",
 		"embedded/lib/python3.12/site-packages/botocore-1.38.8.dist-info/direct_url.json",
-		// Installed by agent integration command
+		// Installed by agent binary
 		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/INSTALLER",
 		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/METADATA",
 		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/RECORD",
@@ -35,7 +35,7 @@ func TestRemoveCustomIntegrations(t *testing.T) {
 		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/WHEEL",
 		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/entry_points.txt",
 		"embedded/lib/python3.12/site-packages/datadog_activemq-5.0.0.dist-info/direct_url.json",
-		// Not installed by agent integration command
+		// Installed by agent integration command
 		"embedded/lib/python3.12/site-packages/datadog_redisdb-5.0.0.dist-info/INSTALLER",
 		"embedded/lib/python3.12/site-packages/datadog_redisdb-5.0.0.dist-info/METADATA",
 		"embedded/lib/python3.12/site-packages/datadog_redisdb-5.0.0.dist-info/RECORD",
