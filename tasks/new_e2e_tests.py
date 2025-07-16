@@ -33,7 +33,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
-from tasks.libs.testing.e2e import create_test_selection_regex, filter_only_leaf_tests
+from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
@@ -369,8 +369,8 @@ def run(
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": ('-test.run ' + create_test_selection_regex(clean_run)) if run else "",
-        "skip": ('-test.skip ' + create_test_selection_regex(clean_skip)) if skip else "",
+        "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
+        "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else "",
         "platform": f"-platform {platform}" if platform else "",
@@ -388,6 +388,7 @@ def run(
 
     to_teardown: set[tuple[str, str]] = set()
     result_jsons: list[str] = []
+    result_junits: list[str] = []
     for attempt in range(max_retries + 1):
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
@@ -399,6 +400,9 @@ def run(
         partial_result_json = f"{result_json}.{attempt}.part"
         result_jsons.append(partial_result_json)
 
+        partial_result_junit = f"junit-out-{str(AgentFlavor.base)}-{attempt}.xml"
+        result_junits.append(partial_result_junit)
+
         test_res = test_flavor(
             ctx,
             flavor=AgentFlavor.base,
@@ -407,7 +411,7 @@ def run(
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar=junit_tar,
+            result_junit=partial_result_junit,
             result_json=partial_result_json,
             test_profiler=None,
         )
@@ -439,9 +443,10 @@ def run(
                 to_teardown.update(known_flaky_failures)
 
             if to_retry:
+                failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
                 print(
                     color_message(
-                        f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                        f"Retrying {len(to_retry)} failed tests:\n- {failed_tests_printout}",
                         "yellow",
                     )
                 )
@@ -452,7 +457,7 @@ def run(
                     for package, _ in to_retry
                 }
                 e2e_module.test_targets = list(affected_packages)
-                args["run"] = '-test.run ' + create_test_selection_regex([test for _, test in to_retry])
+                args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_retry])
             else:
                 break
 
@@ -469,7 +474,7 @@ def run(
             os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
         }
         e2e_module.test_targets = list(affected_packages)
-        args["run"] = '-test.run ' + create_test_selection_regex([test for _, test in to_teardown])
+        args["run"] = '-test.run ' + create_test_selection_gotest_regex([test for _, test in to_teardown])
         env_vars["E2E_TEARDOWN_ONLY"] = "true"
         test_flavor(
             ctx,
@@ -479,8 +484,8 @@ def run(
             args=args,
             cmd=cmd,
             env=env_vars,
-            junit_tar="",  # No need to store JUnit results for teardown-only runs
-            result_json="/dev/null",  # No need to store results for teardown-only runs
+            result_junit="",  # No need to store JUnit results for teardown-only runs
+            result_json="",  # No need to store results for teardown-only runs
             test_profiler=None,
         )
 
@@ -490,7 +495,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+    success = process_test_result(test_res, junit_tar, result_junits, AgentFlavor.base, test_washer)
 
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI

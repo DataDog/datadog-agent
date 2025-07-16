@@ -18,8 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/go-libddwaf/v4"
 	"github.com/stretchr/testify/require"
+
+	waf "github.com/DataDog/go-libddwaf/v3"
 )
 
 func init() {
@@ -27,7 +28,7 @@ func init() {
 }
 
 func TestProxyLifecycleProcessor(t *testing.T) {
-	if _, err := libddwaf.Usable(); err != nil {
+	if _, err := waf.SupportsTarget(); err != nil {
 		t.Skip("host not supported by appsec", err)
 	}
 

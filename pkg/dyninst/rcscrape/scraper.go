@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,7 +42,7 @@ type Actuator interface {
 	NewTenant(
 		name string,
 		reporter actuator.Reporter,
-		opts ...irgen.Option,
+		irGenerator actuator.IRGenerator,
 	) *actuator.Tenant
 }
 
@@ -57,7 +56,7 @@ func NewScraper(
 	v.tenant = a.NewTenant(
 		"rc-scrape",
 		(*scraperReporter)(v),
-		irgen.WithMaxDynamicDataSize(8<<10),
+		irGenerator{},
 	)
 	return v
 }
@@ -170,7 +169,7 @@ func (s *scraperReporter) ReportDetached(
 	procID actuator.ProcessID,
 	_ *ir.Program,
 ) {
-	log.Debugf("rcscrape: detached from process %v", procID)
+	log.Tracef("rcscrape: detached from process %v", procID)
 	s.untrack(procID)
 }
 
