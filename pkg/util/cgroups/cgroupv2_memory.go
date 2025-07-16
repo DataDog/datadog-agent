@@ -72,8 +72,8 @@ func (c *cgroupV2) GetMemoryStats(stats *MemoryStats) error {
 			// Requires Kernel >= 5.18
 		case "kernel":
 			stats.KernelMemory = &intVal
-        case "pagetables":
-            stats.PageTables = &intVal
+		case "pagetables":
+			stats.PageTables = &intVal
 		}
 
 		return nil
