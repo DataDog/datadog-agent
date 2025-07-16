@@ -45,6 +45,16 @@ const (
 	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
 
+type processClock interface {
+	Now() time.Time
+}
+
+type realClock struct{}
+
+func (r realClock) Now() time.Time {
+	return time.Now()
+}
+
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
 	serviceExtractorEnabled := true
@@ -59,6 +69,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		gpuSubscriber:       gpuSubscriber,
 		statsd:              statsd,
 		grpcServerTLSConfig: grpcServerTLSConfig,
+		timer:               realClock{},
 	}
 
 	return check
@@ -92,6 +103,7 @@ type ProcessCheck struct {
 	useWLMProcessCollection bool
 
 	hostInfo                   *HostInfo
+	timer                      processClock
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
@@ -232,9 +244,10 @@ func (p *ProcessCheck) Cleanup() {
 	}
 }
 
+// TODO: runWLM tests will be eventually moved to a linux build flagged test file after process check refactor is finished
 func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, error) {
 	log.Debugf("Running new WLM process check")
-	start := time.Now()
+	start := p.timer.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -243,9 +256,34 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 		return nil, errEmptyCPUTime
 	}
 
-	procs, err := p.probe.ProcessesByPID(time.Now(), true)
+	wlmProcList := p.wmeta.ListProcesses()
+	pids := make([]int32, len(wlmProcList))
+	for i, wlmProc := range wlmProcList {
+		pids[i] = wlmProc.Pid
+	}
+
+	statsForProcess, err := p.probe.StatsForPIDs(pids, p.timer.Now())
 	if err != nil {
 		return nil, err
+	}
+
+	// maintaining pre-existing variable types for ease of testing (don't have to change much following code)
+	//procs, err := p.probe.ProcessesByPID(time.Now(), true)
+	procs := make(map[int32]*procutil.Process, len(wlmProcList))
+	for _, wlmProc := range wlmProcList {
+		procs[wlmProc.Pid] = &procutil.Process{
+			Pid:     wlmProc.Pid,
+			Ppid:    wlmProc.Ppid,
+			NsPid:   wlmProc.NsPid,
+			Name:    wlmProc.Name,
+			Cwd:     wlmProc.Cwd,
+			Exe:     wlmProc.Exe,
+			Comm:    wlmProc.Comm,
+			Cmdline: wlmProc.Cmdline,
+			Uids:    wlmProc.Uids,
+			Gids:    wlmProc.Gids,
+			Stats:   statsForProcess[wlmProc.Pid],
+		}
 	}
 
 	// stores lastPIDs to be used by RTProcess
@@ -271,6 +309,7 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 		cacheValidity = cacheValidityRT
 	}
 
+	// TODO: this will be replaced by the GetContainerForProcess function in WLM
 	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates)
 	if err == nil {
 		p.lastContainerRates = lastContainerRates
@@ -291,7 +330,7 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
-		p.lastRun = time.Now()
+		p.lastRun = p.timer.Now()
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
@@ -306,14 +345,14 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.timer.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.lastProcs = procs
 	p.lastCPUTime = cpuTimes[0]
-	p.lastRun = time.Now()
+	p.lastRun = p.timer.Now()
 
 	result := &CombinedRunResult{
 		Standard: messages,
@@ -323,7 +362,7 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.timer.Now())
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -433,7 +472,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -450,7 +489,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -605,6 +644,7 @@ func fmtProcesses(
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
+	now time.Time,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
@@ -625,7 +665,7 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, now, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
@@ -661,7 +701,7 @@ func formatCommand(fp *procutil.Process) *model.Command {
 	}
 }
 
-func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
+func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, now time.Time, before time.Time) *model.IOStat {
 	if fp.IORateStat != nil {
 		return formatIORates(fp.IORateStat)
 	}
@@ -670,7 +710,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 		return &model.IOStat{}
 	}
 
-	diff := time.Now().Unix() - before.Unix()
+	diff := now.Unix() - before.Unix()
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}

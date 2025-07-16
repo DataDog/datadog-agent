@@ -77,9 +77,14 @@ func (p *Process) DeepCopy() *Process {
 type Stats struct {
 	CreateTime int64
 	// Status returns the process status.
-	// Return value could be one of these.
-	// R: Running S: Sleep T: Stop I: Idle
-	// Z: Zombie W: Wait L: Lock
+	// Supported return values:
+	// U: unknown state
+	// D: uninterruptible sleep
+	// R: running
+	// S: interruptible sleep
+	// T: stopped
+	// W: waiting (todo: potentially removable, W = paging only before Linux 2.6.0, waking Linux 2.6.33 to 3.13 only)
+	// Z: zombie
 	// The character is the same within all supported platforms.
 	Status      string
 	Nice        int32
