@@ -285,7 +285,7 @@ func TestWindowsCertificateCertChainVerificationWithFlags(t *testing.T) {
 certificate_store: CA
 cert_chain_validation:
   enabled: true
-  ignore_flags:
+  policy_validation_flags:
     - "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_VALID_FLAG"
     - "CERT_CHAIN_POLICY_IGNORE_CTL_NOT_TIME_VALID_FLAG"
     - "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED_FLAG"

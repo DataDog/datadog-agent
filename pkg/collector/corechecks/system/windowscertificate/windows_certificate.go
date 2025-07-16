@@ -61,7 +61,7 @@ const (
 
 type certChainValidation struct {
 	EnableCertChainValidation      bool     `yaml:"enabled" json:"enabled" default:"false"`
-	CertChainValidationIgnoreFlags []string `yaml:"ignore_flags" json:"ignore_flags" nullable:"false"`
+	CertChainPolicyValidationFlags []string `yaml:"policy_validation_flags" json:"policy_validation_flags" nullable:"false"`
 }
 
 // Config is the configuration options for this check
@@ -185,7 +185,6 @@ func (w *WinCertChk) Run() error {
 	}
 	defer sender.Commit()
 
-	//var certificates []*x509.Certificate
 	var certificates []certInfo
 	var crlInfo []crlInfoCopy
 	var serverTag string
@@ -508,7 +507,7 @@ func getEnumCertificatesInStore(storeHandle windows.Handle, certChainValidation 
 		var trustStatusError uint32
 		var chainPolicyError uint32
 		if certChainValidation.EnableCertChainValidation {
-			trustStatusError, chainPolicyError, err = validateCertificateChain(certContext, storeHandle, certChainValidation.CertChainValidationIgnoreFlags)
+			trustStatusError, chainPolicyError, err = validateCertificateChain(certContext, storeHandle, certChainValidation.CertChainPolicyValidationFlags)
 			if err != nil {
 				log.Errorf("Error validating certificate chain: %v", err)
 				continue
@@ -569,7 +568,7 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 			var trustStatusError uint32
 			var chainPolicyError uint32
 			if certChainValidation.EnableCertChainValidation {
-				trustStatusError, chainPolicyError, err = validateCertificateChain(certContext, storeHandle, certChainValidation.CertChainValidationIgnoreFlags)
+				trustStatusError, chainPolicyError, err = validateCertificateChain(certContext, storeHandle, certChainValidation.CertChainPolicyValidationFlags)
 				if err != nil {
 					log.Errorf("Error validating certificate chain: %v", err)
 					continue
@@ -778,7 +777,8 @@ func getCertChainPolicyErrors(chainPolicyError uint32) []string {
 		errors = append(errors, "Invalid name")
 	}
 	if errors == nil {
-		errors = append(errors, "Unknown error")
+		err := fmt.Sprintf("Unknown Error: %d", chainPolicyError)
+		errors = append(errors, err)
 	}
 	return errors
 }
