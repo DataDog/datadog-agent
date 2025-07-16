@@ -233,7 +233,7 @@ export_testing_public_key:
   tags: ["arch:amd64"]
   script:
     - *setup_signing
-    - /usr/bin/gpg-vault export-public-key $DEB_GPG_KEY_ID > gpg-testing-public-key.asc
+    - /usr/bin/gpg-vault export-public-key $GPG_TEST_KEY_ID > gpg-testing-public-key.asc
   artifacts:
     paths:
       - gpg-testing-public-key.asc
