@@ -47,6 +47,16 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 				Remediation: "Run as Administrator to check agent account group membership, or ensure the agent service is running with appropriate privileges.",
 			}
 		}
+		if isAgentNotInstalled(err) {
+			return diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisWarning,
+				Name:        name,
+				Diagnosis:   fmt.Sprintf("Cannot verify agent account group membership because agent is not installed.\n  Expected: %v\n  Detected: agent not found", requiredGroups),
+				Category:    category,
+				RawError:    err.Error(),
+				Remediation: "Install the Datadog Agent first, or ensure the agent installation completed successfully.",
+			}
+		}
 		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisUnexpectedError,
 			Name:        name,
@@ -93,6 +103,16 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 				Remediation: "Run as Administrator to check agent account rights, or ensure the agent service is running with appropriate privileges.",
 			}
 		}
+		if isAgentNotInstalled(err) {
+			return diagnose.Diagnosis{
+				Status:      diagnose.DiagnosisWarning,
+				Name:        name,
+				Diagnosis:   fmt.Sprintf("Cannot verify agent account rights because agent is not installed.\n  Expected: %v\n  Detected: agent not found", requiredRights),
+				Category:    category,
+				RawError:    err.Error(),
+				Remediation: "Install the Datadog Agent first, or ensure the agent installation completed successfully.",
+			}
+		}
 		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisUnexpectedError,
 			Name:        name,
@@ -122,8 +142,16 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 	}
 }
 
-// isAccessDenied checks if the error is due to access denied
+// isAccessDenied checks if the error is due to insufficient privileges
 func isAccessDenied(err error) bool {
 	errMsg := err.Error()
-	return strings.Contains(errMsg, "access denied") || strings.Contains(errMsg, "administrator privileges may be required")
+	return strings.Contains(errMsg, "access denied") ||
+		strings.Contains(errMsg, "administrator privileges may be required")
+}
+
+// isAgentNotInstalled checks if the error is due to missing agent installation
+func isAgentNotInstalled(err error) bool {
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "could not open registry key") ||
+		strings.Contains(errMsg, "cannot find the file specified")
 }

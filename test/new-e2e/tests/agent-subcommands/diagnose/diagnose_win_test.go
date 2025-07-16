@@ -8,6 +8,7 @@ package diagnose
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -49,6 +50,36 @@ func (v *windowsDiagnoseSuite) TestDiagnoseInclude() {
 func (v *windowsDiagnoseSuite) TestDiagnoseExclude() {
 	v.AssertDiagnoseExclude()
 	v.AssertDiagnoseJSONExclude()
+}
+
+// TestDiagnoseVerbose overrides the base method to handle agent-account-check warnings
+func (v *windowsDiagnoseSuite) TestDiagnoseVerbose() {
+	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite, agentclient.WithArgs([]string{"-v"}))
+	summary := getDiagnoseSummary(diagnose)
+
+	// Count PASS matches and WARNING matches from agent-account-check specifically
+	passRE := regexp.MustCompile("PASS")
+	passMatches := passRE.FindAllString(diagnose, -1)
+
+	// Count warnings specifically from agent-account-check suite
+	agentAccountWarningRE := regexp.MustCompile(`WARNING \[agent-account-check\]`)
+	agentAccountWarnings := len(agentAccountWarningRE.FindAllString(diagnose, -1))
+
+	// Verify no unexpected warnings from other suites
+	allWarningRE := regexp.MustCompile(`WARNING \[([^\]]+)\]`)
+	allWarningMatches := allWarningRE.FindAllStringSubmatch(diagnose, -1)
+	for _, match := range allWarningMatches {
+		if len(match) > 1 && match[1] != "agent-account-check" {
+			assert.Fail(v.T(), "Warning found in suite '%s', but warnings should only come from agent-account-check", match[1])
+		}
+	}
+
+	// Verify total matches: PASS + agent-account-check warnings should equal total checks
+	assert.Equal(v.T(), len(passMatches)+agentAccountWarnings, summary.Total,
+		"Expected PASS count (%d) + agent-account-check warnings (%d) to equal total checks (%d)",
+		len(passMatches), agentAccountWarnings, summary.Total)
+
+	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
 
 // TestDiagnoseJSON overrides the base method to specifically handle agent-account-check warnings

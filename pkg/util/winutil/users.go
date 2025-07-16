@@ -26,20 +26,22 @@ import "C"
 
 // Common Windows error codes and NTSTATUS values
 const (
-	// NTSTATUS values
+	// NTSTATUS values (keep these as they're not in public golang.org/x/sys/windows)
 	StatusSuccess               = 0x00000000
 	StatusAccessDenied          = 0xC0000022
 	StatusObjectNameNotFound    = 0xC0000034
 	StatusInsufficientResources = 0xC000009A
 	StatusNoSuchPrivilege       = 0xC0000060
 
-	// Win32 error codes
-	ErrorAccessDenied     = 5
-	ErrorNotEnoughMemory  = 8
-	ErrorInvalidParameter = 87
-	NerrUserNotFound      = 2221
-	NerrInternalError     = 2140
+	// Network API error codes (keep these as they're specific to NetAPI)
+	NerrUserNotFound  = 2221
+	NerrInternalError = 2140
 )
+
+// Use standard Windows constants from golang.org/x/sys/windows for common Win32 errors
+// windows.ERROR_ACCESS_DENIED = 5
+// windows.ERROR_NOT_ENOUGH_MEMORY = 8
+// windows.ERROR_INVALID_PARAMETER = 87
 
 // GetSidFromUser grabs and returns the windows SID for the current user or an error.
 // The *SID returned does not need to be freed by the caller.
@@ -327,16 +329,16 @@ func handleUserError(operation, username string, errorCode int) error {
 	case StatusObjectNameNotFound, NerrUserNotFound:
 		return fmt.Errorf("user '%s' not found while trying to %s", username, operation)
 
-	case StatusInsufficientResources, ErrorNotEnoughMemory:
+	case StatusInsufficientResources, uint32(windows.ERROR_NOT_ENOUGH_MEMORY):
 		return fmt.Errorf("insufficient memory while trying to %s for user '%s'", operation, username)
 
 	case StatusNoSuchPrivilege:
 		return fmt.Errorf("no privileges found for user '%s' while trying to %s", username, operation)
 
-	case ErrorAccessDenied:
+	case uint32(windows.ERROR_ACCESS_DENIED):
 		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
 
-	case ErrorInvalidParameter:
+	case uint32(windows.ERROR_INVALID_PARAMETER):
 		return fmt.Errorf("invalid parameter while trying to %s for user '%s'", operation, username)
 
 	default:
