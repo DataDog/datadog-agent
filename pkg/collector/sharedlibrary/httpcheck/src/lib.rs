@@ -1,8 +1,7 @@
 mod utils;
-use utils::base::{CheckID, AgentCheck};
+use utils::base::{CheckID, AgentCheck, ServiceCheckStatus};
 
 use std::error::Error;
-
 use std::time::Instant;
 
 // function executed by RTLoader
@@ -57,6 +56,9 @@ impl AgentCheck {
 
         // ssl metrics
         // TODO
+
+        // else
+        self.service_check("http_check.service.check", ServiceCheckStatus::OK, &tags, "", "");
 
         Ok(())
     }

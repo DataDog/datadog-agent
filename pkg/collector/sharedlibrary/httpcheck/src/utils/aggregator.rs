@@ -1,4 +1,5 @@
 use libloading::{Library, library_filename, Symbol};
+
 use std::ffi::{c_char, c_double, c_int, c_long, CString};
 
 // Replica of the Agent metric type enum

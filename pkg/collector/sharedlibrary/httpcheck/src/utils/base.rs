@@ -1,7 +1,16 @@
 use super::aggregator::{MetricType, Aggregator};
+
 use std::ffi::{c_char, CString};
 
 pub type CheckID = *mut c_char;
+
+#[repr(i32)]
+pub enum ServiceCheckStatus {
+    OK = 0,
+    WARNING = 1,
+    CRITICAL = 2,
+    UNKNOWN = 3,
+}
 
 pub struct AgentCheck {
     check_id: String,
@@ -49,7 +58,7 @@ impl AgentCheck {
     }
 
     // service check functions
-    pub fn service_check(&mut self, name: &str, status: i32, tags: &[String], hostname: &str, message: &str) {
-        self.aggregator.submit_service_check(&self.check_id, name, status, tags, hostname, message);
+    pub fn service_check(&mut self, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) {
+        self.aggregator.submit_service_check(&self.check_id, name, status as i32, tags, hostname, message);
     }
 }
