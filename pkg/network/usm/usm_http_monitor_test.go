@@ -241,6 +241,7 @@ func TestGoTLSMapCleanup(t *testing.T) {
 		t.Skip("GoTLS not supported on this platform")
 	}
 
+	SetGoTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -257,6 +258,8 @@ func TestGoTLSMapCleanup(t *testing.T) {
 	mapsName := []string{
 		connectionTupleByGoTLSMap,
 		goTLSConnByTupleMap,
+		goTLSReadArgsMap,
+		goTLSWriteArgsMap,
 	}
 	mapsInstances := make([]*ebpf.Map, len(mapsName))
 	for i, name := range mapsName {
