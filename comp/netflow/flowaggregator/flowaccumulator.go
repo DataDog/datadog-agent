@@ -28,7 +28,7 @@ type flowContext struct {
 
 // flowAccumulator is used to accumulate aggregated flows
 type flowAccumulator struct {
-	flows map[uint64]flowContext
+	flows map[uint64]*flowContext
 	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
 	// are called by different routines.
 	flowsMutex sync.Mutex
@@ -47,9 +47,9 @@ type flowAccumulator struct {
 	rdnsQuerier rdnsquerier.Component
 }
 
-func newFlowContext(flow *common.Flow) flowContext {
+func newFlowContext(flow *common.Flow) *flowContext {
 	now := timeNow()
-	return flowContext{
+	return &flowContext{
 		flow:      flow,
 		nextFlush: now,
 	}
@@ -57,7 +57,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 
 func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
-		flows:                      make(map[uint64]flowContext),
+		flows:                      make(map[uint64]*flowContext),
 		flowFlushInterval:          aggregatorFlushInterval,
 		flowContextTTL:             aggregatorFlowContextTTL,
 		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
@@ -102,7 +102,6 @@ func (f *flowAccumulator) flush() []*common.Flow {
 			flowCtx.flow = nil
 		}
 		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
-		f.flows[key] = flowCtx
 	}
 	return flowsToFlush
 }
@@ -163,7 +162,6 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 			}
 		}
 	}
-	f.flows[aggHash] = aggFlow
 }
 
 func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
