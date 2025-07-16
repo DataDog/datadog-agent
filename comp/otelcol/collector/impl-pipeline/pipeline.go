@@ -150,6 +150,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		ctx:            context.Background(),
 		hostname:       reqs.Hostname,
+		telemetry:      reqs.Telemetry,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
