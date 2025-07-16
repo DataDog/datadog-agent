@@ -507,7 +507,15 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = i.writeConfig(tmpDir, rawConfig)
+	// In the installConfigExperiment there is only one config file
+	mergedConfigs, err := mergeConfigs([][]byte{rawConfig})
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrConfigMergeFailed,
+			fmt.Errorf("could not merge configs: %w", err),
+		)
+	}
+	err = i.writeConfig(tmpDir, mergedConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -833,51 +841,34 @@ type configFile struct {
 	Contents json.RawMessage  `json:"contents"`
 }
 
-func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
-	var files []configFile
-	err := json.Unmarshal(rawConfig, &files)
-	if err != nil {
-		return fmt.Errorf("could not unmarshal config files: %w", err)
-	}
+func (i *installerImpl) writeConfig(dir string, files map[string]configFile) error {
 	for _, file := range files {
-		if file.Action == configFileActionUnknown {
-			// Default to add if action is unknown
-			file.Action = configFileActionAdd
-		}
 		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
 
-		if file.Action == configFileActionRemove {
-			err = os.Remove(filepath.Join(dir, file.Path))
-			if err != nil {
-				if os.IsNotExist(err) {
-					// Ignore if the file doesn't exist
-					log.Warnf("config file %s does not exist, skipping", file.Path)
-					continue
-				}
-				return fmt.Errorf("could not remove config file: %w", err)
-			}
-		} else if file.Action == configFileActionAdd {
-			var c interface{}
-			err = json.Unmarshal(file.Contents, &c)
-			if err != nil {
-				return fmt.Errorf("could not unmarshal config file contents: %w", err)
-			}
-			serialized, err := yaml.Marshal(c)
-			if err != nil {
-				return fmt.Errorf("could not serialize config file contents: %w", err)
-			}
-			err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
-			if err != nil {
-				return fmt.Errorf("could not create config file directory: %w", err)
-			}
-			err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
-			if err != nil {
-				return fmt.Errorf("could not write config file: %w", err)
-			}
+		if file.Action != configFileActionAdd {
+			return fmt.Errorf("config file %s has unknown action %s", file.Path, file.Action)
 		}
+		var c interface{}
+		err := json.Unmarshal(file.Contents, &c)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal config file contents: %w", err)
+		}
+		serialized, err := yaml.Marshal(c)
+		if err != nil {
+			return fmt.Errorf("could not serialize config file contents: %w", err)
+		}
+		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
+		if err != nil {
+			return fmt.Errorf("could not create config file directory: %w", err)
+		}
+		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
+		if err != nil {
+			return fmt.Errorf("could not write config file: %w", err)
+		}
+		fmt.Println("wrote config file", filepath.Join(dir, file.Path))
 	}
 	return nil
 }
@@ -970,4 +961,33 @@ func ensureRepositoriesExist() error {
 	}
 
 	return nil
+}
+
+// mergeConfigs merges multiple config files into a single map of config files.
+func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
+	mergedFiles := make(map[string]configFile)
+	for _, rawConfig := range rawConfigs {
+		var configFiles []configFile
+		err := json.Unmarshal(rawConfig, &configFiles)
+		if err != nil {
+			return nil, fmt.Errorf("could not unmarshal config files: %w", err)
+		}
+		for _, file := range configFiles {
+			if file.Action == configFileActionUnknown {
+				// Default to add if action is unknown
+				file.Action = configFileActionAdd
+			}
+			file.Path = cleanConfigName(file.Path)
+			if !configNameAllowed(file.Path) {
+				return nil, fmt.Errorf("config file %s is not allowed", file)
+			}
+
+			if file.Action == configFileActionRemove {
+				delete(mergedFiles, file.Path)
+			} else if file.Action == configFileActionAdd {
+				mergedFiles[file.Path] = file
+			}
+		}
+	}
+	return mergedFiles, nil
 }
