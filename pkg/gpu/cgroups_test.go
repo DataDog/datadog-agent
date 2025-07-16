@@ -21,7 +21,6 @@ import (
 	"github.com/containerd/cgroups/v3/cgroup2"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -150,23 +149,6 @@ func TestBuildSafePath(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetCgroupForProcess(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skip("Test requires root privileges")
-	}
-
-	currentCgroup, err := getCgroupForProcess(kernel.ProcFSRoot(), uint32(os.Getpid()))
-	require.NoError(t, err)
-	require.NotEmpty(t, currentCgroup) // Cgroup could be anything, but it should not be empty
-
-	testCgroupName := fmt.Sprintf("test-get-cgroup-for-process-%s", utils.RandString(10))
-	moveSelfToCgroup(t, testCgroupName)
-
-	currentCgroup, err = getCgroupForProcess(kernel.ProcFSRoot(), uint32(os.Getpid()))
-	require.NoError(t, err)
-	require.Equal(t, "/"+testCgroupName, currentCgroup)
 }
 
 func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
@@ -304,6 +286,23 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
+}
+
+func TestGetAbsoluteCgroupForProcess(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("Test requires root privileges")
+	}
+
+	currentCgroup, err := getAbsoluteCgroupForProcess("", uint32(os.Getpid()))
+	require.NoError(t, err)
+	require.NotEmpty(t, currentCgroup) // Cgroup could be anything, but it should not be empty
+
+	testCgroupName := fmt.Sprintf("test-get-cgroup-for-process-%s", utils.RandString(10))
+	moveSelfToCgroup(t, testCgroupName)
+
+	currentCgroup, err = getAbsoluteCgroupForProcess("", uint32(os.Getpid()))
+	require.NoError(t, err)
+	require.Equal(t, "/"+testCgroupName, currentCgroup)
 }
 
 func moveSelfToCgroup(t *testing.T, cgroupName string) {

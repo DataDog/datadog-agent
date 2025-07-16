@@ -10,9 +10,11 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -20,13 +22,12 @@ import (
 	"github.com/containerd/cgroups/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel/cgroupns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
 func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
-	cgroupPath, err := getCgroupForProcess(filepath.Join(rootfs, "proc"), pid)
+	cgroupPath, err := getAbsoluteCgroupForProcess(rootfs, pid)
 	if err != nil {
 		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
 	}
@@ -60,32 +61,133 @@ const (
 	nvidiaDeviceMajor          = 195
 )
 
-// getCgroupForProcess gets the cgroup path for a process independently of whether
+// getAbsoluteCgroupForProcess gets the absolute cgroup path for a process independently of whether
 // we are inside a container or not, or of the cgroup version being used.
-// Requires CAP_SYS_ADMIN to work.
-func getCgroupForProcess(procRoot string, pid uint32) (string, error) {
-	var cgroupPath string
+func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
+	// Get the cgroup for the current process
+	procCgroups, err := utils.GetProcControlGroups(pid, pid)
+	if err != nil {
+		return "", fmt.Errorf("failed to get cgroups for pid %d: %w", pid, err)
+	}
 
-	// We need to enter the root cgroup namespace to get the correct cgroup
-	// path, If we don't and we are inside a container with cgroups v2, we will
-	// only get the cgroup name from the container namespace, which usually will just be "/"
-	err := cgroupns.WithRootNS(procRoot, func() error {
-		cgroups, err := utils.GetProcControlGroups(pid, pid)
+	if len(procCgroups) == 0 {
+		return "", fmt.Errorf("no cgroups found for pid %d", pid)
+	}
+
+	// Each cgroup is for a different subsystem in cgroupv1, we only want the cgroup ID
+	// and we can extract that from any cgroup
+	// In cgroupv2 we only have one cgroup, so this code also works.
+	cgroupPath := string(procCgroups[0].Path)
+
+	// If we're running in the host (no path to the host root filesystem), we can
+	// just return the cgroup path as we see it.
+	// Also, cgroupv1 returns the cgroup name correctly here, so we can return it
+	// directly too
+	if rootfs == "" || cgroups.Mode() == cgroups.Legacy {
+		return cgroupPath, nil
+	}
+
+	// Now we need to deal with possibly different cgroup namespaces, which will
+	// happen in containerized environments. The cgroups we see from the
+	// system-probe container are different from the cgroups we see from the
+	// host. The cgroup extracted in the code above will be valid only for the
+	// container cgroup namespace, but we want the cgroup name in the host
+	// cgroup namespace.
+	//
+	// There are several possibilities to achieve this:
+	//
+	// We might try to enter the root cgroup namespace and look at the cgroup
+	// then. Not always possible, as GKE seems to deny containers the knowledge
+	// of which one is the root namespace even with CAP_SYS_ADMIN enabled.
+	//
+	// The other option is to match the container cgroup to a cgroup in the host
+	// namespace using the rootfs cgroup path. Matching can be done by looking
+	// at the inodes. However, this only works as long the cgroup name returned
+	// in /proc/pid/cgroup is absolute. If it's relative (e.g., the target
+	// process cgroup is a sibling of the current process, which means
+	// cgroupPath looks like /../something), then we need to resolve first our
+	// own cgroup path and resolve the relative path based on that
+	pathParts := strings.Split(cgroupPath, "/")
+
+	if len(pathParts) > 1 && pathParts[1] == ".." { // first part is empty string as the cgroup path starts by /
+		// Relative cgroup path, we need to get our own cgroup path first
+		// Sanity check that we're not recursively getting our own cgroup
+		currentPid := uint32(os.Getpid())
+		if pid == currentPid {
+			return "", fmt.Errorf("impossible situation: got a relative path for our own cgroup %s for pid %d", cgroupPath, pid)
+		}
+
+		currentCgroup, err := getAbsoluteCgroupForProcess(rootfs, currentPid)
 		if err != nil {
-			return fmt.Errorf("failed to get cgroups for pid %d: %w", pid, err)
+			return "", fmt.Errorf("failed to get current process (pid=%d) cgroup: %w", currentPid, err)
 		}
 
-		if len(cgroups) == 0 {
-			return fmt.Errorf("no cgroups found for pid %d", pid)
+		return filepath.Join(currentCgroup, cgroupPath), nil
+	}
+
+	// At this point we have an absolute cgroup path (possibly /, but can't know for sure).
+	// Get the inode to the cgroup path from with our container's cgroup namespace.
+	containerCgroupPath := filepath.Join("/sys/fs/cgroup", cgroupPath)
+	var stat syscall.Stat_t
+	if err = syscall.Stat(containerCgroupPath, &stat); err != nil {
+		return "", fmt.Errorf("failed to stat container cgroup %s: %w", containerCgroupPath, err)
+	}
+
+	containerCgroupInode := stat.Ino
+
+	// Now, walk through the host cgroup tree, looking for a cgroup with the same inode
+	// as the container cgroup.
+	// TODO: We could use the pkg/util/cgroup package but it doesn't detect correctly the host
+	// cgroup mountpoint
+	var hostCgroupPath string
+	rootSysFsCgroup := filepath.Join(rootfs, "/sys/fs/cgroup")
+	err = filepath.WalkDir(rootSysFsCgroup, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			return nil
 		}
 
-		// Each cgroup is for a different subsystem, we only want the cgroup ID
-		// and we can extract that from any cgroup
-		cgroupPath = string(cgroups[0].Path)
+		info, err := d.Info()
+		if err != nil {
+			return nil // Ignore the error, as it might be a symlink
+		}
+
+		// Get pre-computed stat info, otherwise stat it ourselves
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || stat == nil {
+			if err = syscall.Stat(path, stat); err != nil {
+				return nil // Ignore this one
+			}
+		}
+
+		if stat.Ino == containerCgroupInode {
+			hostCgroupPath = path
+			return filepath.SkipDir
+		}
+
 		return nil
 	})
 
-	return cgroupPath, err
+	if err != nil {
+		return "", fmt.Errorf("failed to walk cgroup tree: %w", err)
+	}
+
+	if hostCgroupPath == "" {
+		return "", fmt.Errorf("no host cgroup found for container cgroup %s", cgroupPath)
+	}
+
+	// The path returned by WalkDir is absolute, make it relative to the rootfs
+	// to get the proper cgroup path
+	hostCgroupPath, err = filepath.Rel(rootSysFsCgroup, hostCgroupPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot obtain relative path from %s to %s: %w", rootSysFsCgroup, hostCgroupPath, err)
+	}
+
+	// Add leading slash, as that's removed by filepath.Rel and cgroup names
+	// should always have that
+	return "/" + hostCgroupPath, nil
 }
 
 // insertAfterSection finds a section header in the lines and inserts the new line after it
