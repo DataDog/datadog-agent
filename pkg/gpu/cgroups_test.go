@@ -90,19 +90,11 @@ func TestInsertAfterSection(t *testing.T) {
 
 			require.NoError(t, err)
 
-			if len(result) != len(tt.expected) {
-				t.Errorf("expected %d lines, got %d", len(tt.expected), len(result))
-				return
-			}
+			require.Equal(t, len(tt.expected), len(result), "expected %d lines, got %d", len(tt.expected), len(result))
 
 			for i, expectedLine := range tt.expected {
-				if i >= len(result) {
-					t.Errorf("missing line %d: expected %q", i, expectedLine)
-					continue
-				}
-				if result[i] != expectedLine {
-					t.Errorf("line %d: expected %q, got %q", i, expectedLine, result[i])
-				}
+				require.Less(t, i, len(result), "missing line %d: expected %q", i, expectedLine)
+				require.Equal(t, expectedLine, result[i], "line %d: expected %q, got %q", i, expectedLine, result[i])
 			}
 		})
 	}
