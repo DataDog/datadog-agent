@@ -246,7 +246,7 @@ func configureSystemDAllow(containerID, rootfs string) error {
 
 	lines := strings.Split(string(content), "\n")
 
-	// Insert the nvidiaDeviceAllow line after [Scope]
+	// Insert the nvidiaSystemdDeviceAllow line after [Scope]
 	newLines, err := insertAfterSection(lines, "[Scope]", nvidiaSystemdDeviceAllow)
 	if err != nil {
 		return fmt.Errorf("failed to insert device allow line in %s: %w", configFilePath, err)
