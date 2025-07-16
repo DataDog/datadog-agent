@@ -3,7 +3,7 @@
 invoke_unit_tests:
   stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs: []
   rules:
     - !reference [.on_invoke_tasks_changes]

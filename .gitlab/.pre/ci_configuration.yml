@@ -1,7 +1,7 @@
 test_and_lint_gitlab_configuration:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs: [compute_gitlab_ci_config]
   rules:
     - !reference [.on_dev_branches]
@@ -14,7 +14,7 @@ test_and_lint_gitlab_configuration:
 test_gitlab_compare_to:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
