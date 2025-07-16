@@ -291,5 +291,5 @@ func TestGoTLSMapCleanup(t *testing.T) {
 			count := utils.CountMapEntries(t, m)
 			assert.Zero(collect, count, "map %s should be empty after proxy exit", m.String())
 		}
-	}, 5*time.Second, 100*time.Millisecond, "map should be empty after proxy exit")
+	}, 5*time.Second, 100*time.Millisecond, "maps should be empty after proxy exit")
 }
