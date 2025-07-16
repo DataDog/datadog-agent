@@ -44,17 +44,34 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 		},
 		{
 			name:            "ExtendedMetricsSent",
-			extendedMetrics: false,
+			extendedMetrics: true,
 		},
 	}
 
-	for _, tt := range tests {
+	missingMetrics := []struct {
+		metricType string
+		metricName string
+	}{
+		{"Gauge", "container.memory.page_tables"},
+		{"Gauge", "container.memory.active_anon"},
+		{"Gauge", "container.memory.inactive_anon"},
+		{"Gauge", "container.memory.active_file"},
+		{"Gauge", "container.memory.inactive_file"},
+		{"Gauge", "container.memory.unevictable"},
+		{"Gauge", "container.memory.shmem"},
+		{"Gauge", "container.memory.file_mapped"},
+		{"Gauge", "container.memory.file_dirty"},
+		{"Gauge", "container.memory.file_writeback"},
+		{"MonotonicCount", "container.memory.refault_anon"},
+		{"MonotonicCount", "container.memory.refault_file"},
+	}
 
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
 			mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger, tt.extendedMetrics)
 			err := processor.Run(mockSender, 0)
-			assert.ErrorIs(t, err, nil)
+			assert.NoError(t, err)
 
 			expectedTags := []string{"runtime:docker"}
 			mockSender.AssertNumberOfCalls(t, "Rate", 20)
@@ -109,19 +126,11 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 				mockSender.AssertMetric(t, "Gauge", "container.memory.file_writeback", 1484, "", expectedTags)
 				mockSender.AssertMetric(t, "MonotonicCount", "container.memory.refault_anon", 1485, "", expectedTags)
 				mockSender.AssertMetric(t, "MonotonicCount", "container.memory.refault_file", 1486, "", expectedTags)
+
 			} else { // if extendedMetrics processor should not emit those metrics
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.page_tables")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.active_anon")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.inactive_anon")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.active_file")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.inactive_file")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.unevictable")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.shmem")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.file_mapped")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.file_dirty")
-				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.file_writeback")
-				mockSender.AssertMetricMissing(t, "MonotonicCount", "container.memory.refault_anon")
-				mockSender.AssertMetricMissing(t, "MonotonicCount", "container.memory.refault_file")
+				for _, m := range missingMetrics {
+					mockSender.AssertMetricMissing(t, m.metricType, m.metricName)
+				}
 			}
 
 			mockSender.AssertMetric(t, "Gauge", "container.restarts", 42, "", expectedTags)
@@ -170,7 +179,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 
 	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil, fakeTagger, false)
 	err := processor.Run(mockSender, 0)
-	assert.ErrorIs(t, err, nil)
+	assert.NoError(t, err)
 
 	mockSender.AssertNumberOfCalls(t, "Rate", 0)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
