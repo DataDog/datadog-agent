@@ -784,8 +784,10 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 	}
 
 	if fe.MountVisibilityResolved {
-		fs.MountVisible = &fe.MountVisible
-		fs.MountDetached = &fe.MountDetached
+		visible := fe.MountVisible
+		detached := fe.MountDetached
+		fs.MountVisible = &visible
+		fs.MountDetached = &detached
 	}
 
 	if metadata != nil {
