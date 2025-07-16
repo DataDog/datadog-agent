@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/context"
 )
 
@@ -51,8 +50,7 @@ func (o *WindowsOpenRegistryKeyTest) GenerateEvent(ctx context.Context) error {
 		path,
 	)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error opening registry key: %v", err)
-		return err
+		return fmt.Errorf("error opening registry key: %w", err)
 	}
 
 	return nil
