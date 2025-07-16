@@ -283,7 +283,6 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {
-        log_debug("[go-tls-close] no offsets data in map for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
@@ -297,13 +296,11 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
 
     void* conn_pointer = NULL;
     if (read_location(ctx, &od->close_conn_pointer, sizeof(conn_pointer), &conn_pointer)) {
-        log_debug("[go-tls-close] failed reading close conn pointer for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, conn_pointer);
     if (t == NULL) {
-        log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
