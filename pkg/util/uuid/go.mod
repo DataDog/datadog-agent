@@ -5,8 +5,8 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/shirou/gopsutil/v4 v4.25.5
-	golang.org/x/sys v0.33.0
+	github.com/shirou/gopsutil/v4 v4.25.6
+	golang.org/x/sys v0.34.0
 )
 
 require (
