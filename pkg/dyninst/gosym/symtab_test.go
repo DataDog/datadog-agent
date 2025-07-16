@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -55,22 +54,20 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
-	mef, err := object.NewMMappingElfFile(binPath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, mef.Close()) }()
-	obj, err := object.NewElfObject(mef.Elf)
+	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
+	require.Empty(t, ir.Issues)
 
-	moduledata, err := object.ParseModuleData(mef)
+	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ParseGoVersion(obj.Underlying)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(mef)
+	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
@@ -96,12 +93,10 @@ func runTest(
 			require.NotEmpty(t, locations)
 			fmt.Fprintf(&out, "pc: 0x%x\n", pc)
 			for _, location := range locations {
-				// Drop toolchain-architecture-dependent infix
-				re := regexp.MustCompile("golang.org/toolchain[^/]*/")
-				location.File = re.ReplaceAllString(location.File, "golang.org/toolchain@*/")
-				// Hide path prefix that depends on repository, and GOPATH locations.
-				i := strings.Index(location.File, "/pkg/") + 1
-				fmt.Fprintf(&out, "\t%s@%s:%d\n", location.Function, location.File[i:], location.Line)
+				// Hide path prefixes that depends on toolchain,repository, and GOPATH locations.
+				// Just use the file name, which is the last path component, replaces the leading path with *
+				i := strings.LastIndex(location.File, "/")
+				fmt.Fprintf(&out, "\t%s@*%s:%d\n", location.Function, location.File[i:], location.Line)
 			}
 		}
 	}

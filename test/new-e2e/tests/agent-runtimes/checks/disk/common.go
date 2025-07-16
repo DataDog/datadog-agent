@@ -8,6 +8,7 @@ package checkdisk
 
 import (
 	"math"
+	"slices"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
@@ -25,9 +26,10 @@ import (
 
 type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor            e2eos.Descriptor
-	metricCompareFraction float64
-	metricCompareDecimals int
+	descriptor                  e2eos.Descriptor
+	metricCompareFraction       float64
+	metricCompareDecimals       int
+	excludedFromValueComparison []string
 }
 
 func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
@@ -62,6 +64,7 @@ func (v *diskCheckSuite) TestCheckDisk() {
 		name        string
 		checkConfig string
 		agentConfig string
+		onlyLinux   bool
 	}{
 		{
 			"default",
@@ -70,10 +73,55 @@ instances:
   - use_mount: false
 `,
 			``,
+			false,
+		},
+		{
+			"all partitions",
+			`init_config:
+instances:
+  - use_mount: true
+    all_partitions: true
+`,
+			``,
+			false,
+		},
+		{
+			"tag by filesystem",
+			`init_config:
+instances:
+  - use_mount: false
+    tag_by_filesystem: true
+`,
+			``,
+			false,
+		},
+		{
+			"do not tag by label",
+			`init_config:
+instances:
+  - use_mount: false
+    tag_by_label: false
+`,
+			``,
+			true,
+		},
+		{
+			"use lsblk",
+			`init_config:
+instances:
+  - use_mount: false
+    use_lsblk: true
+`,
+			``,
+			true,
 		},
 	}
 	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
+		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
+			continue
+		}
+
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
 			v.printDiskUsage()
@@ -88,6 +136,9 @@ instances:
 				gocmp.Comparer(func(a, b check.Metric) bool {
 					if !checkUtils.EqualMetrics(a, b) {
 						return false
+					}
+					if slices.Contains(v.excludedFromValueComparison, a.Metric) {
+						return true
 					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]

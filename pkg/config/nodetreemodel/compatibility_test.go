@@ -8,7 +8,6 @@ package nodetreemodel
 
 import (
 	"bytes"
-	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -120,8 +119,6 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
-
-	fmt.Printf("%s\n", ntmConf.Stringify("root"))
 
 	expectedYaml = `additional_endpoints:
   "0": apple
@@ -420,4 +417,28 @@ apm_config:
 	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 
+}
+
+func TestCompareConflictDataType(t *testing.T) {
+	var yamlPayload = `
+a: orange
+c: 1234
+`
+	viperConf, ntmConf := constructBothConfigs(yamlPayload, true, func(cfg model.Setup) {
+		cfg.SetDefault("a", "apple")
+		cfg.SetDefault("c.d", true)
+	})
+
+	cvalue := viperConf.Get("c")
+	assert.Equal(t, cvalue, 1234)
+
+	dvalue := viperConf.Get("c.d")
+	assert.Equal(t, dvalue, nil)
+
+	// NOTE: Behavior difference, but it requires an error in the config
+	cvalue = ntmConf.Get("c")
+	assert.Equal(t, cvalue, map[string]interface{}{"d": true})
+
+	dvalue = ntmConf.Get("c.d")
+	assert.Equal(t, dvalue, true)
 }

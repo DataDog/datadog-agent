@@ -108,6 +108,10 @@ def go(
         lint=True,
     )
 
+    if not modules:
+        print(color_message("No modules to lint", "yellow"))
+        return
+
     lint_result, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
@@ -123,6 +127,7 @@ def go(
         headless_mode=headless_mode,
         include_sds=include_sds,
         verbose=verbose,
+        recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
     )
 
     if not headless_mode:

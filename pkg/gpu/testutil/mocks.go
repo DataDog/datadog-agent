@@ -9,6 +9,8 @@
 package testutil
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -158,6 +160,16 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
 			return false, nvml.SUCCESS
 		},
+		GetSamplesFunc: func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+			samples := []nvml.Sample{
+				{TimeStamp: 1000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+				{TimeStamp: 2000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+			}
+			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
+		},
+		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
+			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
+		},
 	}
 
 	for _, opt := range opts {
@@ -220,6 +232,7 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 
 type nvmlMockOptions struct {
 	deviceOptions  []func(*nvmlmock.Device)
+	libOptions     []func(*nvmlmock.Interface)
 	extensionsFunc func() nvml.ExtendedInterface
 }
 
@@ -270,6 +283,10 @@ func GetBasicNvmlMockWithOptions(options ...NvmlMockOption) *nvmlmock.Interface 
 		ExtensionsFunc: opts.extensionsFunc,
 	}
 
+	for _, opt := range opts.libOptions {
+		opt(mockNvml)
+	}
+
 	return mockNvml
 }
 
@@ -287,6 +304,54 @@ func WithSymbolsMock(availableSymbols map[string]struct{}) NvmlMockOption {
 					return nvml.ERROR_NOT_FOUND
 				},
 			}
+		}
+	}
+}
+
+// WithMockAllFunctions returns an option that creates basic functions for all nvmlmock.Device.*Func attributes
+// that return nil/zero values. This is useful for ensuring all functions are mocked even if not explicitly set.
+// This is not the default behavior of the mock, as we want explicit errors if we use a function that is not mocked
+// so that we implement the mocked method explicitly, controlling the inputs and outputs. However, in some cases
+// (e.g., testing the collectors) we want to ensure that all functions are mocked without caring too much about the inputs and outputs.
+func WithMockAllFunctions() NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, WithMockAllDeviceFunctions())
+		o.libOptions = append(o.libOptions, func(i *nvmlmock.Interface) {
+			fillAllMockFunctions(i)
+		})
+	}
+}
+
+// WithMockAllDeviceFunctions returns a device option that creates basic functions for all nvmlmock.Device.*Func attributes
+// that return nil/zero values. This is useful for ensuring all functions are mocked even if not explicitly set.
+func WithMockAllDeviceFunctions() func(*nvmlmock.Device) {
+	return func(d *nvmlmock.Device) {
+		fillAllMockFunctions(d)
+	}
+}
+
+func fillAllMockFunctions[T any](obj T) {
+	// Use reflection to find all *Func fields and set them to basic implementations
+	val := reflect.ValueOf(obj).Elem()
+	typ := val.Type()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
+
+		// Check if field name ends with "Func", is a function type, and is not already set
+		if strings.HasSuffix(fieldType.Name, "Func") && field.Kind() == reflect.Func && field.IsZero() {
+			// Create a basic function that returns zero values
+			funcType := field.Type()
+			funcValue := reflect.MakeFunc(funcType, func(_ []reflect.Value) []reflect.Value {
+				// Return zero values for all return types
+				results := make([]reflect.Value, funcType.NumOut())
+				for j := 0; j < funcType.NumOut(); j++ {
+					results[j] = reflect.Zero(funcType.Out(j))
+				}
+				return results
+			})
+			field.Set(funcValue)
 		}
 	}
 }

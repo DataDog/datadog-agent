@@ -1096,6 +1096,8 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Setrlimit.Target.Parent)
 		}
 	case "setsockopt":
+		_ = ev.FieldHandlers.ResolveSetSockOptFilterInstructions(ev, &ev.SetSockOpt)
+		_ = ev.FieldHandlers.ResolveSetSockOptFilterHash(ev, &ev.SetSockOpt)
 	case "setuid":
 		_ = ev.FieldHandlers.ResolveSetuidUser(ev, &ev.SetUID)
 		_ = ev.FieldHandlers.ResolveSetuidEUser(ev, &ev.SetUID)
@@ -1433,6 +1435,8 @@ type FieldHandlers interface {
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
 	ResolveService(ev *Event, e *BaseEvent) string
+	ResolveSetSockOptFilterHash(ev *Event, e *SetSockOptEvent) string
+	ResolveSetSockOptFilterInstructions(ev *Event, e *SetSockOptEvent) string
 	ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string
 	ResolveSetgidGroup(ev *Event, e *SetgidEvent) string
@@ -1665,6 +1669,12 @@ func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent)
 }
 func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string {
 	return string(e.Service)
+}
+func (dfh *FakeFieldHandlers) ResolveSetSockOptFilterHash(ev *Event, e *SetSockOptEvent) string {
+	return string(e.FilterHash)
+}
+func (dfh *FakeFieldHandlers) ResolveSetSockOptFilterInstructions(ev *Event, e *SetSockOptEvent) string {
+	return string(e.FilterInstructions)
 }
 func (dfh *FakeFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string {
 	return string(e.EGroup)
