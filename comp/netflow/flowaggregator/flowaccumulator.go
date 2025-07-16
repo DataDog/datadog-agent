@@ -28,7 +28,9 @@ type flowContext struct {
 
 // flowAccumulator is used to accumulate aggregated flows
 type flowAccumulator struct {
-	flows map[uint64]*flowContext
+	flows       map[uint64]*flowContext
+	flowsValues map[uint64]flowContext
+	useValueMap bool
 	// mutex is needed to protect `flows` since `flowAccumulator.add()` and  `flowAccumulator.flush()`
 	// are called by different routines.
 	flowsMutex sync.Mutex
@@ -55,9 +57,19 @@ func newFlowContext(flow *common.Flow) *flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowContextValue(flow *common.Flow) flowContext {
+	now := timeNow()
+	return flowContext{
+		flow:      flow,
+		nextFlush: now,
+	}
+}
+
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, useValueMap bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]*flowContext),
+		flowsValues:                make(map[uint64]flowContext),
+		useValueMap:                useValueMap,
 		flowFlushInterval:          aggregatorFlushInterval,
 		flowContextTTL:             aggregatorFlowContextTTL,
 		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
@@ -84,6 +96,13 @@ func (f *flowAccumulator) flush() []*common.Flow {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
+	if !f.useValueMap {
+		return f.flushPointers()
+	}
+	return f.flushValues()
+}
+
+func (f *flowAccumulator) flushPointers() []*common.Flow {
 	var flowsToFlush []*common.Flow
 	for key, flowCtx := range f.flows {
 		now := timeNow()
@@ -106,6 +125,30 @@ func (f *flowAccumulator) flush() []*common.Flow {
 	return flowsToFlush
 }
 
+func (f *flowAccumulator) flushValues() []*common.Flow {
+	var flowsToFlush []*common.Flow
+	for key, flowCtx := range f.flowsValues {
+		now := timeNow()
+		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
+			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
+			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
+			delete(f.flowsValues, key)
+			continue
+		}
+		if flowCtx.nextFlush.After(now) {
+			continue
+		}
+		if flowCtx.flow != nil {
+			flowsToFlush = append(flowsToFlush, flowCtx.flow)
+			flowCtx.lastSuccessfulFlush = now
+			flowCtx.flow = nil
+		}
+		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
+		f.flowsValues[key] = flowCtx
+	}
+	return flowsToFlush
+}
+
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	f.logger.Tracef("Add new flow: %+v", flowToAdd)
 
@@ -124,6 +167,14 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
+	if !f.useValueMap {
+		f.addPointers(flowToAdd)
+	} else {
+		f.addValues(flowToAdd)
+	}
+}
+
+func (f *flowAccumulator) addPointers(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
@@ -164,6 +215,48 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	}
 }
 
+func (f *flowAccumulator) addValues(flowToAdd *common.Flow) {
+	aggHash := flowToAdd.AggregationHash()
+	aggFlow, ok := f.flowsValues[aggHash]
+	if !ok {
+		f.flowsValues[aggHash] = newFlowContextValue(flowToAdd)
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+		return
+	}
+	if aggFlow.flow == nil {
+		// flowToAdd is for the same hash as an aggregated flow that has been flushed
+		aggFlow.flow = flowToAdd
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
+	} else {
+		// use go routine for hash collision detection to avoid blocking critical path
+		if !f.skipHashCollisionDetection {
+			go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
+		}
+
+		// accumulate flowToAdd with existing flow(s) with same hash
+		aggFlow.flow.Bytes += flowToAdd.Bytes
+		aggFlow.flow.Packets += flowToAdd.Packets
+		aggFlow.flow.StartTimestamp = common.Min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)
+		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
+		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
+		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+
+		// keep first non-null value for custom fields
+		if flowToAdd.AdditionalFields != nil {
+			if aggFlow.flow.AdditionalFields == nil {
+				aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
+			}
+
+			for field, value := range flowToAdd.AdditionalFields {
+				if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
+					aggFlow.flow.AdditionalFields[field] = value
+				}
+			}
+		}
+	}
+	f.flowsValues[aggHash] = aggFlow
+}
+
 func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {
 	if hostname == "" {
 		return
@@ -174,9 +267,17 @@ func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname stri
 		defer f.flowsMutex.Unlock()
 	}
 
-	aggFlow, ok := f.flows[aggHash]
-	if ok && aggFlow.flow != nil {
-		aggFlow.flow.SrcReverseDNSHostname = hostname
+	if !f.useValueMap {
+		aggFlow, ok := f.flows[aggHash]
+		if ok && aggFlow.flow != nil {
+			aggFlow.flow.SrcReverseDNSHostname = hostname
+		}
+	} else {
+		aggFlow, ok := f.flowsValues[aggHash]
+		if ok && aggFlow.flow != nil {
+			aggFlow.flow.SrcReverseDNSHostname = hostname
+			f.flowsValues[aggHash] = aggFlow
+		}
 	}
 }
 
@@ -190,9 +291,17 @@ func (f *flowAccumulator) setDstReverseDNSHostname(aggHash uint64, hostname stri
 		defer f.flowsMutex.Unlock()
 	}
 
-	aggFlow, ok := f.flows[aggHash]
-	if ok && aggFlow.flow != nil {
-		aggFlow.flow.DstReverseDNSHostname = hostname
+	if !f.useValueMap {
+		aggFlow, ok := f.flows[aggHash]
+		if ok && aggFlow.flow != nil {
+			aggFlow.flow.DstReverseDNSHostname = hostname
+		}
+	} else {
+		aggFlow, ok := f.flowsValues[aggHash]
+		if ok && aggFlow.flow != nil {
+			aggFlow.flow.DstReverseDNSHostname = hostname
+			f.flowsValues[aggHash] = aggFlow
+		}
 	}
 }
 
@@ -240,7 +349,10 @@ func (f *flowAccumulator) getFlowContextCount() int {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
-	return len(f.flows)
+	if !f.useValueMap {
+		return len(f.flows)
+	}
+	return len(f.flowsValues)
 }
 
 func (f *flowAccumulator) detectHashCollision(hash uint64, existingFlow common.Flow, flowToAdd common.Flow) {
