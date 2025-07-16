@@ -75,6 +75,11 @@ func TestMount(t *testing.T) {
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
 			}
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+			}
 
 			// filter by pid
 			if event.ProcessContext.Pid != testSuitePid {
@@ -464,6 +469,11 @@ func TestMountEvent(t *testing.T) {
 			}
 			return tmpfsMount.unmount(syscall.MNT_FORCE)
 		}, func(event *model.Event, rule *rules.Rule) {
+			if !ebpfLessEnabled {
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+			}
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
 			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
@@ -490,6 +500,11 @@ func TestMountEvent(t *testing.T) {
 			return bindMount.unmount(syscall.MNT_FORCE)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_bind")
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+			}
 			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
 			assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())

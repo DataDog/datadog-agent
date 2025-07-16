@@ -9,4 +9,7 @@
 features:
   - |
     Added new config option ``include_ephemeral_containers`` to collect
-    Kubernetes ephemeral containers. The option is disabled by default.
+    Kubernetes ephemeral containers. The option is disabled by default. When
+    enabled, the Agent will report ``container.*`` and ``kubernetes.*`` metrics
+    for ephemeral containers. It will also collect logs and schedule checks for
+    ephemeral containers when configured to do so.

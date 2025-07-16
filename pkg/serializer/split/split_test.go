@@ -19,7 +19,6 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -245,84 +244,5 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 			newLength := len(unrolledEvents)
 			require.Equal(t, originalLength, newLength)
 		})
-	}
-}
-
-func TestSplitPayloadsServiceChecks(t *testing.T) {
-	// Override size limits to avoid test timeouts
-	prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
-	maxPayloadSizeCompressed = 1024
-	defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
-
-	prevMaxPayloadSizeUnCompressed := maxPayloadSizeUnCompressed
-	maxPayloadSizeUnCompressed = 2 * 1024
-	defer func() { maxPayloadSizeUnCompressed = prevMaxPayloadSizeUnCompressed }()
-
-	t.Run("both compressed and uncompressed service checks payload under limits", func(t *testing.T) {
-		testSplitPayloadsServiceChecks(t, 5, false)
-	})
-	t.Run("compressed service checks payload over limit but uncompressed under limit", func(t *testing.T) {
-		testSplitPayloadsServiceChecks(t, 10, false)
-	})
-	t.Run("both compressed and uncompressed service checks payload over limits", func(t *testing.T) {
-		testSplitPayloadsServiceChecks(t, 20, false)
-	})
-	t.Run("compressed service checks payload under limit and uncompressed service checks payload over limit", func(t *testing.T) {
-		testSplitPayloadsServiceChecks(t, 20, true)
-	})
-}
-
-func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
-
-	tests := map[string]struct {
-		kind string
-	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
-	}
-	log := logmock.New(t)
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			testServiceChecks := metricsserializer.ServiceChecks{}
-			for i := 0; i < numPoints; i++ {
-				sc := servicecheck.ServiceCheck{
-					CheckName: "test.check",
-					Host:      "test.localhost",
-					Ts:        1000,
-					Status:    servicecheck.ServiceCheckOK,
-					Message:   "this is fine",
-					Tags:      []string{"tag1", "tag2:yes"},
-				}
-				testServiceChecks = append(testServiceChecks, &sc)
-			}
-
-			mockConfig := mock.New(t)
-			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, compressor, log)
-			require.Nil(t, err)
-
-			originalLength := len(testServiceChecks)
-			unrolledServiceChecks := []interface{}{}
-			for _, payload := range payloads {
-				var s []interface{}
-				localPayload := payload.GetContent()
-				if compress {
-					localPayload, err = compressor.Decompress(localPayload)
-					require.Nil(t, err)
-				}
-
-				err = json.Unmarshal(localPayload, &s)
-				require.Nil(t, err)
-
-				for _, sc := range s {
-					unrolledServiceChecks = append(unrolledServiceChecks, &sc)
-				}
-			}
-
-			newLength := len(unrolledServiceChecks)
-			require.Equal(t, originalLength, newLength)
-		})
-
 	}
 }

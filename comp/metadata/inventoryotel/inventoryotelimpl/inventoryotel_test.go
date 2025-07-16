@@ -82,5 +82,7 @@ func TestConfigRefresh(t *testing.T) {
 
 	assert.False(t, io.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.True(t, io.RefreshTriggered())
+	assert.Eventually(t, func() bool {
+		return assert.True(t, io.RefreshTriggered())
+	}, 5*time.Second, 200*time.Millisecond)
 }

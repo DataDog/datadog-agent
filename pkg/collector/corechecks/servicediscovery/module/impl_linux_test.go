@@ -10,6 +10,7 @@
 package module
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -136,17 +137,25 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
 }
 
-// makeRequest wraps the request to the discovery module, setting the query params if provided,
+// makeRequest wraps the request to the discovery module, setting the JSON body if provided,
 // and returning the response as the given type.
 func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err, "failed to create request")
-
+	var body *bytes.Buffer
 	if params != nil {
-		qp := req.URL.Query()
-		params.UpdateQuery(qp)
-		req.URL.RawQuery = qp.Encode()
+		jsonData, err := params.ToJSON()
+		require.NoError(t, err, "failed to serialize params to JSON")
+		body = bytes.NewBuffer(jsonData)
 	}
+
+	var req *http.Request
+	var err error
+	if body != nil {
+		req, err = http.NewRequest(http.MethodGet, url, body)
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		req, err = http.NewRequest(http.MethodGet, url, nil)
+	}
+	require.NoError(t, err, "failed to create request")
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err, "failed to send request")
@@ -347,6 +356,16 @@ func TestPorts(t *testing.T) {
 	startUDP("udp4")
 	startUDP("udp6")
 
+	// Create a log file for the current process to test log file collection
+	tempDir, err := os.MkdirTemp("", "test-log-files")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+
+	logFilePath := filepath.Join(tempDir, "test.log")
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	require.NoError(t, err)
+	t.Cleanup(func() { logFile.Close() })
+
 	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
 
 	pid := os.Getpid()
@@ -376,6 +395,10 @@ func TestPorts(t *testing.T) {
 			t.Logf("unexpected port %v also found", port)
 		}
 	}
+
+	// Check that log files are collected
+	assert.Contains(t, startEvent.LogFiles, logFilePath,
+		"Process %d should have log file %s", pid, logFilePath)
 }
 
 func TestPortsLimits(t *testing.T) {

@@ -1,0 +1,806 @@
+[
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.HandleHTTP",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "http_handler",
+          "location": {
+            "method": "main.HandleHTTP"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "net/http.ResponseWriter",
+                "notCapturedReason": "unimplemented"
+              },
+              "r": {
+                "type": "*net/http.Request",
+                "address": "[addr]",
+                "fields": {
+                  "Method": {
+                    "type": "string",
+                    "value": "GET"
+                  },
+                  "URL": {
+                    "type": "*net/url.URL",
+                    "address": "[addr]",
+                    "fields": {
+                      "Scheme": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Opaque": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "User": {
+                        "type": "*net/url.Userinfo",
+                        "isNull": true
+                      },
+                      "Host": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Path": {
+                        "type": "string",
+                        "value": "/0"
+                      },
+                      "RawPath": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "OmitHost": {
+                        "type": "bool",
+                        "value": "false"
+                      },
+                      "ForceQuery": {
+                        "type": "bool",
+                        "value": "false"
+                      },
+                      "RawQuery": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Fragment": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "RawFragment": {
+                        "type": "string",
+                        "isNull": true
+                      }
+                    }
+                  },
+                  "Proto": {
+                    "type": "string",
+                    "value": "HTTP/1.1"
+                  },
+                  "ProtoMajor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "ProtoMinor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Header": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Body": {
+                    "type": "io.ReadCloser",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "GetBody": {
+                    "type": "func() (io.ReadCloser, error)",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "ContentLength": {
+                    "type": "int64",
+                    "value": "0"
+                  },
+                  "TransferEncoding": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "Close": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "Host": {
+                    "type": "string",
+                    "value": "[host network address]"
+                  },
+                  "Form": {
+                    "type": "net/url.Values",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "PostForm": {
+                    "type": "net/url.Values",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "MultipartForm": {
+                    "type": "*mime/multipart.Form",
+                    "isNull": true
+                  },
+                  "Trailer": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "RemoteAddr": {
+                    "type": "string",
+                    "value": "[remote network address]"
+                  },
+                  "RequestURI": {
+                    "type": "string",
+                    "value": "/0"
+                  },
+                  "TLS": {
+                    "type": "*crypto/tls.ConnectionState",
+                    "isNull": true
+                  },
+                  "Cancel": {
+                    "type": "\u003c-chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Response": {
+                    "type": "*net/http.Response",
+                    "isNull": true
+                  },
+                  "Pattern": {
+                    "type": "string",
+                    "value": "/"
+                  },
+                  "ctx": {
+                    "type": "context.Context",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "pat": {
+                    "type": "*net/http.pattern",
+                    "address": "[addr]",
+                    "fields": {
+                      "str": {
+                        "type": "string",
+                        "value": "/"
+                      },
+                      "method": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "host": {
+                        "type": "string",
+                        "value": "/"
+                      },
+                      "segments": {
+                        "type": "[]net/http.segment",
+                        "elements": [
+                          {
+                            "type": "net/http.segment",
+                            "fields": {
+                              "s": {
+                                "type": "string",
+                                "isNull": true
+                              },
+                              "wild": {
+                                "type": "bool",
+                                "value": "true"
+                              },
+                              "multi": {
+                                "type": "bool",
+                                "value": "true"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "loc": {
+                        "type": "string",
+                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                      }
+                    }
+                  },
+                  "matches": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "otherValues": {
+                    "type": "map[string]string",
+                    "notCapturedReason": "unimplemented"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/0"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.HandleHTTP",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "http_handler",
+          "location": {
+            "method": "main.HandleHTTP"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "net/http.ResponseWriter",
+                "notCapturedReason": "unimplemented"
+              },
+              "r": {
+                "type": "*net/http.Request",
+                "address": "[addr]",
+                "fields": {
+                  "Method": {
+                    "type": "string",
+                    "value": "GET"
+                  },
+                  "URL": {
+                    "type": "*net/url.URL",
+                    "address": "[addr]",
+                    "fields": {
+                      "Scheme": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Opaque": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "User": {
+                        "type": "*net/url.Userinfo",
+                        "isNull": true
+                      },
+                      "Host": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Path": {
+                        "type": "string",
+                        "value": "/1"
+                      },
+                      "RawPath": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "OmitHost": {
+                        "type": "bool",
+                        "value": "false"
+                      },
+                      "ForceQuery": {
+                        "type": "bool",
+                        "value": "false"
+                      },
+                      "RawQuery": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Fragment": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "RawFragment": {
+                        "type": "string",
+                        "isNull": true
+                      }
+                    }
+                  },
+                  "Proto": {
+                    "type": "string",
+                    "value": "HTTP/1.1"
+                  },
+                  "ProtoMajor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "ProtoMinor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Header": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Body": {
+                    "type": "io.ReadCloser",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "GetBody": {
+                    "type": "func() (io.ReadCloser, error)",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "ContentLength": {
+                    "type": "int64",
+                    "value": "0"
+                  },
+                  "TransferEncoding": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "Close": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "Host": {
+                    "type": "string",
+                    "value": "[host network address]"
+                  },
+                  "Form": {
+                    "type": "net/url.Values",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "PostForm": {
+                    "type": "net/url.Values",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "MultipartForm": {
+                    "type": "*mime/multipart.Form",
+                    "isNull": true
+                  },
+                  "Trailer": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "RemoteAddr": {
+                    "type": "string",
+                    "value": "[remote network address]"
+                  },
+                  "RequestURI": {
+                    "type": "string",
+                    "value": "/1"
+                  },
+                  "TLS": {
+                    "type": "*crypto/tls.ConnectionState",
+                    "isNull": true
+                  },
+                  "Cancel": {
+                    "type": "\u003c-chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Response": {
+                    "type": "*net/http.Response",
+                    "isNull": true
+                  },
+                  "Pattern": {
+                    "type": "string",
+                    "value": "/"
+                  },
+                  "ctx": {
+                    "type": "context.Context",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "pat": {
+                    "type": "*net/http.pattern",
+                    "address": "[addr]",
+                    "fields": {
+                      "str": {
+                        "type": "string",
+                        "value": "/"
+                      },
+                      "method": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "host": {
+                        "type": "string",
+                        "value": "/"
+                      },
+                      "segments": {
+                        "type": "[]net/http.segment",
+                        "elements": [
+                          {
+                            "type": "net/http.segment",
+                            "fields": {
+                              "s": {
+                                "type": "string",
+                                "isNull": true
+                              },
+                              "wild": {
+                                "type": "bool",
+                                "value": "true"
+                              },
+                              "multi": {
+                                "type": "bool",
+                                "value": "true"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "loc": {
+                        "type": "string",
+                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                      }
+                    }
+                  },
+                  "matches": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "otherValues": {
+                    "type": "map[string]string",
+                    "notCapturedReason": "unimplemented"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.HandleHTTP",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "http_handler",
+          "location": {
+            "method": "main.HandleHTTP"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "w": {
+                "type": "net/http.ResponseWriter",
+                "notCapturedReason": "unimplemented"
+              },
+              "r": {
+                "type": "*net/http.Request",
+                "address": "[addr]",
+                "fields": {
+                  "Method": {
+                    "type": "string",
+                    "value": "GET"
+                  },
+                  "URL": {
+                    "type": "*net/url.URL",
+                    "address": "[addr]",
+                    "fields": {
+                      "Scheme": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Opaque": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "User": {
+                        "type": "*net/url.Userinfo",
+                        "isNull": true
+                      },
+                      "Host": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Path": {
+                        "type": "string",
+                        "value": "/2"
+                      },
+                      "RawPath": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "OmitHost": {
+                        "type": "bool",
+                        "value": "false"
+                      },
+                      "ForceQuery": {
+                        "type": "bool",
+                        "value": "false"
+                      },
+                      "RawQuery": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "Fragment": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "RawFragment": {
+                        "type": "string",
+                        "isNull": true
+                      }
+                    }
+                  },
+                  "Proto": {
+                    "type": "string",
+                    "value": "HTTP/1.1"
+                  },
+                  "ProtoMajor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "ProtoMinor": {
+                    "type": "int",
+                    "value": "1"
+                  },
+                  "Header": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Body": {
+                    "type": "io.ReadCloser",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "GetBody": {
+                    "type": "func() (io.ReadCloser, error)",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "ContentLength": {
+                    "type": "int64",
+                    "value": "0"
+                  },
+                  "TransferEncoding": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "Close": {
+                    "type": "bool",
+                    "value": "false"
+                  },
+                  "Host": {
+                    "type": "string",
+                    "value": "[host network address]"
+                  },
+                  "Form": {
+                    "type": "net/url.Values",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "PostForm": {
+                    "type": "net/url.Values",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "MultipartForm": {
+                    "type": "*mime/multipart.Form",
+                    "isNull": true
+                  },
+                  "Trailer": {
+                    "type": "net/http.Header",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "RemoteAddr": {
+                    "type": "string",
+                    "value": "[remote network address]"
+                  },
+                  "RequestURI": {
+                    "type": "string",
+                    "value": "/2"
+                  },
+                  "TLS": {
+                    "type": "*crypto/tls.ConnectionState",
+                    "isNull": true
+                  },
+                  "Cancel": {
+                    "type": "\u003c-chan struct {}",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "Response": {
+                    "type": "*net/http.Response",
+                    "isNull": true
+                  },
+                  "Pattern": {
+                    "type": "string",
+                    "value": "/"
+                  },
+                  "ctx": {
+                    "type": "context.Context",
+                    "notCapturedReason": "unimplemented"
+                  },
+                  "pat": {
+                    "type": "*net/http.pattern",
+                    "address": "[addr]",
+                    "fields": {
+                      "str": {
+                        "type": "string",
+                        "value": "/"
+                      },
+                      "method": {
+                        "type": "string",
+                        "isNull": true
+                      },
+                      "host": {
+                        "type": "string",
+                        "value": "/"
+                      },
+                      "segments": {
+                        "type": "[]net/http.segment",
+                        "elements": [
+                          {
+                            "type": "net/http.segment",
+                            "fields": {
+                              "s": {
+                                "type": "string",
+                                "isNull": true
+                              },
+                              "wild": {
+                                "type": "bool",
+                                "value": "true"
+                              },
+                              "multi": {
+                                "type": "bool",
+                                "value": "true"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "loc": {
+                        "type": "string",
+                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                      }
+                    }
+                  },
+                  "matches": {
+                    "type": "[]string",
+                    "isNull": true
+                  },
+                  "otherValues": {
+                    "type": "map[string]string",
+                    "notCapturedReason": "unimplemented"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  },
+  {
+    "service": "rc_tester",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.LookAtTheRequest",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "look_at_the_request",
+          "location": {
+            "method": "main.LookAtTheRequest"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "path": {
+                "type": "string",
+                "value": "/2"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

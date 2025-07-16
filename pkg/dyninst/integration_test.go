@@ -11,24 +11,24 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -46,8 +47,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
-//go:embed testdata/decoded/*/*.yaml
+//go:embed testdata/decoded
 var testdataFS embed.FS
+
+type semaphore chan struct{}
+
+func (s semaphore) acquire() (release func()) {
+	s <- struct{}{}
+	return func() { <-s }
+}
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
@@ -57,6 +65,9 @@ func TestDyninst(t *testing.T) {
 		"simple": {},
 		"sample": {},
 	}
+
+	concurrency := max(1, runtime.GOMAXPROCS(0))
+	sem := make(semaphore, concurrency)
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -78,45 +89,15 @@ func TestDyninst(t *testing.T) {
 			require.NoError(t, tp.Close())
 		})
 	}
+	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
 		for _, cfg := range cfgs {
-			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
-				if cfg.GOARCH != runtime.GOARCH {
-					t.Skipf(
-						"cross-execution is not supported, running on %s",
-						runtime.GOARCH,
-					)
-				}
-
-				t.Parallel()
-				bin := testprogs.MustGetBinary(t, svc, cfg)
-
-				expectedOutput, err := getExpectedDecodedOutputOfProbes(svc)
-				require.NoError(t, err)
-				probes := testprogs.MustGetProbeDefinitions(t, svc)
-				for _, debug := range []bool{false, true} {
-					if testing.Short() && debug {
-						t.Skip("skipping debug mode in short mode")
-					}
-					t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
-						t.Parallel()
-						for i := range probes {
-							probes := probes[i : i+1]
-							probe := probes[0]
-							// Run each probe individually.
-							t.Run(probe.GetID(), func(t *testing.T) {
-								t.Parallel()
-								testDyninst(
-									t, svc, bin, probes, expectedOutput, debug,
-								)
-							})
-						}
-					})
-				}
+			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
+				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
 			})
 		}
 	}
@@ -127,9 +108,13 @@ func testDyninst(
 	service string,
 	servicePath string,
 	probes []ir.ProbeDefinition,
-	expOut map[string]string,
+	rewriteEnabled bool,
+	expOut map[string][]json.RawMessage,
 	debug bool,
-) {
+	sem semaphore,
+) map[string][]json.RawMessage {
+	defer sem.acquire()()
+	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
 
@@ -158,7 +143,7 @@ func testDyninst(
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter)
+	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
@@ -166,6 +151,10 @@ func testDyninst(
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, servicePath,
 	)
+	defer func() {
+		_ = sampleProc.Process.Kill()
+		_ = sampleProc.Wait()
+	}()
 
 	stat, err := os.Stat(servicePath)
 	require.NoError(t, err)
@@ -199,7 +188,7 @@ func testDyninst(
 	sink, ok := <-reporter.attached
 	require.True(t, ok)
 	if t.Failed() {
-		return
+		return nil
 	}
 
 	// Trigger the function calls, receive the events, and wait for the process
@@ -207,13 +196,38 @@ func testDyninst(
 	t.Logf("Triggering function calls")
 	sampleStdin.Write([]byte("\n"))
 
-	expNumEvents := len(probes)
-	var read []output.Event
-	for m := range sink.ch {
-		read = append(read, m)
-		if len(read) == expNumEvents {
-			break
+	var totalExpectedEvents int
+	if rewriteEnabled {
+		totalExpectedEvents = math.MaxInt
+	} else {
+		for _, p := range probes {
+			totalExpectedEvents += len(expOut[p.GetID()])
 		}
+	}
+
+	timeout := time.Second
+	if !rewriteEnabled {
+		// In CI the machines seem to get very overloaded and this takes a
+		// shocking amount of time. Given we don't wait for this timeout in
+		// the happy path, it's fine to let this be quite long.
+		timeout = 5*time.Second + 5*time.Since(start)
+	}
+	timeoutCh := time.After(timeout)
+	var read []output.Event
+	var timedOut bool
+	for !timedOut && len(read) < totalExpectedEvents {
+		select {
+		case m := <-sink.ch:
+			read = append(read, m)
+		case <-timeoutCh:
+			timedOut = true
+		}
+	}
+	if !rewriteEnabled && timedOut {
+		t.Errorf(
+			"timed out after %v waiting for %d events, got %d",
+			timeout, totalExpectedEvents, len(read),
+		)
 	}
 	require.NoError(t, sampleProc.Wait())
 
@@ -226,20 +240,17 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	mef, err := object.NewMMappingElfFile(servicePath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, mef.Close()) }()
-	obj, err := object.NewElfObject(mef.Elf)
+	obj, err := object.OpenElfFile(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(mef)
+	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ParseGoVersion(obj.Underlying)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(mef)
+	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
@@ -256,10 +267,14 @@ func testDyninst(
 	symbolicator := symbol.NewGoSymbolicator(symbolTable)
 	require.NotNil(t, symbolicator)
 
-	decoder, err := decode.NewDecoder(sink.irp, symbolicator)
+	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
+	require.NotNil(t, symbolicator)
 	require.NoError(t, err)
-	b := []byte{}
-	decodeOut := bytes.NewBuffer(b)
+
+	decoder, err := decode.NewDecoder(sink.irp)
+	require.NoError(t, err)
+
+	retMap := make(map[string][]json.RawMessage)
 	for _, ev := range read {
 		// Validate that the header has the correct program ID.
 		{
@@ -272,99 +287,145 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		err = decoder.Decode(event, decodeOut)
+		var decodeOut bytes.Buffer
+		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
-		t.Logf("decoded output: \n%s\n", decodeOut.String())
-		redacted := redactJSON(t, decodeOut.Bytes())
-		t.Logf("redacted output: \n%s\n", string(redacted))
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Output: %s", decodeOut.String())
+		}
+		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
+		probeID := probe.GetID()
+		probeRet := retMap[probeID]
+		expIdx := len(probeRet)
+		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
+		if expIdx < len(expOut[probeID]) {
+			outputToCompare := expOut[probeID][expIdx]
+			assert.JSONEq(t, string(outputToCompare), string(redacted))
+		}
+		if !rewriteEnabled {
+			expOut, ok := expOut[probeID]
+			assert.True(t, ok, "expected output for probe %s not found", probeID)
+			assert.Less(
+				t, expIdx, len(expOut),
+				"expected at least %d events for probe %s, got %d",
+				expIdx+1, probeID, len(expOut),
+			)
+			assert.Equal(t, string(expOut[expIdx]), string(redacted))
+		}
+	}
+	return retMap
+}
 
-		outputToCompare := expOut[probes[0].GetID()]
-		assert.JSONEq(t, outputToCompare, string(redacted))
+type probeOutputs map[string][]json.RawMessage
 
-		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expOut[probes[0].GetID()] = string(redacted)
-			outputName := getOutputFilename(service)
-			if err := saveActualOutputOfProbes(outputName, expOut); err != nil {
-				t.Logf("error saving actual output: %s", err)
-			} else {
-				t.Logf("output saved to: %s", outputName)
+func runIntegrationTestSuite(
+	t *testing.T,
+	service string,
+	cfg testprogs.Config,
+	rewrite bool,
+	sem semaphore,
+) {
+	if cfg.GOARCH != runtime.GOARCH {
+		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
+		return
+	}
+	var outputs = struct {
+		sync.Mutex
+		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
+	}{
+		byTest: make(map[string]probeOutputs),
+	}
+	if rewrite {
+		t.Cleanup(func() {
+			if t.Failed() {
+				return
+			}
+			validateAndSaveOutputs(t, service, outputs.byTest)
+		})
+	}
+	probes := testprogs.MustGetProbeDefinitions(t, service)
+	var expectedOutput map[string][]json.RawMessage
+	if !rewrite {
+		var err error
+		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
+		require.NoError(t, err)
+	}
+	bin := testprogs.MustGetBinary(t, service, cfg)
+	for _, debug := range []bool{false, true} {
+		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+			t.Parallel()
+			actual := testDyninst(
+				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
+			)
+			if t.Failed() {
+				return
+			}
+			outputs.Lock()
+			defer outputs.Unlock()
+			outputs.byTest[t.Name()] = actual
+		}
+		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+			t.Parallel()
+			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+			for i := range probes {
+				probeID := probes[i].GetID()
+				t.Run(probeID, func(t *testing.T) {
+					runTest(t, probes[i:i+1])
+				})
+			}
+		})
+	}
+}
+
+// validateAndSaveOutputs ensures that the outputs for the same probe are consistent
+// across all tests and saves them to disk.
+func validateAndSaveOutputs(
+	t *testing.T, svc string, byTest map[string]probeOutputs,
+) {
+	byProbe := make(map[string][]byte)
+	msgEq := func(a, b json.RawMessage) bool { return bytes.Equal(a, b) }
+	findMismatchingTests := func(
+		probeID string, cur []json.RawMessage,
+	) (testNames []string) {
+		for testName, testOutputs := range byTest {
+			if out, ok := testOutputs[probeID]; ok {
+				if !slices.EqualFunc(out, cur, msgEq) {
+					testNames = append(testNames, testName)
+				}
 			}
 		}
+		return testNames
 	}
-}
-
-type jsonRedactor struct {
-	matches     func(ptr jsontext.Pointer) bool
-	replacement jsontext.Value
-}
-
-func redactPtr(toMatch string, replacement jsontext.Value) jsonRedactor {
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return string(ptr) == toMatch
-		},
-		replacement: replacement,
-	}
-}
-
-func redactPtrPrefixSuffix(prefix, suffix string, replacement jsontext.Value) jsonRedactor {
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return strings.HasPrefix(string(ptr), prefix) && strings.HasSuffix(string(ptr), suffix)
-		},
-		replacement: replacement,
-	}
-}
-
-func redactPtrRegexp(pat string, replacement jsontext.Value) jsonRedactor {
-	re := regexp.MustCompile(pat)
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return re.MatchString(string(ptr))
-		},
-		replacement: replacement,
-	}
-}
-
-var redactors = []jsonRedactor{
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/fileName$`, []byte(`"<fileName>"`)),
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/lineNumber$`, []byte(`"<lineNumber>"`)),
-
-	// TODO: stack is only redacted in full because of bug with stack walking on arm64.
-	// Unredact this once the issue is fixed.
-	redactPtr(`/debugger/snapshot/stack`, []byte(`"<stack-unredact-me>"`)),
-
-	redactPtr("/debugger/snapshot/id", []byte(`"<id>"`)),
-	redactPtr("/debugger/snapshot/timestamp", []byte(`"<ts>"`)),
-	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"<addr>"`)),
-}
-
-func redactJSON(t *testing.T, input []byte) (redacted []byte) {
-	d := jsontext.NewDecoder(bytes.NewReader(input))
-	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf)
-	for {
-		tok, err := d.ReadToken()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		kind, idx := d.StackIndex(d.StackDepth())
-		require.NoError(t, e.WriteToken(tok))
-		if kind != '{' || idx%2 == 0 {
-			continue
-		}
-		ptr := d.StackPointer()
-		for _, redactor := range redactors {
-			if redactor.matches(ptr) {
-				_, err := d.ReadValue()
-				require.NoError(t, err)
-				require.NoError(t, e.WriteValue(redactor.replacement))
-				break
+	for testName, testOutputs := range byTest {
+		for id, out := range testOutputs {
+			marshaled, err := json.MarshalIndent(out, "", "  ")
+			require.NoError(t, err)
+			prev, ok := byProbe[id]
+			if !ok {
+				byProbe[id] = marshaled
+				continue
 			}
+			if bytes.Equal(prev, marshaled) {
+				continue
+			}
+			otherTestNames := findMismatchingTests(id, out)
+			require.Equal(
+				t,
+				string(prev),
+				string(marshaled),
+				"inconsistent output for probe %s in test %s and %s: %s != %s",
+				id, testName, strings.Join(otherTestNames, ", "),
+			)
 		}
 	}
-	return buf.Bytes()
+	for id, out := range byProbe {
+		path := getProbeOutputFilename(svc, id)
+		if err := saveActualOutputOfProbe(path, out); err != nil {
+			t.Logf("error saving actual output for probe %s: %v", id, err)
+		} else {
+			t.Logf("output saved to: %s", path)
+		}
+	}
 }
 
 type testMessageSink struct {
@@ -449,56 +510,63 @@ func makeTestReporter(t *testing.T) *testReporter {
 	}
 }
 
-func getOutputFilename(progName string) string {
+func getProbeOutputFilename(service, probeID string) string {
 	return filepath.Join(
-		"testdata", "decoded", runtime.GOARCH, progName+".yaml",
+		"testdata", "decoded", service, probeID+".json",
 	)
 }
 
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
-func getExpectedDecodedOutputOfProbes(progName string) (map[string]string, error) {
-	expectedOutput := make(map[string]string)
-	outputName := getOutputFilename(progName)
-	yamlData, err := testdataFS.ReadFile(outputName)
+func getExpectedDecodedOutputOfProbes(progName string) (map[string][]json.RawMessage, error) {
+	dir := filepath.Join("testdata", "decoded", progName)
+	entries, err := testdataFS.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
-
-	err = yaml.Unmarshal(yamlData, &expectedOutput)
-	if err != nil {
-		return nil, err
+	expected := make(map[string][]json.RawMessage)
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		probeID := strings.TrimSuffix(e.Name(), ".json")
+		content, err := testdataFS.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", e.Name(), err)
+		}
+		var out []json.RawMessage
+		if err := json.Unmarshal(content, &out); err != nil {
+			return nil, fmt.Errorf("unmarshalling %s: %w", e.Name(), err)
+		}
+		expected[probeID] = out
 	}
-	return expectedOutput, nil
+	return expected, nil
 }
 
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
 // Note: This function now saves to the current working directory since embedded files are read-only.
-func saveActualOutputOfProbes(outputPath string, savedState map[string]string) error {
+func saveActualOutputOfProbe(outputPath string, content []byte) error {
 	outputDir := path.Dir(outputPath)
-	err := os.MkdirAll(outputDir, 0755)
-	if err != nil {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return fmt.Errorf("error creating testdata directory: %w", err)
 	}
-	actualOutputYAML, err := yaml.Marshal(savedState)
-	if err != nil {
-		return fmt.Errorf("error marshaling actual output to YAML: %w", err)
-	}
+
 	baseName := path.Base(outputPath)
-	tmpFile, err := os.CreateTemp(outputDir, "."+baseName+".*.tmp.yaml")
+	tmpFile, err := os.CreateTemp(outputDir, "."+baseName+".*.tmp.json")
 	if err != nil {
-		return fmt.Errorf("error creating output file: %w", err)
+		return fmt.Errorf("error creating temp output file: %w", err)
 	}
-	tmpFileName := tmpFile.Name()
-	defer func() { _ = os.Remove(tmpFileName) }() // remove it if not renamed
-	if _, err := io.Copy(tmpFile, bytes.NewReader(actualOutputYAML)); err != nil {
-		return fmt.Errorf("error writing actual output file: %w", err)
+	tmpName := tmpFile.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := io.Copy(tmpFile, bytes.NewReader(content)); err != nil {
+		return fmt.Errorf("error writing temp output: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("error closing output file: %w", err)
+		return fmt.Errorf("error closing temp output: %w", err)
 	}
-	if err := os.Rename(tmpFileName, outputPath); err != nil {
-		return fmt.Errorf("error renaming output file: %w", err)
+	if err := os.Rename(tmpName, outputPath); err != nil {
+		return fmt.Errorf("error renaming temp output: %w", err)
 	}
 	return nil
 }

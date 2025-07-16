@@ -1307,8 +1307,21 @@ def get_test_infra_def_version():
     """
     try:
         version_file = Path.cwd() / ".gitlab" / "common" / "test_infra_version.yml"
-        test_infra_def = yaml.safe_loads(version_file.read_text(encoding="utf-8"))
+        test_infra_def = yaml.safe_load(version_file.read_text(encoding="utf-8"))
         return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
+    except Exception:
+        return "main"
+
+
+def get_buildimages_version():
+    """
+    Get the version of datadog-agent-buildimages currently used
+    """
+    try:
+        version_file = Path.cwd() / ".gitlab-ci.yml"
+        gitlab_ci_yaml = yaml.safe_load(version_file.read_text(encoding="utf-8"))
+        # CI_IMAGE_DEB_ARM64 is an approximation we agreed on with DevX folks
+        return gitlab_ci_yaml["variables"]["CI_IMAGE_DEB_ARM64"].split("-")[1].strip()
     except Exception:
         return "main"
 

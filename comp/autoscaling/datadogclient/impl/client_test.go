@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/stretchr/testify/assert"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 func TestNewSingleClient(t *testing.T) {
@@ -95,7 +96,7 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	cfg.Set("api_key", newAPIKey, pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", newAPPKey, pkgconfigmodel.SourceLocalConfigProcess)
 	assert.Eventually(t, func() bool {
-		return datadogClientWithRefresh.numberOfRefreshes > 0
+		return datadogClientWithRefresh.getNumberOfRefreshes() > 0
 	}, 5*time.Second, 200*time.Millisecond)
 	datadogClientWithRefresh.QueryMetrics(0, 1, query)
 	payload2 := <-reqs
