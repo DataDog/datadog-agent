@@ -159,9 +159,11 @@ func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
 		// Get pre-computed stat info, otherwise stat it ourselves
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok || stat == nil {
-			if err = syscall.Stat(path, stat); err != nil {
+			var newStat syscall.Stat_t
+			if err = syscall.Stat(path, &newStat); err != nil {
 				return nil // Ignore this one
 			}
+			stat = &newStat
 		}
 
 		if stat.Ino == containerCgroupInode {
