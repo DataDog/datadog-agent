@@ -51,7 +51,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
   tags: ["arch:arm64"]
 
-lint_linux-x64-2:
+lint_linux-x64:
   extends:
     - .linux_lint2
     - .linux_x64
@@ -61,10 +61,10 @@ lint_linux-x64-3:
     - .linux_lint3
     - .linux_x64
 
-# lint_linux-arm64:
-#   extends:
-#     - .linux_lint
-#     - .linux_arm64
+lint_linux-arm64:
+  extends:
+    - .linux_lint
+    - .linux_arm64
 
 lint_flavor_iot_linux-x64:
   extends:
