@@ -227,6 +227,7 @@ deploy_windows_testing-a7-fips:
 export_testing_public_key:
   rules:
     - !reference [.manual]
+  needs: []
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
