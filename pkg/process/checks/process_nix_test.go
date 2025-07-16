@@ -19,6 +19,7 @@ import (
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	probeMocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -632,7 +633,8 @@ func createTestWLMProcesses(createTime time.Time) []*wmdef.Process {
 	proc3 := wlmProcessWithCreateTime(3, "foo --version", nowSeconds+2)
 	proc4 := wlmProcessWithCreateTime(4, "foo -bar -bim", nowSeconds+3)
 	proc5 := wlmProcessWithCreateTime(5, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
-	return []*wmdef.Process{proc1, proc2, proc3, proc4, proc5}
+	proc6 := wlmProcessWithCreateTime(6, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds+4)
+	return []*wmdef.Process{proc1, proc2, proc3, proc4, proc5, proc6}
 }
 
 func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bool) map[int32]*procutil.Stats {
@@ -691,7 +693,7 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 
 			// CREATE TEST DATA
 			wlmProcs, statsByPid1 := createTestWLMProcessData(now, tc.elevatedPermissions)
-			proc1, proc2, proc3, proc4, proc5 := wlmProcs[0], wlmProcs[1], wlmProcs[2], wlmProcs[3], wlmProcs[4]
+			proc1, proc2, proc3, proc4, proc5, proc6 := wlmProcs[0], wlmProcs[1], wlmProcs[2], wlmProcs[3], wlmProcs[4], wlmProcs[5]
 
 			// MOCK WLM
 			mockWLM.On("ListProcesses").Return(wlmProcs)
@@ -719,6 +721,10 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 			constantClock2 := newConstantClock(now.Add(10 * time.Second))
 			processCheck.timer = constantClock2
 			statsByPid2 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
+			// creation times should be the same
+			for _, wlmProc := range wlmProcs {
+				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid2[wlmProc.Pid].CreateTime)
+			}
 			mockProbe.On("StatsForPIDs", pids, mock.Anything).Return(statsByPid2, nil).Once()
 
 			expected2 := []model.MessageBody{
@@ -752,14 +758,16 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 					Info:      processCheck.hostInfo.SystemInfo,
 					Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 				},
+				&model.CollectorProc{
+					Processes: []*model.Process{modelProcFromWLMProc(proc6, statsByPid2[proc6.Pid], statsByPid1[proc6.Pid], []string{"process_context:cilium-agent-bpf-map-metrics"}, constantClock2.Now(), constantClock1.Now())},
+					GroupSize: int32(len(wlmProcs)),
+					Info:      processCheck.hostInfo.SystemInfo,
+					Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+				},
 			}
 			actual, err = processCheck.runWLM(0, tc.realtimeCollection)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, expected2, actual.Payloads())
-			// creation times should be the same
-			for _, wlmProc := range wlmProcs {
-				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid2[wlmProc.Pid].CreateTime)
-			}
 			// realtime collection
 			if tc.realtimeCollection {
 				expectedStats := expectedRealtimeStats(wlmProcs, statsByPid2, statsByPid1, constantClock2.Now(), constantClock1.Now())
@@ -776,6 +784,10 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 			constantClock3 := newConstantClock(now.Add(20 * time.Second))
 			processCheck.timer = constantClock3
 			statsByPid3 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
+			// creation times should be the same
+			for _, wlmProc := range wlmProcs {
+				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid3[wlmProc.Pid].CreateTime)
+			}
 			mockProbe.On("StatsForPIDs", pids, mock.Anything).Return(statsByPid3, nil).Once()
 
 			expected3 := []model.MessageBody{
@@ -809,14 +821,16 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 					Info:      processCheck.hostInfo.SystemInfo,
 					Hints:     &model.CollectorProc_HintMask{HintMask: 0b0},
 				},
+				&model.CollectorProc{
+					Processes: []*model.Process{modelProcFromWLMProc(proc6, statsByPid3[proc6.Pid], statsByPid2[proc6.Pid], []string{"process_context:cilium-agent-bpf-map-metrics"}, constantClock3.Now(), constantClock2.Now())},
+					GroupSize: int32(len(wlmProcs)),
+					Info:      processCheck.hostInfo.SystemInfo,
+					Hints:     &model.CollectorProc_HintMask{HintMask: 0b0},
+				},
 			}
 			actual, err = processCheck.runWLM(0, tc.realtimeCollection)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, expected3, actual.Payloads())
-			// creation times should be the same
-			for _, wlmProc := range wlmProcs {
-				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid3[wlmProc.Pid].CreateTime)
-			}
 			if tc.realtimeCollection {
 				expectedStats := expectedRealtimeStats(wlmProcs, statsByPid3, statsByPid2, constantClock3.Now(), constantClock2.Now())
 				require.Len(t, actual.RealtimePayloads(), 1)
@@ -839,25 +853,25 @@ func TestProcessCheckChunkingWLM(t *testing.T) {
 		elevatedPermissions   bool
 	}{
 		{
-			name:                  "Chunking, no permissions",
+			name:                  "Chunking ENABLED, elevated permissions DISABLED",
 			noChunking:            false,
-			expectedPayloadLength: 5,
+			expectedPayloadLength: 6,
 			elevatedPermissions:   false,
 		},
 		{
-			name:                  "No chunking, no permissions",
+			name:                  "Chunking DISABLED, elevated permissions DISABLED",
 			noChunking:            true,
 			expectedPayloadLength: 1,
 			elevatedPermissions:   false,
 		},
 		{
-			name:                  "Chunking, yes permissions",
+			name:                  "Chunking ENABLED, elevated permissions ENABLED",
 			noChunking:            false,
-			expectedPayloadLength: 5,
+			expectedPayloadLength: 6,
 			elevatedPermissions:   true,
 		},
 		{
-			name:                  "No chunking, yes permissions",
+			name:                  "Chunking DISABLED, elevated permissions ENABLED",
 			noChunking:            true,
 			expectedPayloadLength: 1,
 			elevatedPermissions:   true,
@@ -916,8 +930,203 @@ func expectedRealtimeStats(wlmProcs []*wmdef.Process, statsByPid map[int32]*proc
 	return expectedStats
 }
 
+func TestProcessCheckZombieConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		ignoreZombieProcesses bool
+		elevatedPermissions   bool
+		realtimeCollection    bool
+	}{
+		{
+			name:                  "ignore zombie processes ENABLED, realtime ENABLED, elevated permissions ENABLED",
+			ignoreZombieProcesses: true,
+			realtimeCollection:    true,
+			elevatedPermissions:   true,
+		},
+		{
+			name:                  "Ignore zombie processes ENABLED, realtime ENABLED, elevated permissions DISABLED",
+			ignoreZombieProcesses: true,
+			realtimeCollection:    true,
+			elevatedPermissions:   false,
+		},
+		{
+			name:                  "ignore zombie processes ENABLED, realtime DISABLED, elevated permissions ENABLED",
+			ignoreZombieProcesses: true,
+			realtimeCollection:    false,
+			elevatedPermissions:   true,
+		},
+		{
+			name:                  "Ignore zombie processes ENABLED, realtime DISABLED, elevated permissions DISABLED",
+			ignoreZombieProcesses: true,
+			realtimeCollection:    false,
+			elevatedPermissions:   false,
+		},
+		{
+			name:                  "ignore zombie processes DISABLED, realtime ENABLED, elevated permissions ENABLED",
+			ignoreZombieProcesses: false,
+			realtimeCollection:    true,
+			elevatedPermissions:   true,
+		},
+		{
+			name:                  "Ignore zombie processes DISABLED, realtime ENABLED, elevated permissions DISABLED",
+			ignoreZombieProcesses: false,
+			realtimeCollection:    true,
+			elevatedPermissions:   false,
+		},
+		{
+			name:                  "ignore zombie processes DISABLED, realtime DISABLED, elevated permissions ENABLED",
+			ignoreZombieProcesses: false,
+			realtimeCollection:    false,
+			elevatedPermissions:   true,
+		},
+		{
+			name:                  "Ignore zombie processes DISABLED, realtime DISABLED, elevated permissions DISABLED",
+			ignoreZombieProcesses: false,
+			realtimeCollection:    false,
+			elevatedPermissions:   false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// mock processes
+			processCheck, mockProbe, mockWLM := processCheckWithMockProbeWLM(&testing.T{}, tc.elevatedPermissions)
+			now := time.Now()
+			constantClock1 := newConstantClock(now)
+			processCheck.timer = constantClock1
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("process_config.ignore_zombie_processes", tc.ignoreZombieProcesses)
+			processCheck.config = cfg
+			processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+
+			// TEST DATA
+			wlmProcs, statsByPid1 := createTestWLMProcessData(now, tc.elevatedPermissions)
+			proc1, proc2, proc3, proc4, proc5, proc6 := wlmProcs[0], wlmProcs[1], wlmProcs[2], wlmProcs[3], wlmProcs[4], wlmProcs[5]
+			// ENSURE 2 PROCESSES ARE NOT ZOMBIES
+			statsByPid1[proc1.Pid].Status = "R"
+			statsByPid1[proc2.Pid].Status = "R"
+
+			// SET 4 PROCESSES TO ZOMBIE STATUS
+			statsByPid1[proc3.Pid].Status = "Z"
+			statsByPid1[proc4.Pid].Status = "Z"
+			statsByPid1[proc5.Pid].Status = "Z"
+			statsByPid1[proc6.Pid].Status = "Z"
+
+			// MOCK WLM
+			mockWLM.On("ListProcesses").Return(wlmProcs)
+
+			// MOCK PROBE FOR STATS
+			pids := make([]int32, len(wlmProcs))
+			for i, wlmProc := range wlmProcs {
+				pids[i] = wlmProc.Pid
+			}
+			mockProbe.On("StatsForPIDs", pids, mock.Anything).Return(statsByPid1, nil).Once()
+
+			// TEST FUNCTION
+			actual, err := processCheck.runWLM(0, tc.realtimeCollection)
+
+			// The first run returns nothing because processes must be observed on two consecutive runs
+			expected1 := CombinedRunResult{}
+			require.NoError(t, err)
+			assert.Equal(t, expected1, actual)
+			// creation times should be the same
+			for _, wlmProc := range wlmProcs {
+				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid1[wlmProc.Pid].CreateTime)
+			}
+
+			// SECOND RUN
+			constantClock2 := newConstantClock(now.Add(10 * time.Second))
+			processCheck.timer = constantClock2
+			statsByPid2 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
+			// ENSURE 2 PROCESSES ARE NOT ZOMBIES
+			statsByPid2[proc1.Pid].Status = "R"
+			statsByPid2[proc2.Pid].Status = "R"
+
+			// SET 4 PROCESSES TO ZOMBIE STATUS
+			statsByPid2[proc3.Pid].Status = "Z"
+			statsByPid2[proc4.Pid].Status = "Z"
+			statsByPid2[proc5.Pid].Status = "Z"
+			statsByPid2[proc6.Pid].Status = "Z"
+			// creation times should be the same
+			for _, wlmProc := range wlmProcs {
+				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid2[wlmProc.Pid].CreateTime)
+			}
+			mockProbe.On("StatsForPIDs", pids, mock.Anything).Return(statsByPid2, nil).Once()
+
+			var expected2 []model.MessageBody
+			if tc.ignoreZombieProcesses {
+				expected2 = []model.MessageBody{
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc1, statsByPid2[proc1.Pid], statsByPid1[proc1.Pid], []string{"process_context:git"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(2),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc2, statsByPid2[proc2.Pid], statsByPid1[proc2.Pid], []string{"process_context:mine-bitcoins"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(2),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+				}
+			} else {
+				expected2 = []model.MessageBody{
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc1, statsByPid2[proc1.Pid], statsByPid1[proc1.Pid], []string{"process_context:git"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(len(wlmProcs)),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc2, statsByPid2[proc2.Pid], statsByPid1[proc2.Pid], []string{"process_context:mine-bitcoins"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(len(wlmProcs)),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc3, statsByPid2[proc3.Pid], statsByPid1[proc3.Pid], []string{"process_context:foo"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(len(wlmProcs)),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc4, statsByPid2[proc4.Pid], statsByPid1[proc4.Pid], []string{"process_context:foo"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(len(wlmProcs)),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc5, statsByPid2[proc5.Pid], statsByPid1[proc5.Pid], []string{"process_context:datadog-agent"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(len(wlmProcs)),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+					&model.CollectorProc{
+						Processes: []*model.Process{modelProcFromWLMProc(proc6, statsByPid2[proc6.Pid], statsByPid1[proc6.Pid], []string{"process_context:cilium-agent-bpf-map-metrics"}, constantClock2.Now(), constantClock1.Now())},
+						GroupSize: int32(len(wlmProcs)),
+						Info:      processCheck.hostInfo.SystemInfo,
+						Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+					},
+				}
+			}
+			actual, err = processCheck.runWLM(0, tc.realtimeCollection)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, expected2, actual.Payloads())
+			// realtime collection
+			if tc.realtimeCollection {
+				expectedStats := expectedRealtimeStats(wlmProcs, statsByPid2, statsByPid1, constantClock2.Now(), constantClock1.Now())
+				require.Len(t, actual.RealtimePayloads(), 1)
+				rt := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
+				assert.ElementsMatch(t, expectedStats, rt.Stats)
+				assert.Equal(t, int32(1), rt.GroupSize)
+				assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
+			} else {
+				assert.Nil(t, actual.RealtimePayloads())
+			}
+		})
+	}
+}
+
 // BenchmarkProcessCheckRUNWLM does not run with the typical dda inv test, you will have to edit the invoke task
-// to include the bench flag in tasks/gotest.py, here are the previous results on an m3 max
+// to include the bench flag in tasks/gotest.py, here are the previous results on a m3 max
 // BenchmarkProcessCheckRunWLM-16             30969             37086 ns/op           27917 B/op        301 allocs/op
 // BenchmarkProcessCheck-16                   41541             28592 ns/op           22013 B/op        243 allocs/op
 func BenchmarkProcessCheckRunWLM(b *testing.B) {
