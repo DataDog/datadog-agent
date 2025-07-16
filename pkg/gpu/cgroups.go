@@ -56,7 +56,7 @@ const (
 	systemdDeviceAllowFile     = "50-DeviceAllow.conf"
 	systemdTransientConfigPath = "run/systemd/transient"
 	cgroupv1DeviceAllowFile    = "devices.allow"
-	cgroupv1DeviceAllowDir     = "sys/fs/cgroup/devices"
+	cgroupv1DeviceControlDir   = "sys/fs/cgroup/devices"
 	nvidiaSystemdDeviceAllow   = "DeviceAllow=char-nvidia rwm\n" // Allow access to the NVIDIA character devices
 	nvidiaDeviceMajor          = 195
 )
@@ -80,38 +80,40 @@ func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
 	cgroupPath := string(procCgroups[0].Path)
 
 	// If we're running in the host (no path to the host root filesystem), we can
-	// just return the cgroup path as we see it.
+	// just return the cgroup path as we see it, we cannot do anything else.
 	// Also, cgroupv1 returns the cgroup name correctly here, so we can return it
 	// directly too
 	if rootfs == "" || cgroups.Mode() == cgroups.Legacy {
 		return cgroupPath, nil
 	}
 
-	// Now we need to deal with possibly different cgroup namespaces, which will
+	// Now we need to deal with possibly different cgroup namespaces, which can
 	// happen in containerized environments. The cgroups we see from the
 	// system-probe container are different from the cgroups we see from the
-	// host. The cgroup extracted in the code above will be valid only for the
-	// container cgroup namespace, but we want the cgroup name in the host
-	// cgroup namespace.
+	// host. The cgroup extracted in the code above from /proc/pid/cgroup will
+	// be valid only for the container cgroup namespace, but we want the cgroup
+	// name in the host cgroup namespace.
 	//
-	// There are several possibilities to achieve this:
-	//
-	// We might try to enter the root cgroup namespace and look at the cgroup
-	// then. Not always possible, as GKE seems to deny containers the knowledge
-	// of which one is the root namespace even with CAP_SYS_ADMIN enabled.
+	// There are several possibilities to achieve this. The first, and easiest
+	// to implement, would be to enter the root cgroup namespace and look at the
+	// cgroup then. Unfortunately, this is not always possible as GKE seems to
+	// deny containers the access to the root cgroup namespace even with
+	// CAP_SYS_ADMIN capabilities.
 	//
 	// The other option is to match the container cgroup to a cgroup in the host
-	// namespace using the rootfs cgroup path. Matching can be done by looking
-	// at the inodes. However, this only works as long the cgroup name returned
-	// in /proc/pid/cgroup is absolute. If it's relative (e.g., the target
-	// process cgroup is a sibling of the current process, which means
-	// cgroupPath looks like /../something), then we need to resolve first our
-	// own cgroup path and resolve the relative path based on that
+	// namespace using the cgroup directory from the host, the one that can be
+	// seen in rootfs. Despite cgroups not having canonical IDs/names in their
+	// directories, the inodes are unique and constant among namespaces.
+	//
+	// However, this only works as long the cgroup name returned in
+	// /proc/pid/cgroup is absolute (i.e, /something). If it's relative (i.e,
+	// /../something, which can happen if the target process is in a cgroup that
+	// is a sibling of the current process' cgroup), then we need to resolve
+	// first our own cgroup path and resolve the relative path based on that.
 	pathParts := strings.Split(cgroupPath, "/")
 
-	if len(pathParts) > 1 && pathParts[1] == ".." { // first part is empty string as the cgroup path starts by /
-		// Relative cgroup path, we need to get our own cgroup path first
-		// Sanity check that we're not recursively getting our own cgroup
+	if len(pathParts) > 1 && pathParts[1] == ".." { // first part is an empty string as the cgroup path starts by /
+		// Sanity check that we're not recursively getting our own cgroup, avoiding infinite recursion
 		currentPid := uint32(os.Getpid())
 		if pid == currentPid {
 			return "", fmt.Errorf("impossible situation: got a relative path for our own cgroup %s for pid %d", cgroupPath, pid)
@@ -126,7 +128,7 @@ func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
 	}
 
 	// At this point we have an absolute cgroup path (possibly /, but can't know for sure).
-	// Get the inode to the cgroup path from with our container's cgroup namespace.
+	// Get the inode to the cgroup directory in our cgroup namespace.
 	containerCgroupPath := filepath.Join("/sys/fs/cgroup", cgroupPath)
 	var stat syscall.Stat_t
 	if err = syscall.Stat(containerCgroupPath, &stat); err != nil {
@@ -138,7 +140,7 @@ func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
 	// Now, walk through the host cgroup tree, looking for a cgroup with the same inode
 	// as the container cgroup.
 	// TODO: We could use the pkg/util/cgroup package but it doesn't detect correctly the host
-	// cgroup mountpoint
+	// cgroup mountpoint, once that's fixed we can use it instead of walking the cgroup tree.
 	var hostCgroupPath string
 	rootSysFsCgroup := filepath.Join(rootfs, "/sys/fs/cgroup")
 	err = filepath.WalkDir(rootSysFsCgroup, func(path string, d fs.DirEntry, err error) error {
@@ -242,7 +244,7 @@ func configureSystemDAllow(containerID, rootfs string) error {
 
 	lines := strings.Split(string(content), "\n")
 
-	// Insert the nvidiaDeviceAllow line after [Service]
+	// Insert the nvidiaDeviceAllow line after [Scope]
 	newLines, err := insertAfterSection(lines, "[Scope]", nvidiaSystemdDeviceAllow)
 	if err != nil {
 		return fmt.Errorf("failed to insert device allow line in %s: %w", configFilePath, err)
@@ -259,7 +261,7 @@ func configureSystemDAllow(containerID, rootfs string) error {
 }
 
 func configureCgroupV1DeviceAllow(rootfs, cgroupPath string, majorNumber int) error {
-	deviceAllowPath, err := buildSafePath(rootfs, cgroupv1DeviceAllowDir, cgroupPath, cgroupv1DeviceAllowFile)
+	deviceAllowPath, err := buildSafePath(rootfs, cgroupv1DeviceControlDir, cgroupPath, cgroupv1DeviceAllowFile)
 	if err != nil {
 		return fmt.Errorf("failed to build path for cgroupv1 device allow: %w", err)
 	}
@@ -282,7 +284,7 @@ func configureCgroupV1DeviceAllow(rootfs, cgroupPath string, majorNumber int) er
 }
 
 // detachAllDeviceCgroupPrograms finds and detaches all device cgroup BPF programs from a cgroup
-// cgroupName is the name of the cgroup, e.g. "kubepods.slice"
+// cgroupName is the name of the cgroup, e.g. "/kubepods.slice"
 // rootfs is the rootfs where /sys/fs/cgroup is mounted
 func detachAllDeviceCgroupPrograms(cgroupName, rootfs string) error {
 	cgroupHostPath, err := buildSafePath(rootfs, "sys/fs/cgroup", cgroupName)

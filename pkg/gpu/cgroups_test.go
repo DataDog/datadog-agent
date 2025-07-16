@@ -264,7 +264,7 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 	f.Close()
 
 	// Update the device allow file to deny ourselves access to /dev/null
-	devDenyFilePath := filepath.Join("/", cgroupv1DeviceAllowDir, testCgroupName, "devices.deny")
+	devDenyFilePath := filepath.Join("/", cgroupv1DeviceControlDir, testCgroupName, "devices.deny")
 	devDenyFile, err := os.OpenFile(devDenyFilePath, os.O_APPEND|os.O_WRONLY, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() {
