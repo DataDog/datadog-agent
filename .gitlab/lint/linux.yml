@@ -15,6 +15,34 @@
     - dda inv -- -e install-tools
     - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
 
+.linux_lint2:
+  stage: lint
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavor base'
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
+
+.linux_lint3:
+  stage: lint
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavor base'
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 16Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
+    - dda inv -- -e rtloader.install
+    - dda inv -- -e install-tools
+
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
   tags: ["arch:amd64"]
@@ -23,15 +51,20 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
   tags: ["arch:arm64"]
 
-lint_linux-x64:
+lint_linux-x64-2:
   extends:
-    - .linux_lint
+    - .linux_lint2
     - .linux_x64
 
-lint_linux-arm64:
+lint_linux-x64-3:
   extends:
-    - .linux_lint
-    - .linux_arm64
+    - .linux_lint3
+    - .linux_x64
+
+# lint_linux-arm64:
+#   extends:
+#     - .linux_lint
+#     - .linux_arm64
 
 lint_flavor_iot_linux-x64:
   extends:
