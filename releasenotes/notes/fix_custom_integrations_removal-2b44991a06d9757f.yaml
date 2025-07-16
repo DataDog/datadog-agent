@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fix an issue with the agent pre-install script that caused integrations shipped with the agent
-    to be removed during an agent upgrade.
+    Fix an issue with the Agent pre-install script that caused integrations shipped with the Agent
+    to be removed during an Agent upgrade.
