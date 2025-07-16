@@ -52,7 +52,7 @@ api_key: "ENC[{secret_path};{secret}]"
 
 secret_backend_type: hashicorp.vault
 secret_backend_config:
-  vault_address: vault_address: http://myvaultaddress.net
+  vault_address: http://myvaultaddress.net
   vault_tls_config:
       # ... TLS settings if applicable
   vault_session:

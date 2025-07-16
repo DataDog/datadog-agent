@@ -50,7 +50,7 @@ We HIGHLY recommend that you authenticate using this method if you are running y
 ```
 After following the General Instructions, you will aslo need to write an authentication-specific vault policy. Run:
 ```
-vault write auth/aws/role/rahul_role \
+vault write auth/aws/role/<Name of AWS IAM Role> \
   auth_type=iam \
   bound_iam_principal_arn=arn:aws:iam::<AWS Account ID>:role/<Name of AWS IAM Role> \
   policies=<name of *.hcl file policy> \
@@ -82,7 +82,7 @@ The following `vault_session` settings are available:
 ---
 secret_backend_type: hashicorp.vault
 secret_backend_config:
-  vault_address: vault_address: http://myvaultaddress.net
+  vault_address: http://myvaultaddress.net
   vault_session:
     vault_auth_type: aws
     vault_aws_role: Name-of-IAM-role-attached-to-machine
