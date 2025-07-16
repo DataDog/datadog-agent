@@ -219,9 +219,10 @@ func insertAfterSection(lines []string, sectionHeader, newLine string) ([]string
 }
 
 func configureSystemDAllow(containerID, rootfs string) error {
-	// The SystemD device configuration might be either in a 50-DeviceAllow.conf file
-	// in a service configuration directory, or in a service file directly. Default to the .conf
-	// file and fall back to the service file if it doesn't exist.
+	// The SystemD device configuration might be either in a 50-DeviceAllow.conf
+	// file in a service configuration directory, or in a service file directly.
+	// Default to the 50-DeviceAllow.conf file and fall back to the service file
+	// if it doesn't exist.
 	configFilePath, err := buildSafePath(rootfs, systemdTransientConfigPath, containerID+".d", systemdDeviceAllowFile)
 	if err != nil {
 		return fmt.Errorf("failed to build path for systemd device allow: %w", err)
