@@ -122,6 +122,7 @@ func main() {
 
 func execOrExit(env []string) {
 	log.Info("Starting the trace-agent...")
+	log.Tracef("Starting the trace-agent with env: %+q", env)
 	log.Flush()
 	err := unix.Exec(os.Args[2], os.Args[2:], env)
 	log.Errorf("Failed to start the trace-agent: %v", err)
