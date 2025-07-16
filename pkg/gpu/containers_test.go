@@ -160,6 +160,21 @@ func TestFindDeviceForResourceName(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorIs(t, err, errCannotMatchDevice)
 	})
+
+	t.Run("UUIDBasedMIGDevice", func(t *testing.T) {
+		// Test with MIG device
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DevicesWithMIGChildren...)
+		device, err := findDeviceForResourceName(devices, testutil.MIGChildrenUUIDs[5][0])
+		require.NoError(t, err)
+		require.Equal(t, device.GetDeviceInfo().UUID, testutil.MIGChildrenUUIDs[5][0])
+	})
+
+	t.Run("GKEWithMIGDevice", func(t *testing.T) {
+		// Test with MIG device
+		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DevicesWithMIGChildren...)
+		_, err := findDeviceForResourceName(devices, "nvidia3")
+		require.Error(t, err)
+	})
 }
 
 func TestFindDeviceByUUID(t *testing.T) {

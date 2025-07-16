@@ -54,6 +54,15 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 		return findDeviceByUUID(devices, resourceID)
 	}
 
+	// Check if any of the devices are MIG devices
+	for _, device := range devices {
+		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
+		_, isMigDevice := device.(*ddnvml.MIGDevice)
+		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
+			return nil, fmt.Errorf("MIG devices are not supported for GKE device plugin")
+		}
+	}
+
 	// Match -> GKE device plugin
 	deviceIndex, err := strconv.Atoi(match[1])
 	if err != nil {
