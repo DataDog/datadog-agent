@@ -388,7 +388,9 @@ def exception_threshold_bump(ctx, pipeline_id):
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
         cur_pipeline = repo.pipelines.get(pipeline_id)
-        gate_job_id = next(job.id for job in cur_pipeline.jobs.list() if job.name == "static_quality_gates")
+        gate_job_id = next(
+            job.id for job in cur_pipeline.jobs.list(iterator=True) if job.name == "static_quality_gates"
+        )
         gate_job = repo.jobs.get(id=gate_job_id)
         with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
             try:
