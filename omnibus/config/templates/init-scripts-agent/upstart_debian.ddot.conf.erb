@@ -16,7 +16,7 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
-  exec <%= install_dir %>/embedded/bin/otel-agent --config <%= etc_dir %>/otel-config.yaml --core-config <%= etc_dir %>/datadog.yaml --pidfile <%= install_dir %>/run/otel-agent.pid
+  exec <%= install_dir %>/embedded/bin/otel-agent run --config <%= etc_dir %>/otel-config.yaml --core-config <%= etc_dir %>/datadog.yaml --pidfile <%= install_dir %>/run/otel-agent.pid
 end script
 
 post-stop script
