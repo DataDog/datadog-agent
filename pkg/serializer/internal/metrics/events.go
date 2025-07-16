@@ -45,7 +45,7 @@ func writeEventsHeader(stream *jsoniter.Stream) {
 	stream.WriteObjectStart()
 }
 
-func writeEventsFooter(stream *jsoniter.Stream, hname string) error {
+func writeEventsFooter(stream *jsoniter.Stream, hname string) {
 	stream.WriteObjectEnd()
 	stream.WriteMore()
 
@@ -53,7 +53,6 @@ func writeEventsFooter(stream *jsoniter.Stream, hname string) error {
 	stream.WriteString(hname)
 
 	stream.WriteObjectEnd()
-	return stream.Flush()
 }
 
 var jsonConfig = jsoniter.Config{}.Froze()
@@ -114,7 +113,7 @@ func createMarshaler2(
 	stream.Reset(nil)
 
 	stream.WriteArrayEnd()
-	_ = writeEventsFooter(stream, hostname)
+	writeEventsFooter(stream, hostname)
 	footer := slices.Clone(stream.Buffer())
 	stream.Reset(nil)
 
