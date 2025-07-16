@@ -26,29 +26,32 @@
             "arguments": {
               "a": {
                 "type": "[2][2]int",
+                "size": "2",
                 "elements": [
                   {
-                    "type": "",
+                    "type": "[2]int",
+                    "size": "2",
                     "elements": [
                       {
-                        "type": "",
+                        "type": "int",
                         "value": "1"
                       },
                       {
-                        "type": "",
+                        "type": "int",
                         "value": "2"
                       }
                     ]
                   },
                   {
-                    "type": "",
+                    "type": "[2]int",
+                    "size": "2",
                     "elements": [
                       {
-                        "type": "",
+                        "type": "int",
                         "value": "3"
                       },
                       {
-                        "type": "",
+                        "type": "int",
                         "value": "4"
                       }
                     ]

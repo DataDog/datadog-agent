@@ -9,7 +9,7 @@ on:
         default: 'main'
         type: string
   schedule:
-    - cron: '30 4 * * 5' # at 4:30 UTC on Friday
+    - cron: '30 4 * * 4' # at 4:30 UTC on Thursday
 
 permissions: {}
 

@@ -27,25 +27,25 @@ func TestConfig(t *testing.T) {
 	t.Run("with client", func(t *testing.T) {
 		c := defaultConfig()
 		client := &http.Client{}
-		WithClient(client)(c)
+		WithClient(client)(&c)
 		assert.Equal(t, client, c.client)
 	})
 
 	t.Run("with max batch items", func(t *testing.T) {
 		c := defaultConfig()
-		WithMaxBatchItems(10)(c)
+		WithMaxBatchItems(10)(&c)
 		assert.Equal(t, 10, c.batcherConfig.maxBatchItems)
 	})
 
 	t.Run("with max batch size bytes", func(t *testing.T) {
 		c := defaultConfig()
-		WithMaxBatchSizeBytes(1000)(c)
+		WithMaxBatchSizeBytes(1000)(&c)
 		assert.Equal(t, 1000, c.batcherConfig.maxBatchSizeBytes)
 	})
 
 	t.Run("with max buffer duration", func(t *testing.T) {
 		c := defaultConfig()
-		WithMaxBufferDuration(10 * time.Millisecond)(c)
+		WithMaxBufferDuration(10 * time.Millisecond)(&c)
 		assert.Equal(t, 10*time.Millisecond, c.batcherConfig.maxBufferDuration)
 	})
 }

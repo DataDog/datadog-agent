@@ -4,8 +4,8 @@ github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEK
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c h1:pxW6RcqyfI9/kWtOwnv/G+AzdKuy2ZrqINhenH4HyNs=
 github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/DataDog/agent-payload/v5 v5.0.157 h1:d6LuZ/A1DFad1XyQAcf+fDlYsKLg8TQu8AAkFsNEtH4=
-github.com/DataDog/agent-payload/v5 v5.0.157/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.158 h1:RwzP7qJpTNXwPCM7MeBU4JSbcEOszGA096MiVFq9oYQ=
+github.com/DataDog/agent-payload/v5 v5.0.158/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301nbZX3K9yJtwGyWY=
 github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
 github.com/DataDog/datadog-api-client-go/v2 v2.41.0 h1:MCcyRk3whNVSlNuKvV3AyxpvTj3oVHufmTjRVMisqwY=
@@ -14,8 +14,8 @@ github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEU
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.4-0.20250708074854-2d827e8e5692 h1:UBcgB7RVKwGGbxdNkqWAyBIehGkAnOgFa46cbXgBLB4=
-github.com/DataDog/test-infra-definitions v0.0.4-0.20250708074854-2d827e8e5692/go.mod h1:vwB1JMCmBJROTtDQhgVRHXdXaZAPIr2x2gPQK8Ugmu4=
+github.com/DataDog/test-infra-definitions v0.0.4-0.20250710131718-7cdc477d053f h1:khnj0J6/nU4X59I/dJkUxdulX+wieOcPkhIxqOBUWcw=
+github.com/DataDog/test-infra-definitions v0.0.4-0.20250710131718-7cdc477d053f/go.mod h1:6Ht1GM6a8QMBXXZC4sJTN72sF6jgYOrbZEvzsXZdS70=
 github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
 github.com/DataDog/zstd v1.5.6/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=

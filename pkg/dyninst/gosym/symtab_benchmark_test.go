@@ -25,7 +25,7 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	mef, err := object.NewMMappingElfFile(binPath)
+	mef, err := object.OpenMMappingElfFile(binPath)
 	if err != nil {
 		b.Fatal(err)
 	}

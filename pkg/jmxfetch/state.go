@@ -126,6 +126,7 @@ func GetIntegrations() (map[string]interface{}, error) {
 			instances = append(instances, GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
 		}
 
+		integration.ConfigSourceToMetadataMap(config.Source, c)
 		c["instances"] = instances
 		c["check_name"] = config.Name
 

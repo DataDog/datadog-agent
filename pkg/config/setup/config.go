@@ -902,6 +902,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
+	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
@@ -1156,6 +1157,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
+	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
@@ -1367,10 +1369,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 func serializer(config pkgconfigmodel.Setup) {
 	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
