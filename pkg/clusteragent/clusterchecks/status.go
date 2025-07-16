@@ -53,9 +53,6 @@ func populateStatus(stats map[string]interface{}) {
 		if cchecks, err := GetStats(); err == nil {
 			stats["clusterchecks"] = cchecks
 		}
-		if count, err := GetCLCRunnerCount(); err == nil {
-			stats["clc_runner_count"] = count
-		}
 	}
 }
 

@@ -51,13 +51,8 @@ func GetCLCRunnerCount() (int, error) {
 
 	count := 0
 	for _, node := range handler.dispatcher.store.nodes {
-		if node != nil && node.lastConfigChange != 0 && node.clcRunnerStats != nil {
-			for _, stats := range node.clcRunnerStats {
-				if stats.IsClusterCheck {
-					count++
-					break
-				}
-			}
+		if node != nil && node.nodetype == types.NodeTypeCLCRunner {
+			count++
 		}
 	}
 	return count, nil
