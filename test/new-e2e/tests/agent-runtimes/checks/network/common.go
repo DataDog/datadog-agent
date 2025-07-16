@@ -33,7 +33,7 @@ func (v *networkCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor), ec2.WithAMI("ami-0345f44fe05216fc4", v.descriptor, v.descriptor.Architecture)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
