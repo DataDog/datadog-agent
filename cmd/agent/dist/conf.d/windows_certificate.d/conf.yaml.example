@@ -81,8 +81,8 @@ instances:
       #
       # enabled: false
 
-      ## @param ignore_flags - list of strings - optional
-      ## A list of certificate chain policy validation flags to ignore during verification.
+      ## @param policy_validation_flags - list of strings - optional
+      ## A list of certificate chain policy validation flags to ignore during validation.
       ## These flags allow you to suppress specific validation errors that may not be relevant
       ## to your environment or use case. Available flags include:
       ##
@@ -111,7 +111,7 @@ instances:
       ##   - https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certverifycertificatechainpolicy
       ##
       ## Example: To ignore time validation and revocation unknown errors:
-      ## ignore_flags:
+      ## policy_validation_flags:
       ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS"
       ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS"
 
