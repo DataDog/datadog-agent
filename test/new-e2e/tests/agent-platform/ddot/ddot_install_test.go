@@ -109,6 +109,7 @@ func (is *ddotInstallSuite) SetupSuite() {
 
 	is.host = host.New(is.T, is.Env().RemoteHost, e2eos.NewDescriptor(e2eos.FlavorFromString(*platform), *osVersion), e2eos.ArchitectureFromString(*architecture))
 }
+
 func (is *ddotInstallSuite) TestDDOTInstall() {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnix()
@@ -124,7 +125,24 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 		require.Equal(is.T(), *platform, "suse", "NonSupportedPlatformError : %s isn't supported !", *platform)
 		is.ddotSuseTest(VMclient)
 	}
+	is.ConfigureAndRunAgentService(VMclient)
 	is.CheckDDOTInstallation(VMclient)
+}
+
+func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
+	is.T().Run("add config file", func(t *testing.T) {
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
+		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {
+			ExecuteWithoutError(t, VMclient, "sudo initctl start datadog-agent")
+		} else {
+			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
+		}
+		is.T().Log("--- ConfigureAndRunAgentService 1---", is.T().Name(), is.host.State().Units)
+		for s, u := range is.host.State().Units {
+			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
+		}
+	})
 }
 
 func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
