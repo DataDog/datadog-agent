@@ -55,8 +55,10 @@
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      CLUSTER_AGENT_REPOSITORY: cluster-agent
       OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
+      CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
       IMG_REGISTRIES: public
 
 # Same as on_deploy_manual, except the job would not run on pipelines
@@ -76,8 +78,10 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      CLUSTER_AGENT_REPOSITORY: cluster-agent
       OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
+      CWS_INSTRUMENTATION_REPOSITORY: cws-instrumentation
       IMG_REGISTRIES: public
 
 # This is used for image vulnerability scanning. Because agent 6
