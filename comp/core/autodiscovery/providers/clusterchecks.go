@@ -54,7 +54,7 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 		graceDuration:    defaultGraceDuration,
 		degradedDuration: defaultDegradedDeadline,
 		heartbeat:        atomic.NewTime(time.Now()),
-		nodeType:         types.NodeTypeUnknown,
+		nodeType:         types.NodeTypeCLCRunner,
 	}
 
 	c.identifier = pkgconfigsetup.Datadog().GetString("clc_runner_id")
@@ -71,7 +71,7 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 	}
 
 	// Set nodeType based on config
-	if pkgconfigsetup.Datadog().GetBool("clc_runner_enabled") {
+	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		c.nodeType = types.NodeTypeCLCRunner
 	} else {
 		c.nodeType = types.NodeTypeNodeAgent

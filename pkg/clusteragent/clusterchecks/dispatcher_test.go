@@ -230,12 +230,7 @@ func TestProcessNodeStatus_NodeType(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, types.NodeTypeNodeAgent, nodeAgent.nodetype)
 
-	// Unknown
-	statusUnknown := types.NodeStatus{LastChange: 3, NodeType: types.NodeTypeUnknown}
-	dispatcher.processNodeStatus("unknown1", "10.0.0.30", statusUnknown)
-	nodeUnknown, found := dispatcher.store.getNodeStore("unknown1")
-	assert.True(t, found)
-	assert.Equal(t, types.NodeTypeUnknown, nodeUnknown.nodetype)
+	// No test for NodeTypeUnknown, as it has been removed.
 }
 
 func TestProcessNodeStatus(t *testing.T) {

@@ -24,8 +24,6 @@ It is used to distinguish between CLC runners, node agents, and unknown types.
 type NodeType uint8
 
 const (
-	// NodeTypeUnknown is used when the node type is not set or cannot be determined.
-	NodeTypeUnknown NodeType = 0
 	// NodeTypeCLCRunner represents a cluster check runner.
 	NodeTypeCLCRunner NodeType = 1
 	// NodeTypeNodeAgent represents a node agent.
