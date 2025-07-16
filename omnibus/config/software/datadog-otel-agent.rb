@@ -50,6 +50,5 @@ build do
     command "dda inv -- -e otel-agent.build", :env => env
     copy 'bin/otel-agent/otel-agent', embedded_bin_dir
 
-    mkdir "#{install_dir}/etc/datadog-agent"
-    copy 'bin/otel-agent/dist/otel-config.yaml', "#{install_dir}/etc/datadog-agent/otel-config.yaml.example"
+    move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
 end
