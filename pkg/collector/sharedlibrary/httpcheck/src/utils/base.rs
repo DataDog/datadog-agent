@@ -13,18 +13,16 @@ pub enum ServiceCheckStatus {
 }
 
 pub struct AgentCheck {
-    pub sc_status: String,
     check_id: String,
     aggregator: Aggregator,
 }
 
 impl AgentCheck {
     pub fn new(check_id: *mut c_char) -> Self {
-        let sc_status = String::from("so.http.can_connect"); // should be "http.can_connect", prefix "so" is added for testing
         let check_id  = unsafe { CString::from_raw(check_id) }.into_string().expect("Failed to convert check_id to String");
         let aggregator = Aggregator::new();
         
-        AgentCheck { sc_status, check_id, aggregator }
+        AgentCheck { check_id, aggregator }
     }
 
     // TODO: use Into<String> trait to allow passing any type of string that can be converted to String ???
