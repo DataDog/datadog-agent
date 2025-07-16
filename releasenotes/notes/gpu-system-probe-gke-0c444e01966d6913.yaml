@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    GPUM: fix kubernetes device allocation detection in Google Kubernetes Engine
+    GPUM: fix Kubernetes device allocation detection in Google Kubernetes Engine
