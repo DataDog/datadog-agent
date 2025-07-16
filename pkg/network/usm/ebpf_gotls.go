@@ -32,16 +32,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	// Defined as a var to allow tests to override it.
+	scanTerminatedProcessesInterval = 30 * time.Second
+)
+
 const (
 	offsetsDataMap            = "offsets_data"
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
 	goTLSConnByTupleMap       = "go_tls_conn_by_tuple"
-
-	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
-	// and lowering it might cause constant cpu usage.
-	scanTerminatedProcessesInterval = 30 * time.Second
 
 	connReadProbe     = "uprobe__crypto_tls_Conn_Read"
 	connReadRetProbe  = "uprobe__crypto_tls_Conn_Read__return"
