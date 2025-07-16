@@ -56,10 +56,10 @@ lint_linux-x64:
     - .linux_lint2
     - .linux_x64
 
-lint_linux-x64-3:
-  extends:
-    - .linux_lint3
-    - .linux_x64
+# lint_linux-x64-3:
+#   extends:
+#     - .linux_lint3
+#     - .linux_x64
 
 lint_linux-arm64:
   extends:
