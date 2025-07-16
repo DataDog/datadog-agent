@@ -17,26 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 )
-
-func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
-	testSketchSeries := metrics.NewSketchesSourceTest()
-	for i := 0; i < numPoints; i++ {
-		testSketchSeries.Append(Makeseries(200))
-	}
-	logger := logmock.New(b)
-
-	serializer := SketchSeriesList{SketchesSource: testSketchSeries}
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	mockConfig := mock.New(b)
-	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-	for n := 0; n < b.N; n++ {
-		split.Payloads(serializer, true, split.ProtoMarshalFct, compressor, logger)
-	}
-}
 
 func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	testSketchSeries := metrics.NewSketchesSourceTest()
@@ -61,12 +42,6 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 		b.ReportMetric(float64(len(payloads)), "payloads")
 	}
 }
-
-func BenchmarkSplitPayloadsSketches1(b *testing.B)     { benchmarkSplitPayloadsSketchesSplit(b, 1) }
-func BenchmarkSplitPayloadsSketches10(b *testing.B)    { benchmarkSplitPayloadsSketchesSplit(b, 10) }
-func BenchmarkSplitPayloadsSketches100(b *testing.B)   { benchmarkSplitPayloadsSketchesSplit(b, 100) }
-func BenchmarkSplitPayloadsSketches1000(b *testing.B)  { benchmarkSplitPayloadsSketchesSplit(b, 1000) }
-func BenchmarkSplitPayloadsSketches10000(b *testing.B) { benchmarkSplitPayloadsSketchesSplit(b, 10000) }
 
 func BenchmarkMarshalSplitCompress1(b *testing.B)     { benchmarkSplitPayloadsSketchesNew(b, 1) }
 func BenchmarkMarshalSplitCompress10(b *testing.B)    { benchmarkSplitPayloadsSketchesNew(b, 10) }
