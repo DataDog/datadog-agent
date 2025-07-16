@@ -36,6 +36,14 @@ packages:
   github.com/DataDog/datadog-agent/comp/core/workloadmeta/def:
     interfaces:
       Component:
+        config:
+          dir: "comp/core/workloadmeta/impl"
+          filename: "workloadmeta_mockgen.go"
+          mockname: MockWLM
+          outpkg: workloadmetaimpl
+          replace-type:
+            # fixes package naming conflict
+            - github.com/DataDog/datadog-agent/comp/core/workloadmeta/def=wmdef:github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 
   # serializer
   github.com/DataDog/datadog-agent/pkg/serializer:
