@@ -265,6 +265,14 @@ func TestCGroup(t *testing.T) {
 			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerECS),
 			path:        "/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770",
 		},
+		{
+			name:          "relative-path",
+			cgroupContent: `0::/../../../../kuberuntime.slice/containerd.service`,
+			error:         false,
+			containerID:   "",
+			flags:         containerutils.CGroupFlags(containerutils.CGroupManagerSystemd) | containerutils.SystemdService,
+			path:          "/../../../../kuberuntime.slice/containerd.service",
+		},
 	}
 
 	for _, test := range testsCgroup {
