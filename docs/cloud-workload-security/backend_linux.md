@@ -451,6 +451,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "File basename"
                 },
+                "extension": {
+                    "type": "string",
+                    "description": "File extension"
+                },
                 "path_resolution_error": {
                     "type": "string",
                     "description": "Error message from path resolution"
@@ -583,6 +587,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "name": {
                     "type": "string",
                     "description": "File basename"
+                },
+                "extension": {
+                    "type": "string",
+                    "description": "File extension"
                 },
                 "path_resolution_error": {
                     "type": "string",
@@ -2937,6 +2945,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "File basename"
         },
+        "extension": {
+            "type": "string",
+            "description": "File extension"
+        },
         "path_resolution_error": {
             "type": "string",
             "description": "Error message from path resolution"
@@ -3067,6 +3079,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `path` | File path |
 | `name` | File basename |
+| `extension` | File extension |
 | `path_resolution_error` | Error message from path resolution |
 | `inode` | File inode number |
 | `mode` | File mode |
@@ -3110,6 +3123,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "name": {
             "type": "string",
             "description": "File basename"
+        },
+        "extension": {
+            "type": "string",
+            "description": "File extension"
         },
         "path_resolution_error": {
             "type": "string",
@@ -3257,6 +3274,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `path` | File path |
 | `name` | File basename |
+| `extension` | File extension |
 | `path_resolution_error` | Error message from path resolution |
 | `inode` | File inode number |
 | `mode` | File mode |

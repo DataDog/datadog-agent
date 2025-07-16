@@ -2980,6 +2980,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			out.Path = string(in.String())
 		case "name":
 			out.Name = string(in.String())
+		case "extension":
+			out.Extension = string(in.String())
 		case "path_resolution_error":
 			out.PathResolutionError = string(in.String())
 		case "inode":
@@ -3173,6 +3175,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers23(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Name))
+	}
+	if in.Extension != "" {
+		const prefix string = ",\"extension\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Extension))
 	}
 	if in.PathResolutionError != "" {
 		const prefix string = ",\"path_resolution_error\":"
@@ -3545,6 +3557,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 			out.Path = string(in.String())
 		case "name":
 			out.Name = string(in.String())
+		case "extension":
+			out.Extension = string(in.String())
 		case "path_resolution_error":
 			out.PathResolutionError = string(in.String())
 		case "inode":
@@ -3778,6 +3792,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Name))
+	}
+	if in.Extension != "" {
+		const prefix string = ",\"extension\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Extension))
 	}
 	if in.PathResolutionError != "" {
 		const prefix string = ",\"path_resolution_error\":"
