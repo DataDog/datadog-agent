@@ -15,7 +15,7 @@ $maven_sha512 = '2e24dbea0407489d45b4d8214afff96fb57b54a5ef2bb6878f65fbce9b41416
 
 if ("$env:WITH_JMX" -ne "false") {
     cd \fips-build
-    Invoke-WebRequest -Outfile maven.zip https://dlcdn.apache.org/maven/maven-3/3.9.10/binaries/apache-maven-3.9.10-bin.zip
+    Invoke-WebRequest -Outfile maven.zip https://archive.apache.org/dist/maven/maven-3/3.9.10/binaries/apache-maven-3.9.10-bin.zip
     if ((Get-FileHash -Algorithm SHA512 maven.zip).Hash -eq $maven_sha512) {
         Write-Host "Maven checksum match"
     } else {
