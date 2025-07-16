@@ -126,6 +126,7 @@ func execOrExit(env []string) {
 	log.Flush()
 	err := unix.Exec(os.Args[2], os.Args[2:], env)
 	log.Errorf("Failed to start the trace-agent: %v", err)
+	log.Flush()
 	os.Exit(1)
 }
 
@@ -196,19 +197,28 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	if path := traceCfgReceiverSocket; path != "" {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			log.Infof("Listening to unix receiver at path %s", path)
+			fi, err := os.Stat(path)
+			if err == nil {
+				// already exists
+				if fi.Mode()&os.ModeSocket == 0 {
+					return listeners, fmt.Errorf("cannot reuse %q; not a unix socket", path)
+				}
+				if err := os.Remove(path); err != nil {
+					return listeners, fmt.Errorf("unable to remove stale socket: %v", err)
+				}
+			}
 			ln, err := net.Listen("unix", path)
 			if err != nil {
 				return listeners, fmt.Errorf("error listening to unix receiver: %v", err)
 			}
 			defer ln.Close()
-
 			if unixLn, ok := ln.(*net.UnixListener); ok {
 				// We do not want to unlink the socket here as we can't be sure if another trace-agent has already
 				// put a new file at the same path.
 				unixLn.SetUnlinkOnClose(false)
 			}
 			if err := os.Chmod(path, 0o722); err != nil {
-				return nil, fmt.Errorf("error setting socket permissions: %v", err)
+				return listeners, fmt.Errorf("error setting socket permissions: %v", err)
 			}
 
 			fd, err := fdFromListener(ln)
