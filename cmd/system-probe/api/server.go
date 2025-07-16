@@ -37,7 +37,7 @@ func injectDeps(deps module.FactoryDependencies, handler func(module.FactoryDepe
 func getTaggerList(deps module.FactoryDependencies, w http.ResponseWriter, _ *http.Request) {
 	response := deps.Tagger.List()
 
-	jsonTags, err := json.Marshal(response)
+	jsonTags, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
 		return
 	}
