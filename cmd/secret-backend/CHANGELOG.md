@@ -1,5 +1,9 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.0.1 / 2025-07-16
+
+* Replacing the dependency on `hashicorp/vault/api/auth/aws` with the forked `DataDog/vault/api/auth/aws` library.
+
 ## 1.0.0 / 2025-07-10
 
 * Switched Azure backend to `azsecrets`, removed `go-autorest`.
