@@ -7,6 +7,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -26,6 +27,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func injectDeps(deps module.FactoryDependencies, handler func(module.FactoryDependencies, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return func(writer http.ResponseWriter, req *http.Request) {
+		handler(deps, writer, req)
+	}
+}
+
+func getTaggerList(deps module.FactoryDependencies, w http.ResponseWriter, _ *http.Request) {
+	response := deps.Tagger.List()
+
+	jsonTags, err := json.Marshal(response)
+	if err != nil {
+		return
+	}
+	w.Write(jsonTags)
+}
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, telemetry telemetry.Component, deps module.FactoryDependencies) error {
@@ -56,6 +73,7 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, teleme
 	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
+	mux.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
 
 	if runtime.GOOS == "linux" {
 		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)
