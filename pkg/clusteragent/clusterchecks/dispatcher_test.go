@@ -212,6 +212,32 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestProcessNodeStatus_NodeType(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	// CLC runner
+	statusRunner := types.NodeStatus{LastChange: 1, NodeType: types.NodeTypeCLCRunner}
+	dispatcher.processNodeStatus("runner1", "10.0.0.10", statusRunner)
+	nodeRunner, found := dispatcher.store.getNodeStore("runner1")
+	assert.True(t, found)
+	assert.Equal(t, types.NodeTypeCLCRunner, nodeRunner.nodetype)
+
+	// Node agent
+	statusAgent := types.NodeStatus{LastChange: 2, NodeType: types.NodeTypeNodeAgent}
+	dispatcher.processNodeStatus("agent1", "10.0.0.20", statusAgent)
+	nodeAgent, found := dispatcher.store.getNodeStore("agent1")
+	assert.True(t, found)
+	assert.Equal(t, types.NodeTypeNodeAgent, nodeAgent.nodetype)
+
+	// Unknown
+	statusUnknown := types.NodeStatus{LastChange: 3, NodeType: types.NodeTypeUnknown}
+	dispatcher.processNodeStatus("unknown1", "10.0.0.30", statusUnknown)
+	nodeUnknown, found := dispatcher.store.getNodeStore("unknown1")
+	assert.True(t, found)
+	assert.Equal(t, types.NodeTypeUnknown, nodeUnknown.nodetype)
+}
+
 func TestProcessNodeStatus(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
