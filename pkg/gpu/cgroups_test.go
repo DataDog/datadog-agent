@@ -89,13 +89,7 @@ func TestInsertAfterSection(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-
-			require.Equal(t, len(tt.expected), len(result), "expected %d lines, got %d", len(tt.expected), len(result))
-
-			for i, expectedLine := range tt.expected {
-				require.Less(t, i, len(result), "missing line %d: expected %q", i, expectedLine)
-				require.Equal(t, expectedLine, result[i], "line %d: expected %q, got %q", i, expectedLine, result[i])
-			}
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -135,10 +129,7 @@ func TestBuildSafePath(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-
-			if result != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, result)
-			}
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
