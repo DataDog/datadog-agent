@@ -48,7 +48,7 @@
 
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
 
 tests_deb-x64-py3:
   extends:
@@ -123,7 +123,7 @@ tests_rpm-x64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     CONDA_ENV: ddpy3
     EXTRA_OPTS: '--build-exclude=systemd'
@@ -183,7 +183,7 @@ go_mod_tidy_check:
 new-e2e-unit-tests:
   extends: .linux_tests
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     - go_e2e_deps
     - go_deps

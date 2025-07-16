@@ -35,7 +35,7 @@
 .deploy_deb_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -77,7 +77,14 @@ deploy_deb_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64", "ddot_deb-arm64"]
+  needs:
+    [
+      "installer_deb-arm64",
+      "agent_deb-arm64-a7",
+      "agent_deb-arm64-a7-fips",
+      "lint_linux-arm64",
+      "ddot_deb-arm64",
+    ]
   script:
     - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
@@ -90,7 +97,7 @@ deploy_deb_testing-a7_arm64:
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -125,7 +132,14 @@ deploy_rpm_testing-a7_arm64:
     - !reference [.manual]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "agent_rpm-arm64-a7-fips", "lint_linux-arm64", "ddot_rpm-arm64"]
+  needs:
+    [
+      "installer_rpm-arm64",
+      "agent_rpm-arm64-a7",
+      "agent_rpm-arm64-a7-fips",
+      "lint_linux-arm64",
+      "ddot_rpm-arm64",
+    ]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -138,7 +152,7 @@ deploy_suse_rpm_testing_x64-a7:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     [
       "installer_suse_rpm-amd64",
@@ -165,8 +179,15 @@ deploy_suse_rpm_testing_arm64-a7:
     - !reference [.manual]
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
-  needs: ["installer_suse_rpm-arm64", "agent_suse-arm64-a7", "agent_suse-arm64-a7-fips", "lint_linux-arm64", "ddot_suse_rpm-arm64"]
+  tags: ["arch:amd64-ci-test"]
+  needs:
+    [
+      "installer_suse_rpm-arm64",
+      "agent_suse-arm64-a7",
+      "agent_suse-arm64-a7-fips",
+      "lint_linux-arm64",
+      "ddot_suse_rpm-arm64",
+    ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -183,10 +204,13 @@ deploy_windows_testing-a7:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
-  retry: 2
+  tags: ["arch:amd64-ci-test"]
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
+    [
+      "lint_windows-x64",
+      "windows_msi_and_bosh_zip_x64-a7",
+      "windows-installer-amd64",
+    ]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
@@ -208,10 +232,8 @@ deploy_windows_testing-a7-fips:
     - when: on_success
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64"]
-  retry: 2
-  needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
+  tags: ["arch:amd64-ci-test"]
+  needs: ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:

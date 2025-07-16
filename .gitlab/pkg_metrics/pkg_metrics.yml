@@ -5,7 +5,7 @@
 send_pkg_size:
   stage: pkg_metrics
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   rules:
     - !reference [.except_mergequeue]
     - when: always
@@ -80,7 +80,7 @@ send_pkg_size:
 check_pkg_size:
   stage: pkg_metrics
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       when: on_success

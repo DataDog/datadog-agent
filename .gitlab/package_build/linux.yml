@@ -35,7 +35,7 @@
 
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
@@ -92,7 +92,7 @@ datadog-agent-7-arm64-fips:
 
 iot-agent-x64:
   extends: .iot-agent-common
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   variables:
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
@@ -145,7 +145,7 @@ iot-agent-armhf:
 dogstatsd-x64:
   extends: .dogstatsd_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"
@@ -186,7 +186,7 @@ dogstatsd-arm64:
 datadog-otel-agent-x64:
   extends: .otel_build_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     DD_CC: "x86_64-unknown-linux-gnu-gcc"
     DD_CXX: "x86_64-unknown-linux-gnu-g++"

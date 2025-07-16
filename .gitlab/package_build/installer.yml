@@ -41,7 +41,7 @@ datadog-agent-oci-x64-a7:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs:
     [
       "go_mod_tidy_check",
@@ -85,7 +85,7 @@ installer-install-scripts:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs: ["go_mod_tidy_check", "go_deps", "installer-amd64-oci", "installer-arm64-oci"]
   variables:
     KUBERNETES_CPU_REQUEST: 8
@@ -166,7 +166,7 @@ installer-amd64:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
