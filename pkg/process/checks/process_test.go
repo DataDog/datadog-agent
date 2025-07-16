@@ -495,6 +495,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	cfg := configmock.New(t)
 	processCheck.config = cfg
+	cfg.SetWithoutSource("process_config.ignore_zombie_processes", false)
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
 	now := time.Now().Unix()
