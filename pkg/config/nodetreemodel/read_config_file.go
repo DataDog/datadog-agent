@@ -31,7 +31,7 @@ func (c *ntmConfig) findConfigFile() {
 	}
 }
 
-// ReadInConfig wraps Viper for concurrent access
+// ReadInConfig reads the configuration from the file system, without resetting the file tree.
 func (c *ntmConfig) ReadInConfig() error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
@@ -55,7 +55,7 @@ func (c *ntmConfig) ReadInConfig() error {
 	return c.mergeAllLayers()
 }
 
-// ReadConfig wraps Viper for concurrent access
+// ReadConfig resets the file tree and reads the configuration from the provided reader.
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadConfig before config is constructed")
@@ -134,8 +134,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		// check if the key is defined in the schema
 		schemaChild, err := schema.GetChild(key)
 		// schemaChild might be nil if not found or error
-		unknownKey := err != nil
-		if unknownKey {
+		if err != nil {
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
 			if !allowDynamicSchema {
 				dest.InsertChildNode(key, newLeafNode(value, source))
