@@ -394,6 +394,8 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 	var env Env
 	isKubernetes := reflect.TypeOf(env) == reflect.TypeOf(environments.Kubernetes{})
 
+	_ = v.runCudaDockerWorkload()
+
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 
