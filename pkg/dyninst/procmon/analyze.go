@@ -50,24 +50,34 @@ func analyzeProcess(
 	exeLinkPath := path.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
 	exePath, err := os.Readlink(exeLinkPath)
 	if err != nil {
+		if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
+			return processAnalysis{}, nil
+		}
 		return processAnalysis{}, fmt.Errorf(
 			"failed to open exe link for pid %d: %w", pid, err,
 		)
 	}
 
 	exeFile, err := os.Open(exePath)
-	if errors.Is(err, os.ErrNotExist) {
+	if os.IsNotExist(err) || os.IsPermission(err) {
 		// Try to open the exe under the proc root which can work when the
 		// file exists inside a container.
 		exePath = path.Join(
 			procfsRoot, strconv.Itoa(int(pid)), "root",
 			strings.TrimPrefix(exePath, "/"),
 		)
-		log.Debugf(
-			"exe for pid %d does not exist in root fs, trying under proc_root: %s",
-			pid, exePath,
-		)
-		exeFile, err = os.Open(exePath)
+		if log.ShouldLog(log.TraceLvl) {
+			exePath := exePath
+			log.Tracef(
+				"exe for pid %d does not exist in root fs, trying under proc_root: %s",
+				pid, exePath,
+			)
+		}
+		var rootErr error
+		exeFile, rootErr = os.Open(exePath)
+		if rootErr != nil {
+			err = errors.Join(err, rootErr)
+		}
 	}
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -130,10 +140,10 @@ const ddGitRepositoryURLEnvVar = "DD_GIT_REPOSITORY_URL"
 func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 	procEnv := path.Join(procfsRoot, strconv.Itoa(int(pid)), "environ")
 	env, err := os.ReadFile(procEnv)
-	if errors.Is(err, os.ErrNotExist) {
-		return ddEnvVars{}, nil
-	}
 	if err != nil {
+		if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
+			return ddEnvVars{}, nil
+		}
 		return ddEnvVars{}, fmt.Errorf(
 			"failed to read proc env at %s: %w", procEnv, err,
 		)
