@@ -207,7 +207,7 @@ func TestRawPacketAction(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
 		})
 
-		time.Sleep(time.Second)
+		time.Sleep(5 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
 		if err := cmd.Run(); err == nil {

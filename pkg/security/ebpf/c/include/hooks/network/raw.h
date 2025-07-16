@@ -56,11 +56,13 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
 }
 
 TAIL_CALL_CLASSIFIER_FNC(raw_packet_drop_action_cb, struct __sk_buff *skb) {
+    bpf_printk("raw_packet_drop_action_cb: %d", bpf_get_current_cgroup_id());
+
     if (!global_limiter_allow(RAW_PACKET_ACTION_LIMITER, 1, 1)) {
-        return TC_ACT_SHOT;
+        return TC_ACT_UNSPEC;
     }
 
-    return send_raw_packet_event(skb, EVENT_RAW_PACKET_ACTION, TC_ACT_SHOT);
+    return send_raw_packet_event(skb, EVENT_RAW_PACKET_ACTION, TC_ACT_UNSPEC);
 }
 
 #endif

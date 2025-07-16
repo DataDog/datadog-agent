@@ -620,6 +620,11 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 	if collection != nil {
 		collection.Close()
 		ddebpf.RemoveNameMappingsCollection(collection)
+		collection = nil
+	}
+
+	if len(progSpecs) == 0 {
+		return nil
 	}
 
 	// not enabled
@@ -642,9 +647,6 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 
 	col, err := lib.NewCollection(&colSpec)
 	if err != nil {
-
-		fmt.Printf("PROG ERROR: %v\n", progSpecs[0])
-
 		return fmt.Errorf("failed to load program: %w", err)
 	}
 	*collectionPtr = col
@@ -696,16 +698,15 @@ func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 		return err
 	}
 
-	// compile the filters
-	progSpecs, err := rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
-	if err != nil {
-		return err
+	var progSpecs []*lib.ProgramSpec
+	if len(rawPacketFilters) > 0 {
+		progSpecs, err = rawpacket.FiltersToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), rawPacketFilters, opts)
+		if err != nil {
+			return err
+		}
 	}
 
-	if len(progSpecs) == 0 {
-		return nil
-	}
-
+	// add or close if none
 	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketFilterKey, probes.RawPacketMaxTailCall, &p.rawPacketFilterCollection)
 }
 
@@ -720,27 +721,29 @@ func (p *EBPFProbe) applyRawPacketActionFilters() error {
 		opts.MaxProgSize = 1_000_000
 	}
 
-	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
+	seclog.Errorf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	rawPacketEventMap, routerMap, err := p.getRawPacketMaps()
 	if err != nil {
 		return err
 	}
 
-	// compile the filters
-	progSpecs, err := rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
-	if err != nil {
-		return err
+	var progSpecs []*lib.ProgramSpec
+	if len(p.rawPacketActionFilters) > 0 {
+		progSpecs, err = rawpacket.DropActionsToProgramSpecs(rawPacketEventMap.FD(), routerMap.FD(), p.rawPacketActionFilters, opts)
+		if err != nil {
+			return err
+		}
 	}
 
-	if len(progSpecs) == 0 {
-		return nil
-	}
-
+	// add or close if none
 	return p.setupRawPacketProgs(progSpecs, probes.TCRawPacketDropActionKey, probes.RawPacketMaxTailCall, &p.rawPacketActionCollection)
 }
 
 func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
+
+	fmt.Printf("addRawPacketActionFilter: %+v\n", actionFilter)
+
 	if slices.ContainsFunc(p.rawPacketActionFilters, func(af rawpacket.Filter) bool {
 		return actionFilter.RuleID == af.RuleID
 	}) {
@@ -748,6 +751,7 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	}
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
 
+	fmt.Printf("p.rawPacketActionFilters: %+v\n", p.rawPacketActionFilters)
 	return p.applyRawPacketActionFilters()
 }
 
@@ -2283,7 +2287,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 
 		// reset action filter
 		p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
-		p.applyRawPacketActionFilters()
+		if err := p.applyRawPacketActionFilters(); err != nil {
+			seclog.Errorf("unable to load raw packet action programs: %v", err)
+		}
 	}
 
 	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
