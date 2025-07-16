@@ -225,166 +225,166 @@ new-e2e-containers-eks:
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-remote-config:
-#   extends: .new_e2e_template_needs_deb_x64
-#   rules:
-#     - !reference [.on_rc_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/remote-config
-#     TEAM: remote-config
-#     # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
+new-e2e-remote-config:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_rc_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/remote-config
+    TEAM: remote-config
+    # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-agent-configuration:
-#   extends: .new_e2e_template_needs_deb_windows_x64
-#   rules:
-#     - !reference [.on_acfg_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/agent-configuration
-#     TEAM: agent-configuration
+new-e2e-agent-configuration:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_acfg_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-configuration
+    TEAM: agent-configuration
 
-# new-e2e-agent-runtimes:
-#   extends: .new_e2e_template_needs_deb_windows_x64
-#   rules:
-#     - !reference [.on_arun_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/agent-runtimes
-#     TEAM: agent-runtimes
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-agent-runtimes:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-runtimes
+    TEAM: agent-runtimes
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-agent-subcommands:
-#   extends: .new_e2e_template_needs_deb_windows_x64
-#   rules:
-#     - !reference [.on_subcommands_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/agent-subcommands
-#     TEAM: agent-configuration
-#     ON_NIGHTLY_FIPS: "true"
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure|LinuxGCP)HostnameSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
-#       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
+new-e2e-agent-subcommands:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-configuration
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure|LinuxGCP)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
-# new-e2e-fips-compliance-test:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7-fips
-#     - qa_agent_fips
-#   rules:
-#     - !reference [.on_arun_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/fips-compliance
-#     TEAM: agent-runtimes
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
-#       - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
+new-e2e-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7-fips
+    - qa_agent_fips
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: agent-runtimes
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"
+      - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite$"
 
-# new-e2e-windows-fips-compliance-test:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - qa_agent_fips
-#     - windows_msi_and_bosh_zip_x64-a7-fips
-#     - deploy_windows_testing-a7-fips
-#   rules:
-#     - !reference [.on_arun_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/fips-compliance
-#     TEAM: windows-agent
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: --run "TestWindowsVM$"
-#       - EXTRA_PARAMS: --run "TestFIPSCiphersWindowsSuite$"
+new-e2e-windows-fips-compliance-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
+    - deploy_windows_testing-a7-fips
+  rules:
+    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips-compliance
+    TEAM: windows-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestWindowsVM$"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersWindowsSuite$"
 
-# new-e2e-windows-service-test:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - windows_msi_and_bosh_zip_x64-a7
-#   rules:
-#     - !reference [.on_windows_service_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/windows/service-test
-#     TEAM: windows-agent
-#     ON_NIGHTLY_FIPS: "true"
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
-#       - EXTRA_PARAMS: --run TestServiceBehaviorPowerShell
-#       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledSystemProbe
-#       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
-#       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
-#       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+new-e2e-windows-service-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
 
-# new-e2e-windows-certificate:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_windows_certificate_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_windows_testing-a7
-#   variables:
-#     TARGETS: ./tests/windows/windows-certificate
-#     TEAM: windows-agent
-#     EXTRA_PARAMS: --run "TestRemoteCertificates$"
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
 
-# new-e2e-language-detection:
-#   extends: .new_e2e_template_needs_deb_x64
-#   rules:
-#     - !reference [.on_language-detection_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/language-detection
-#     TEAM: container-experiences
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-language-detection:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_language-detection_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/language-detection
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-npm-packages:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_npm_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - agent_rpm-x64-a7
-#     - windows_msi_and_bosh_zip_x64-a7
-#   variables:
-#     TARGETS: ./tests/npm
-#     TEAM: network-performance-monitoring
-#     EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-npm-packages:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - agent_rpm-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-npm-docker:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_npm_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - qa_dca
-#     - qa_agent
-#   variables:
-#     TARGETS: ./tests/npm
-#     TEAM: network-performance-monitoring
-#     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-npm-docker:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
+    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-eks-init:
   stage: e2e_init
@@ -422,123 +422,123 @@ new-e2e-npm-eks:
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-npm:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_npm_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - qa_agent
-#     - qa_dca
-#   variables:
-#     TARGETS: ./tests/npm
-#     TEAM: network-performance-monitoring
-#     EXTRA_PARAMS: --run TestCiliumLBConntracker
+new-e2e-npm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run TestCiliumLBConntracker
 
-# new-e2e-amp:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - windows_msi_and_bosh_zip_x64-a7
-#     - qa_agent
-#     - qa_agent_jmx
-#     - qa_agent_fips_jmx
-#     - qa_dca
-#   rules:
-#     - !reference [.on_amp_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/agent-metric-pipelines
-#     TEAM: agent-metric-pipelines
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-amp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_amp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-metric-pipelines
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-alp:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - windows_msi_and_bosh_zip_x64-a7
-#     - qa_agent
-#     - qa_agent_jmx
-#     - qa_agent_fips_jmx
-#     - qa_dca
-#   rules:
-#     - !reference [.on_alp_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/agent-log-pipelines
-#     TEAM: agent-log-pipelines
+new-e2e-alp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_agent_jmx
+    - qa_agent_fips_jmx
+    - qa_dca
+  rules:
+    - !reference [.on_alp_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-log-pipelines
+    TEAM: agent-log-pipelines
 
-# new-e2e-cws:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_cws_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - windows_msi_and_bosh_zip_x64-a7
-#     - qa_cws_instrumentation
-#     - qa_agent
-#     - qa_dca
-#   variables:
-#     TARGETS: ./tests/cws
-#     TEAM: csm-threats-agent
-#     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
-#     # ON_NIGHTLY_FIPS: "true"
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: --run TestAgentSuite
-#       - EXTRA_PARAMS: --run TestECSFargate
-#       - EXTRA_PARAMS: --run TestKindSuite
-#       - EXTRA_PARAMS: --run TestAgentWindowsSuite
-#   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
-#   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
-#   allow_failure: true
+new-e2e-cws:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_cws_instrumentation
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
+      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestAgentWindowsSuite
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
+  allow_failure: true
 
-# new-e2e-discovery:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - qa_agent
-#   rules:
-#     - !reference [.on_discovery_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/discovery
-#     TEAM: agent-discovery
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-discovery:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent
+  rules:
+    - !reference [.on_discovery_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/discovery
+    TEAM: agent-discovery
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-process:
-#   extends: .new_e2e_template
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - windows_msi_and_bosh_zip_x64-a7
-#     - qa_agent
-#     - qa_dca
-#   rules:
-#     - !reference [.on_process_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/process
-#     TEAM: container-experiences
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-process:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7
+    - qa_agent
+    - qa_dca
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/process
+    TEAM: container-experiences
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-orchestrator:
-#   extends:
-#     - .new_e2e_template_needs_container_deploy
-#   rules:
-#     - !reference [.on_orchestrator_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/orchestrator
-#     TEAM: container-app
-#     ON_NIGHTLY_FIPS: "true"
-#   timeout: 55m
+new-e2e-orchestrator:
+  extends:
+    - .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.on_orchestrator_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+    ON_NIGHTLY_FIPS: "true"
+  timeout: 55m
 
 new-e2e-apm:
   extends: .new_e2e_template
@@ -561,245 +561,245 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
-# new-e2e-installer-script:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_installer_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_deb_testing-a7_arm64
-#     - deploy_deb_testing-a7_x64
-#     - deploy_rpm_testing-a7_arm64
-#     - deploy_rpm_testing-a7_x64
-#     - deploy_suse_rpm_testing_arm64-a7
-#     - deploy_suse_rpm_testing_x64-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#     - qa_installer_script_linux
-#   variables:
-#     TARGETS: ./tests/installer/script
-#     TEAM: fleet
-#     FLEET_INSTALL_METHOD: "install_script"
-#     E2E_USE_AWS_PROFILE: "false"
-#     MAX_RETRIES_FLAG: "--max-retries=3"
+new-e2e-installer-script:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_linux
+  variables:
+    TARGETS: ./tests/installer/script
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
-# new-e2e-installer:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_installer_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_deb_testing-a7_arm64
-#     - deploy_deb_testing-a7_x64
-#     - deploy_rpm_testing-a7_arm64
-#     - deploy_rpm_testing-a7_x64
-#     - deploy_suse_rpm_testing_arm64-a7
-#     - deploy_suse_rpm_testing_x64-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#   variables:
-#     TARGETS: ./tests/installer/unix
-#     TEAM: fleet
-#     FLEET_INSTALL_METHOD: "install_script"
-#     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
-#     E2E_USE_AWS_PROFILE: "false"
-#     MAX_RETRIES_FLAG: "--max-retries=3"
+new-e2e-installer:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+  variables:
+    TARGETS: ./tests/installer/unix
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
-# new-e2e-installer-windows:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_installer_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_windows_testing-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#     - qa_installer_script_windows
-#   before_script:
-#     # CURRENT_AGENT_VERSION is used to verify the installed agent version
-#     # Must run before new_e2e_template changes the aws profile
-#     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
-#     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
-#     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
-#     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
-#     - !reference [.new_e2e_template, before_script]
-#   variables:
-#     TARGETS: ./tests/installer/windows
-#     TEAM: fleet
-#     FLEET_INSTALL_METHOD: "windows"
-#     E2E_USE_AWS_PROFILE: "false"
-#     MAX_RETRIES_FLAG: "--max-retries=3"
-#   parallel:
-#     matrix:
-#       # agent-package
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentCurrentVersionFails$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
-#       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
-#       - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
-#       # agent config experiment
-#       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
-#       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
-#       - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
-#       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
-#       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
-#       - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
-#       # install-exe
-#       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
-#       # install-script
-#       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-#       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
-#       - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
-#       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
-#       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
-#       # installer-package
-#       - EXTRA_PARAMS: --run "TestInstaller$"
-#       # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
-#       # - EXTRA_PARAMS: --run "TestInstallerRollback$"
-#       # apm-library-dotnet
-#       - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
-#       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
-#       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
-#       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$"
-#       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIThenRemoteUpgrade$"
-#       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$"
-#       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
-#       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
-#       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
+new-e2e-installer-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_installer_script_windows
+  before_script:
+    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
+    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
+    - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
+    - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
+    - !reference [.new_e2e_template, before_script]
+  variables:
+    TARGETS: ./tests/installer/windows
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "windows"
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
+  parallel:
+    matrix:
+      # agent-package
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentCurrentVersionFails$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      - EXTRA_PARAMS: --run "TestAgentInstalls$/TestSetupScriptInstallInfo$"
+      # agent config experiment
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
+      # install-exe
+      - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
+      # install-script
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestFailedUnsupportedVersion$"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
+      # installer-package
+      - EXTRA_PARAMS: --run "TestInstaller$"
+      # TODO: disabling tests during MSI merge, should be covered by regular Agent MSI tests
+      # - EXTRA_PARAMS: --run "TestInstallerRollback$"
+      # apm-library-dotnet
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstalls$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
+      - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIThenRemoteUpgrade$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
 
-# new-e2e-installer-ansible:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_installer_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_deb_testing-a7_arm64
-#     - deploy_deb_testing-a7_x64
-#     - deploy_rpm_testing-a7_arm64
-#     - deploy_rpm_testing-a7_x64
-#     - deploy_suse_rpm_testing_arm64-a7
-#     - deploy_suse_rpm_testing_x64-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#   variables:
-#     TARGETS: ./tests/installer/unix
-#     TEAM: fleet
-#     FLEET_INSTALL_METHOD: "ansible"
-#     E2E_USE_AWS_PROFILE: "false"
-#     MAX_RETRIES_FLAG: "--max-retries=3"
+new-e2e-installer-ansible:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+  variables:
+    TARGETS: ./tests/installer/unix
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "ansible"
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
 
-# new-e2e-ndm-netflow:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_ndm_netflow_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - qa_agent
-#   variables:
-#     TARGETS: ./tests/ndm/netflow
-#     TEAM: ndm-integrations
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-ndm-netflow:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ndm_netflow_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/netflow
+    TEAM: ndm-integrations
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-ndm-snmp:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_ndm_snmp_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#     - qa_agent
-#   variables:
-#     TARGETS: ./tests/ndm/snmp
-#     TEAM: ndm-core
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-ndm-snmp:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ndm_snmp_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/snmp
+    TEAM: ndm-core
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-ha-agent:
-#   extends: .new_e2e_template_needs_deb_x64
-#   rules:
-#     - !reference [.on_ha_agent_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/ha-agent
-#     TEAM: ndm-core
-#     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
-#     # ON_NIGHTLY_FIPS: "true"
-#     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
+new-e2e-ha-agent:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: ndm-core
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
-# new-e2e-ha-agent-failover:
-#   extends: .new_e2e_template_needs_deb_x64
-#   rules:
-#     - !reference [.on_ha_agent_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/ha-agent
-#     TEAM: ndm-core
-#     ON_NIGHTLY_FIPS: "true"
-#     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
-#   allow_failure: true
+new-e2e-ha-agent-failover:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_ha_agent_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ha-agent
+    TEAM: ndm-core
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --run TestHAAgentFailoverSuite
+  allow_failure: true
 
-# new-e2e-netpath:
-#   extends: .new_e2e_template_needs_deb_windows_x64
-#   rules:
-#     - !reference [.on_netpath_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/netpath
-#     TEAM: network-performance-monitoring
-#     ON_NIGHTLY_FIPS: "true"
+new-e2e-netpath:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_netpath_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/netpath
+    TEAM: network-performance-monitoring
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-windows-systemprobe:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_windows_systemprobe_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_windows_testing-a7
-#     - tests_windows_sysprobe_x64
-#     - windows_msi_and_bosh_zip_x64-a7
-#   variables:
-#     TARGETS: ./tests/sysprobe-functional
-#     TEAM: windows-agent
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
-#       - EXTRA_PARAMS: --run TestVMSuite
+new-e2e-windows-systemprobe:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
+    - windows_msi_and_bosh_zip_x64-a7
+  variables:
+    TARGETS: ./tests/sysprobe-functional
+    TEAM: windows-agent
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
+      - EXTRA_PARAMS: --run TestVMSuite
 
-# new-e2e-windows-security-agent:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_windows_security_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - deploy_windows_testing-a7
-#     - tests_windows_secagent_x64
-#   variables:
-#     TARGETS: ./tests/security-agent-functional
-#     TEAM: windows-agent
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-agent
 
 new-e2e-otel-eks-init:
   stage: e2e_init
@@ -853,178 +853,178 @@ new-e2e-otel:
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
 
-# .new-e2e_package_signing:
-#   variables:
-#     TARGETS: ./tests/agent-platform/package-signing
-#     TEAM: agent-delivery
-#     EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
-#     ON_NIGHTLY_FIPS: "true"
+.new-e2e_package_signing:
+  variables:
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    ON_NIGHTLY_FIPS: "true"
 
-# new-e2e-package-signing-debian-a7-x86_64:
-#   extends:
-#     - .new_e2e_template
-#     - .new-e2e_package_signing
-#   variables:
-#     E2E_ARCH: x86_64
-#     E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
-#     E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
-#     E2E_BRANCH_OSVERS: "debian-11"
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_deb-x64-a7
-#   rules: !reference [.on_default_new_e2e_tests]
+new-e2e-package-signing-debian-a7-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_package_signing
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
+    E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
+    E2E_BRANCH_OSVERS: "debian-11"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+  rules: !reference [.on_default_new_e2e_tests]
 
-# new-e2e-package-signing-suse-a7-x86_64:
-#   extends:
-#     - .new_e2e_template
-#     - .new-e2e_package_signing
-#   variables:
-#     E2E_ARCH: x86_64
-#     E2E_OSVERS: "sles-12,sles-15"
-#     E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
-#     E2E_BRANCH_OSVERS: "sles-15"
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - agent_suse-x64-a7
-#   rules: !reference [.on_default_new_e2e_tests]
+new-e2e-package-signing-suse-a7-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_package_signing
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "sles-12,sles-15"
+    E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
+    E2E_BRANCH_OSVERS: "sles-15"
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_suse-x64-a7
+  rules: !reference [.on_default_new_e2e_tests]
 
-# new-e2e-cspm:
-#   extends: .new_e2e_template
-#   rules:
-#     - !reference [.on_cspm_or_e2e_changes]
-#     - !reference [.manual]
-#   needs:
-#     - !reference [.needs_new_e2e_template]
-#     - qa_agent
-#     - qa_dca
-#   variables:
-#     TARGETS: ./tests/cspm
-#     TEAM: cspm
-#     ON_NIGHTLY_FIPS: "true"
-#   timeout: 35m
+new-e2e-cspm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cspm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/cspm
+    TEAM: cspm
+    ON_NIGHTLY_FIPS: "true"
+  timeout: 35m
 
-# new-e2e-gpu:
-#   extends: .new_e2e_template_needs_container_deploy
-#   rules:
-#     - !reference [.on_gpu_or_e2e_changes]
-#     - !reference [.manual]
-#   variables:
-#     TARGETS: ./tests/gpu                          # the target path where tests are
-#     TEAM: ebpf-platform
-#     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
-#     ON_NIGHTLY_FIPS: "true"
-#   needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
-#     - !reference [.new_e2e_template_needs_container_deploy, needs]
-#     - agent_deb-x64-a7                  # agent 7 debian package
-#   parallel:
-#     matrix:
-#       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu2204'
-#       - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu2204'
-#       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
-#       - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+new-e2e-gpu:
+  extends: .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.on_gpu_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/gpu                          # the target path where tests are
+    TEAM: ebpf-platform
+    E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
+    ON_NIGHTLY_FIPS: "true"
+  needs:                                         # list of required jobs. By default gitlab waits for any previous jobs.
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - agent_deb-x64-a7                  # agent 7 debian package
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu2204'
+      - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu2204'
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
-# generate-flakes-finder-pipeline:
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-#   stage: e2e
-#   rules:
-#     - !reference [.except_disable_e2e_tests]
-#     - !reference [.on_deploy_nightly_repo_branch]
-#     - !reference [.manual]
-#   needs:
-#     - compute_gitlab_ci_config
-#     - deploy_deb_testing-a7_arm64
-#     - deploy_deb_testing-a7_x64
-#     - deploy_rpm_testing-a7_arm64
-#     - deploy_rpm_testing-a7_x64
-#     - deploy_suse_rpm_testing_arm64-a7
-#     - deploy_suse_rpm_testing_x64-a7
-#     - deploy_windows_testing-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#     - qa_cws_instrumentation
-#     - qa_dca
-#     - qa_dogstatsd
-#     - qa_agent
-#     - qa_agent_full
-#     - tests_windows_sysprobe_x64
-#   tags: ["arch:amd64"]
-#   script:
-#     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-#     - dda inv -- -e testwasher.generate-flake-finder-pipeline
-#     - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
-#   artifacts:
-#     paths:
-#       - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
+generate-flakes-finder-pipeline:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  stage: e2e
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  needs:
+    - compute_gitlab_ci_config
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+    - qa_agent_full
+    - tests_windows_sysprobe_x64
+  tags: ["arch:amd64"]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - dda inv -- -e testwasher.generate-flake-finder-pipeline
+    - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
 
-# trigger-flakes-finder:
-#   stage: e2e
-#   needs: [generate-flakes-finder-pipeline]
-#   rules:
-#     - !reference [.except_disable_e2e_tests]
-#     - !reference [.on_deploy_nightly_repo_branch]
-#     - !reference [.manual]
-#   variables:
-#     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-#     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
-#     PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
-#   trigger:
-#     include:
-#       - artifact: flake-finder-gitlab-ci.yml
-#         job: generate-flakes-finder-pipeline
-#   allow_failure: true
+trigger-flakes-finder:
+  stage: e2e
+  needs: [generate-flakes-finder-pipeline]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+  trigger:
+    include:
+      - artifact: flake-finder-gitlab-ci.yml
+        job: generate-flakes-finder-pipeline
+  allow_failure: true
 
-# generate-fips-e2e-pipeline:
-#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-#   stage: e2e
-#   rules:
-#     - !reference [.except_disable_e2e_tests]
-#     - !reference [.on_deploy_nightly_repo_branch]
-#     - !reference [.manual]
-#   needs:
-#     - agent_deb-x64-a7-fips
-#     - agent_deb-x64-a7
-#     - windows_msi_and_bosh_zip_x64-a7-fips
-#     - windows_msi_and_bosh_zip_x64-a7
-#     - agent_rpm-x64-a7
-#     - agent_suse-x64-a7
-#     - compute_gitlab_ci_config
-#     - deploy_deb_testing-a7_arm64
-#     - deploy_deb_testing-a7_x64
-#     - deploy_rpm_testing-a7_arm64
-#     - deploy_rpm_testing-a7_x64
-#     - deploy_suse_rpm_testing_arm64-a7
-#     - deploy_suse_rpm_testing_x64-a7
-#     - deploy_windows_testing-a7
-#     - deploy_installer_oci
-#     - deploy_agent_oci
-#     - qa_cws_instrumentation
-#     - qa_dca
-#     - qa_dogstatsd
-#     - qa_agent
-#     - qa_agent_full
-#     - tests_windows_sysprobe_x64
-#   tags: ["arch:amd64"]
-#   script:
-#     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
-#     - dda inv -- -e fips.generate-fips-e2e-pipeline
-#     - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
-#   artifacts:
-#     paths:
-#       - $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
+generate-fips-e2e-pipeline:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  stage: e2e
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  needs:
+    - agent_deb-x64-a7-fips
+    - agent_deb-x64-a7
+    - windows_msi_and_bosh_zip_x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7
+    - agent_rpm-x64-a7
+    - agent_suse-x64-a7
+    - compute_gitlab_ci_config
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+    - qa_agent_full
+    - tests_windows_sysprobe_x64
+  tags: ["arch:amd64"]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
+    - dda inv -- -e fips.generate-fips-e2e-pipeline
+    - dda inv -- -e linter.gitlab-ci --input-file $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/fips-e2e-gitlab-ci.yml
 
-# trigger-fips-e2e:
-#   stage: e2e
-#   needs: [generate-fips-e2e-pipeline]
-#   rules:
-#     - !reference [.except_disable_e2e_tests]
-#     - !reference [.on_deploy_nightly_repo_branch]
-#     - !reference [.manual]
-#   variables:
-#     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-#     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
-#     PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
-#   trigger:
-#     include:
-#       - artifact: fips-e2e-gitlab-ci.yml
-#         job: generate-fips-e2e-pipeline
-#     strategy: depend
+trigger-fips-e2e:
+  stage: e2e
+  needs: [generate-fips-e2e-pipeline]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    PARENT_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+  trigger:
+    include:
+      - artifact: fips-e2e-gitlab-ci.yml
+        job: generate-fips-e2e-pipeline
+    strategy: depend
