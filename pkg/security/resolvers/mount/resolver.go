@@ -78,6 +78,8 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		Path:          mnt.Mountpoint,
 		RootStr:       root,
 		Origin:        model.MountOriginProcfs,
+		Visible:       true,
+		Detached:      false,
 	}
 }
 
@@ -372,7 +374,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	}
 	cache[mountID] = true
 
-	if mount.Origin == model.MountOriginFsmount {
+	if mount.Detached {
 		// Detached mount
 		return "/", source, mount.Origin, nil
 	}

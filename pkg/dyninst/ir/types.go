@@ -310,7 +310,7 @@ type EventRootType struct {
 
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
-	PresenseBitsetSize uint32
+	PresenceBitsetSize uint32
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression

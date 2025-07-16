@@ -127,6 +127,9 @@ qa_installer_script*                   @DataDog/agent-delivery
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
 deploy_mutable_image_tags*             @Datadog/agent-delivery
+deploy_mutable_cws_instrumentation_tags*     @Datadog/agent-delivery
+deploy_mutable_dca_tags*               @Datadog/agent-delivery
+deploy_mutable_ot_standalone_tags*     @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -187,3 +190,6 @@ run_codeql_scan                   @DataDog/sdlc-security
 
 # Experiment systemd units
 validate_experiment_systemd_units @DataDog/fleet
+
+# Fuzz testing
+test_fuzz                         @DataDog/chaos-engineering

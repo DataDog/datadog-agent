@@ -1,7 +1,6 @@
 config:
   max_items: 2
   max_size_bytes: 50
-  idle_flush_ms: 100
   max_buffer_ms: 200
 events:
   - !enqueue {value: "x"}

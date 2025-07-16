@@ -687,6 +687,12 @@ Package updater is the updater component.
 
 Package datadogclient provides a client to query the datadog API
 
+### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
+
+*Datadog Team*: fleet
+
+Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent
@@ -710,6 +716,12 @@ Package haagent handles states for HA Agent feature.
 *Datadog Team*: container-platform
 
 Package client implements a component to send process metadata to the Cluster-Agent
+
+### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+
+*Datadog Team*: network-device-monitoring
+
+Package networkdeviceconfig provides the component for retrieving network device configurations.
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 

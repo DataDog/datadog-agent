@@ -26,13 +26,14 @@
             "arguments": {
               "a": {
                 "type": "[2]string",
+                "size": "2",
                 "elements": [
                   {
-                    "type": "",
+                    "type": "string",
                     "value": "first"
                   },
                   {
-                    "type": "",
+                    "type": "string",
                     "value": "second"
                   }
                 ]

@@ -23,4 +23,10 @@ BPF_HASH_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_da
    if goTLS is enabled. */
 BPF_HASH_MAP(conn_tup_by_go_tls_conn, void*, conn_tuple_t, 1)
 
+/* This map associates conn_tuple_t values to the corresponding crypto/tls.(*Conn) pointer.
+   It is used to clean up the conn_tup_by_go_tls_conn map when TCP connections are closed.
+   Map size is set to 1 as goTLS is optional, this will be overwritten to MaxTrackedConnections
+   if goTLS is enabled. */
+BPF_HASH_MAP(go_tls_conn_by_tuple, conn_tuple_t, void*, 1)
+
 #endif //__GO_TLS_MAPS_H

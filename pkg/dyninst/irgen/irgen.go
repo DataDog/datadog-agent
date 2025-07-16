@@ -54,16 +54,57 @@ import (
 
 // TODO: Support hmaps.
 
+// Generator is used to generate IR programs from binary files and probe
+// configurations.
+type Generator struct {
+	config config
+}
+
+// NewGenerator creates a new Generator with the given options.
+func NewGenerator(options ...Option) *Generator {
+	g := &Generator{
+		config: defaultConfig,
+	}
+	for _, option := range options {
+		option.apply(&g.config)
+	}
+	return g
+}
+
+// GenerateIR generates an IR program from a binary and a list of probes.
+// It returns a GeneratedProgram containing both the successful IR program
+// and any probes that failed during generation.
+func (g *Generator) GenerateIR(
+	programID ir.ProgramID,
+	objFile *object.ElfFile,
+	probeDefs []ir.ProbeDefinition,
+) (*ir.Program, error) {
+	return generateIR(g.config, programID, objFile, probeDefs)
+}
+
 // GenerateIR generates an IR program from a binary and a list of probes.
 // It returns a GeneratedProgram containing both the successful IR program
 // and any probes that failed during generation.
 func GenerateIR(
 	programID ir.ProgramID,
 	objFile object.File,
-	config []ir.ProbeDefinition,
+	probeDefs []ir.ProbeDefinition,
 	options ...Option,
 ) (_ *ir.Program, retErr error) {
-	slices.SortFunc(config, func(a, b ir.ProbeDefinition) int {
+	cfg := defaultConfig
+	for _, option := range options {
+		option.apply(&cfg)
+	}
+	return generateIR(cfg, programID, objFile, probeDefs)
+}
+
+func generateIR(
+	cfg config,
+	programID ir.ProgramID,
+	objFile object.File,
+	probeDefs []ir.ProbeDefinition,
+) (_ *ir.Program, retErr error) {
+	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
 	})
 	// Given that the go dwarf library is not intentionally safe when
@@ -82,12 +123,7 @@ func GenerateIR(
 		}
 	}()
 
-	cfg := defaultConfig
-	for _, option := range options {
-		option.apply(&cfg)
-	}
-
-	interests, issues := makeInterests(config)
+	interests, issues := makeInterests(probeDefs)
 
 	ptrSize := objFile.PointerSize()
 
@@ -142,7 +178,7 @@ func GenerateIR(
 	issues = append(v.issues, issues...)
 
 	// Note that findUnusedConfigs will sort the issues and probes.
-	unused := findUnusedConfigs(probes, issues, config)
+	unused := findUnusedConfigs(probes, issues, probeDefs)
 	for _, probe := range unused {
 		issues = append(issues, ir.ProbeIssue{
 			ProbeDefinition: probe,
@@ -667,7 +703,7 @@ func populateEventExpressions(
 			Name:     fmt.Sprintf("Probe[%s]", probe.Subprogram.Name),
 			ByteSize: uint32(byteSize),
 		},
-		PresenseBitsetSize: presenceBitsetSize,
+		PresenceBitsetSize: presenceBitsetSize,
 		Expressions:        expressions,
 	}
 	typeCatalog.typesByID[event.Type.ID] = event.Type
