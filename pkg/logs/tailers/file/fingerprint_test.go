@@ -1009,3 +1009,50 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.False(rotated, "Should not detect rotation if the initial fingerprint was zero")
 	suite.Equal(uint64(0), ComputeFingerprint(tailer.file.Path, config))
 }
+
+func (suite *FingerprintTestSuite) TestLineBased_ExactByteLimitTruncation() {
+	// Test the specific scenario: maxBytes=10, lines of 2, 2, and 15 bytes
+	// Expected: 2 + 2 + 6 = 10 bytes (third line gets truncated from 15 to 6)
+	lines := []string{
+		"a\n", // 2 bytes
+		"b\n", // 2 bytes
+		"very long line that exceeds the limit\n", // 15+ bytes
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	maxLines := 5
+	maxBytes := 10 // Exactly 10 bytes
+	linesToSkip := 0
+	bytesToSkip := 0
+
+	config := &config.FingerprintConfig{
+		MaxLines:    &maxLines,
+		MaxBytes:    &maxBytes,
+		LinesToSkip: &linesToSkip,
+		BytesToSkip: &bytesToSkip,
+	}
+
+	// Expected: "a\nb\nvery l" (2 + 2 + 6 = 10 bytes)
+	expectedText := "a\nb\nvery l"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailer()
+	tailer.osFile = osFile
+
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
+	suite.Equal(expectedChecksum, receivedChecksum,
+		"Expected fingerprint for exactly 10 bytes, got different result")
+
+	// Verify the buffer size is exactly 10 bytes
+	suite.Equal(10, len(expectedText), "Buffer should be exactly 10 bytes")
+}

@@ -9,6 +9,8 @@ package file
 import (
 	"regexp"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -58,6 +60,11 @@ type Launcher struct {
 	tagger                 tagger.Component
 	//Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
 	oldInfoMap map[string]*oldTailerInfo
+	scanCount  int64
+	// Scan timing statistics
+	scanDurations    []time.Duration
+	lastScanDuration time.Duration
+	mu               sync.Mutex
 }
 
 type oldTailerInfo struct {
@@ -92,6 +99,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
 		oldInfoMap:             make(map[string]*oldTailerInfo),
+		scanCount:              0,
 	}
 }
 
@@ -109,6 +117,7 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
 	<-s.done
+	log.Infof("Total scan runs: %d", s.GetScanCount())
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
@@ -126,12 +135,14 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
+			atomic.AddInt64(&s.scanCount, 1)
 			s.cleanUpRotatedTailers()
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
 		case <-s.stop:
 			// no more file should be tailed
 			s.cleanup()
+			log.Infof("Total scan runs: %d", s.GetScanCount())
 			return
 		}
 	}
@@ -158,6 +169,37 @@ func (s *Launcher) cleanup() {
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
+	startTime := time.Now()
+	defer func() {
+		duration := time.Since(startTime)
+		s.mu.Lock()
+		s.lastScanDuration = duration
+
+		// Keep track of last 10 scan durations for averaging
+		if len(s.scanDurations) >= 10 {
+			s.scanDurations = s.scanDurations[1:]
+		}
+		s.scanDurations = append(s.scanDurations, duration)
+		s.mu.Unlock()
+
+		fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+
+		// Calculate average duration if we have enough samples
+		var avgDuration time.Duration
+		s.mu.Lock()
+		if len(s.scanDurations) > 0 {
+			total := time.Duration(0)
+			for _, d := range s.scanDurations {
+				total += d
+			}
+			avgDuration = total / time.Duration(len(s.scanDurations))
+		}
+		s.mu.Unlock()
+
+		log.Infof("Scan completed in %v (avg: %v) using fingerprint strategy: %s",
+			duration, avgDuration, fingerprintStrategy)
+	}()
+
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources, s.registry)
 	filesTailed := make(map[string]bool)
 	var allFiles []string
@@ -249,6 +291,9 @@ func (s *Launcher) scan() {
 
 				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig()) == 0 {
 					continue
+				} else {
+					fingerprint := tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig())
+					log.Infof("File %s has valid fingerprint: 0x%x", file.Path, fingerprint)
 				}
 
 				// Check if we have stored info from previous rotation and use it
@@ -547,4 +592,32 @@ func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 		stats.AgentOpenFiles,
 		ratio*100,
 		stats.OsFileLimit)
+}
+
+func (s *Launcher) GetScanCount() int64 {
+	return atomic.LoadInt64(&s.scanCount)
+}
+
+// GetScanTimingStats returns scan timing statistics
+func (s *Launcher) GetScanTimingStats() (lastDuration, avgDuration time.Duration, sampleCount int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lastDuration = s.lastScanDuration
+
+	if len(s.scanDurations) > 0 {
+		total := time.Duration(0)
+		for _, d := range s.scanDurations {
+			total += d
+		}
+		avgDuration = total / time.Duration(len(s.scanDurations))
+		sampleCount = len(s.scanDurations)
+	}
+
+	return lastDuration, avgDuration, sampleCount
+}
+
+// GetFingerprintStrategy returns the current fingerprint strategy being used
+func (s *Launcher) GetFingerprintStrategy() string {
+	return pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 }

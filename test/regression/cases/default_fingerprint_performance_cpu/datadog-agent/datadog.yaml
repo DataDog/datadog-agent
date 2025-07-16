@@ -9,13 +9,15 @@ dd_url: http://127.0.0.1:9091
 
 logs_enabled: true
 
+log_level: 'debug'
+
 # Enable checksum fingerprinting for performance testing with high file load
 logs_config:
   fingerprint_strategy: "default"
-  # Increase file limits for high load testing
+    # Increase file limits for high load testing
   open_files_limit: 1500
   # Optimize file scanning for high file count - monitor scan duration
-  file_scan_period: 30
+  file_scan_period: 10
   # Use by_name selection for better performance with many files
   file_wildcard_selection_mode: "by_name"
   # Enable detailed scan monitoring

@@ -23,13 +23,22 @@ var crc64Table = crc64.MakeTable(crc64.ISO)
 
 // ReturnFingerprintConfig returns the configuration for the fingerprinting algorithm set by user (also used for testing)
 func ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
-	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") != "checksum" {
+	strategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+	log.Debugf("Fingerprint strategy: %s", strategy)
+
+	if strategy != "checksum" {
+		log.Debugf("Fingerprint strategy is not 'checksum', returning nil config")
 		return nil
 	}
+
 	maxLines := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_lines")
 	maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_bytes")
 	bytesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.bytes_to_skip")
 	linesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.lines_to_skip")
+
+	log.Debugf("Fingerprint config values - maxLines: %d, maxBytes: %d, bytesToSkip: %d, linesToSkip: %d",
+		maxLines, maxBytes, bytesToSkip, linesToSkip)
+
 	config := &logsconfig.FingerprintConfig{
 		MaxLines:    &maxLines,
 		MaxBytes:    &maxBytes,
@@ -37,10 +46,13 @@ func ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
 		LinesToSkip: &linesToSkip,
 	}
 
-	if validFingerprintConfig(config) == nil {
-		return config
+	if err := validFingerprintConfig(config); err != nil {
+		log.Warnf("Invalid fingerprint config: %v", err)
+		return nil
 	}
-	return nil
+
+	log.Debugf("Fingerprint config is valid and will be used")
+	return config
 }
 
 // validFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
@@ -207,11 +219,7 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	for linesRead < maxLines {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
-			// Cap the line at maxBytes bytes
-			if len(line) > maxBytes {
-				line = line[:maxBytes]
-				log.Debugf("Truncated line from original length to %d bytes for fingerprinting", maxBytes)
-			} else if len(line)+bytesRead > maxBytes {
+			if len(line)+bytesRead > maxBytes {
 				line = line[:maxBytes-bytesRead] //subtract the minimum number of bytes to make the line fit in maxBytes
 			}
 			buffer = append(buffer, line...)
