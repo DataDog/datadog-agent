@@ -54,23 +54,20 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
-	mef, err := object.NewMMappingElfFile(binPath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, mef.Close()) }()
-	obj, err := object.NewElfObject(mef.Elf)
+	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
 	require.Empty(t, ir.Issues)
 
-	moduledata, err := object.ParseModuleData(mef)
+	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ParseGoVersion(obj.Underlying)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(mef)
+	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 

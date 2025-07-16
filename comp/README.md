@@ -717,6 +717,12 @@ Package haagent handles states for HA Agent feature.
 
 Package client implements a component to send process metadata to the Cluster-Agent
 
+### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+
+*Datadog Team*: network-device-monitoring
+
+Package networkdeviceconfig provides the component for retrieving network device configurations.
+
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
 *Datadog Team*: ndm-integrations
