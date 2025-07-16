@@ -132,7 +132,7 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger)
+	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger, false)
 	d.processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 	d.configureNetworkProcessor(&d.processor)
 	d.setOkExitCodes()

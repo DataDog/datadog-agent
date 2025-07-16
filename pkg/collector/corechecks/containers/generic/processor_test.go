@@ -58,7 +58,19 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 
 			expectedTags := []string{"runtime:docker"}
 			mockSender.AssertNumberOfCalls(t, "Rate", 20)
-			mockSender.AssertNumberOfCalls(t, "Gauge", 17)
+			mockSender.AssertNumberOfCalls(t, "Gauge", 17+func() int {
+				if tt.extendedMetrics {
+					return 10 // 10 comes from extended set
+				}
+				return 0
+			}())
+
+			mockSender.AssertNumberOfCalls(t, "MonotonicCount", 2+func() int {
+				if tt.extendedMetrics {
+					return 2 // 2 comes from extended set
+				}
+				return 0
+			}())
 
 			mockSender.AssertMetricInRange(t, "Gauge", "container.uptime", 0, 600, "", expectedTags)
 			mockSender.AssertMetric(t, "Rate", "container.cpu.usage", 100, "", expectedTags)
@@ -81,8 +93,36 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 			mockSender.AssertMetric(t, "Gauge", "container.memory.usage.peak", 50000, "", expectedTags)
 			mockSender.AssertMetric(t, "Rate", "container.memory.partial_stall", 97000, "", expectedTags)
 
-			mockSender.AssertMetric(t, "MonotonicCount", "container.memory.page_faults", 97000, "", expectedTags)
-			mockSender.AssertMetric(t, "MonotonicCount", "container.memory.major_page_faults", 97000, "", expectedTags)
+			mockSender.AssertMetric(t, "MonotonicCount", "container.memory.page_faults", 97001, "", expectedTags)
+			mockSender.AssertMetric(t, "MonotonicCount", "container.memory.major_page_faults", 50002, "", expectedTags)
+
+			if tt.extendedMetrics {
+				mockSender.AssertMetric(t, "Gauge", "container.memory.page_tables", 661, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.active_anon", 662, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.inactive_anon", 663, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.active_file", 664, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.inactive_file", 665, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.unevictable", 666, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.shmem", 1481, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.file_mapped", 1482, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.file_dirty", 1483, "", expectedTags)
+				mockSender.AssertMetric(t, "Gauge", "container.memory.file_writeback", 1484, "", expectedTags)
+				mockSender.AssertMetric(t, "MonotonicCount", "container.memory.refault_anon", 1485, "", expectedTags)
+				mockSender.AssertMetric(t, "MonotonicCount", "container.memory.refault_file", 1486, "", expectedTags)
+			} else { // if extendedMetrics processor should not emit those metrics
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.page_tables")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.active_anon")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.inactive_anon")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.active_file")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.inactive_file")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.unevictable")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.shmem")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.file_mapped")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.file_dirty")
+				mockSender.AssertMetricMissing(t, "Gauge", "container.memory.file_writeback")
+				mockSender.AssertMetricMissing(t, "MonotonicCount", "container.memory.refault_anon")
+				mockSender.AssertMetricMissing(t, "MonotonicCount", "container.memory.refault_file")
+			}
 
 			mockSender.AssertMetric(t, "Gauge", "container.restarts", 42, "", expectedTags)
 
