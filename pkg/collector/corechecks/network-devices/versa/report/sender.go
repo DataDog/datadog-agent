@@ -221,6 +221,26 @@ func (s *Sender) SendApplicationsByApplianceMetrics(appsByApplianceMetrics []cli
 	}
 }
 
+// SendTopApplicationUsersMetrics sends applications by appliance metrics retrieved from Versa Analytics
+// TODO: should the prefix for these metrics differ from the other application metrics?
+func (s *Sender) SendTopApplicationUsersMetrics(topApplicationUsersMetrics []client.TopApplicationUsersMetrics, deviceNameToIDMap map[string]string) {
+	for _, appMetric := range topApplicationUsersMetrics {
+		var tags = []string{
+			"site:" + appMetric.Site,
+			"user:" + appMetric.User,
+		}
+		if deviceIP, ok := deviceNameToIDMap[appMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"app.sessions", appMetric.Sessions, "", tags)
+		s.Gauge(versaMetricPrefix+"app.volume_tx", appMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.volume_rx", appMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth_tx", appMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth_rx", appMetric.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth", appMetric.Bandwidth, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {

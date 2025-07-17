@@ -651,6 +651,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 
 // GetApplicationsByAppliance retrieves applications by appliance metrics from the Versa Analytics API
 func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsByApplianceMetrics, error) {
+	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
 	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "app(site,appId)", "tableData", []string{
 		"sessions",
 		"volume-tx",
@@ -670,6 +671,68 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 		return nil, fmt.Errorf("failed to parse applications by appliance metrics: %v", err)
 	}
 	return metrics, nil
+}
+
+// GetTopApplicationUsers retrieves top users of applications by appliance from the Versa Analytics API
+func (client *Client) GetTopApplicationUsers(tenant string) ([]TopApplicationUsersMetrics, error) {
+	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "appUser(site,user)", "summary", []string{
+		"sessions",
+		"volume-tx",
+		"volume-rx",
+		"bw-tx",
+		"bw-rx",
+		"bandwidth",
+	})
+
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get applications by appliance metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseTopApplicationUsersMetrics(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse applications by appliance metrics: %v", err)
+	}
+	return metrics, nil
+}
+
+// parseTopApplicationUsersMetrics parses the raw AaData response into TopApplicationUsers structs
+// TODO: can I use a shared struct for the response for application metrics?
+func parseTopApplicationUsersMetrics(data [][]interface{}) ([]TopApplicationUsersMetrics, error) {
+	var rows []TopApplicationUsersMetrics
+	for _, row := range data {
+		m := TopApplicationUsersMetrics{}
+		if len(row) != 9 {
+			return nil, fmt.Errorf("expected 9 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Site")
+		}
+		if m.User, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for User")
+		}
+
+		// Floats from index 3–8
+		floatFields := []*float64{
+			&m.Sessions, &m.VolumeTx, &m.VolumeRx,
+			&m.BandwidthTx, &m.BandwidthRx, &m.Bandwidth,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+3].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+3)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
 }
 
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.

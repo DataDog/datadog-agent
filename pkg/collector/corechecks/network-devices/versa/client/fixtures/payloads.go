@@ -495,3 +495,25 @@ const GetApplicationsByApplianceMetrics = `
         ]
     ]
 }`
+
+// GetTopApplicationUsers /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetTopApplicationUsers = `
+{
+    "qTime": 1,
+    "sEcho": 0,
+    "iTotalDisplayRecords": 1,
+    "iTotalRecords": 1,
+    "aaData": [
+        [
+            "test-branch-2B,testUser",
+            "test-branch-2B",
+            "testUser",
+            50.0,
+            2024000.0,
+            412000.0,
+            7192.0,
+            2096.0,
+            22288.0
+        ]
+    ]
+}`

@@ -557,3 +557,33 @@ func TestGetApplicationsByAppliance(t *testing.T) {
 	require.Equal(t, len(appsByApplianceMetrics), 1)
 	require.Equal(t, expectedApplicationsByApplianceMetrics, appsByApplianceMetrics)
 }
+
+func TestGetTopApplicationUsers(t *testing.T) {
+	expectedTopApplicationUsers := []TopApplicationUsersMetrics{
+		{
+			DrillKey:    "test-branch-2B,testUser",
+			Site:        "test-branch-2B",
+			User:        "testUser",
+			Sessions:    50.0,
+			VolumeTx:    2024000.0,
+			VolumeRx:    412000.0,
+			BandwidthTx: 7192.0,
+			BandwidthRx: 2096.0,
+			Bandwidth:   22288.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	topApplicationUsers, err := client.GetTopApplicationUsers("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(topApplicationUsers), 1)
+	require.Equal(t, expectedTopApplicationUsers, topApplicationUsers)
+}

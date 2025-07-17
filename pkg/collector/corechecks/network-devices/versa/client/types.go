@@ -453,3 +453,16 @@ type ApplicationsByApplianceMetrics struct {
 	BandwidthRx float64
 	Bandwidth   float64
 }
+
+// TopApplicationUsersMetrics represents the columns to parse from the TopApplicationUsersMetricsResponse
+type TopApplicationUsersMetrics struct {
+	DrillKey    string
+	Site        string
+	User        string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}

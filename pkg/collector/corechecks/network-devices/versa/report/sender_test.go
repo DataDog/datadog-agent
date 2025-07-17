@@ -1438,3 +1438,179 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestSendTopApplicationUsersMetrics(t *testing.T) {
+	tests := []struct {
+		name                       string
+		topApplicationUsersMetrics []client.TopApplicationUsersMetrics
+		deviceNameToIDMap          map[string]string
+		expectedMetrics            []expectedMetric
+	}{
+		{
+			name: "Single user and appliance with device mapping",
+			topApplicationUsersMetrics: []client.TopApplicationUsersMetrics{
+				{
+					DrillKey:    "test-branch-2B,testUser1",
+					Site:        "test-branch-2B",
+					User:        "testUser1",
+					Sessions:    50.0,
+					VolumeTx:    1024000.0,
+					VolumeRx:    512000.0,
+					BandwidthTx: 8192.0,
+					BandwidthRx: 4096.0,
+					Bandwidth:   12288.0,
+				},
+			},
+			deviceNameToIDMap: map[string]string{
+				"test-branch-2B": "192.168.1.1",
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "app.sessions",
+					value: 50.0,
+					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_tx",
+					value: 1024000.0,
+					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_rx",
+					value: 512000.0,
+					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_tx",
+					value: 8192.0,
+					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_rx",
+					value: 4096.0,
+					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth",
+					value: 12288.0,
+					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+			},
+		},
+		{
+			name: "Multiple users single appliance with device mapping",
+			topApplicationUsersMetrics: []client.TopApplicationUsersMetrics{
+				{
+					DrillKey:    "branch-1,testUser2",
+					Site:        "branch-1",
+					User:        "testUser2",
+					Sessions:    100.0,
+					VolumeTx:    2048000.0,
+					VolumeRx:    1024000.0,
+					BandwidthTx: 16384.0,
+					BandwidthRx: 8192.0,
+					Bandwidth:   24576.0,
+				},
+				{
+					DrillKey:    "branch-1,testUser3",
+					Site:        "branch-1",
+					User:        "testUser3",
+					Sessions:    25.0,
+					VolumeTx:    256000.0,
+					VolumeRx:    128000.0,
+					BandwidthTx: 2048.0,
+					BandwidthRx: 1024.0,
+					Bandwidth:   3072.0,
+				},
+			},
+			deviceNameToIDMap: map[string]string{
+				"branch-1": "10.0.0.1",
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "app.sessions",
+					value: 100.0,
+					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_tx",
+					value: 2048000.0,
+					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_rx",
+					value: 1024000.0,
+					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_tx",
+					value: 16384.0,
+					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_rx",
+					value: 8192.0,
+					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth",
+					value: 24576.0,
+					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.sessions",
+					value: 25.0,
+					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_tx",
+					value: 256000.0,
+					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_rx",
+					value: 128000.0,
+					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_tx",
+					value: 2048.0,
+					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_rx",
+					value: 1024.0,
+					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth",
+					value: 3072.0,
+					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+			},
+		},
+		{
+			name:                       "Empty applications by appliance metrics",
+			topApplicationUsersMetrics: []client.TopApplicationUsersMetrics{},
+			deviceNameToIDMap:          map[string]string{},
+			expectedMetrics:            []expectedMetric{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendTopApplicationUsersMetrics(tt.topApplicationUsersMetrics, tt.deviceNameToIDMap)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}

@@ -68,6 +68,7 @@ type checkCfg struct {
 	CollectSLAMetrics                     *bool    `yaml:"collect_sla_metrics"`
 	CollectLinkMetrics                    *bool    `yaml:"collect_link_metrics"`
 	CollectApplicationsByApplianceMetrics *bool    `yaml:"collect_applications_by_appliance_metrics"`
+	CollectTopUserMetrics                 *bool    `yaml:"collect_top_user_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -116,7 +117,8 @@ func (v *VersaCheck) Run() error {
 
 	// Determine if we need appliances for device mapping
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
-		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectApplicationsByApplianceMetrics
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectApplicationsByApplianceMetrics ||
+		*v.config.CollectTopUserMetrics
 
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
@@ -288,6 +290,16 @@ func (v *VersaCheck) Run() error {
 				v.metricsSender.SendApplicationsByApplianceMetrics(appsByApplianceMetrics, deviceNameToIDMap)
 			}
 		}
+
+		// Collect top user metrics if enabled
+		if *v.config.CollectTopUserMetrics {
+			topApplicationUserMetrics, err := c.GetTopApplicationUsers(org.Name)
+			if err != nil {
+				log.Errorf("error getting applications by appliance metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendTopApplicationUsersMetrics(topApplicationUserMetrics, deviceNameToIDMap)
+			}
+		}
 	}
 
 	// Commit
@@ -331,6 +343,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
 	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
+	instanceConfig.CollectTopUserMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
