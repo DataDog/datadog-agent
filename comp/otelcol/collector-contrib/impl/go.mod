@@ -64,7 +64,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.1 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.7.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/gopsutilenv v0.129.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.129.0 // indirect
