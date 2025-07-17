@@ -262,11 +262,8 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 
 	unscheduleMap := scheduleToMap(changes.Unschedule)
 
-	_, found1 = unscheduleMap["process-test-service-_var_log_test.log"]
-	assert.True(t, found1)
-
-	_, found2 = unscheduleMap["process-test-service-2-_var_log_test2.log"]
-	assert.True(t, found2)
+	assert.Contains(t, unscheduleMap, "process-test-service-_var_log_test.log")
+	assert.Contains(t, unscheduleMap, "process-test-service-2-_var_log_test2.log")
 }
 
 // TestProcessLogProviderReferenceCounting tests the reference counting behavior for multiple processes using the same log file
@@ -372,8 +369,7 @@ func TestProcessLogProviderReferenceCounting(t *testing.T) {
 	assert.Len(t, changes.Unschedule, 1) // Config now unscheduled
 
 	// Verify cleanup
-	_, exists = p.serviceLogRefs[serviceLogKey]
-	assert.False(t, exists)
+	assert.NotContains(t, p.serviceLogRefs, serviceLogKey)
 }
 
 // TestProcessLogProviderUnscheduleNonExistent tests that unscheduling a non-existent config does not panic.
@@ -553,8 +549,7 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	key3 := p.generateServiceLogKey("/var/log/test3.log")
 
 	// Old key should not exist
-	_, exists := p.serviceLogRefs[key1]
-	assert.False(t, exists)
+	assert.NotContains(t, p.serviceLogRefs, key1)
 
 	// New keys should exist with ref count 1
 	ref2, exists := p.serviceLogRefs[key2]
@@ -596,17 +591,12 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	// Check that both configs were unscheduled
 	unscheduleMap := scheduleToMap(changes.Unschedule)
 
-	_, foundUnschedule2 := unscheduleMap["process-test-service-_var_log_test2.log"]
-	assert.True(t, foundUnschedule2)
-
-	_, foundUnschedule3 := unscheduleMap["process-test-service-_var_log_test3.log"]
-	assert.True(t, foundUnschedule3)
+	assert.Contains(t, unscheduleMap, "process-test-service-_var_log_test2.log")
+	assert.Contains(t, unscheduleMap, "process-test-service-_var_log_test3.log")
 
 	// Verify all reference entries are cleaned up
-	_, exists = p.serviceLogRefs[key2]
-	assert.False(t, exists)
-	_, exists = p.serviceLogRefs[key3]
-	assert.False(t, exists)
+	assert.NotContains(t, p.serviceLogRefs, key2)
+	assert.NotContains(t, p.serviceLogRefs, key3)
 }
 
 // TestProcessLogProviderFileReadabilityVerification tests that only readable log files are configured
