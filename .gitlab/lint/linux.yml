@@ -1,32 +1,21 @@
 
 .linux_lint:
   stage: lint
-  needs: ["go_deps", "go_tools_deps"]
-  variables:
-    FLAVORS: '--flavor base'
-    KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
+  # needs: ["go_deps", "go_tools_deps"]
+  needs: []
+  # variables:
+    # FLAVORS: '--flavor base'
+    # KUBERNETES_CPU_REQUEST: 16
+    # KUBERNETES_MEMORY_REQUEST: 16Gi
+    # KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e install-tools
-    - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
+    # - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
+    # - dda inv -- -e rtloader.install
+    # - dda inv -- -e install-tools
+    # - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
 
-.linux_lint2:
-  stage: lint
-  needs: ["go_deps", "go_tools_deps"]
-  variables:
-    FLAVORS: '--flavor base'
-    KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
-  script:
-    # - !reference [.retrieve_linux_go_deps]
-    # - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e gitlab.test
 
 # .linux_lint3:
 #   stage: lint
@@ -53,8 +42,23 @@
 
 lint_linux-x64:
   extends:
-    - .linux_lint2
     - .linux_x64
+  script:
+    - dda inv -- -e gitlab.test
+
+lint_linux-x64-2:
+  extends:
+    - .linux_x64
+  variables:
+    FLAVORS: '--flavor base'
+  script:
+    - dda inv -- -e gitlab.test
+
+myjob:
+  extends:
+    - .linux_x64
+  script:
+    - dda inv -- -e gitlab.test
 
 # lint_linux-x64-3:
 #   extends:
