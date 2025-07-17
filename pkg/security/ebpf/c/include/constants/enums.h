@@ -66,6 +66,7 @@ enum event_type
     EVENT_OPEN_TREE,
     EVENT_RAW_PACKET_ACTION,
     EVENT_CAPABILITIES,
+    EVENT_MOVE_MOUNT,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -248,6 +249,7 @@ enum mount_source_t
     SOURCE_MOUNT,
     SOURCE_FSMOUNT,
     SOURCE_OPEN_TREE,
+    SOURCE_MOVE_MOUNT,
 };
 
 #endif
