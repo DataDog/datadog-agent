@@ -98,7 +98,9 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 		CreatedAt: uint64(createTime),
 	}
 
-	cid, err := utils.GetProcContainerID(uint32(pid), uint32(pid))
+	cfs := utils.NewCGroupFS()
+
+	cid, _, _, err := cfs.FindCGroupContext(uint32(pid), uint32(pid))
 	if err != nil {
 		return nil, err
 	}
