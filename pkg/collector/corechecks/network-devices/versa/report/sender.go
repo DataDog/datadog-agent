@@ -202,6 +202,25 @@ func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetr
 	}
 }
 
+// SendApplicationsByApplianceMetrics sends applications by appliance metrics retrieved from Versa Analytics
+func (s *Sender) SendApplicationsByApplianceMetrics(appsByApplianceMetrics []client.ApplicationsByApplianceMetrics, deviceNameToIDMap map[string]string) {
+	for _, appMetric := range appsByApplianceMetrics {
+		var tags = []string{
+			"site:" + appMetric.Site,
+			"app_id:" + appMetric.AppId,
+		}
+		if deviceIP, ok := deviceNameToIDMap[appMetric.Site]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"app.sessions", appMetric.Sessions, "", tags)
+		s.Gauge(versaMetricPrefix+"app.volume_tx", appMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.volume_rx", appMetric.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth_tx", appMetric.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth_rx", appMetric.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"app.bandwidth", appMetric.Bandwidth, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {

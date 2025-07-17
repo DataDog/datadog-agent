@@ -527,3 +527,33 @@ func TestParseLinkStatusMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, result)
 }
+
+func TestGetApplicationsByAppliance(t *testing.T) {
+	expectedApplicationsByApplianceMetrics := []ApplicationsByApplianceMetrics{
+		{
+			DrillKey:    "test-branch-2B,HTTP",
+			Site:        "test-branch-2B",
+			AppId:       "HTTP",
+			Sessions:    50.0,
+			VolumeTx:    1024000.0,
+			VolumeRx:    512000.0,
+			BandwidthTx: 8192.0,
+			BandwidthRx: 4096.0,
+			Bandwidth:   12288.0,
+		},
+	}
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	require.NoError(t, err)
+
+	appsByApplianceMetrics, err := client.GetApplicationsByAppliance("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, len(appsByApplianceMetrics), 1)
+	require.Equal(t, expectedApplicationsByApplianceMetrics, appsByApplianceMetrics)
+}

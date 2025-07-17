@@ -440,3 +440,16 @@ type LinkStatusMetrics struct {
 	AccessCircuit string
 	Availability  float64
 }
+
+// ApplicationsByApplianceMetrics represents the columns to parse from the ApplicationsByApplianceMetricsResponse
+type ApplicationsByApplianceMetrics struct {
+	DrillKey    string
+	Site        string
+	AppId       string
+	Sessions    float64
+	VolumeTx    float64
+	VolumeRx    float64
+	BandwidthTx float64
+	BandwidthRx float64
+	Bandwidth   float64
+}
