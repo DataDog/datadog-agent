@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	probeMocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -482,7 +483,7 @@ func processCheckWithMockProbeWLM(t *testing.T, elevatedSystemProbePermissions b
 		extractors:       []metadata.Extractor{serviceExtractor},
 		gpuSubscriber:    mockGpuSubscriber,
 		statsd:           &statsd.NoOpClient{},
-		timer:            realClock{},
+		timer:            clock.New(),
 	}, probe, mockWLM
 }
 
@@ -645,16 +646,34 @@ func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bo
 	return statsByPid
 }
 
-type constantClock struct {
-	time time.Time
+func newMockClock(time time.Time) *clock.Mock {
+	c := clock.NewMock()
+	c.Set(time)
+	return c
 }
 
-func newConstantClock(time time.Time) *constantClock {
-	return &constantClock{time: time}
-}
-
-func (c *constantClock) Now() time.Time {
-	return c.time
+func expectedRealtimeStats(wlmProcs []*wmdef.Process, statsByPid map[int32]*procutil.Stats, lastStatsByPid map[int32]*procutil.Stats, now time.Time, lastRunTime time.Time) []*model.ProcessStat {
+	expectedStats := make([]*model.ProcessStat, len(wlmProcs))
+	for i, wlmProc := range wlmProcs {
+		stats := statsByPid[wlmProc.Pid]
+		lastStats := lastStatsByPid[wlmProc.Pid]
+		expectedStat := &model.ProcessStat{
+			Pid:                    wlmProc.Pid,
+			CreateTime:             stats.CreateTime,
+			Memory:                 formatMemory(stats),
+			Cpu:                    formatCPU(stats, lastStats, procutilCPUTimeToCPUTimeStat(stats.CPUTime), procutilCPUTimeToCPUTimeStat(lastStats.CPUTime)),
+			Nice:                   stats.Nice,
+			Threads:                stats.NumThreads,
+			OpenFdCount:            stats.OpenFdCount,
+			ProcessState:           model.ProcessState(model.ProcessState_value[stats.Status]),
+			IoStat:                 formatIO(stats, lastStats.IOStat, now, lastRunTime),
+			VoluntaryCtxSwitches:   uint64(stats.CtxSwitches.Voluntary),
+			InvoluntaryCtxSwitches: uint64(stats.CtxSwitches.Involuntary),
+			//ContainerId:            wlmProc.ContainerID, // TODO: current not tested, will be done when container data is added
+		}
+		expectedStats[i] = expectedStat
+	}
+	return expectedStats
 }
 
 func TestProcessCheckRunWLM3Times(t *testing.T) {
@@ -688,7 +707,7 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 
 			processCheck, mockProbe, mockWLM := processCheckWithMockProbeWLM(t, tc.elevatedPermissions)
 			now := time.Now()
-			constantClock1 := newConstantClock(now)
+			constantClock1 := clock.NewMock()
 			processCheck.timer = constantClock1
 
 			// CREATE TEST DATA
@@ -718,7 +737,7 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 			}
 
 			// SECOND RUN
-			constantClock2 := newConstantClock(now.Add(10 * time.Second))
+			constantClock2 := newMockClock(now.Add(10 * time.Second))
 			processCheck.timer = constantClock2
 			statsByPid2 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
 			// creation times should be the same
@@ -781,7 +800,7 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 			}
 
 			// THIRD RUN
-			constantClock3 := newConstantClock(now.Add(20 * time.Second))
+			constantClock3 := newMockClock(now.Add(20 * time.Second))
 			processCheck.timer = constantClock3
 			statsByPid3 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
 			// creation times should be the same
@@ -906,30 +925,6 @@ func TestProcessCheckChunkingWLM(t *testing.T) {
 	}
 }
 
-func expectedRealtimeStats(wlmProcs []*wmdef.Process, statsByPid map[int32]*procutil.Stats, lastStatsByPid map[int32]*procutil.Stats, now time.Time, lastRunTime time.Time) []*model.ProcessStat {
-	expectedStats := make([]*model.ProcessStat, len(wlmProcs))
-	for i, wlmProc := range wlmProcs {
-		stats := statsByPid[wlmProc.Pid]
-		lastStats := lastStatsByPid[wlmProc.Pid]
-		expectedStat := &model.ProcessStat{
-			Pid:                    wlmProc.Pid,
-			CreateTime:             stats.CreateTime,
-			Memory:                 formatMemory(stats),
-			Cpu:                    formatCPU(stats, lastStats, procutilCPUTimeToCPUTimeStat(stats.CPUTime), procutilCPUTimeToCPUTimeStat(lastStats.CPUTime)),
-			Nice:                   stats.Nice,
-			Threads:                stats.NumThreads,
-			OpenFdCount:            stats.OpenFdCount,
-			ProcessState:           model.ProcessState(model.ProcessState_value[stats.Status]),
-			IoStat:                 formatIO(stats, lastStats.IOStat, now, lastRunTime),
-			VoluntaryCtxSwitches:   uint64(stats.CtxSwitches.Voluntary),
-			InvoluntaryCtxSwitches: uint64(stats.CtxSwitches.Involuntary),
-			//ContainerId:            wlmProc.ContainerID, // TODO: current not tested, will be done when container data is added
-		}
-		expectedStats[i] = expectedStat
-	}
-	return expectedStats
-}
-
 func TestProcessCheckZombieConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name                  string
@@ -990,7 +985,7 @@ func TestProcessCheckZombieConfig(t *testing.T) {
 			// mock processes
 			processCheck, mockProbe, mockWLM := processCheckWithMockProbeWLM(&testing.T{}, tc.elevatedPermissions)
 			now := time.Now()
-			constantClock1 := newConstantClock(now)
+			constantClock1 := newMockClock(now)
 			processCheck.timer = constantClock1
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("process_config.ignore_zombie_processes", tc.ignoreZombieProcesses)
@@ -1033,7 +1028,7 @@ func TestProcessCheckZombieConfig(t *testing.T) {
 			}
 
 			// SECOND RUN
-			constantClock2 := newConstantClock(now.Add(10 * time.Second))
+			constantClock2 := newMockClock(now.Add(10 * time.Second))
 			processCheck.timer = constantClock2
 			statsByPid2 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
 			// ENSURE 2 PROCESSES ARE NOT ZOMBIES
