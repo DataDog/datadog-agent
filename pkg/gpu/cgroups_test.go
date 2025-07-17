@@ -238,7 +238,6 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 	}
 
 	testCgroupName := fmt.Sprintf("test-cgroup-device-allow-%s", utils.RandString(10))
-	testCgroupPath := filepath.Join("/sys/fs/cgroup", testCgroupName)
 	moveSelfToCgroup(t, testCgroupName)
 
 	// Test that /dev/null is still accessible after moving to cgroup
@@ -262,7 +261,7 @@ func TestConfigureCgroupV1DeviceAllow(t *testing.T) {
 	require.Error(t, err, "expected /dev/null open to fail after updating device allow file, but it succeeded")
 
 	// Now configure the cgroup device allow
-	require.NoError(t, configureCgroupV1DeviceAllow(testCgroupPath, testCgroupName, 1))
+	require.NoError(t, configureCgroupV1DeviceAllow("", testCgroupName, 1))
 
 	// Test that /dev/null is now accessible
 	f, err = os.Open("/dev/null")
