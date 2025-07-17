@@ -154,11 +154,16 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
-	// TODO: append all configs and forward them as parameters
 	if len(rawConfigs) == 0 {
 		return fmt.Errorf("no configs provided")
 	}
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfigs[0]))
+
+	var cmdLineArgs = []string{pkg, version}
+	for _, config := range rawConfigs {
+		cmdLineArgs = append(cmdLineArgs, string(config))
+	}
+
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
