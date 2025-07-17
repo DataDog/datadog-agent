@@ -258,6 +258,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.VoidPointerType)(nil)),
 }
 
 var typeMarshalers map[reflect.Type]*typeMarshaler
