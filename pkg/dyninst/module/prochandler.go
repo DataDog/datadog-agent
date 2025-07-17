@@ -13,7 +13,7 @@ import (
 )
 
 type processHandler struct {
-	controller     *controller
+	controller     *Controller
 	actuator       *actuator.Tenant
 	scraperHandler procmon.Handler
 }

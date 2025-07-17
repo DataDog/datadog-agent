@@ -66,6 +66,16 @@ def stack_exists(stack: str):
     return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}")
 
 
+def check_and_get_stack_or_exit(stack: str | None) -> str:
+    stack = check_and_get_stack(stack)
+    if not stack_exists(stack):
+        raise Exit(
+            f"Stack {stack} does not exist. Please create with 'dda inv kmt.gen-config --vms=<vms> --stack=<name>'"
+        )
+
+    return stack
+
+
 def vm_config_exists(stack: str):
     return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
 
@@ -186,9 +196,7 @@ def check_env(ctx: Context):
 def launch_stack(
     ctx: Context, stack: str | None, ssh_key: str | None, x86_ami: str, arm_ami: str, provision_microvms: bool
 ):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'dda inv kmt.gen-config --help'")
@@ -417,9 +425,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 
 
 def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     info(f"[*] Destroying stack {stack}")
     if pulumi:
@@ -431,18 +437,14 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 
 
 def pause_stack(stack: str | None = None):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
 
 
 def resume_stack(stack=None):
-    stack = check_and_get_stack(stack)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
     conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()

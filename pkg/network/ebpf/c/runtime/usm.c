@@ -307,10 +307,11 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
         return 0;
     }
 
-    // Clear the element in the map since this connection is closed
+    // Clear both the forward and reverse mappings since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
-
     conn_tuple_t copy = *t;
+    bpf_map_delete_elem(&go_tls_conn_by_tuple, &copy);
+
     // tls_finish can launch a tail call, thus cleanup should be done before.
     tls_finish(ctx, &copy, false);
     return 0;

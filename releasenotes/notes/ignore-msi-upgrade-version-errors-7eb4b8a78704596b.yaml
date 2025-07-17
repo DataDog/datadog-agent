@@ -4,10 +4,8 @@ fixes:
     The Agent MSI no longer fails when it is unable to read the
     version information from [MsiGetProductInfo](https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msigetproductinfow).
 
-    When upgrading from an Agent version lower than 7.56,
-    if ``MsiGetProductInfo`` fails and the MSI fails and rolls back, then
-    the system may be missing some drivers. If this happens, repair
-    or reinstall the Agent to restore the missing drivers.
-    These cases are usually caused by a corrupted Windows Installer registry.
+    When upgrading from an Agent version earlier than 7.56, a failure in ``MsiGetProductInfo``, combined with an MSI rollback, may result in missing system drivers.
+    If this occurs, repairing or reinstalling the Agent will restore the missing drivers.
+    This issue is typically caused by a corrupted Windows Installer registry.
     To repair these issues, refer to the
     [Microsoft Program Install and Uninstall Troubleshooter](https://support.microsoft.com/en-us/topic/fix-problems-that-block-programs-from-being-installed-or-removed-cca7d1b6-65a9-3d98-426b-e9f927e1eb4d).
