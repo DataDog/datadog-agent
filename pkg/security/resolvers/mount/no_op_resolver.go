@@ -71,3 +71,8 @@ func (mr *NoOpResolver) SendStats() error {
 func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 	return nil, nil
 }
+
+// InsertMoved inserts a mount from move_mount
+func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
+	return nil
+}
