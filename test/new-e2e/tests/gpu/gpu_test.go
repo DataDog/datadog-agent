@@ -332,10 +332,6 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
-	if !v.systemData.supportsSystemProbeComponent {
-		v.T().Skip("skipping test as system does not support the system-probe component")
-	}
-
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {

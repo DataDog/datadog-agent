@@ -36,9 +36,10 @@ const (
 	clock        CollectorName = "clocks"
 	device       CollectorName = "device"
 	remappedRows CollectorName = "remapped_rows"
-	samples      CollectorName = "samples"
+	process      CollectorName = "process"
 	nvlink       CollectorName = "nvlink"
 	gpm          CollectorName = "gpm"
+	systemProbe  CollectorName = "system_probe"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -46,7 +47,8 @@ type Metric struct {
 	Name     string  // Name holds the name of the metric.
 	Value    float64 // Value holds the value of the metric.
 	Type     metrics.MetricType
-	Priority int // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Priority int      // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. 0 (default) is the lowest priority.
+	Tags     []string // Tags holds optional metric-specific tags (e.g., process ID).
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -64,7 +66,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device ddnvml.SafeDevice) (Collector, error)
+type subsystemBuilder func(device ddnvml.Device) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
@@ -72,7 +74,7 @@ var factory = map[CollectorName]subsystemBuilder{
 	device:       newDeviceCollector,
 	remappedRows: newRemappedRowsCollector,
 	clock:        newClocksCollector,
-	samples:      newSamplesCollector,
+	process:      newProcessCollector,
 	nvlink:       newNVLinkCollector,
 	gpm:          newGPMCollector,
 }
@@ -84,14 +86,17 @@ type CollectorDependencies struct {
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(deps, factory)
+// If spCache is provided, additional system-probe virtual collectors will be created for all devices.
+func BuildCollectors(deps *CollectorDependencies, spCache *SystemProbeCache) ([]Collector, error) {
+	return buildCollectors(deps, factory, spCache)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, spCache *SystemProbeCache) ([]Collector, error) {
 	var collectors []Collector
 
-	for _, dev := range deps.DeviceCache.All() {
+	// Step 1: Build NVML collectors for physical devices only,
+	// (since most of NVML API doesn't support MIG devices)
+	for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
 		for name, builder := range builders {
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
@@ -103,6 +108,18 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 			}
 
 			collectors = append(collectors, c)
+		}
+	}
+
+	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
+	if spCache != nil {
+		for _, dev := range deps.DeviceCache.All() {
+			spCollector, err := newEbpfCollector(dev, spCache)
+			if err != nil {
+				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
+				continue
+			}
+			collectors = append(collectors, spCollector)
 		}
 	}
 
