@@ -528,7 +528,7 @@ func (d *daemonImpl) startMultipleConfigExperiment(ctx context.Context, pkg stri
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment version %s for package %s with multiple configs", version, pkg)
-	err = d.installer(d.env).InstallConfigExperimentMultiple(ctx, pkg, version, rawConfigs)
+	err = d.installer(d.env).InstallMultipleConfigExperiment(ctx, pkg, version, rawConfigs)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -537,7 +537,7 @@ func (d *daemonImpl) startMultipleConfigExperiment(ctx context.Context, pkg stri
 }
 
 // StopConfigExperimentMultiple stops a config experiment with multiple configs.
-func (d *daemonImpl) StopConfigExperimentMultiple(ctx context.Context, pkg string) error {
+func (d *daemonImpl) StopMultipleConfigExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	return d.stopMultipleConfigExperiment(ctx, pkg)
@@ -550,7 +550,7 @@ func (d *daemonImpl) stopMultipleConfigExperiment(ctx context.Context, pkg strin
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping config experiment with multiple configs for package %s", pkg)
-	err = d.installer(d.env).RemoveConfigExperimentMultiple(ctx, pkg)
+	err = d.installer(d.env).RemoveMultipleConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
@@ -572,7 +572,7 @@ func (d *daemonImpl) promoteMultipleConfigExperiment(ctx context.Context, pkg st
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Promoting config experiment with multiple configs for package %s", pkg)
-	err = d.installer(d.env).PromoteConfigExperimentMultiple(ctx, pkg)
+	err = d.installer(d.env).PromoteMultipleConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote config experiment: %w", err)
 	}
