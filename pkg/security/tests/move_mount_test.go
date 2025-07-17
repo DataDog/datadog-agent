@@ -1,0 +1,354 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && functionaltests
+
+// Package tests holds tests related files
+package tests
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/stretchr/testify/assert"
+	"os"
+	"strings"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"golang.org/x/sys/unix"
+)
+
+func moveMountIsSupported() bool {
+	_, _, errno := unix.Syscall6(unix.SYS_MOVE_MOUNT, 0, 0, 0, 0, 0, 0)
+	return !errors.Is(errno, syscall.ENOSYS)
+}
+
+func GetMountID(fd int) (uint64, error) {
+	var stx unix.Statx_t
+
+	flags := unix.AT_EMPTY_PATH | unix.AT_STATX_DONT_SYNC
+
+	if err := unix.Statx(fd, "", flags, unix.STATX_MNT_ID, &stx); err != nil {
+		return 0, fmt.Errorf("statx: %w", err)
+	}
+
+	if stx.Mask&unix.STATX_MNT_ID == 0 {
+		return 0, fmt.Errorf("statx: kernel não preencheu STATX_MNT_ID — kernel < 5.8?")
+	}
+
+	return stx.Mnt_id, nil
+}
+
+func TestMoveMount(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !moveMountIsSupported() {
+		t.Skip("move_mount syscall is not supported on this platform")
+	}
+
+	mountDir := t.TempDir()
+	fsmountfd := 0
+	var mountid uint64
+	// Create a temporary mount
+	TmpMountAt(mountDir)
+
+	// Make this mount private, so that the second mount doesn't propagate to all namespaces
+	err := unix.Mount("", mountDir, "", unix.MS_REC|unix.MS_PRIVATE, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	submountDir := mountDir + "/subdir"
+	err = os.Mkdir(submountDir, 0o777)
+	if err != nil {
+		t.Fatal(fmt.Errorf("error making directory: %w", err))
+	}
+
+	openfd, err := unix.Fsopen("tmpfs", unix.FSOPEN_CLOEXEC)
+	if err != nil {
+		t.Fatal("fsopen error %w", err)
+	}
+
+	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
+	_ = fsconfigStr(openfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
+	_ = fsconfig(openfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
+	fsmountfd, err = unix.Fsmount(openfd, unix.FSMOUNT_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(fmt.Errorf("fsmount error %w", err))
+	}
+
+	mountid, _ = GetMountID(fsmountfd)
+
+	test, err := newTestModule(t, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("move-detached-no-propagation", func(t *testing.T) {
+		err = test.GetProbeEvent(func() error {
+			err = unix.MoveMount(fsmountfd, "", unix.AT_FDCWD, submountDir, unix.MOVE_MOUNT_F_EMPTY_PATH)
+			if err != nil {
+				t.Fatal("Could not move mount: ", err)
+				return err
+			}
+
+			return nil
+		}, func(event *model.Event) bool {
+			if event.GetType() != "move_mount" && event.Mount.MountID != uint32(mountid) {
+				return false
+			}
+			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			assert.Equal(t, err, nil)
+			assert.Equal(t, submountDir, mountPtr.MountPointStr, "Wrong mountpoint path")
+			return true
+		}, 10*time.Second, model.FileMoveMountEventType)
+
+		if err != nil {
+			t.Fatal("Test timeout without any event")
+		}
+	})
+
+	_ = unix.Unmount(submountDir, unix.MNT_FORCE|unix.MNT_DETACH)
+	_ = unix.Unmount(mountDir, unix.MNT_FORCE|unix.MNT_DETACH)
+}
+
+type MountEnvironment struct {
+	fsmountfd      int
+	tounmount      []string
+	mountDir       string
+	submountDirSrc string
+	submountDirDst string
+}
+
+func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error) {
+	r := &MountEnvironment{}
+
+	// Prepare the source directory:
+	r.mountDir = mountDir
+	r.tounmount = []string{mountDir}
+
+	_, err := TmpMountAt(mountDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if private {
+		// Make this mount private, so that the second mount doesn't propagate to all namespaces
+		err := unix.Mount("", mountDir, "", unix.MS_REC|unix.MS_PRIVATE, "")
+		if err != nil {
+			return nil, fmt.Errorf("could not mount: %w", err)
+		}
+	}
+
+	r.submountDirSrc = mountDir + "/src"
+	err = os.Mkdir(r.submountDirSrc, 0o777)
+	if err != nil {
+		return nil, fmt.Errorf("error making directory: %w", err)
+	}
+
+	r.submountDirDst = mountDir + "/dst"
+	err = os.Mkdir(r.submountDirDst, 0o777)
+	if err != nil {
+		return nil, fmt.Errorf("error making directory: %w", err)
+	}
+
+	// Mount the following directory struct in /tmp:
+	// + /tmp/<tmpdir>        (tmpfs, 1MB)
+	// |-- /tmp/<tmpdir>/tmp1 (tmpfs, 1MB)
+	// |-- /tmp/<tmpdir>/tmp2 (tmpfs, 1MB)
+	// In which `tmp1` and `tmp2` are have 001 as the parent mount
+	// This is using the new mount api, but could have been accomplished with the mount() syscall too
+	// because this isn't the part that we're testing
+	mountIDsToPath := make(map[uint32]string)
+
+	r.tounmount = append(r.tounmount, r.submountDirSrc)
+
+	r.fsmountfd, err = TmpMountAt(r.submountDirSrc)
+	if err != nil {
+		// Syscall not available in this kernel
+		return nil, err
+	}
+
+	id, err := getMountID(r.submountDirSrc)
+	if err != nil {
+		return nil, err
+	}
+
+	mountIDsToPath[id] = "/"
+
+	mountSubDir := func(subdir string) error {
+		fullpath := r.submountDirSrc + "/" + subdir
+		err = os.Mkdir(fullpath, 0755)
+
+		r.tounmount = append(r.tounmount, fullpath)
+
+		if err != nil {
+			return err
+		}
+		_, err = TmpMountAt(fullpath)
+		if err != nil {
+			return err
+		}
+
+		id, err := getMountID(fullpath)
+		if err != nil {
+			return err
+		}
+
+		mountIDsToPath[id] = "/" + subdir
+		return nil
+	}
+
+	if err := mountSubDir("tmp1"); err != nil {
+		return nil, err
+	}
+	if err := mountSubDir("tmp2"); err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func (r *MountEnvironment) UnmountAll() {
+	for i := len(r.tounmount) - 1; i >= 0; i-- {
+		unix.Unmount(r.tounmount[i], syscall.MNT_DETACH)
+	}
+}
+
+func TestMoveMountRecursiveNoPropagation(t *testing.T) {
+	te, err := newTestEnvironment(true, t.TempDir())
+	defer te.UnmountAll()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test, err := newTestModule(t, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("moved-attached-recursive-no-propagation", func(_ *testing.T) {
+		err = test.GetProbeEvent(func() error {
+			err = unix.MoveMount(te.fsmountfd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
+			if err == nil {
+				for i := 0; i != len(te.tounmount); i++ {
+					te.tounmount[i] = strings.Replace(te.tounmount[i], te.submountDirSrc, te.submountDirDst, 1)
+				}
+			}
+			return nil
+		}, func(event *model.Event) bool {
+			if event.GetType() != "move_mount" {
+				return false
+			}
+			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			assert.Equal(t, err, nil, "Error resolving mount")
+			assert.Equal(t, len(mount.Children), 2, "Wrong number of child mounts")
+
+			for _, childMountID := range mount.Children {
+				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0, 0, "")
+				assert.Equal(t, err, nil, "Error resolving child mount")
+				assert.True(t, strings.HasPrefix(child.Path, te.submountDirDst), "Path wasn't updated")
+			}
+
+			return true
+		}, 10*time.Second, model.FileMoveMountEventType)
+
+		if err != nil {
+			t.Fatal("Test timeout without any event")
+		}
+	})
+}
+
+func TestMoveMountRecursivePropagation(t *testing.T) {
+
+	te2, _ := newTestEnvironment(false, t.TempDir())
+	defer te2.UnmountAll()
+	fd, _ := unix.OpenTree(0, te2.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+
+	test, err := newTestModule(t, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("moved-recursive-with-propagation", func(_ *testing.T) {
+		dd := map[uint32]uint32{}
+
+		err = test.GetProbeEvent(func() error {
+			fmt.Println(te2.submountDirSrc)
+			fmt.Println(te2.submountDirDst)
+
+			if err != nil {
+				fmt.Println("Error opening tree:", err)
+			}
+			fmt.Println("Press Enter to continue...")
+			bufio.NewReader(os.Stdin).ReadString('\n')
+
+			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te2.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
+
+			if err != nil {
+				fmt.Println("Err moving mount:", err)
+			}
+			if err == nil {
+				for i := 0; i != len(te2.tounmount); i++ {
+					te2.tounmount[i] = strings.Replace(te2.tounmount[i], te2.submountDirSrc, te2.submountDirDst, 1)
+				}
+			}
+			return nil
+		}, func(event *model.Event) bool {
+			if event.GetType() != "move_mount" {
+				return false
+			}
+
+			dd[event.Mount.MountID]++
+
+			return false
+		}, 10*time.Second, model.FileMoveMountEventType)
+		fmt.Println("Test finished")
+		fmt.Println("Press Enter to continue...")
+		bufio.NewReader(os.Stdin).ReadString('\n')
+		fmt.Println("Will print stuff")
+		for i := range dd {
+			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(i, 0, 0, "")
+			if len(mount.Children) > 0 {
+				fmt.Println("+", mount.MountID, mount.Path)
+				for _, id := range mount.Children {
+					childMount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(id, 0, 0, "")
+					//path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(id, 0, 0, "")
+					fmt.Printf("|  -- %d, %s\n", id, childMount.Path)
+				}
+			}
+		}
+
+		//if err != nil {
+		//	t.Fatal("Test timeout without any event")
+		//}
+
+	})
+}
+
+// Create a test that will create a mount point with several submounts
+// Then use open_tree to create a recursive clone to get a detached mount with several submounts
+// Then use move_mount on that
+
+//t.Run("move-attached-fd", func(t *testing.T) {
+//})
+//
+//t.Run("move-attached-filename", func(t *testing.T) {
+//})
+//
+//t.Run("move-attached-fd-recursive", func(t *testing.T) {
+//})
