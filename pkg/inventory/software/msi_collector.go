@@ -77,7 +77,7 @@ func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
 		var sidBuf [256]uint16
 		sidLen := uint32(len(sidBuf))
 
-		ret := msiEnumProducts(index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
+		ret := msiEnumProductsEx(index, &productCodeBuf[0], &context, &sidBuf[0], &sidLen)
 
 		if errors.Is(ret, windows.ERROR_NO_MORE_ITEMS) {
 			break
