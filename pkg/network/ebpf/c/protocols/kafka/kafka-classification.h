@@ -577,13 +577,25 @@ static __always_inline bool __is_kafka_api_versions(pktbuf_t pkt, const char* bu
 static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
 {
     pktbuf_t pkt = pktbuf_from_skb(skb, skb_info);
-    return __is_kafka(pkt, buf, buf_size) || __is_kafka_api_versions(pkt, buf, buf_size);
+    return __is_kafka(pkt, buf, buf_size);
 }
 
 static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
 {
     pktbuf_t pkt = pktbuf_from_tls(ctx, tls);
-    return __is_kafka(pkt, buf, buf_size) || __is_kafka_api_versions(pkt, buf, buf_size);
+    return __is_kafka(pkt, buf, buf_size);
+}
+
+static __always_inline bool is_kafka_api_versions(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
+{
+    pktbuf_t pkt = pktbuf_from_skb(skb, skb_info);
+    return __is_kafka_api_versions(pkt, buf, buf_size);
+}
+
+static __always_inline __maybe_unused bool tlx_is_kafka_api_versions(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
+{
+    pktbuf_t pkt = pktbuf_from_tls(ctx, tls);
+    return __is_kafka_api_versions(pkt, buf, buf_size);
 }
 
 #endif

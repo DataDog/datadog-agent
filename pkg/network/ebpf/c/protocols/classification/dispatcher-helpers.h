@@ -221,8 +221,48 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
     }
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // Copy it to the stack since the verifier on 4.14 complains otherwise.
+        skb_info_t skb_info = classification_ctx->skb_info;
+        conn_tuple_t skb_tup = classification_ctx->tuple;
         // We need to make sure we don't dispatch the same packet multiple times.
-        cache_tcp_seq(&classification_ctx->tuple, &classification_ctx->skb_info);
+        cache_tcp_seq(&skb_tup, &skb_info);
+        // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &classification_ctx->tuple, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &classification_ctx->skb_info, sizeof(skb_info_t));
+
+        // dispatch if possible
+        log_debug("dispatching to protocol number: %d", cur_fragment_protocol);
+        bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
+    }
+    return;
+}
+
+static __always_inline void dispatch_kafka_api_versions(struct __sk_buff *skb) {
+    classification_context_t *classification_ctx = classification_context(skb);
+    if (!classification_ctx) {
+        return;
+    }
+    const char *buffer = &(classification_ctx->buffer.data[0]);
+
+    protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+    if (is_kafka_api_versions(skb, &classification_ctx->skb_info, buffer, classification_ctx->buffer.size)) {
+        cur_fragment_protocol = PROTOCOL_KAFKA;
+        update_protocol_stack(&classification_ctx->tuple, cur_fragment_protocol);
+    }
+
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        // Copy it to the stack since the verifier on 4.14 complains otherwise.
+        skb_info_t skb_info = classification_ctx->skb_info;
+        conn_tuple_t skb_tup = classification_ctx->tuple;
+        // We need to make sure we don't dispatch the same packet multiple times.
+        cache_tcp_seq(&skb_tup, &skb_info);
         // dispatch if possible
         const u32 zero = 0;
         dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);

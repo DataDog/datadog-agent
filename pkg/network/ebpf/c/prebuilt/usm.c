@@ -34,9 +34,21 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
     return 0;
 }
 
+SEC("socket/protocol_dispatcher_kafka_api_versions")
+int socket__protocol_dispatcher_kafka_api_versions(struct __sk_buff *skb) {
+    dispatch_kafka_api_versions(skb);
+    return 0;
+}
+
 SEC("uprobe/tls_protocol_dispatcher_kafka")
 int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
     tls_dispatch_kafka(ctx);
+    return 0;
+};
+
+SEC("uprobe/tls_protocol_dispatcher_kafka_api_versions")
+int uprobe__tls_protocol_dispatcher_kafka_api_versions(struct pt_regs *ctx) {
+    tls_dispatch_kafka_api_versions(ctx);
     return 0;
 };
 
