@@ -489,9 +489,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		ebpfManager: m,
 	}
 
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		attacherConfig.OnSyncCallback = o.cleanupDeadPids
-	}
+	attacherConfig.OnSyncCallback = o.cleanupDeadPids
 
 	var err error
 	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
