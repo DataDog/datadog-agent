@@ -63,6 +63,7 @@ const ciVisibility = "/ci-visibility"
 var baseEnv = []string{
 	"GITLAB_CI=true", // force color output support to be detected
 	"GOVERSION=" + runtime.Version(),
+	"CI_COMMIT_SHA=" + os.Getenv("CI_COMMIT_SHA"),
 }
 
 // change `TEST_TIMEOUTS` in `tasks/system_probe.py` if you change them here
