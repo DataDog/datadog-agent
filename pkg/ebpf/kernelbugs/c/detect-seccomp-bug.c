@@ -12,6 +12,7 @@ char *syscalls[] = {
     "exit_group",
     "close",
     "fstat",
+    "prctl",
 };
 
 __attribute__((noinline)) int trigger_uretprobe_syscall(void) {
@@ -27,8 +28,7 @@ void apply_seccomp_filter(char **syscalls, int num_syscalls) {
 
     ctx = seccomp_init(SCMP_ACT_ERRNO(1));
     for (int i = 0; i < num_syscalls; i++) {
-        seccomp_rule_add(ctx, SCMP_ACT_ALLOW,
-        seccomp_syscall_resolve_name(syscalls[i]), 0);
+        seccomp_rule_add(ctx, SCMP_ACT_ALLOW, seccomp_syscall_resolve_name(syscalls[i]), 0);
     }
     seccomp_load(ctx);
     seccomp_release(ctx);
