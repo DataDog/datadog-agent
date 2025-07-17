@@ -22,7 +22,7 @@ const (
 )
 
 const (
-	cloudRunJobNamespace = "gcrjob."
+	cloudRunJobNamespace = "gcrj."
 	jobNameTag           = "job_name"
 	executionNameTag     = "execution_name"
 	taskIndexTag         = "task_index"

@@ -31,16 +31,16 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	tags := service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"container_id":          "test_container",
-		"location":              "test_region",
-		"_dd.origin":            "cloudrun",
-		"project_id":            "test_project",
-		"gcrjob.job_name":       "test_job",
-		"gcrjob.execution_name": "test_execution",
-		"gcrjob.task_index":     "0",
-		"gcrjob.task_attempt":   "1",
-		"gcrjob.task_count":     "5",
-		"gcrjob.resource_name":  "projects/test_project/locations/test_region/jobs/test_job",
+		"container_id":        "test_container",
+		"location":            "test_region",
+		"_dd.origin":          "cloudrun",
+		"project_id":          "test_project",
+		"gcrj.job_name":       "test_job",
+		"gcrj.execution_name": "test_execution",
+		"gcrj.task_index":     "0",
+		"gcrj.task_attempt":   "1",
+		"gcrj.task_count":     "5",
+		"gcrj.resource_name":  "projects/test_project/locations/test_region/jobs/test_job",
 	}, tags)
 }
 
