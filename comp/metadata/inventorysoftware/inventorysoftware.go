@@ -12,7 +12,6 @@ import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"net/http"
 	"time"
 
@@ -66,6 +65,7 @@ type inventorySoftware struct {
 	sysProbeClient  SysProbeClient
 	cachedInventory []software.Entry
 	hostname        string
+	enabled         bool
 }
 
 // Dependencies is the dependencies for the inventory software component.
@@ -78,7 +78,7 @@ type Dependencies struct {
 	Hostname   hostnameinterface.Component
 }
 
-// Provides defines the output of the hostgpu component
+// Provides defines the output of the inventory software component
 type Provides struct {
 	fx.Out
 
@@ -90,14 +90,7 @@ type Provides struct {
 }
 
 // NewWithClient creates a new inventory software component with a custom sysprobeclient
-func NewWithClient(deps Dependencies, client SysProbeClient) option.Option[Provides] {
-	// Check if software inventory is enabled in the agent configuration
-	if !deps.Config.GetBool("software_inventory.enabled") {
-		deps.Log.Debugf("Software inventory is disabled in agent configuration")
-		// Return a no-op component when disabled
-		return option.None[Provides]()
-	}
-
+func NewWithClient(deps Dependencies, client SysProbeClient) Provides {
 	if client == nil {
 		client = &sysProbeClientWrapper{
 			client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
@@ -108,24 +101,35 @@ func NewWithClient(deps Dependencies, client SysProbeClient) option.Option[Provi
 		log:            deps.Log,
 		sysProbeClient: client,
 		hostname:       hname,
+		enabled:        deps.Config.GetBool("software_inventory.enabled"),
 	}
+	// Always provide the component because FX dependency injection expects
+	// status providers, metadata providers, etc. to be available, not wrapped
+	// in option.Option. The enabled flag only controls whether we call the System
+	// Probe software inventory endpoint to collect actual data.
+	// Note that there is a second way to disable this feature, through InventoryPayload.Enabled.
+	// 'enable_metadata_collection' and 'inventories_enabled' both need to be set to true.
 	is.log.Infof("Starting the inventory software component")
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, flareFileName)
-	return option.New(Provides{
+	return Provides{
 		Comp:                 is,
 		Provider:             is.InventoryPayload.MetadataProvider(),
 		FlareProvider:        is.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(is),
 		Endpoint:             api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/software", "GET"),
-	})
+	}
 }
 
 // New creates a new inventory software component with the default sysprobeclient
-func New(deps Dependencies) option.Option[Provides] {
+func New(deps Dependencies) Provides {
 	return NewWithClient(deps, nil)
 }
 
 func (is *inventorySoftware) refreshCachedValues() error {
+	if !is.enabled {
+		is.log.Debugf("Software inventory is disabled in agent configuration")
+		return nil
+	}
 	is.log.Infof("Collecting Software Inventory")
 
 	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.InventorySoftwareModule)
