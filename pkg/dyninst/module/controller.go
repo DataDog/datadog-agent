@@ -85,6 +85,15 @@ func (c *Controller) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
+func (c *Controller) handleRemovals(removals []procmon.ProcessID) {
+	c.store.remove(removals)
+	if len(removals) > 0 {
+		c.actuator.HandleUpdate(actuator.ProcessesUpdate{
+			Removals: removals,
+		})
+	}
+}
+
 func (c *Controller) checkForUpdates() {
 	scraperUpdates := c.rcScraper.GetUpdates()
 	actuatorUpdates := make([]actuator.ProcessUpdate, 0, len(scraperUpdates))
