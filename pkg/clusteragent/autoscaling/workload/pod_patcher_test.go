@@ -9,6 +9,7 @@ package workload
 
 import (
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -61,6 +62,51 @@ func patcherTestStoreWithData() *store {
 				Kind:       "Custom",
 				APIVersion: "foo.com/v1",
 				Name:       "test",
+			},
+		},
+	}.Build(), "")
+
+	// ns1/autoscaler3 targets "test-sidecar-deployment" and has vertical recommendations for init sidecar container
+	store.Set("ns1/autoscaler3", model.FakePodAutoscalerInternal{
+		Namespace: "ns1",
+		Name:      "autoscaler3",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+				Name:       "test-sidecar-deployment",
+			},
+		},
+		ScalingValues: model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				ResourcesHash: "sidecar-version1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "init-sidecar-container", Limits: corev1.ResourceList{"cpu": resource.MustParse("300m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")}},
+				},
+			},
+		},
+	}.Build(), "")
+
+	// ns1/autoscaler4 targets "test-mixed-deployment" and has vertical recommendations for both sidecar and main containers
+	store.Set("ns1/autoscaler4", model.FakePodAutoscalerInternal{
+		Namespace: "ns1",
+		Name:      "autoscaler4",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+				Name:       "test-mixed-deployment",
+			},
+		},
+		ScalingValues: model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				ResourcesHash: "mixed-version1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "init-sidecar-container", Limits: corev1.ResourceList{"cpu": resource.MustParse("400m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")}},
+					{Name: "main-container", Limits: corev1.ResourceList{"cpu": resource.MustParse("800m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("512Mi")}},
+				},
 			},
 		},
 	}.Build(), "")
@@ -293,6 +339,334 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
 							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "update init sidecar resources when recommendations differ",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "sidecar-version0",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "sidecar-version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{
+						{
+							Name:          "init-sidecar-container",
+							RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+							Resources: corev1.ResourceRequirements{
+								Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+								Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+							},
+						},
+					},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "update init sidecar resources when there are none",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "sidecar-version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "no update when init sidecar recommendations match",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "sidecar-version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: false,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "sidecar-version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "regular init containers ignored",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name: "init-sidecar-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-sidecar-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "sidecar-version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler3",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name: "init-sidecar-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "update both init sidecar and main container resources when recommendations differ",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-mixed-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "mixed-version0",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler4",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("500m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+				},
+			},
+			wantInjected: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns1",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind:       "ReplicaSet",
+						Name:       "test-mixed-deployment-968f49d86",
+						APIVersion: "apps/v1",
+					}},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "mixed-version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler4",
+					},
+				},
+				Spec: corev1.PodSpec{
+					InitContainers: []corev1.Container{{
+						Name:          "init-sidecar-container",
+						RestartPolicy: pointer.Ptr(corev1.ContainerRestartPolicyAlways),
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("400m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")},
+						},
+					}},
+					Containers: []corev1.Container{{
+						Name: "main-container",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("800m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("512Mi")},
 						},
 					}},
 				},
