@@ -20,6 +20,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func scheduleToMap(configs []integration.Config) map[string]integration.Config {
+	result := make(map[string]integration.Config, len(configs))
+	for _, config := range configs {
+		result[config.Name] = config
+	}
+	return result
+}
+
 func isRootUser() bool {
 	return os.Geteuid() == 0
 }
@@ -223,18 +231,16 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 	changes := p.processEventsNoVerifyReadable(setBundle)
 	assert.Len(t, changes.Schedule, 2)
 	assert.Len(t, changes.Unschedule, 0)
-	var found1, found2 bool
-	for _, config := range changes.Schedule {
-		if config.Name == "process-test-service-_var_log_test.log" {
-			found1 = true
-			assert.Contains(t, string(config.LogsConfig), "/var/log/test.log")
-		} else if config.Name == "process-test-service-2-_var_log_test2.log" {
-			found2 = true
-			assert.Contains(t, string(config.LogsConfig), "/var/log/test2.log")
-		}
-	}
+
+	scheduleMap := scheduleToMap(changes.Schedule)
+
+	config1, found1 := scheduleMap["process-test-service-_var_log_test.log"]
 	assert.True(t, found1)
+	assert.Contains(t, string(config1.LogsConfig), "/var/log/test.log")
+
+	config2, found2 := scheduleMap["process-test-service-2-_var_log_test2.log"]
 	assert.True(t, found2)
+	assert.Contains(t, string(config2.LogsConfig), "/var/log/test2.log")
 
 	unsetEvents := []workloadmeta.Event{
 		{
@@ -253,15 +259,13 @@ func TestProcessLogProviderMultipleProcesses(t *testing.T) {
 	changes = p.processEventsNoVerifyReadable(unsetBundle)
 	assert.Len(t, changes.Schedule, 0)
 	assert.Len(t, changes.Unschedule, 2)
-	found1, found2 = false, false
-	for _, config := range changes.Unschedule {
-		if config.Name == "process-test-service-_var_log_test.log" {
-			found1 = true
-		} else if config.Name == "process-test-service-2-_var_log_test2.log" {
-			found2 = true
-		}
-	}
+
+	unscheduleMap := scheduleToMap(changes.Unschedule)
+
+	_, found1 = unscheduleMap["process-test-service-_var_log_test.log"]
 	assert.True(t, found1)
+
+	_, found2 = unscheduleMap["process-test-service-2-_var_log_test2.log"]
 	assert.True(t, found2)
 }
 
@@ -436,20 +440,16 @@ func TestProcessLogProviderOneProcessMultipleLogFiles(t *testing.T) {
 	changes := p.processEventsNoVerifyReadable(setBundle)
 	assert.Len(t, changes.Schedule, 2)
 	assert.Len(t, changes.Unschedule, 0)
-	var found1, found2 bool
-	for _, config := range changes.Schedule {
-		if config.Name == "process-test-service-_var_log_test.log" {
-			if string(config.LogsConfig) == `[{"path":"/var/log/test.log","service":"test-service","source":"test-service-gen","type":"file"}]` {
-				found1 = true
-			}
-		} else if config.Name == "process-test-service-_var_log_test2.log" {
-			if string(config.LogsConfig) == `[{"path":"/var/log/test2.log","service":"test-service","source":"test-service-gen","type":"file"}]` {
-				found2 = true
-			}
-		}
-	}
+
+	scheduleMap := scheduleToMap(changes.Schedule)
+
+	config1, found1 := scheduleMap["process-test-service-_var_log_test.log"]
 	assert.True(t, found1)
+	assert.Equal(t, `[{"path":"/var/log/test.log","service":"test-service","source":"test-service-gen","type":"file"}]`, string(config1.LogsConfig))
+
+	config2, found2 := scheduleMap["process-test-service-_var_log_test2.log"]
 	assert.True(t, found2)
+	assert.Equal(t, `[{"path":"/var/log/test2.log","service":"test-service","source":"test-service-gen","type":"file"}]`, string(config2.LogsConfig))
 
 	unsetEvent := workloadmeta.Event{
 		Type:   workloadmeta.EventTypeUnset,
@@ -537,18 +537,15 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	assert.Equal(t, "process-test-service-_var_log_test1.log", unscheduledConfig.Name)
 
 	// Check that new configs were scheduled
-	var found2, found3 bool
-	for _, config := range changes.Schedule {
-		if config.Name == "process-test-service-_var_log_test2.log" {
-			found2 = true
-			assert.Contains(t, string(config.LogsConfig), "/var/log/test2.log")
-		} else if config.Name == "process-test-service-_var_log_test3.log" {
-			found3 = true
-			assert.Contains(t, string(config.LogsConfig), "/var/log/test3.log")
-		}
-	}
+	scheduleMap := scheduleToMap(changes.Schedule)
+
+	config2, found2 := scheduleMap["process-test-service-_var_log_test2.log"]
 	assert.True(t, found2)
+	assert.Contains(t, string(config2.LogsConfig), "/var/log/test2.log")
+
+	config3, found3 := scheduleMap["process-test-service-_var_log_test3.log"]
 	assert.True(t, found3)
+	assert.Contains(t, string(config3.LogsConfig), "/var/log/test3.log")
 
 	// Verify reference counts are correct
 	key1 := p.generateServiceLogKey("/var/log/test1.log")
@@ -597,15 +594,12 @@ func TestProcessLogProviderProcessLogFilesChange(t *testing.T) {
 	require.Len(t, changes.Unschedule, 2)
 
 	// Check that both configs were unscheduled
-	var foundUnschedule2, foundUnschedule3 bool
-	for _, config := range changes.Unschedule {
-		if config.Name == "process-test-service-_var_log_test2.log" {
-			foundUnschedule2 = true
-		} else if config.Name == "process-test-service-_var_log_test3.log" {
-			foundUnschedule3 = true
-		}
-	}
+	unscheduleMap := scheduleToMap(changes.Unschedule)
+
+	_, foundUnschedule2 := unscheduleMap["process-test-service-_var_log_test2.log"]
 	assert.True(t, foundUnschedule2)
+
+	_, foundUnschedule3 := unscheduleMap["process-test-service-_var_log_test3.log"]
 	assert.True(t, foundUnschedule3)
 
 	// Verify all reference entries are cleaned up
@@ -686,8 +680,10 @@ func TestProcessLogProviderFileReadabilityVerification(t *testing.T) {
 	assert.Len(t, changes.Unschedule, 0)
 
 	// Verify both configs were scheduled
+	scheduleMap := scheduleToMap(changes.Schedule)
+
 	var foundReadable, foundNonReadable bool
-	for _, config := range changes.Schedule {
+	for _, config := range scheduleMap {
 		if strings.Contains(string(config.LogsConfig), readableFile.Name()) {
 			foundReadable = true
 		}
