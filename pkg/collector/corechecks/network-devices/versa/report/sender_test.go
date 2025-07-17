@@ -1439,16 +1439,16 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 	}
 }
 
-func TestSendTopApplicationUsersMetrics(t *testing.T) {
+func TestSendTopUserMetrics(t *testing.T) {
 	tests := []struct {
-		name                       string
-		topApplicationUsersMetrics []client.TopApplicationUsersMetrics
-		deviceNameToIDMap          map[string]string
-		expectedMetrics            []expectedMetric
+		name              string
+		topUserMetrics    []client.TopUserMetrics
+		deviceNameToIDMap map[string]string
+		expectedMetrics   []expectedMetric
 	}{
 		{
 			name: "Single user and appliance with device mapping",
-			topApplicationUsersMetrics: []client.TopApplicationUsersMetrics{
+			topUserMetrics: []client.TopUserMetrics{
 				{
 					DrillKey:    "test-branch-2B,testUser1",
 					Site:        "test-branch-2B",
@@ -1499,7 +1499,7 @@ func TestSendTopApplicationUsersMetrics(t *testing.T) {
 		},
 		{
 			name: "Multiple users single appliance with device mapping",
-			topApplicationUsersMetrics: []client.TopApplicationUsersMetrics{
+			topUserMetrics: []client.TopUserMetrics{
 				{
 					DrillKey:    "branch-1,testUser2",
 					Site:        "branch-1",
@@ -1590,10 +1590,10 @@ func TestSendTopApplicationUsersMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:                       "Empty applications by appliance metrics",
-			topApplicationUsersMetrics: []client.TopApplicationUsersMetrics{},
-			deviceNameToIDMap:          map[string]string{},
-			expectedMetrics:            []expectedMetric{},
+			name:              "Empty top user metrics",
+			topUserMetrics:    []client.TopUserMetrics{},
+			deviceNameToIDMap: map[string]string{},
+			expectedMetrics:   []expectedMetric{},
 		},
 	}
 
@@ -1603,7 +1603,7 @@ func TestSendTopApplicationUsersMetrics(t *testing.T) {
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			s := NewSender(mockSender, "default")
-			s.SendTopApplicationUsersMetrics(tt.topApplicationUsersMetrics, tt.deviceNameToIDMap)
+			s.SendTopUserMetrics(tt.topUserMetrics, tt.deviceNameToIDMap)
 
 			for _, metric := range tt.expectedMetrics {
 				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)

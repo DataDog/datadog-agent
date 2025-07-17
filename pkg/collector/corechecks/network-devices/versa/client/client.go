@@ -673,8 +673,8 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 	return metrics, nil
 }
 
-// GetTopApplicationUsers retrieves top users of applications by appliance from the Versa Analytics API
-func (client *Client) GetTopApplicationUsers(tenant string) ([]TopApplicationUsersMetrics, error) {
+// GetTopUsers retrieves top users of applications by appliance from the Versa Analytics API
+func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
 	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "appUser(site,user)", "summary", []string{
 		"sessions",
@@ -690,19 +690,19 @@ func (client *Client) GetTopApplicationUsers(tenant string) ([]TopApplicationUse
 		return nil, fmt.Errorf("failed to get applications by appliance metrics: %v", err)
 	}
 	aaData := resp.AaData
-	metrics, err := parseTopApplicationUsersMetrics(aaData)
+	metrics, err := parseTopUserMetrics(aaData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse applications by appliance metrics: %v", err)
 	}
 	return metrics, nil
 }
 
-// parseTopApplicationUsersMetrics parses the raw AaData response into TopApplicationUsers structs
+// parseTopUserMetrics parses the raw AaData response into TopUser structs
 // TODO: can I use a shared struct for the response for application metrics?
-func parseTopApplicationUsersMetrics(data [][]interface{}) ([]TopApplicationUsersMetrics, error) {
-	var rows []TopApplicationUsersMetrics
+func parseTopUserMetrics(data [][]interface{}) ([]TopUserMetrics, error) {
+	var rows []TopUserMetrics
 	for _, row := range data {
-		m := TopApplicationUsersMetrics{}
+		m := TopUserMetrics{}
 		if len(row) != 9 {
 			return nil, fmt.Errorf("expected 9 columns, got %d", len(row))
 		}

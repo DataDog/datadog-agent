@@ -558,8 +558,8 @@ func TestGetApplicationsByAppliance(t *testing.T) {
 	require.Equal(t, expectedApplicationsByApplianceMetrics, appsByApplianceMetrics)
 }
 
-func TestGetTopApplicationUsers(t *testing.T) {
-	expectedTopApplicationUsers := []TopApplicationUsersMetrics{
+func TestGetTopUsers(t *testing.T) {
+	expectedTopUsers := []TopUserMetrics{
 		{
 			DrillKey:    "test-branch-2B,testUser",
 			Site:        "test-branch-2B",
@@ -581,9 +581,9 @@ func TestGetTopApplicationUsers(t *testing.T) {
 	client.directorEndpoint = server.URL
 	require.NoError(t, err)
 
-	topApplicationUsers, err := client.GetTopApplicationUsers("datadog")
+	topUsers, err := client.GetTopUsers("datadog")
 	require.NoError(t, err)
 
-	require.Equal(t, len(topApplicationUsers), 1)
-	require.Equal(t, expectedTopApplicationUsers, topApplicationUsers)
+	require.Equal(t, len(topUsers), 1)
+	require.Equal(t, expectedTopUsers, topUsers)
 }

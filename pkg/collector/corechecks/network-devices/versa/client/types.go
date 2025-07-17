@@ -454,8 +454,8 @@ type ApplicationsByApplianceMetrics struct {
 	Bandwidth   float64
 }
 
-// TopApplicationUsersMetrics represents the columns to parse from the TopApplicationUsersMetricsResponse
-type TopApplicationUsersMetrics struct {
+// TopUserMetrics represents the columns to parse from the TopUserMetricsResponse
+type TopUserMetrics struct {
 	DrillKey    string
 	Site        string
 	User        string

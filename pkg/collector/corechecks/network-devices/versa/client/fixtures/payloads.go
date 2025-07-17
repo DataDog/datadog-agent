@@ -496,8 +496,8 @@ const GetApplicationsByApplianceMetrics = `
     ]
 }`
 
-// GetTopApplicationUsers /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
-const GetTopApplicationUsers = `
+// GetTopUsers /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+const GetTopUsers = `
 {
     "qTime": 1,
     "sEcho": 0,

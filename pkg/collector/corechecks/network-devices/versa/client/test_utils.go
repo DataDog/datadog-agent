@@ -119,7 +119,7 @@ func SetupMockAPIServer() *httptest.Server {
 		} else if strings.Contains(query, "app(") {
 			fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 		} else if strings.Contains(query, "appUser(") {
-			fixtureHandler(fixtures.GetTopApplicationUsers)(w, r)
+			fixtureHandler(fixtures.GetTopUsers)(w, r)
 		} else {
 			http.Error(w, "Unknown query type", http.StatusBadRequest)
 		}

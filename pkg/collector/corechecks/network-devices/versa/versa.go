@@ -293,11 +293,11 @@ func (v *VersaCheck) Run() error {
 
 		// Collect top user metrics if enabled
 		if *v.config.CollectTopUserMetrics {
-			topApplicationUserMetrics, err := c.GetTopApplicationUsers(org.Name)
+			topUserMetrics, err := c.GetTopUsers(org.Name)
 			if err != nil {
-				log.Errorf("error getting applications by appliance metrics from organization %s: %v", org.Name, err)
+				log.Errorf("error getting top user metrics from organization %s: %v", org.Name, err)
 			} else {
-				v.metricsSender.SendTopApplicationUsersMetrics(topApplicationUserMetrics, deviceNameToIDMap)
+				v.metricsSender.SendTopUserMetrics(topUserMetrics, deviceNameToIDMap)
 			}
 		}
 	}
