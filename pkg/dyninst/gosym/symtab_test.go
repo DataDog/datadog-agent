@@ -67,7 +67,7 @@ func runTest(
 	moduledata, err := object.ParseModuleData(mef)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(mef)
 	require.NoError(t, err)
 
 	goDebugSections, err := moduledata.GoDebugSections(mef)
