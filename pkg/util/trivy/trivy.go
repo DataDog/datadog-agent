@@ -94,6 +94,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 
 	option := artifact.Option{
 		Offline:           true,
+		OfflineJar:        true,
 		NoProgress:        true,
 		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
 		Parallel:          parallel,
