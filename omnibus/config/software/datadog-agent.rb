@@ -138,7 +138,7 @@ build do
   platform = windows_arch_i386? ? "x86" : "x64"
   command "dda inv -- -e  trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   unless windows_target?
-    command "cd cmd/loader && go build -o loader && mv loader #{install_dir}/embedded/bin/trace-loader"
+    command "cd cmd/loader && go build -tags otlp -o loader && mv loader #{install_dir}/embedded/bin/trace-loader"
   end
 
   if windows_target?
