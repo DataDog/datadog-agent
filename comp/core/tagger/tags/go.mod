@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/tags
 
-go 1.23.0
+go 1.24.5
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
