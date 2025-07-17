@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/test/otel
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.24.5
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0
