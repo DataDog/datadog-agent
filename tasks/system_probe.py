@@ -114,6 +114,7 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
         + "-i $in --target $windrestarget -O coff -o $out",
     )
 
+
 def ninja_define_binary_compiler(nw: NinjaWriter):
     nw.rule(
         name="cbin",
@@ -356,22 +357,23 @@ def ninja_embedded_binaries(nw: NinjaWriter):
     for binary in embedded_bins:
         infile = os.path.join(ebpf_c_dir, f"{binary}.c")
         outfile = os.path.join(ebpf_c_dir, binary)
-        #if os.getenv('DD_CC'):
+        # if os.getenv('DD_CC'):
         #    cc = os.getenv('DD_CC')
-        #else:
+        # else:
         cc = "gcc"
 
         nw.build(
-            inputs=[infile], outputs=[outfile], rule="cbin", variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"}
+            inputs=[infile],
+            outputs=[outfile],
+            rule="cbin",
+            variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"},
         )
 
 
 def ninja_test_ebpf_program(nw: NinjaWriter, build_dir, ebpf_c_dir, test_flags, prog):
     infile = os.path.join(ebpf_c_dir, f"{prog}.c")
     outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-    ninja_ebpf_co_re_program(
-        nw, infile, outfile, {"flags": test_flags}
-    )
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": test_flags})
 
 
 def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
@@ -384,9 +386,11 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     for prog in test_programs:
         ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
 
+
 def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
     build_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
     ninja_test_ebpf_program(nw, build_dir, build_dir, "", "uprobe-trigger")
+
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
     gpu_headers_dir = Path("pkg/gpu/ebpf/c")
