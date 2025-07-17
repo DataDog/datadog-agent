@@ -255,32 +255,28 @@ func (w *WinCertChk) Run() error {
 			if cert.TrustStatusError != 0 {
 				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
-				sender.ServiceCheck("windows_certificate.cert_chain_verification",
+				message := fmt.Sprintf("Certificate Validaiton failed. The certificates in the certificate chain have the following errors: %s", strings.Join(trustStatusErrors, ", "))
+				if cert.ChainPolicyError != 0 {
+					chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
+					message = fmt.Sprintf("%s, %s", message, chainPolicyError)
+				}
+				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckCritical,
 					"",
 					tags,
-					fmt.Sprintf("Certificate chain verification failed with the following errors: %s", strings.Join(trustStatusErrors, ", ")),
+					message,
 				)
-			} else {
-				sender.ServiceCheck("windows_certificate.cert_chain_verification",
-					servicecheck.ServiceCheckOK,
-					"",
-					tags,
-					"",
-				)
-			}
-
-			if cert.ChainPolicyError != 0 {
+			} else if cert.ChainPolicyError != 0 {
 				log.Debugf("Certificate %s has chain policy error: %d", cert.Certificate.Subject.String(), cert.ChainPolicyError)
-				chainPolicyErrors := getCertChainPolicyErrors(cert.ChainPolicyError)
-				sender.ServiceCheck("windows_certificate.cert_chain_policy_verification",
+				chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
+				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckCritical,
 					"",
 					tags,
-					fmt.Sprintf("Certificate chain policy verification failed with the following errors: %s", strings.Join(chainPolicyErrors, ", ")),
+					chainPolicyError,
 				)
 			} else {
-				sender.ServiceCheck("windows_certificate.cert_chain_policy_verification",
+				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckOK,
 					"",
 					tags,
@@ -762,25 +758,9 @@ func getCertChainTrustStatusErrors(trustStatusError uint32) []string {
 	return errors
 }
 
-func getCertChainPolicyErrors(chainPolicyError uint32) []string {
-	var errors []string
-	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_UNTRUSTEDROOT) {
-		errors = append(errors, "Untrusted root")
-	}
-	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_REVOKED) {
-		errors = append(errors, "Revoked")
-	}
-	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_EXPIRED) {
-		errors = append(errors, "Expired")
-	}
-	if windows.Errno(chainPolicyError) == windows.Errno(windows.CERT_E_INVALID_NAME) {
-		errors = append(errors, "Invalid name")
-	}
-	if errors == nil {
-		err := fmt.Sprintf("Unknown Error: %d", chainPolicyError)
-		errors = append(errors, err)
-	}
-	return errors
+func getCertChainPolicyErrors(chainPolicyError uint32) string {
+	errorMessage := fmt.Sprintf("Certificate chain policy validation failed with the following error 0x%X: %v", chainPolicyError, windows.Errno(chainPolicyError))
+	return errorMessage
 }
 
 func freeContext(certContext *windows.CertContext) {
