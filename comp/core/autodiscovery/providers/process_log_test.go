@@ -58,9 +58,6 @@ func TestProcessLogProviderEvents(t *testing.T) {
 		Events: []workloadmeta.Event{setEvent},
 	}
 	changes := p.processEventsNoVerifyReadable(setBundle)
-	t.Logf("Changes: %+v", changes)
-	t.Logf("Schedule count: %d", len(changes.Schedule))
-	t.Logf("Unschedule count: %d", len(changes.Unschedule))
 	assert.Len(t, changes.Schedule, 1)
 	assert.Len(t, changes.Unschedule, 0)
 	config := changes.Schedule[0]
