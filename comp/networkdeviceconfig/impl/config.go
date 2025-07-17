@@ -43,7 +43,7 @@ type ProcessedNcmConfig struct {
 
 func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
 	ncm := &RawNcmConfig{}
-	err := structure.UnmarshalKey(agentConfig, "network_config_management", &ncm)
+	err := structure.UnmarshalKey(agentConfig, "network_device_config_management", &ncm)
 	if err != nil {
 		return &ProcessedNcmConfig{}, err
 	}

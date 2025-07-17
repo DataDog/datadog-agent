@@ -20,7 +20,7 @@ func TestConfig(t *testing.T) {
 		{
 			name: "NCM configured with one device using SSH configurations",
 			configYaml: `
-network_config_management:
+network_device_config_management:
   namespace: test
   devices:
     - ip_address: 10.0.0.1
@@ -48,7 +48,7 @@ network_config_management:
 		{
 			name: "NCM configured with multiple devices using SSH",
 			configYaml: `
-network_config_management:
+network_device_config_management:
   namespace: test
   devices:
     - ip_address: 10.0.0.1
@@ -109,7 +109,7 @@ func TestConfig_Errors(t *testing.T) {
 		{
 			name: "NCM malformed config, wrong type for devices (string instead of map)",
 			configYaml: `
-network_config_management:
+network_device_config_management:
   namespace: test
   devices: blah`,
 			expectedErr: "'devices[0]' expected a map, got 'string'",

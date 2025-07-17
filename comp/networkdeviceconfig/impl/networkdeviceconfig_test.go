@@ -91,7 +91,7 @@ func TestRetrieveConfiguration_Real(t *testing.T) {
 			name:     "Retrieve running configuration from device",
 			deviceIP: "10.0.0.1",
 			configYaml: `
-network_config_management:
+network_device_config_management:
   namespace: test
   devices:
     - ip_address: 10.0.0.1
