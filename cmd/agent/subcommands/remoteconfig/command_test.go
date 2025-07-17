@@ -25,3 +25,13 @@ func TestCommand(t *testing.T) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }
+
+func TestResetCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"remote-config", "reset"},
+		reset,
+		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}

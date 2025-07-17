@@ -9,7 +9,6 @@ package object
 
 import (
 	"bytes"
-	"compress/zlib"
 	"debug/dwarf"
 	"encoding/binary"
 	"errors"
@@ -19,6 +18,7 @@ import (
 	"unsafe"
 
 	dlvdwarf "github.com/go-delve/delve/pkg/dwarf"
+	"github.com/klauspost/compress/zlib"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
