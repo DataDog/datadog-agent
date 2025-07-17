@@ -1,6 +1,6 @@
 module datadog-lambda-extension/recorder-extension
 
-go 1.18
+go 1.24.5
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/obfuscate => github.com/DataDog/datadog-agent/pkg/obfuscate v0.0.0-20211201172000-1fd9a353e8e4
