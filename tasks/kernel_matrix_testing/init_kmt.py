@@ -26,11 +26,15 @@ def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
 
 
 def init_kernel_matrix_testing_system(
-    ctx: Context, images: str | None = None, all_images: bool = False, remote_setup_only: bool = False
+    ctx: Context,
+    images: str | None = None,
+    all_images: bool = False,
+    remote_setup_only: bool = False,
+    exclude_requirements: list[str] | None = None,
 ):
     kmt_os = get_kmt_os()
 
-    requirements = get_requirements(remote_setup_only)
+    requirements = get_requirements(remote_setup_only, exclude_requirements)
     if check_requirements(ctx, requirements, fix=True, echo=True, verbose=ctx.config["run"]["echo"]):
         raise Exit("KMT setup failed")
 
