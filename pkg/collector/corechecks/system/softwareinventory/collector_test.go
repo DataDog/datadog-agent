@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package softwareinventory
 
 import (
 	"errors"
@@ -54,14 +54,14 @@ func TestCollectorOrchestration(t *testing.T) {
 			collectors: []SoftwareCollector{
 				&MockCollector{
 					entries: map[string]*SoftwareEntry{
-						"app1": {DisplayName: "App 1", Version: "1.0", Source: "desktop[registry]"},
-						"app2": {DisplayName: "App 2", Version: "2.0", Source: "desktop[registry]"},
+						"app1": {DisplayName: "App 1", Version: "1.0", Source: "desktop"},
+						"app2": {DisplayName: "App 2", Version: "2.0", Source: "desktop"},
 					},
 				},
 				&MockCollector{
 					entries: map[string]*SoftwareEntry{
-						"app1": {DisplayName: "App 1", Version: "1.0", Source: "desktop[msi]"}, // Same app, different source
-						"app3": {DisplayName: "App 3", Version: "3.0", Source: "desktop[msi]"},
+						"app1": {DisplayName: "App 1", Version: "1.0", Source: "desktop"}, // Same app, different source
+						"app3": {DisplayName: "App 3", Version: "3.0", Source: "desktop"},
 					},
 				},
 			},
@@ -72,7 +72,7 @@ func TestCollectorOrchestration(t *testing.T) {
 			collectors: []SoftwareCollector{
 				&MockCollector{
 					entries: map[string]*SoftwareEntry{
-						"valid":   {DisplayName: "Valid App", Version: "1.0", Source: "desktop[msi]"},
+						"valid":   {DisplayName: "Valid App", Version: "1.0", Source: "desktop"},
 						"invalid": nil, // This should generate a warning
 					},
 				},
@@ -88,12 +88,12 @@ func TestCollectorOrchestration(t *testing.T) {
 				},
 				&MockCollector{
 					entries: map[string]*SoftwareEntry{
-						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop[msi]"},
+						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 				},
 			},
-			expectedEntryCount:  1, // Should still get MSI entries despite registry error
-			expectedWarningMsgs: []string{"error collecting software: registry access denied"},
+			expectedEntryCount: 1, // Should still get MSI entries despite registry error
+			expectError:        true,
 		},
 		{
 			name: "Collector error handling - multiple errors",
@@ -101,26 +101,26 @@ func TestCollectorOrchestration(t *testing.T) {
 				&MockCollector{
 					err: fmt.Errorf("msi error"),
 					entries: map[string]*SoftwareEntry{
-						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop[msi]"},
+						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 				},
 				&MockCollector{err: fmt.Errorf("registry error")},
 			},
-			expectedEntryCount:  0, // No entries returned on error because the collector was skipped
-			expectedWarningMsgs: []string{"msi error", "registry error"},
+			expectedEntryCount: 0, // No entries returned on error because the collector was skipped
+			expectError:        true,
 		},
 		{
 			name: "Warning aggregation from multiple sources",
 			collectors: []SoftwareCollector{
 				&MockCollector{
 					entries: map[string]*SoftwareEntry{
-						"app1": {DisplayName: "Registry App", Version: "1.0", Source: "desktop[registry]"},
+						"app1": {DisplayName: "Registry App", Version: "1.0", Source: "desktop"},
 					},
 					warnings: []*Warning{warnf("registry warning 1"), warnf("registry warning 2")},
 				},
 				&MockCollector{
 					entries: map[string]*SoftwareEntry{
-						"app2": {DisplayName: "MSI App", Version: "1.0", Source: "desktop[msi]"},
+						"app2": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 					warnings: []*Warning{warnf("msi warning 1")},
 				},
@@ -337,10 +337,10 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 		require.True(t, exists, "Entry for %s should exist", td.displayName)
 		assert.Equal(t, td.displayName, entry.DisplayName, "DisplayName should match")
 		assert.Equal(t, trimVersion(td.version), entry.Version, "Version should be trimmed")
-		assert.Equal(t, "desktop[registry]", entry.Source, "Source should be registry")
+		assert.Equal(t, "desktop", entry.Source, "Source should be registry")
 		assert.True(t, entry.Is64Bit, "Should be marked as 64-bit for WOW64_64KEY")
-		assert.Equal(t, td.publisher, entry.Properties["Publisher"], "Publisher should match")
-		assert.Equal(t, td.subKey, entry.Properties["ProductCode"], "ProductCode should be subkey name")
+		assert.Equal(t, td.publisher, entry.Publisher, "Publisher should match")
+		assert.Equal(t, td.subKey, entry.ProductCode, "ProductCode should be subkey name")
 	}
 }
 

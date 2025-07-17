@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package softwareinventory
 
 import (
 	"fmt"
@@ -65,13 +65,15 @@ func warnf(format string, args ...interface{}) *Warning {
 
 // SoftwareEntry represents a software installation
 type SoftwareEntry struct {
-	DisplayName string            `json:"display_name"`
-	Version     string            `json:"version"`
-	InstallDate string            `json:"install_date,omitempty"`
-	Source      string            `json:"source"`
-	UserSID     string            `json:"user_sid,omitempty"`
-	Properties  map[string]string `json:"properties,omitempty"`
-	Is64Bit     bool              `json:"is_64_bit"`
+	DisplayName string `json:"name"`
+	Version     string `json:"version"`
+	InstallDate string `json:"deployment_time,omitempty"`
+	Source      string `json:"software_type"`
+	UserSID     string `json:"user,omitempty"`
+	Is64Bit     bool   `json:"is_64_bit"`
+	Publisher   string `json:"publisher"`
+	Status      string `json:"deployment_status"`
+	ProductCode string `json:"product_code"`
 }
 
 // GetID returns a unique identifier for the software entry
