@@ -121,6 +121,8 @@ const (
 	FileFsmountEventType
 	// FileOpenTreeEventType Open Tree event
 	FileOpenTreeEventType
+	// FileMoveMountType Move Mount even
+	FileMoveMountType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -287,6 +289,8 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
+	case FileMoveMountType:
+		return "move_mount"
 	default:
 		return "unknown"
 	}

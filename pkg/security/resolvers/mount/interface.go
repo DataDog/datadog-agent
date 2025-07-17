@@ -20,6 +20,7 @@ type ResolverInterface interface {
 	Delete(mountID uint32) error
 	ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, error)
 	Insert(m model.Mount, pid uint32) error
+	InsertMoved(m model.Mount) error
 	DelPid(pid uint32)
 	ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error)
 	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error)
