@@ -705,18 +705,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		if bs.IsWithinCI() {
 			fullStackName := fmt.Sprintf("organization/e2eci/%s", stackName)
 
-			if strings.Contains(fullStackName, "eks") {
-				bs.T().Logf("Skipping stack deletion for EKS stack %s", fullStackName)
-				continue
+			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
+			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
 			} else {
-				// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-				cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
-				} else {
-					bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
-				}
+				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
 			}
 		} else {
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
