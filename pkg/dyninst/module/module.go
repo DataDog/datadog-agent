@@ -78,7 +78,6 @@ func NewModule(
 		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{},
 	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
-		actuator:       controller.actuator,
 		scraperHandler: rcScraper.AsProcMonHandler(),
 		controller:     controller,
 	})
