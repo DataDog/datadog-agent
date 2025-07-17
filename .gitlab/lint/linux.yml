@@ -36,6 +36,7 @@
   stage: lint
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
   tags: ["arch:amd64"]
+  needs: []
 
 .linux_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
