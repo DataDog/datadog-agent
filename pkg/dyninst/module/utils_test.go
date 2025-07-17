@@ -11,14 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 )
 
-type processHandler struct {
-	controller     *Controller
-	scraperHandler procmon.Handler
+// CheckForUpdates is a test helper that calls the private method
+// checkForUpdates.
+func (c *Controller) CheckForUpdates() {
+	c.checkForUpdates()
 }
 
-var _ procmon.Handler = (*processHandler)(nil)
-
-func (c *processHandler) HandleUpdate(update procmon.ProcessesUpdate) {
-	c.controller.handleRemovals(update.Removals)
-	c.scraperHandler.HandleUpdate(update)
+// HandleRemovals is a test helper that calls the private method
+// handleRemovals.
+func (c *Controller) HandleRemovals(removals []procmon.ProcessID) {
+	c.handleRemovals(removals)
 }
