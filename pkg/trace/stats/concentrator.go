@@ -140,6 +140,19 @@ func (c *Concentrator) Add(t Input) {
 	}
 }
 
+// AddOne adds a single trace to the concentrator.
+// This is used by the agent to more efficiently add a single chunk to the concentrator
+// avoiding allocating a new Input struct.
+func (c *Concentrator) AddOne(pt traceutil.ProcessedTrace, containerID string, containerTags []string, processTags string) {
+	tags := infraTags{
+		containerID:     containerID,
+		containerTags:   containerTags,
+		processTagsHash: processTagsHash(processTags),
+		processTags:     processTags,
+	}
+	c.addNow(&pt, tags)
+}
+
 type infraTags struct {
 	containerID     string
 	containerTags   []string

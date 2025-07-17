@@ -93,8 +93,24 @@ func (c *mockConcentrator) Stop()  {}
 func (c *mockConcentrator) Add(t stats.Input) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// The real concentrator allocs new StatSpans for each span
+	// So we need to clone the traces to avoid modifications that happen after data is sent to the concentrator
+	for i := 0; i < len(t.Traces); i++ {
+		t.Traces[i] = *t.Traces[i].Clone()
+	}
 	c.stats = append(c.stats, t)
 }
+func (c *mockConcentrator) AddOne(pt traceutil.ProcessedTrace, containerID string, containerTags []string, processTags string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stats = append(c.stats, stats.Input{
+		ContainerID:   containerID,
+		ContainerTags: containerTags,
+		ProcessTags:   processTags,
+		Traces:        []traceutil.ProcessedTrace{*pt.Clone()},
+	})
+}
+
 func (c *mockConcentrator) Reset() []stats.Input {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -666,7 +682,7 @@ func TestConcentratorInput(t *testing.T) {
 	tts := []struct {
 		name            string
 		in              *api.Payload
-		expected        stats.Input
+		expected        []stats.Input
 		expectedSampled *pb.TracerPayload
 		withFargate     bool
 		features        string
@@ -681,14 +697,16 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks:     []*pb.TraceChunk{spansToChunk(rootSpan)},
 				},
 			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:           rootSpan,
-						TracerHostname: "banana",
-						AppVersion:     "camembert",
-						TracerEnv:      "apple",
-						TraceChunk:     spansToChunk(rootSpan),
+			expected: []stats.Input{
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:           rootSpan,
+							TracerHostname: "banana",
+							AppVersion:     "camembert",
+							TracerEnv:      "apple",
+							TraceChunk:     spansToChunk(rootSpan),
+						},
 					},
 				},
 			},
@@ -700,14 +718,16 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks: []*pb.TraceChunk{spansToChunk(rootSpanWithTracerTags)},
 				},
 			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:           rootSpanWithTracerTags,
-						TracerHostname: "host",
-						AppVersion:     "version",
-						TracerEnv:      "env",
-						TraceChunk:     spansToChunk(rootSpanWithTracerTags),
+			expected: []stats.Input{
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:           rootSpanWithTracerTags,
+							TracerHostname: "host",
+							AppVersion:     "version",
+							TracerEnv:      "env",
+							TraceChunk:     spansToChunk(rootSpanWithTracerTags),
+						},
 					},
 				},
 			},
@@ -719,11 +739,13 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks: []*pb.TraceChunk{spansToChunk(rootSpan)},
 				},
 			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
+			expected: []stats.Input{
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:       rootSpan,
+							TraceChunk: spansToChunk(rootSpan),
+						},
 					},
 				},
 			},
@@ -737,14 +759,16 @@ func TestConcentratorInput(t *testing.T) {
 				},
 			},
 			withFargate: true,
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
+			expected: []stats.Input{
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:       rootSpan,
+							TraceChunk: spansToChunk(rootSpan),
+						},
 					},
+					ContainerID: "aaah",
 				},
-				ContainerID: "aaah",
 			},
 		},
 		{
@@ -756,7 +780,7 @@ func TestConcentratorInput(t *testing.T) {
 				},
 				ClientComputedStats: true,
 			},
-			expected: stats.Input{},
+			expected: []stats.Input{},
 		},
 		{
 			name: "many chunks",
@@ -769,28 +793,38 @@ func TestConcentratorInput(t *testing.T) {
 					},
 				},
 			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:           rootSpanWithTracerTags,
-						TraceChunk:     spansToChunk(rootSpanWithTracerTags, span),
-						TracerHostname: "host",
-						AppVersion:     "version",
-						TracerEnv:      "env",
+			expected: []stats.Input{
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:           rootSpanWithTracerTags,
+							TraceChunk:     spansToChunk(rootSpanWithTracerTags, span),
+							TracerHostname: "host",
+							AppVersion:     "version",
+							TracerEnv:      "env",
+						},
 					},
-					{
-						Root:           rootSpan,
-						TraceChunk:     spansToChunk(rootSpan),
-						TracerHostname: "host",
-						AppVersion:     "version",
-						TracerEnv:      "env",
+				},
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:           rootSpan,
+							TraceChunk:     spansToChunk(rootSpan),
+							TracerHostname: "host",
+							AppVersion:     "version",
+							TracerEnv:      "env",
+						},
 					},
-					{
-						Root:           rootSpanEvent,
-						TraceChunk:     spansToChunk(rootSpanEvent, span),
-						TracerHostname: "host",
-						AppVersion:     "version",
-						TracerEnv:      "env",
+				},
+				{
+					Traces: []traceutil.ProcessedTrace{
+						{
+							Root:           rootSpanEvent,
+							TraceChunk:     spansToChunk(rootSpanEvent, span),
+							TracerHostname: "host",
+							AppVersion:     "version",
+							TracerEnv:      "env",
+						},
 					},
 				},
 			},
@@ -817,12 +851,14 @@ func TestConcentratorInput(t *testing.T) {
 			agent.Process(tc.in)
 			mco := agent.Concentrator.(*mockConcentrator)
 
-			if len(tc.expected.Traces) == 0 {
+			if len(tc.expected) == 0 {
 				assert.Len(t, mco.stats, 0)
 				return
 			}
-			require.Len(t, mco.stats, 1)
-			assert.Equal(t, tc.expected, mco.stats[0])
+			require.Len(t, mco.stats, len(tc.expected))
+			for i := range tc.expected {
+				assert.Equal(t, tc.expected[i], mco.stats[i])
+			}
 
 			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
 				payloads := agent.TraceWriter.(*mockTraceWriter).payloads
