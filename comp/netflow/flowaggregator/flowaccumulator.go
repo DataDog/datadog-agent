@@ -67,14 +67,14 @@ func newFlowContextValue(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, useValueMap bool, aggregationHashUseSyncPool bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, useValueMap bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]*flowContext),
 		flowsValues:                make(map[uint64]flowContext),
 		useValueMap:                useValueMap,
 		flowFlushInterval:          aggregatorFlushInterval,
 		flowContextTTL:             aggregatorFlowContextTTL,
-		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
+		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, logger),
 		portRollupThreshold:        portRollupThreshold,
 		portRollupDisabled:         portRollupDisabled,
 		hashCollisionFlowCount:     atomic.NewUint64(0),

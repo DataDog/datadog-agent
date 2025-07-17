@@ -41,6 +41,7 @@ type NetflowConfig struct {
 	SkipHashCollisionDetection bool `mapstructure:"skip_hash_collision_detection"`
 	AggregatorUseValueMap      bool `mapstructure:"aggregator_use_value_map"`
 	AggregationHashUseSyncPool bool `mapstructure:"aggregation_hash_use_sync_pool"`
+	PortRollupUseFixedSizeKey  bool `mapstructure:"portrollup_use_fixed_size_key"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
