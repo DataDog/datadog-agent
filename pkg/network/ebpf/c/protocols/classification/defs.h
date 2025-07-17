@@ -68,6 +68,7 @@ typedef enum {
     __LAYER_ENCRYPTION_MIN = LAYER_ENCRYPTION_BIT,
     //  Add encryption protocols below (eg. TLS)
     PROTOCOL_TLS,
+    PROTOCOL_PLAINTEXT,
     __LAYER_ENCRYPTION_MAX = LAYER_ENCRYPTION_MAX,
 } __attribute__ ((packed)) protocol_t;
 

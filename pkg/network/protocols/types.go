@@ -19,6 +19,8 @@ const (
 	Kafka
 	// TLS protocol
 	TLS
+	// Plaintext protocol (encryption layer)
+	Plaintext
 	// Mongo protocol
 	Mongo
 	// Postgres protocol
@@ -46,6 +48,8 @@ func (p ProtocolType) String() string {
 		return "Kafka"
 	case TLS:
 		return "TLS"
+	case Plaintext:
+		return "Plaintext"
 	case Mongo:
 		return "Mongo"
 	case Postgres:

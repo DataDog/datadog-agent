@@ -94,6 +94,8 @@ const (
 	ebpfKafka ebpfProtocolType = C.PROTOCOL_KAFKA
 	// TLS protocol
 	ebpfTLS ebpfProtocolType = C.PROTOCOL_TLS
+	// Plaintext protocol
+	ebpfPlaintext ebpfProtocolType = C.PROTOCOL_PLAINTEXT
 	// Mongo protocol
 	ebpfMongo ebpfProtocolType = C.PROTOCOL_MONGO
 	// Postgres protocol
