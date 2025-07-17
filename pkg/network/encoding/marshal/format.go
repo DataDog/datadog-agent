@@ -78,7 +78,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 					}
 				}
 				if !found {
-					log.Debugf("no location tag found for container %s - tags %#v", containerID, entityTags)
+					log.Warnf("no location tag found for container %s - tags %#v", containerID, entityTags)
 				}
 			}
 		}
