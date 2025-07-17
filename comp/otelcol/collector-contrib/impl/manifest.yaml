@@ -1,87 +1,87 @@
 connectors:
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
-    v0.129.0
+    v0.130.0
 dist:
   description: Datadog OpenTelemetry Collector
   module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
   name: otelcol-contrib
   output_path: ./comp/otelcol/collector-contrib/impl
-  version: 0.129.0
+  version: 0.130.0
 exporters:
-- gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.129.0
+- gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter
-    v0.129.0
-- gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.129.0
-- gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.129.0
-- gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.129.0
+    v0.130.0
+- gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.130.0
+- gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.130.0
+- gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter
-    v0.129.0
+    v0.130.0
 extensions:
-- gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.129.0
+- gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver
-    v0.129.0
+    v0.130.0
 processors:
-- gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.129.0
-- gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.129.0
+- gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.130.0
+- gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/routingprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor
-    v0.129.0
+    v0.130.0
 providers:
-- gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.35.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.35.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.35.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.35.0
-- gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.35.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.36.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.36.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/httpprovider v1.36.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.36.0
+- gomod: go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.36.0
 receivers:
-- gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.129.0
-- gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.129.0
+- gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.130.0
+- gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator
-    v0.129.0
+    v0.130.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
-    v0.129.0
+    v0.130.0
 replaces:
 - github.com/googleapis/gnostic v0.5.6 => github.com/googleapis/gnostic v0.5.5
 - github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 => github.com/docker/go-connections
