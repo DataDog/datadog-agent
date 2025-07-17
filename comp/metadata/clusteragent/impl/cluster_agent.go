@@ -213,10 +213,11 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 		}
 	}
 
-	// Add cluster check runner count
+	// Add cluster check runner and node agent counts
 	// Import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	if count, err := clusterchecks.GetCLCRunnerCount(); err == nil {
-		dca.metadata["cluster_check_runner_count"] = count
+	if clcRunnerCount, nodeAgentCount, err := clusterchecks.GetNodeTypeCounts(); err == nil {
+		dca.metadata["cluster_check_runner_count"] = clcRunnerCount
+		dca.metadata["cluster_check_node_agent_count"] = nodeAgentCount
 	}
 
 	//Sending dca configuration can be disabled using `inventories_configuration_enabled`.

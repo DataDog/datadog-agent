@@ -33,29 +33,21 @@ func GetStats() (*types.Stats, error) {
 	return handler.getStats(), nil
 }
 
-// GetCLCRunnerCount returns the number of nodes with NodeType == "clc-runner"
-func GetCLCRunnerCount() (int, error) {
+// GetNodeTypeCounts returns the number of CLC runners and node agents running cluster checks.
+func GetNodeTypeCounts() (clcRunnerCount, nodeAgentCount int, err error) {
 	key := cache.BuildAgentKey(handlerCacheKey)
 	x, found := cache.Cache.Get(key)
 	if !found {
-		return 0, errors.New("Clusterchecks not running")
+		return 0, 0, errors.New("Clusterchecks not running")
 	}
 
 	handler, ok := x.(*Handler)
 	if !ok {
-		return 0, errors.New("Cache entry is not a valid handler")
+		return 0, 0, errors.New("Cache entry is not a valid handler")
 	}
 
-	handler.dispatcher.store.RLock()
-	defer handler.dispatcher.store.RUnlock()
-
-	count := 0
-	for _, node := range handler.dispatcher.store.nodes {
-		if node != nil && node.nodetype == types.NodeTypeCLCRunner {
-			count++
-		}
-	}
-	return count, nil
+	clcRunnerCount, nodeAgentCount = handler.dispatcher.store.CountNodeTypes()
+	return clcRunnerCount, nodeAgentCount, nil
 }
 
 func (h *Handler) getStats() *types.Stats {
