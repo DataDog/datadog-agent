@@ -65,24 +65,24 @@ update_stack:
 
 /*
  * Processes decrypted TLS traffic and dispatches it to appropriate protocol handlers.
- * 
+ *
  * This function is called by various TLS hookpoints (OpenSSL, GnuTLS, GoTLS, JavaTLS)
  * to process decrypted TLS payloads. It manages the protocol stack for each connection,
  * classifies the decrypted payload if the application protocol is not yet known, and
  * dispatches the traffic to the appropriate protocol handler via tail calls.
- * 
+ *
  * The function first creates or retrieves a protocol stack for the connection. If the
  * application protocol is unknown, it attempts to classify the payload. For Kafka traffic,
  * an additional classification step may be performed via a tail call if Kafka monitoring
  * is enabled.
- * 
+ *
  * For each supported protocol, the function performs a tail call to a dedicated handler:
  * - HTTP: PROG_HTTP
  * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
  * - Kafka: PROG_KAFKA
  * - PostgreSQL: PROG_POSTGRES
  * - Redis: PROG_REDIS
- * 
+ *
  * The function takes the BPF program context, connection metadata (tuple), a pointer to
  * the decrypted payload and its length, and connection metadata tags as input.
  */
@@ -200,6 +200,39 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
     bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    if (!is_kafka) {
+        return;
+    }
+
+    protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
+    if (!stack) {
+        return;
+    }
+
+    set_protocol(stack, PROTOCOL_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA);
+}
+
+static __always_inline void tls_dispatch_kafka_api_versions(struct pt_regs *ctx)
+{
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return;
+    }
+
+    char *request_fragment = bpf_map_lookup_elem(&tls_classification_heap, &zero);
+    if (request_fragment == NULL) {
+        return;
+    }
+
+    conn_tuple_t normalized_tuple = args->tup;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
+    bool is_kafka = tlx_is_kafka_api_versions(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
     if (!is_kafka) {
         return;
     }
