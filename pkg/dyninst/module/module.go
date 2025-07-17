@@ -30,7 +30,7 @@ import (
 type Module struct {
 	procMon       *procmon.ProcessMonitor
 	actuator      *actuator.Actuator
-	controller    *controller
+	controller    *Controller
 	cancel        context.CancelFunc
 	logUploader   *uploader.LogsUploaderFactory
 	diagsUploader *uploader.DiagnosticsUploader
@@ -43,7 +43,10 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation module
-func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr error) {
+func NewModule(
+	config *Config,
+	subscriber process.Subscriber,
+) (_ *Module, retErr error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if retErr != nil {
@@ -70,7 +73,9 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 
 	actuator := actuator.NewActuator(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
-	controller := newController(actuator, logUploader, diagsUploader, rcScraper)
+	controller := NewController(
+		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{},
+	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
 		actuator:       controller.actuator,
 		scraperHandler: rcScraper.AsProcMonHandler(),

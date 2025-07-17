@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 )
 
@@ -29,29 +28,34 @@ type procRuntimeID struct {
 	containerInfo *procmon.ContainerInfo
 }
 
-type controller struct {
-	rcScraper    *rcscrape.Scraper
-	actuator     *actuator.Tenant
-	diagUploader *uploader.DiagnosticsUploader
-	logUploader  *uploader.LogsUploaderFactory
-	store        *processStore
-	diagnostics  *diagnosticsManager
+// Controller is the main controller for the module.
+type Controller struct {
+	rcScraper      Scraper
+	actuator       *actuator.Tenant
+	diagUploader   *uploader.DiagnosticsUploader
+	logUploader    *uploader.LogsUploaderFactory
+	store          *processStore
+	diagnostics    *diagnosticsManager
+	decoderFactory DecoderFactory
 
 	procRuntimeIDbyProgramID sync.Map // map[ir.ProgramID]procRuntimeID
 }
 
-func newController(
+// NewController creates a new Controller.
+func NewController(
 	a *actuator.Actuator,
 	logUploader *uploader.LogsUploaderFactory,
 	diagUploader *uploader.DiagnosticsUploader,
-	rcScraper *rcscrape.Scraper,
-) *controller {
-	c := &controller{
-		logUploader:  logUploader,
-		diagUploader: diagUploader,
-		rcScraper:    rcScraper,
-		store:        newProcessStore(),
-		diagnostics:  newDiagnosticsManager(diagUploader),
+	rcScraper Scraper,
+	decoderFactory DecoderFactory,
+) *Controller {
+	c := &Controller{
+		logUploader:    logUploader,
+		diagUploader:   diagUploader,
+		rcScraper:      rcScraper,
+		store:          newProcessStore(),
+		diagnostics:    newDiagnosticsManager(diagUploader),
+		decoderFactory: decoderFactory,
 	}
 	c.actuator = a.NewTenant(
 		"dyninst", (*controllerReporter)(c), irgen.NewGenerator(),
@@ -64,7 +68,8 @@ func jitter(duration time.Duration, fraction float64) time.Duration {
 	return time.Duration(float64(duration) * multiplier)
 }
 
-func (c *controller) Run(ctx context.Context) {
+// Run runs the controller.
+func (c *Controller) Run(ctx context.Context) {
 	duration := func() time.Duration {
 		return jitter(200*time.Millisecond, 0.2)
 	}
@@ -81,7 +86,7 @@ func (c *controller) Run(ctx context.Context) {
 	}
 }
 
-func (c *controller) checkForUpdates() {
+func (c *Controller) checkForUpdates() {
 	scraperUpdates := c.rcScraper.GetUpdates()
 	actuatorUpdates := make([]actuator.ProcessUpdate, 0, len(scraperUpdates))
 	for i := range scraperUpdates {
@@ -104,7 +109,7 @@ func (c *controller) checkForUpdates() {
 	}
 }
 
-func (c *controller) setProbeMaybeEmitting(progID ir.ProgramID, probe ir.ProbeDefinition) {
+func (c *Controller) setProbeMaybeEmitting(progID ir.ProgramID, probe ir.ProbeDefinition) {
 	procRuntimeIDi, ok := c.procRuntimeIDbyProgramID.Load(progID)
 	if !ok {
 		return
