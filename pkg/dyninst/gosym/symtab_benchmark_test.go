@@ -45,7 +45,7 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(mef)
 	if err != nil {
 		b.Fatal(err)
 	}

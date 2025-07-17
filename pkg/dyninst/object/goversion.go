@@ -29,8 +29,8 @@ type GoVersion struct {
 	PatchOrRC PatchOrReleaseCandidate
 }
 
-// ParseGoVersion extracts the Go version from an object file
-func ParseGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
+// ReadGoVersion extracts the Go version from an object file
+func ReadGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
 	symbols, err := mef.Elf.Symbols()
 	if err != nil {
@@ -68,7 +68,11 @@ func ParseGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 		return nil, fmt.Errorf("failed to read version: %w", err)
 	}
 
-	return parseGoVersion(versionStr), nil
+	version, ok := ParseGoVersion(versionStr)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse version: %s", versionStr)
+	}
+	return &version, nil
 }
 
 func readString(mef *MMappingElfFile, section *safeelf.Section, address, size uint64) (string, error) {
@@ -132,40 +136,41 @@ func readString(mef *MMappingElfFile, section *safeelf.Section, address, size ui
 
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)
 
-func parseGoVersion(version string) *GoVersion {
+// ParseGoVersion parses a Go version string into a GoVersion struct.
+func ParseGoVersion(version string) (GoVersion, bool) {
 	matches := goVersionRegex.FindStringSubmatch(version)
 	if matches == nil {
-		return nil
+		return GoVersion{}, false
 	}
 
 	major, err := strconv.ParseUint(matches[1], 10, 16)
 	if err != nil {
-		return nil
+		return GoVersion{}, false
 	}
 
 	minor, err := strconv.ParseUint(matches[2], 10, 16)
 	if err != nil {
-		return nil
+		return GoVersion{}, false
 	}
 
 	var patchOrRC PatchOrReleaseCandidate
 	if matches[4] != "" { // patch version
 		patch, err := strconv.ParseUint(matches[4], 10, 16)
 		if err != nil {
-			return nil
+			return GoVersion{}, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: true, Version: uint16(patch)}
 	} else if matches[5] != "" { // release candidate
 		rc, err := strconv.ParseUint(matches[5], 10, 16)
 		if err != nil {
-			return nil
+			return GoVersion{}, false
 		}
 		patchOrRC = PatchOrReleaseCandidate{IsPatch: false, Version: uint16(rc)}
 	}
 
-	return &GoVersion{
+	return GoVersion{
 		Major:     uint16(major),
 		Minor:     uint16(minor),
 		PatchOrRC: patchOrRC,
-	}
+	}, true
 }
