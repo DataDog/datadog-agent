@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -29,7 +28,7 @@ type PrometheusPodsConfigProvider struct {
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewPrometheusPodsConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
+func NewPrometheusPodsConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err
@@ -81,6 +80,6 @@ func (p *PrometheusPodsConfigProvider) parsePodlist(podlist []*kubelet.Pod) []in
 }
 
 // GetConfigErrors is not implemented for the PrometheusPodsConfigProvider
-func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
-	return make(map[string]providerTypes.ErrorMsgSet)
+func (p *PrometheusPodsConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }

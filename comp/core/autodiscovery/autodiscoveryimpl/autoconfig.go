@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
-	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -83,7 +82,7 @@ type AutoConfig struct {
 	store                    *store
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
-	providerCatalog          map[string]providerTypes.ConfigProviderFactory
+	providerCatalog          map[string]providers.ConfigProviderFactory
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
@@ -203,7 +202,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
-		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
+		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
@@ -413,7 +412,7 @@ func (ac *AutoConfig) stop() {
 // expects to be polled and at which interval or it's fine for it to be invoked only once in the
 // Agent lifetime.
 // If the config provider is polled, the routine is scheduled right away
-func (ac *AutoConfig) AddConfigProvider(provider providerTypes.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
 	if shouldPoll && pollInterval <= 0 {
 		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
 		shouldPoll = false
@@ -615,7 +614,7 @@ func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) check
 }
 
 // GetProviderCatalog returns all registered ConfigProviderFactory.
-func (ac *AutoConfig) GetProviderCatalog() map[string]providerTypes.ConfigProviderFactory {
+func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFactory {
 	return ac.providerCatalog
 }
 
@@ -636,8 +635,8 @@ func (ac *AutoConfig) processDelService(svc listeners.Service) {
 // resulting data structure maps provider name to resource name to a set of
 // unique error messages.  The resource names do not match other identifiers
 // and are only intended for display in diagnostic tools like `agent status`.
-func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providerTypes.ErrorMsgSet {
-	errors := map[string]map[string]providerTypes.ErrorMsgSet{}
+func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet {
+	errors := map[string]map[string]providers.ErrorMsgSet{}
 	for _, cp := range ac.getConfigPollers() {
 		configErrors := cp.provider.GetConfigErrors()
 		if len(configErrors) > 0 {

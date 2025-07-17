@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -40,11 +39,11 @@ type GPUConfigProvider struct {
 	mu             sync.RWMutex
 }
 
-var _ types.ConfigProvider = &GPUConfigProvider{}
-var _ types.StreamingConfigProvider = &GPUConfigProvider{}
+var _ ConfigProvider = &GPUConfigProvider{}
+var _ StreamingConfigProvider = &GPUConfigProvider{}
 
 // NewGPUConfigProvider returns a new ConfigProvider subscribed to GPU events
-func NewGPUConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewGPUConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ *telemetry.Store) (ConfigProvider, error) {
 	return &GPUConfigProvider{
 		workloadmetaStore: wmeta,
 		gpuDeviceCache:    make(map[string]struct{}),
@@ -138,6 +137,6 @@ func (k *GPUConfigProvider) processEvents(evBundle workloadmeta.EventBundle) int
 }
 
 // GetConfigErrors returns a map of configuration errors, which is always empty for the GPUConfigProvider
-func (k *GPUConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return make(map[string]types.ErrorMsgSet)
+func (k *GPUConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+	return make(map[string]ErrorMsgSet)
 }
