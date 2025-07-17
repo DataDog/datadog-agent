@@ -15,7 +15,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -489,9 +488,9 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		ebpfManager: m,
 	}
 
-	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		attacherConfig.OnSyncCallback = o.cleanupDeadPids
-	}
+	//if features.HaveProgramType(ebpf.RawTracepoint) != nil {
+	attacherConfig.OnSyncCallback = o.cleanupDeadPids
+	//}
 
 	var err error
 	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
@@ -681,32 +680,32 @@ func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 
 // addProcessExitProbe adds a raw or regular tracepoint program depending on which is supported.
 func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
-	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
-		// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps
-		p := &manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: rawTracepointSchedProcessExit,
-				UID:          probeUID,
-			},
-			TracepointName: "sched_process_exit",
-		}
-		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
-		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
-		// exclude regular tracepoint
-		options.ExcludedFunctions = append(options.ExcludedFunctions, oldTracepointSchedProcessExit)
-	} else {
-		// use a regular tracepoint to intercept terminated threads
-		p := &manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: oldTracepointSchedProcessExit,
-				UID:          probeUID,
-			},
-		}
-		o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
-		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
-		// exclude a raw tracepoint
-		options.ExcludedFunctions = append(options.ExcludedFunctions, rawTracepointSchedProcessExit)
-	}
+	//if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+	// use a raw tracepoint on a supported kernel to intercept terminated threads and clear the corresponding maps
+	//p := &manager.Probe{
+	//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	//		EBPFFuncName: rawTracepointSchedProcessExit,
+	//		UID:          probeUID,
+	//	},
+	//	TracepointName: "sched_process_exit",
+	//}
+	//o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
+	//options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
+	// exclude regular tracepoint
+	options.ExcludedFunctions = append(options.ExcludedFunctions, oldTracepointSchedProcessExit)
+	//} else {
+	// use a regular tracepoint to intercept terminated threads
+	//p := &manager.Probe{
+	//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+	//		EBPFFuncName: oldTracepointSchedProcessExit,
+	//		UID:          probeUID,
+	//	},
+	//}
+	//o.ebpfManager.Probes = append(o.ebpfManager.Probes, p)
+	//options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
+	// exclude a raw tracepoint
+	options.ExcludedFunctions = append(options.ExcludedFunctions, rawTracepointSchedProcessExit)
+	//}
 }
 
 var sslPidKeyMaps = []string{
