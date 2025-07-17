@@ -62,8 +62,11 @@ type Installer interface {
 	PromoteExperiment(ctx context.Context, pkg string) error
 
 	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
+	InstallConfigExperimentMultiple(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
+	RemoveConfigExperimentMultiple(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
+	PromoteConfigExperimentMultiple(ctx context.Context, pkg string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -540,6 +543,82 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
+// InstallConfigExperimentMultiple installs an experiment on top of an existing package with multiple configs.
+func (i *installerImpl) InstallConfigExperimentMultiple(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	tmpDir, err := i.configs.MkdirTemp()
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not create temporary directory: %w", err),
+		)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Merge multiple config files
+	mergedConfigs, err := mergeConfigs(rawConfigs)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrConfigMergeFailed,
+			fmt.Errorf("could not merge configs: %w", err),
+		)
+	}
+	err = i.writeConfig(tmpDir, mergedConfigs)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not write agent config: %w", err),
+		)
+	}
+
+	configRepo := i.configs.Get(pkg)
+	err = configRepo.SetExperiment(ctx, version, tmpDir)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not set experiment: %w", err),
+		)
+	}
+
+	// HACK: close so package can be updated as watchdog runs
+	if pkg == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
+	}
+
+	return i.hooks.PostStartConfigExperiment(ctx, pkg)
+}
+
+// RemoveConfigExperimentMultiple removes an experiment with multiple configs.
+func (i *installerImpl) RemoveConfigExperimentMultiple(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	repository := i.configs.Get(pkg)
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	if !state.HasExperiment() {
+		// Return early
+		return nil
+	}
+
+	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop experiment: %w", err)
+	}
+	err = repository.DeleteExperiment(ctx)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not delete experiment: %w", err),
+		)
+	}
+	return nil
+}
+
 // RemoveConfigExperiment removes an experiment.
 func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
@@ -571,6 +650,26 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	repository := i.configs.Get(pkg)
+	err := repository.PromoteExperiment(ctx)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrFilesystemIssue,
+			fmt.Errorf("could not promote experiment: %w", err),
+		)
+	}
+	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
+	if err != nil {
+		log.Warnf("could not write user-facing config symlinks: %v", err)
+	}
+	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
+}
+
+// PromoteConfigExperimentMultiple promotes an experiment with multiple configs.
+func (i *installerImpl) PromoteConfigExperimentMultiple(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 

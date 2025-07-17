@@ -173,6 +173,32 @@ func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return cmd.Run()
 }
 
+// InstallConfigExperimentMultiple installs an experiment with multiple configs.
+func (i *InstallerExec) InstallConfigExperimentMultiple(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
+	// For the exec implementation, we'll serialize the multiple configs as a JSON array
+	serializedConfigs, err := json.Marshal(rawConfigs)
+	if err != nil {
+		return fmt.Errorf("could not serialize configs: %w", err)
+	}
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment-multiple", pkg, version, string(serializedConfigs))
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RemoveConfigExperimentMultiple removes an experiment with multiple configs.
+func (i *InstallerExec) RemoveConfigExperimentMultiple(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "remove-config-experiment-multiple", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// PromoteConfigExperimentMultiple promotes an experiment with multiple configs.
+func (i *InstallerExec) PromoteConfigExperimentMultiple(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "promote-config-experiment-multiple", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
