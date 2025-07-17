@@ -162,6 +162,10 @@ func (pm *ProcessMonitor) Close() {
 // It is set to infinite in tests.
 var analysisFailureLogLimiter = rate.NewLimiter(rate.Every(1*time.Second), 10)
 
+// Limit the rate of logging permission errors, because if we see them, we'll
+// probably see a lot of them.
+var analysisFailurePermissionLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
 // analyzeProcess analyzes the process with the given PID and sends the result
 // to the state machine.
 func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
@@ -171,11 +175,16 @@ func (pm *ProcessMonitor) analyzeProcess(pid uint32) {
 		pa, err := analyzeProcess(
 			pid, pm.procfsRoot, pm.resolver, pm.executableAnalyzer,
 		)
-		shouldLog := err != nil &&
-			!os.IsNotExist(err) &&
-			analysisFailureLogLimiter.Allow()
+		shouldLog := err != nil && analysisFailureLogLimiter.Allow()
 		if shouldLog {
-			log.Infof("failed to analyze process %d: %v", pid, err)
+			pid := pid
+			if os.IsPermission(err) && !analysisFailurePermissionLogLimiter.Allow() {
+				// We don't want to be too noisy about permission errors, but we
+				// do want to learn about them as they are a sign of a problem.
+				log.Debugf("failed to analyze process %d: %v", pid, err)
+			} else {
+				log.Infof("failed to analyze process %d: %v", pid, err)
+			}
 		}
 		pm.sendEvent(&analysisResult{
 			pid:             pid,
