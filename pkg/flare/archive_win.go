@@ -286,14 +286,10 @@ func getDDUserGroupsAndRightsStatus(fb flaretypes.FlareBuilder) error {
 			// Get user groups and rights status
 			var hasDesiredGroups, hasDesiredRights bool
 			var groupsErr, rightsErr error
-			var actualGroups, actualRights []string
-
-			actualGroups, hasDesiredGroups, groupsErr = winutil.DoesAgentUserHaveDesiredGroups()
-			actualRights, hasDesiredRights, rightsErr = winutil.DoesAgentUserHaveDesiredRights()
 
 			// We don't use/report actualGroups or actualRights in this flare function
-			_ = actualGroups
-			_ = actualRights
+			_, hasDesiredGroups, groupsErr = winutil.DoesAgentUserHaveDesiredGroups()
+			_, hasDesiredRights, rightsErr = winutil.DoesAgentUserHaveDesiredRights()
 
 			// Helper function to convert bool + error to simple status
 			getStatusString := func(hasDesired bool, err error) string {

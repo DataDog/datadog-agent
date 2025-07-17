@@ -319,10 +319,6 @@ func DoesAgentUserHaveDesiredRights() ([]string, bool, error) {
 // NTSTATUS: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/87fba13e-bf06-450e-83b1-9241dc81e781
 func handleUserError(operation, username string, errorCode int) error {
 	switch uint32(errorCode) {
-	case StatusSuccess:
-		// This shouldn't happen if we got NULL, but handle gracefully
-		return fmt.Errorf("failed to %s for user '%s': unknown error (success code returned)", operation, username)
-
 	case StatusAccessDenied:
 		return fmt.Errorf("access denied while trying to %s for user '%s': administrator privileges may be required", operation, username)
 
