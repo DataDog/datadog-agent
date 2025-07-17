@@ -628,6 +628,8 @@ func logRefreshError(s *CoreAgentService, err error) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *CoreAgentService) Stop() error {
+	// NOTE: Stop() MAY be called more than once - cleanup SHOULD be idempotent.
+
 	if s.stopConfigPoller != nil {
 		close(s.stopConfigPoller)
 	}
