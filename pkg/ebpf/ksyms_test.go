@@ -8,7 +8,10 @@ package ebpf
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var requiredKernelFuncs = []string{
@@ -41,6 +44,19 @@ func TestVerifyKernelFuncs(t *testing.T) {
 	fc = newExistCache("./testdata/kallsyms.d_o_n_o_t_e_x_i_s_t")
 	_, err = fc.verifyKernelFuncs(requiredKernelFuncs)
 	assert.NotEmpty(t, err)
+}
+
+func TestHasTasksRCUExitLockSymbol(t *testing.T) {
+	funcCache = ddebpf.newExistCache("./testdata/kallsyms.fentry.bug")
+
+	hasDeadlock, err := HasTasksRCUExitLockSymbol()
+	require.NoError(t, err)
+	require.True(t, hasDeadlock)
+
+	funcCache = ddebpf.newExistCache("./testdata/kallsyms.fentry.nobug")
+	hasDeadlock, err = kernelbugs.HasTasksRCUExitLockSymbol()
+	require.NoError(t, err)
+	require.False(t, hasDeadlock)
 }
 
 func BenchmarkVerifyKernelFuncs(b *testing.B) {

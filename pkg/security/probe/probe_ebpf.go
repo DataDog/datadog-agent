@@ -41,6 +41,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -280,7 +281,7 @@ func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 		return errors.New("fentry enabled but not supported with duplicated weak symbols")
 	}
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	hasPotentialFentryDeadlock, err := bugs.HasTasksRCUExitLockSymbol()
 	if err != nil {
 		return errors.New("fentry enabled but failed to verify kernel symbols")
 	}

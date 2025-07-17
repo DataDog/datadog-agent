@@ -114,6 +114,12 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
         + "-i $in --target $windrestarget -O coff -o $out",
     )
 
+def ninja_define_binary_compiler(nw: NinjaWriter):
+    nw.rule(
+        name="cbin",
+        command="$cc $cflags -o $out $in $ldflags",
+    )
+
 
 def ninja_define_ebpf_compiler(
     nw: NinjaWriter,
@@ -343,6 +349,31 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
+def ninja_embedded_binaries(nw: NinjaWriter):
+    ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
+    embedded_bins = ["detect-seccomp-bug"]
+
+    for binary in embedded_bins:
+        infile = os.path.join(ebpf_c_dir, f"{binary}.c")
+        outfile = os.path.join(ebpf_c_dir, binary)
+        #if os.getenv('DD_CC'):
+        #    cc = os.getenv('DD_CC')
+        #else:
+        cc = "gcc"
+
+        nw.build(
+            inputs=[infile], outputs=[outfile], rule="cbin", variables={"cc": cc, "cflags": "-static", "ldflags": "-lseccomp"}
+        )
+
+
+def ninja_test_ebpf_program(nw: NinjaWriter, build_dir, ebpf_c_dir, test_flags, prog):
+    infile = os.path.join(ebpf_c_dir, f"{prog}.c")
+    outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
+    ninja_ebpf_co_re_program(
+        nw, infile, outfile, {"flags": test_flags}
+    )
+
+
 def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_bpf_dir = os.path.join("pkg", "ebpf")
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
@@ -351,12 +382,11 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     test_programs = ["logdebug-test", "error_telemetry", "uprobe_attacher-test"]
 
     for prog in test_programs:
-        infile = os.path.join(ebpf_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_ebpf_co_re_program(
-            nw, infile, outfile, {"flags": test_flags}
-        )  # All test ebpf programs are just for testing, so we always build them with debug symbols
+        ninja_test_ebpf_program(nw, build_dir, ebpf_c_dir, test_flags, prog)
 
+def ninja_kernel_bugs_ebpf_programs(nw: NinjaWriter):
+    build_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
+    ninja_test_ebpf_program(nw, build_dir, build_dir, "", "uprobe-trigger")
 
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
     gpu_headers_dir = Path("pkg/gpu/ebpf/c")
@@ -654,9 +684,12 @@ def ninja_generate(
         else:
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_binary_compiler(nw)
             ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
+            ninja_kernel_bugs_ebpf_programs(nw)
+            ninja_embedded_binaries(nw)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
