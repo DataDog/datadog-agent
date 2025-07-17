@@ -868,7 +868,6 @@ func (i *installerImpl) writeConfig(dir string, files map[string]configFile) err
 		if err != nil {
 			return fmt.Errorf("could not write config file: %w", err)
 		}
-		fmt.Println("wrote config file", filepath.Join(dir, file.Path))
 	}
 	return nil
 }
@@ -964,6 +963,13 @@ func ensureRepositoriesExist() error {
 }
 
 // mergeConfigs merges multiple config files into a single map of config files.
+// Takes remote-config configs as an input, and returns a map of files to write
+// on disk. The map is keyed by the path of the file to write, and the value is
+// the contents of the file.
+//
+// The input is a slice of bytes, which is the JSON-encoded contents of the
+// remote-config config files. The JSON is expected to be an array of objects,
+// each with a `path` and `contents` field.
 func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
 	mergedFiles := make(map[string]configFile)
 	for _, rawConfig := range rawConfigs {
