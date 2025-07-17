@@ -5,7 +5,9 @@
 
 //go:build trivy || (windows && wmi)
 
-package sbom
+// Package convert holds conversion helpers from a cyclonedx-go
+// BOM to a agent-payload BOM
+package convert
 
 import (
 	"time"
@@ -15,7 +17,6 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -124,7 +125,8 @@ func convertAttachedText(in *cyclonedx.AttachedText) *cyclonedx_v1_4.AttachedTex
 	}
 }
 
-func convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
+// BOM converts a CycloneDX BOM to the v1.4 format
+func BOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 	if in == nil {
 		return nil
 	}
@@ -851,10 +853,6 @@ func convertTimestamp(in string) *timestamppb.Timestamp {
 	}
 
 	return timestamppb.New(ts)
-}
-
-func convertDuration(in time.Duration) *durationpb.Duration {
-	return durationpb.New(in)
 }
 
 func convertTool(in *cyclonedx.Tool) *cyclonedx_v1_4.Tool { //nolint:staticcheck
