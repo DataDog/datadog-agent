@@ -1103,26 +1103,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-
-# The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
-.windows_docker_v2_2022:
-  tags: ["windows-v2:2022"]
-  variables:
-    # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
-
-# windows_docker_2019 configures the job to use the Windows Server 2019 runners.
-# Use in jobs that need to run on Windows Server 2019 runners.
-.windows_docker_2019:
-  tags: ["windows-v2:2019"]
-
-# windows_docker_default configures the job to use the default Windows Server runners
-# Use in jobs that may need to have their version updated in the future.
-#
-# Current default: Windows Server 2022
-.windows_docker_default:
-  extends: .windows_docker_v2_2022
-
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never
