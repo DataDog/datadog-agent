@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote
 
-go 1.23.0
-
-toolchain go1.23.6
+go 1.24.5
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.0.0-20250129172314-517df3f51a84
