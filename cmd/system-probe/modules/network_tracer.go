@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -65,7 +67,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 
-	return &networkTracer{tracer: t}, err
+	return &networkTracer{tracer: t, tagger: deps.Tagger}, err
 }
 
 var _ module.Module = &networkTracer{}
@@ -73,6 +75,7 @@ var _ module.Module = &networkTracer{}
 type networkTracer struct {
 	tracer       *tracer.Tracer
 	restartTimer *time.Timer
+	tagger       tagger.Component
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -96,7 +99,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		defer cleanup()
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		writeConnections(w, marshaler, cs, nt.tagger)
 
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
@@ -137,7 +140,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		writeConnections(w, marshaler, cs, nt.tagger)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -291,6 +294,44 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, cache)
 	})
 
+	httpMux.HandleFunc("/debug/container_tags", func(w http.ResponseWriter, r *http.Request) {
+		containerID := r.URL.Query().Get("container_id")
+		if nt.tagger == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "tagger is not available")
+			return
+		}
+		if containerID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "container_id is not provided, cannot get container tags")
+			return
+		}
+
+		entityID := types.NewEntityID(types.ContainerID, containerID)
+		entityTags, err := nt.tagger.Tag(entityID, types.HighCardinality)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "error getting container %s from metadata: %v", containerID, err)
+			return
+		}
+		location := ""
+		for _, tag := range entityTags {
+			if strings.HasPrefix(tag, "location:") {
+				location = strings.TrimPrefix(tag, "location:")
+				break
+			}
+		}
+
+		if location == "" {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "container %s does not have a location tag; all tags: %#v", containerID, entityTags)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "%#v successfully found location tag %s for container %s", entityTags, location, containerID)
+	})
+
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
 	httpMux.HandleFunc("/debug/usm/traced_programs", usm.GetTracedProgramsEndpoint(usmconsts.USMModuleName))
 	httpMux.HandleFunc("/debug/usm/blocked_processes", usm.GetBlockedPathIDEndpoint(usmconsts.USMModuleName))
@@ -334,12 +375,12 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 	}
 }
 
-func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections, tagger tagger.Component) {
 	defer network.Reclaim(cs)
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	connectionsModeler := marshal.NewConnectionsModeler(cs)
+	connectionsModeler := marshal.NewConnectionsModeler(cs, tagger)
 	defer connectionsModeler.Close()
 
 	err := marshaler.Marshal(cs, w, connectionsModeler)
