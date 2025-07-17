@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build nvml
+//go:build linux && nvml
 
 // Package containers has utilities to work with GPU assignment to containers
 package containers
