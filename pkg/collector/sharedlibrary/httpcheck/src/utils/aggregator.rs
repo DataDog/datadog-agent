@@ -1,6 +1,6 @@
 use libloading::{Library, library_filename, Symbol};
 
-use std::ffi::{c_char, c_double, c_int, c_long, CString};
+use std::ffi::{c_char, c_double, c_int, CString};
 
 // Replica of the Agent metric type enum
 #[repr(C)]
@@ -35,25 +35,25 @@ type SubmitServiceCheckFn = extern "C" fn(
     *mut c_char,        // message
 );
 
-#[repr(C)]
-pub struct Event {
-    title: *mut c_char,
-    text: *mut c_char,
-    timestamp: c_long,
-    priority: *mut c_char,
-    host: *mut c_char,
-    tags: *mut *mut c_char,
-    alert_type: *mut c_char,
-    aggregation_key: *mut c_char,
-    source_type_name: *mut c_char,
-    event_type: *mut c_char,
-}
+// #[repr(C)]
+// pub struct Event {
+//     title: *mut c_char,
+//     text: *mut c_char,
+//     timestamp: c_long,
+//     priority: *mut c_char,
+//     host: *mut c_char,
+//     tags: *mut *mut c_char,
+//     alert_type: *mut c_char,
+//     aggregation_key: *mut c_char,
+//     source_type_name: *mut c_char,
+//     event_type: *mut c_char,
+// }
 
-// signature of event in RTLoader
-type SubmitEventFn = extern "C" fn(
-    *mut c_char, // check_id
-    Event,       // event
-);
+// // signature of event in RTLoader
+// type SubmitEventFn = extern "C" fn(
+//     *mut c_char, // check_id
+//     Event,       // event
+// );
 
 pub fn to_cstring(string: &str) -> *mut c_char {
     CString::new(string).expect("Can't cast Rust string to char*").into_raw()

@@ -4,6 +4,8 @@ use utils::base::{CheckID, AgentCheck, ServiceCheckStatus};
 use std::error::Error;
 use std::time::Instant;
 
+use reqwest::blocking::Client;
+
 // function executed by RTLoader
 // instead of passing CheckID, it will be more flexible to pass a struct that contains
 // the same info as the 'instance' variable in Python checks.
@@ -35,9 +37,7 @@ impl AgentCheck {
 
         // TODO:
         // - tags list
-        // - errors handling
-        // - servive check list (name, status, message)
-        // - service check tags list
+        // - service checks tags 
         // - ssl metrics
 
         // hardcoded variables (should be passed as parameters in an instance)
@@ -49,12 +49,12 @@ impl AgentCheck {
         let mut tags = Vec::<String>::new();
 
         // list service checks and their custom tags
-        let mut service_checks: Vec<(String, ServiceCheckStatus, String)> = Vec::new();
-        let service_tags: Vec<String> = Vec::new(); // need to be set equal to the tags list at the beginning
+        let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
+        let service_checks_tags = Vec::<String>::new(); // need to be set equal to the tags list at the beginning
 
 
         // fetch the URL and measure the response time
-        let client = reqwest::blocking::Client::new().get(url);
+        let client = Client::new().get(url);
 
         let start = Instant::now();
         let response_content = client.send();
@@ -122,6 +122,7 @@ impl AgentCheck {
         // submit can connect metrics
         // (by looking at the above implementation, this if statement is useless because service_checks will always have at least one element)
         if !service_checks.is_empty() {
+            // can connect metrics depend on the status of the first service check
             let (can_connect, cant_connect) = match service_checks[0].1 {
                 ServiceCheckStatus::OK => (1.0, 0.0),
                 _ => (0.0, 1.0),
@@ -133,7 +134,7 @@ impl AgentCheck {
 
         // handle ssl certificate expiration
         if ssl_expire && uri_scheme == "https" {
-            // retrieve ssl info (to be done)
+            // TODO: retrieve ssl info
             let status: ServiceCheckStatus = ServiceCheckStatus::OK;
             let msg: String = String::new();
 
@@ -154,9 +155,9 @@ impl AgentCheck {
 
         // submit every service check collected throughout the check
         for (sc_name, status, message) in service_checks {
-            self.service_check(&sc_name, status, &service_tags, "", &message);
+            self.service_check(&sc_name, status, &service_checks_tags, "", &message);
         }
-        
+
         Ok(())
     }
 }
