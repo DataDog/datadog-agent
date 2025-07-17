@@ -32,6 +32,7 @@ go_test(
     srcs = ["transform_test.go"],
     embed = [":transform"],
     deps = [
+        "//pkg/trace/config",
         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
         "@com_github_stretchr_testify//assert",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",

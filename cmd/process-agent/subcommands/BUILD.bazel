@@ -9,6 +9,7 @@ go_library(
         "//cmd/process-agent/command",
         "//cmd/process-agent/subcommands/check",
         "//cmd/process-agent/subcommands/config",
+        "//cmd/process-agent/subcommands/coverage",
         "//cmd/process-agent/subcommands/events",
         "//cmd/process-agent/subcommands/status",
         "//cmd/process-agent/subcommands/taggerlist",

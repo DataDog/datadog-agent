@@ -111,19 +111,13 @@ struct syscall_cache_t {
             struct path_key_t root_key;
             struct path_key_t mountpoint_key;
             dev_t device;
+            int clone_mnt_ctr;
+            int source;
         } mount;
 
         struct {
             struct vfsmount *vfs;
         } umount;
-
-        struct {
-            struct mount *newmnt;
-            // collected from kernel functions arguments
-            int fd;
-            int flags;
-            unsigned int mount_attrs;
-        } fsmount;
 
         struct {
             struct file_t src_file;
@@ -265,8 +259,15 @@ struct syscall_cache_t {
         } sysctl;
 
         struct {
+            short socket_type;
+            u16 socket_family;
+            unsigned short filter_len;
+            u16 socket_protocol;
+            int filter_size_to_send;
             int level;
             int optname;
+            u32 truncated;
+            struct sock_fprog *fprog;
         } setsockopt;
     };
 };

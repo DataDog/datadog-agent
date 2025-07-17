@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
         "//comp/process/agent",
         "//comp/process/forwarders",
         "//comp/process/hostinfo",

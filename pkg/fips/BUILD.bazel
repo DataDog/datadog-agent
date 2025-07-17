@@ -4,9 +4,8 @@ go_library(
     name = "fips",
     srcs = [
         "fips_disabled.go",
-        "fips_nix.go",
-        "fips_serverless.go",
-        "fips_windows.go",
+        "fips_msftgo.go",
+        "fips_msftgo_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fips",
     visibility = ["//visibility:public"],

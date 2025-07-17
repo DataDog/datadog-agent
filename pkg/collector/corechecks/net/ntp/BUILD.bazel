@@ -23,6 +23,7 @@ go_library(
         "@in_gopkg_yaml_v2//:yaml_v2",
     ] + select({
         "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],

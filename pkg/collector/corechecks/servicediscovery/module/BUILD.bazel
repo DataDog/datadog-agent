@@ -9,6 +9,7 @@ go_library(
         "envs.go",
         "impl_linux.go",
         "impl_mock_linux.go",
+        "logs.go",
         "network_noebpf.go",
         "socket.go",
     ],
@@ -74,6 +75,7 @@ go_test(
     srcs = [
         "cmdline_test.go",
         "envs_test.go",
+        "logs_test.go",
         "socket_test.go",
     ],
     data = glob(["testdata/**"]),

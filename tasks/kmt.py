@@ -45,7 +45,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
@@ -136,7 +136,7 @@ def gen_config(
     init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
-    new=False,
+    new=True,
     ci=False,
     arch: str = "",
     output_file: str = "vmconfig.json",
@@ -214,7 +214,7 @@ def gen_config_from_ci_pipeline(
     kmt_pipeline.retrieve_jobs()
 
     for job in kmt_pipeline.setup_jobs:
-        if (vcpu is None or memory is None) and job.status == "success":
+        if (vcpu is None or memory is None) and job.status == GitlabJobStatus.SUCCESS:
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
                 memory_list = vmset.get("memory", [])
@@ -231,7 +231,7 @@ def gen_config_from_ci_pipeline(
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
     for test_job in kmt_pipeline.test_jobs:
-        if test_job.status == "failed" and job.component == vmconfig_template:
+        if test_job.status == GitlabJobStatus.FAILED and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = "local"
@@ -307,9 +307,7 @@ def launch_stack(
     provision_microvms: bool = True,
     provision_script: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
     if provision_script is not None:
@@ -323,9 +321,7 @@ def provision_stack(
     stack: str | None = None,
     ssh_key: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'")
+    stack = check_and_get_stack_or_exit(stack)
 
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
@@ -1343,10 +1339,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
             stacks.create_stack(ctx, stack)
         return stack
 
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     return stack
 
 
@@ -1429,10 +1422,7 @@ def build(
 
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -1786,8 +1776,8 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     kmt_pipeline = KMTPipeline(pipeline)
     kmt_pipeline.retrieve_jobs()
 
-    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == "failed"]
-    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == "failed"]
+    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == GitlabJobStatus.FAILED]
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.FAILED]
     failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"
@@ -2025,10 +2015,7 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
+    stack = check_and_get_stack_or_exit(stack)
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())

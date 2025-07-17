@@ -17,6 +17,7 @@ go_library(
         "//comp/core/telemetry",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/util/log",
         "//pkg/util/size",
         "//pkg/util/sync",
         "@org_uber_go_atomic//:atomic",

@@ -10,6 +10,7 @@ go_library(
         "//cmd/security-agent/subcommands/check",
         "//cmd/security-agent/subcommands/compliance",
         "//cmd/security-agent/subcommands/config",
+        "//cmd/security-agent/subcommands/coverage",
         "//cmd/security-agent/subcommands/flare",
         "//cmd/security-agent/subcommands/start",
         "//cmd/security-agent/subcommands/status",

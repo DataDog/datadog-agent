@@ -35,6 +35,7 @@ go_library(
         "rmdir.go",
         "selinux.go",
         "setrlimit.go",
+        "setsockopt.go",
         "shared.go",
         "signal.go",
         "splice.go",

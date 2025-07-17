@@ -11,14 +11,13 @@ go_library(
     visibility = ["//comp/api/api/apiimpl:__subpackages__"],
     deps = [
         "//comp/api/api/def",
-        "//comp/core/autodiscovery/integration",
+        "//pkg/api/coverage",
         "//pkg/jmxfetch",
         "//pkg/status/health",
         "//pkg/status/jmx",
         "//pkg/util/http",
         "//pkg/util/log",
         "@com_github_gorilla_mux//:mux",
-        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 

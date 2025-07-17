@@ -10,9 +10,12 @@ go_test(
         "upgrade_test.go",
     ],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/provisioners/aws/host/windows",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/runner/parameters",
         "//test/new-e2e/tests/installer/windows",
         "//test/new-e2e/tests/installer/windows/consts",
         "//test/new-e2e/tests/windows/common",

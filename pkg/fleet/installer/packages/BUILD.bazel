@@ -218,6 +218,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
             "//pkg/fleet/installer/packages/exec",
+            "//pkg/fleet/installer/packages/service/windows",
             "//pkg/fleet/installer/paths",
             "//pkg/util/log",
             "//pkg/util/winutil",

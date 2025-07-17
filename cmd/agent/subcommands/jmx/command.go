@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -134,6 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			grpcNonefx.Module(),
 			fx.Supply(option.None[collector.Component]()),
 			fx.Supply(option.None[integrations.Component]()),
+			workloadfilterfx.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),

@@ -43,6 +43,7 @@ go_library(
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry//:resourcetotelemetry",
         "@com_github_tinylib_msgp//msgp",
         "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
         "@io_opentelemetry_go_collector_config_configopaque//:configopaque",
         "@io_opentelemetry_go_collector_config_configtls//:configtls",
         "@io_opentelemetry_go_collector_confmap//:confmap",
@@ -51,6 +52,7 @@ go_library(
         "@io_opentelemetry_go_collector_exporter//exporterhelper",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@org_golang_x_net//http/httpproxy",
         "@org_uber_go_fx//:fx",
         "@org_uber_go_fx//fxevent",
         "@org_uber_go_multierr//:multierr",
@@ -72,6 +74,7 @@ go_test(
     embed = [":serializerexporter"],
     deps = [
         "//comp/forwarder/defaultforwarder",
+        "//pkg/config/mock",
         "//pkg/metrics",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",

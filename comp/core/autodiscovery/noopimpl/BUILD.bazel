@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery",
         "//comp/core/autodiscovery/integration",
-        "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/providers/types",
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/autodiscovery/telemetry",
         "//pkg/collector/check/id",

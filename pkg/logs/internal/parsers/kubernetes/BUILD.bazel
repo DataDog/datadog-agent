@@ -13,7 +13,10 @@ go_library(
 
 go_test(
     name = "kubernetes_test",
-    srcs = ["kubernetes_test.go"],
+    srcs = [
+        "kubernetes_fuzz_test.go",
+        "kubernetes_test.go",
+    ],
     embed = [":kubernetes"],
     deps = [
         "//pkg/logs/message",

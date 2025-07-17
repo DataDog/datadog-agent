@@ -2000,7 +2000,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_hardlink_1",
-			Expression: `exec.file.path == "/bin/free" && exec.argv in ["-m"] `,
+			Expression: `exec.file.path == "/bin/free" && exec.argv in ["-m"]`,
 		},
 		{
 			ID:         "test_busybox_hardlink_2",
@@ -2042,7 +2042,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_busybox_hardlink_2", rule.ID, "wrong rule triggered")
-			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), "wrong nlink")
+			assert.Greater(t, event.Exec.FileEvent.NLink, uint32(1), event.Exec.FileEvent.PathnameStr)
 		})
 	})
 }

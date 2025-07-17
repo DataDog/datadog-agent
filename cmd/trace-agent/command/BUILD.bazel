@@ -14,6 +14,7 @@ go_library(
         "//cmd/trace-agent/subcommands",
         "//cmd/trace-agent/subcommands/config",
         "//cmd/trace-agent/subcommands/controlsvc",
+        "//cmd/trace-agent/subcommands/coverage",
         "//cmd/trace-agent/subcommands/info",
         "//cmd/trace-agent/subcommands/run",
         "//pkg/cli/subcommands/version",

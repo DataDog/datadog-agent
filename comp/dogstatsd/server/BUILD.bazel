@@ -60,6 +60,7 @@ go_library(
         "//pkg/status/health",
         "//pkg/tagger/types",
         "//pkg/tagset",
+        "//pkg/telemetry",
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/fxutil",
         "//pkg/util/http",

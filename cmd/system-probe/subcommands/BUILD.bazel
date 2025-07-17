@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//cmd/system-probe/command",
         "//cmd/system-probe/subcommands/config",
+        "//cmd/system-probe/subcommands/coverage",
         "//cmd/system-probe/subcommands/debug",
         "//cmd/system-probe/subcommands/modrestart",
         "//cmd/system-probe/subcommands/run",

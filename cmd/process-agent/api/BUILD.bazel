@@ -21,6 +21,7 @@ go_library(
         "//comp/core/status",
         "//comp/core/tagger/def",
         "//comp/core/workloadmeta/def",
+        "//pkg/api/coverage",
         "//pkg/process/checks",
         "//pkg/util/http",
         "//pkg/util/log",

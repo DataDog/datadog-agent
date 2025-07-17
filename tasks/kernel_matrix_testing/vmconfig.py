@@ -14,7 +14,12 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, destroy_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import (
+    check_and_get_stack,
+    create_stack,
+    destroy_stack,
+    stack_exists,
+)
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch

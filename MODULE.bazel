@@ -206,6 +206,7 @@ use_repo(
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_cenkalti_backoff",
     "com_github_cenkalti_backoff_v4",
+    "com_github_cenkalti_backoff_v5",
     "com_github_cihub_seelog",
     "com_github_cilium_ebpf",
     "com_github_clbanning_mxj",

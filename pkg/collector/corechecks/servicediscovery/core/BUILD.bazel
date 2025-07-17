@@ -55,12 +55,9 @@ go_test(
     srcs = [
         "core_test.go",
         "kern_types_linux_test.go",
-        "params_test.go",
     ],
     embed = [":core"],
-    deps = [
-        "@com_github_stretchr_testify//require",
-    ] + select({
+    deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core",
             "//comp/core/workloadmeta/def",
@@ -71,6 +68,7 @@ go_test(
             "//pkg/ebpf/ebpftest",
             "//pkg/util/fxutil",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
@@ -83,6 +81,7 @@ go_test(
             "//pkg/ebpf/ebpftest",
             "//pkg/util/fxutil",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
             "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],

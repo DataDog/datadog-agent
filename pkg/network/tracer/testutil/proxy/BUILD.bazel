@@ -10,7 +10,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/network/protocols/http/testutil",
-        "//pkg/network/testutil",
         "//pkg/network/usm/testutil",
         "//pkg/util/log",
         "@com_github_stretchr_testify//require",

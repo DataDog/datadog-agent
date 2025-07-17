@@ -8,6 +8,7 @@ go_library(
         "activity_tree_proto_dec_v1.go",
         "activity_tree_proto_enc_v1.go",
         "activity_tree_stats.go",
+        "base_node.go",
         "dns_node.go",
         "file_node.go",
         "flow_node.go",

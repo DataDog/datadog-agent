@@ -14,6 +14,7 @@ go_library(
         "//cmd/system-probe/modules",
         "//comp/core/settings",
         "//comp/core/telemetry",
+        "//pkg/api/coverage",
         "//pkg/ebpf",
         "//pkg/system-probe/api/module",
         "//pkg/system-probe/api/server",

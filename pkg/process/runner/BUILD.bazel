@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/transaction",
         "//comp/process/forwarders",
@@ -50,6 +51,8 @@ go_test(
         "//comp/core/ipc/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/process/forwarders",

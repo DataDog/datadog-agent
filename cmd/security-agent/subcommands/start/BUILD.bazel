@@ -41,6 +41,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/settings",
         "//pkg/config/setup",
+        "//pkg/runtime",
         "//pkg/security/agent",
         "//pkg/security/utils/hostnameutils",
         "//pkg/status/health",

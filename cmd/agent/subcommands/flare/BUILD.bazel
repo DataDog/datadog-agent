@@ -35,6 +35,7 @@ go_library(
         "//comp/core/sysprobeconfig/sysprobeconfigimpl",
         "//comp/core/tagger/def",
         "//comp/core/tagger/fx",
+        "//comp/core/workloadfilter/fx",
         "//comp/core/workloadmeta/collectors/catalog",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx",

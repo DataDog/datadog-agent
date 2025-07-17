@@ -27,6 +27,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/option",
+        "//pkg/version",
         "@com_github_datadog_agent_payload_v5//process",
         "@org_uber_go_atomic//:atomic",
     ],

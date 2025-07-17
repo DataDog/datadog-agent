@@ -6,6 +6,8 @@ go_library(
         "core_endpoint.go",
         "endpoint_info.go",
         "hooks.go",
+        "http.go",
+        "inventoryendpoint.go",
         "metadata.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity",
@@ -33,14 +35,19 @@ go_library(
 
 go_test(
     name = "connectivity_test",
-    srcs = ["core_endpoint_test.go"],
+    srcs = [
+        "core_endpoint_test.go",
+        "inventoryendpoint_test.go",
+    ],
     embed = [":connectivity"],
     deps = [
+        "//comp/core/diagnose/def",
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/endpoints",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/mock",
+        "//pkg/version",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_gogo_protobuf//proto",
         "@com_github_stretchr_testify//assert",

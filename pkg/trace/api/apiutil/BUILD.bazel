@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "apiutil",
-    srcs = ["limited_reader.go"],
+    srcs = [
+        "coverage_off.go",
+        "limited_reader.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/api/apiutil",
     visibility = ["//visibility:public"],
 )

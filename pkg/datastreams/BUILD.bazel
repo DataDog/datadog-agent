@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "datastreams",
+    srcs = ["live_messages.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/datastreams",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/remote-config/rcclient",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "datastreams_test",
+    srcs = ["live_messages_test.go"],
+    embed = [":datastreams"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/autodiscovery/telemetry",
+        "//pkg/collector/check/id",
+        "//pkg/config/remote/data",
+        "//pkg/config/setup",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

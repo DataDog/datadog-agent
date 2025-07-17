@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "msi",
     srcs = [
+        "cmd_interface.go",
         "msiexec.go",
         "msilog.go",
         "product.go",
@@ -12,6 +13,8 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_cenkalti_backoff_v5//:backoff",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_text//encoding/unicode",
@@ -22,11 +25,18 @@ go_library(
 
 go_test(
     name = "msi_test",
-    srcs = ["msilog_test.go"],
+    srcs = [
+        "msiexec_test.go",
+        "msilog_test.go",
+    ],
     embed = [":msi"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows",
             "@org_golang_x_text//encoding/unicode",
         ],
         "//conditions:default": [],

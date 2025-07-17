@@ -13,7 +13,10 @@ go_library(
 
 go_test(
     name = "dockerstream_test",
-    srcs = ["docker_stream_test.go"],
+    srcs = [
+        "docker_stream_fuzz_test.go",
+        "docker_stream_test.go",
+    ],
     embed = [":dockerstream"],
     deps = [
         "//pkg/logs/message",

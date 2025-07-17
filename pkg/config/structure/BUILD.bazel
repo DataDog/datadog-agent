@@ -15,12 +15,16 @@ go_library(
 
 go_test(
     name = "structure_test",
-    srcs = ["unmarshal_test.go"],
+    srcs = [
+        "compatibility_test.go",
+        "unmarshal_test.go",
+    ],
     embed = [":structure"],
     deps = [
         "//pkg/config/create",
         "//pkg/config/model",
         "//pkg/config/nodetreemodel",
+        "//pkg/config/viperconfig",
         "@com_github_spf13_cast//:cast",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

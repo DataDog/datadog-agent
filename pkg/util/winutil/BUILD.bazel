@@ -12,6 +12,7 @@ go_library(
         "shutil.go",
         "time.go",
         "users.go",
+        "wincrypt.go",
         "winctrlhandler.go",
         "winmem.go",
         "winmem_386.go",

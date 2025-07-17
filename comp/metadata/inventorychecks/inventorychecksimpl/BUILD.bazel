@@ -3,6 +3,8 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "inventorychecksimpl",
     srcs = [
+        "integrations_jmx.go",
+        "integrations_nojmx.go",
         "inventorychecks.go",
         "mock.go",
     ],
@@ -11,6 +13,7 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/collector/collector",
+        "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//comp/core/flare/types",
         "//comp/core/hostname/hostnameinterface",
@@ -21,6 +24,7 @@ go_library(
         "//comp/metadata/runner/runnerimpl",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
+        "//pkg/jmxfetch",
         "//pkg/logs/sources",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
@@ -28,6 +32,7 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/option",
         "//pkg/util/uuid",
+        "@in_gopkg_yaml_v2//:yaml_v2",
         "@org_uber_go_fx//:fx",
     ],
 )

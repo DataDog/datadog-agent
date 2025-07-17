@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "proto_proto",
+    srcs = ["filter.proto"],
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "proto_go_proto",
+    importpath = "comp/core/filter/def/proto",
+    proto = ":proto_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "proto",
+    srcs = ["filter.pb.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

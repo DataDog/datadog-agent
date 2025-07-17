@@ -26,7 +26,10 @@ go_library(
 
 go_test(
     name = "windowsevent_test",
-    srcs = ["transform_test.go"],
+    srcs = [
+        "message_test.go",
+        "transform_test.go",
+    ],
     embed = [":windowsevent"],
     deps = [
         "//comp/logs/agent/config",

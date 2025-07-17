@@ -115,10 +115,11 @@ def test_flavor(
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
-    junit_tar: str,
+    result_junit: str,
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
+    recursive: bool = True,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -141,16 +142,13 @@ def test_flavor(
         result.result_json_path = os.path.join(result.path, result_json)
         args["json_flag"] = "--jsonfile " + result.result_json_path
 
-    # Produce the junit file only if a junit tarball needs to be produced
-    if junit_tar:
-        junit_file = f"junit-out-{flavor.name}.xml"
-        result.junit_file_path = os.path.join('.', junit_file)
-
-        junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
-        args["junit_file_flag"] = junit_file_flag
+    # Produce the junit file if needed
+    if result_junit:
+        result_junit_path = os.path.join(result.path, result_junit)
+        args["junit_file_flag"] = "--junitfile " + result_junit_path
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(modules)
+    packages = compute_gotestsum_cli_args(list(modules), recursive)
 
     with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
         res = ctx.run(
@@ -180,8 +178,8 @@ def test_flavor(
                 print(f"Could not remove coverage file {cov_path}\n{e}")
             return
 
-    if junit_tar:
-        enrich_junitxml(result.junit_file_path, flavor)
+    if result_junit:
+        enrich_junitxml(result_junit, flavor)  # type: ignore
 
     return result
 
@@ -209,11 +207,11 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_result: TestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(
+    test_result: TestResult, junit_tar: str, junit_files: list[str], flavor: AgentFlavor, test_washer: bool
+) -> bool:
     if junit_tar:
-        junit_file = test_result.junit_file_path
-
-        produce_junit_tar(junit_file, junit_tar)
+        produce_junit_tar(junit_files, junit_tar)
 
     success = process_result(flavor=flavor, result=test_result)
 
@@ -376,6 +374,7 @@ def test(
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
     with gitlab_section("Running unit tests", collapsed=True):
+        result_junit = f"junit-out-{flavor}.xml" if junit_tar else ""
         test_result = test_flavor(
             ctx,
             flavor=flavor,
@@ -384,10 +383,11 @@ def test(
             cmd=cmd,
             env=env,
             args=args,
-            junit_tar=junit_tar,
+            result_junit=result_junit,
             result_json=result_json,
             test_profiler=test_profiler,
             coverage=coverage,
+            recursive=not only_modified_packages,  # Disable recursive tests when only modified packages is enabled, to avoid testing a package and all its subpackages
         )
 
     # Output (only if tests ran)
@@ -401,7 +401,7 @@ def test(
             # print("\n--- Top 15 packages sorted by run time:")
             test_profiler.print_sorted(15)
 
-        success = process_test_result(test_result, junit_tar, flavor, test_washer)
+        success = process_test_result(test_result, junit_tar, [result_junit], flavor, test_washer)
         if not success:
             raise Exit(code=1)
 
@@ -871,7 +871,7 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule]):
+def compute_gotestsum_cli_args(modules: list[GoModule], recursive: bool = True):
     targets = []
     for module in modules:
         if not module.should_test():
@@ -881,8 +881,10 @@ def compute_gotestsum_cli_args(modules: list[GoModule]):
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
-
-    packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    if recursive:
+        packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in targets)
+    else:
+        packages = ' '.join(targets)
     return packages
 
 

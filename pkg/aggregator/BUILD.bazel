@@ -30,6 +30,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/core/log/impl",
         "//comp/core/tagger/def",
@@ -98,6 +99,7 @@ go_test(
         "main_test.go",
         "sender_test.go",
         "sketch_map_test.go",
+        "statsd_test.go",
         "tagset_telem_test.go",
         "time_sampler_test.go",
     ],
@@ -105,6 +107,7 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/core/hostname",
+        "//comp/core/hostname/hostnameinterface",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/core/tagger/fx-mock",

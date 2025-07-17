@@ -8,6 +8,7 @@ go_library(
         "convert.go",
         "device.go",
         "fields.go",
+        "gpm.go",
         "mocks.go",
         "nvlink.go",
         "remappedrows.go",
@@ -48,6 +49,7 @@ go_test(
     name = "nvidia_test",
     srcs = [
         "collector_test.go",
+        "gpm_test.go",
         "nvlink_test.go",
     ],
     embed = [":nvidia"],
@@ -61,6 +63,7 @@ go_test(
             "//pkg/metrics",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_nvidia_go_nvml//pkg/nvml/mock",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
@@ -72,6 +75,7 @@ go_test(
             "//pkg/metrics",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_nvidia_go_nvml//pkg/nvml/mock",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],

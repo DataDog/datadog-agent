@@ -53,6 +53,7 @@ go_library(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_mailru_easyjson//:easyjson",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_protobuf//types/known/timestamppb",
         "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:android": [

@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.3
 	github.com/DataDog/datadog-agent/pkg/version v0.64.3
 	github.com/Microsoft/go-winio v0.6.2
+	github.com/cenkalti/backoff/v5 v5.0.2
 	github.com/fatih/color v1.18.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/uuid v1.6.0

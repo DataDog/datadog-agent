@@ -4,6 +4,9 @@ go_library(
     name = "ir",
     srcs = [
         "doc.go",
+        "issue.go",
+        "issuekind_string.go",
+        "probe_definition.go",
         "probe_kind.go",
         "probe_kind_string.go",
     ],

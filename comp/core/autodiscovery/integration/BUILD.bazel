@@ -5,11 +5,12 @@ go_library(
     srcs = [
         "config.go",
         "response.go",
+        "util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/util/containers",
+        "//comp/core/workloadfilter/def",
         "//pkg/util/log",
         "@com_github_twmb_murmur3//:murmur3",
         "@in_gopkg_yaml_v2//:yaml_v2",

@@ -9,6 +9,7 @@ go_library(
         "//comp/core/autodiscovery",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
+        "//comp/core/workloadfilter/def",
         "//comp/logs/agent/config",
         "//pkg/config/setup",
         "//pkg/logs/internal/util/adlistener",

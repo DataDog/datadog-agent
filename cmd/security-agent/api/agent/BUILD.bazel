@@ -11,6 +11,7 @@ go_library(
         "//comp/core/settings",
         "//comp/core/status",
         "//comp/core/workloadmeta/def",
+        "//pkg/api/coverage",
         "//pkg/api/version",
         "//pkg/config/setup",
         "//pkg/flare/securityagent",

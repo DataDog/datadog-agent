@@ -1,9 +1,8 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_test")
 
 go_test(
     name = "service-test_test",
     srcs = ["startstop_test.go"],
-    embed = [":service-test"],
     embedsrcs = [
         "fixtures/datadog-pa-disabled.yaml",
         "fixtures/datadog-ta-disabled.yaml",
@@ -24,20 +23,11 @@ go_test(
         "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_cenkalti_backoff//:backoff",
         "@com_github_datadog_test_infra_definitions//components/datadog/agentparams",
+        "@com_github_datadog_test_infra_definitions//components/os",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",
-        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
-    ],
-)
-
-go_library(
-    name = "service-test",
-    srcs = ["metrics.go"],
-    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/service-test",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//test/new-e2e/pkg/components",
-        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
     ],
 )

@@ -13,6 +13,7 @@ go_library(
         "config/core_agent_refresh_nix.yaml",
         "config/process_agent_refresh_nix.yaml",
         "config/process_agent_refresh_win.yaml",
+        "config/process_check_in_core_agent_wlm_process_collector.yaml",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/process",
     visibility = ["//visibility:public"],

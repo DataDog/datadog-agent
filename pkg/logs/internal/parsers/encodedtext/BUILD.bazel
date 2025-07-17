@@ -17,7 +17,10 @@ go_library(
 
 go_test(
     name = "encodedtext_test",
-    srcs = ["encodedtext_test.go"],
+    srcs = [
+        "encodedtext_fuzz_test.go",
+        "encodedtext_test.go",
+    ],
     embed = [":encodedtext"],
     deps = [
         "//pkg/logs/message",

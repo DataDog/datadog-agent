@@ -26,6 +26,7 @@ go_library(
         "//comp/core/secrets",
         "//comp/core/tagger/def",
         "//comp/core/tagger/fx-dual",
+        "//comp/core/workloadfilter/fx",
         "//comp/core/workloadmeta/collectors/catalog",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx",

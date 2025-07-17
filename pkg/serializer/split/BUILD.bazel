@@ -25,7 +25,6 @@ go_test(
         "//pkg/config/mock",
         "//pkg/metrics",
         "//pkg/metrics/event",
-        "//pkg/metrics/servicecheck",
         "//pkg/serializer/internal/metrics",
         "//pkg/tagset",
         "//pkg/util/compression",

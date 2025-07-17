@@ -19,7 +19,7 @@ import (
 )
 
 func run(binary string, pc uint64) error {
-	mef, err := object.NewMMappingElfFile(binary)
+	mef, err := object.OpenMMappingElfFile(binary)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func run(binary string, pc uint64) error {
 		return err
 	}
 	defer func() { err = errors.Join(err, goDebugSections.Close()) }()
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(mef)
 	if err != nil {
 		return err
 	}

@@ -40,6 +40,8 @@ go_test(
     ],
     embed = [":def"],
     deps = [
+        "//pkg/discovery/tracermetadata",
+        "//pkg/languagedetection/languagemodels",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@io_k8s_apimachinery//pkg/runtime/schema",

@@ -16,6 +16,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -66,4 +67,11 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	// Avoid reporting negative CPU percentages when this occurs
 	overalPct = math.Max(overalPct, 0.0)
 	return float32(overalPct)
+}
+
+// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
+// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+func (p *ProcessCheck) useWLMCollection() bool {
+	log.Info("process_config.process_collection.use_wlm is not supported on windows")
+	return false
 }

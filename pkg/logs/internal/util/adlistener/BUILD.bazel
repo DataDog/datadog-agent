@@ -24,6 +24,7 @@ go_test(
         "//comp/core/autodiscovery/scheduler",
         "//comp/core/secrets/secretsimpl",
         "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadfilter/fx-mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//pkg/util/fxutil",

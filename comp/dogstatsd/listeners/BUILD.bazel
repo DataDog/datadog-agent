@@ -60,6 +60,7 @@ go_test(
         "udp_test.go",
         "uds_common_test.go",
         "uds_datagram_test.go",
+        "uds_integration_test.go",
         "uds_linux_test.go",
         "uds_stream_test.go",
     ],

@@ -7,17 +7,16 @@
 package servicetest
 
 import (
-	"context"
 	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -27,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
 
@@ -61,6 +61,21 @@ var securityAgentConfig string
 
 //go:embed fixtures/security-agent-disabled.yaml
 var securityAgentConfigDisabled string
+
+// Folder for WER dumps.
+const werCrashDumpFolder = `C:\dumps`
+
+// Path to the system crash dump (BSOD).
+const systemCrashDumpFile = `C:\Windows\MEMORY.DMP`
+
+// The name of the downloaded system crash dump file.
+const systemCrashDumpOutFileName = `SystemCrash.DMP`
+
+// Default scaling of timeouts based on present E2E flakiness. Adjust this as necessary.
+const defaultTimeoutScale = 1
+
+// Default scaling of timeouts for tests with driver verifier. This needs to be generous.
+const driverVerifierTimeoutScale = 10
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -213,10 +228,18 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 		// kill the process
 		_, err = host.Execute(fmt.Sprintf("Stop-Process -Force -Id %d", pid))
 		s.Require().NoError(err, "should kill the process with PID %d", pid)
+
 		// service should stop
-		status, err := windowsCommon.GetServiceStatus(host, serviceName)
-		s.Require().NoError(err, "should get the status for %s", serviceName)
-		s.Require().Equal("Stopped", status, "%s should be stopped", serviceName)
+		s.Require().EventuallyWithT(func(c *assert.CollectT) {
+			status, err := windowsCommon.GetServiceStatus(host, serviceName)
+			if !assert.NoError(c, err) {
+				s.T().Logf("should get the status for %s", serviceName)
+				return
+			}
+			if !assert.Equal(c, "Stopped", status) {
+				s.T().Logf("waiting for %s to stop", serviceName)
+			}
+		}, (2*s.timeoutScale)*time.Minute, 10*time.Second, "%s should be stopped", serviceName)
 	}
 
 	// collect display names for services
@@ -240,7 +263,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 			})
 			assert.Len(c, matching, 1, "should have hard exit message for %s in the event log", displayName)
 		}
-	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
+	}, (1*s.timeoutScale)*time.Minute, 10*time.Second, "should have hard exit messages in the event log")
 }
 
 type agentServiceDisabledSuite struct {
@@ -383,19 +406,22 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 		awsHostWindows.WithAgentClientOptions(
 			agentclientparams.WithSkipWaitForAgentReady(),
 		),
+		awsHostWindows.WithEC2InstanceOptions(
+			ec2.WithAMI("ami-0345f44fe05216fc4", e2eos.WindowsServer2022, e2eos.AMD64Arch),
+		),
 	))}
 	e2e.Run(t, s, opts...)
 }
 
 type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	startAgentCommand         func(host *components.RemoteHost) error
-	stopAgentCommand          func(host *components.RemoteHost) error
-	runningUserServices       func() []string
-	runningServices           func() []string
-	dumpFolder                string
-	cancelMetricCollection    context.CancelFunc
-	waitGroupMetricCollection sync.WaitGroup
+	startAgentCommand    func(host *components.RemoteHost) error
+	stopAgentCommand     func(host *components.RemoteHost) error
+	runningUserServices  func() []string
+	runningServices      func() []string
+	dumpFolder           string
+	enableDriverVerifier bool
+	timeoutScale         time.Duration
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -467,23 +493,37 @@ func (s *baseStartStopSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer s.CleanupOnSetupFailure()
 
+	host := s.Env().RemoteHost
+
+	// Enable driver verifier and reboot. Tests will require more generous timeouts.
+	if s.enableDriverVerifier {
+		out, err := windowsCommon.EnableDriverVerifier(host, s.getInstalledKernelServices())
+		if err != nil {
+			s.T().Logf("Driver verifier error output:\n%s", err)
+		}
+		if out != "" {
+			s.T().Logf("Driver verifier output:\n%s", out)
+		}
+
+		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
+	}
+
 	// TODO(WINA-1320): mark this crash as flaky while we investigate it
 	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
 
 	// Enable crash dumps
-	s.dumpFolder = `C:\dumps`
-	err := windowsCommon.EnableWERGlobalDumps(s.Env().RemoteHost, s.dumpFolder)
+	s.dumpFolder = werCrashDumpFolder
+	err := windowsCommon.EnableWERGlobalDumps(host, s.dumpFolder)
 	s.Require().NoError(err, "should enable WER dumps")
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
 	}
 	for _, svc := range s.getInstalledUserServices() {
-		err := windowsCommon.SetServiceEnvironment(s.Env().RemoteHost, svc, env)
+		err := windowsCommon.SetServiceEnvironment(host, svc, env)
 		s.Require().NoError(err, "should set environment for %s", svc)
 	}
 
 	// Disable failure actions (auto restart service) so they don't interfere with the tests
-	host := s.Env().RemoteHost
 	for _, serviceName := range s.getInstalledServices() {
 		cmd := fmt.Sprintf(`sc.exe failure "%s" reset= 0 actions= none`, serviceName)
 		_, err := host.Execute(cmd)
@@ -498,38 +538,12 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return s.getInstalledServices()
 	}
 
-	// TODO(WINA-1320): log the system memory to help debug
-	// Start in background goroutine to reduce affect on timing of other
-	// commands being run.
-	// Stop the goroutine when the test ends
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancelMetricCollection = cancel
-	s.waitGroupMetricCollection.Add(1)
-	go func() {
-		defer s.waitGroupMetricCollection.Done()
-		// Collect metrics at most every 5 seconds
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				s.T().Log("Stopping host memory metrics collection")
-				return
-			case <-ticker.C:
-				s.sendHostMemoryMetrics(host)
-			}
-		}
-	}()
+	// By default driver verifier is disabled.
+	s.enableDriverVerifier = false
+	s.timeoutScale = defaultTimeoutScale
 }
 
 func (s *baseStartStopSuite) TearDownSuite() {
-	// Must stop metric collector so the host connection is no longer in use
-	// before destroying the environment, else reconnect may fail require() in host.go
-	if s.cancelMetricCollection != nil {
-		s.cancelMetricCollection()
-		s.waitGroupMetricCollection.Wait()
-	}
-
 	s.T().Log("Tearing down environment")
 	s.BaseSuite.TearDownSuite()
 }
@@ -598,6 +612,9 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		// collect agent logs
 		s.collectAgentLogs()
 	}
+
+	// check if the host crashed.
+	s.Require().False(s.collectSystemCrashDump(), "should not have system crash dump")
 }
 
 func (s *baseStartStopSuite) collectAgentLogs() {
@@ -670,7 +687,7 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 		if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
 			s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 		}
-	}, 2*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
+	}, (2*s.timeoutScale)*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
 
 	// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
 	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
@@ -713,7 +730,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 				err := windowsCommon.StopService(host, serviceName)
 				assert.NoError(c, err, "should stop %s", serviceName)
 			}
-		}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+		}, (2*s.timeoutScale)*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
 	}
 }
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
@@ -753,47 +770,6 @@ func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommo
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
-}
-
-// sendHostMemoryMetrics sends the host memory metrics to Datadog
-//
-// TODO(WINA-1320): collect metrics to help debug a crash
-func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) {
-	metrics := []datadog.Metric{}
-
-	systemMetrics, err := getSystemMemoryMetrics(host)
-	if err != nil {
-		s.T().Logf("failed to get system memory metrics: %s", err)
-	} else {
-		metrics = append(metrics, systemMetrics...)
-	}
-	processMetrics, err := getTopProcessMemoryMetrics(host)
-	if err != nil {
-		s.T().Logf("failed to get process memory metrics: %s", err)
-	} else {
-		metrics = append(metrics, processMetrics...)
-	}
-	tags := []string{
-		// test info
-		"testname:" + s.T().Name(),
-		// pipeline info
-		"project:datadog-agent",
-		"job:" + os.Getenv("CI_JOB_ID"),
-		"pipeline:" + s.Env().Environment.PipelineID(),
-	}
-	// update Host and Tags in each metric
-	for i := range metrics {
-		metrics[i].Host = datadog.String(host.Address)
-		metrics[i].Tags = append(metrics[i].Tags, tags...)
-	}
-
-	// submit the metrics to dddev
-	err = s.DatadogClient().PostMetrics(metrics)
-	if err != nil {
-		s.T().Logf("failed to post memory metrics: %s", err)
-	} else {
-		s.T().Logf("posted memory metrics")
-	}
 }
 
 // captureLiveKernelDump sends a command to the host to create a live kernel dump and downloads it.
@@ -847,3 +823,129 @@ func (s *baseStartStopSuite) captureLiveKernelDump(host *components.RemoteHost, 
 	// Cleanup the "localhost" subdirectory.
 	host.RemoveAll(sourceDumpDir)
 }
+
+func (s *baseStartStopSuite) collectSystemCrashDump() bool {
+	// Look for a system crash dump. These may be triggered by Driver Verifier.
+	// Stop the test immediately if one is found.
+
+	s.T().Log("Checking for system crash dump")
+	systemCrashDumpOutPath := filepath.Join(s.SessionOutputDir(), systemCrashDumpOutFileName)
+
+	// Check if a system crash dump was already downloaded.
+	if _, err := os.Stat(systemCrashDumpOutPath); err != nil {
+		if !os.IsNotExist(err) {
+			s.T().Logf("Found existing system crash dump %s", systemCrashDumpOutPath)
+			return true
+		}
+	}
+
+	systemDump, err := windowsCommon.DownloadSystemCrashDump(
+		s.Env().RemoteHost, systemCrashDumpFile, systemCrashDumpOutPath)
+	s.Assert().NoError(err, "should download system crash dump")
+
+	return systemDump != ""
+}
+
+// Driver verifier tests start
+
+type dvAgentServiceCommandSuite struct {
+	agentServiceCommandSuite
+}
+type dvPowerShellServiceCommandSuite struct {
+	powerShellServiceCommandSuite
+}
+type dvAgentServiceDisabledSystemProbeSuite struct {
+	agentServiceDisabledSystemProbeSuite
+}
+type dvAgentServiceDisabledProcessAgentSuite struct {
+	agentServiceDisabledProcessAgentSuite
+}
+type dvAgentServiceDisabledTraceAgentSuite struct {
+	agentServiceDisabledTraceAgentSuite
+}
+type dvAgentServiceDisabledInstallerSuite struct {
+	agentServiceDisabledInstallerSuite
+}
+
+// TestDriverVerifierOnServiceBehaviorAgentCommand tests the same as TestServiceBehaviorAgentCommand
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
+	// incident-40498
+	flake.Mark(t)
+	s := &dvAgentServiceCommandSuite{}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
+}
+
+// TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
+	// incident-40498
+	flake.Mark(t)
+	s := &dvPowerShellServiceCommandSuite{}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
+}
+
+// TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe tests the same as TestServiceBehaviorWhenDisabledSystemProbe
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
+	s := &dvAgentServiceDisabledSystemProbeSuite{}
+	s.disabledServices = []string{
+		"datadog-security-agent",
+		"datadog-system-probe",
+		"ddnpm",
+		"ddprocmon",
+	}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled)
+}
+
+// TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent tests the same as TestServiceBehaviorWhenDisabledProcessAgent
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
+	s := &dvAgentServiceDisabledProcessAgentSuite{}
+	s.disabledServices = []string{
+		"datadog-process-agent",
+		"datadog-security-agent",
+		"datadog-system-probe",
+		"ddnpm",
+		"ddprocmon",
+	}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled)
+}
+
+// TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
+	// incident-40498
+	flake.Mark(t)
+	s := &dvAgentServiceDisabledTraceAgentSuite{}
+	s.disabledServices = []string{
+		"datadog-trace-agent",
+	}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig)
+}
+
+// TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	// incident-40498
+	flake.Mark(t)
+	s := &dvAgentServiceDisabledInstallerSuite{}
+	s.disabledServices = []string{
+		"Datadog Installer",
+	}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+}
+
+// Driver verifier tests end

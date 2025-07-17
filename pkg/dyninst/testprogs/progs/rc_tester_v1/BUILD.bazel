@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "rc_tester_v1_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@in_gopkg_datadog_dd_trace_go_v1//contrib/net/http",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)
+
+go_binary(
+    name = "rc_tester_v1",
+    embed = [":rc_tester_v1_lib"],
+    visibility = ["//visibility:public"],
+)

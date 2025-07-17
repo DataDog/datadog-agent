@@ -21,7 +21,10 @@ go_library(
 
 go_test(
     name = "network_test",
-    srcs = ["network_win_test.go"],
+    srcs = [
+        "network_nix_test.go",
+        "network_win_test.go",
+    ],
     embed = [":network"],
     deps = [
         "//test/new-e2e/pkg/e2e",

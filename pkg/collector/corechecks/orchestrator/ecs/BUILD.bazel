@@ -24,6 +24,7 @@ go_library(
         "//pkg/util/hostname",
         "//pkg/util/log",
         "//pkg/util/option",
+        "//pkg/version",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_google_uuid//:uuid",
         "@org_uber_go_atomic//:atomic",

@@ -11,6 +11,7 @@ package object
 
 import (
 	"debug/dwarf"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -21,13 +22,15 @@ type Architecture = bininspect.GoArch
 
 // File is an interface that represents an object file.
 type File interface {
+	io.Closer
+
 	// Access to the DWARF sections.
 	DwarfSections() *DebugSections
 	// Access to the DWARF data.
 	DwarfData() *dwarf.Data
 	// LoclistReader returns a reader that can be used to read
 	// loclist entries. The reader is not safe for concurrent use.
-	LoclistReader() (*loclist.Reader, error)
+	LoclistReader() *loclist.Reader
 	// PointerSize returns the size of a pointer on the architecture of the object file.
 	PointerSize() uint8
 }
