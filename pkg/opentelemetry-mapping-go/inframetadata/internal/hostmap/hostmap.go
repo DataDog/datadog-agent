@@ -222,6 +222,12 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		md.Tags.OTel = tags
 	}
 
+	// Host Aliases
+	hostAliases := getHostAliases(res.Attributes())
+	old := md.Meta.HostAliases
+	changed = changed || !equalSlices[[]string](old, hostAliases)
+	md.Meta.HostAliases = hostAliases
+
 	// InstanceID field
 	if iid, ok, err2 := instanceID(res.Attributes()); err2 != nil {
 		err = errors.Join(err, err2)
@@ -304,7 +310,7 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	}
 
 	m.hosts[host] = md
-	changed = changed && found
+	changed = changed || !found
 	return
 }
 
