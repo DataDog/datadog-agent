@@ -680,7 +680,7 @@ func BenchmarkTimeSampler(b *testing.B) {
 }
 
 func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
-	flushSerieWithBlocklist(sampler, timestamp, nil, forceFlushAll)
+	return flushSerieWithBlocklist(sampler, timestamp, nil, forceFlushAll)
 }
 
 func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
