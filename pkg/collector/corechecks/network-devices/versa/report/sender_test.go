@@ -1261,3 +1261,180 @@ func TestSendLinkStatusMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestSendApplicationsByApplianceMetrics(t *testing.T) {
+	tests := []struct {
+		name                   string
+		appsByApplianceMetrics []client.ApplicationsByApplianceMetrics
+		deviceNameToIDMap      map[string]string
+		expectedMetrics        []expectedMetric
+	}{
+		{
+			name: "Single applications by appliance metric with device mapping",
+			appsByApplianceMetrics: []client.ApplicationsByApplianceMetrics{
+				{
+					DrillKey:    "test-branch-2B,HTTP",
+					Site:        "test-branch-2B",
+					AppId:       "HTTP",
+					Sessions:    50.0,
+					VolumeTx:    1024000.0,
+					VolumeRx:    512000.0,
+					BandwidthTx: 8192.0,
+					BandwidthRx: 4096.0,
+					Bandwidth:   12288.0,
+				},
+			},
+			deviceNameToIDMap: map[string]string{
+				"test-branch-2B": "192.168.1.1",
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "app.sessions",
+					value: 50.0,
+					tags:  []string{"site:test-branch-2B", "app_id:HTTP", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_tx",
+					value: 1024000.0,
+					tags:  []string{"site:test-branch-2B", "app_id:HTTP", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_rx",
+					value: 512000.0,
+					tags:  []string{"site:test-branch-2B", "app_id:HTTP", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_tx",
+					value: 8192.0,
+					tags:  []string{"site:test-branch-2B", "app_id:HTTP", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_rx",
+					value: 4096.0,
+					tags:  []string{"site:test-branch-2B", "app_id:HTTP", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth",
+					value: 12288.0,
+					tags:  []string{"site:test-branch-2B", "app_id:HTTP", "device_ip:192.168.1.1", "device_namespace:default"},
+				},
+			},
+		},
+		{
+			name: "Multiple applications by appliance metrics with mixed device mapping",
+			appsByApplianceMetrics: []client.ApplicationsByApplianceMetrics{
+				{
+					DrillKey:    "branch-1,HTTPS",
+					Site:        "branch-1",
+					AppId:       "HTTPS",
+					Sessions:    100.0,
+					VolumeTx:    2048000.0,
+					VolumeRx:    1024000.0,
+					BandwidthTx: 16384.0,
+					BandwidthRx: 8192.0,
+					Bandwidth:   24576.0,
+				},
+				{
+					DrillKey:    "branch-2,SSH",
+					Site:        "branch-2",
+					AppId:       "SSH",
+					Sessions:    25.0,
+					VolumeTx:    256000.0,
+					VolumeRx:    128000.0,
+					BandwidthTx: 2048.0,
+					BandwidthRx: 1024.0,
+					Bandwidth:   3072.0,
+				},
+			},
+			deviceNameToIDMap: map[string]string{
+				"branch-1": "10.0.0.1",
+				// branch-2 is intentionally missing to test the no mapping case
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					name:  versaMetricPrefix + "app.sessions",
+					value: 100.0,
+					tags:  []string{"site:branch-1", "app_id:HTTPS", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_tx",
+					value: 2048000.0,
+					tags:  []string{"site:branch-1", "app_id:HTTPS", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_rx",
+					value: 1024000.0,
+					tags:  []string{"site:branch-1", "app_id:HTTPS", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_tx",
+					value: 16384.0,
+					tags:  []string{"site:branch-1", "app_id:HTTPS", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_rx",
+					value: 8192.0,
+					tags:  []string{"site:branch-1", "app_id:HTTPS", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth",
+					value: 24576.0,
+					tags:  []string{"site:branch-1", "app_id:HTTPS", "device_ip:10.0.0.1", "device_namespace:default"},
+				},
+				{
+					name:  versaMetricPrefix + "app.sessions",
+					value: 25.0,
+					tags:  []string{"site:branch-2", "app_id:SSH"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_tx",
+					value: 256000.0,
+					tags:  []string{"site:branch-2", "app_id:SSH"},
+				},
+				{
+					name:  versaMetricPrefix + "app.volume_rx",
+					value: 128000.0,
+					tags:  []string{"site:branch-2", "app_id:SSH"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_tx",
+					value: 2048.0,
+					tags:  []string{"site:branch-2", "app_id:SSH"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth_rx",
+					value: 1024.0,
+					tags:  []string{"site:branch-2", "app_id:SSH"},
+				},
+				{
+					name:  versaMetricPrefix + "app.bandwidth",
+					value: 3072.0,
+					tags:  []string{"site:branch-2", "app_id:SSH"},
+				},
+			},
+		},
+		{
+			name:                   "Empty applications by appliance metrics",
+			appsByApplianceMetrics: []client.ApplicationsByApplianceMetrics{},
+			deviceNameToIDMap:      map[string]string{},
+			expectedMetrics:        []expectedMetric{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("testID")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			s := NewSender(mockSender, "default")
+			s.SendApplicationsByApplianceMetrics(tt.appsByApplianceMetrics, tt.deviceNameToIDMap)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+			}
+
+			// Verify no unexpected metrics were sent
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
+		})
+	}
+}

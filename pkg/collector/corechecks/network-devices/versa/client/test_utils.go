@@ -107,7 +107,7 @@ func SetupMockAPIServer() *httptest.Server {
 	//mux.HandleFunc("/vnms/dashboard/childAppliancesDetail/", fixtureHandler(fixtures.GetChildAppliancesDetail))
 	mux.HandleFunc("/vnms/dashboard/vdStatus", fixtureHandler(fixtures.GetDirectorStatus))
 	mux.HandleFunc(AnalyticsMetricsURL, func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is a SLA metrics request, Link Usage metrics request, or Link Status metrics request
+		// Check if this a valid analytics request
 		queryParams := r.URL.Query()
 		query := queryParams.Get("q")
 		if strings.Contains(query, "slam(") {
@@ -116,6 +116,8 @@ func SetupMockAPIServer() *httptest.Server {
 			fixtureHandler(fixtures.GetLinkUsageMetrics)(w, r)
 		} else if strings.Contains(query, "linkstatus(") {
 			fixtureHandler(fixtures.GetLinkStatusMetrics)(w, r)
+		} else if strings.Contains(query, "app(") {
+			fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 		} else {
 			http.Error(w, "Unknown query type", http.StatusBadRequest)
 		}
