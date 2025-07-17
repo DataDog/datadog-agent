@@ -62,6 +62,14 @@ myjob:
   script:
     - dda inv -- -e gitlab.test
 
+myjob2:
+  extends:
+    - .linux_x64
+  script:
+    - echo -e "\e[0Ksection_start:`date +%s`:my_first_section\r\e[0KHeader of the 1st collapsible section"
+    - echo 'this line should be hidden when collapsed'
+    - echo -e "\e[0Ksection_end:`date +%s`:my_first_section\r\e[0K"
+
 # lint_linux-x64-3:
 #   extends:
 #     - .linux_lint3
