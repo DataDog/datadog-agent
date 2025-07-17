@@ -421,9 +421,17 @@ def ls(_, distro=True, custom=False):
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
         "all-images": "Download all available VM images for the current architecture.",
         "skip-ssh-setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
+        "exclude-requirements": "Comma separated list of requirements to exclude. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
     }
 )
-def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False, skip_ssh_setup=False):
+def init(
+    ctx: Context,
+    images: str | None = None,
+    all_images=False,
+    remote_setup_only=False,
+    skip_ssh_setup=False,
+    exclude_requirements: list[str] | None = None,
+):
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(
@@ -439,7 +447,13 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
 
     try:
-        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
+        init_kernel_matrix_testing_system(
+            ctx,
+            images,
+            all_images,
+            remote_setup_only,
+            exclude_requirements,
+        )
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -459,10 +473,7 @@ def selfcheck(
     fix: bool = False,
     exclude_requirements: list[str] | None = None,
 ):
-    requirements = get_requirements(remote_setup_only)
-    if exclude_requirements is not None:
-        requirements = [r for r in requirements if r.__class__.__name__ not in exclude_requirements]
-
+    requirements = get_requirements(remote_setup_only, exclude_requirements)
     if check_requirements(ctx, requirements, fix=fix, echo=True, verbose=ctx.config["run"]["echo"]):
         raise Exit("[-] KMT setup incorrect")
     else:
