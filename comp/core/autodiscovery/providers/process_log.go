@@ -91,8 +91,8 @@ func (p *processLogConfigProvider) Stream(ctx context.Context) <-chan integratio
 					return
 				}
 
-				outCh <- p.processEvents(evBundle)
 				evBundle.Acknowledge()
+				outCh <- p.processEvents(evBundle)
 			}
 		}
 	}()
