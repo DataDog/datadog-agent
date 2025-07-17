@@ -12,6 +12,7 @@ import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"net/http"
 	"time"
 
@@ -89,7 +90,14 @@ type Provides struct {
 }
 
 // NewWithClient creates a new inventory software component with a custom sysprobeclient
-func NewWithClient(deps Dependencies, client SysProbeClient) Provides {
+func NewWithClient(deps Dependencies, client SysProbeClient) option.Option[Provides] {
+	// Check if software inventory is enabled in the agent configuration
+	if !deps.Config.GetBool("software_inventory.enabled") {
+		deps.Log.Debugf("Software inventory is disabled in agent configuration")
+		// Return a no-op component when disabled
+		return option.None[Provides]()
+	}
+
 	if client == nil {
 		client = &sysProbeClientWrapper{
 			client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
@@ -103,17 +111,17 @@ func NewWithClient(deps Dependencies, client SysProbeClient) Provides {
 	}
 	is.log.Infof("Starting the inventory software component")
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, flareFileName)
-	return Provides{
+	return option.New(Provides{
 		Comp:                 is,
 		Provider:             is.InventoryPayload.MetadataProvider(),
 		FlareProvider:        is.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(is),
 		Endpoint:             api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/software", "GET"),
-	}
+	})
 }
 
 // New creates a new inventory software component with the default sysprobeclient
-func New(deps Dependencies) Provides {
+func New(deps Dependencies) option.Option[Provides] {
 	return NewWithClient(deps, nil)
 }
 

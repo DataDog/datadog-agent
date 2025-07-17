@@ -177,9 +177,8 @@ func load() (*types.Config, error) {
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
-		if swEnabled {
-			c.EnabledModules[InventorySoftwareModule] = struct{}{}
-		}
+		// Always enabled on Windows
+		c.EnabledModules[InventorySoftwareModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
