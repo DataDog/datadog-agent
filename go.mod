@@ -664,7 +664,7 @@ require (
 	github.com/fatih/structtag v1.2.0
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
-	github.com/godror/godror v0.37.0
+	github.com/godror/godror v0.49.0
 	github.com/google/cel-go v0.25.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/jackc/pgx/v5 v5.6.0
@@ -716,6 +716,7 @@ require (
 
 require (
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
+	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.129.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.129.0 // indirect
@@ -810,7 +811,7 @@ require (
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.11.0 // indirect
-	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -1191,5 +1192,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
-
 )
