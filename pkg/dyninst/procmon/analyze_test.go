@@ -96,7 +96,7 @@ func TestAnalyzeProcess(t *testing.T) {
 		_, procRoot, cleanup := makeProcFS(t, 103, envTrue, false)
 		defer cleanup()
 		res, err := analyzeProcess(103, procRoot)
-		require.Regexp(t, "failed to open exe link for pid 103.*: no such file or directory", err)
+		require.NoError(t, err)
 		require.False(t, res.interesting)
 	})
 
