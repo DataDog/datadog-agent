@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -42,6 +43,9 @@ const (
 	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
 	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
 )
+
+// logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
@@ -335,7 +339,7 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 
 	for _, container := range wmetaContainers {
 		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.All())
-		if err != nil {
+		if err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error matching container devices: %s. Will continue with the available devices", err)
 		}
 
