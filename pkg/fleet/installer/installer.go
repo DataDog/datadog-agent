@@ -62,11 +62,9 @@ type Installer interface {
 	PromoteExperiment(ctx context.Context, pkg string) error
 
 	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
-	InstallMultipleConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
+	InstallMultipleConfigExperiment(ctx context.Context, pkg string, version string, serializedConfigs [][]byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
-	RemoveMultipleConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
-	PromoteMultipleConfigExperiment(ctx context.Context, pkg string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -592,13 +590,6 @@ func (i *installerImpl) InstallMultipleConfigExperiment(ctx context.Context, pkg
 
 // RemoveConfigExperiment removes an experiment.
 func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
-	// For removing experiments, the operation is the same regardless of whether
-	// it was installed with single or multiple configs, so we can reuse the multiple method
-	return i.RemoveMultipleConfigExperiment(ctx, pkg)
-}
-
-// RemoveConfigExperimentMultiple removes an experiment with multiple configs.
-func (i *installerImpl) RemoveMultipleConfigExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -628,13 +619,6 @@ func (i *installerImpl) RemoveMultipleConfigExperiment(ctx context.Context, pkg 
 
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
-	// For promoting experiments, the operation is the same regardless of whether
-	// it was installed with single or multiple configs, so we can reuse the multiple method
-	return i.PromoteMultipleConfigExperiment(ctx, pkg)
-}
-
-// PromoteConfigExperimentMultiple promotes an experiment with multiple configs.
-func (i *installerImpl) PromoteMultipleConfigExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 

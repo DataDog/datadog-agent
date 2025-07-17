@@ -264,6 +264,7 @@ type expectedState struct {
 type experimentTaskParams struct {
 	Version     string   `json:"version"`
 	InstallArgs []string `json:"install_args"`
+	ConfigOrder []string `json:"config_order"`
 }
 
 type installPackageTaskParams struct {
