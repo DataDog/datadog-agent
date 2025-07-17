@@ -19,7 +19,12 @@
       "Bash(go test:*)",
       "Bash(rg:*)",
       "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags test -o /dev/null ./comp/logs/auditor/mock/...)",
-      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags \"test,windows\" ./pkg/logs/tailers/windowsevent/... ./comp/logs/auditor/impl/... ./comp/logs/auditor/mock/...)"
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags \"test,windows\" ./pkg/logs/tailers/windowsevent/... ./comp/logs/auditor/impl/... ./comp/logs/auditor/mock/...)",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags test ./comp/checks/windowseventlog/windowseventlogimpl/check/...)",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe test -tags test ./comp/checks/windowseventlog/windowseventlogimpl/check/... -v -run \"TestInitialBookmark\")",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags \"test,windows\" ./comp/checks/windowseventlog/windowseventlogimpl/...)",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe build -tags test ./pkg/logs/tailers/windowsevent/...)",
+      "Bash(/mnt/c/Program Files/Go/bin/go.exe test -tags test -run \"TestInitialBookmarkSeeding|TestInitialBookmarkSeedingNoEvents\" ./pkg/logs/tailers/windowsevent/... -v)"
     ],
     "deny": []
   }

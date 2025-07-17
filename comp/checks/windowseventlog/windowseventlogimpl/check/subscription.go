@@ -91,21 +91,43 @@ func (c *Check) initSubscription() error {
 		}
 	}
 	if bookmark == nil {
-		// Create initial bookmark from most recent event
-		bookmark, err = c.createInitialBookmark(channelPath, query)
-		if err != nil {
-			log.Warnf("Failed to create initial bookmark from recent events: %v. Creating empty bookmark.", err)
-			// Fall back to creating an empty bookmark
+		// Create initial bookmark to prevent amnesia bug
+		// This follows the pattern from pkg/logs/tailers/windowsevent/tailer.go
+		log.Debugf("Creating initial bookmark for channel '%s' (start: %s)", channelPath, startMode)
+		
+		if startMode == "now" {
+			// For "now" mode, create bookmark from most recent event
+			bookmark, err = c.createInitialBookmark(channelPath, query)
+			if err != nil {
+				log.Debugf("No recent events found, creating empty bookmark: %v", err)
+			}
+			// createInitialBookmark returns a valid bookmark even for empty logs
+			if bookmark != nil {
+				opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
+			}
+		} else {
+			// For "oldest" mode, create empty bookmark and start from beginning
 			bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
 			if err != nil {
 				return err
 			}
-			if startMode == "oldest" {
-				opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
+			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
+		}
+		
+		// Always persist the initial bookmark immediately
+		// This ensures we have a saved position even if no events are processed before shutdown
+		if bookmark != nil {
+			bookmarkXML, err := bookmark.Render()
+			if err == nil {
+				err = persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
+				if err != nil {
+					log.Warnf("Failed to persist initial bookmark: %v", err)
+				} else {
+					log.Infof("Initial bookmark persisted for channel '%s' (start: %s)", channelPath, startMode)
+				}
+			} else {
+				log.Warnf("Failed to render initial bookmark: %v", err)
 			}
-		} else {
-			// Successfully created bookmark from recent event, use it
-			opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
 		}
 	}
 
@@ -187,15 +209,27 @@ func (c *Check) createInitialBookmark(channelPath, query string) (evtbookmark.Bo
 	eventHandles := make([]evtapi.EventRecordHandle, 1)
 	returnedHandles, err := c.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
 	if err != nil {
+		// Check if it's just no events available
 		if err == windows.ERROR_NO_MORE_ITEMS {
-			// No events in the log, return nil to indicate empty bookmark should be created
-			return nil, fmt.Errorf("no events found in log")
+			// No events in the log, create empty bookmark (following tailer pattern)
+			bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
+			if err != nil {
+				return nil, fmt.Errorf("failed to create empty bookmark: %w", err)
+			}
+			log.Debugf("Created empty initial bookmark for channel '%s' (no events in log)", channelPath)
+			return bookmark, nil
 		}
 		return nil, fmt.Errorf("EvtNext failed: %w", err)
 	}
 
 	if len(returnedHandles) == 0 {
-		return nil, fmt.Errorf("no events returned")
+		// No events available, create empty bookmark
+		bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create empty bookmark: %w", err)
+		}
+		log.Debugf("Created empty initial bookmark for channel '%s' (no events returned)", channelPath)
+		return bookmark, nil
 	}
 
 	// Create bookmark and update it with the event
