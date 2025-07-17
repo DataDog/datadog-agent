@@ -336,8 +336,10 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
+	log.Errorf("found %d containers with allocated resources", len(containers))
 	for _, container := range containers {
 		for _, resource := range container.ResolvedAllocatedResources {
+			log.Errorf("container %s (ID: %s) has resource %s (ID: %s)", container.Name, container.ID, resource.Name, resource.ID)
 			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}

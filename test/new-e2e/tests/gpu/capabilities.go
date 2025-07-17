@@ -54,7 +54,6 @@ type suiteCapabilities interface {
 	Agent() agentclient.Agent
 	QuerySysprobe(path string) (string, error)
 	RunWorkload(image string, arguments ...string) (string, error)
-	KillWorkload(containerID string) // we don't care about the error
 	GetRestartCount(component agentComponent) int
 }
 
@@ -104,19 +103,6 @@ func (c *hostCapabilities) RunWorkload(image string, arguments ...string) (strin
 	idOut, err := c.suite.Env().RemoteHost.Execute(containerIDCmd)
 
 	return strings.TrimSpace(idOut), err
-}
-
-// KillWorkload stops and removes a container by its container ID
-func (c *hostCapabilities) KillWorkload(containerID string) {
-	_, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("sudo docker kill %s", containerID))
-	if err != nil {
-		c.suite.T().Logf("Warning: failed to kill container %s: %v", containerID, err)
-	}
-
-	_, err = c.suite.Env().RemoteHost.Execute(fmt.Sprintf("sudo docker rm -f %s", containerID))
-	if err != nil {
-		c.suite.T().Logf("Warning: failed to remove container %s: %v", containerID, err)
-	}
 }
 
 func (c *hostCapabilities) GetRestartCount(component agentComponent) int {
@@ -236,50 +222,6 @@ func (c *kubernetesCapabilities) RunWorkload(image string, arguments ...string) 
 
 	pod := pods.Items[0]
 	return "", fmt.Errorf("Pod %s found but is not running, status: %s %s (%s)", pod.Name, pod.Status.Phase, pod.Status.Message, pod.Status.Reason)
-}
-
-// KillWorkload stops and removes a container by finding its associated pod and job
-func (c *kubernetesCapabilities) KillWorkload(containerID string) {
-	// Find the pod by container ID
-	pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		c.suite.T().Logf("Warning: failed to list pods for container %s: %v", containerID, err)
-		return
-	}
-
-	var targetPod *corev1.Pod
-	for _, pod := range pods.Items {
-		for _, containerStatus := range pod.Status.ContainerStatuses {
-			if containerStatus.ContainerID == containerID {
-				targetPod = &pod
-				break
-			}
-		}
-		if targetPod != nil {
-			break
-		}
-	}
-
-	if targetPod == nil {
-		c.suite.T().Logf("Warning: pod with container ID %s not found", containerID)
-		return
-	}
-
-	// Delete the pod
-	err = c.suite.Env().KubernetesCluster.Client().CoreV1().Pods("default").Delete(context.Background(), targetPod.Name, metav1.DeleteOptions{})
-	if err != nil {
-		c.suite.T().Logf("Warning: failed to delete pod %s for container %s: %v", targetPod.Name, containerID, err)
-		return
-	}
-
-	// Also try to clean up the associated job if it exists
-	jobName := targetPod.Labels["job-name"]
-	if jobName != "" {
-		err = c.suite.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Delete(context.Background(), jobName, metav1.DeleteOptions{})
-		if err != nil {
-			c.suite.T().Logf("Warning: failed to delete job %s: %v", jobName, err)
-		}
-	}
 }
 
 func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {

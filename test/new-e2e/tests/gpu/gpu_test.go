@@ -275,10 +275,12 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 func (v *gpuBaseSuite[Env]) runCudaDockerWorkload() string {
 	// Configure some defaults
 	vectorSize := 50000
-	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
-	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	numLoops := 100           // Loop extra times to ensure the kernel runs for a bit
+	startWaitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	//killWaitTimeSeconds := 120 // Give enough time to find the container and get the tags
 	binary := "/usr/local/bin/cuda-basic"
-	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops), strconv.Itoa(waitTimeSeconds)}
+	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops),
+		strconv.Itoa(startWaitTimeSeconds)}
 
 	containerID, err := v.caps.RunWorkload(dockerImageName(), args...)
 	v.Require().NoError(err)
@@ -358,10 +360,7 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	}
 
 	flake.Mark(v.T())
-	containerID := v.runCudaDockerWorkload()
-
-	// Ensure workload is cleaned up even if test fails
-	defer v.caps.KillWorkload(containerID)
+	_ = v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// We are not including "gpu.memory", as that represents the "current
@@ -398,9 +397,7 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 	isKubernetes := reflect.TypeOf(env) == reflect.TypeOf(environments.Kubernetes{})
 
 	if isKubernetes {
-		containerID := v.runCudaDockerWorkload()
-		// Ensure workload is cleaned up even if test fails
-		defer v.caps.KillWorkload(containerID)
+		_ = v.runCudaDockerWorkload()
 	}
 
 	// Nvml metrics are always being collected
