@@ -148,11 +148,11 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	}
 
 	var (
-		lastError      error
-		startTime      = time.Now()
-		configInjector = &libConfigInjector{}
-		injectionType  = config.source.injectionType()
-		autoDetected   = config.source.isFromLanguageDetection()
+		lastError error
+		startTime = time.Now()
+		//configInjector = &libConfigInjector{}
+		injectionType = config.source.injectionType()
+		autoDetected  = config.source.isFromLanguageDetection()
 
 		ustEnvVarMutator = m.ustEnvVarMutator(pod)
 
@@ -199,8 +199,12 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 			containerFilter:       m.config.containerFilter,
 			containerMutators:     containerMutators,
 			initContainerMutators: initContainerMutators,
-			podMutators:           []podMutator{configInjector.podMutator(lib.lang)},
 		}).mutatePod(pod); err != nil {
+			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
+			lastError = err
+			continue
+		}
+		if err := injectV1LibAnnotations(pod, lib.lang); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
 			continue
@@ -209,7 +213,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injected = true
 	}
 
-	if err := configInjector.podMutator(language("all")).mutatePod(pod); err != nil {
+	if err := injectV1LibAnnotations(pod, language("all")); err != nil {
 		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
