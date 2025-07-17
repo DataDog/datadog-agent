@@ -324,12 +324,12 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 		if location == "" {
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, "container %s does not have a location tag; all tags: %v", containerID, entityTags)
+			fmt.Fprintf(w, "container %s does not have a location tag; all tags: %#v", containerID, entityTags)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "%s successfully found location tag %s for container %s", entityTags, location, containerID)
+		fmt.Fprintf(w, "%#v successfully found location tag %s for container %s", entityTags, location, containerID)
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)

@@ -69,11 +69,16 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 			if err != nil {
 				log.Errorf("error getting container %s from metadata: %v", containerID, err)
 			} else {
+				found := false
 				for _, tag := range entityTags {
 					if strings.HasPrefix(tag, "location:") {
 						containerTags = common.NewStringSet(tag)
+						found = true
 						break
 					}
+				}
+				if !found {
+					log.Debugf("no location tag found for container %s - tags %#v", containerID, entityTags)
 				}
 			}
 		}
