@@ -350,7 +350,13 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
         ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
-def ninja_kernel_bug_binaries(nw: NinjaWriter):
+def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
+    arch = Arch.from_str(arch)
+
+    # do not build for arm64
+    if arch.ci_arch == "arm64":
+        return
+
     ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
     embedded_bins = ["detect-seccomp-bug"]
 
@@ -690,7 +696,7 @@ def ninja_generate(
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_kernel_bugs_ebpf_programs(nw)
-            ninja_kernel_bug_binaries(nw)
+            ninja_kernel_bug_binaries(nw, arch)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
