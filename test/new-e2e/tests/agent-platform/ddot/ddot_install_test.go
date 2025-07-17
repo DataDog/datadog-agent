@@ -146,16 +146,11 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 
 	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
 		ddotUnit := is.host.State().Units["datadog-agent-ddot.service"]
-		require.NotNil(t, ddotUnit)
-		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name)
-		require.Equal(t, "active", ddotUnit.Active)
-		require.Equal(t, host.Loaded, ddotUnit.LoadState)
-		require.Equal(t, host.Running, ddotUnit.SubState)
-
-		is.T().Log("--- ConfigureAndRunAgentService ---")
-		for s, u := range is.host.State().Units {
-			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-		}
+		require.NotNil(t, ddotUnit, "DDOT unit should be present after installation")
+		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name, "DDOT unit name should be datadog-agent-ddot.service")
+		require.Equal(t, "active", ddotUnit.Active, "DDOT unit should be active because of dependency on datadog-agent")
+		require.Equal(t, host.Loaded, ddotUnit.LoadState, "DDOT unit should be loaded")
+		require.Equal(t, host.Running, ddotUnit.SubState, "DDOT unit should be started when datadog-agent is started")
 	})
 }
 
