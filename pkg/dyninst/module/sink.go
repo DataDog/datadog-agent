@@ -10,8 +10,10 @@ package module
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
+	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
@@ -23,8 +25,8 @@ import (
 )
 
 type sink struct {
-	controller   *controller
-	decoder      *decode.Decoder
+	controller   *Controller
+	decoder      Decoder
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
 	service      string
@@ -32,6 +34,10 @@ type sink struct {
 }
 
 var _ actuator.Sink = &sink{}
+
+// We don't want to be too noisy about decoding errors, but we do want to learn
+// about them and we don't want to bail out completely.
+var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 func (s *sink) HandleEvent(event output.Event) error {
 	var buf bytes.Buffer
@@ -41,7 +47,20 @@ func (s *sink) HandleEvent(event output.Event) error {
 		ServiceName: s.service,
 	}, s.symbolicator, &buf)
 	if err != nil {
-		return fmt.Errorf("error decoding event: %w", err)
+		if decodingErrorLogLimiter.Allow() {
+			log.Warnf(
+				"failed to decode event in service %s: %v",
+				s.service, err,
+			)
+		} else {
+			log.Tracef(
+				"failed to decode event in service %s: %v",
+				s.service, err,
+			)
+		}
+		// TODO: Report failures to the controller to remove the relevant probe
+		// or program.
+		return nil
 	}
 	s.controller.setProbeMaybeEmitting(s.programID, probe)
 	s.logUploader.Enqueue(json.RawMessage(buf.Bytes()))
