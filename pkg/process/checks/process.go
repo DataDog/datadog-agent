@@ -17,6 +17,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -45,16 +46,6 @@ const (
 	configIgnoreZombies        = configPrefix + "ignore_zombie_processes"
 )
 
-type processClock interface {
-	Now() time.Time
-}
-
-type realClock struct{}
-
-func (r realClock) Now() time.Time {
-	return time.Now()
-}
-
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
 	serviceExtractorEnabled := true
@@ -69,7 +60,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		gpuSubscriber:       gpuSubscriber,
 		statsd:              statsd,
 		grpcServerTLSConfig: grpcServerTLSConfig,
-		timer:               realClock{},
+		timer:               clock.New(),
 	}
 
 	return check
@@ -103,7 +94,7 @@ type ProcessCheck struct {
 	useWLMProcessCollection bool
 
 	hostInfo                   *HostInfo
-	timer                      processClock
+	timer                      clock.Clock
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
@@ -244,6 +235,22 @@ func (p *ProcessCheck) Cleanup() {
 	}
 }
 
+func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
+	return &procutil.Process{
+		Pid:     wlmProc.Pid,
+		Ppid:    wlmProc.Ppid,
+		NsPid:   wlmProc.NsPid,
+		Name:    wlmProc.Name,
+		Cwd:     wlmProc.Cwd,
+		Exe:     wlmProc.Exe,
+		Comm:    wlmProc.Comm,
+		Cmdline: wlmProc.Cmdline,
+		Uids:    wlmProc.Uids,
+		Gids:    wlmProc.Gids,
+		Stats:   stats,
+	}
+}
+
 // TODO: runWLM tests will be eventually moved to a linux build flagged test file after process check refactor is finished
 func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, error) {
 	log.Debugf("Running new WLM process check")
@@ -271,19 +278,7 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 	//procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	procs := make(map[int32]*procutil.Process, len(wlmProcList))
 	for _, wlmProc := range wlmProcList {
-		procs[wlmProc.Pid] = &procutil.Process{
-			Pid:     wlmProc.Pid,
-			Ppid:    wlmProc.Ppid,
-			NsPid:   wlmProc.NsPid,
-			Name:    wlmProc.Name,
-			Cwd:     wlmProc.Cwd,
-			Exe:     wlmProc.Exe,
-			Comm:    wlmProc.Comm,
-			Cmdline: wlmProc.Cmdline,
-			Uids:    wlmProc.Uids,
-			Gids:    wlmProc.Gids,
-			Stats:   statsForProcess[wlmProc.Pid],
-		}
+		procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, statsForProcess[wlmProc.Pid])
 	}
 
 	// stores lastPIDs to be used by RTProcess
