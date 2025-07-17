@@ -243,32 +243,42 @@ func (s *Launcher) scan() {
 			var err error
 			fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if fingerprintStrategy == "checksum" {
+				log.Debugf("Checking rotation via fingerprint for file: %s", file.Path)
 				didRotate, err = tailered.DidRotateViaFingerprint()
 				if err != nil {
 					didRotate = false
 				}
+				log.Debugf("Fingerprint rotation check for %s: %v (err: %v)", file.Path, didRotate, err)
 			} else {
+				log.Debugf("Checking rotation via traditional method for file: %s", file.Path)
 				didRotate, err = tailered.DidRotate()
+				log.Debugf("Traditional rotation check for %s: %v (err: %v)", file.Path, didRotate, err)
 			}
 			if err != nil {
 				log.Debugf("failed to detect log rotation: %v", err)
 				continue
 			}
 			if didRotate {
+				log.Debugf("ROTATION DETECTED for %s - restarting tailer", file.Path)
 				// restart tailer because of file-rotation on file
 				succeeded := s.restartTailerAfterFileRotation(tailered, file)
 				if !succeeded {
+					log.Debugf("FAILED to restart tailer after rotation for %s", file.Path)
 					// the setup failed, let's try to tail this file in the next scan
 					continue
 				}
+				log.Debugf("SUCCESSFULLY restarted tailer after rotation for %s", file.Path)
 
 				// For checksum mode, if new file is undersized, don't mark as "should tail"
 				// so the new tailer gets cleaned up, but old tailer continues with 60s grace period
 				checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 				if checkSumEnabled == "checksum" {
-					if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig()) == 0 {
+					newFingerprint := tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig())
+					if newFingerprint == 0 {
+						log.Debugf("SKIPPING rotated file %s - new fingerprint is 0 (file may be empty)", file.Path)
 						continue
 					}
+					log.Debugf("New rotated file %s has valid fingerprint: 0x%x", file.Path, newFingerprint)
 				}
 			}
 		} else {
@@ -285,6 +295,7 @@ func (s *Launcher) scan() {
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[tailer.GetId()]
 		if !shouldTail {
+			log.Debugf("STOPPING tailer %s - not in filesTailed map", tailer.GetId())
 			s.stopTailer(tailer)
 		}
 	}

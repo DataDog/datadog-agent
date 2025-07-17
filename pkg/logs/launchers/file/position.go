@@ -47,6 +47,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		offset, whence = 0, io.SeekEnd
 	case value != "" && previousFingerprint == newFingerprint: //and fingerprint valid (fingerprint stored oldconfig and recalculate oldconfig the same)
 		log.Debugf("Using stored offset with valid fingerprint - offset: %s, whence: SeekStart", value)
+		log.Debugf("Fingerprint comparison for %s: fingerprints match (0x%x == 0x%x)", identifier, previousFingerprint, newFingerprint)
 		// an offset was registered, tailing mode is not forced, tail from the offset
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)
@@ -70,9 +71,16 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 		log.Debugf("Using End mode (default) - offset: 0, whence: SeekEnd")
 		fallthrough
 	default:
+		if value != "" {
+			log.Debugf("NOT using stored offset for %s - fingerprints don't match (0x%x != 0x%x)", identifier, previousFingerprint, newFingerprint)
+		} else {
+			log.Debugf("NOT using stored offset for %s - no stored offset available", identifier)
+		}
 		offset, whence = 0, io.SeekEnd
 	}
 
+	log.Debugf("Position decision for %s: mode=%v, using stored offset=%v, fingerprint match=%v",
+		identifier, mode, value != "", previousFingerprint == newFingerprint)
 	log.Debugf("Final position for %s: offset=%d, whence=%d", identifier, offset, whence)
 	return offset, whence, err
 }
