@@ -52,8 +52,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return provides, nil
 }
 
-// RetrieveConfiguration retrieves the configuration for a given network device IP
-func (n networkDeviceConfigImpl) RetrieveConfiguration(ipAddress string) (string, error) {
+// RetrieveRunningConfig retrieves the running configuration for a given network device IP
+func (n networkDeviceConfigImpl) RetrieveRunningConfig(ipAddress string) (string, error) {
+	commands := []string{
+		`show running-config`,
+	}
+	return n.retrieveConfiguration(ipAddress, commands)
+}
+
+// RetrieveStartupConfig retrieves the startup configuration for a given network device IP
+func (n networkDeviceConfigImpl) RetrieveStartupConfig(ipAddress string) (string, error) {
+	commands := []string{
+		`show startup-config`,
+	}
+	return n.retrieveConfiguration(ipAddress, commands)
+}
+
+// retrieveConfiguration retrieves the configuration for a given network device IP
+func (n networkDeviceConfigImpl) retrieveConfiguration(ipAddress string, commands []string) (string, error) {
 	deviceConfig, ok := n.config.Devices[ipAddress]
 	if !ok {
 		return "", n.log.Errorf("No authentication credentials found for device %s", ipAddress)
@@ -64,9 +80,6 @@ func (n networkDeviceConfigImpl) RetrieveConfiguration(ipAddress string) (string
 	}
 	defer client.Close()
 
-	commands := []string{
-		`show running-config`,
-	}
 	result := []string{}
 
 	for _, cmd := range commands {

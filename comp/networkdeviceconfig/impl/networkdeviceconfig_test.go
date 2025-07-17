@@ -88,7 +88,7 @@ func TestRetrieveConfiguration_Real(t *testing.T) {
 		expectedOutput string
 	}{
 		{
-			name:     "Retrieve configuration from device",
+			name:     "Retrieve running configuration from device",
 			deviceIP: "10.0.0.1",
 			configYaml: `
 network_config_management:
@@ -125,7 +125,7 @@ network_config_management:
 			provides, _ := NewTestComponent(requires, mockFactory)
 			component := provides.Comp
 
-			actual, err := component.RetrieveConfiguration(tt.deviceIP)
+			actual, err := component.RetrieveRunningConfig(tt.deviceIP)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.expectedOutput, actual)
 		})
