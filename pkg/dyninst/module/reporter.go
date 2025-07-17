@@ -8,6 +8,7 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
@@ -71,6 +72,24 @@ func (c *controllerReporter) ReportIRGenFailed(
 	ctrl := (*Controller)(c)
 	runtimeID, ok := ctrl.store.getRuntimeID(procID)
 	if !ok {
+		return
+	}
+
+	var noSuccessfulProbesError *actuator.NoSuccessfulProbesError
+	if errors.As(err, &noSuccessfulProbesError) {
+		for i := range noSuccessfulProbesError.Issues {
+			issue := &noSuccessfulProbesError.Issues[i]
+			issueErr := (*irIssueError)(&issue.Issue)
+			if ctrl.diagnostics.reportError(
+				runtimeID, issue.ProbeDefinition, issueErr, issue.Kind.String(),
+			) {
+				log.Debugf(
+					"reported issue %v for probe %v %v: %v",
+					issue.Kind, issue.ProbeDefinition.GetID(),
+					issue.ProbeDefinition.GetVersion(), issueErr,
+				)
+			}
+		}
 		return
 	}
 	for _, probe := range probes {

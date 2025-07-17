@@ -642,3 +642,71 @@ func TestController_ProbeIssueReporting(t *testing.T) {
 	assert.Equal(t, 1, receivedCount)
 	assert.Equal(t, 1, issueErrorCount)
 }
+
+// TestController_NoSuccessfulProbesError verifies that probe issues in a program
+// are properly reported as error diagnostics during the program loading phase.
+func TestController_NoSuccessfulProbesError(t *testing.T) {
+	scraper := &fakeScraper{}
+	a := &fakeActuator{}
+	decoder := &fakeDecoder{}
+	decoderFactory := &fakeDecoderFactory{decoder: decoder}
+	diagUploader := &fakeDiagnosticsUploader{}
+	logUploaderFactory := &fakeLogsUploaderFactory{}
+
+	processUpdate := createTestProcessUpdate()
+	procID := processUpdate.ProcessID
+	scraper.updates = []rcscrape.ProcessUpdate{processUpdate}
+
+	controller := module.NewController(
+		a, logUploaderFactory, diagUploader, scraper, decoderFactory,
+	)
+
+	controller.CheckForUpdates()
+
+	require.Len(t, diagUploader.messages, 2)
+	for _, msg := range diagUploader.messages {
+		assert.Equal(t, uploader.StatusReceived, msg.Debugger.Diagnostic.Status)
+		assert.Contains(t, []string{"probe-1", "probe-2"}, msg.Debugger.Diagnostic.ProbeID)
+	}
+
+	testError := &actuator.NoSuccessfulProbesError{
+		Issues: []ir.ProbeIssue{
+			{
+				ProbeDefinition: processUpdate.Probes[0],
+				Issue: ir.Issue{
+					Kind:    ir.IssueKindTargetNotFoundInBinary,
+					Message: "boom 1",
+				},
+			},
+			{
+				ProbeDefinition: processUpdate.Probes[1],
+				Issue: ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: "boom 2",
+				},
+			},
+		},
+	}
+
+	a.tenant.reporter.ReportIRGenFailed(procID, testError, processUpdate.Probes)
+
+	require.Len(t, diagUploader.messages, 4)
+	errorCount := 0
+	for _, msg := range diagUploader.messages {
+		if msg.Debugger.Diagnostic.Status != uploader.StatusError {
+			continue
+		}
+		switch msg.Debugger.Diagnostic.ProbeID {
+		case "probe-1":
+			assert.Equal(t, "TargetNotFoundInBinary", msg.Debugger.Diagnostic.DiagnosticException.Type)
+			assert.Equal(t, "boom 1", msg.Debugger.Diagnostic.DiagnosticException.Message)
+		case "probe-2":
+			assert.Equal(t, "UnsupportedFeature", msg.Debugger.Diagnostic.DiagnosticException.Type)
+			assert.Equal(t, "boom 2", msg.Debugger.Diagnostic.DiagnosticException.Message)
+		default:
+			t.Fatalf("unexpected probe ID: %s", msg.Debugger.Diagnostic.ProbeID)
+		}
+		errorCount++
+	}
+	assert.Equal(t, 2, errorCount)
+}
