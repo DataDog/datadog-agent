@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -22,7 +23,7 @@ import (
 )
 
 const (
-	defaultMaximumCRDQuota = 5000
+	defaultMaximumCRDQuota = 10000
 )
 
 // NewCRCollectorVersion builds the group of collector versions.
@@ -90,7 +91,12 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
-	if len(list) > defaultMaximumCRDQuota {
+
+	// Allow users to set max number of custom resources to collect
+	// but do not allow that to exceeded our definied maximum
+	maximumCRDQuota := min(pkgconfigsetup.Datadog().GetInt("orchestrator_explorer.custom_resource.max_count"), defaultMaximumCRDQuota)
+
+	if len(list) > maximumCRDQuota {
 		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, defaultMaximumCRDQuota))
 	}
 
