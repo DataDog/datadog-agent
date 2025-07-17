@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -310,6 +311,13 @@ func moveSelfToCgroup(t *testing.T, cgroupName string) {
 	} else {
 		prevCgroupPath := cgroup1.PidPath(os.Getpid())
 		prevCgroup, err := cgroup1.Load(prevCgroupPath)
+		if errors.Is(err, cgroup1.ErrCgroupDeleted) {
+			// Jobs like tests_deb_*, tests_rpm_* run inside of containers, and
+			// this step fails as the cgroup is not accesible. In that case, and considering we have KMT tests
+			// for coverage, skip the test.
+			t.Skip("cannot run cgroup tests in containerized test environment")
+		}
+
 		require.NoError(t, err)
 
 		cgroup, err := cgroup1.New(cgroup1.StaticPath("/"+cgroupName), &specs.LinuxResources{})
