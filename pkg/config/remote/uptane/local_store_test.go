@@ -190,21 +190,22 @@ func TestLocalStoreDeleteAfterCommit(t *testing.T) {
 		"targets.json":   storeTargets7,
 	}, metas)
 
-	// COMMIT!!
+	// Commit the changes to the local store
 	err = transactionalStore.commit()
 	assert.NoError(t, err)
 
-	// Now delete the timestamp
+	// Now delete the timestamp. This will delete it in memory, but not on disk, until another commit is made.
 	err = store.DeleteMeta("timestamp.json")
 	assert.NoError(t, err)
 
+	// Load meta from a combination of memory and disk
 	metas, err = store.GetMeta()
 	assert.NoError(t, err)
 
+	// Assert that timestamp is deleted, and not returned from disk (since it has been deleted from memory)
 	assert.Equal(t, map[string]json.RawMessage{
-		"root.json":      storeRoot2,
-		"timestamp.json": storeTimestamp5, // FAIL: timestamp should not be there, but it is, because the prior delete will ONLY delete from the in-memory cache, while GetMeta() will read-through the in-memory cache (finds nil there) and proceeds to fetch from disk, which remains undeleted.
-		"snapshot.json":  storeSnapshot6,
-		"targets.json":   storeTargets7,
+		"root.json":     storeRoot2,
+		"snapshot.json": storeSnapshot6,
+		"targets.json":  storeTargets7,
 	}, metas)
 }
