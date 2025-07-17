@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -397,27 +396,6 @@ func TestCheckGet(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid status code: 401")
 }
 
-func TestCheckGetConnectionFailure(t *testing.T) {
-	// Create a resolvedEndpoint with an invalid URL
-	endpoint := resolvedEndpoint{
-		url:    "http://invalid-url-that-does-not-exist.com",
-		method: http.MethodGet,
-		apiKey: "test-api-key",
-	}
-
-	// Create HTTP client with short timeout
-	client := &http.Client{
-		Timeout: 1 * time.Second,
-	}
-
-	// Test connection failure
-	result, err := endpoint.checkGet(context.Background(), client)
-	assert.Error(t, err)
-	assert.Contains(t, result, "Failed to connect")
-	assert.Contains(t, err.Error(), "Unable to resolve the address")
-	assert.Contains(t, err.Error(), "no such host")
-}
-
 func TestCheckHeadWithRedirectLimit(t *testing.T) {
 	// Create a test server that always returns a 307 Temporary Redirect
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -479,9 +457,10 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	client := getClient(cfg, 2, logmock.New(t))
+	clientNormal := getClient(cfg, 2, logmock.New(t))
+	clientRedirect := getClient(cfg, 2, logmock.New(t), withOneRedirect())
 
-	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
+	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, clientNormal, clientRedirect)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, len(testEndpoints))
 	successCount := 0

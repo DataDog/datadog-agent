@@ -19,6 +19,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -381,8 +382,13 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
 	containerID, cgroup, cgroupSysFSPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		// log error instead of returning it to allow the process to be added to the cache and eBPF maps
-		seclog.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+			// If the process is not found, it may have exited, so we log a warning
+			seclog.Warnf(errMsg)
+		} else {
+			seclog.Errorf(errMsg)
+		}
 	} else if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
 		// Get the file fields of the sysfs cgroup file
 		info, err := p.RetrieveFileFieldsFromProcfs(cgroupSysFSPath)
@@ -766,7 +772,10 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
-
+	fileEvent.MountVisible, fileEvent.MountDetached, err = p.pathResolver.ResolveMountAttributes(&fileEvent.FileFields, &pce.PIDContext, ctrCtx)
+	if err != nil {
+		seclog.Errorf("Failed to resolve mount attributes: %s", err)
+	}
 	return fileEvent.PathnameStr, nil
 }
 

@@ -79,6 +79,16 @@ type argumentsData struct {
 	decoder  *Decoder
 }
 
+// In the root data item, before the expressions, there is a bitset
+// which conveys if expression values are present in the data.
+// The rootType.PresenceBitsetSize conveys the size of the bitset in
+// bytes, and presence bits in the bitset correspond with index of
+// the expression in the root ir.
+func expressionIsPresent(bitset []byte, expressionIndex int) bool {
+	idx, bit := expressionIndex/8, expressionIndex%8
+	return idx < len(bitset) && bitset[idx]&(1<<byte(bit)) != 0
+}
+
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	var err error
 	currentlyEncoding := map[typeAndAddr]struct{}{}
@@ -89,13 +99,30 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		return err
 	}
 
+	presenceBitSet := ad.rootData[:ad.rootType.PresenceBitsetSize]
 	// We iterate over the 'Expressions' of the EventRoot which contains
 	// metadata and raw bytes of the parameters of this function.
-	for _, expr := range ad.rootType.Expressions {
+	for i, expr := range ad.rootType.Expressions {
 		parameterType := expr.Expression.Type
 		parameterData := ad.rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
-		if err = writeTokens(enc, jsontext.String(expr.Name)); err != nil {
+
+		if err = writeTokens(enc,
+			jsontext.String(expr.Name)); err != nil {
 			return err
+		}
+		if !expressionIsPresent(presenceBitSet, i) && parameterType.GetByteSize() != 0 {
+			// Set not capture reason
+			if err = writeTokens(enc,
+				jsontext.BeginObject,
+				jsontext.String("type"),
+				jsontext.String(parameterType.GetName()),
+				jsontext.String("notCapturedReason"),
+				jsontext.String("unavailable"),
+				jsontext.EndObject,
+			); err != nil {
+				return err
+			}
+			continue
 		}
 		err = ad.decoder.encodeValue(enc,
 			ad.decoder.addressReferenceCount,
@@ -174,7 +201,8 @@ func (d *Decoder) encodeValue(
 	); err != nil {
 		return err
 	}
-	if err := d.encodeValueFields(enc,
+	if err := d.encodeValueFields(
+		enc,
 		dataItems,
 		currentlyEncoding,
 		irType,
@@ -206,6 +234,14 @@ func (d *Decoder) encodeValueFields(
 			return err
 		}
 		return encodeBaseTypeValue(enc, v, data)
+	case *ir.VoidPointerType:
+		if len(data) != 8 {
+			return errors.New("passed data not long enough for void pointer")
+		}
+		return writeTokens(enc,
+			jsontext.String("address"),
+			jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)),
+		)
 	case *ir.PointerType:
 		if len(data) < int(v.GetByteSize()) {
 			return errors.New("passed data not long enough for pointer")
@@ -295,15 +331,17 @@ func (d *Decoder) encodeValueFields(
 		return nil
 	case *ir.ArrayType:
 		var err error
+		elementType := v.Element
+		elementSize := int(elementType.GetByteSize())
+		numElements := int(v.Count)
 		if err = writeTokens(enc,
+			jsontext.String("size"),
+			jsontext.String(strconv.Itoa(numElements)),
 			jsontext.String("elements"),
 			jsontext.BeginArray); err != nil {
 			return err
 		}
 
-		elementType := v.Element
-		elementSize := int(elementType.GetByteSize())
-		numElements := int(v.Count)
 		for i := range numElements {
 			elementData := data[i*elementSize : (i+1)*elementSize]
 			if err := d.encodeValue(enc,
@@ -311,7 +349,7 @@ func (d *Decoder) encodeValueFields(
 				currentlyEncoding,
 				v.Element,
 				elementData,
-				"",
+				elementType.GetName(),
 			); err != nil {
 				return err
 			}
@@ -385,6 +423,12 @@ func (d *Decoder) encodeValueFields(
 		}
 		if err = writeTokens(enc, jsontext.EndArray); err != nil {
 			return err
+		}
+		if length > uint64(sliceLength) {
+			return writeTokens(enc,
+				jsontext.String("notCapturedReason"),
+				jsontext.String("collectionSize"),
+			)
 		}
 		return nil
 	case *ir.GoChannelType:

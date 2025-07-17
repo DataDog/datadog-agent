@@ -821,11 +821,6 @@ func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
 	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
 }
 
-// GetContainersAndInitContainers returns init containers and containers.
-func (p KubernetesPod) GetContainersAndInitContainers() []OrchestratorContainer {
-	return append(p.InitContainers, p.Containers...)
-}
-
 var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
@@ -1219,6 +1214,9 @@ type Service struct {
 	// GeneratedName is the name generated from the process info
 	GeneratedName string
 
+	// LogFiles are the log files associated with this service
+	LogFiles []string
+
 	// GeneratedNameSource indicates the source of the generated name
 	GeneratedNameSource string
 
@@ -1320,6 +1318,13 @@ func (p Process) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
 			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+
+			if len(p.Service.LogFiles) > 0 {
+				_, _ = fmt.Fprintln(&sb, "----------- Log Files -----------")
+				for _, logFile := range p.Service.LogFiles {
+					_, _ = fmt.Fprintln(&sb, logFile)
+				}
+			}
 		}
 	}
 	// TODO: add new fields once the new wlm process collector can be enabled
