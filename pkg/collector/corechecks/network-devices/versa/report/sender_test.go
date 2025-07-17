@@ -1466,32 +1466,32 @@ func TestSendTopUserMetrics(t *testing.T) {
 			},
 			expectedMetrics: []expectedMetric{
 				{
-					name:  versaMetricPrefix + "app.sessions",
+					name:  versaMetricPrefix + "user.sessions",
 					value: 50.0,
 					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.volume_tx",
+					name:  versaMetricPrefix + "user.volume_tx",
 					value: 1024000.0,
 					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.volume_rx",
+					name:  versaMetricPrefix + "user.volume_rx",
 					value: 512000.0,
 					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth_tx",
+					name:  versaMetricPrefix + "user.bandwidth_tx",
 					value: 8192.0,
 					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth_rx",
+					name:  versaMetricPrefix + "user.bandwidth_rx",
 					value: 4096.0,
 					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth",
+					name:  versaMetricPrefix + "user.bandwidth",
 					value: 12288.0,
 					tags:  []string{"site:test-branch-2B", "user:testUser1", "device_ip:192.168.1.1", "device_namespace:default"},
 				},
@@ -1528,62 +1528,62 @@ func TestSendTopUserMetrics(t *testing.T) {
 			},
 			expectedMetrics: []expectedMetric{
 				{
-					name:  versaMetricPrefix + "app.sessions",
+					name:  versaMetricPrefix + "user.sessions",
 					value: 100.0,
 					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.volume_tx",
+					name:  versaMetricPrefix + "user.volume_tx",
 					value: 2048000.0,
 					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.volume_rx",
+					name:  versaMetricPrefix + "user.volume_rx",
 					value: 1024000.0,
 					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth_tx",
+					name:  versaMetricPrefix + "user.bandwidth_tx",
 					value: 16384.0,
 					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth_rx",
+					name:  versaMetricPrefix + "user.bandwidth_rx",
 					value: 8192.0,
 					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth",
+					name:  versaMetricPrefix + "user.bandwidth",
 					value: 24576.0,
 					tags:  []string{"site:branch-1", "user:testUser2", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.sessions",
+					name:  versaMetricPrefix + "user.sessions",
 					value: 25.0,
 					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.volume_tx",
+					name:  versaMetricPrefix + "user.volume_tx",
 					value: 256000.0,
 					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.volume_rx",
+					name:  versaMetricPrefix + "user.volume_rx",
 					value: 128000.0,
 					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth_tx",
+					name:  versaMetricPrefix + "user.bandwidth_tx",
 					value: 2048.0,
 					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth_rx",
+					name:  versaMetricPrefix + "user.bandwidth_rx",
 					value: 1024.0,
 					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
 				},
 				{
-					name:  versaMetricPrefix + "app.bandwidth",
+					name:  versaMetricPrefix + "user.bandwidth",
 					value: 3072.0,
 					tags:  []string{"site:branch-1", "user:testUser3", "device_ip:10.0.0.1", "device_namespace:default"},
 				},

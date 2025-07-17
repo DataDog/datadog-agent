@@ -232,12 +232,12 @@ func (s *Sender) SendTopUserMetrics(topUserMetrics []client.TopUserMetrics, devi
 		if deviceIP, ok := deviceNameToIDMap[topUser.Site]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"app.sessions", topUser.Sessions, "", tags)
-		s.Gauge(versaMetricPrefix+"app.volume_tx", topUser.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"app.volume_rx", topUser.VolumeRx, "", tags)
-		s.Gauge(versaMetricPrefix+"app.bandwidth_tx", topUser.BandwidthTx, "", tags)
-		s.Gauge(versaMetricPrefix+"app.bandwidth_rx", topUser.BandwidthRx, "", tags)
-		s.Gauge(versaMetricPrefix+"app.bandwidth", topUser.Bandwidth, "", tags)
+		s.Gauge(versaMetricPrefix+"user.sessions", topUser.Sessions, "", tags)
+		s.Gauge(versaMetricPrefix+"user.volume_tx", topUser.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.volume_rx", topUser.VolumeRx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.bandwidth_tx", topUser.BandwidthTx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.bandwidth_rx", topUser.BandwidthRx, "", tags)
+		s.Gauge(versaMetricPrefix+"user.bandwidth", topUser.Bandwidth, "", tags)
 	}
 }
 
