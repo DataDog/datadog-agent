@@ -9,6 +9,7 @@ package agentaccountcheck
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -35,6 +36,12 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 	name := "Agent Account Group Membership"
 	category := "agent-account-check"
 	requiredGroups := []string{"Event Log Readers", "Performance Log Users", "Performance Monitor Users"}
+	missingGroups := []string{}
+	for _, group := range requiredGroups {
+		if !slices.Contains(actualGroups, group) {
+			missingGroups = append(missingGroups, group)
+		}
+	}
 
 	if err != nil {
 		if isAccessDenied(err) {
@@ -60,10 +67,10 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisUnexpectedError,
 			Name:        name,
-			Diagnosis:   fmt.Sprintf("Failed to check agent account group membership.\n  Expected: %v\n  Detected: error occurred", requiredGroups),
+			Diagnosis:   fmt.Sprintf("Failed to check agent account group membership.\n  Expected: %v\n  Detected: error occurred\n  Missing groups: %v", requiredGroups, missingGroups),
 			Category:    category,
 			RawError:    err.Error(),
-			Remediation: "Check if the agent is running with appropriate permissions.",
+			Remediation: "Add missing groups to the agent account using Computer Management or run: net localgroup \"<group_name>\" \"<username>\" /add",
 		}
 	}
 
@@ -80,9 +87,9 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 	return diagnose.Diagnosis{
 		Status:      diagnose.DiagnosisFail,
 		Name:        name,
-		Diagnosis:   fmt.Sprintf("Agent account is missing required group memberships.\n  Expected: %v\n  Detected: %v", requiredGroups, actualGroups),
+		Diagnosis:   fmt.Sprintf("Agent account is missing required group memberships.\n  Expected: %v\n  Detected: %v\n  Missing groups: %v", requiredGroups, actualGroups, missingGroups),
 		Category:    category,
-		Remediation: "Add the agent account to the missing groups using Computer Management or run: net localgroup \"<group_name>\" \"<username>\" /add",
+		Remediation: "Add the missing groups to the agent account using Computer Management or run: net localgroup \"<group_name>\" \"<username>\" /add",
 	}
 }
 
@@ -91,6 +98,12 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 	name := "Agent Account Rights"
 	category := "agent-account-check"
 	requiredRights := []string{"SeServiceLogonRight", "SeDenyInteractiveLogonRight", "SeDenyNetworkLogonRight", "SeDenyRemoteInteractiveLogonRight"}
+	missingRights := []string{}
+	for _, right := range requiredRights {
+		if !slices.Contains(actualRights, right) {
+			missingRights = append(missingRights, right)
+		}
+	}
 
 	if err != nil {
 		if isAccessDenied(err) {
@@ -136,7 +149,7 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 	return diagnose.Diagnosis{
 		Status:      diagnose.DiagnosisFail,
 		Name:        name,
-		Diagnosis:   fmt.Sprintf("Agent account is missing required account rights.\n  Expected: %v\n  Detected: %v", requiredRights, actualRights),
+		Diagnosis:   fmt.Sprintf("Agent account is missing required account rights.\n  Expected: %v\n  Detected: %v\n  Missing rights: %v", requiredRights, actualRights, missingRights),
 		Category:    category,
 		Remediation: "Grant the missing rights using Local Security Policy (secpol.msc) or run the agent installer as Administrator.",
 	}
