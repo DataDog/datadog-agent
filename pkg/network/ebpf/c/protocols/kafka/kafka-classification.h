@@ -426,8 +426,8 @@ static __always_inline bool get_topic_offset_from_fetch_request(const kafka_head
     return true;
 }
 
-// Calls the relevant function, according to the api_key.
-static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 offset) {
+// Checks if the packet represents a kafka fetch or produce request.
+static __always_inline bool is_kafka_fetch_or_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 offset) {
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
     // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
@@ -456,7 +456,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
 }
 
 // Checks if the packet represents a kafka request.
-static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_size) {
+static __always_inline bool __is_kafka_fetch_or_produce(pktbuf_t pkt, const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
 
     const kafka_header_t *header_view = (kafka_header_t *)buf;
@@ -488,7 +488,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
         return false;
     }
 
-    return is_kafka_request(&kafka_header, pkt, offset);
+    return is_kafka_fetch_or_produce_request(&kafka_header, pkt, offset);
 }
 
 // Checks if the packet represents a kafka request.
@@ -574,16 +574,16 @@ static __always_inline bool __is_kafka_api_versions(pktbuf_t pkt, const char* bu
     return offset == pktbuf_data_end(pkt);
 }
 
-static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
+static __always_inline bool is_kafka_fetch_or_produce(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
 {
     pktbuf_t pkt = pktbuf_from_skb(skb, skb_info);
-    return __is_kafka(pkt, buf, buf_size);
+    return __is_kafka_fetch_or_produce(pkt, buf, buf_size);
 }
 
-static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
+static __always_inline __maybe_unused bool tls_is_kafka_fetch_or_produce(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
 {
     pktbuf_t pkt = pktbuf_from_tls(ctx, tls);
-    return __is_kafka(pkt, buf, buf_size);
+    return __is_kafka_fetch_or_produce(pkt, buf, buf_size);
 }
 
 static __always_inline bool is_kafka_api_versions(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)

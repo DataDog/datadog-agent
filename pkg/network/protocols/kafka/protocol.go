@@ -50,10 +50,11 @@ const (
 	produceResponsePartitionParserV0TailCall  = "socket__kafka_produce_response_partition_parser_v0"
 	produceResponsePartitionParserV9TailCall  = "socket__kafka_produce_response_partition_parser_v9"
 
-	dispatcherTailCall = "socket__protocol_dispatcher_kafka"
-	kafkaHeapMap       = "kafka_heap"
-	inFlightMap        = "kafka_in_flight"
-	responseMap        = "kafka_response"
+	fetchOrProduceDispatcherTailCall = "socket__protocol_dispatcher_kafka_fetch_or_produce"
+	apiVersionsDispatcherTailCall    = "socket__protocol_dispatcher_kafka_api_versions"
+	kafkaHeapMap                     = "kafka_heap"
+	inFlightMap                      = "kafka_in_flight"
+	responseMap                      = "kafka_response"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
@@ -64,8 +65,9 @@ const (
 	tlsProduceResponsePartitionParserV0TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v0"
 	tlsProduceResponsePartitionParserV9TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v9"
 
-	tlsTerminationTailCall = "uprobe__kafka_tls_termination"
-	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
+	tlsTerminationTailCall              = "uprobe__kafka_tls_termination"
+	tlsFetchOrProduceDispatcherTailCall = "uprobe__tls_protocol_dispatcher_kafka_fetch_or_produce"
+	tlsApiVersionsDispatcherTailCall    = "uprobe__tls_protocol_dispatcher_kafka_api_versions"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
 	netifProbe414    = "netif_receive_skb_core_kafka_4_14"
@@ -173,7 +175,14 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: dispatcherTailCall,
+				EBPFFuncName: fetchOrProduceDispatcherTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: apiVersionsDispatcherTailCall,
 			},
 		},
 		{
@@ -236,7 +245,14 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsDispatcherTailCall,
+				EBPFFuncName: tlsFetchOrProduceDispatcherTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsApiVersionsDispatcherTailCall,
 			},
 		},
 	},

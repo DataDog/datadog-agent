@@ -113,7 +113,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
         classify_decrypted_payload(stack, &normalized_tuple, request_fragment, len);
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
-        // Could have a maybe_is_kafka() function to do an initial check here based on the
+        // Could have a maybe_is_kafka_fetch_or_produce() function to do an initial check here based on the
         // fragment buffer without the tail call.
 
         /*
@@ -180,7 +180,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
+static __always_inline void tls_dispatch_kafka_fetch_or_produce(struct pt_regs *ctx)
 {
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -199,7 +199,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
-    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    bool is_kafka = tls_is_kafka_fetch_or_produce(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
     if (!is_kafka) {
         return;
     }

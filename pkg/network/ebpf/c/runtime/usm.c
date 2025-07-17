@@ -42,9 +42,9 @@ int socket__protocol_dispatcher(struct __sk_buff *skb) {
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-SEC("socket/protocol_dispatcher_kafka")
-int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
-    dispatch_kafka(skb);
+SEC("socket/protocol_dispatcher_kafka_fetch_or_produce")
+int socket__protocol_dispatcher_kafka_fetch_or_produce(struct __sk_buff *skb) {
+    dispatch_kafka_fetch_or_produce(skb);
     return 0;
 }
 
@@ -57,9 +57,9 @@ int socket__protocol_dispatcher_kafka_api_versions(struct __sk_buff *skb) {
 
 // This entry point is needed to bypass stack limit errors if `is_kafka()` is called
 // from the regular TLS dispatch entrypoint.
-SEC("uprobe/tls_protocol_dispatcher_kafka")
-int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
-    tls_dispatch_kafka(ctx);
+SEC("uprobe/tls_protocol_dispatcher_kafka_fetch_or_produce")
+int uprobe__tls_protocol_dispatcher_kafka_fetch_or_produce(struct pt_regs *ctx) {
+    tls_dispatch_kafka_fetch_or_produce(ctx);
     return 0;
 };
 
