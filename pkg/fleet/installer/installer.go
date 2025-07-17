@@ -590,6 +590,13 @@ func (i *installerImpl) InstallConfigExperimentMultiple(ctx context.Context, pkg
 	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
+// RemoveConfigExperiment removes an experiment.
+func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
+	// For removing experiments, the operation is the same regardless of whether
+	// it was installed with single or multiple configs, so we can reuse the multiple method
+	return i.RemoveConfigExperimentMultiple(ctx, pkg)
+}
+
 // RemoveConfigExperimentMultiple removes an experiment with multiple configs.
 func (i *installerImpl) RemoveConfigExperimentMultiple(ctx context.Context, pkg string) error {
 	i.m.Lock()
@@ -619,53 +626,11 @@ func (i *installerImpl) RemoveConfigExperimentMultiple(ctx context.Context, pkg 
 	return nil
 }
 
-// RemoveConfigExperiment removes an experiment.
-func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	repository := i.configs.Get(pkg)
-	state, err := repository.GetState()
-	if err != nil {
-		return fmt.Errorf("could not get repository state: %w", err)
-	}
-	if !state.HasExperiment() {
-		// Return early
-		return nil
-	}
-
-	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
-	if err != nil {
-		return fmt.Errorf("could not stop experiment: %w", err)
-	}
-	err = repository.DeleteExperiment(ctx)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not delete experiment: %w", err),
-		)
-	}
-	return nil
-}
-
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	repository := i.configs.Get(pkg)
-	err := repository.PromoteExperiment(ctx)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not promote experiment: %w", err),
-		)
-	}
-	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
-	if err != nil {
-		log.Warnf("could not write user-facing config symlinks: %v", err)
-	}
-	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
+	// For promoting experiments, the operation is the same regardless of whether
+	// it was installed with single or multiple configs, so we can reuse the multiple method
+	return i.PromoteConfigExperimentMultiple(ctx, pkg)
 }
 
 // PromoteConfigExperimentMultiple promotes an experiment with multiple configs.
