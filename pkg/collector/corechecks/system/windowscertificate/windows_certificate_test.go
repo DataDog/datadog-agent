@@ -264,8 +264,7 @@ cert_chain_validation:
 
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.On("ServiceCheck", "windows_certificate.cert_chain_verification", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.On("ServiceCheck", "windows_certificate.cert_chain_policy_verification", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("ServiceCheck", "windows_certificate.cert_chain_validation", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
 	m.On("Commit").Return()
 
 	certCheck.Run()
@@ -273,8 +272,7 @@ cert_chain_validation:
 	m.AssertExpectations(t)
 	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
 	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_verification", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_policy_verification", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_validation", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
 	m.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -304,8 +302,7 @@ cert_chain_validation:
 
 	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.On("ServiceCheck", "windows_certificate.cert_chain_verification", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.On("ServiceCheck", "windows_certificate.cert_chain_policy_verification", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("ServiceCheck", "windows_certificate.cert_chain_validation", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
 	m.On("Commit").Return()
 
 	certCheck.Run()
@@ -313,7 +310,6 @@ cert_chain_validation:
 	m.AssertExpectations(t)
 	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
 	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_verification", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
-	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_policy_verification", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_validation", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
 	m.AssertNumberOfCalls(t, "Commit", 1)
 }
