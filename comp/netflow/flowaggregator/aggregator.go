@@ -87,7 +87,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.AggregationHashUseSyncPool, logger, rdnsQuerier),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, config.SkipHashCollisionDetection, config.AggregationHashUseSyncPool, config.PortRollupUseFixedSizeKey, logger, rdnsQuerier),
 		FlushFlowsToSendInterval:     flushFlowsToSendInterval,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,

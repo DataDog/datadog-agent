@@ -92,7 +92,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, logger, rdnsQuerier)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -166,7 +166,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, false, false, false, logger, rdnsQuerier)
 	acc.add(flowA1)
 	acc.add(flowA2)
 
@@ -243,7 +243,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, logger, rdnsQuerier)
 	acc.add(flow)
 
 	// Then
@@ -359,7 +359,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, false, false, false, logger, rdnsQuerier)
 
 	// Then
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())

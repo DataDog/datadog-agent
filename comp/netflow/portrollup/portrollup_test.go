@@ -7,15 +7,19 @@ package portrollup
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
 func Test_endpointPairPortRollupStore_Add(t *testing.T) {
 	// Arrange
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(3)
+	logger := logmock.New(t)
+	store := NewEndpointPairPortRollupStore(3, false, logger)
 
 	// 1/ Add
 	store.Add(IP1, IP2, 80, 2001)
@@ -45,7 +49,8 @@ func Test_endpointPairPortRollupStore_test_useNewStoreAsCurrentStore_and_AddToSt
 	// Arrange
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(3)
+	logger := logmock.New(t)
+	store := NewEndpointPairPortRollupStore(3, false, logger)
 
 	// 1/ Add
 	store.Add(IP1, IP2, 80, 2000)
@@ -116,7 +121,8 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralSourcePort(t *testin
 	// Arrange
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(3)
+	logger := logmock.New(t)
+	store := NewEndpointPairPortRollupStore(3, false, logger)
 
 	store.Add(IP1, IP2, 80, 2001)
 	store.Add(IP1, IP2, 80, 2002)
@@ -129,7 +135,8 @@ func TestEndpointPairPortRollupStore_IsEphemeral_IsEphemeralDestPort(t *testing.
 	// Arrange
 	IP1 := []byte{10, 10, 10, 10}
 	IP2 := []byte{10, 10, 10, 11}
-	store := NewEndpointPairPortRollupStore(3)
+	logger := logmock.New(t)
+	store := NewEndpointPairPortRollupStore(3, false, logger)
 
 	store.Add(IP1, IP2, 3001, 53)
 	store.Add(IP1, IP2, 3002, 53)
