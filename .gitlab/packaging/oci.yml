@@ -98,4 +98,4 @@ ddot_oci:
     OCI_PRODUCT: "datadog-agent-ddot"
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-agent
+    # - export INSTALL_DIR=/opt/datadog-agent
