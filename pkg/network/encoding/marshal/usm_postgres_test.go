@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
@@ -40,7 +42,6 @@ type PostgresSuite struct {
 }
 
 func TestPostgresStats(t *testing.T) {
-	skipIfNotLinux(t)
 	suite.Run(t, &PostgresSuite{})
 }
 
@@ -118,38 +119,40 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				postgresDefaultConnection,
 			},
 		},
-		Postgres: map[postgres.Key]*postgres.RequestStat{
-			selectKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			insertKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			deleteKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			truncateKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			updateKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			createKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			dropKey: {
-				Count:              10,
-				FirstLatencySample: 5,
-			},
-			alterKey: {
-				Count:              10,
-				FirstLatencySample: 5,
+		USMData: network.USMProtocolsData{
+			Postgres: map[postgres.Key]*postgres.RequestStat{
+				selectKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				insertKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				deleteKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				truncateKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				updateKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				createKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				dropKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
+				alterKey: {
+					Count:              10,
+					FirstLatencySample: 5,
+				},
 			},
 		},
 	}
@@ -238,7 +241,7 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		},
 	}
 
-	encoder := newPostgresEncoder(in.Postgres)
+	encoder := newPostgresEncoder(in.USMData.Postgres)
 	t.Cleanup(encoder.Close)
 
 	aggregations := getPostgresAggregations(t, encoder, in.Conns[0])
@@ -280,15 +283,17 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Postgres: map[postgres.Key]*postgres.RequestStat{
-			postgresKey: {
-				Count:              10,
-				FirstLatencySample: 3,
+		USMData: network.USMProtocolsData{
+			Postgres: map[postgres.Key]*postgres.RequestStat{
+				postgresKey: {
+					Count:              10,
+					FirstLatencySample: 3,
+				},
 			},
 		},
 	}
 
-	encoder := newPostgresEncoder(in.Postgres)
+	encoder := newPostgresEncoder(in.USMData.Postgres)
 	t.Cleanup(encoder.Close)
 	aggregations := getPostgresAggregations(t, encoder, in.Conns[0])
 
@@ -301,7 +306,7 @@ func (s *PostgresSuite) TestPostgresIDCollisionRegression() {
 	// addresses but different PIDs *won't* be associated with the Postgres stats
 	// object
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WritePostgresAggregations(in.Conns[1], model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(in.Conns[1], model.NewConnectionBuilder(streamer))
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.DataStreamsAggregations)
@@ -340,15 +345,17 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Postgres: map[postgres.Key]*postgres.RequestStat{
-			postgresKey: {
-				Count:              10,
-				FirstLatencySample: 2,
+		USMData: network.USMProtocolsData{
+			Postgres: map[postgres.Key]*postgres.RequestStat{
+				postgresKey: {
+					Count:              10,
+					FirstLatencySample: 2,
+				},
 			},
 		},
 	}
 
-	encoder := newPostgresEncoder(in.Postgres)
+	encoder := newPostgresEncoder(in.USMData.Postgres)
 	t.Cleanup(encoder.Close)
 
 	// assert that both ends (client:server, server:client) of the connection
@@ -363,7 +370,7 @@ func (s *PostgresSuite) TestPostgresLocalhostScenario() {
 
 func getPostgresAggregations(t *testing.T, encoder *postgresEncoder, c network.ConnectionStats) *model.DatabaseAggregations {
 	streamer := NewProtoTestStreamer[*model.Connection]()
-	encoder.WritePostgresAggregations(c, model.NewConnectionBuilder(streamer))
+	encoder.EncodeConnection(c, model.NewConnectionBuilder(streamer))
 
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
@@ -382,7 +389,9 @@ func generateBenchMarkPayloadPostgres(sourcePortsMax, destPortsMax uint16) netwo
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
 		},
-		Postgres: make(map[postgres.Key]*postgres.RequestStat),
+		USMData: network.USMProtocolsData{
+			Postgres: make(map[postgres.Key]*postgres.RequestStat),
+		},
 	}
 
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
@@ -402,7 +411,7 @@ func generateBenchMarkPayloadPostgres(sourcePortsMax, destPortsMax uint16) netwo
 				}
 			}
 
-			payload.Postgres[postgres.NewKey(
+			payload.USMData.Postgres[postgres.NewKey(
 				localhost,
 				localhost,
 				sport+1,
@@ -427,10 +436,10 @@ func commonBenchmarkPostgresEncoder(b *testing.B, numberOfPorts uint16) {
 	b.ReportAllocs()
 	var h *postgresEncoder
 	for i := 0; i < b.N; i++ {
-		h = newPostgresEncoder(payload.Postgres)
+		h = newPostgresEncoder(payload.USMData.Postgres)
 		streamer.Reset()
 		for _, conn := range payload.Conns {
-			h.WritePostgresAggregations(conn, a)
+			h.EncodeConnection(conn, a)
 		}
 		h.Close()
 	}

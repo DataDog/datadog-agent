@@ -5,7 +5,8 @@
 
 //go:build linux_bpf
 
-package fentry //nolint:revive // TODO
+// Package fentry provides connection tracing for fentry
+package fentry
 
 import (
 	manager "github.com/DataDog/ebpf-manager"

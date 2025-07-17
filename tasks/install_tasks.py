@@ -22,11 +22,11 @@ TOOL_LIST = [
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
     'github.com/wadey/gocovmerge',
+    'github.com/uber-go/gopatch',
 ]
 
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
-    'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
@@ -51,7 +51,12 @@ def download_tools(ctx):
 def install_tools(ctx: Context, max_retry: int = 3):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
-        with environ({'GO111MODULE': 'on'}):
+        env = {'GO111MODULE': 'on'}
+        if os.getenv('DD_CC'):
+            env['CC'] = os.getenv('DD_CC')
+        if os.getenv('DD_CXX'):
+            env['CXX'] = os.getenv('DD_CXX')
+        with environ(env):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):
                     for tool in tools:
@@ -104,12 +109,15 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 
 
 @task
-def install_protoc(ctx, version="26.1"):
+def install_protoc(ctx, version=None):
     """
     Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
-    Required generate the golang code based on .prod (inv generate-protobuf).
+    Required generate the golang code based on .prod (dda inv protobuf.generate).
     """
-
+    if version is None:
+        version_file = ".protoc-version"
+        with open(version_file) as f:
+            version = f.read().strip()
     if sys.platform == 'win32':
         print("protoc is not supported on Windows")
         raise Exit(code=1)

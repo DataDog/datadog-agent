@@ -43,6 +43,11 @@
           "property_doc_link": "event-os-doc"
         },
         {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
@@ -1399,6 +1404,18 @@
       "examples": []
     },
     {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.service",
       "link": "event-service-doc",
       "type": "string",
@@ -1449,6 +1466,52 @@
   ],
   "constants": [
     {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Boolean constants",
       "link": "boolean-constants",
       "description": "Boolean constants are the supported boolean constants.",
@@ -1459,6 +1522,120 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]
@@ -1833,6 +2010,53 @@
         },
         {
           "name": "Reserved",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
           "architecture": "all"
         }
       ]
@@ -2315,6 +2539,40 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Network directions",
+      "link": "network-directions",
+      "description": "Network directions are the supported directions of network packets.",
+      "all": [
+        {
+          "name": "INGRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "EGRESS",
           "architecture": "all"
         }
       ]

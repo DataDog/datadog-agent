@@ -12,21 +12,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestSamplerAccessRace(_ *testing.T) {
-	s := newSampler(1, 2, nil, &statsd.NoOpClient{})
+	goroutineN := 5
+	loopCount := 10000
+	serviceSignature := ServiceSignature{
+		Name: "test-service",
+		Env:  "test-env",
+	}
+	s := newSampler(1, 2)
 	var wg sync.WaitGroup
-	wg.Add(5)
-	for j := 0; j < 5; j++ {
+	wg.Add(goroutineN)
+	for j := 0; j < goroutineN; j++ {
 		go func(j int) {
 			defer wg.Done()
-			for i := 0; i < 10000; i++ {
-				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), Signature(i%3), 5)
-				s.report()
-				s.countSample()
+			for i := 0; i < loopCount; i++ {
+				s.countWeightedSig(time.Now().Add(time.Duration(5*(j+i))*time.Second), serviceSignature.Hash(), 5)
 				s.getSignatureSampleRate(Signature(i % 3))
 				s.getAllSignatureSampleRates()
 			}
@@ -114,7 +116,7 @@ func TestZeroAndGetMaxBuckets(t *testing.T) {
 func TestRateIncrease(t *testing.T) {
 	targetTPS := 7.0
 	initialTPS := 21.0
-	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
+	s := newSampler(1, targetTPS)
 
 	testSig := Signature(25)
 	testTime := time.Now()
@@ -145,7 +147,7 @@ func TestRateIncrease(t *testing.T) {
 func TestOldSigEviction(t *testing.T) {
 	targetTPS := 7.0
 	initialTPS := 21.0
-	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
+	s := newSampler(1, targetTPS)
 
 	testSig := Signature(25)
 	testTime := time.Now()
@@ -175,7 +177,7 @@ func TestOldSigEviction(t *testing.T) {
 
 func TestMovingMax(t *testing.T) {
 	targetTPS := 1.0
-	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
+	s := newSampler(1, targetTPS)
 
 	testTime := time.Now()
 
@@ -263,7 +265,7 @@ func TestComputeTPSPerSig(t *testing.T) {
 
 func TestDefaultRate(t *testing.T) {
 	targetTPS := 10.0
-	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
+	s := newSampler(1, targetTPS)
 	s.countWeightedSig(time.Now(), Signature(0), 1000)
 
 	_, defaultRate := s.getAllSignatureSampleRates()
@@ -273,7 +275,7 @@ func TestDefaultRate(t *testing.T) {
 
 func TestTargetTPSPerSigUpdate(t *testing.T) {
 	targetTPS := 10.0
-	s := newSampler(1, targetTPS, nil, &statsd.NoOpClient{})
+	s := newSampler(1, targetTPS)
 
 	testTime := time.Now()
 

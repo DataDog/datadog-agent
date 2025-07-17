@@ -18,12 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -37,10 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -54,7 +56,6 @@ import (
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -102,6 +103,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	if err != nil && err != agentConfig.ErrNoDDExporter {
 		return err
 	}
+	if !acfg.GetBool("otelcollector.enabled") {
+		fmt.Println("*** OpenTelemetry Collector is not enabled, exiting application ***. Set the config option `otelcollector.enabled` or the environment variable `DD_OTELCOLLECTOR_ENABLED` at true to enable it.")
+		return nil
+	}
 	uris := append(params.ConfPaths, params.Sets...)
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
@@ -113,7 +118,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 				return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 			}),
 			logfx.Module(),
-			fetchonlyimpl.Module(),
+			ipcfx.ModuleReadWrite(),
 			configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
@@ -135,8 +140,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
 		}),
-		fetchonlyimpl.Module(),
-		collectorfx.Module(),
+		ipcfx.ModuleReadWrite(),
+		collectorfx.Module(collectorimpl.NewParams(params.BYOC)),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
@@ -160,6 +165,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		fx.Provide(func(_ coreconfig.Component) log.Params {
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+		}),
+		fx.Provide(func() logconfig.IntakeOrigin {
+			return logconfig.DDOTIntakeOrigin
 		}),
 		logsagentpipelineimpl.Module(),
 		logscompressionfx.Module(),
@@ -196,9 +204,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
-				return func() (string, error) { return security.FetchAuthToken(c) }
-			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
 		telemetryimpl.Module(),
@@ -221,9 +226,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
 
 		fx.Supply(&traceagentcomp.Params{
-			CPUProfile:  "",
-			MemProfile:  "",
-			PIDFilePath: "",
+			CPUProfile:               "",
+			MemProfile:               "",
+			PIDFilePath:              "",
+			DisableInternalProfiling: true,
 		}),
 		traceagentfx.Module(),
 	)

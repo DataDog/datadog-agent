@@ -7,13 +7,16 @@
 package module
 
 import (
+	"context"
 	"fmt"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -69,11 +72,11 @@ type DirectMsgSender struct {
 
 // Send the message
 func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
-	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Tags...)
+	ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
 }
 
 // NewDirectMsgSender returns a new direct sender
-func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component) (*DirectMsgSender, error) {
+func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Component, ipc ipc.Component) (*DirectMsgSender, error) {
 	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -85,9 +88,14 @@ func NewDirectMsgSender(stopper startstop.Stopper, compression compression.Compo
 		log.Info(status)
 	}
 
+	hostname, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx, compression)
+	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, destinationsCtx, compression)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

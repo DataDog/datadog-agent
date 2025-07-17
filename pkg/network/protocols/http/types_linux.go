@@ -20,8 +20,22 @@ type SslSock struct {
 	Pad_cgo_0 [4]byte
 }
 type SslReadArgs struct {
-	Ctx *byte
-	Buf *byte
+	Ctx uint64
+	Buf uint64
+}
+type SslReadExArgs struct {
+	Ctx       uint64
+	Buf       uint64
+	Out_param uint64
+}
+type SslWriteArgs struct {
+	Ctx uint64
+	Buf uint64
+}
+type SslWriteExArgs struct {
+	Ctx       uint64
+	Buf       uint64
+	Out_param uint64
 }
 
 type EbpfEvent struct {
@@ -41,26 +55,4 @@ type EbpfTx struct {
 
 const (
 	BufferSize = 0xd0
-)
-
-type ConnTag = uint64
-
-const (
-	GnuTLS  ConnTag = 0x1
-	OpenSSL ConnTag = 0x2
-	Go      ConnTag = 0x4
-	TLS     ConnTag = 0x8
-	Istio   ConnTag = 0x10
-	NodeJS  ConnTag = 0x20
-)
-
-var (
-	StaticTags = map[ConnTag]string{
-		GnuTLS:  "tls.library:gnutls",
-		OpenSSL: "tls.library:openssl",
-		Go:      "tls.library:go",
-		TLS:     "tls.connection:encrypted",
-		Istio:   "tls.library:istio",
-		NodeJS:  "tls.library:nodejs",
-	}
 )

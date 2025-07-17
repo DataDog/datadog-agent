@@ -51,6 +51,8 @@ type dogstatsdMetricSample struct {
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
 	externalData origindetection.ExternalData
+	// cardinality is used for Origin Detection
+	cardinality string
 	// timestamp read in the message if any
 	ts time.Time
 }

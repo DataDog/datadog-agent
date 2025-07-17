@@ -197,14 +197,21 @@ func (c *cacheImpl) sendQuery(addr string) error {
 
 func (c *cacheImpl) runExpireLoop() {
 	// call expire() periodically to remove expired entries from the cache
-	ticker := time.NewTicker(c.config.cache.cleanInterval)
+	expireTicker := time.NewTicker(c.config.cache.cleanInterval)
+	cacheSizeTicker := time.NewTicker(time.Second * 30)
 	go func() {
 		for {
 			select {
-			case now := <-ticker.C:
+			case now := <-expireTicker.C:
 				c.expire(now)
+			case <-cacheSizeTicker.C:
+				c.mutex.Lock()
+				size := len(c.data)
+				c.mutex.Unlock()
+				c.internalTelemetry.cacheSize.Set(float64(size))
 			case <-c.exit:
-				ticker.Stop()
+				expireTicker.Stop()
+				cacheSizeTicker.Stop()
 				return
 			}
 		}

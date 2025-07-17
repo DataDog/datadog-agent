@@ -37,6 +37,10 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
+    traceAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
     agent:
       env:
         - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
@@ -52,7 +56,10 @@ var otlpIngestParams = utils.IAParams{
 
 func (s *otlpIngestTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, false)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPTraces() {

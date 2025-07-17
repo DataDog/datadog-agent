@@ -11,6 +11,7 @@ import (
 )
 
 func writeError(err error, code int, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	body, _ := json.Marshal(map[string]string{"error": err.Error()})
 	http.Error(w, string(body), code)
 }

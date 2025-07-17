@@ -23,7 +23,11 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.EnableCORE)
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
-		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
+
+		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_FENTRY"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
+
+		assert.Equal(t, Prebuilt, GetBuildMode())
 	})
 	TestBuildMode(t, RuntimeCompiled, "", func(t *testing.T) {
 		cfg := ebpf.NewConfig()
@@ -31,7 +35,10 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.False(t, cfg.EnableCORE)
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
-		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
+		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_FENTRY"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
+
+		assert.Equal(t, RuntimeCompiled, GetBuildMode())
 	})
 	TestBuildMode(t, CORE, "", func(t *testing.T) {
 		cfg := ebpf.NewConfig()
@@ -39,7 +46,10 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.True(t, cfg.EnableCORE)
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
-		assert.Equal(t, "false", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
+		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_FENTRY"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
+
+		assert.Equal(t, CORE, GetBuildMode())
 	})
 	TestBuildMode(t, Fentry, "", func(t *testing.T) {
 		cfg := ebpf.NewConfig()
@@ -47,6 +57,20 @@ func TestBuildModeConstants(t *testing.T) {
 		assert.True(t, cfg.EnableCORE)
 		assert.False(t, cfg.AllowPrebuiltFallback)
 		assert.False(t, cfg.AllowRuntimeCompiledFallback)
-		assert.Equal(t, "true", os.Getenv("NETWORK_TRACER_FENTRY_TESTS"))
+		assert.Equal(t, "true", os.Getenv("DD_NETWORK_CONFIG_ENABLE_FENTRY"))
+		assert.Equal(t, "false", os.Getenv("DD_ENABLE_EBPFLESS"))
+
+		assert.Equal(t, Fentry, GetBuildMode())
+	})
+	TestBuildMode(t, Ebpfless, "", func(t *testing.T) {
+		cfg := ebpf.NewConfig()
+		assert.False(t, cfg.EnableRuntimeCompiler)
+		assert.False(t, cfg.EnableCORE)
+		assert.False(t, cfg.AllowPrebuiltFallback)
+		assert.False(t, cfg.AllowRuntimeCompiledFallback)
+		assert.Equal(t, "false", os.Getenv("DD_NETWORK_CONFIG_ENABLE_FENTRY"))
+		assert.Equal(t, "true", os.Getenv("DD_ENABLE_EBPFLESS"))
+
+		assert.Equal(t, Ebpfless, GetBuildMode())
 	})
 }

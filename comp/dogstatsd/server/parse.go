@@ -48,6 +48,9 @@ var (
 
 	// externalDataPrefix is the prefix for a common field which contains the external data for Origin Detection.
 	externalDataPrefix = []byte("e:")
+
+	// cardinalityPrefix is the prefix for a common field which contains the cardinality for Origin Detection.
+	cardinalityPrefix = []byte("card:")
 )
 
 // parser parses dogstatsd messages
@@ -174,6 +177,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	var tags []string
 	var localData origindetection.LocalData
 	var externalData origindetection.ExternalData
+	var cardinality string
 	var optionalField []byte
 	var timestamp time.Time
 	for message != nil {
@@ -207,6 +211,9 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		// external data
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
 			externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
+		// cardinality
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, cardinalityPrefix):
+			cardinality = string(optionalField[len(cardinalityPrefix):])
 		}
 	}
 
@@ -220,6 +227,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		tags:         tags,
 		localData:    localData,
 		externalData: externalData,
+		cardinality:  cardinality,
 		ts:           timestamp,
 	}, nil
 }

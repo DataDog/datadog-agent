@@ -79,6 +79,10 @@ const (
 	CgroupTracingEventType
 	// DNSEventType DNS event
 	DNSEventType
+	// ShortDNSResponseEventType DNS Response event
+	ShortDNSResponseEventType
+	// FullDNSResponseEventType DNS Response event
+	FullDNSResponseEventType
 	// NetDeviceEventType is sent for events on net devices
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
@@ -103,6 +107,20 @@ const (
 	CgroupWriteEventType
 	// RawPacketEventType raw packet event
 	RawPacketEventType
+	// NetworkFlowMonitorEventType is sent to monitor network activity
+	NetworkFlowMonitorEventType
+	// StatEventType stat event (used kernel side only)
+	StatEventType
+	// SysCtlEventType sysctl event
+	SysCtlEventType
+	// SetrlimitEventType setrlimit event
+	SetrlimitEventType
+	// SetSockOptEventType is sent when a socket option is set
+	SetSockOptEventType
+	// FileFsmountEventType Mount event
+	FileFsmountEventType
+	// FileOpenTreeEventType Open Tree event
+	FileOpenTreeEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -235,6 +253,10 @@ func (t EventType) String() string {
 		return "ondemand"
 	case RawPacketEventType:
 		return "packet"
+	case NetworkFlowMonitorEventType:
+		return "network_flow_monitor"
+	case StatEventType:
+		return "stat"
 	case CustomEventType:
 		return "custom_event"
 	case CreateNewFileEventType:
@@ -257,6 +279,14 @@ func (t EventType) String() string {
 		return "login_uid_write"
 	case CgroupWriteEventType:
 		return "cgroup_write"
+	case SysCtlEventType:
+		return "sysctl"
+	case SetrlimitEventType:
+		return "setrlimit"
+	case FullDNSResponseEventType:
+		return "dns_response"
+	case SetSockOptEventType:
+		return "setsockopt"
 	default:
 		return "unknown"
 	}

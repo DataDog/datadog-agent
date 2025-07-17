@@ -11,7 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1beta1"
@@ -28,17 +30,25 @@ type CronJobV1Beta1Collector struct {
 }
 
 // NewCronJobV1Beta1Collector creates a new collector for the Kubernetes Job resource.
-func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
+func NewCronJobV1Beta1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Beta1Collector {
+	resourceType := getResourceType(cronJobName, cronJobVersionV1Beta1)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &CronJobV1Beta1Collector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          false,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "cronjobs",
-			NodeType:                  orchestrator.K8sCronJob,
-			Version:                   "batch/v1beta1",
+			IsDefaultVersion:                     false,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 cronJobName,
+			Kind:                                 kubernetes.CronJobKind,
+			NodeType:                             orchestrator.K8sCronJob,
+			Version:                              cronJobVersionV1Beta1,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),
 	}
@@ -67,9 +77,14 @@ func (c *CronJobV1Beta1Collector) Run(rcfg *collectors.CollectorRunConfig) (*col
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *CronJobV1Beta1Collector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -77,7 +92,7 @@ func (c *CronJobV1Beta1Collector) Run(rcfg *collectors.CollectorRunConfig) (*col
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

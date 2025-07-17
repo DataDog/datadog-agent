@@ -36,7 +36,7 @@ func (tkl *TokenLimiter) genGetTokenFnc(fields []eval.Field) error {
 	event := m.NewEvent()
 
 	for _, field := range fields {
-		if _, _, err := event.GetFieldMetadata(field); err != nil {
+		if _, _, _, err := event.GetFieldMetadata(field); err != nil {
 			return err
 		}
 	}

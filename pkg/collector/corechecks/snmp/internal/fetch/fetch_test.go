@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -370,14 +371,9 @@ func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 	sess.On("GetNext", []string{"1.1.3"}).Return(&secondBatchPacket1, nil)
 	sess.On("GetNext", []string{"1.1.3.1"}).Return(&secondBatchPacket2, nil)
 
-	config := &checkconfig.CheckConfig{
-		BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
-		OidBatchSize:       2,
-		OidConfig: checkconfig.OidConfig{
-			ColumnOids: []string{"1.1.1", "1.1.2", "1.1.3"},
-		},
-	}
-	columnValues, err := Fetch(sess, config)
+	columnOIDs := []string{"1.1.1", "1.1.2", "1.1.3"}
+
+	columnValues, err := Fetch(sess, nil, columnOIDs, 2, checkconfig.DefaultBulkMaxRepetitions)
 	assert.Nil(t, err)
 
 	expectedColumnValues := &valuestore.ResultValueStore{
@@ -464,6 +460,89 @@ func Test_fetchOidBatchSize(t *testing.T) {
 		"1.1.1.6.0": {Value: float64(60)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
+}
+
+func Test_fetchOidBatchSize_v1NoSuchName(t *testing.T) {
+	session := session.CreateMockSession()
+	session.Version = gosnmp.Version1
+
+	getPacket1 := gosnmp.SnmpPacket{
+		Error:      gosnmp.NoSuchName,
+		ErrorIndex: 1,
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1.0",
+				Type:  gosnmp.Gauge32,
+				Value: 10,
+			},
+			{
+				Name:  "1.1.1.2.0",
+				Type:  gosnmp.Gauge32,
+				Value: 20,
+			},
+		},
+	}
+
+	getPacket1b := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.2.0",
+				Type:  gosnmp.Gauge32,
+				Value: 20,
+			},
+		},
+	}
+
+	getPacket2 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.3.0",
+				Type:  gosnmp.Gauge32,
+				Value: 30,
+			},
+			{
+				Name:  "1.1.1.4.0",
+				Type:  gosnmp.Gauge32,
+				Value: 40,
+			},
+		},
+	}
+
+	getPacket3 := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.5.0",
+				Type:  gosnmp.Gauge32,
+				Value: 50,
+			},
+			{
+				Name:  "1.1.1.6.0",
+				Type:  gosnmp.Gauge32,
+				Value: 60,
+			},
+		},
+	}
+
+	session.On("Get", []string{"1.1.1.1.0", "1.1.1.2.0"}).Return(&getPacket1, nil)
+	session.On("Get", []string{"1.1.1.2.0"}).Return(&getPacket1b, nil)
+	session.On("Get", []string{"1.1.1.3.0", "1.1.1.4.0"}).Return(&getPacket2, nil)
+	session.On("Get", []string{"1.1.1.5.0", "1.1.1.6.0"}).Return(&getPacket3, nil)
+
+	oids := []string{"1.1.1.1.0", "1.1.1.2.0", "1.1.1.3.0", "1.1.1.4.0", "1.1.1.5.0", "1.1.1.6.0"}
+	origOids := slices.Clone(oids)
+
+	columnValues, err := fetchScalarOidsWithBatching(session, oids, 2)
+	assert.Nil(t, err)
+
+	expectedColumnValues := valuestore.ScalarResultValuesType{
+		"1.1.1.2.0": {Value: float64(20)},
+		"1.1.1.3.0": {Value: float64(30)},
+		"1.1.1.4.0": {Value: float64(40)},
+		"1.1.1.5.0": {Value: float64(50)},
+		"1.1.1.6.0": {Value: float64(60)},
+	}
+	assert.Equal(t, expectedColumnValues, columnValues)
+	assert.Equal(t, origOids, oids)
 }
 
 func Test_fetchOidBatchSize_zeroSizeError(t *testing.T) {
@@ -623,6 +702,7 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 	sess.On("Get", []string{"1.1.1.1.0", "1.1.1.3"}).Return(&getPacket3, nil)
 
 	oids := []string{"1.1.1.1.0", "1.1.1.2", "1.1.1.3", "1.1.1.4.0"}
+	origOids := slices.Clone(oids)
 
 	columnValues, err := fetchScalarOids(sess, oids)
 	assert.Nil(t, err)
@@ -632,6 +712,7 @@ func Test_fetchScalarOids_v1NoSuchName(t *testing.T) {
 		"1.1.1.3.0": {Value: float64(30)},
 	}
 	assert.Equal(t, expectedColumnValues, columnValues)
+	assert.Equal(t, origOids, oids)
 }
 
 func Test_fetchScalarOids_v1NoSuchName_noValidOidsLeft(t *testing.T) {
@@ -719,41 +800,32 @@ func Test_fetchScalarOids_v1NoSuchName_errorIndexTooLow(t *testing.T) {
 func Test_fetchValues_errors(t *testing.T) {
 	tests := []struct {
 		name          string
-		config        checkconfig.CheckConfig
+		maxReps       uint32
+		batchSize     int
+		ScalarOIDs    []string
+		ColumnOIDs    []string
 		bulkPacket    gosnmp.SnmpPacket
 		expectedError error
 	}{
 		{
-			name: "invalid batch size",
-			config: checkconfig.CheckConfig{
-				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
-				OidConfig: checkconfig.OidConfig{
-					ScalarOids: []string{"1.1", "1.2"},
-				},
-			},
+			name:          "invalid batch size",
+			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
+			ScalarOIDs:    []string{"1.1", "1.2"},
 			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to create oid batches: batch size must be positive. invalid size: 0"),
 		},
 		{
-			name: "get fetch error",
-			config: checkconfig.CheckConfig{
-				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
-				OidBatchSize:       10,
-				OidConfig: checkconfig.OidConfig{
-					ScalarOids: []string{"1.1", "2.2"},
-				},
-			},
+			name:          "get fetch error",
+			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
+			batchSize:     10,
+			ScalarOIDs:    []string{"1.1", "2.2"},
 			expectedError: fmt.Errorf("failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.1 2.2]`: get error"),
 		},
 		{
-			name: "bulk fetch error",
-			config: checkconfig.CheckConfig{
-				BulkMaxRepetitions: checkconfig.DefaultBulkMaxRepetitions,
-				OidBatchSize:       10,
-				OidConfig: checkconfig.OidConfig{
-					ScalarOids: []string{},
-					ColumnOids: []string{"1.1", "2.2"},
-				},
-			},
+			name:          "bulk fetch error",
+			maxReps:       checkconfig.DefaultBulkMaxRepetitions,
+			batchSize:     10,
+			ScalarOIDs:    []string{},
+			ColumnOIDs:    []string{"1.1", "2.2"},
 			expectedError: fmt.Errorf("failed to fetch oids with GetNext batching: failed to fetch column oids: fetch column: failed getting oids `[1.1 2.2]` using GetNext: getnext error"),
 		},
 	}
@@ -764,7 +836,7 @@ func Test_fetchValues_errors(t *testing.T) {
 			sess.On("GetBulk", []string{"1.1", "2.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("bulk error"))
 			sess.On("GetNext", []string{"1.1", "2.2"}).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("getnext error"))
 
-			_, err := Fetch(sess, &tt.config)
+			_, err := Fetch(sess, tt.ScalarOIDs, tt.ColumnOIDs, tt.batchSize, tt.maxReps)
 
 			assert.Equal(t, tt.expectedError, err)
 		})

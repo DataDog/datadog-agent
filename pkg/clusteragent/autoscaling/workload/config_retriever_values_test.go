@@ -18,8 +18,9 @@ import (
 	clock "k8s.io/utils/clock/testing"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -28,7 +29,8 @@ import (
 
 func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 	testTime := time.Now()
-	cr, mockRCClient := newMockConfigRetriever(t, false, clock.NewFakeClock(testTime))
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	_, mockRCClient := newMockConfigRetriever(t, func() bool { return false }, store, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
 	dummy2 := model.FakePodAutoscalerInternal{
@@ -39,8 +41,8 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 		Namespace: "ns",
 		Name:      "name3",
 	}
-	cr.store.Set("ns/name2", dummy2.Build(), "unittest")
-	cr.store.Set("ns/name3", dummy3.Build(), "unittest")
+	store.Set("ns/name2", dummy2.Build(), "unittest")
+	store.Set("ns/name3", dummy3.Build(), "unittest")
 
 	// Object specs
 	value1 := &kubeAutoscaling.WorkloadValues{
@@ -70,24 +72,25 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 	)
 
 	assert.Equal(t, 1, stateCallbackCalled)
-	podAutoscalers := cr.store.GetAll()
+	podAutoscalers := store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
 }
 
 func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	testTime := time.Now()
-	cr, mockRCClient := newMockConfigRetriever(t, true, clock.NewFakeClock(testTime))
+	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	_, mockRCClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	cr.store.Set("ns/name1", model.FakePodAutoscalerInternal{
+	store.Set("ns/name1", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name1",
 	}.Build(), "unittest")
-	cr.store.Set("ns/name2", model.FakePodAutoscalerInternal{
+	store.Set("ns/name2", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name2",
 	}.Build(), "unittest")
-	cr.store.Set("ns/name3", model.FakePodAutoscalerInternal{
+	store.Set("ns/name3", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name3",
 	}.Build(), "unittest")
@@ -204,15 +207,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 
 	assert.Equal(t, 2, stateCallbackCalled)
-	podAutoscalers := cr.store.GetAll()
+	podAutoscalers := store.GetAll()
 
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
 			Name:      "name1",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerManualValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerManualValueSource,
 					Replicas:  3,
 					Timestamp: testTime,
 				},
@@ -221,15 +224,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		{
 			Namespace: "ns",
 			Name:      "name2",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  6,
 					Timestamp: testTime,
 				},
 				Vertical: &model.VerticalScalingValues{
-					Source: datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
-					ContainerResources: []datadoghq.DatadogPodAutoscalerContainerResources{
+					Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 						{
 							Name: "container1",
 							Requests: corev1.ResourceList{
@@ -239,22 +242,22 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 						},
 					},
 					Timestamp:     testTime,
-					ResourcesHash: "9d1474c7c20f3820",
+					ResourcesHash: "8fe97e46aa840723",
 				},
 			},
 		},
 		{
 			Namespace: "ns",
 			Name:      "name3",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  5,
 					Timestamp: testTime,
 				},
 				Vertical: &model.VerticalScalingValues{
-					Source: datadoghq.DatadogPodAutoscalerManualValueSource,
-					ContainerResources: []datadoghq.DatadogPodAutoscalerContainerResources{
+					Source: datadoghqcommon.DatadogPodAutoscalerManualValueSource,
+					ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 						{
 							Name: "container1",
 							Requests: corev1.ResourceList{
@@ -268,7 +271,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 						},
 					},
 					Timestamp:     testTime,
-					ResourcesHash: "e55f79588b87a881",
+					ResourcesHash: "f41ccab869dc36a7",
 				},
 			},
 		},
@@ -297,25 +300,25 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 	assert.Equal(t, 2, stateCallbackCalled)
 
-	podAutoscalers = cr.store.GetAll()
+	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace:     "ns",
-			Name:          "name1",
-			ScalingValues: model.ScalingValues{},
+			Namespace:         "ns",
+			Name:              "name1",
+			MainScalingValues: model.ScalingValues{},
 		},
 		{
 			Namespace: "ns",
 			Name:      "name2",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  6,
 					Timestamp: testTime,
 				},
 				Vertical: &model.VerticalScalingValues{
-					Source: datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
-					ContainerResources: []datadoghq.DatadogPodAutoscalerContainerResources{
+					Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 						{
 							Name: "container1",
 							Requests: corev1.ResourceList{
@@ -325,16 +328,16 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 						},
 					},
 					Timestamp:     testTime,
-					ResourcesHash: "9d1474c7c20f3820",
+					ResourcesHash: "8fe97e46aa840723",
 				},
 			},
 		},
 		{
 			Namespace: "ns",
 			Name:      "name3",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  6,
 					Timestamp: testTime,
 				},
@@ -359,25 +362,25 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 	assert.Equal(t, 1, stateCallbackCalled)
 
-	podAutoscalers = cr.store.GetAll()
+	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
-			Namespace:     "ns",
-			Name:          "name1",
-			ScalingValues: model.ScalingValues{},
+			Namespace:         "ns",
+			Name:              "name1",
+			MainScalingValues: model.ScalingValues{},
 		},
 		{
 			Namespace: "ns",
 			Name:      "name2",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  6,
 					Timestamp: testTime,
 				},
 				Vertical: &model.VerticalScalingValues{
-					Source: datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
-					ContainerResources: []datadoghq.DatadogPodAutoscalerContainerResources{
+					Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 						{
 							Name: "container1",
 							Requests: corev1.ResourceList{
@@ -386,7 +389,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 							},
 						},
 					},
-					ResourcesHash: "9d1474c7c20f3820",
+					ResourcesHash: "8fe97e46aa840723",
 					Timestamp:     testTime,
 				},
 			},
@@ -394,9 +397,9 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		{
 			Namespace: "ns",
 			Name:      "name3",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  6,
 					Timestamp: testTime,
 				},
@@ -421,7 +424,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	)
 	assert.Equal(t, 1, stateCallbackCalled)
 
-	podAutoscalers = cr.store.GetAll()
+	podAutoscalers = store.GetAll()
 	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
@@ -430,15 +433,15 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		{
 			Namespace: "ns",
 			Name:      "name2",
-			ScalingValues: model.ScalingValues{
+			MainScalingValues: model.ScalingValues{
 				Horizontal: &model.HorizontalScalingValues{
-					Source:    datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 					Replicas:  6,
 					Timestamp: testTime,
 				},
 				Vertical: &model.VerticalScalingValues{
-					Source: datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
-					ContainerResources: []datadoghq.DatadogPodAutoscalerContainerResources{
+					Source: datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 						{
 							Name: "container1",
 							Requests: corev1.ResourceList{
@@ -448,7 +451,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 						},
 					},
 					Timestamp:     testTime,
-					ResourcesHash: "9d1474c7c20f3820",
+					ResourcesHash: "8fe97e46aa840723",
 				},
 			},
 		},

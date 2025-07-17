@@ -7,6 +7,7 @@ package inferredspan
 
 import (
 	"crypto/rand"
+	"maps"
 	"math"
 	"math/big"
 	"os"
@@ -71,9 +72,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	output := make(map[string]string)
-	for k, v := range input {
-		output[k] = v
-	}
+	maps.Copy(output, input)
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
 	ddTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)

@@ -81,8 +81,8 @@ func NewDebugFsStatCollector() prometheus.Collector {
 		return &NoopDebugFsStatCollector{}
 	}
 	return &DebugFsStatCollector{
-		hits:           prometheus.NewDesc(kprobeTelemetryName+"__hits", "Counter tracking number of probe hits", []string{"probe_name", "probe_type"}, nil),
-		misses:         prometheus.NewDesc(kprobeTelemetryName+"__misses", "Counter tracking number of probe misses", []string{"probe_name", "probe_type"}, nil),
+		hits:           prometheus.NewDesc(kprobeTelemetryName+"__hits", "Counter tracking number of probe hits", []string{"probe_name", "probe_type", "uid"}, nil),
+		misses:         prometheus.NewDesc(kprobeTelemetryName+"__misses", "Counter tracking number of probe misses", []string{"probe_name", "probe_type", "uid"}, nil),
 		lastProbeStats: make(map[eventKey]int),
 		tracefsRoot:    root,
 	}
@@ -95,7 +95,10 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType profileType, 
 		log.Debugf("error retrieving %s probe stats: %s", probeType.String(), err)
 		return
 	}
+
 	for event, st := range m {
+		uid := ""
+
 		parts := eventRegexp.FindStringSubmatch(event)
 		if len(parts) > 2 {
 			// only get stats for our pid
@@ -105,22 +108,24 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType profileType, 
 					continue
 				}
 			}
+
 			// strip UID and PID from name
-			event = parts[1]
+			event = strings.ToLower(parts[1])
+			uid = strings.ToLower(parts[2])
 		}
 		event = strings.ToLower(event)
 
 		hitsKey := eventKey{probeType, hits, event}
 		hitsDelta := float64(int(st.Hits) - c.lastProbeStats[hitsKey])
 		if hitsDelta > 0 {
-			ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, hitsDelta, event, probeType.String())
+			ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, hitsDelta, event, probeType.String(), uid)
 		}
 		c.lastProbeStats[hitsKey] = int(st.Hits)
 
 		missesKey := eventKey{probeType, misses, event}
 		missesDelta := float64(int(st.Misses) - c.lastProbeStats[missesKey])
 		if missesDelta > 0 {
-			ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, missesDelta, event, probeType.String())
+			ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, missesDelta, event, probeType.String(), uid)
 		}
 		c.lastProbeStats[missesKey] = int(st.Misses)
 	}

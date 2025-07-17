@@ -18,8 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
@@ -93,9 +93,14 @@ const (
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
 
-	// SourceLocalProcessCollector reprents processes entities detected
-	// by the LocalProcessCollector.
-	SourceLocalProcessCollector Source = "local_process_collector"
+	// SourceProcessLanguageCollector represents processes entities detected
+	// by the ProcessLanguageCollector.
+	SourceProcessLanguageCollector Source = "process_language_collector"
+	SourceProcessCollector         Source = "process_collector"
+
+	// SourceServiceDiscovery represents service discovery data for processes
+	// detected by the process collector.
+	SourceServiceDiscovery Source = "service_discovery"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -470,14 +475,23 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID    string
-	Name  string
-	Image ContainerImage
+	ID        string
+	Name      string
+	Image     ContainerImage
+	Resources ContainerResources
 }
 
 // String returns a string representation of OrchestratorContainer.
-func (o OrchestratorContainer) String(_ bool) string {
-	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
+func (o OrchestratorContainer) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", o.Name)
+	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
+		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+	}
+	return sb.String()
 }
 
 // ECSContainer is a reference to a container running in ECS
@@ -551,9 +565,9 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
 
-	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
-	AllocatedResources []ContainerAllocatedResource
+	ResolvedAllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -608,7 +622,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
-	for _, r := range c.AllocatedResources {
+	for _, r := range c.ResolvedAllocatedResources {
 		_, _ = fmt.Fprintln(&sb, r.String())
 	}
 
@@ -700,6 +714,7 @@ type KubernetesPod struct {
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
+	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
 	IP                         string
@@ -765,6 +780,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		}
 	}
 
+	if len(p.EphemeralContainers) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Ephemeral Containers -----------")
+		for _, c := range p.EphemeralContainers {
+			_, _ = fmt.Fprint(&sb, c.String(verbose))
+		}
+	}
+
 	_, _ = fmt.Fprintln(&sb, "----------- Pod Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Ready:", p.Ready)
 	_, _ = fmt.Fprintln(&sb, "Phase:", p.Phase)
@@ -794,9 +816,9 @@ func (p KubernetesPod) String(verbose bool) string {
 	return sb.String()
 }
 
-// GetAllContainers returns init containers and containers.
+// GetAllContainers returns all containers, including init containers and ephemeral containers.
 func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
-	return append(p.InitContainers, p.Containers...)
+	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
 }
 
 var _ Entity = &KubernetesPod{}
@@ -880,11 +902,11 @@ type KubernetesDeployment struct {
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages langUtil.ContainersLanguages
+	InjectableLanguages languagemodels.ContainersLanguages
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages langUtil.ContainersLanguages
+	DetectedLanguages languagemodels.ContainersLanguages
 }
 
 // GetID implements Entity#GetID.
@@ -920,7 +942,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
 
-	langPrinter := func(containersLanguages langUtil.ContainersLanguages) {
+	langPrinter := func(containersLanguages languagemodels.ContainersLanguages) {
 		initContainersInfo := make([]string, 0, len(containersLanguages))
 		containersInfo := make([]string, 0, len(containersLanguages))
 
@@ -973,7 +995,8 @@ type ECSTask struct {
 	Tags                    MapTags
 	ContainerInstanceTags   MapTags
 	ClusterName             string
-	AWSAccountID            int
+	ContainerInstanceARN    string
+	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
@@ -1186,14 +1209,62 @@ func printHistory(out io.Writer, history *v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Service contains service discovery information for a process
+type Service struct {
+	// GeneratedName is the name generated from the process info
+	GeneratedName string
+
+	// LogFiles are the log files associated with this service
+	LogFiles []string
+
+	// GeneratedNameSource indicates the source of the generated name
+	GeneratedNameSource string
+
+	// AdditionalGeneratedNames contains other potential names for the service
+	AdditionalGeneratedNames []string
+
+	// TracerMetadata contains APM tracer metadata
+	TracerMetadata []tracermetadata.TracerMetadata
+
+	// DDService is the value from DD_SERVICE environment variable
+	DDService string
+
+	// DDServiceInjected indicates if DD_SERVICE was injected
+	DDServiceInjected bool
+
+	// Ports is the list of ports the service is listening on
+	Ports []uint16
+
+	// APMInstrumentation indicates the APM instrumentation status
+	APMInstrumentation string
+
+	// Type is the service type (e.g., "web_service")
+	Type string
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
-	NsPid        int32
+	Pid          int32    // Process ID -- /proc/[pid]
+	NsPid        int32    // Namespace PID -- /proc/[pid]/status
+	Ppid         int32    // Parent Process ID -- /proc/[pid]/stat
+	Name         string   // Name -- /proc/[pid]/status
+	Cwd          string   // Current Working Directory -- /proc/[pid]/cwd
+	Exe          string   // Exceutable Path -- /proc[pid]/exe
+	Comm         string   // Short Command Name -- /proc/[pid]/comm
+	Cmdline      []string // Command Line -- /proc/[pid]/cmdline
+	Uids         []int32  // User IDs -- /proc/[pid]/status
+	Gids         []int32  // Group IDs -- /proc/[pid]/status
 	ContainerID  string
-	CreationTime time.Time
+	CreationTime time.Time // Process Start Time -- /proc/[pid]/stat
 	Language     *languagemodels.Language
+
+	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
+	Owner *EntityID // Owner is a reference to a container in WLM
+
+	// Service contains service discovery information for this process
+	Service *Service
 }
 
 var _ Entity = &Process{}
@@ -1216,11 +1287,16 @@ func (p *Process) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
 	}
 
+	// If the source has service data, remove the one from destination so merge() takes service data from the source
+	if otherProcess.Service != nil {
+		p.Service = nil
+	}
+
 	return merge(p, otherProcess)
 }
 
 // String implements Entity#String.
-func (p Process) String(_ bool) string {
+func (p Process) String(verbose bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
@@ -1228,7 +1304,30 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
-	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	if p.Language != nil {
+		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	}
+	if p.Service != nil {
+		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
+		if verbose {
+			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
+			_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
+			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
+			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
+			_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
+			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
+			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
+			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+
+			if len(p.Service.LogFiles) > 0 {
+				_, _ = fmt.Fprintln(&sb, "----------- Log Files -----------")
+				for _, logFile := range p.Service.LogFiles {
+					_, _ = fmt.Fprintln(&sb, logFile)
+				}
+			}
+		}
+	}
+	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
 }
@@ -1351,6 +1450,30 @@ func (e EventBundle) Acknowledge() {
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
 
+// GPUClockType is an enum to access different clock rates of the GPU Device through the MaxClockRates array field of the GPU.
+type GPUClockType int
+
+const (
+	// GPUSM represents SM Clock, use nvml.CLOCK_SM to get the value
+	GPUSM GPUClockType = iota
+	// GPUMemory represents Memory Clock, use nvml.CLOCK_MEM to get the value
+	GPUMemory
+	// GPUCOUNT is the total number of clock types in this enum
+	GPUCOUNT
+)
+
+// GPUDeviceType is an enum to identify the type of the GPU device.
+type GPUDeviceType int
+
+const (
+	// GPUDeviceTypePhysical represents a physical GPU device.
+	GPUDeviceTypePhysical GPUDeviceType = iota
+	// GPUDeviceTypeMIG represents a MIG device.
+	GPUDeviceTypeMIG
+	// GPUDeviceTypeUnknown represents an unknown device type.
+	GPUDeviceTypeUnknown
+)
+
 // GPU represents a GPU resource.
 type GPU struct {
 	EntityID
@@ -1358,12 +1481,17 @@ type GPU struct {
 	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
 	Vendor string
 
-	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// Device is the commercial name of the device (e.g., Tesla V100) as returned
 	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
 	// have some additional information like the memory size (e.g., Tesla
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
-	Device     string
+	Device string
+
+	// DriverVersion is the version of the driver used for the gpu device
+	DriverVersion string
+
+	// ActivePIDs is the list of process IDs that are using the GPU.
 	ActivePIDs []int
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
@@ -1371,6 +1499,28 @@ type GPU struct {
 	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
 	// of containers.
 	Index int
+
+	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
+	Architecture string
+
+	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
+	ComputeCapability GPUComputeCapability
+
+	// Total number of cores available for the device,
+	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
+	TotalCores int
+
+	// TotalMemory is the total available memory for the device in bytes
+	TotalMemory uint64
+
+	// MaxClockRates contains the maximum clock rates for SM and Memory
+	MaxClockRates [GPUCOUNT]uint32
+
+	// MemoryBusWidth is the width of the memory bus in bits.
+	MemoryBusWidth uint32
+
+	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
+	DeviceType GPUDeviceType
 }
 
 var _ Entity = &GPU{}
@@ -1387,7 +1537,7 @@ func (g *GPU) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge GPU with different kind %T", e)
 	}
 
-	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
 	}
@@ -1412,9 +1562,48 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
+	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
+	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
+	_, _ = fmt.Fprintln(&sb, "Total Number of Cores:", g.TotalCores)
+	_, _ = fmt.Fprintln(&sb, "Device Total Memory (in bytes):", g.TotalMemory)
+	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
+	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
+	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+
+	// Do not show "physical" device type as it's the default and redundant information
+	if g.DeviceType == GPUDeviceTypeMIG {
+		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
+	}
 
 	return sb.String()
 }
+
+// GPUComputeCapability represents the compute capability version of a GPU.
+type GPUComputeCapability struct {
+	// Major represents the major version of the compute capability.
+	Major int
+
+	// Minor represents the minor version of the compute capability.
+	Minor int
+}
+
+func (gcc GPUComputeCapability) String() string {
+	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
+}
+
+// CollectorStatus is the status of collector which is used to determine if the collectors
+// are not started, starting, started (pulled once)
+type CollectorStatus uint8
+
+const (
+	// CollectorsNotStarted means workloadmeta collectors are not started
+	CollectorsNotStarted CollectorStatus = iota
+	// CollectorsStarting means workloadmeta collectors are starting
+	CollectorsStarting
+	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
+	CollectorsInitialized
+)

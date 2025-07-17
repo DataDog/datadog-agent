@@ -5,19 +5,17 @@
 
 //go:build clusterchecks
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -214,17 +212,17 @@ func (s *CloudFoundryService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns a set of AD identifiers for a container.
-func (s *CloudFoundryService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{s.adIdentifier.String()}, nil
+func (s *CloudFoundryService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier.String()}
 }
 
 // GetHosts returns the container's hosts
-func (s *CloudFoundryService) GetHosts(context.Context) (map[string]string, error) {
+func (s *CloudFoundryService) GetHosts() (map[string]string, error) {
 	return s.containerIPs, nil
 }
 
 // GetPorts returns the container's ports
-func (s *CloudFoundryService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *CloudFoundryService) GetPorts() ([]ContainerPort, error) {
 	return s.containerPorts, nil
 }
 
@@ -234,36 +232,32 @@ func (s *CloudFoundryService) GetTags() ([]string, error) {
 }
 
 // GetTagsWithCardinality returns the tags with given cardinality. Not supported in CF
-func (s *CloudFoundryService) GetTagsWithCardinality(cardinality string) ([]string, error) {
+func (s *CloudFoundryService) GetTagsWithCardinality(_ string) ([]string, error) {
 	return s.GetTags()
 }
 
 // GetPid returns nil and an error because pids are currently not supported in CF
-func (s *CloudFoundryService) GetPid(context.Context) (int, error) {
+func (s *CloudFoundryService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because hostnames are not supported in CF
-func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
+func (s *CloudFoundryService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady always returns true on CF
-func (s *CloudFoundryService) IsReady(context.Context) bool {
+func (s *CloudFoundryService) IsReady() bool {
 	return true
 }
 
 // HasFilter returns false on CF
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
+func (s *CloudFoundryService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (s *CloudFoundryService) GetExtraConfig(key string) (string, error) {
+func (s *CloudFoundryService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 

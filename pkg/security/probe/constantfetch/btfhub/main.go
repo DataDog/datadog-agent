@@ -40,13 +40,11 @@ import (
 func main() {
 	var archiveRootPath string
 	var constantOutputPath string
-	var forceRefresh bool
 	var combineConstants bool
 	var cpuPprofPath string
 
 	flag.StringVar(&archiveRootPath, "archive-root", "", "Root path of BTFHub archive")
 	flag.StringVar(&constantOutputPath, "output", "", "Output path for JSON constants")
-	flag.BoolVar(&forceRefresh, "force-refresh", false, "Force refresh of the constants")
 	flag.BoolVar(&combineConstants, "combine", false, "Don't read btf files, but read constants")
 	flag.StringVar(&cpuPprofPath, "cpu-prof", "", "Path to the CPU profile to generate")
 	flag.Parse()
@@ -81,21 +79,7 @@ func main() {
 	}
 	fmt.Printf("btfhub-archive: commit %s\n", archiveCommit)
 
-	preAllocHint := 0
-
-	if !forceRefresh {
-		// skip if commit is already the most recent
-		currentConstants, err := getCurrentConstants(constantOutputPath)
-		if err == nil && currentConstants.Commit != "" {
-			if currentConstants.Commit == archiveCommit {
-				fmt.Printf("already at most recent archive commit")
-				return
-			}
-			preAllocHint = len(currentConstants.Kernels)
-		}
-	}
-
-	twCollector := newTreeWalkCollector(preAllocHint)
+	twCollector := newTreeWalkCollector()
 
 	var wg sync.WaitGroup
 	// github actions runner have only 2 cores
@@ -117,8 +101,6 @@ func main() {
 	wg.Wait()
 
 	export := twCollector.finish()
-
-	export.Commit = archiveCommit
 
 	if err := outputConstants(&export, constantOutputPath); err != nil {
 		panic(err)
@@ -173,16 +155,7 @@ func combineConstantFiles(archiveRootPath string) (constantfetch.BTFHubConstants
 		return constantfetch.BTFHubConstants{}, errors.New("no json file found")
 	}
 
-	lastCommit := ""
-	for _, file := range files {
-		if lastCommit != "" && file.Commit != lastCommit {
-			return constantfetch.BTFHubConstants{}, errors.New("multiple different commits in constant files")
-		}
-	}
-
-	res := constantfetch.BTFHubConstants{
-		Commit: lastCommit,
-	}
+	res := constantfetch.BTFHubConstants{}
 
 	for _, file := range files {
 		offset := len(res.Constants)
@@ -195,20 +168,6 @@ func combineConstantFiles(archiveRootPath string) (constantfetch.BTFHubConstants
 	}
 
 	return res, nil
-}
-
-func getCurrentConstants(path string) (*constantfetch.BTFHubConstants, error) {
-	cjson, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var currentConstants constantfetch.BTFHubConstants
-	if err := json.Unmarshal(cjson, &currentConstants); err != nil {
-		return nil, err
-	}
-
-	return &currentConstants, nil
 }
 
 func getCommitSha(cwd string) (string, error) {
@@ -231,10 +190,10 @@ type treeWalkCollector struct {
 	queryChan chan extractionQuery
 }
 
-func newTreeWalkCollector(preAllocHint int) *treeWalkCollector {
+func newTreeWalkCollector() *treeWalkCollector {
 	return &treeWalkCollector{
 		counter:   0,
-		results:   make([]extractionResult, 0, preAllocHint),
+		results:   make([]extractionResult, 0),
 		cache:     make(map[string]map[string]uint64),
 		queryChan: make(chan extractionQuery),
 	}

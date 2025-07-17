@@ -7,8 +7,11 @@ package goflowlib
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"slices"
+
 	promClient "github.com/prometheus/client_model/go"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 type remapperType func(string) string
@@ -22,12 +25,7 @@ type mappedMetric struct {
 }
 
 func (m mappedMetric) isAllowedTagKey(tagKey string) bool {
-	for _, allowedTagKey := range m.allowedTagKeys {
-		if tagKey == allowedTagKey {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.allowedTagKeys, tagKey)
 }
 
 var collectorTypeMapper = map[string]string{

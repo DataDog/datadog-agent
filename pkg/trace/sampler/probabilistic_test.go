@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestProbabilisticSampler(t *testing.T) {
@@ -33,7 +32,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 41,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{"otel.trace_id": hex.EncodeToString(tid)},
@@ -48,7 +47,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 40,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{"otel.trace_id": hex.EncodeToString(tid)},
@@ -63,7 +62,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 41,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: binary.BigEndian.Uint64(tid[8:]),
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
@@ -78,7 +77,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 40,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
@@ -92,7 +91,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 40,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		span := &trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{},
@@ -108,7 +107,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 40,
 			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 556,
 			Meta:    map[string]string{},
@@ -122,7 +121,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 70,
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: binary.BigEndian.Uint64(tid[8:]),
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
@@ -136,7 +135,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 68,
 		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampler := NewProbabilisticSampler(conf)
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
@@ -164,10 +163,11 @@ func FuzzConsistentWithOtel(f *testing.F) {
 	hashSeed := uint32(555666)
 	samplingPercent := float32(50)
 	pspFactory := probabilisticsamplerprocessor.NewFactory()
-	cfg := processortest.NewNopSettings()
+	cfg := processortest.NewNopSettings(pspFactory.Type())
 	pspCfg := &probabilisticsamplerprocessor.Config{
 		SamplingPercentage: samplingPercent,
 		HashSeed:           hashSeed,
+		Mode:               "hash_seed",
 	}
 
 	conf := &config.AgentConfig{
@@ -176,12 +176,34 @@ func FuzzConsistentWithOtel(f *testing.F) {
 		ProbabilisticSamplerSamplingPercentage: samplingPercent,
 		Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 	}
-	sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+	sampler := NewProbabilisticSampler(conf)
 
 	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
 	f.Fuzz(func(t *testing.T, tid []byte) {
 		if len(tid) < 16 {
-			t.Skip("need at least 16 bytes for trace id")
+			t.Skip("need at least 16 bytes for W3C Trace Context trace id")
+		}
+		// Skip zero trace IDs as they are invalid per W3C Trace Context
+		// specification. OpenTelemetry follows the W3C Trace Context
+		// specification for trace IDs. The test uses
+		// opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor
+		// which handles trace IDs according to W3C standards.
+		//
+		// Per W3C Trace Context[1] "All bytes as zero
+		// (00000000000000000000000000000000) is considered an invalid
+		// value." The behavior of these two implementations with a
+		// zero-value trace ID is undefined behavior.
+		//
+		// [1]: https://www.w3.org/TR/trace-context/#trace-id, section 3.2.2.3
+		allZero := true
+		for i := 0; i < 16 && i < len(tid); i++ {
+			if tid[i] != 0 {
+				allZero = false
+				break
+			}
+		}
+		if allZero {
+			t.Skip("zero trace IDs are invalid per OpenTelemetry / W3C spec")
 		}
 		mc := &mockConsumer{} //Do this setup in here to avoid having to clear this data between tests
 		tp, err := pspFactory.CreateTraces(context.Background(), cfg, pspCfg, mc)
@@ -195,7 +217,13 @@ func FuzzConsistentWithOtel(f *testing.F) {
 			TraceID: binary.BigEndian.Uint64(tid[8:]),
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
 		})
-		assert.Equal(t, len(mc.traces) == 1, sampled)
+		otelSampled := len(mc.traces) == 1
+		if otelSampled != sampled {
+			t.Logf("Trace ID: %x", tid)
+			t.Logf("OTel sampled: %v, Datadog sampled: %v", otelSampled, sampled)
+			t.Logf("Upper 8 bytes: %x, Lower 8 bytes: %x", tid[:8], tid[8:])
+		}
+		assert.Equal(t, otelSampled, sampled)
 	})
 }
 
@@ -211,27 +239,4 @@ func makeOtelTraceWithID(traceID []byte) ptrace.Traces {
 		}
 	}
 	return td
-}
-
-func TestProbabilisticSamplerStartStop(t *testing.T) {
-	t.Run("enabled", func(_ *testing.T) {
-		conf := &config.AgentConfig{
-			ProbabilisticSamplerEnabled:            true,
-			ProbabilisticSamplerHashSeed:           22,
-			ProbabilisticSamplerSamplingPercentage: 10,
-		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
-		sampler.Start()
-		sampler.Stop()
-	})
-	t.Run("disabled", func(_ *testing.T) {
-		conf := &config.AgentConfig{
-			ProbabilisticSamplerEnabled:            false,
-			ProbabilisticSamplerHashSeed:           22,
-			ProbabilisticSamplerSamplingPercentage: 10,
-		}
-		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
-		sampler.Start()
-		sampler.Stop()
-	})
 }

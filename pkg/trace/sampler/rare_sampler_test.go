@@ -14,8 +14,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func TestSpanSeenTTLExpiration(t *testing.T) {
@@ -38,8 +36,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 		{"p0-ttl-active", false, testTime.Add(ttl + time.Nanosecond), map[string]float64{"_top_level": 1}, PriorityNone},
 	}
 
-	e := NewRareSampler(c, &statsd.NoOpClient{})
-	e.Stop()
+	e := NewRareSampler(c)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -68,8 +65,7 @@ func TestConsideredSpans(t *testing.T) {
 
 	c := config.New()
 	c.RareSamplerEnabled = true
-	e := NewRareSampler(c, &statsd.NoOpClient{})
-	e.Stop()
+	e := NewRareSampler(c)
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -81,8 +77,7 @@ func TestConsideredSpans(t *testing.T) {
 }
 
 func TestRareSamplerRace(_ *testing.T) {
-	e := NewRareSampler(config.New(), &statsd.NoOpClient{})
-	e.Stop()
+	e := NewRareSampler(config.New())
 	for i := 0; i < 2; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
@@ -97,8 +92,7 @@ func TestCardinalityLimit(t *testing.T) {
 	assert := assert.New(t)
 	c := config.New()
 	c.RareSamplerEnabled = true
-	e := NewRareSampler(c, &statsd.NoOpClient{})
-	e.Stop()
+	e := NewRareSampler(c)
 	for j := 1; j <= c.RareSamplerCardinality; j++ {
 		span := &pb.Span{Resource: strconv.Itoa(j), Metrics: map[string]float64{"_top_level": 1}}
 		e.Sample(time.Now(), getTraceChunkWithSpanAndPriority(span, PriorityAutoKeep), "")
@@ -121,8 +115,7 @@ func TestMultipleTopeLevels(t *testing.T) {
 	assert := assert.New(t)
 	c := config.New()
 	c.RareSamplerEnabled = true
-	e := NewRareSampler(c, &statsd.NoOpClient{})
-	e.Stop()
+	e := NewRareSampler(c)
 	now := time.Unix(13829192398, 0)
 	trace1 := getTraceChunkWithSpansAndPriority(
 		[]*pb.Span{

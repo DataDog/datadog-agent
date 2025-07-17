@@ -12,6 +12,7 @@ import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 )
 
@@ -36,5 +37,10 @@ func ProtoMetadataToMetadata(meta *adproto.Metadata) Metadata {
 		End:               activity_tree.ProtoDecodeTimestamp(meta.End),
 		Size:              meta.Size,
 		Serialization:     meta.GetSerialization(),
+
+		CGroupContext: model.CGroupContext{
+			CGroupID:      containerutils.CGroupID(meta.CgroupId),
+			CGroupManager: meta.CgroupManager,
+		},
 	}
 }

@@ -8,7 +8,6 @@ package collectorimpl
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -20,21 +19,20 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	pkgCollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
-	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -49,22 +47,26 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc      fx.Lifecycle
-	Config  config.Component
-	Log     log.Component
-	HaAgent haagent.Component
+	Lc       fx.Lifecycle
+	Config   config.Component
+	Log      log.Component
+	HaAgent  haagent.Component
+	Hostname hostnameinterface.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
+	AgentTelemetry   option.Option[agenttelemetry.Component]
 }
 
 type collectorImpl struct {
-	log     log.Component
-	config  config.Component
-	haAgent haagent.Component
+	log      log.Component
+	config   config.Component
+	haAgent  haagent.Component
+	hostname hostnameinterface.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
+	agentTelemetry   option.Option[agenttelemetry.Component]
 	checkInstances   int64
 
 	// state is 'started' or 'stopped'
@@ -88,7 +90,6 @@ type provides struct {
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
 	APIGetPyStatus   api.AgentEndpointProvider
-	FlareProvider    flaretypes.Provider
 }
 
 // Module defines the fx options for this component.
@@ -114,7 +115,6 @@ func newProvides(deps dependencies) provides {
 		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
 		MetadataProvider: agentCheckMetadata,
 		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
-		FlareProvider:    flaretypes.NewProvider(c.fillFlare),
 	}
 }
 
@@ -123,8 +123,10 @@ func newCollector(deps dependencies) *collectorImpl {
 		log:                deps.Log,
 		config:             deps.Config,
 		haAgent:            deps.HaAgent,
+		hostname:           deps.Hostname,
 		senderManager:      deps.SenderManager,
 		metricSerializer:   deps.MetricSerializer,
+		agentTelemetry:     deps.AgentTelemetry,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
 		state:              atomic.NewUint32(stopped),
 		checkInstances:     int64(0),
@@ -132,7 +134,9 @@ func newCollector(deps dependencies) *collectorImpl {
 		createdAt:          time.Now(),
 	}
 
-	pkgCollector.InitPython(common.GetPythonPaths()...)
+	if !deps.Config.GetBool("python_lazy_loading") {
+		python.InitPython(common.GetPythonPaths()...)
+	}
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,
@@ -140,35 +144,6 @@ func newCollector(deps dependencies) *collectorImpl {
 	})
 
 	return c
-}
-
-// fillFlare collects all the information related to integrations that need to be added to each flare
-func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	scanner := scanner.GetGlobalScanner()
-	if scanner == nil {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	scanRequest := host.NewHostScanRequest()
-	scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
-	if scanResult.Error != nil {
-		return scanResult.Error
-	}
-
-	cycloneDX, err := scanResult.Report.ToCycloneDX()
-	if err != nil {
-		return err
-	}
-
-	jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return fb.AddFile("host-sbom.json", jsonContent)
 }
 
 // AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
@@ -212,7 +187,7 @@ func (c *collectorImpl) stop(_ context.Context) error {
 	defer c.m.Unlock()
 
 	if c.scheduler != nil {
-		c.scheduler.Stop() //nolint:errcheck
+		_ = c.scheduler.Stop()
 		c.scheduler = nil
 	}
 	if c.runner != nil {
@@ -228,7 +203,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry)
 
 	var emptyID checkid.ID
 
@@ -263,17 +238,31 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 
 // StopCheck halts a check and remove the instance
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
+	var ch check.Check
+	var collectorScheduler *scheduler.Scheduler
+	var collectorRunner *runner.Runner
+
+	// This lock is needed because stop() can be called concurrently and sets
+	// c.runner and c.scheduler to nil
+	c.m.RLock()
 	if !c.started() {
+		c.m.RUnlock()
 		return fmt.Errorf("the collector is not running")
 	}
 
-	ch, found := c.get(id)
+	ch, found := c.checks[id]
 	if !found {
+		c.m.RUnlock()
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
+	// These two are not nil because we checked that the collector is started
+	collectorScheduler = c.scheduler
+	collectorRunner = c.runner
+	c.m.RUnlock()
+
 	// unschedule the instance
-	if err := c.scheduler.Cancel(id); err != nil {
+	if err := collectorScheduler.Cancel(id); err != nil {
 		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
@@ -288,7 +277,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		stats.SetStateCancelling()
 	}
 
-	if err := c.runner.StopCheck(id); err != nil {
+	if err := collectorRunner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
@@ -365,21 +354,6 @@ func (c *collectorImpl) GetChecks() []check.Check {
 	return chks
 }
 
-// GetAllInstanceIDs returns the ID's of all instances of a check
-func (c *collectorImpl) GetAllInstanceIDs(checkName string) []checkid.ID {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	instances := []checkid.ID{}
-	for id, check := range c.checks {
-		if check.String() == checkName {
-			instances = append(instances, id)
-		}
-	}
-
-	return instances
-}
-
 // ReloadAllCheckInstances completely restarts a check with a new configuration and returns a list of killed check IDs
 func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
@@ -387,7 +361,7 @@ func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []chec
 	}
 
 	// Stop all the old instances
-	killed := c.GetAllInstanceIDs(name)
+	killed := c.getAllInstanceIDs(name)
 	for _, id := range killed {
 		e := c.StopCheck(id)
 		if e != nil {
@@ -403,4 +377,19 @@ func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []chec
 		}
 	}
 	return killed, nil
+}
+
+// getAllInstanceIDs returns the ID's of all instances of a check
+func (c *collectorImpl) getAllInstanceIDs(checkName string) []checkid.ID {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	instances := []checkid.ID{}
+	for id, check := range c.checks {
+		if check.String() == checkName {
+			instances = append(instances, id)
+		}
+	}
+
+	return instances
 }

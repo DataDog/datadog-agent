@@ -4,12 +4,12 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'openscap'
-default_version '1.4.0'
+default_version '1.4.2'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.4.0") { source sha256: "b64f3709f0e072262708212d56897c419abdd2dc618273a363bc0497c6b4ba0b" }
+version("1.4.2") { source sha256: "1d5309fadd9569190289d7296016dc534594f7f7d4fd870fe9e847e24940073d" }
 
 ship_source_offer true
 
@@ -41,8 +41,8 @@ build do
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
-
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
+  patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

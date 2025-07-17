@@ -7,13 +7,13 @@ package collectors
 
 import (
 	"context"
-	"strings"
-
 	"github.com/gobwas/glob"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -37,7 +37,7 @@ const (
 	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 
-	clusterTagNamePrefix = "kube_cluster_name"
+	clusterTagNamePrefix = tags.KubeClusterName
 )
 
 // CollectorPriorities holds collector priorities

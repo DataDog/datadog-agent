@@ -1,2 +1,2 @@
 pkg/gohai:
-  - TestGetPayload
+  - test: TestGetPayload

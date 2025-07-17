@@ -7,12 +7,10 @@
 package converterimpl
 
 import (
-	"regexp"
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 var ddAutoconfiguredSuffix = "dd-autoconfigured"
@@ -26,24 +24,35 @@ type component struct {
 	Config       any
 }
 
+// Applies selected feature changes
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
-	// extensions
+	var enabledFeatures []string
+
+	// If not specified, assume all features are enabled (ocb tests will not have coreConfig)
+	if c.coreConfig != nil {
+		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
+	} else {
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"}
+	}
+
+	// extensions (pprof, zpages, health_check, ddflare)
 	for _, extension := range extensions {
-		if extensionIsInServicePipeline(conf, extension) {
+		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
+
 		addComponentToConfig(conf, extension)
 		addExtensionToPipeline(conf, extension)
 	}
 
 	// infra attributes processor
-	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
-
+	if slices.Contains(enabledFeatures, "infraattributes") {
+		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+	}
 	// prometheus receiver
-	addPrometheusReceiver(conf, prometheusReceiver)
-
-	// datadog connector
-	changeDefaultConfigsForDatadogConnector(conf)
+	if slices.Contains(enabledFeatures, "prometheus") {
+		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	}
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
@@ -63,7 +72,15 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 	if present {
 		componentsMap, ok := components.(map[string]any)
 		if !ok {
-			return
+			if components == nil {
+				// components map is nil. It is defined but section is empty.
+				// need to create map manually
+
+				componentsMap = make(map[string]any)
+				stringMapConf[comp.Type] = componentsMap
+			} else {
+				return
+			}
 		}
 		componentsMap[comp.EnhancedName] = comp.Config
 	} else {
@@ -116,82 +133,27 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-// addCoreAgentConfig enhances the configuration with information about the core agent.
-// For example, if api key is not found in otel config, it can be retrieved from core
-// agent config instead.
-func addCoreAgentConfig(conf *confmap.Conf, coreCfg config.Component) {
-	if coreCfg == nil {
-		return
-	}
-	stringMapConf := conf.ToStringMap()
-	exporters, ok := stringMapConf["exporters"]
+// findComps finds and returns the matching components and their configs in a string conf map.
+// Component can be receivers, processors, connectors or exporters.
+func findComps(stringMapConf map[string]any, compName string, compType string) map[string]map[string]any {
+	comps, ok := stringMapConf[compType]
 	if !ok {
-		return
+		return nil
 	}
-	exporterMap, ok := exporters.(map[string]any)
+	compsMap, ok := comps.(map[string]any)
 	if !ok {
-		return
+		return nil
 	}
-	reg, err := regexp.Compile(secretRegex)
-	if err != nil {
-		return
-	}
-	for exporter := range exporterMap {
-		if componentName(exporter) == "datadog" {
-			datadog, ok := exporterMap[exporter]
-			if !ok {
-				return
-			}
-			datadogMap, ok := datadog.(map[string]any)
-			if !ok {
-				// datadog section is there, but there is nothing in it. We
-				// need to add it so we can add to it.
-				exporterMap[exporter] = make(map[string]any)
-				datadogMap = exporterMap[exporter].(map[string]any)
-			}
-			api, ok := datadogMap["api"]
-			// ok can be true if api section is there but contains nothing (api == nil).
-			// In which case, we need to add it so we can add to it.
-			if !ok || api == nil {
-				datadogMap["api"] = make(map[string]any, 2)
-				api = datadogMap["api"]
-			}
-			apiMap, ok := api.(map[string]any)
-			if !ok {
-				return
-			}
-
-			// api::site
-			apiSite := apiMap["site"]
-			if (apiSite == nil || apiSite == "") && coreCfg.Get("site") != nil {
-				apiMap["site"] = coreCfg.Get("site")
-			} else if (apiSite == nil || apiSite == "") && coreCfg.Get("site") == nil {
-				// if site is nil or empty string, and core config site is unset, set default
-				// site. Site defaults to an empty string in helm chart:
-				// https://github.com/DataDog/helm-charts/blob/datadog-3.86.0/charts/datadog/templates/_otel_agent_config.yaml#L24.
-				apiMap["site"] = "datadoghq.com"
-			}
-
-			// api::key
-			var match bool
-			apiKey, ok := apiMap["key"]
-			if ok {
-				var key string
-				if keyString, okString := apiKey.(string); okString {
-					key = keyString
-				}
-				if ok && key != "" {
-					match = reg.Match([]byte(key))
-					if !match {
-						continue
-					}
-				}
-			}
-			// TODO: add logic to either fail or log message if api key not found
-			if (apiKey == nil || apiKey == "" || match) && coreCfg.Get("api_key") != nil {
-				apiMap["key"] = coreCfg.Get("api_key")
-			}
+	cfgsByRecv := make(map[string]map[string]any)
+	for name, cfg := range compsMap {
+		if componentName(name) != compName {
+			continue
 		}
+		cfgMap, ok := cfg.(map[string]any)
+		if !ok {
+			cfgMap = nil // some components like debug exporter can leave configs empty and use defaults
+		}
+		cfgsByRecv[name] = cfgMap
 	}
-	*conf = *confmap.NewFromStringMap(stringMapConf)
+	return cfgsByRecv
 }

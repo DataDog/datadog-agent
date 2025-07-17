@@ -11,7 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
@@ -20,9 +22,9 @@ import (
 )
 
 // NewReplicaSetCollectorVersions builds the group of collector versions.
-func NewReplicaSetCollectorVersions() collectors.CollectorVersions {
+func NewReplicaSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewReplicaSetCollector(),
+		NewReplicaSetCollector(metadataAsTags),
 	)
 }
 
@@ -36,17 +38,25 @@ type ReplicaSetCollector struct {
 
 // NewReplicaSetCollector creates a new collector for the Kubernetes ReplicaSet
 // resource.
-func NewReplicaSetCollector() *ReplicaSetCollector {
+func NewReplicaSetCollector(metadataAsTags utils.MetadataAsTags) *ReplicaSetCollector {
+	resourceType := getResourceType(replicaSetName, replicaSetVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "replicasets",
-			NodeType:                  orchestrator.K8sReplicaSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 replicaSetName,
+			Kind:                                 kubernetes.ReplicaSetKind,
+			NodeType:                             orchestrator.K8sReplicaSet,
+			Version:                              replicaSetVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}
@@ -75,9 +85,14 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *ReplicaSetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -85,7 +100,7 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

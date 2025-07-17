@@ -8,119 +8,101 @@
 package externalmetrics
 
 import (
+	"errors"
 	"fmt"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
-// InvalidMetricError represents a generic invalid metric error.
-type InvalidMetricError struct {
-	Err   error
-	Query string
-}
+func convertExternalCallError(err error, query string, retryAfter time.Time) error {
+	if err == nil {
+		return newQueryError(query, "unknown error", retryAfter)
+	}
 
-func (e *InvalidMetricError) Error() string {
-	return fmt.Sprintf("Invalid metric error: %v, query was: %s", e.Err, e.Query)
-}
-
-// NewInvalidMetricError initializes an InvalidMetricError.
-func NewInvalidMetricError(err error, query string) *InvalidMetricError {
-	return &InvalidMetricError{
-		Err:   err,
-		Query: query,
+	apiErr := &autoscalers.APIError{}
+	switch {
+	case errors.As(err, &apiErr):
+		return newBatchError(err, retryAfter)
+	default:
+		// Should only from autoscalers.ProcessingError, but just in case setting as default
+		return newQueryError(query, err.Error(), retryAfter)
 	}
 }
 
-// InvalidMetricErrorWithRetries represents an invalid metric error with retry information.
-type InvalidMetricErrorWithRetries struct {
-	Err        error
-	Query      string
-	RetryAfter string
+// queryError represents an error at the query level (not all queries failed).
+type queryError struct {
+	query      string
+	reason     string
+	retryAfter time.Time
 }
 
-func (e *InvalidMetricErrorWithRetries) Error() string {
-	return fmt.Sprintf("Invalid metric error: %v, query was: %s, will retry after %s", e.Err, e.Query, e.RetryAfter)
+func newOutdatedQueryError(query string) *queryError {
+	return newQueryError(query, "outdated result, check MaxAge setting", time.Time{})
 }
 
-// NewInvalidMetricErrorWithRetries initializes an InvalidMetricErrorWithRetries.
-func NewInvalidMetricErrorWithRetries(err error, query string, retryAfter string) *InvalidMetricErrorWithRetries {
-	return &InvalidMetricErrorWithRetries{
-		Err:        err,
-		Query:      query,
-		RetryAfter: retryAfter,
+func newMissingResultQueryError(query string) *queryError {
+	return newQueryError(query, "missing result from reply", time.Time{})
+}
+
+func newQueryError(query, reason string, retryAfter time.Time) *queryError {
+	return &queryError{
+		query:      query,
+		reason:     reason,
+		retryAfter: retryAfter,
 	}
 }
 
-// InvalidMetricOutdatedError represents an error for outdated metric results.
-type InvalidMetricOutdatedError struct {
-	Query string
+func (e *queryError) Error() string {
+	if !e.retryAfter.IsZero() {
+		return fmt.Sprintf("Processing data from API failed, reason: %s, query was: %s, will retry at: %s", e.reason, e.query, e.retryAfter.Format(time.DateTime))
+	}
+	return fmt.Sprintf("Processing data from API failed, reason: %s, query was: %s", e.reason, e.query)
 }
 
-func (e *InvalidMetricOutdatedError) Error() string {
-	return fmt.Sprintf("Query returned outdated result, check MaxAge setting, query: %s", e.Query)
+func (e *queryError) Is(err error) bool {
+	queryErr, ok := err.(*queryError)
+	if !ok {
+		return false
+	}
+
+	// We skip comparison of exact time, it's enough to be both sets or both zero.
+	return queryErr.query == e.query &&
+		queryErr.reason == e.reason &&
+		((queryErr.retryAfter.IsZero() && e.retryAfter.IsZero()) || (!queryErr.retryAfter.IsZero() && !e.retryAfter.IsZero()))
 }
 
-// NewInvalidMetricOutdatedError initializes an InvalidMetricOutdatedError.
-func NewInvalidMetricOutdatedError(query string) *InvalidMetricOutdatedError {
-	return &InvalidMetricOutdatedError{
-		Query: query,
+// batchError represents a global backend error for all queries.
+type batchError struct {
+	err        error
+	retryAfter time.Time
+}
+
+func newBatchError(err error, retryAfter time.Time) *batchError {
+	return &batchError{
+		err:        err,
+		retryAfter: retryAfter,
 	}
 }
 
-// InvalidMetricNotFoundError represents an error when the metric data is not found in the query result.
-type InvalidMetricNotFoundError struct {
-	Query string
-}
-
-func (e *InvalidMetricNotFoundError) Error() string {
-	return fmt.Sprintf("Unexpected error, query data not found in result, query: %s", e.Query)
-}
-
-// NewInvalidMetricNotFoundError initializes an InvalidMetricNotFoundError.
-func NewInvalidMetricNotFoundError(query string) *InvalidMetricNotFoundError {
-	return &InvalidMetricNotFoundError{
-		Query: query,
+func (e *batchError) Error() string {
+	if !e.retryAfter.IsZero() {
+		return fmt.Sprintf("Datadog API call error (all queries), error: %s, will retry at: %s", e.err, e.retryAfter.Format(time.DateTime))
 	}
+	return fmt.Sprintf("Datadog API call error (all queries), error: %s", e.err)
 }
 
-// InvalidMetricGlobalError represents a global backend error for all queries.
-type InvalidMetricGlobalError struct{}
-
-func (e *InvalidMetricGlobalError) Error() string {
-	return "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
+func (e *batchError) Unwrap() error {
+	return e.err
 }
 
-// NewInvalidMetricGlobalError initializes an InvalidMetricGlobalError.
-func NewInvalidMetricGlobalError() *InvalidMetricGlobalError {
-	return &InvalidMetricGlobalError{}
-}
-
-// InvalidMetricGlobalErrorWithRetries represents a global backend error for all queries with retry information.
-type InvalidMetricGlobalErrorWithRetries struct {
-	BatchSize  int
-	RetryAfter string
-}
-
-func (e *InvalidMetricGlobalErrorWithRetries) Error() string {
-	return fmt.Sprintf("Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Will retry after %s", e.BatchSize, e.RetryAfter)
-}
-
-// NewInvalidMetricGlobalErrorWithRetries initializes an InvalidMetricGlobalErrorWithRetries.
-func NewInvalidMetricGlobalErrorWithRetries(batchSize int, retryAfter string) *InvalidMetricGlobalErrorWithRetries {
-	return &InvalidMetricGlobalErrorWithRetries{
-		BatchSize:  batchSize,
-		RetryAfter: retryAfter,
+func (e *batchError) Is(err error) bool {
+	batchErr, ok := err.(*batchError)
+	if !ok {
+		return false
 	}
-}
 
-// RateLimitError represents a rate limit error.
-type RateLimitError struct {
-	Err error
-}
-
-func (e *RateLimitError) Error() string {
-	return "Global error: Datadog API rate limit exceeded"
-}
-
-// NewRateLimitError initializes a RateLimitError.
-func NewRateLimitError() *RateLimitError {
-	return &RateLimitError{}
+	// We skip comparison of exact time, it's enough to be both sets or both zero.
+	return e.err.Error() == batchErr.err.Error() &&
+		((batchErr.retryAfter.IsZero() && e.retryAfter.IsZero()) || (!batchErr.retryAfter.IsZero() && !e.retryAfter.IsZero()))
 }

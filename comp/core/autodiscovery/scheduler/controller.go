@@ -16,11 +16,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const (
-// MaxRetries is the maximum number of retries for a failed task (TODO: implement retries on failure)
-// MaxRetries = 5
-)
-
 // Controller is a scheduler dispatching to all its registered schedulers
 type Controller struct {
 	// m protects all fields in this struct.
@@ -43,9 +38,16 @@ type Controller struct {
 	stopChannel chan struct{}
 }
 
-// NewController inits a scheduler controller
+// NewControllerAndStart inits a scheduler controller without waiting
+func NewControllerAndStart() *Controller {
+	schedulerController := NewController()
+	schedulerController.Start()
+	return schedulerController
+}
+
+// NewController creates a new controller without starting it
 func NewController() *Controller {
-	schedulerController := Controller{
+	return &Controller{
 		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
 		// No delay for adding items to the queue first time
@@ -56,11 +58,10 @@ func NewController() *Controller {
 		stopChannel:      make(chan struct{}),
 		configStateStore: NewConfigStateStore(),
 	}
-	schedulerController.start()
-	return &schedulerController
 }
 
-func (ms *Controller) start() {
+// Start processing the queue
+func (ms *Controller) Start() {
 	ms.m.Lock()
 	if ms.started {
 		return
@@ -68,6 +69,7 @@ func (ms *Controller) start() {
 	ms.started = true
 	ms.m.Unlock()
 	go wait.Until(ms.worker, time.Second, ms.stopChannel)
+	log.Infof("Autodiscovery scheduler controller started")
 }
 
 // Register a new scheduler to receive configurations.

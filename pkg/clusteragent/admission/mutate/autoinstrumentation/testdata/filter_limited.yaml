@@ -1,0 +1,14 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Billing Service"
+        podSelector:
+          matchLabels:
+            app: "billing-service"
+        namespaceSelector:
+          matchNames:
+            - "billing-service"
+        ddTraceVersions:
+          python: "v3"

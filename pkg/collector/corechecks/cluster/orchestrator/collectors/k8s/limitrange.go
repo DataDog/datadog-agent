@@ -11,7 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -20,9 +22,9 @@ import (
 )
 
 // NewLimitRangeCollectorVersions builds the group of collector versions.
-func NewLimitRangeCollectorVersions() collectors.CollectorVersions {
+func NewLimitRangeCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewLimitRangeCollector(),
+		NewLimitRangeCollector(metadataAsTags),
 	)
 }
 
@@ -36,17 +38,25 @@ type LimitRangeCollector struct {
 
 // NewLimitRangeCollector creates a new collector for the Kubernetes
 // LimitRange resource.
-func NewLimitRangeCollector() *LimitRangeCollector {
+func NewLimitRangeCollector(metadataAsTags utils.MetadataAsTags) *LimitRangeCollector {
+	resourceType := getResourceType(limitRangeName, limitRangeVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &LimitRangeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "limitranges",
-			NodeType:                  orchestrator.K8sLimitRange,
-			Version:                   "v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 limitRangeName,
+			Kind:                                 kubernetes.LimitRangeKind,
+			NodeType:                             orchestrator.K8sLimitRange,
+			Version:                              limitRangeVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.LimitRangeHandlers)),
 	}
@@ -75,9 +85,14 @@ func (c *LimitRangeCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *LimitRangeCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -85,7 +100,7 @@ func (c *LimitRangeCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

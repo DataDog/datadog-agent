@@ -77,10 +77,7 @@ func (g *HashGenerator) Hash(tb *HashingTagsAccumulator) uint64 {
 
 		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
 		// close to a power of two, size one up to keep hashset load low.
-		size := 1 << bits.Len(uint(len(tags)+len(tags)/8))
-		if size > hashSetSize {
-			size = hashSetSize
-		}
+		size := min(1<<bits.Len(uint(len(tags)+len(tags)/8)), hashSetSize)
 		mask := uint64(size - 1)
 		copy(g.seenIdx[:size], g.empty[:size])
 
@@ -162,10 +159,7 @@ func (g *HashGenerator) Dedup2(l *HashingTagsAccumulator, r *HashingTagsAccumula
 
 		// for smaller tag sets, initialize only a portion of the array. when len(tags) is
 		// close to a power of two, size one up to keep hashset load low.
-		size := 1 << bits.Len(uint(ntags+ntags/8))
-		if size > hashSetSize {
-			size = hashSetSize
-		}
+		size := min(1<<bits.Len(uint(ntags+ntags/8)), hashSetSize)
 		mask := uint64(size - 1)
 		copy(g.seenIdx[:size], g.empty[:size])
 

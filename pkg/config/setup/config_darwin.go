@@ -5,6 +5,10 @@
 
 package setup
 
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
 const (
 	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
 	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
@@ -29,9 +33,15 @@ const (
 	InstallPath = "/opt/datadog-agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+}
+
+// FleetConfigOverride is a no-op on Darwin
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }

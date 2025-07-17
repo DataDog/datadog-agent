@@ -10,7 +10,6 @@ package traceroute
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -37,11 +36,6 @@ type WindowsTraceroute struct {
 func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	log.Debugf("Creating new traceroute with config: %+v", cfg)
 
-	// UDP is not supported at the moment
-	if cfg.Protocol == payload.ProtocolUDP {
-		return nil, errors.New(udpNotSupportedWindowsMsg)
-	}
-
 	return &WindowsTraceroute{
 		cfg:            cfg,
 		sysprobeClient: getSysProbeClient(),
@@ -50,7 +44,7 @@ func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 
 // Run executes a traceroute
 func (w *WindowsTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
-	resp, err := getTraceroute(w.sysprobeClient, clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.MaxTTL, w.cfg.Timeout)
+	resp, err := getTraceroute(w.sysprobeClient, clientID, w.cfg.DestHostname, w.cfg.DestPort, w.cfg.Protocol, w.cfg.TCPMethod, w.cfg.TCPSynParisTracerouteMode, w.cfg.MaxTTL, w.cfg.Timeout)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

@@ -352,7 +352,6 @@ namespace Datadog.CustomActions
                         {
                             "system-probe.yaml",
                             "security-agent.yaml",
-                            Path.Combine("runtime-security.d", "default.policy"),
                             "apm-inject.yaml",
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_high.yaml"),
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_low.yaml"),
@@ -378,13 +377,6 @@ namespace Datadog.CustomActions
                                 })
                             }
                         });
-
-                var auth = Path.Combine(configFolder, "auth_token");
-                if (File.Exists(auth)) // Delete pre-existing auth token
-                {
-                    File.Delete(auth);
-                    session.Log($"Deleting old {auth}");
-                }
 
                 foreach (var c in configFiles)
                 {

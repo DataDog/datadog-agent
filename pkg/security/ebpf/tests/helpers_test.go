@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	secebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"github.com/safchain/baloum/pkg/baloum"
+
+	secebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
 type testLogger struct {
@@ -56,13 +56,13 @@ func (l *testLogger) Errorf(format string, params ...interface{}) {
 
 var trace bool
 
-func newVM(t *testing.T) *baloum.VM {
+func loadColSpec(t *testing.T) *ebpf.CollectionSpec {
 	useSyscallWrapper, err := secebpf.IsSyscallWrapperRequired()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, false, &statsd.NoOpClient{})
+	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, false)
 	reader, _, err := loader.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +72,12 @@ func newVM(t *testing.T) *baloum.VM {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	return spec
+}
+
+func newVM(t *testing.T) *baloum.VM {
+	spec := loadColSpec(t)
 
 	var now time.Time
 

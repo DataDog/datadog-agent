@@ -7,6 +7,7 @@
 package containercheckimpl
 
 import (
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -34,6 +35,7 @@ type dependencies struct {
 
 	Config config.Component
 	WMmeta workloadmeta.Component
+	Statsd statsd.ClientInterface
 }
 
 type result struct {
@@ -45,7 +47,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		containerCheck: checks.NewContainerCheck(deps.Config, deps.WMmeta),
+		containerCheck: checks.NewContainerCheck(deps.Config, deps.WMmeta, deps.Statsd),
 	}
 	return result{
 		Check: types.ProvidesCheck{

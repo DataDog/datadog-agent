@@ -5,6 +5,9 @@
     Flavor: {{.flavor}}<br>
     PID: {{.pid}}<br>
     Agent start: {{ formatUnixTime .agent_start_nano }}<br>
+    {{- if .fips_status}}
+    FIPS Mode: {{.fips_status}}<br>
+    {{- end }}
     {{- if .config.log_file}}
       Log File: {{.config.log_file}}<br>
     {{end}}
@@ -33,7 +36,7 @@
   </span>
 </div>
 
-{{- if eq .config.fips_enabled "true" }}
+{{- if eq .config.fips_proxy_enabled "true" }}
 <div class="stat">
   <span class="stat_title">FIPS proxy</span>
   <span class="stat_data">

@@ -14,10 +14,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
@@ -37,7 +37,7 @@ func main() {
 	cleanupFn := setupBytecode()
 	defer cleanupFn()
 
-	monitor, err := usm.NewMonitor(getConfiguration(), nil)
+	monitor, err := usm.NewMonitor(getConfiguration(), nil, nil)
 	checkError(err)
 
 	err = monitor.Start()
@@ -46,7 +46,8 @@ func main() {
 	go func() {
 		t := time.NewTicker(10 * time.Second)
 		for range t.C {
-			_ = monitor.GetProtocolStats()
+			_, cleaners = monitor.GetProtocolStats()
+			cleaners()
 		}
 	}()
 

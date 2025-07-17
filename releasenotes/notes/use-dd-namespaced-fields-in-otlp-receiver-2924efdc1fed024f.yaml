@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Adds functionality to construct a DD span from `datadog.` attributes on an incoming span. By default, it checks for a span attribute starting with `datadog.`; if present, it uses this to compute the corresponding Datadog field (e.g., `datadog.service` is used to set `ddspan.Service`). This will override other sources for the same field (e.g., if both `datadog.service` and `service.name` are present, `datadog.service` is used).
+    By default, if a field is missing, it will be recomputed (e.g., if there's no `datadog.env`, it will look for `env` in `deployment.environment`). However, if the config option `otlp_config.traces.ignore_missing_datadog_fields` is specified, the field will not be recomputed. This option allows users to explicitly specify blank fields if they desire (e.g., set `datadog.env = ""`).
+
+    The following functionality is removed: if both `http.response.status_code` and `http.status_code` were present in the span attributes, the former was preferred. Similarly, `http.request.method` was preferred over `http.method`. In this release, the key encountered first is the one used.

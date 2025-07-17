@@ -7,9 +7,11 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -50,7 +52,7 @@ var headerFields = map[string]string{
 
 type noopStatsProcessor struct{}
 
-func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _ string) {}
+func (noopStatsProcessor) ProcessStats(_ *pb.ClientStatsPayload, _, _, _, _ string) {}
 
 func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
@@ -65,6 +67,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverTimeout = 1
 	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
@@ -77,6 +80,77 @@ func TestMain(m *testing.M) {
 		fmt.Println()
 	}
 	os.Exit(m.Run())
+}
+
+func TestServerShutdown(t *testing.T) {
+	// prepare the msgpack payload
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(t, err)
+
+	// prepare the receiver
+	conf := newTestReceiverConfig()
+	conf.ReceiverSocket = t.TempDir() + "/somesock.sock"
+	dynConf := sampler.NewDynamicConfig()
+
+	rawTraceChan := make(chan *Payload)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	receiver.Start()
+
+	go func() {
+		for {
+			// simulate the channel being busy
+			time.Sleep(100 * time.Millisecond)
+			_, ok := <-rawTraceChan
+			if !ok {
+				return
+			}
+		}
+	}()
+
+	// Create two clients - one for TCP and one for UDS
+	tcpClient := http.Client{Timeout: 10 * time.Second}
+	udsClient := http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", conf.ReceiverSocket)
+			},
+		},
+	}
+
+	wg := &sync.WaitGroup{}
+
+	// Send requests to both TCP and UDS endpoints
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for n := 0; n < 200; n++ {
+				// Send to TCP endpoint
+				req, _ := http.NewRequest("POST", "http://localhost:8326/v0.4/traces", bytes.NewReader(bts))
+				req.Header.Set("Content-Type", "application/msgpack")
+				resp, _ := tcpClient.Do(req)
+				if resp != nil {
+					resp.Body.Close()
+				}
+
+				// Send to UDS endpoint
+				req, _ = http.NewRequest("POST", "http://unix/v0.4/traces", bytes.NewReader(bts))
+				req.Header.Set("Content-Type", "application/msgpack")
+				resp, _ = udsClient.Do(req)
+				if resp != nil {
+					resp.Body.Close()
+				}
+			}
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	receiver.Stop()
+
+	wg.Wait()
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {
@@ -149,6 +223,16 @@ func TestListenTCP(t *testing.T) {
 		_, ok := ln.(*rateLimitedListener)
 		assert.True(t, ok)
 	})
+}
+
+func TestNoDuplicatePatterns(t *testing.T) {
+	handlerPatternsMap := make(map[string]int)
+	for _, endpoint := range endpoints {
+		handlerPatternsMap[endpoint.Pattern]++
+		if handlerPatternsMap[endpoint.Pattern] > 1 {
+			assert.Fail(t, fmt.Sprintf("duplicate handler pattern %v", endpoint.Pattern))
+		}
+	}
 }
 
 func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
@@ -645,15 +729,17 @@ type mockStatsProcessor struct {
 	lastLang          string
 	lastTracerVersion string
 	containerID       string
+	obfVersion        string
 }
 
-func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
+func (m *mockStatsProcessor) ProcessStats(p *pb.ClientStatsPayload, lang, tracerVersion, containerID, obfVersion string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.lastP = p
 	m.lastLang = lang
 	m.lastTracerVersion = tracerVersion
 	m.containerID = containerID
+	m.obfVersion = obfVersion
 }
 
 func (m *mockStatsProcessor) Got() (p *pb.ClientStatsPayload, lang, tracerVersion, containerID string) {
@@ -719,6 +805,8 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			req.Header.Set(header.Lang, "lang1")
 			if on {
 				req.Header.Set(header.ComputedStats, "yes")
+			} else {
+				req.Header.Set(header.ComputedStats, "false")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -754,11 +842,9 @@ func TestClientComputedStatsHeader(t *testing.T) {
 }
 
 func TestHandleTraces(t *testing.T) {
-	assert := assert.New(t)
-
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
-	assert.Nil(err)
+	assert.Nil(t, err)
 
 	// prepare the receiver
 	conf := newTestReceiverConfig()
@@ -786,17 +872,44 @@ func TestHandleTraces(t *testing.T) {
 	}
 
 	rs := receiver.Stats
-	assert.Equal(5, len(rs.Stats)) // We have a tagStats struct for each application
+	assert.Equal(t, 5, len(rs.Stats)) // We have a tagStats struct for each application
 
 	// We test stats for each app
 	for _, lang := range langs {
 		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4", Service: "fennel_IS amazing!"}]
-		assert.True(ok)
-		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(83022), ts.TracesBytes.Load())
+		assert.True(t, ok)
+		assert.Equal(t, int64(20), ts.TracesReceived.Load())
+		assert.Equal(t, int64(83022), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
-	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
+	assert.Equal(t, "C#|go|java|python|ruby", receiver.Languages())
+
+	t.Run("overwhelmed", func(t *testing.T) {
+		// prepare the msgpack payload
+		bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		// prepare the receiver
+		conf := newTestReceiverConfig()
+		conf.DecoderTimeout = 1
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChan := make(chan *Payload)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver.recvsem = make(chan struct{}) //overwrite recvsem to ALWAYS block and ensure we look overwhelmed
+		// response recorder
+		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Datadog-Send-Real-Http-Status", "true")
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+		assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
+	})
 }
 
 func TestClientComputedTopLevel(t *testing.T) {
@@ -1043,7 +1156,7 @@ func TestExpvar(t *testing.T) {
 
 	c := newTestReceiverConfig()
 	c.DebugServerPort = 6789
-	info.InitInfo(c)
+	assert.NoError(t, info.InitInfo(c))
 
 	// Starting a TLS httptest server to retrieve tlsCert
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
@@ -1075,6 +1188,39 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestWithoutIPCCert(t *testing.T) {
+	c := newTestReceiverConfig()
+
+	// Getting an available port
+	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var l *net.TCPListener
+	l, err = net.ListenTCP("tcp", a)
+	require.NoError(t, err)
+
+	availablePort := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, l.Close())
+	require.NotZero(t, availablePort)
+
+	c.DebugServerPort = availablePort
+	info.InitInfo(c)
+
+	// Starting Debug Server
+	s := NewDebugServer(c)
+
+	// Starting the Debug server
+	s.Start()
+	defer s.Stop()
+
+	// Server should not be able to connect because it didn't start
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(c.DebugServerPort)), time.Second)
+	require.Error(t, err)
+	if conn != nil {
+		conn.Close()
+	}
 }
 
 func TestNormalizeHTTPHeader(t *testing.T) {
@@ -1129,6 +1275,81 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
 		}
+	}
+}
+
+func TestGetProcessTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		header   http.Header
+		payload  *pb.TracerPayload
+		expected string
+	}{
+		{
+			name: "process tags in payload tags",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload: &pb.TracerPayload{
+				Tags: map[string]string{
+					tagProcessTags: "payload-tag-value",
+				},
+			},
+			expected: "payload-tag-value",
+		},
+		{
+			name:   "process tags in first span meta",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{
+								Meta: map[string]string{
+									tagProcessTags: "span-meta-value",
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: "span-meta-value",
+		},
+		{
+			name: "process tags in header only",
+			header: http.Header{
+				header.ProcessTags: []string{"header-value"},
+			},
+			payload:  &pb.TracerPayload{},
+			expected: "header-value",
+		},
+		{
+			name:     "no tags anywhere",
+			header:   http.Header{},
+			payload:  &pb.TracerPayload{},
+			expected: "",
+		},
+		{
+			name:   "chunks but no spans",
+			header: http.Header{header.ProcessTags: []string{"header-value"}},
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					nil,
+					{},
+					{Spans: []*pb.Span{nil}},
+				},
+			},
+			expected: "header-value",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getProcessTags(tc.header, tc.payload)
+			if result != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, result)
+			}
+		})
 	}
 }
 

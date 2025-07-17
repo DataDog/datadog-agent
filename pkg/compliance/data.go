@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/yaml.v2"
 )
@@ -92,7 +94,7 @@ type CheckEvent struct {
 type ResourceLog struct {
 	AgentVersion string              `json:"agent_version,omitempty"`
 	ExpireAt     *time.Time          `json:"expire_at,omitempty"`
-	ResourceType string              `json:"resource_type,omitempty"`
+	ResourceType types.ResourceType  `json:"resource_type,omitempty"`
 	ResourceID   string              `json:"resource_id,omitempty"`
 	ResourceData interface{}         `json:"resource_data,omitempty"`
 	Container    *CheckContainerMeta `json:"container,omitempty"`
@@ -180,7 +182,7 @@ func NewCheckSkipped(
 }
 
 // NewResourceLog returns a ResourceLog.
-func NewResourceLog(resourceID, resourceType string, resource interface{}) *ResourceLog {
+func NewResourceLog(resourceID string, resourceType types.ResourceType, resource interface{}) *ResourceLog {
 	return &ResourceLog{
 		AgentVersion: version.AgentVersion,
 		ResourceType: resourceType,
@@ -386,12 +388,7 @@ func (r *Rule) IsXCCDF() bool {
 
 // HasScope tests if the rule has the given scope.
 func (r *Rule) HasScope(scope RuleScope) bool {
-	for _, s := range r.Scopes {
-		if s == scope {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.Scopes, scope)
 }
 
 // Valid is a validation check required for InputSpec to be executed.

@@ -18,19 +18,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const unreadinessTimeout = 30 * time.Second
+const (
+	unreadinessTimeout = 30 * time.Second
+
+	containerRunning    = "Running"
+	containerWaiting    = "Waiting"
+	containerTerminated = "Terminated"
+)
 
 // PodWatcher regularly pools the kubelet for new/changed/removed containers.
 // It keeps an internal state to only send the updated pods.
 type PodWatcher struct {
 	sync.Mutex
-	kubeUtil       KubeUtilInterface
-	expiryDuration time.Duration
-	lastSeen       map[string]time.Time
-	lastSeenReady  map[string]time.Time
-	tagsDigest     map[string]string
-	oldPhase       map[string]string
-	oldReadiness   map[string]bool
+	kubeUtil          KubeUtilInterface
+	expiryDuration    time.Duration
+	lastSeen          map[string]time.Time
+	lastSeenReady     map[string]time.Time
+	tagsDigest        map[string]string
+	oldPhase          map[string]string
+	oldReadiness      map[string]bool
+	oldContainerState map[string]string
 }
 
 // NewPodWatcher creates a new watcher given an expiry duration
@@ -42,13 +49,14 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 		return nil, err
 	}
 	watcher := &PodWatcher{
-		kubeUtil:       kubeutil,
-		lastSeen:       make(map[string]time.Time),
-		lastSeenReady:  make(map[string]time.Time),
-		tagsDigest:     make(map[string]string),
-		oldPhase:       make(map[string]string),
-		oldReadiness:   make(map[string]bool),
-		expiryDuration: expiryDuration,
+		kubeUtil:          kubeutil,
+		lastSeen:          make(map[string]time.Time),
+		lastSeenReady:     make(map[string]time.Time),
+		tagsDigest:        make(map[string]string),
+		oldPhase:          make(map[string]string),
+		oldReadiness:      make(map[string]bool),
+		oldContainerState: make(map[string]string),
+		expiryDuration:    expiryDuration,
 	}
 	return watcher, nil
 }
@@ -118,6 +126,15 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			if isPodReady {
 				w.lastSeenReady[container.ID] = now
 			}
+
+			// The container state can change even if the pod readiness doesn't.
+			// For example, a container that's crashing will alternate between
+			// running, terminated, and waiting but the pod can stay unready.
+			containerState := containerStateStr(container.State)
+			if oldState, found := w.oldContainerState[container.ID]; !found || oldState != containerState {
+				updatedContainer = true
+			}
+			w.oldContainerState[container.ID] = containerState
 		}
 
 		newLabelsOrAnnotations := false
@@ -167,6 +184,7 @@ func (w *PodWatcher) Expire() ([]string, error) {
 			delete(w.tagsDigest, id)
 			delete(w.oldPhase, id)
 			delete(w.oldReadiness, id)
+			delete(w.oldContainerState, id)
 			expiredContainers = append(expiredContainers, id)
 		}
 	}
@@ -211,4 +229,20 @@ func digestMapValues(m map[string]string) string {
 		h.Write([]byte(m[k])) //nolint:errcheck
 	}
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+func containerStateStr(containerState ContainerState) string {
+	if containerState.Running != nil {
+		return containerRunning
+	}
+
+	if containerState.Waiting != nil {
+		return containerWaiting
+	}
+
+	if containerState.Terminated != nil {
+		return containerTerminated
+	}
+
+	return ""
 }

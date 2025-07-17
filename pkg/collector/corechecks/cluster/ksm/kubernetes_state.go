@@ -13,8 +13,19 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
+	"gopkg.in/yaml.v2"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
@@ -36,13 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"gopkg.in/yaml.v2"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/v2/pkg/customresource"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -69,9 +74,11 @@ var extendedCollectors = map[string]string{
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
 // their new collector name would be. For backwards compatibility.
 var collectorNameReplacement = map[string]string{
+	"apiservices":               "apiregistration.k8s.io/v1, Resource=apiservices",
+	"customresourcedefinitions": "apiextensions.k8s.io/v1, Resource=customresourcedefinitions",
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
-	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
+	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -115,6 +122,25 @@ type KSMConfig struct {
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
+
+	// CustomResourceStateMetrics defines the custom resource states metrics
+	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
+	// Example: Enable custom resource state metrics for CRD mycrd.
+	// custom_resource:
+	//    spec:
+	//      resources:
+	//      - groupVersionKind:
+	//          group: "datadoghq.com"
+	//          kind: "DatadogAgent"
+	//          version: "v2alpha1"
+	//        metrics:
+	//          - name: "custom_metric"
+	//            help: "custom_metric"
+	//            each:
+	//              type: Gauge
+	//              gauge:
+	//                path: [status, agent, available]
+	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
 
 	// LabelJoins allows adding the tags to join from other KSM metrics.
 	// Example: Joining for deployment metrics. Based on:
@@ -205,12 +231,14 @@ type KSMCheck struct {
 	cancel               context.CancelFunc
 	isCLCRunner          bool
 	isRunningOnNodeAgent bool
+	clusterIDTagValue    string
 	clusterNameTagValue  string
 	clusterNameRFC1123   string
 	metricNamesMapper    map[string]string
 	metricAggregators    map[string]metricAggregator
 	metricTransformers   map[string]metricTransformerFunc
 	metadataMetricsRegex *regexp.Regexp
+	initRetry            retry.Retrier
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -231,11 +259,9 @@ func (jc *JoinsConfigWithoutLabelsMapping) setupGetAllLabels() {
 		return
 	}
 
-	for _, l := range jc.LabelsToGet {
-		if l == "*" {
-			jc.GetAllLabels = true
-			return
-		}
+	if slices.Contains(jc.LabelsToGet, "*") {
+		jc.GetAllLabels = true
+		return
 	}
 }
 
@@ -260,8 +286,13 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		return err
 	}
 
+	maps.Copy(k.metricNamesMapper, customresources.GetCustomMetricNamesMapper(k.instance.CustomResource.Spec.Resources))
+
 	// Retrieve cluster name
 	k.getClusterName()
+
+	// Retrieve the ClusterID from the cluster-agent
+	k.getClusterID()
 
 	// Initialize global tags and check tags
 	k.initTags()
@@ -273,128 +304,154 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	k.mergeLabelJoins(defaultLabelJoins())
 
-	k.processLabelJoins()
-	k.processLabelsAsTags()
+	setupLabelsAndAnnotationsAsTagsFunc := func() {
+		metadataAsTags := configUtils.GetMetadataAsTags(pkgconfigsetup.Datadog())
 
-	k.mergeAnnotationsAsTags(defaultAnnotationsAsTags())
-	k.processAnnotationsAsTags()
+		k.processLabelJoins()
+		k.instance.LabelsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesLabelsAsTags(), k.instance.LabelsAsTags, true)
+		k.processLabelsAsTags()
+
+		// We need to merge the user-defined annotations as tags with the default annotations first
+		mergedAnnotationsAsTags := mergeLabelsOrAnnotationAsTags(k.instance.AnnotationsAsTags, defaultAnnotationsAsTags(), false)
+		k.instance.AnnotationsAsTags = mergeLabelsOrAnnotationAsTags(metadataAsTags.GetResourcesAnnotationsAsTags(), mergedAnnotationsAsTags, true)
+		k.processAnnotationsAsTags()
+	}
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
-	builder := kubestatemetrics.New()
-	builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
+	// Retry configuration steps related to API Server in check executions if necessary
+	// TODO: extract init configuration attempt function into a struct method
+	err = k.initRetry.SetupRetrier(&retry.Config{
+		Name: fmt.Sprintf("%s_%s", CheckName, "configuration"),
+		AttemptMethod: func() error {
+			builder := kubestatemetrics.New()
+			builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
 
-	k.configurePodCollection(builder, k.instance.Collectors)
+			k.configurePodCollection(builder, k.instance.Collectors)
 
-	var collectors []string
-	var apiServerClient *apiserver.APIClient
-	var resources []*v1.APIResourceList
+			var collectors []string
+			var apiServerClient *apiserver.APIClient
+			var resources []*v1.APIResourceList
 
-	switch k.instance.PodCollectionMode {
-	case nodeKubeletPodCollection:
-		// In this case we don't need to set up anything related to the API
-		// server.
-		collectors = []string{"pods"}
-	case defaultPodCollection, clusterUnassignedPodCollection:
-		// Due to how init is done, we cannot use GetAPIClient in `Run()` method
-		// So we are waiting for a reasonable amount of time here in case.
-		// We cannot wait forever as there's no way to be notified of shutdown
-		apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-		defer apiCancel()
-		apiServerClient, err = apiserver.WaitForAPIClient(apiCtx)
-		if err != nil {
-			return err
-		}
+			switch k.instance.PodCollectionMode {
+			case nodeKubeletPodCollection:
+				// In this case we don't need to set up anything related to the API
+				// server.
+				collectors = []string{"pods"}
+				setupLabelsAndAnnotationsAsTagsFunc()
+			case defaultPodCollection, clusterUnassignedPodCollection:
+				// We can try to get the API Client directly because this code will be retried if it fails
+				apiServerClient, err = apiserver.GetAPIClient()
+				if err != nil {
+					return err
+				}
 
-		// Discover resources that are currently available
-		resources, err = discoverResources(apiServerClient.Cl.Discovery())
-		if err != nil {
-			return err
-		}
+				err = apiserver.InitializeGlobalResourceTypeCache(apiServerClient.Cl.Discovery())
+				if err != nil {
+					return err
+				}
 
-		// Prepare the collectors for the resources specified in the configuration file.
-		collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
-		if err != nil {
-			return err
-		}
+				setupLabelsAndAnnotationsAsTagsFunc()
 
-		// Enable the KSM default collectors if the config collectors list is empty.
-		if len(collectors) == 0 {
-			collectors = options.DefaultResources.AsSlice()
-		}
+				// Discover resources that are currently available
+				resources, err = discoverResources(apiServerClient.Cl.Discovery())
+				if err != nil {
+					return err
+				}
 
-		builder.WithKubeClient(apiServerClient.InformerCl)
-	}
+				// Prepare the collectors for the resources specified in the configuration file.
+				collectors, err = filterUnknownCollectors(k.instance.Collectors, resources)
+				if err != nil {
+					return err
+				}
 
-	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
-	// Equivalent to configuring --metric-annotations-allowlist.
-	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
-		// Any annotation can be used for label joins.
-		allowedAnnotations[collector] = []string{"*"}
-	}
+				// Enable the KSM default collectors if the config collectors list is empty.
+				if len(collectors) == 0 {
+					collectors = options.DefaultResources.AsSlice()
+				}
 
-	builder.WithAllowAnnotations(allowedAnnotations)
+				builder.WithKubeClient(apiServerClient.InformerCl)
+			}
 
-	// Prepare watched namespaces
-	namespaces := k.instance.Namespaces
+			// Prepare watched namespaces
+			namespaces := k.instance.Namespaces
 
-	// Enable the KSM default namespaces if the config namespaces list is empty.
-	if len(namespaces) == 0 {
-		namespaces = options.DefaultNamespaces
-	}
+			// Enable the KSM default namespaces if the config namespaces list is empty.
+			if len(namespaces) == 0 {
+				namespaces = options.DefaultNamespaces
+			}
 
-	builder.WithNamespaces(namespaces)
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+			builder.WithNamespaces(namespaces)
+			allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+			if err != nil {
+				return err
+			}
+
+			if err := allowDenyList.Parse(); err != nil {
+				return err
+			}
+
+			builder.WithFamilyGeneratorFilter(allowDenyList)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			k.cancel = cancel
+			builder.WithContext(ctx)
+
+			resyncPeriod := k.instance.ResyncPeriod
+			if resyncPeriod == 0 {
+				resyncPeriod = pkgconfigsetup.Datadog().GetInt("kubernetes_informers_resync_period")
+			}
+
+			builder.WithResync(time.Duration(resyncPeriod) * time.Second)
+
+			builder.WithGenerateStoresFunc(builder.GenerateStores)
+
+			// configure custom resources required for extended features and
+			// compatibility across deprecated/removed versions of APIs
+			cr := k.discoverCustomResources(apiServerClient, collectors, resources)
+			builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
+			builder.WithCustomResourceStoreFactories(cr.factories...)
+			builder.WithCustomResourceClients(cr.clients)
+
+			// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
+			// Equivalent to configuring --metric-annotations-allowlist.
+			allowedAnnotations := map[string][]string{}
+			for _, collector := range collectors {
+				// Any annotation can be used for label joins.
+				allowedAnnotations[collector] = []string{"*"}
+			}
+
+			builder.WithAllowAnnotations(allowedAnnotations)
+
+			// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
+			// Equivalent to configuring --metric-labels-allowlist.
+			allowedLabels := map[string][]string{}
+			for _, collector := range collectors {
+				// Any label can be used for label joins.
+				allowedLabels[collector] = []string{"*"}
+			}
+
+			if err = builder.WithAllowLabels(allowedLabels); err != nil {
+				return err
+			}
+
+			if err := builder.WithEnabledResources(cr.collectors); err != nil {
+				return err
+			}
+
+			// Start the collection process
+			k.allStores = builder.BuildStores()
+
+			return nil
+		},
+		Strategy:          retry.Backoff,
+		InitialRetryDelay: k.Interval(),
+		MaxRetryDelay:     10 * k.Interval(),
+	})
 	if err != nil {
 		return err
 	}
-
-	if err := allowDenyList.Parse(); err != nil {
-		return err
-	}
-
-	builder.WithFamilyGeneratorFilter(allowDenyList)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	k.cancel = cancel
-	builder.WithContext(ctx)
-
-	resyncPeriod := k.instance.ResyncPeriod
-	if resyncPeriod == 0 {
-		resyncPeriod = pkgconfigsetup.Datadog().GetInt("kubernetes_informers_resync_period")
-	}
-
-	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
-
-	builder.WithGenerateStoresFunc(builder.GenerateStores)
-
-	// configure custom resources required for extended features and
-	// compatibility across deprecated/removed versions of APIs
-	cr := k.discoverCustomResources(apiServerClient, collectors, resources)
-	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
-	builder.WithCustomResourceStoreFactories(cr.factories...)
-	builder.WithCustomResourceClients(cr.clients)
-
-	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
-	// Equivalent to configuring --metric-labels-allowlist.
-	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
-		// Any label can be used for label joins.
-		allowedLabels[collector] = []string{"*"}
-	}
-
-	if err = builder.WithAllowLabels(allowedLabels); err != nil {
-		return err
-	}
-
-	if err := builder.WithEnabledResources(cr.collectors); err != nil {
-		return err
-	}
-
-	// Start the collection process
-	k.allStores = builder.BuildStores()
 
 	return nil
 }
@@ -482,6 +539,13 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		clients[f.Name()] = client
 	}
 
+	customResourceFactories := customresources.GetCustomResourceFactories(k.instance.CustomResource, c)
+	customResourceClients, customResourceCollectors := customresources.GetCustomResourceClientsAndCollectors(k.instance.CustomResource.Spec.Resources, c)
+
+	collectors = lo.Uniq(append(collectors, customResourceCollectors...))
+	maps.Copy(clients, customResourceClients)
+	factories = append(factories, customResourceFactories...)
+
 	return customResources{
 		collectors: collectors,
 		clients:    clients,
@@ -530,6 +594,10 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
+	if err := k.initRetry.TriggerRetry(); err != nil {
+		return err.LastTryError
+	}
+
 	// this check uses a "raw" sender, for better performance.  That requires
 	// careful consideration of uses of this sender.  In particular, the `tags
 	// []string` arguments must not be used after they are passed to the sender
@@ -602,7 +670,9 @@ func (k *KSMCheck) Run() error {
 // Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
-	k.cancel()
+	if k.cancel != nil {
+		k.cancel()
+	}
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
@@ -625,11 +695,15 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				continue
 			}
+			metricPrefix := ksmMetricPrefix
+			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found && strings.HasPrefix(ddname, "customresource.") {
+				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
+			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tagList)
+					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
@@ -773,33 +847,6 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfigWithoutLabelsMap
 	}
 }
 
-// mergeAnnotationsAsTags adds extra annotations as tags to the configured mapping.
-// User-defined annotations as tags are prioritized.
-func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
-	if k.instance.AnnotationsAsTags == nil {
-		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
-	}
-	// In the case of a misconfiguration issue, the value could be explicitly set to nil
-	for resource, mapping := range k.instance.AnnotationsAsTags {
-		if mapping == nil {
-			delete(k.instance.AnnotationsAsTags, resource)
-		}
-	}
-	for resource, mapping := range extra {
-		_, found := k.instance.AnnotationsAsTags[resource]
-		if !found {
-			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
-			k.instance.AnnotationsAsTags[resource] = mapping
-			continue
-		}
-		for key, value := range mapping {
-			if _, found := k.instance.AnnotationsAsTags[resource][key]; !found {
-				k.instance.AnnotationsAsTags[resource][key] = value
-			}
-		}
-	}
-}
-
 func (k *KSMCheck) processLabelJoins() {
 	k.instance.labelJoins = make(map[string]*joinsConfig)
 	for metric, joinConf := range k.instance.LabelJoins {
@@ -857,12 +904,26 @@ func (k *KSMCheck) getClusterName() {
 	}
 }
 
+func (k *KSMCheck) getClusterID() {
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		log.Warnf("Error retrieving the cluster ID: %s", err)
+		return
+	}
+	k.clusterIDTagValue = clusterID
+}
+
 // initTags avoids keeping a nil Tags field in the check instance
 // Sets the kube_cluster_name tag for all metrics.
+// Sets the orch_cluster_id tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.clusterNameTagValue != "" {
-		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
+		k.instance.Tags = append(k.instance.Tags, tags.KubeClusterName+":"+k.clusterNameTagValue)
+	}
+
+	if k.clusterIDTagValue != "" {
+		k.instance.Tags = append(k.instance.Tags, tags.OrchClusterID+":"+k.clusterIDTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {
@@ -995,6 +1056,46 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 	}
 }
 
+// mergeLabelsOrAnnotationAsTags adds extra labels or annotations to the instance mapping
+func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]string, shouldTransformResource bool) map[string]map[string]string {
+	if instanceMap == nil {
+		instanceMap = make(map[string]map[string]string)
+	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range instanceMap {
+		if mapping == nil {
+			delete(instanceMap, resource)
+		}
+	}
+
+	for resource, mapping := range extra {
+		var singularName = resource
+		var err error
+		if shouldTransformResource {
+			// modify the resource name to the singular form of the resource
+			singularName, err = toSingularResourceName(resource)
+			if err != nil {
+				log.Errorf("failed to get singular resource name for %q: %v", resource, err)
+				continue
+			}
+		}
+
+		_, found := instanceMap[singularName]
+		if !found {
+			instanceMap[singularName] = make(map[string]string)
+			instanceMap[singularName] = mapping
+			continue
+		}
+		for key, value := range mapping {
+			if _, found := instanceMap[singularName][key]; !found {
+				instanceMap[singularName][key] = value
+			}
+		}
+	}
+
+	return instanceMap
+}
+
 // resourceNameFromMetric returns the resource name based on the metric name
 // It relies on the conventional KSM naming format kube_<resource>_suffix
 // returns an empty string otherwise
@@ -1121,4 +1222,11 @@ func labelsMapperOverride(metricName string) map[string]string {
 func toSnakeCase(s string) string {
 	snake := matchAllCap.ReplaceAllString(s, "${1}_${2}")
 	return strings.ToLower(snake)
+}
+
+func toSingularResourceName(resourceGroup string) (string, error) {
+	// Expected input in the form of: resourceTypePlural.apiGroup
+	resourceType, group, _ := strings.Cut(resourceGroup, ".")
+	kind, err := apiserver.GetResourceKind(resourceType, group)
+	return strings.ToLower(kind), err
 }

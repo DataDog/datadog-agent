@@ -117,7 +117,6 @@ int __attribute__((always_inline)) get_path_mount_flags(struct path *path) {
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
 
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id));
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id());
     return mount_id;
 }
@@ -189,6 +188,9 @@ dev_t __attribute__((always_inline)) get_mount_dev(void *mnt) {
 }
 
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
+    if (!dentry) {
+        return 0;
+    }
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
@@ -201,17 +203,25 @@ struct dentry *__attribute__((always_inline)) get_path_dentry(struct path *path)
     return dentry;
 }
 
+u32  __attribute__((always_inline)) get_dentry_nlink(struct dentry* dentry) {
+    struct inode *d_inode = get_dentry_inode(dentry);
+
+    u64 inode_nlink_offset;
+    LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
+
+    int nlink = 0;
+    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
+
+    return nlink;
+}
+
 struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file) {
     return get_path_dentry(get_file_f_path_addr(file));
 }
 
 unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
     struct dentry *dentry = get_path_dentry(path);
-
-    if (dentry) {
-        return get_dentry_ino(dentry);
-    }
-    return 0;
+    return get_dentry_ino(dentry);
 }
 
 void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
@@ -260,6 +270,9 @@ static __attribute__((always_inline)) int get_sb_flags(struct super_block *sb) {
     return s_flags;
 }
 
+// https://elixir.bootlin.com/linux/v6.13.7/source/include/uapi/linux/mount.h#L47
+#define MS_NOUSER (1 << 31)
+
 static __attribute__((always_inline)) int is_non_mountable_dentry(struct dentry *dentry) {
     struct super_block *sb = get_dentry_sb(dentry);
     return get_sb_flags(sb) & MS_NOUSER;
@@ -285,19 +298,28 @@ int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentr
     return get_inode_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
+struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_path(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     // escape from the embedded vfs_inode to reach ovl_inode
     struct dentry *lower;
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 16);
 
+    return lower;
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_path(dentry);
     return get_dentry_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
+struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_entry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
+    // escape from the embedded vfs_inode to reach ovl_entry
+    // struct inode vfs_inode;
+    // struct dentry *__upperdentry;
+    // struct ovl_entry *oe;
     void *oe;
     bpf_probe_read(&oe, sizeof(oe), (char *)d_inode + get_sizeof_inode() + 8);
 
@@ -305,44 +327,97 @@ int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentr
     // 4 for the __num_lower field + 4 of padding + 8 for the layer ptr in ovl_path
     bpf_probe_read(&lower, sizeof(lower), (char *)oe + 4 + 4 + 8);
 
+    return lower;
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_entry(dentry);
     return get_dentry_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
+struct dentry * __attribute__((always_inline)) get_ovl_upper_dentry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
-    // escape from the embedded vfs_inode to reach ovl_inode
+    // escape from the embedded vfs_inode to reach upper dentry
+    // struct inode vfs_inode;
+    // struct dentry *__upperdentry;
     struct dentry *upper;
     bpf_probe_read(&upper, sizeof(upper), (char *)d_inode + get_sizeof_inode());
 
+    return upper;
+}
+
+int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
+    struct dentry *upper = get_ovl_upper_dentry(dentry);
     return get_dentry_ino(upper);
 }
 
-void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags) {
-    u64 lower_inode = 0;
+int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
     switch (get_ovl_path_in_inode()) {
     case 2:
-        lower_inode = get_ovl_lower_ino_from_ovl_entry(dentry);
-        break;
+        return get_ovl_lower_ino_from_ovl_entry(dentry);
     case 1:
-        lower_inode = get_ovl_lower_ino_from_ovl_path(dentry);
-        break;
-    default:
-        lower_inode = get_ovl_lower_ino_direct(dentry);
-        break;
+        return get_ovl_lower_ino_from_ovl_path(dentry);
     }
+    return get_ovl_lower_ino_direct(dentry);
+}
+
+int __attribute__((always_inline)) get_ovl_upper_nlink(struct dentry *dentry) {
+    struct dentry *upper = get_ovl_upper_dentry(dentry);
+    return get_dentry_nlink(upper);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_nlink_from_ovl_entry(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_entry(dentry);
+    return get_dentry_nlink(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_nlink_from_ovl_path(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_path(dentry);
+    return get_dentry_nlink(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_nlink(struct dentry *dentry) {
+    if (get_ovl_path_in_inode() == 2) {
+        return get_ovl_lower_nlink_from_ovl_entry(dentry);
+    }
+    return get_ovl_lower_nlink_from_ovl_path(dentry);
+}
+
+int __always_inline get_overlayfs_layer(struct dentry *dentry) {
+    return get_ovl_upper_ino(dentry) != 0 ? UPPER_LAYER : LOWER_LAYER;
+}
+
+void __always_inline set_overlayfs_inode(struct dentry *dentry, struct file_t *file) {
+    u64 orig_inode = file->path_key.ino;
+    u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
-    if (upper_inode) {
-        *flags |= UPPER_LAYER;
-    } else if (lower_inode) {
-        *flags |= LOWER_LAYER;
+    // NOTE(safchain) both lower & upper inode seems to be incorrect sometimes on kernel >= 6.8.
+    // Need to investigate the root cause.
+    if (get_ovl_path_in_inode() == 2 && lower_inode != orig_inode && upper_inode != orig_inode) {
+        return;
     }
 
     if (lower_inode) {
-        *ino = lower_inode;
+        file->path_key.ino = lower_inode;
     } else if (upper_inode) {
-        *ino = upper_inode;
+        file->path_key.ino = upper_inode;
+    }
+
+    file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
+}
+
+void __always_inline set_overlayfs_nlink(struct dentry *dentry, struct file_t *file) {
+    u64 orig_nlink = file->metadata.nlink;
+    u64 lower_nlink = get_ovl_lower_nlink(dentry);
+    u64 upper_nlink = get_ovl_upper_nlink(dentry);
+
+    // keep the highest nlink as it is mostly used to discard the userspace cache
+    if (lower_nlink > orig_nlink) {
+        file->metadata.nlink = lower_nlink;
+    } else if (upper_nlink > orig_nlink) {
+        file->metadata.nlink = upper_nlink;
     }
 }
 
@@ -363,13 +438,6 @@ static __attribute__((always_inline)) u64 get_vfs_mkdir_dentry_position() {
     u64 vfs_mkdir_dentry_position;
     LOAD_CONSTANT("vfs_mkdir_dentry_position", vfs_mkdir_dentry_position);
     return vfs_mkdir_dentry_position;
-}
-
-static __attribute__((always_inline)) u64 get_vfs_link_target_dentry_position() {
-    u64 vfs_link_target_dentry_position;
-    LOAD_CONSTANT("vfs_link_target_dentry_position", vfs_link_target_dentry_position);
-    return vfs_link_target_dentry_position;
-    ;
 }
 
 static __attribute__((always_inline)) u64 get_vfs_setxattr_dentry_position() {

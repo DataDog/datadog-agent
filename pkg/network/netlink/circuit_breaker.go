@@ -114,13 +114,9 @@ func (c *CircuitBreaker) update(now time.Time) {
 	}
 
 	lastUpdate := c.lastUpdate.Load()
-	deltaInSec := float64(now.UnixNano()-lastUpdate) / float64(time.Second.Nanoseconds())
-
 	// This is to avoid a divide by 0 panic or a spurious spike due
 	// to a reset followed immediately by an update call
-	if deltaInSec < 1.0 {
-		deltaInSec = 1.0
-	}
+	deltaInSec := max(float64(now.UnixNano()-lastUpdate)/float64(time.Second.Nanoseconds()), 1.0)
 
 	// Calculate the event rate (EWMA)
 	eventCount := c.eventCount.Swap(0)

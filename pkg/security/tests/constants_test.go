@@ -24,6 +24,7 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSockStructSKProtocol,
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
@@ -31,6 +32,7 @@ var BTFVsFallbackPossiblyMissingConstants = []string{
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 	constantfetch.OffsetNameDeviceStructNdNet,
+	constantfetch.OffsetNameSockStructSKProtocol,
 }
 
 func TestOctogonConstants(t *testing.T) {
@@ -59,9 +61,6 @@ func TestOctogonConstants(t *testing.T) {
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
 		if err != nil {
 			t.Skipf("btfhub constant fetcher is not available: %v", err)
-		}
-		if !btfhubFetcher.HasConstantsInStore() {
-			t.Skip("btfhub has no constant for this OS")
 		}
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)

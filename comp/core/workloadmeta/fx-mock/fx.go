@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build test
-
 // Package fx provides the workloadmeta fx mock component for the Datadog Agent
 package fx
 

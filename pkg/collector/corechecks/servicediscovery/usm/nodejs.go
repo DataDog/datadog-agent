@@ -32,7 +32,6 @@ func isJs(filepath string) bool {
 
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 	skipNext := false
-	cwd, _ := workingDirFromEnvs(n.ctx.Envs)
 	for _, a := range args {
 		if skipNext {
 			skipNext = false
@@ -45,7 +44,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				continue
 			}
 		} else {
-			absFile := abs(path.Clean(a), cwd)
+			absFile := n.ctx.resolveWorkingDirRelativePath(path.Clean(a))
 			entryPoint := ""
 			if isJs(a) {
 				entryPoint = absFile

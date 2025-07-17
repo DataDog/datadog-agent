@@ -7,35 +7,48 @@ package pipeline
 
 import (
 	"context"
+	"strconv"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sds"
+	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
+	tcpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
+
+const (
+	// maxConcurrencyPerPipeline is used to determine the maxSenderConcurrency value for the default provider creation logic.
+	// We don't want to require users to know enough about our underlying architecture to understand what this value is meant
+	// to do, so it's currently housed in a constant rather than a config entry. Users who wish to influence min/max
+	// SenderConcurrency via config options should utilize the endpoint's BatchMaxConcurrentSend override instead.
+	maxConcurrencyPerPipeline = 10
+
+	// componentName is the name used for destination telemetry
+	componentName = "logs"
+)
+
+var httpSenderFactory = httpsender.NewHTTPSender
+var tcpSenderFactory = tcpsender.NewTCPSender
 
 // Provider provides message channels
 type Provider interface {
 	Start()
 	Stop()
-	ReconfigureSDSStandardRules(standardRules []byte) (bool, error)
-	ReconfigureSDSAgentConfig(config []byte) (bool, error)
-	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
 	GetOutputChan() chan *message.Message
-	NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor)
+	NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor)
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
 }
@@ -43,27 +56,24 @@ type Provider interface {
 // provider implements providing logic
 type provider struct {
 	numberOfPipelines         int
-	auditor                   auditor.Auditor
 	diagnosticMessageReceiver diagnostic.MessageReceiver
-	outputChan                chan *message.Payload
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
+	sender                    sender.PipelineComponent
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
-	destinationsContext  *client.DestinationsContext
+	serverlessMeta       sender.ServerlessMeta
 
-	serverless bool
-
-	status      statusinterface.Status
 	hostname    hostnameinterface.Component
 	cfg         pkgconfigmodel.Reader
 	compression logscompression.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int,
-	auditor auditor.Auditor,
+func NewProvider(
+	numberOfPipelines int,
+	sink sender.Sink,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -72,24 +82,29 @@ func NewProvider(numberOfPipelines int,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
+	legacyMode bool,
+	serverless bool,
 ) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname, cfg, compression)
-}
+	var senderImpl sender.PipelineComponent
+	serverlessMeta := sender.NewServerlessMeta(serverless)
 
-// NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int,
-	auditor auditor.Auditor,
-	diagnosticMessageReceiver diagnostic.MessageReceiver,
-	processingRules []*config.ProcessingRule,
-	endpoints *config.Endpoints,
-	destinationsContext *client.DestinationsContext,
-	status statusinterface.Status,
-	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader,
-	compression logscompression.Component,
-) Provider {
+	if endpoints.UseHTTP {
+		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode)
+	} else {
+		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
+	}
 
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg, compression)
+	return newProvider(
+		numberOfPipelines,
+		diagnosticMessageReceiver,
+		processingRules,
+		endpoints,
+		hostname,
+		cfg,
+		compression,
+		serverlessMeta,
+		senderImpl,
+	)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -97,29 +112,114 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int,
-	auditor auditor.Auditor,
+func tcpSender(
+	numberOfPipelines int,
+	cfg pkgconfigmodel.Reader,
+	sink sender.Sink,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	status statusinterface.Status,
+	serverlessMeta sender.ServerlessMeta,
+	legacy bool,
+) *sender.Sender {
+	var queueCount, workersPerQueue int
+	if legacy {
+		queueCount = numberOfPipelines
+		workersPerQueue = 1
+	} else {
+		// Currently the tcp destination is a synchronous entity. All concurrency needs to be in the form
+		// of discrete sender workers, so we spin up one per pipeline.
+		queueCount = sender.DefaultQueuesCount
+		workersPerQueue = numberOfPipelines
+	}
+	return tcpSenderFactory(
+		cfg,
+		sink,
+		cfg.GetInt("logs_config.payload_channel_size"),
+		serverlessMeta,
+		endpoints,
+		destinationsContext,
+		status,
+		componentName,
+		queueCount,
+		workersPerQueue,
+	)
+}
+
+func httpSender(
+	numberOfPipelines int,
+	cfg pkgconfigmodel.Reader,
+	sink sender.Sink,
+	endpoints *config.Endpoints,
+	destinationsContext *client.DestinationsContext,
+	serverlessMeta sender.ServerlessMeta,
+	legacyMode bool,
+) *sender.Sender {
+	var queueCount, workersPerQueue, minSenderConcurrency, maxSenderConcurrency int
+	if legacyMode {
+		queueCount = numberOfPipelines
+		workersPerQueue = 1
+		minSenderConcurrency = endpoints.BatchMaxConcurrentSend
+		maxSenderConcurrency = endpoints.BatchMaxConcurrentSend
+	} else if serverlessMeta.IsEnabled() {
+		// Currently the serverless destination is a synchronous entity. All concurrency needs to be in the form
+		// of discrete sender workers, so we spin up one per pipeline.
+		queueCount = sender.DefaultQueuesCount
+		workersPerQueue = numberOfPipelines
+		minSenderConcurrency = 1
+		maxSenderConcurrency = 1
+	} else {
+		// If utililizing http, we can offload a large amount of concurrency to the http destination, while keeping queue and
+		// worker counts low.
+		queueCount = sender.DefaultQueuesCount
+		workersPerQueue = sender.DefaultWorkersPerQueue
+		minSenderConcurrency = numberOfPipelines
+		maxSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
+		if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
+			// If the BatchMaxConcurrentSend parameter is set, we use it to control the concurrency of the destination.
+			// Legacy behavior ran numberOfPipelines senders, each with a concurrency of BatchMaxConcurrentSend, so
+			// we mimic that behavior here.
+			minSenderConcurrency = numberOfPipelines * endpoints.BatchMaxConcurrentSend
+			maxSenderConcurrency = minSenderConcurrency
+		}
+	}
+
+	return httpSenderFactory(
+		cfg,
+		sink,
+		cfg.GetInt("logs_config.payload_channel_size"),
+		serverlessMeta,
+		endpoints,
+		destinationsContext,
+		componentName,
+		http.JSONContentType,
+		queueCount,
+		workersPerQueue,
+		minSenderConcurrency,
+		maxSenderConcurrency,
+	)
+}
+
+func newProvider(
+	numberOfPipelines int,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
-	destinationsContext *client.DestinationsContext,
-	serverless bool,
-	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
+	serverlessMeta sender.ServerlessMeta,
+	senderImpl sender.PipelineComponent,
 ) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
-		auditor:                   auditor,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		processingRules:           processingRules,
 		endpoints:                 endpoints,
+		sender:                    senderImpl,
 		pipelines:                 []*Pipeline{},
 		currentPipelineIndex:      atomic.NewUint32(0),
-		destinationsContext:       destinationsContext,
-		serverless:                serverless,
-		status:                    status,
+		serverlessMeta:            serverlessMeta,
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
@@ -128,11 +228,20 @@ func newProvider(numberOfPipelines int,
 
 // Start initializes the pipelines
 func (p *provider) Start() {
-	// This requires the auditor to be started before.
-	p.outputChan = p.auditor.Channel()
+	p.sender.Start()
 
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg, p.compression)
+		pipeline := NewPipeline(
+			p.processingRules,
+			p.endpoints,
+			p.sender,
+			p.diagnosticMessageReceiver,
+			p.serverlessMeta,
+			p.hostname,
+			p.cfg,
+			p.compression,
+			strconv.Itoa(i),
+		)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
@@ -142,70 +251,15 @@ func (p *provider) Start() {
 // this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
 	stopper := startstop.NewParallelStopper()
+
+	// close the pipelines
 	for _, pipeline := range p.pipelines {
 		stopper.Add(pipeline)
 	}
+
 	stopper.Stop()
+	p.sender.Stop()
 	p.pipelines = p.pipelines[:0]
-	p.outputChan = nil
-}
-
-// return true if all processor SDS scanners are active.
-func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
-	var responses []chan sds.ReconfigureResponse
-
-	// send a reconfiguration order to every running pipeline
-
-	for _, pipeline := range p.pipelines {
-		order := sds.ReconfigureOrder{
-			Type:         orderType,
-			Config:       config,
-			ResponseChan: make(chan sds.ReconfigureResponse),
-		}
-		responses = append(responses, order.ResponseChan)
-
-		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
-		pipeline.processor.ReconfigChan <- order
-	}
-
-	// reports if at least one error occurred
-
-	var rerr error
-	allScannersActive := true
-	for _, response := range responses {
-		resp := <-response
-
-		if !resp.IsActive {
-			allScannersActive = false
-		}
-
-		if resp.Err != nil {
-			rerr = multierror.Append(rerr, resp.Err)
-		}
-
-		close(response)
-	}
-
-	return allScannersActive, rerr
-}
-
-// ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
-func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
-	return p.reconfigureSDS(standardRules, sds.StandardRules)
-}
-
-// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
-// configuration received through Remote Configuration.
-// Return true if all SDS scanners are active after applying this configuration.
-func (p *provider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
-	return p.reconfigureSDS(config, sds.AgentConfig)
-}
-
-// StopSDSProcessing reconfigures the pipeline removing the SDS scanning
-// from the processing steps.
-func (p *provider) StopSDSProcessing() error {
-	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
-	return err
 }
 
 // NextPipelineChan returns the next pipeline input channel
@@ -224,14 +278,14 @@ func (p *provider) GetOutputChan() chan *message.Message {
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
-func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, metrics.PipelineMonitor) {
+func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil, nil
 	}
 	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan, nextPipeline.pipelineMonitor
+	return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.
@@ -243,5 +297,11 @@ func (p *provider) Flush(ctx context.Context) {
 		default:
 			p.Flush(ctx)
 		}
+	}
+	if p.serverlessMeta.IsEnabled() {
+		p.serverlessMeta.Lock()
+		defer p.serverlessMeta.Unlock()
+		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
+		p.serverlessMeta.WaitGroup().Wait()
 	}
 }

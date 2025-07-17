@@ -8,17 +8,17 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 
-def get_release_lead_time(freeze_date, release_date):
+def get_release_lead_time(cutoff_date, release_date):
     release_date = datetime.strptime(release_date, "%Y-%m-%d")
-    freeze_date = datetime.strptime(freeze_date, "%Y-%m-%d")
+    cutoff_date = datetime.strptime(cutoff_date, "%Y-%m-%d")
 
-    return (release_date - freeze_date).days
+    return (release_date - cutoff_date).days
 
 
-def get_prs_metrics(milestone, freeze_date):
+def get_prs_metrics(milestone, cutoff_date):
     github = GithubAPI(repository=GITHUB_REPO_NAME)
-    freeze_date = datetime.strptime(freeze_date, "%Y-%m-%d").date()
-    pr_counts = {"total": 0, "before_freeze": 0, "on_freeze": 0, "after_freeze": 0}
+    cutoff_date = datetime.strptime(cutoff_date, "%Y-%m-%d").date()
+    pr_counts = {"total": 0, "before_cutoff": 0, "on_cutoff": 0, "after_cutoff": 0}
     m = get_milestone(github.repo, milestone)
     issues = github.repo.get_issues(m, state='closed')
     for issue in issues:
@@ -26,13 +26,13 @@ def get_prs_metrics(milestone, freeze_date):
             continue
         # until 3.11 we need to strip the date string
         merged = datetime.fromisoformat(issue.pull_request.raw_data['merged_at'][:-1]).date()
-        if merged < freeze_date:
-            pr_counts["before_freeze"] += 1
-        elif merged == freeze_date:
-            pr_counts["on_freeze"] += 1
+        if merged < cutoff_date:
+            pr_counts["before_cutoff"] += 1
+        elif merged == cutoff_date:
+            pr_counts["on_cutoff"] += 1
         else:
-            pr_counts["after_freeze"] += 1
-    pr_counts["total"] = pr_counts["before_freeze"] + pr_counts["on_freeze"] + pr_counts["after_freeze"]
+            pr_counts["after_cutoff"] += 1
+    pr_counts["total"] = pr_counts["before_cutoff"] + pr_counts["on_cutoff"] + pr_counts["after_cutoff"]
     return pr_counts
 
 

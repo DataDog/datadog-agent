@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -153,12 +154,15 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 	common.CheckAgentRestarts(is.T(), VMclient)
 	common.CheckIntegrationInstall(is.T(), VMclient)
 	common.SetAgentPythonMajorVersion(is.T(), VMclient, "3")
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion3)
 	if *majorVersion == "6" {
 		common.SetAgentPythonMajorVersion(is.T(), VMclient, "2")
 		common.CheckAgentPython(is.T(), VMclient, common.ExpectedPythonVersion2)
 	}
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmEnabled(is.T(), VMclient)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmDisabled(is.T(), VMclient)
 	if *flavorName == "datadog-agent" {
 		common.CheckSystemProbeBehavior(is.T(), VMclient)
@@ -178,8 +182,8 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
-	aptrepoDist := fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *architecture)
+	aptrepo := fmt.Sprintf("[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a%s", os.Getenv("E2E_PIPELINE_ID"), *majorVersion)
+	aptrepoDist := fmt.Sprintf("stable-%s %s", *architecture, *majorVersion)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -214,7 +218,7 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	} else {
 		arch = *architecture
 	}
-	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
+	yumrepo := fmt.Sprintf("http://s3.amazonaws.com/yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
@@ -256,7 +260,7 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		arch = *architecture
 	}
 
-	suseRepo := fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
+	suseRepo := fmt.Sprintf("http://s3.amazonaws.com/yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error

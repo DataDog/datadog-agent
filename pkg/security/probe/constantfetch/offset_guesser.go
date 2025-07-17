@@ -187,10 +187,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		RemoveRlimit: true,
 	}
 
-	for _, probe := range probes.AllProbes(true) {
+	for _, probe := range probes.AllProbes(true, "") {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 	}
-	for _, probe := range probes.AllProbes(false) {
+	for _, probe := range probes.AllProbes(false, "") {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 	}
 	options.ExcludedFunctions = append(options.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)

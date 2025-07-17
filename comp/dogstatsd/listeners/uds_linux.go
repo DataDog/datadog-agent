@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -40,14 +41,9 @@ func getUDSAncillarySize() int {
 
 // enableUDSPassCred enables credential passing from the kernel for origin detection.
 // That flag can be ignored if origin dection is disabled.
-func enableUDSPassCred(conn netUnixConn) error {
-	rawconn, err := conn.SyscallConn()
-	if err != nil {
-		return err
-	}
-
+func enableUDSPassCred(rawconn syscall.RawConn) error {
 	var e error
-	err = rawconn.Control(func(fd uintptr) {
+	err := rawconn.Control(func(fd uintptr) {
 		e = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1)
 	})
 	if err != nil {

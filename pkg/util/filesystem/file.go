@@ -7,6 +7,7 @@ package filesystem
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -137,4 +138,14 @@ func EnsureParentDirsExist(p string) error {
 	}
 
 	return nil
+}
+
+// OpenFileForWriting opens a file for writing
+func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
+	f, err := os.OpenFile(filePath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+	bufWriter := bufio.NewWriter(f)
+	return f, bufWriter, nil
 }

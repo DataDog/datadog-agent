@@ -3,6 +3,8 @@
 
 package ebpfcheck
 
+const ioctlCollectKprobeMissedStatsCmd = 0x70c14
+
 type perfBufferKey struct {
 	Id  uint32
 	Cpu uint32
@@ -14,4 +16,49 @@ type mmapRegion struct {
 type ringMmap struct {
 	Consumer mmapRegion
 	Data     mmapRegion
+}
+type cookie struct {
+	Kprobe_id uint32
+	Query_id  uint32
+}
+type kStatsError struct {
+	Type   uint32
+	Cookie cookie
+}
+type kprobeKernelStats struct {
+	Kprobe_hits                uint64
+	Kprobe_nesting_misses      uint64
+	Kretprobe_maxactive_misses uint64
+}
+type kprobeStatsCollectorErrors uint32
+type kprobeStatsErrors struct {
+	Type   uint32
+	Cookie cookie
+}
+
+func (err *kprobeStatsErrors) String() string {
+	switch err.Type {
+	case 1:
+		return "fd is not a perf event fd"
+	case 2:
+		return "perf event fd does not have a kprobe"
+	case 3:
+		return "unable to get perf_event from file"
+	case 4:
+		return "could not read the pmu type of the perf event"
+	case 5:
+		return "could not read kprobe hits"
+	case 6:
+		return "could not read kprobe misses"
+	case 7:
+		return "could not read kretprobe misses"
+	case 8:
+		return "could not read struct trace_event_call flags"
+	case 9:
+		return "could not check if perf event is associated with a tracefs kprobe"
+	case 10:
+		return "could not read trace_kprobe from perf_event"
+	default:
+		return "unknown error in bpf program"
+	}
 }

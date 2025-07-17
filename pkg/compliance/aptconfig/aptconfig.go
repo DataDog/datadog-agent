@@ -11,6 +11,7 @@ import (
 	"context"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,8 +28,6 @@ import (
 const SeclFilter = `os.id == "ubuntu"`
 
 const (
-	resourceType = "host_apt_config"
-
 	aptConfFile         = "/etc/apt/apt.conf"
 	aptConfFragmentsDir = "/etc/apt/apt.conf.d"
 	systemdConfDir      = "/etc/systemd/system"
@@ -35,7 +35,7 @@ const (
 
 // LoadConfiguration exports the aggregated APT configuration file and parts
 // of the systemd configuration files related to APT timers.
-func LoadConfiguration(_ context.Context, hostroot string) (string, interface{}) {
+func LoadConfiguration(_ context.Context, hostroot string) (types.ResourceType, interface{}) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Warnf("could not parse APT configuration properly: %v", err)
@@ -52,9 +52,7 @@ func LoadConfiguration(_ context.Context, hostroot string) (string, interface{})
 		data, err := readFileLimit(path)
 		if err == nil {
 			conf := parseAPTConfiguration(data)
-			for k, v := range conf {
-				aptConfs[k] = v
-			}
+			maps.Copy(aptConfs, conf)
 		}
 	}
 
@@ -89,7 +87,7 @@ func LoadConfiguration(_ context.Context, hostroot string) (string, interface{})
 		},
 	}
 
-	return resourceType, resourceData
+	return types.ResourceTypeHostAPTConfig, resourceData
 }
 
 type tokenType int

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -30,6 +31,9 @@ var processDiscoveryCheckConfigStr string
 //go:embed config/process_check_in_core_agent.yaml
 var processCheckInCoreAgentConfigStr string
 
+//go:embed config/process_check_in_core_agent_wlm_process_collector.yaml
+var processCheckInCoreAgentWLMProcessCollectorConfigStr string
+
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
@@ -39,13 +43,23 @@ var systemProbeNPMConfigStr string
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
 
+//go:embed config/process_agent_refresh_nix.yaml
+var processAgentRefreshStr string
+
+//go:embed config/core_agent_refresh_nix.yaml
+var coreAgentRefreshStr string
+
+//go:embed config/process_agent_refresh_win.yaml
+var processAgentWinRefreshStr string
+
 // AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
 type AgentStatus struct {
 	ProcessAgentStatus struct {
 		Expvars struct {
 			Map struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				EnabledChecks                []string            `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+				Endpoints                    map[string][]string `json:"endpoints"`
 			} `json:"process_agent"`
 		} `json:"expvars"`
 		Error string `json:"error"`
@@ -53,8 +67,9 @@ type AgentStatus struct {
 	ProcessComponentStatus struct {
 		Expvars struct {
 			Map struct {
-				EnabledChecks                []string `json:"enabled_checks"`
-				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+				EnabledChecks                []string            `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
+				Endpoints                    map[string][]string `json:"endpoints"`
 			} `json:"process_agent"`
 		} `json:"expvars"`
 	} `json:"processComponentStatus"`
@@ -106,10 +121,72 @@ func assertProcessCollected(
 	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
-// requireProcessNotCollected asserts that the given process is NOT collected by the process check
-func requireProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
+// assertProcessCollectedNew asserts that the given process is collected by the process check
+// and that it has the expected data populated
+// This is a new function to replace assertProcessCollected, but we need to verify it actually reduces the flakiness
+// of test runs before we fully switch over.
+func assertProcessCollectedNew(
+	t require.TestingT, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
+) {
+	// Find Processes
+	var procs []*agentmodel.Process
 	for _, payload := range payloads {
-		require.Empty(t, filterProcess(process, payload.Processes))
+		procs = append(procs, filterProcesses(process, payload.Processes)...)
+	}
+	require.NotEmpty(t, procs, "'%s' process not found in payloads: \n%+v", process, payloads)
+
+	assertProcesses(t, procs, withIOStats, process)
+}
+
+func assertProcessCommandLineArgs(t require.TestingT, processes []*agentmodel.Process, processCMDArgs []string) {
+	for _, proc := range processes {
+		// command arguments include the first command/program which can differ depending on the path,
+		// so we compare the user provided arguments starting from index 1
+		assert.Equalf(t, proc.Command.Args[1:], processCMDArgs[1:], "process args do not match. Expected %+v", processCMDArgs)
+	}
+}
+
+// assertProcesses asserts that the given processes are collected by the process check
+func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStats bool, process string) {
+	// verify process data is populated
+	var hasData bool
+	for _, proc := range procs {
+		if hasData = processHasData(proc); hasData {
+			break
+		}
+	}
+	assert.True(t, hasData, "'%s' process does not have all data populated in: %+v", process, procs)
+
+	// verify IO stats are populated
+	if withIOStats {
+		var hasIOStats bool
+		for _, proc := range procs {
+			if hasIOStats = processHasIOStats(proc); hasIOStats {
+				break
+			}
+		}
+		assert.True(t, hasIOStats, "'%s' process does not have IO stats populated in %+v", process, procs)
+	}
+}
+
+// assertContainersCollectedNew asserts that the given containers are collected
+func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
+	for _, container := range expectedContainers {
+		var found bool
+		for _, payload := range payloads {
+			if findContainer(container, payload.Containers) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "%s container not found in payloads: %+v", container, payloads)
+	}
+}
+
+// requireProcessNotCollected asserts that the given process is NOT collected by the process check
+func requireProcessNotCollected(t require.TestingT, payloads []*aggregator.ProcessPayload, process string) {
+	for _, payload := range payloads {
+		require.Empty(t, filterProcesses(process, payload.Processes))
 	}
 }
 
@@ -119,7 +196,7 @@ func findProcess(
 	name string, processes []*agentmodel.Process, withIOStats bool,
 ) (found, populated bool) {
 	for _, process := range processes {
-		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+		if matchProcess(process, name) {
 			found = true
 			populated = processHasData(process)
 
@@ -136,15 +213,29 @@ func findProcess(
 	return found, populated
 }
 
-// filterProcess returns process with the given name exists in the given list of processes
-func filterProcess(name string, processes []*agentmodel.Process) []*agentmodel.Process {
-	var found []*agentmodel.Process
+func filterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
+	var procs []*agentmodel.Process
+	for _, payload := range payloads {
+		procs = append(procs, filterProcesses(processName, payload.Processes)...)
+	}
+	return procs
+}
+
+// filterProcesses returns processes which match the given process name
+func filterProcesses(name string, processes []*agentmodel.Process) []*agentmodel.Process {
+	var matched []*agentmodel.Process
 	for _, process := range processes {
-		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
-			found = append(found, process)
+		if matchProcess(process, name) {
+			matched = append(matched, process)
 		}
 	}
-	return found
+	return matched
+}
+
+// matchProcess returns whether the given process matches the given name in the Args or Exe
+func matchProcess(process *agentmodel.Process, name string) bool {
+	return len(process.Command.Args) > 0 &&
+		(process.Command.Args[0] == name || process.Command.Exe == name)
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -258,13 +349,7 @@ func findContainer(name string, containers []*agentmodel.Container) bool {
 
 // assertManualProcessCheck asserts that the given process is collected and reported in the output
 // of the manual process check
-func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string, expectedContainers ...string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Check output:\n%s\n", check)
-		}
-	}()
-
+func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool, process string, expectedContainers ...string) {
 	var checkOutput struct {
 		Processes []*agentmodel.Process `json:"processes"`
 	}
@@ -272,34 +357,15 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	procs := filterProcess(process, checkOutput.Processes)
-	assert.NotEmpty(t, procs, "no processes found")
+	procs := filterProcesses(process, checkOutput.Processes)
+	require.NotEmpty(t, procs, "'%s' process not found in check:\n%s\n", process, check)
 
-	var hasData bool
-	for _, proc := range procs {
-		if processHasData(proc) {
-			hasData = true
-			break
-		}
-	}
-	assert.Truef(t, hasData, "Missing process data: %v", procs)
-
-	if withIOStats {
-		var hasIOStats bool
-		for _, proc := range procs {
-			if processHasIOStats(proc) {
-				hasIOStats = true
-				break
-			}
-		}
-		assert.Truef(t, hasIOStats, "Missing IOStats: %+v", procs)
-	}
-
+	assertProcesses(t, procs, withIOStats, process)
 	assertManualContainerCheck(t, check, expectedContainers...)
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
-func assertManualContainerCheck(t *testing.T, check string, expectedContainers ...string) {
+func assertManualContainerCheck(t require.TestingT, check string, expectedContainers ...string) {
 	var checkOutput struct {
 		Containers []*agentmodel.Container `json:"containers"`
 	}
@@ -332,4 +398,40 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string, process strin
 
 	require.True(t, found, "%s process not found", process)
 	assert.True(t, populated, "no %s process had all data populated", process)
+}
+
+func assertAPIKeyStatus(collect *assert.CollectT, apiKey string, agentClient agentclient.Agent, coreAgent bool) {
+	// Assert that the status has the correct API key
+	statusMap := getAgentStatus(collect, agentClient)
+	endpoints := statusMap.ProcessAgentStatus.Expvars.Map.Endpoints
+	if coreAgent {
+		endpoints = statusMap.ProcessComponentStatus.Expvars.Map.Endpoints
+	}
+	found := false
+	for _, epKeys := range endpoints {
+		for _, key := range epKeys {
+			// Original key is obfuscated to the last 5 characters
+			if key == apiKey[len(apiKey)-5:] {
+				found = true
+				break
+			}
+		}
+	}
+	require.True(collect, found, "API key %s not found in endpoints %+v", apiKey, endpoints)
+}
+
+func assertLastPayloadAPIKey(collect *assert.CollectT, expectedAPIKey string, fakeIntakeClient *fakeintakeclient.Client) {
+	// Assert that the last received payload has the correct API key
+	lastAPIKey, err := fakeIntakeClient.GetLastProcessPayloadAPIKey()
+	require.NoError(collect, err)
+	assert.Equal(collect, expectedAPIKey, lastAPIKey)
+}
+
+func assertAllPayloadsAPIKeys(collect *assert.CollectT, expectedAPIKeys []string, fakeIntakeClient *fakeintakeclient.Client) {
+	// Assert that all received payloads have the expected API keys
+	payloadKeys, err := fakeIntakeClient.GetAllProcessPayloadAPIKeys()
+	require.NoError(collect, err)
+	for _, expectedAPIKey := range expectedAPIKeys {
+		assert.Contains(collect, payloadKeys, expectedAPIKey)
+	}
 }

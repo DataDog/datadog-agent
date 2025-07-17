@@ -23,11 +23,11 @@ jobs:
         # Use oldest and latest available ubuntu, macos and windows
         os:
           [
-            ubuntu-20.04,
+            ubuntu-22.04,
             ubuntu-latest,
             macos-13,
             macos-latest,
-            windows-2019,
+            windows-2022,
             windows-latest,
           ]
         # Run tests with both the agent's version and gohai's pinned version

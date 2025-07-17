@@ -8,10 +8,12 @@
 package k8s
 
 import (
+	"sort"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -24,8 +26,10 @@ func TestExtractStatefulSet(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 	testInt32 := int32(2)
 	tests := map[string]struct {
-		input    appsv1.StatefulSet
-		expected model.StatefulSet
+		input             appsv1.StatefulSet
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expected          model.StatefulSet
 	}{
 		"full sts": {
 			input: appsv1.StatefulSet{
@@ -72,7 +76,14 @@ func TestExtractStatefulSet(t *testing.T) {
 					Replicas:           2,
 					UpdatedReplicas:    2,
 				},
-			}, expected: model.StatefulSet{
+			},
+			labelsAsTags: map[string]string{
+				"label": "application",
+			},
+			annotationsAsTags: map[string]string{
+				"annotation": "annotation_key",
+			},
+			expected: model.StatefulSet{
 				Metadata: &model.Metadata{
 					Name:              "sts",
 					Namespace:         "namespace",
@@ -91,7 +102,11 @@ func TestExtractStatefulSet(t *testing.T) {
 						Message:            "123",
 					},
 				},
-				Tags: []string{"kube_condition_test:false"},
+				Tags: []string{
+					"kube_condition_test:false",
+					"application:foo",
+					"annotation_key:bar",
+				},
 				Spec: &model.StatefulSetSpec{
 					DesiredReplicas: 2,
 					UpdateStrategy:  "RollingUpdate",
@@ -144,7 +159,14 @@ func TestExtractStatefulSet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, &tc.expected, ExtractStatefulSet(&tc.input))
+			pctx := &processors.K8sProcessorContext{
+				LabelsAsTags:      tc.labelsAsTags,
+				AnnotationsAsTags: tc.annotationsAsTags,
+			}
+			actual := ExtractStatefulSet(pctx, &tc.input)
+			sort.Strings(actual.Tags)
+			sort.Strings(tc.expected.Tags)
+			assert.Equal(t, &tc.expected, actual)
 		})
 	}
 }

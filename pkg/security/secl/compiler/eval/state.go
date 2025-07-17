@@ -21,7 +21,7 @@ type State struct {
 	model       Model
 	field       Field
 	fieldValues map[Field][]FieldValue
-	macros      map[MacroID]*MacroEvaluator
+	macros      MacroEvaluatorGetter
 	regexpCache StateRegexpCache
 	registers   []Register
 }
@@ -52,14 +52,16 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 }
 
 // NewState returns a new State
-func NewState(model Model, field Field, macros map[MacroID]*MacroEvaluator) *State {
-	if macros == nil {
-		macros = make(map[MacroID]*MacroEvaluator)
-	}
+func NewState(model Model, field Field, macros MacroEvaluatorGetter) *State {
 	return &State{
 		field:       field,
 		macros:      macros,
 		model:       model,
 		fieldValues: make(map[Field][]FieldValue),
 	}
+}
+
+// MacroEvaluatorGetter is an interface to get a MacroEvaluator
+type MacroEvaluatorGetter interface {
+	GetMacroEvaluator(macroID string) (*MacroEvaluator, bool)
 }

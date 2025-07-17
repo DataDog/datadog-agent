@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type VMFakeintakeSuite struct {
@@ -126,7 +126,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake, !s.Env().Agent.FIPSEnabled)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
@@ -171,12 +171,17 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
-
 func (s *VMFakeintakeSuite) TestStatsForService() {
+	// Test both normal stats computes by agent, and client stats from tracer
+	s.testStatsForService(false)
+	s.testStatsForService(true)
+}
+
+func (s *VMFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
 	addSpanTags := "peer.hostname:foo,span.kind:producer"
 	expectPeerTag := "peer.hostname:foo"
 
@@ -187,14 +192,24 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{
+		transport:             s.transport,
+		addSpanTags:           addSpanTags,
+		enableClientSideStats: enableClientSideStats,
+	})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 		s.logJournal(false)
-	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
@@ -288,6 +303,54 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+}
+
+func (s *VMFakeintakeSuite) TestProcessTagsHeaderTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	traceWithProcessTagsWithHeader(s.Env().RemoteHost, "binary:generator", "test-service")
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+}
+
+func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	traceWithProcessTags(s.Env().RemoteHost, "binary:generator", "test-service")
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testProcessTraces(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testStatsHaveProcessTags(c, s.Env().FakeIntake, "binary:generator")
+		s.logJournal(false)
+	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
@@ -419,7 +482,7 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 
 	s.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewSecretClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(s.T(), s.Env().RemoteHost, rootDir)
 	secretClient.SetSecret("api_key", apiKey1)
 
 	extraconfig := fmt.Sprintf(`
@@ -441,7 +504,7 @@ agent_ipc:
 		vmProvisionerOpts(
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
-				secretsutils.WithUnixSecretSetupScript(secretResolverPath, true),
+				secretsutils.WithUnixSetupScript(secretResolverPath, true),
 				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 			),
 		)...),

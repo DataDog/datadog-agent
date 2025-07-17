@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,15 +22,13 @@ import (
 
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
+	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
-	ImageTags      []string
 	IsPattern      bool
 	File           *model.FileEvent
 	GenerationType NodeGenerationType
-	FirstSeen      time.Time
-
-	Open *OpenNode
+	Open           *OpenNode
 
 	Children map[string]*FileNode
 }
@@ -54,8 +53,9 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
 	}
-	if imageTag != "" {
-		fan.ImageTags = []string{imageTag}
+	fan.NodeBase = NewNodeBase()
+	if event != nil {
+		fan.AppendImageTag(imageTag, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
@@ -67,31 +67,47 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	return fan
 }
 
-func (fn *FileNode) getNodeLabel() string {
-	label := fn.Name
-	if fn.Open != nil {
-		label += " [open]"
+func (fn *FileNode) getNodeLabel(prefix string) string {
+	var label string
+	if prefix == "" {
+		label += tableHeader
+		label += "<TR>"
+		label += "<TD>Events</TD>"
+		label += "<TD>Hash count</TD>"
+		label += "<TD>File</TD>"
+		label += "<TD>Package</TD>"
+		label += "</TR>"
 	}
-	if fn.File != nil {
-		if len(fn.File.PkgName) != 0 {
-			label += fmt.Sprintf("|%s:%s}", fn.File.PkgName, fn.File.PkgVersion)
-		}
-		// add hashes
-		if len(fn.File.Hashes) > 0 {
-			label += fmt.Sprintf("|%v", strings.Join(fn.File.Hashes, "|"))
-		} else {
-			label += fmt.Sprintf("|(%s)", fn.File.HashState)
-		}
+	label += fn.buildNodeRow(prefix)
+	for _, child := range fn.Children {
+		label += child.getNodeLabel(prefix + "/" + fn.Name)
+	}
+	if prefix == "" {
+		label += "</TABLE>>"
 	}
 	return label
+}
+
+func (fn *FileNode) buildNodeRow(prefix string) string {
+	var out string
+	if fn.Open != nil && fn.File != nil {
+		var pkg string
+		if len(fn.File.PkgName) != 0 {
+			pkg = fmt.Sprintf("%s:%s", fn.File.PkgName, fn.File.PkgVersion)
+		}
+		out += "<TR>"
+		out += "<TD>open</TD>"
+		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
+		out += "<TD ALIGN=\"LEFT\">" + fmt.Sprintf("%s/%s", prefix, fn.Name) + "</TD>"
+		out += "<TD>" + pkg + "</TD>"
+		out += "</TR>"
+	}
+	return out
 }
 
 func (fn *FileNode) enrichFromEvent(event *model.Event) {
 	if event == nil {
 		return
-	}
-	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = event.ResolveEventTime()
 	}
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)
@@ -148,7 +164,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.ImageTags, _ = AppendIfNotPresent(currentFn.ImageTags, imageTag)
+			currentFn.AppendImageTag(imageTag, event.ResolveEventTime())
 			continue
 		}
 
@@ -170,22 +186,21 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 	return newEntry
 }
 
-func (fn *FileNode) tagAllNodes(imageTag string) {
-	fn.ImageTags, _ = AppendIfNotPresent(fn.ImageTags, imageTag)
+func (fn *FileNode) tagAllNodes(imageTag string, timestamp time.Time) {
+	fn.AppendImageTag(imageTag, timestamp)
 	for _, child := range fn.Children {
-		child.tagAllNodes(imageTag)
+		child.tagAllNodes(imageTag, timestamp)
 	}
 }
 
 func (fn *FileNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(fn.ImageTags, imageTag)
-	if !removed {
+	if !fn.HasImageTag(imageTag) {
 		return false
 	}
-	if len(imageTags) == 0 {
+	evicted := fn.EvictImageTag(imageTag)
+	if evicted {
 		return true
 	}
-	fn.ImageTags = imageTags
 	for filename, child := range fn.Children {
 		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
 			delete(fn.Children, filename)

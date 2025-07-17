@@ -18,14 +18,12 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,10 +55,11 @@ type Tailer struct {
 	// is called once for each log message.
 	tagProvider tag.Provider
 	tagger      tagger.Component
+	registry    auditor.Registry
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool, tagger tagger.Component) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool, tagger tagger.Component, registry auditor.Registry) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
 		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
 		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
@@ -69,15 +68,16 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 	}
 
 	return &Tailer{
-		decoder:           decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:           decoder.NewNoopDecoder(),
 		source:            source,
 		outputChan:        outputChan,
 		journal:           journal,
 		stop:              make(chan struct{}, 1),
 		done:              make(chan struct{}, 1),
 		processRawMessage: processRawMessage,
-		tagProvider:       tag.NewLocalProvider([]string{}),
+		tagProvider:       tag.NewLocalProvider(source.Config.Tags),
 		tagger:            tagger,
+		registry:          registry,
 	}
 }
 
@@ -93,6 +93,7 @@ func (t *Tailer) Start(cursor string) error {
 	}
 	t.source.Status.Success()
 	t.source.AddInput(t.Identifier())
+	t.registry.SetTailed(t.Identifier(), true)
 	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 
 	go t.forwardMessages()
@@ -105,6 +106,8 @@ func (t *Tailer) Start(cursor string) error {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing journal ", t.journalPath(), " with id: ", t.Identifier())
+
+	t.registry.SetTailed(t.Identifier(), false)
 
 	// stop the tail() routine
 	t.stop <- struct{}{}
@@ -193,8 +196,15 @@ func (t *Tailer) setup() error {
 }
 
 func (t *Tailer) forwardMessages() {
+	defer func() {
+		// the decoder has successfully been flushed
+		close(t.done)
+	}()
+
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
+			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
+			// The decodedMessage already has the proper origin with tags set
 			t.outputChan <- decodedMessage
 		}
 	}
@@ -250,8 +260,8 @@ func (t *Tailer) tail() {
 	defer func() {
 		t.journal.Close()
 		t.decoder.Stop()
-		t.done <- struct{}{}
 	}()
+
 	for {
 		select {
 		case <-t.stop:
@@ -404,6 +414,7 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
 	origin.SetTags(append(tags, t.tagProvider.GetTags()...))
+
 	return origin
 }
 

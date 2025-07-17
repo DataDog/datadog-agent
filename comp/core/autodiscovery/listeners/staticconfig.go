@@ -6,11 +6,9 @@
 package listeners
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // StaticConfigListener implements a ServiceListener based on static configuration parameters
@@ -32,8 +30,6 @@ func NewStaticConfigListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on the config
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (l *StaticConfigListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
@@ -54,6 +50,10 @@ func (l *StaticConfigListener) createServices() {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
 		}
 	}
+
+	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
+		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
+	}
 }
 
 // Equal returns whether the two StaticConfigService are equal
@@ -72,17 +72,17 @@ func (s *StaticConfigService) GetServiceID() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (s *StaticConfigService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{s.adIdentifier}, nil
+func (s *StaticConfigService) GetADIdentifiers() []string {
+	return []string{s.adIdentifier}
 }
 
 // GetHosts is not supported
-func (s *StaticConfigService) GetHosts(context.Context) (map[string]string, error) {
+func (s *StaticConfigService) GetHosts() (map[string]string, error) {
 	return nil, ErrNotSupported
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *StaticConfigService) GetPorts() ([]ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
@@ -98,36 +98,30 @@ func (s *StaticConfigService) GetTagsWithCardinality(_ string) ([]string, error)
 
 // GetPid inspect the container and return its pid
 // Not relevant in this listener
-func (s *StaticConfigService) GetPid(context.Context) (int, error) {
+func (s *StaticConfigService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetHostname(context.Context) (string, error) {
+func (s *StaticConfigService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady is always true
-func (s *StaticConfigService) IsReady(context.Context) bool {
+func (s *StaticConfigService) IsReady() bool {
 	return true
 }
 
 // HasFilter is not supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (s *StaticConfigService) HasFilter(_ containers.FilterType) bool {
+func (s *StaticConfigService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) FilterTemplates(_ map[string]integration.Config) {
 }

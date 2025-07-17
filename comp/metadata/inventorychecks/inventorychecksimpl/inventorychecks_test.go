@@ -17,10 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
@@ -51,6 +52,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
+			hostnameimpl.MockModule(),
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -153,7 +155,7 @@ func TestGetPayload(t *testing.T) {
 		// Register an error
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
-		fakeTagger := mock.SetupFakeTagger(t)
+		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
 			t,
@@ -249,7 +251,7 @@ func TestGetPayload(t *testing.T) {
 				assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
 				assert.Equal(t, "awesome_cache", actualSource[0]["service"])
 				assert.Equal(t, "redis", actualSource[0]["source"])
-				assert.Equal(t, []string{"env:prod"}, actualSource[0]["tags"])
+				assert.Equal(t, logConfig.StringSliceField{"env:prod"}, actualSource[0]["tags"])
 			} else {
 				assert.Len(t, p.LogsMetadata, 0)
 			}

@@ -225,7 +225,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				name:     "my-pod",
 				ns:       "my-namespace",
 				userInfo: &authenticationv1.UserInfo{},
-				include:  []string{"kube_namespae:my-namespace"},
+				include:  []string{"kube_namespace:my-namespace"},
 				apiClientAnnotations: map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				},
@@ -500,7 +500,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				if tt.args.exec != nil {
 					apiClient.containerName = tt.args.exec.Container
 				}
-				injected, err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, apiClient)
+				injected, err := ci.injectCWSCommandInstrumentationMeasured(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, apiClient)
 
 				if tt.wantErr {
 					assert.False(t, injected)

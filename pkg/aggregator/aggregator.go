@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -160,7 +161,8 @@ var (
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
-	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
+	tlmDogstatsdBlockedMetrics = telemetry.NewSimpleCounter("aggregator", "dogstatsd_blocked_metrics", "How many metrics were blocked in the time samplers")
+	tlmChecksContexts          = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
@@ -253,6 +255,7 @@ type BufferedAggregator struct {
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
 	haAgent                haagent.Component
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -307,6 +310,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	// configID can only change on agent restart, and will only change if the configuration applied by Fleet Automation changes
+	configID := pkgconfigsetup.Datadog().GetString("config_id")
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -328,6 +334,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
 		haAgent:                     haAgent,
+		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -603,15 +610,20 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
+		Tags:           tagset.CompositeTagsFromSlice(slices.Concat(agg.tags(true), agg.configIDTags())),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
 
 	if agg.haAgent.Enabled() {
-		haAgentTags := append(agg.tags(false), "agent_state:"+string(agg.haAgent.GetState()))
-		// Send along a metric to show if HA Agent is running with agent_state tag.
+		haAgentTags := slices.Concat(agg.tags(false),
+			agg.configIDTags(),
+			[]string{"ha_agent_state:" + string(agg.haAgent.GetState())},
+		)
+		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
+		// datadog.agent.ha_agent.running is currently used in dashboard to monitor HA Agent state (active/standby)
+		// This metric is not intended to be used as replacement for datadog.agent.running
 		series.Append(&metrics.Serie{
 			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
 			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
@@ -853,13 +865,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(agg.tagger.ChecksCardinality())
+	tags, err = agg.globalTags(types.ChecksConfigCardinality)
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(agg.tagger.ChecksCardinality())
+		agentTags, err := agg.agentTags(types.ChecksConfigCardinality)
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
@@ -882,6 +894,16 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		tags = []string{}
 	}
 	return tags
+}
+
+// configIDTags returns the config_id tag for agent telemetry metrics.
+// the result is returned as list of string to ease processing.
+func (agg *BufferedAggregator) configIDTags() []string {
+	var tag []string
+	if agg.configID != "" {
+		tag = append(tag, "config_id:"+agg.configID)
+	}
+	return tag
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {

@@ -1,0 +1,31 @@
+---
+name: Warn Failed Dependabot PR
+
+on:
+  issue_comment:
+    types: 
+      - created
+      - edited
+
+jobs:
+  check_comment:
+    if: github.event.comment.user.id == 'dd-devflow[bot]' && github.event.issue.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    environment:
+      name: dependabot
+    steps:
+      - name: Check for error in comment
+        id: check-comment
+        env:
+          PR_BODY: ${{ github.event.comment.body }}
+        run: |
+              if echo "$PR_BODY" | grep -iE "(blocked|cancelled|conflicts|draft|error|failed|failing|timeout|unqueued|updated)"; then
+                  echo "not_merged=true" >> $GITHUB_OUTPUT
+              else
+                  echo "not_merged=false" >> $GITHUB_OUTPUT
+              fi
+      - name: Contact agent-devx
+        if: ${{ steps.check-comment.outputs.not_merged == 'true' }}
+        run: |
+          message="Hi!\nThis dependabot PR ${{github.event.issue.html_url}} was not merged.\nPlease have a look."
+          curl -X POST -H "Content-Type: application/json" --data '{"message": "'"$message"'"}' ${{ secrets.SLACK_DEPENDABOT_WEBHOOK }}

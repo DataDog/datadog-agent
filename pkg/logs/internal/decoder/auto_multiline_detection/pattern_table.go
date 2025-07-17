@@ -8,6 +8,7 @@ package automultilinedetection
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
@@ -121,7 +122,7 @@ func (p *PatternTable) evictLRU() {
 			mini = i
 		}
 	}
-	p.table = append(p.table[:mini], p.table[mini+1:]...)
+	p.table = slices.Delete(p.table, mini, mini+1)
 }
 
 // DumpTable returns a slice of DiagnosticRow structs that represent the current state of the table.

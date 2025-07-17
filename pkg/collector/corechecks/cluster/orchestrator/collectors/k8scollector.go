@@ -8,8 +8,6 @@
 package collectors
 
 import (
-	"fmt"
-
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -55,6 +53,7 @@ func (cv *CollectorVersions) CollectorForVersion(version string) (K8sCollector, 
 type OrchestratorInformerFactory struct {
 	InformerFactory              informers.SharedInformerFactory
 	UnassignedPodInformerFactory informers.SharedInformerFactory
+	TerminatedPodInformerFactory informers.SharedInformerFactory
 	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
 	CRDInformerFactory           externalversions.SharedInformerFactory
 	VPAInformerFactory           vpai.SharedInformerFactory
@@ -64,13 +63,20 @@ type OrchestratorInformerFactory struct {
 func NewK8sProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.K8sProcessorContext {
 	return &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:              rcfg.Config,
-			MsgGroupID:       rcfg.MsgGroupRef.Inc(),
-			NodeType:         metadata.NodeType,
-			ManifestProducer: true,
-			ClusterID:        rcfg.ClusterID,
+			Cfg:                 rcfg.Config,
+			MsgGroupID:          rcfg.MsgGroupRef.Inc(),
+			NodeType:            metadata.NodeType,
+			ManifestProducer:    true,
+			ClusterID:           rcfg.ClusterID,
+			Kind:                metadata.Kind,
+			APIVersion:          metadata.Version,
+			CollectorTags:       metadata.CollectorTags(),
+			TerminatedResources: rcfg.TerminatedResources,
+			AgentVersion:        rcfg.AgentVersion,
 		},
-		APIClient:          rcfg.APIClient,
-		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
+		APIClient:         rcfg.APIClient,
+		LabelsAsTags:      metadata.LabelsAsTags,
+		AnnotationsAsTags: metadata.AnnotationsAsTags,
+		HostName:          rcfg.HostName,
 	}
 }

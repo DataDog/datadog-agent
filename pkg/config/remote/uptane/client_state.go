@@ -112,7 +112,7 @@ func (c *Client) State() (State, error) {
 	}
 
 	for metaName, content := range metas {
-		version, err := metaVersion(content)
+		version, err := unsafeMetaVersion(content)
 		if err == nil {
 			s.ConfigState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}
@@ -124,7 +124,7 @@ func (c *Client) State() (State, error) {
 	}
 
 	for metaName, content := range directorMetas {
-		version, err := metaVersion(content)
+		version, err := unsafeMetaVersion(content)
 		if err == nil {
 			s.DirectorState[metaName] = MetaState{Version: version, Hash: metaHash(content)}
 		}

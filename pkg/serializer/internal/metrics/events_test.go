@@ -16,11 +16,10 @@ import (
 	"strconv"
 	"testing"
 
-	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -28,45 +27,6 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
-
-func TestMarshal(t *testing.T) {
-	events := Events{
-		EventsArr: []*event.Event{{
-			Title:          "test title",
-			Text:           "test text",
-			Ts:             12345,
-			Priority:       event.PriorityNormal,
-			Host:           "test.localhost",
-			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      event.AlertTypeError,
-			AggregationKey: "test aggregation",
-			SourceTypeName: "test source",
-			OriginInfo:     taggertypes.OriginInfo{},
-		}},
-		Hostname: "",
-	}
-
-	payload, err := events.Marshal()
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-
-	newPayload := &agentpayload.EventsPayload{}
-	err = proto.Unmarshal(payload, newPayload)
-	assert.Nil(t, err)
-
-	require.Len(t, newPayload.Events, 1)
-	assert.Equal(t, newPayload.Events[0].Title, "test title")
-	assert.Equal(t, newPayload.Events[0].Text, "test text")
-	assert.Equal(t, newPayload.Events[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Events[0].Priority, string(event.PriorityNormal))
-	assert.Equal(t, newPayload.Events[0].Host, "test.localhost")
-	require.Len(t, newPayload.Events[0].Tags, 2)
-	assert.Equal(t, newPayload.Events[0].Tags[0], "tag1")
-	assert.Equal(t, newPayload.Events[0].Tags[1], "tag2:yes")
-	assert.Equal(t, newPayload.Events[0].AlertType, string(event.AlertTypeError))
-	assert.Equal(t, newPayload.Events[0].AggregationKey, "test aggregation")
-	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
-}
 
 func TestMarshalJSON(t *testing.T) {
 	events := Events{
@@ -372,7 +332,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
 		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -387,7 +347,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
 		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -405,7 +365,7 @@ func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 		cfg := configmock.New(b)
 
 		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
 
 		events := Events{}
 		// Half of events have the same source type

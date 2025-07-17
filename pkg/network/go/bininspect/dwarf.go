@@ -9,11 +9,14 @@ package bininspect
 
 import (
 	"debug/dwarf"
-	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
@@ -30,7 +33,7 @@ type dwarfInspector struct {
 // It also returns some additional relevant metadata about the given file.
 // It is using the DWARF debug data to obtain information, and therefore should be run on elf files that contain debug
 // data, like our test binaries.
-func InspectWithDWARF(elfFile *safeelf.File, functions []string, structFields []FieldIdentifier) (*Result, error) {
+func InspectWithDWARF(elfFile *safeelf.File, dwarfData *dwarf.Data, functions []string, structFields []FieldIdentifier) (*Result, error) {
 	if elfFile == nil {
 		return nil, ErrNilElf
 	}
@@ -39,12 +42,6 @@ func InspectWithDWARF(elfFile *safeelf.File, functions []string, structFields []
 	arch, err := GetArchitecture(elfFile)
 	if err != nil {
 		return nil, err
-	}
-
-	dwarfData, ok := HasDwarfInfo(elfFile)
-
-	if !ok || dwarfData == nil {
-		return nil, errors.New("expected dwarf data")
 	}
 
 	inspector := dwarfInspector{
@@ -98,12 +95,16 @@ func (d dwarfInspector) findFunctionsUsingDWARF(functions []string) (map[string]
 	for functionName, entry := range functionEntries {
 		metadata, err := d.inspectSingleFunctionUsingDWARF(entry)
 		if err != nil {
-			return nil, err
+			log.Errorf("failed to inspect function %s: %s", functionName, err)
+			continue
 		}
 
 		functionMetadataMap[functionName] = metadata
 	}
 
+	if len(functionMetadataMap) == 0 && len(functions) > 0 {
+		return nil, fmt.Errorf("failed to inspect all functions: %v", functions)
+	}
 	return functionMetadataMap, nil
 }
 
@@ -138,7 +139,7 @@ func (d dwarfInspector) findFunctionDebugInfoEntries(functions []string) (map[st
 	}
 
 	if len(functionsToSearch) != 0 {
-		return nil, errors.New("not all functions found")
+		return nil, fmt.Errorf("not all functions found: %s", strings.Join(slices.Collect(maps.Keys(functionsToSearch)), ","))
 	}
 
 	return functionEntries, nil
@@ -272,9 +273,13 @@ func (d dwarfInspector) findStructOffsets(structFields []FieldIdentifier) (map[F
 	for _, fieldID := range structFields {
 		offset, err := typeReader.FindStructFieldOffset(fieldID.StructName, fieldID.FieldName)
 		if err != nil {
-			return nil, fmt.Errorf("could not find offset of \"%s.%s\": %w", fieldID.StructName, fieldID.FieldName, err)
+			log.Errorf("could not find offset of \"%s.%s\": %s", fieldID.StructName, fieldID.FieldName, err)
+			continue
 		}
 		structOffsets[fieldID] = offset
+	}
+	if len(structOffsets) == 0 && len(structFields) > 0 {
+		return nil, fmt.Errorf("failed to find offsets for all struct fields: %v", structFields)
 	}
 	return structOffsets, nil
 }
@@ -308,7 +313,10 @@ func (d dwarfInspector) getLoclistEntry(offset int64, pc uint64) (*loclist.Entry
 
 	var loclist loclist.Reader = loclist2
 	var debugAddr *godwarf.DebugAddr
-	if compileUnit != nil && compileUnit.Version >= 5 && loclist5 != nil {
+
+	// Use DWARF5 if available and either version >= 5 or fallback needed (Go 1.25rc1)
+	if loclist5 != nil && compileUnit != nil &&
+		(compileUnit.Version >= 5 || (loclist2.Empty() && !loclist5.Empty())) {
 		loclist = loclist5
 		if addrBase, ok := compileUnit.Entry.Val(dwarf.AttrAddrBase).(int64); ok {
 			debugAddr = debugAddrSection.GetSubsection(uint64(addrBase))

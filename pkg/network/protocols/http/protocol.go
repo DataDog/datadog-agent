@@ -35,6 +35,7 @@ type protocol struct {
 	statkeeper     *StatKeeper
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	eventsConsumer *events.Consumer[EbpfEvent]
+	mgr            *manager.Manager
 }
 
 const (
@@ -43,6 +44,8 @@ const (
 	tlsProcessTailCall     = "uprobe__http_process"
 	tlsTerminationTailCall = "uprobe__http_termination"
 	eventStream            = "http"
+	netifProbe             = "tracepoint__net__netif_receive_skb_http"
+	netifProbe414          = "netif_receive_skb_core_http_4_14"
 )
 
 // Spec is the protocol spec for the HTTP protocol.
@@ -63,6 +66,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -91,7 +109,7 @@ var Spec = &protocols.ProtocolSpec{
 }
 
 // newHTTPProtocol returns a new HTTP protocol.
-func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newHTTPProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
 	}
@@ -110,6 +128,7 @@ func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	return &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
+		mgr:       mgr,
 	}, nil
 }
 
@@ -123,20 +142,28 @@ func (p *protocol) Name() string {
 // - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http event stream with the manager and its options.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		"http",
-		mgr,
+		p.mgr,
 		p.processHTTP,
 	)
 	if err != nil {
@@ -149,14 +176,14 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
+	p.setupMapCleaner(p.mgr)
 
 	return nil
 }
 
-func (p *protocol) Stop(_ *manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
@@ -195,14 +222,14 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting http_in_flight map: %s", err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](httpMap, 1024, inFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](httpMap, protocols.DefaultMapCleanerBatchSize, inFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
@@ -214,15 +241,21 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	p.mapCleaner = mapCleaner
 }
 
-// GetStats returns a map of HTTP stats stored in the following format:
+// GetStats returns a map of HTTP stats and a callback to clean resources.
+// The format of HTTP stats:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.HTTP,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.HTTP,
+			Stats: stats,
+		}, func() {
+			for _, elem := range stats {
+				elem.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as http module is supported by all modes.

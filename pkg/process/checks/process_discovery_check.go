@@ -160,10 +160,7 @@ func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*mod
 	chunks := make([][]*model.ProcessDiscovery, 0, chunkCount)
 
 	for i := 0; i < len(procs); i += size {
-		end := i + size
-		if end > len(procs) {
-			end = len(procs)
-		}
+		end := min(i+size, len(procs))
 		chunks = append(chunks, procs[i:end])
 	}
 

@@ -20,6 +20,8 @@ import (
 
 // CRHandlers implements the Handlers interface for Kubernetes CronJobs.
 type CRHandlers struct {
+	// IsGenericResource is a flag to indicate if the resource is a generic resource.
+	IsGenericResource bool
 	common.BaseHandlers
 }
 
@@ -42,9 +44,14 @@ func (cr *CRHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 func (cr *CRHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	pctx := ctx.(*processors.K8sProcessorContext)
 	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
+	if cr.IsGenericResource {
+		return cm
+	}
+
 	return &model.CollectorManifestCR{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		// CRs are manifests, CollectorTags should be added to the inner Manifests, not the outer (embedded) CollectorManifests
+		Tags: pctx.Cfg.ExtraTags,
 	}
 }
 
@@ -64,7 +71,7 @@ func (cr *CRHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopyObject())
 	}
 
 	return resources
@@ -84,15 +91,27 @@ func (cr *CRHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 	return resource.(*unstructured.Unstructured).GetResourceVersion()
 }
 
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	return nil
+}
+
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*unstructured.Unstructured)
 	annotations := r.GetAnnotations()
 	labels := r.GetLabels()
 	redact.RemoveSensitiveAnnotationsAndLabels(annotations, labels)
 	r.SetAnnotations(annotations)
 	r.SetLabels(labels)
+
+	if pctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubCRManifest(r, pctx.Cfg.Scrubber)
+	}
 }

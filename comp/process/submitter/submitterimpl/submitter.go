@@ -11,10 +11,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
@@ -40,10 +42,12 @@ type dependencies struct {
 	Lc  fx.Lifecycle
 	Log log.Component
 
-	Config     config.Component
-	Checks     []types.CheckComponent `group:"check"`
-	Forwarders forwarders.Component
-	HostInfo   hostinfo.Component
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component
+	Checks         []types.CheckComponent `group:"check"`
+	Forwarders     forwarders.Component
+	HostInfo       hostinfo.Component
+	Statsd         statsd.ClientInterface
 }
 
 type result struct {
@@ -54,7 +58,7 @@ type result struct {
 }
 
 func newSubmitter(deps dependencies) (result, error) {
-	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.HostInfo.Object().HostName)
+	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, deps.HostInfo.Object().HostName, deps.SysProbeConfig)
 	if err != nil {
 		return result{}, err
 	}

@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -275,14 +276,11 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	case deploymentKind:
 		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
-		var apiGroup string
-		apiVersionParts := strings.Split(involvedObject.APIVersion, "/")
-		if len(apiVersionParts) == 2 {
-			apiGroup = apiVersionParts[0]
-		} else {
-			apiGroup = ""
+		apiGroup := apiserver.GetAPIGroup(involvedObject.APIVersion)
+		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, apiGroup)
+		if err != nil {
+			log.Debugf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
 		}
-		resourceType := strings.ToLower(involvedObject.Kind) + "s"
 		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name)))
 	}
 
@@ -449,10 +447,8 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 			return true
 		}
 
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
+		if slices.Contains(f.Reasons, ev.Reason) {
+			return true
 		}
 	}
 

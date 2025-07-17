@@ -33,6 +33,10 @@ func (l language) defaultLibInfo(registry, ctrName string) libInfo {
 }
 
 func (l language) libImageName(registry, tag string) string {
+	if tag == defaultVersionMagicString {
+		tag = l.defaultLibVersion()
+	}
+
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
 }
 
@@ -64,9 +68,6 @@ func (l language) libVersionAnnotationExtractor(registry string) annotationExtra
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyFormat, l),
 		do: func(version string) (libInfo, error) {
-			if version == defaultVersionMagicString {
-				version = l.defaultLibVersion()
-			}
 			return l.libInfo("", l.libImageName(registry, version)), nil
 		},
 	}
@@ -85,9 +86,6 @@ func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotat
 	return annotationExtractor[libInfo]{
 		key: fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr, l),
 		do: func(version string) (libInfo, error) {
-			if version == defaultVersionMagicString {
-				version = l.defaultLibVersion()
-			}
 			return l.libInfo(ctr, l.libImageName(registry, version)), nil
 		},
 	}
@@ -111,12 +109,17 @@ var supportedLanguages = []language{
 	php, // PHP only works with injection v2, no environment variables are set in any case
 }
 
-func (l language) isSupported() bool {
-	return slices.Contains(supportedLanguages, l)
+func defaultSupportedLanguagesMap() map[language]bool {
+	m := map[language]bool{}
+	for _, l := range supportedLanguages {
+		m[l] = true
+	}
+
+	return m
 }
 
-func (l language) isEnabledByDefault() bool {
-	return l != "php"
+func (l language) isSupported() bool {
+	return slices.Contains(supportedLanguages, l)
 }
 
 // defaultVersionMagicString is a magic string that indicates that the user
@@ -130,7 +133,7 @@ const defaultVersionMagicString = "default"
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
+	python: "v3", // https://datadoghq.atlassian.net/browse/INPLAT-598
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128

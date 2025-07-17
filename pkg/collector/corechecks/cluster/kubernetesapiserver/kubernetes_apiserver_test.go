@@ -14,7 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -83,7 +83,7 @@ func TestParseComponentStatus(t *testing.T) {
 		Items: nil,
 	}
 
-	tagger := mock.SetupFakeTagger(t)
+	tagger := taggerfxmock.SetupFakeTagger(t)
 
 	// FIXME: use the factory instead
 	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)

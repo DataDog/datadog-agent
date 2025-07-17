@@ -36,10 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/cache"
 )
 
-var (
-	fakeInodeMSW = uint64(0xdeadc001)
-)
-
 type counterEntry struct {
 	resolutionType string
 	resolution     string
@@ -124,11 +120,6 @@ const (
 
 func allERPCRet() []eRPCRet {
 	return []eRPCRet{eRPCok, eRPCCacheMiss, eRPCBufferSize, eRPCWritePageFault, eRPCTailCallError, eRPCReadPageFault, eRPCUnknownError}
-}
-
-// IsFakeInode returns whether the given inode is a fake inode
-func IsFakeInode(inode uint64) bool {
-	return inode>>32 == fakeInodeMSW
 }
 
 // SendStats sends the dentry resolver metrics
@@ -251,7 +242,7 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 
 	name := pathLeaf.GetName()
 
-	if !IsFakeInode(pathKey.Inode) {
+	if !model.IsFakeInode(pathKey.Inode) {
 		cacheEntry := newPathEntry(pathLeaf.Parent, name)
 		dr.cacheInode(pathKey, cacheEntry)
 	}
@@ -380,7 +371,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		}
 
 		// do not cache fake path keys in the case of rename events
-		if !IsFakeInode(pathKey.Inode) && cache {
+		if !model.IsFakeInode(pathKey.Inode) && cache {
 			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
 		}
@@ -546,7 +537,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		dr.filenameParts = append(dr.filenameParts, segment)
 		i += len(segment) + 1
 
-		if !IsFakeInode(pathKey.Inode) && cache {
+		if !model.IsFakeInode(pathKey.Inode) && cache {
 			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, segment)
 		}

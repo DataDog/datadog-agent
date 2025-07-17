@@ -6,6 +6,17 @@
 // Package tags contains the list of tags that are added by the tagger
 package tags
 
+// *************************************************************************************
+// *                               ⚠️ IMPORTANT WARNING ⚠️
+// *
+// *  When adding, modifying, or removing ANY tag constant in this file, you MUST
+// *  also update the corresponding public documentation at the following locations:
+// *
+// *  # Kubernetes: https://docs.datadoghq.com/containers/kubernetes/tag
+// *  # ECS:        https://docs.datadoghq.com/containers/amazon_ecs/tags/
+// *  # Docker:     https://docs.datadoghq.com/containers/docker/tags/
+// *************************************************************************************
+
 const (
 	// STANDARD TAGS
 
@@ -20,6 +31,10 @@ const (
 
 	// ClusterName is the tag for the cluster name
 	ClusterName = "cluster_name"
+	// KubeClusterName is the tag for the Kubernetes cluster name
+	KubeClusterName = "kube_cluster_name"
+	// OrchClusterID is the tag for the orchestrator cluster ID
+	OrchClusterID = "orch_cluster_id"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
@@ -88,6 +103,8 @@ const (
 	KubeAppPartOf = "kube_app_part_of"
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
+	// KubeAutoscalerKind is the tag reflecting if a pod is managed by an Autoscaler
+	KubeAutoscalerKind = "kube_autoscaler_kind"
 
 	// GPU related tags
 
@@ -102,6 +119,9 @@ const (
 
 	// KubeGPUUUID is the tag for the Kubernetes Resource GPU UUID
 	KubeGPUUUID = "gpu_uuid"
+
+	// GPUDriverVersion is the tag for the GPU driver version
+	GPUDriverVersion = "gpu_driver_version"
 
 	// OpenshiftDeploymentConfig is the tag for the OpenShift deployment config name
 	OpenshiftDeploymentConfig = "oshift_deployment_config"

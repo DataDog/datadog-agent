@@ -32,6 +32,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,7 +78,8 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
-func NewTracerOffsetGuesser() (OffsetGuesser, error) { //nolint:revive // TODO
+// NewTracerOffsetGuesser creates a new OffsetGuesser
+func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{
@@ -93,7 +95,7 @@ func NewTracerOffsetGuesser() (OffsetGuesser, error) { //nolint:revive // TODO
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470)},
 				{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
-				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
+				{ProbeIdentificationPair: idPair(probes.NetDevQueueTracepoint)},
 			},
 		},
 	}, nil
@@ -156,12 +158,12 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
-	netns, err := kernel.GetCurrentIno()
+	netns, err := netns.GetCurrentIno()
 	if err != nil {
 		return nil, err
 	}
 
-	tcpInfo, err := TcpGetInfo(conn)
+	tcpInfo, err := TCPGetInfo(conn)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +218,7 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 		return nil, fmt.Errorf("could not kernel version: %w", err)
 	}
 	if kv >= kernel.VersionCode(4, 7, 0) {
-		enableProbe(p, probes.NetDevQueue)
+		enableProbe(p, probes.NetDevQueueTracepoint)
 	}
 
 	if c.CollectTCPv6Conns || c.CollectUDPv6Conns {
@@ -286,7 +288,8 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 // IPv6LinkLocalPrefix is only exposed for testing purposes
 var IPv6LinkLocalPrefix = "fe80::"
 
-func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) { //nolint:revive // TODO
+// GetIPv6LinkLocalAddress returns the link local addresses
+func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -1017,7 +1020,7 @@ func (e *tracerEventGenerator) Generate(status GuessWhat, expected *fieldValues)
 	}
 
 	// This triggers the KProbe handler attached to `tcp_getsockopt`
-	_, err := TcpGetInfo(e.conn)
+	_, err := TCPGetInfo(e.conn)
 	return err
 }
 
@@ -1080,12 +1083,12 @@ func acceptHandler(l net.Listener) {
 	}
 }
 
-// TcpGetInfo obtains information from a TCP socket via GETSOCKOPT(2) system call.
+// TCPGetInfo obtains information from a TCP socket via GETSOCKOPT(2) system call.
 // The motivation for using this is twofold: 1) it is a way of triggering the kprobe
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) { //nolint:revive // TODO
+func TCPGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		return nil, fmt.Errorf("not a TCPConn")
@@ -1149,7 +1152,8 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
-var TracerOffsets tracerOffsets //nolint:revive // TODO
+// TracerOffsets is the global tracer offsets
+var TracerOffsets tracerOffsets
 
 type tracerOffsets struct {
 	offsets []manager.ConstantEditor

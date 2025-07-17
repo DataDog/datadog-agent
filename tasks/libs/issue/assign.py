@@ -69,7 +69,7 @@ def guess_from_keywords(issue):
 def simple_match(word):
     pattern_matching = {
         "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
-        "containers": [
+        "container-integrations": [
             'container',
             'pod',
             'kubernetes',
@@ -81,13 +81,15 @@ def simple_match(word):
             'kubelet',
             'helm',
         ],
-        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
+        "agent-log-pipelines": ['logs', 'log-ag'],
+        "agent-metric-pipelines": ['metric', 'statsd'],
         "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
         "remote-config": ['installer', 'oci'],
         "agent-cspm": ['cspm'],
         "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
         "agent-security": ['security', 'vuln', 'security-agent'],
-        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
+        "agent-runtimes": ['fips', 'payload', 'jmx', 'intake'],
+        "agent-configuration": ['inventory', 'gohai'],
         "fleet": ['fleet', 'fleet-automation'],
         "opentelemetry": ['otel', 'opentelemetry'],
         "windows-agent": ['windows', 'sys32', 'powershell'],
@@ -133,12 +135,11 @@ def team_to_label(team):
     dico = {
         'apm-core-reliability-and-performance': "agent-apm",
         'universal-service-monitoring': "usm",
-        'software-integrity-and-trust': "agent-security",
+        'sdlc-security': "agent-security",
         'agent-all': "triage",
         'telemetry-and-analytics': "agent-apm",
         'fleet': "fleet-automation",
         'debugger': "dynamic-intrumentation",
-        'container-integrations': "containers",
         'agent-e2e-testing': "agent-e2e-test",
         'agent-integrations': "integrations",
         'asm-go': "agent-security",

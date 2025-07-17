@@ -74,9 +74,6 @@ else
     dependency 'datadog-agent-finalize'
   end
 
-  # version manifest file
-  dependency 'version-manifest'
-
   do_package = false
 end
 
@@ -232,3 +229,8 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+if linux_target? or windows_target?
+  strip_build windows_target? || !do_package
+  debug_path ".debug"
+end

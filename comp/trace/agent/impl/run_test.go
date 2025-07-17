@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestProfilingConfig(t *testing.T) {
@@ -25,12 +26,13 @@ func TestProfilingConfig(t *testing.T) {
 	cconfig.SetWithoutSource("internal_profiling.mutex_profile_fraction", 7)
 	cconfig.SetWithoutSource("internal_profiling.block_profile_rate", 10)
 	cconfig.SetWithoutSource("internal_profiling.enable_goroutine_stacktraces", true)
-	settings := profilingConfig(tconfig)
+	settings := profilingConfig(tconfig, false)
 	assert.NotNil(t, settings)
 	assert.Equal(t, settings.ProfilingURL, "https://intake.profile.datadoghq.com/v1/input")
 	assert.Equal(t, settings.Tags[0:2], []string{"k1:v1", "k2:v2"})
 	assert.True(t, strings.HasPrefix(settings.Tags[2], "version:"))
-	assert.Len(t, settings.Tags, 3)
+	assert.Equal(t, settings.Tags[3], "__dd_internal_profiling:datadog-agent")
+	assert.Len(t, settings.Tags, 4)
 	assert.Equal(t, 30*time.Second, settings.Period)
 	assert.Equal(t, 15*time.Second, settings.CPUDuration)
 	assert.Equal(t, 7, settings.MutexProfileFraction)

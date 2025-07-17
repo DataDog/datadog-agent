@@ -6,7 +6,7 @@
 // Package runner implements a component to generate metadata payload at the right interval.
 package runner
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface{}

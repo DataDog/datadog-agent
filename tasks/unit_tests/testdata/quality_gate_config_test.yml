@@ -1,0 +1,7 @@
+some_gate_high:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+
+some_gate_low:
+  max_on_wire_size: 5 MiB
+  max_on_disk_size: 5 MiB

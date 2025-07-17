@@ -24,9 +24,6 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -592,7 +589,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
+	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 7500, 7500, 7500, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -1686,192 +1683,6 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	assert.EqualValues(t, 3, rcode)
 }
 
-func TestHTTPStats(t *testing.T) {
-	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
-		Source: util.AddressFromString("1.1.1.1"),
-		Dest:   util.AddressFromString("0.0.0.0"),
-		SPort:  1000,
-		DPort:  80,
-	}}
-
-	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte("/testpath"), true, http.MethodGet)
-
-	httpStats := make(map[http.Key]*http.RequestStats)
-	httpStats[key] = http.NewRequestStats()
-
-	usmStats := make(map[protocols.ProtocolType]interface{})
-	usmStats[protocols.HTTP] = httpStats
-
-	// Register client & pass in HTTP stats
-	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats)
-
-	// Verify connection has HTTP data embedded in it
-	assert.Len(t, delta.HTTP, 1)
-
-	// Verify HTTP data has been flushed
-	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.HTTP, 0)
-}
-
-func TestHTTP2Stats(t *testing.T) {
-	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
-		Source: util.AddressFromString("1.1.1.1"),
-		Dest:   util.AddressFromString("0.0.0.0"),
-		SPort:  1000,
-		DPort:  80,
-	}}
-
-	getStats := func(path string) map[protocols.ProtocolType]interface{} {
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-
-		http2Stats := make(map[http.Key]*http.RequestStats)
-		http2Stats[key] = http.NewRequestStats()
-
-		usmStats := make(map[protocols.ProtocolType]interface{})
-		usmStats[protocols.HTTP2] = http2Stats
-
-		return usmStats
-	}
-
-	// Register client & pass in HTTP2 stats
-	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, getStats("/testpath"))
-
-	// Verify connection has HTTP2 data embedded in it
-	assert.Len(t, delta.HTTP2, 1)
-
-	// Verify HTTP2 data has been flushed
-	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.HTTP2, 0)
-}
-
-func TestHTTPStatsWithMultipleClients(t *testing.T) {
-	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
-		Source: util.AddressFromString("1.1.1.1"),
-		Dest:   util.AddressFromString("0.0.0.0"),
-		SPort:  1000,
-		DPort:  80,
-	}}
-
-	getStats := func(path string) map[protocols.ProtocolType]interface{} {
-		httpStats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-		httpStats[key] = http.NewRequestStats()
-
-		usmStats := make(map[protocols.ProtocolType]interface{})
-		usmStats[protocols.HTTP] = httpStats
-
-		return usmStats
-	}
-
-	client1 := "client1"
-	client2 := "client2"
-	client3 := "client3"
-	state := newDefaultState()
-
-	// Register the first two clients
-	state.RegisterClient(client1)
-	state.RegisterClient(client2)
-
-	// We should have nothing on first call
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).HTTP, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).HTTP, 0)
-
-	// Store the connection to both clients & pass HTTP stats to the first client
-	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnection(&c)
-
-	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath"))
-	assert.Len(t, delta.HTTP, 1)
-
-	// Verify that the HTTP stats were also stored in the second client
-	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.HTTP, 1)
-
-	// Register a third client & verify that it does not have the HTTP stats
-	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.HTTP, 0)
-
-	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnection(&c)
-
-	// Pass in new HTTP stats to the first client
-	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath2"))
-	assert.Len(t, delta.HTTP, 1)
-
-	// And the second client
-	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("/testpath3"))
-	assert.Len(t, delta.HTTP, 2)
-
-	// Verify that the third client also accumulated both new HTTP stats
-	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.HTTP, 2)
-}
-
-func TestHTTP2StatsWithMultipleClients(t *testing.T) {
-	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
-		Source: util.AddressFromString("1.1.1.1"),
-		Dest:   util.AddressFromString("0.0.0.0"),
-		SPort:  1000,
-		DPort:  80,
-	}}
-
-	getStats := func(path string) map[protocols.ProtocolType]interface{} {
-		http2Stats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-		http2Stats[key] = http.NewRequestStats()
-
-		usmStats := make(map[protocols.ProtocolType]interface{})
-		usmStats[protocols.HTTP2] = http2Stats
-
-		return usmStats
-	}
-
-	client1 := "client1"
-	client2 := "client2"
-	client3 := "client3"
-	state := newDefaultState()
-
-	// Register the first two clients
-	state.RegisterClient(client1)
-	state.RegisterClient(client2)
-
-	// We should have nothing on first call
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).HTTP2, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).HTTP2, 0)
-
-	// Store the connection to both clients & pass HTTP2 stats to the first client
-	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnection(&c)
-
-	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath"))
-	assert.Len(t, delta.HTTP2, 1)
-
-	// Verify that the HTTP2 stats were also stored in the second client
-	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.HTTP2, 1)
-
-	// Register a third client & verify that it does not have the HTTP2 stats
-	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.HTTP2, 0)
-
-	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnection(&c)
-
-	// Pass in new HTTP2 stats to the first client
-	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("/testpath2"))
-	assert.Len(t, delta.HTTP2, 1)
-
-	// And the second client
-	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("/testpath3"))
-	assert.Len(t, delta.HTTP2, 2)
-
-	// Verify that the third client also accumulated both new HTTP2 stats
-	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.HTTP2, 2)
-}
-
 func TestDetermineConnectionIntraHost(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -2292,104 +2103,6 @@ func TestClosedMergingWithAddressCollision(t *testing.T) {
 		assert.Equal(t, uint64(50), delta.Conns[0].Last.SentBytes)
 	})
 
-}
-
-func TestKafkaStats(t *testing.T) {
-	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
-		Source: util.AddressFromString("1.1.1.1"),
-		Dest:   util.AddressFromString("0.0.0.0"),
-		SPort:  1000,
-		DPort:  80,
-	}}
-
-	key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "my-topic", kafka.ProduceAPIKey, 1)
-
-	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
-	kafkaStats[key] = &kafka.RequestStats{
-		ErrorCodeToStat: map[int32]*kafka.RequestStat{
-			0: {Count: 2},
-		},
-	}
-	usmStats := make(map[protocols.ProtocolType]interface{})
-	usmStats[protocols.Kafka] = kafkaStats
-
-	// Register client & pass in Kafka stats
-	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats)
-
-	// Verify connection has Kafka data embedded in it
-	assert.Len(t, delta.Kafka, 1)
-
-	// Verify Kafka data has been flushed
-	delta = state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.Kafka, 0)
-}
-
-func TestKafkaStatsWithMultipleClients(t *testing.T) {
-	c := ConnectionStats{ConnectionTuple: ConnectionTuple{
-		Source: util.AddressFromString("1.1.1.1"),
-		Dest:   util.AddressFromString("0.0.0.0"),
-		SPort:  1000,
-		DPort:  80,
-	}}
-
-	getStats := func(topicName string) map[protocols.ProtocolType]interface{} {
-		kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
-		key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, topicName, kafka.ProduceAPIKey, 1)
-		kafkaStats[key] = &kafka.RequestStats{
-			ErrorCodeToStat: map[int32]*kafka.RequestStat{
-				0: {Count: 2},
-			},
-		}
-
-		usmStats := make(map[protocols.ProtocolType]interface{})
-		usmStats[protocols.Kafka] = kafkaStats
-
-		return usmStats
-	}
-
-	client1 := "client1"
-	client2 := "client2"
-	client3 := "client3"
-	state := newDefaultState()
-
-	// Register the first two clients
-	state.RegisterClient(client1)
-	state.RegisterClient(client2)
-
-	// We should have nothing on first call
-	assert.Len(t, state.GetDelta(client1, latestEpochTime(), nil, nil, nil).Kafka, 0)
-	assert.Len(t, state.GetDelta(client2, latestEpochTime(), nil, nil, nil).Kafka, 0)
-
-	// Store the connection to both clients & pass HTTP stats to the first client
-	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnection(&c)
-
-	delta := state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("my-topic"))
-	assert.Len(t, delta.Kafka, 1)
-
-	// Verify that the HTTP stats were also stored in the second client
-	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, nil)
-	assert.Len(t, delta.Kafka, 1)
-
-	// Register a third client & verify that it does not have the Kafka stats
-	delta = state.GetDelta(client3, latestEpochTime(), []ConnectionStats{c}, nil, nil)
-	assert.Len(t, delta.Kafka, 0)
-
-	c.LastUpdateEpoch = latestEpochTime()
-	state.StoreClosedConnection(&c)
-
-	// Pass in new Kafka stats to the first client
-	delta = state.GetDelta(client1, latestEpochTime(), nil, nil, getStats("my-topic"))
-	assert.Len(t, delta.Kafka, 1)
-
-	// And the second client
-	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("my-topic2"))
-	assert.Len(t, delta.Kafka, 2)
-
-	// Verify that the third client also accumulated both Kafka stats
-	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, getStats("my-topic2"))
-	assert.Len(t, delta.Kafka, 2)
 }
 
 func TestConnectionRollup(t *testing.T) {
@@ -2919,4 +2632,116 @@ func getIPProtocol(nt ConnectionType) uint8 {
 	default:
 		panic("unknown connection type")
 	}
+}
+
+func TestResetEmptyStartInvariant(t *testing.T) {
+	// This test protects against the removal of c.closed.emptyStart = 0 in the Reset() method.
+	// Without this line, the closedConnections data structure would violate its invariant
+	// that empty connections are stored at the end of the slice.
+
+	clientID := "test-client"
+	state := newDefaultState()
+	state.maxClosedConns = 10
+	state.RegisterClient(clientID)
+
+	// Create a non-empty connection
+	nonEmptyConn := ConnectionStats{
+		ConnectionTuple: ConnectionTuple{
+			Pid:    123,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  31890,
+			DPort:  80,
+		},
+		Monotonic: StatCounters{
+			SentBytes:   100,
+			RecvBytes:   50,
+			Retransmits: 1,
+		},
+		Cookie: 1,
+	}
+
+	// Create an empty connection
+	emptyConn := ConnectionStats{
+		Cookie: 2,
+	}
+
+	// Store connections to establish the data structure with emptyStart > 0
+	state.storeClosedConnection(&nonEmptyConn)
+	state.storeClosedConnection(&emptyConn)
+
+	// Verify initial state: non-empty connection should be at index 0, empty at index 1
+	client := state.clients[clientID]
+	require.Len(t, client.closed.conns, 2)
+	assert.Equal(t, nonEmptyConn, client.closed.conns[0])
+	assert.Equal(t, emptyConn, client.closed.conns[1])
+	assert.Equal(t, 1, client.closed.emptyStart) // emptyStart should be 1
+
+	// Call GetDelta which will trigger Reset() via defer
+	state.GetDelta(clientID, latestEpochTime(), nil, nil, nil)
+
+	// After Reset(), the slice should be empty and emptyStart should be 0
+	assert.Len(t, client.closed.conns, 0)
+	assert.Equal(t, 0, client.closed.emptyStart)
+
+	// Now test the critical scenario: if emptyStart wasn't reset to 0,
+	// the next operations would violate the data structure invariant
+
+	// First, store an empty connection - this should go to index 0
+	newEmptyConn := ConnectionStats{Cookie: 3}
+	state.storeClosedConnection(&newEmptyConn)
+
+	// Then store a non-empty connection - this should also go to index 0, moving empty to index 1
+	newNonEmptyConn := ConnectionStats{
+		ConnectionTuple: ConnectionTuple{
+			Pid:    124,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  31891,
+			DPort:  80,
+		},
+		Monotonic: StatCounters{
+			SentBytes: 200,
+		},
+		Cookie: 4,
+	}
+	state.storeClosedConnection(&newNonEmptyConn)
+
+	// Verify the invariant is maintained: non-empty connections first, then empty connections
+	require.Len(t, client.closed.conns, 2)
+	assert.Equal(t, newNonEmptyConn, client.closed.conns[0], "Non-empty connection should be at index 0")
+	assert.Equal(t, newEmptyConn, client.closed.conns[1], "Empty connection should be at index 1")
+	assert.Equal(t, 1, client.closed.emptyStart, "emptyStart should be 1 after storing one non-empty connection")
+
+	// Test that the byCookie map is consistent
+	assert.Equal(t, 0, client.closed.byCookie[newNonEmptyConn.Cookie])
+	assert.Equal(t, 1, client.closed.byCookie[newEmptyConn.Cookie])
+
+	// Additional verification: store another non-empty connection and verify it doesn't break the invariant
+	anotherNonEmptyConn := ConnectionStats{
+		ConnectionTuple: ConnectionTuple{
+			Pid:    125,
+			Type:   TCP,
+			Family: AFINET,
+			Source: util.AddressFromString("127.0.0.1"),
+			Dest:   util.AddressFromString("127.0.0.1"),
+			SPort:  31892,
+			DPort:  80,
+		},
+		Monotonic: StatCounters{
+			SentBytes: 300,
+		},
+		Cookie: 5,
+	}
+	state.storeClosedConnection(&anotherNonEmptyConn)
+
+	require.Len(t, client.closed.conns, 3)
+	assert.Equal(t, newNonEmptyConn, client.closed.conns[0], "First non-empty connection should remain at index 0")
+	assert.Equal(t, anotherNonEmptyConn, client.closed.conns[1], "Second non-empty connection should be at index 1")
+	assert.Equal(t, newEmptyConn, client.closed.conns[2], "Empty connection should be moved to index 2")
+	assert.Equal(t, 2, client.closed.emptyStart, "emptyStart should be 2 after storing two non-empty connections")
 }

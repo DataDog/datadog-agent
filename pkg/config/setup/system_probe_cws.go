@@ -19,7 +19,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CWS - general config
 	cfg.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	cfg.BindEnv("runtime_security_config.fim_enabled")
+	cfg.BindEnvAndSetDefault("runtime_security_config.fim_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.per_rule_enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.report_internal_policies", false)
@@ -37,9 +37,10 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.reduced_proc_pid_cache_size", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.env_as_tags", []string{})
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
@@ -80,6 +81,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.analyzers", []string{"os"})
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
@@ -118,11 +120,18 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
+	// CWS - SysCtl
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.kernel_compilation_flags", []string{})
+
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
 	// CWS -eBPF Less
-	cfg.BindEnv("runtime_security_config.ebpfless.enabled")
+	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
 
 	// CWS - IMDS
@@ -139,6 +148,9 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
+
+	// CWS - File metadata
+	cfg.BindEnvAndSetDefault("runtime_security_config.file_metadata_resolver.enabled", false)
 
 	cfg.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }

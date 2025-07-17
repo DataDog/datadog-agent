@@ -24,14 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -44,13 +43,29 @@ const (
 	refreshStateInterval = 30 * time.Second
 )
 
+var (
+	// errStateDoesntMatch is the error returned when the state doesn't match
+	errStateDoesntMatch = errors.New("state doesn't match")
+
+	// installExperimentFunc is the method to install an experiment. Overridden in tests.
+	installExperimentFunc = bootstrap.InstallExperiment
+)
+
+// PackageState represents a package state.
+type PackageState struct {
+	Version repository.State
+	Config  repository.State
+}
+
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
 type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
 	SetCatalog(c catalog)
+	SetConfigCatalog(configs map[string]installerConfig)
 	Install(ctx context.Context, url string, args []string) error
+	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
@@ -59,7 +74,7 @@ type Daemon interface {
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
 	GetPackage(pkg string, version string) (Package, error)
-	GetState() (map[string]repository.State, error)
+	GetState(ctx context.Context) (map[string]PackageState, error)
 	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
@@ -68,18 +83,22 @@ type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	env           *env.Env
-	installer     installer.Installer
-	rc            *remoteConfig
-	cdn           *cdn.CDN
-	catalog       catalog
-	requests      chan remoteAPIRequest
-	requestsWG    sync.WaitGroup
-	requestsState map[string]requestState
+	env             *env.Env
+	installer       func(*env.Env) installer.Installer
+	rc              *remoteConfig
+	catalog         catalog
+	catalogOverride catalog
+	configs         map[string]installerConfig
+	configsOverride map[string]installerConfig
+	requests        chan remoteAPIRequest
+	requestsWG      sync.WaitGroup
+	taskDB          *taskDB
 }
 
-func newInstaller(env *env.Env, installerBin string) installer.Installer {
-	return exec.NewInstallerExec(env, installerBin)
+func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
+	return func(env *env.Env) installer.Installer {
+		return exec.NewInstallerExec(env, installerBin)
+	}
 }
 
 // NewDaemon returns a new daemon.
@@ -92,6 +111,11 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	if err != nil {
 		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
 	}
+	dbPath := filepath.Join(paths.RunPath, "installer_tasks.db")
+	taskDB, err := newTaskDB(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create task DB: %w", err)
+	}
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
@@ -100,7 +124,6 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
-		RemotePolicies:       config.GetBool("remote_policies"),
 		Mirror:               config.GetString("installer.mirror"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
@@ -111,60 +134,51 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 		HTTPProxy:            config.GetString("proxy.http"),
 		HTTPSProxy:           config.GetString("proxy.https"),
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:            env.DetectCentos6(),
+		IsFromDaemon:         true,
 	}
-	installer := newInstaller(env, installerBin)
-	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_daemon"))
-	if err != nil {
-		return nil, err
-	}
-	return newDaemon(rc, installer, env, cdn), nil
+	installer := newInstaller(installerBin)
+	return newDaemon(rc, installer, env, taskDB), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
 	i := &daemonImpl{
-		env:           env,
-		rc:            rc,
-		installer:     installer,
-		cdn:           cdn,
-		requests:      make(chan remoteAPIRequest, 32),
-		catalog:       catalog{},
-		stopChan:      make(chan struct{}),
-		requestsState: make(map[string]requestState),
+		env:             env,
+		rc:              rc,
+		installer:       installer,
+		requests:        make(chan remoteAPIRequest, 32),
+		catalog:         catalog{},
+		catalogOverride: catalog{},
+		configs:         make(map[string]installerConfig),
+		configsOverride: make(map[string]installerConfig),
+		stopChan:        make(chan struct{}),
+		taskDB:          taskDB,
 	}
 	i.refreshState(context.Background())
 	return i
 }
 
 // GetState returns the state.
-func (d *daemonImpl) GetState() (map[string]repository.State, error) {
+func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	states, err := d.installer.States()
+	states, err := d.installer(d.env).States(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var configStates map[string]repository.State
-	if d.env.RemotePolicies {
-		configStates, err = d.installer.ConfigStates()
-		if err != nil {
-			return nil, err
-		}
+	configStates, err = d.installer(d.env).ConfigStates(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	res := make(map[string]repository.State)
-	for pkg, state := range states {
-		res[pkg] = state
-	}
-	for pkg, state := range configStates {
-		if _, ok := res[pkg]; !ok {
-			res[pkg] = repository.State{
-				Stable:                  "",
-				Experiment:              "",
-				StablePoliciesState:     state.StablePoliciesState,
-				ExperimentPoliciesState: state.ExperimentPoliciesState,
-			}
+	res := make(map[string]PackageState)
+	for pkg := range states {
+		res[pkg] = PackageState{
+			Version: states[pkg],
+			Config:  configStates[pkg],
 		}
 	}
 	return res, nil
@@ -223,7 +237,15 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	catalogPackage, ok := d.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	return d.getPackage(pkg, version)
+}
+
+func (d *daemonImpl) getPackage(pkg string, version string) (Package, error) {
+	catalog := d.catalog
+	if len(d.catalogOverride.Packages) > 0 {
+		catalog = d.catalogOverride
+	}
+	catalogPackage, ok := catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
@@ -234,13 +256,26 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 func (d *daemonImpl) SetCatalog(c catalog) {
 	d.m.Lock()
 	defer d.m.Unlock()
-	d.catalog = c
+	d.catalogOverride = c
+}
+
+// SetConfigCatalog sets the config catalog override.
+func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	d.configsOverride = configs
 }
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+
+	if !d.env.RemoteUpdates {
+		// If remote updates are disabled, we don't need to start the daemon
+		return nil
+	}
+
 	go func() {
 		gcTicker := time.NewTicker(gcInterval)
 		defer gcTicker.Stop()
@@ -250,7 +285,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			select {
 			case <-gcTicker.C:
 				d.m.Lock()
-				err := d.installer.GarbageCollect(context.Background())
+				err := d.installer(d.env).GarbageCollect(context.Background())
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
@@ -269,7 +304,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
-	d.rc.Start(d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
+	d.rc.Start(d.handleConfigsUpdate, d.handleCatalogUpdate, d.scheduleRemoteAPIRequest)
 	return nil
 }
 
@@ -277,32 +312,58 @@ func (d *daemonImpl) Start(_ context.Context) error {
 func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+
+	if !d.env.RemoteUpdates {
+		// If remote updates are disabled, we don't need to stop the daemon as it was never started
+		return nil
+	}
+
 	d.rc.Close()
 	close(d.stopChan)
-	d.cdn.Close()
 	d.requestsWG.Wait()
-	return nil
+	return d.taskDB.Close()
 }
 
 // Install installs the package from the given URL.
 func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.install(ctx, url, args)
+	return d.install(ctx, d.env, url, args)
 }
 
-func (d *daemonImpl) install(ctx context.Context, url string, args []string) (err error) {
+func (d *daemonImpl) install(ctx context.Context, env *env.Env, url string, args []string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Installing package from %s", url)
-	err = d.installer.Install(ctx, url, args)
+	err = d.installer(env).Install(ctx, url, args)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
 	log.Infof("Daemon: Successfully installed package from %s", url)
+	return nil
+}
+
+func (d *daemonImpl) Remove(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.remove(ctx, pkg)
+}
+
+func (d *daemonImpl) remove(ctx context.Context, pkg string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "remove")
+	defer func() { span.Finish(err) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Removing package %s", pkg)
+	err = d.installer(d.env).Remove(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not remove: %w", err)
+	}
+	log.Infof("Daemon: Successfully removed package %s", pkg)
 	return nil
 }
 
@@ -320,30 +381,11 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting experiment for package from %s", url)
-	err = d.installer.InstallExperiment(ctx, url)
+	err = installExperimentFunc(ctx, d.env, url)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully started experiment for package from %s", url)
-	return nil
-}
-
-func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "start_installer_experiment")
-	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
-
-	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	if runtime.GOOS == "windows" {
-		err = d.installer.InstallExperiment(ctx, url)
-	} else {
-		err = bootstrap.InstallExperiment(ctx, d.env, url)
-	}
-	if err != nil {
-		return fmt.Errorf("could not install installer experiment: %w", err)
-	}
-	log.Infof("Daemon: Successfully started installer experiment for package from %s", url)
 	return nil
 }
 
@@ -361,7 +403,7 @@ func (d *daemonImpl) promoteExperiment(ctx context.Context, pkg string) (err err
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Promoting experiment for package %s", pkg)
-	err = d.installer.PromoteExperiment(ctx, pkg)
+	err = d.installer(d.env).PromoteExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -383,7 +425,7 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping experiment for package %s", pkg)
-	err = d.installer.RemoveExperiment(ctx, pkg)
+	err = d.installer(d.env).RemoveExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -398,18 +440,30 @@ func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, vers
 	return d.startConfigExperiment(ctx, url, version)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	log.Infof("Daemon: Starting config experiment for package from %s", url)
-	err = d.installer.InstallConfigExperiment(ctx, url, version)
+	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
+	configs := d.configs
+	if len(d.configsOverride) > 0 {
+		configs = d.configsOverride
+	}
+	config, ok := configs[version]
+	if !ok {
+		return fmt.Errorf("could not find config version %s", version)
+	}
+	serializedConfigFiles, err := json.Marshal(config.Files)
+	if err != nil {
+		return fmt.Errorf("could not serialize config files: %w", err)
+	}
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigFiles)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
-	log.Infof("Daemon: Successfully started config experiment for package from %s", url)
+	log.Infof("Daemon: Successfully started config experiment version %s for package %s", version, pkg)
 	return nil
 }
 
@@ -427,7 +481,7 @@ func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (e
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Promoting config experiment for package %s", pkg)
-	err = d.installer.PromoteConfigExperiment(ctx, pkg)
+	err = d.installer(d.env).PromoteConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote config experiment: %w", err)
 	}
@@ -449,11 +503,19 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping config experiment for package %s", pkg)
-	err = d.installer.RemoveConfigExperiment(ctx, pkg)
+	err = d.installer(d.env).RemoveConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
+	return nil
+}
+
+func (d *daemonImpl) handleConfigsUpdate(configs map[string]installerConfig) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	log.Infof("Installer: Received configs update")
+	d.configs = configs
 	return nil
 }
 
@@ -480,35 +542,53 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
-	s, err := d.installer.State(request.Package)
+	err = d.verifyState(ctx, request)
 	if err != nil {
-		return fmt.Errorf("could not get installer state: %w", err)
+		if errors.Is(err, errStateDoesntMatch) {
+			return nil // Error already reported to RC
+		}
+		return fmt.Errorf("couldn't verify state: %w", err)
 	}
 
-	c, err := d.installer.ConfigState(request.Package)
-	if err != nil {
-		return fmt.Errorf("could not get installer config state: %w", err)
-	}
-
-	versionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
-	if versionEqual &&
-		(s.Stable != request.ExpectedState.Stable ||
-			s.Experiment != request.ExpectedState.Experiment ||
-			c.Stable != request.ExpectedState.StableConfig ||
-			c.Experiment != request.ExpectedState.ExperimentConfig) {
-		log.Infof(
-			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
-			request.ID, request.ExpectedState, s, c,
-		)
-		setRequestInvalid(ctx)
-		d.refreshState(ctx)
-		return nil
-	}
 	defer func() { setRequestDone(ctx, err) }()
 
 	switch request.Method {
+	case methodInstallPackage:
+		var params installPackageTaskParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal install package params: %w", err)
+		}
+		log.Infof("Installer: Received remote request %s to install package %s version %s", request.ID, request.Package, params.Version)
+
+		// Handle install args
+		newEnv := *d.env
+		if params.ApmInstrumentation != "" {
+			if err := env.ValidateAPMInstrumentationEnabled(params.ApmInstrumentation); err != nil {
+				return fmt.Errorf("invalid APM instrumentation value: %w", err)
+			}
+			newEnv.InstallScript.APMInstrumentationEnabled = params.ApmInstrumentation
+		}
+
+		pkg, err := d.getPackage(request.Package, params.Version)
+		if err != nil {
+			return installerErrors.Wrap(
+				installerErrors.ErrPackageNotFound,
+				err,
+			)
+		}
+		return d.install(ctx, &newEnv, pkg.URL, nil)
+
+	case methodUninstallPackage:
+		log.Infof("Installer: Received remote request %s to uninstall package %s", request.ID, request.Package)
+		if request.Package == "datadog-installer" || request.Package == "datadog-agent" {
+			log.Infof("Installer: Can't uninstall the package %s", request.Package)
+			return nil
+		}
+		return d.remove(ctx, request.Package)
+
 	case methodStartExperiment:
-		var params taskWithVersionParams
+		var params experimentTaskParams
 		err = json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
@@ -521,29 +601,29 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		if request.Package == "datadog-installer" {
-			// Special case for the installer package as we want the experiment installer to start the experiment itself
-			return d.startInstallerExperiment(ctx, experimentPackage.URL)
-		}
 		return d.startExperiment(ctx, experimentPackage.URL)
+
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
 		return d.stopExperiment(ctx, request.Package)
+
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
 		return d.promoteExperiment(ctx, request.Package)
 
 	case methodStartConfigExperiment:
-		var params taskWithVersionParams
+		var params experimentTaskParams
 		err = json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
 		return d.startConfigExperiment(ctx, request.Package, params.Version)
+
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
 		return d.stopConfigExperiment(ctx, request.Package)
+
 	case methodPromoteConfigExperiment:
 		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
 		return d.promoteConfigExperiment(ctx, request.Package)
@@ -551,6 +631,40 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
+}
+
+func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) error {
+	if request.Method == methodInstallPackage {
+		// No state verification if the method is to install a package, as the package may
+		// not be installed yet.
+		return nil
+	}
+
+	s, err := d.installer(d.env).State(ctx, request.Package)
+	if err != nil {
+		return fmt.Errorf("could not get installer state: %w", err)
+	}
+
+	c, err := d.installer(d.env).ConfigState(ctx, request.Package)
+	if err != nil {
+		return fmt.Errorf("could not get installer config state: %w", err)
+	}
+
+	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
+	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
+	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
+
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+		log.Infof(
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
+			request.ID, request.ExpectedState, s, c,
+		)
+		setRequestInvalid(ctx)
+		d.refreshState(ctx)
+		return errStateDoesntMatch
+	}
+
+	return nil
 }
 
 type requestKey int
@@ -562,7 +676,7 @@ type requestState struct {
 	Package   string
 	ID        string
 	State     pbgo.TaskState
-	Err       error
+	Err       string
 	ErrorCode installerErrors.InstallerErrorCode
 }
 
@@ -585,77 +699,55 @@ func setRequestDone(ctx context.Context, err error) {
 	state.State = pbgo.TaskState_DONE
 	if err != nil {
 		state.State = pbgo.TaskState_ERROR
-		state.Err = err
+		state.Err = err.Error()
 		state.ErrorCode = installerErrors.GetCode(err)
 	}
-}
-
-func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (*pbgo.PoliciesState, error) {
-	if !d.env.RemotePolicies {
-		return nil, nil
-	}
-	config, err := d.cdn.Get(ctx, pkg)
-	if err != nil {
-		return nil, err
-	}
-	return config.State(), nil
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
 	request, ok := ctx.Value(requestStateKey).(*requestState)
 	if ok {
-		d.requestsState[request.Package] = *request
+		err := d.taskDB.SetTaskState(*request)
+		if err != nil {
+			log.Errorf("could not set task state: %v", err)
+		}
 	}
-	state, err := d.installer.States()
+	state, err := d.installer(d.env).States(ctx)
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer state: %v", err)
 		return
 	}
-	configState, err := d.installer.ConfigStates()
+	configState, err := d.installer(d.env).ConfigStates(ctx)
 	if err != nil {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
-	availableSpace, err := d.installer.AvailableDiskSpace()
+	availableSpace, err := d.installer(d.env).AvailableDiskSpace()
 	if err != nil {
 		log.Errorf("could not get available size: %v", err)
 	}
-
-	for pkg, configState := range configState {
-		if _, ok := state[pkg]; !ok {
-			state[pkg] = repository.State{}
-		}
-		tmp := state[pkg]
-		tmp.StablePoliciesState = configState.StablePoliciesState
-		tmp.ExperimentPoliciesState = configState.ExperimentPoliciesState
-		state[pkg] = tmp
+	tasksState, err := d.taskDB.GetTasksState()
+	if err != nil {
+		log.Errorf("could not get tasks state: %v", err)
 	}
-
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
-			Package:               pkg,
-			StableVersion:         s.Stable,
-			ExperimentVersion:     s.Experiment,
-			StableConfigState:     s.StablePoliciesState,
-			ExperimentConfigState: s.ExperimentPoliciesState,
+			Package:                 pkg,
+			StableVersion:           s.Stable,
+			ExperimentVersion:       s.Experiment,
+			StableConfigVersion:     configState[pkg].Stable,
+			ExperimentConfigVersion: configState[pkg].Experiment,
 		}
 
-		configState, err := d.resolveRemoteConfigVersion(ctx, pkg)
-		if err == nil && configState != nil {
-			p.RemoteConfigState = configState
-		} else if err != cdn.ErrProductNotSupported {
-			log.Warnf("could not get remote config version: %v", err)
-		}
-
-		requestState, ok := d.requestsState[pkg]
+		requestState, ok := tasksState[pkg]
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError
-			if requestState.Err != nil {
+			if requestState.Err != "" {
 				taskErr = &pbgo.TaskError{
 					Code:    uint64(requestState.ErrorCode),
-					Message: requestState.Err.Error(),
+					Message: requestState.Err,
 				}
 			}
 			p.Task = &pbgo.PackageStateTask{

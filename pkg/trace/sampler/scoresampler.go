@@ -41,17 +41,29 @@ type ScoreSampler struct {
 
 // NewNoPrioritySampler returns an initialized Sampler dedicated to traces with
 // no priority set.
-func NewNoPrioritySampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *NoPrioritySampler {
-	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:no_priority"}, statsd)
+func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
+	s := newSampler(conf.ExtraSampleRate, conf.TargetTPS)
 	return &NoPrioritySampler{ScoreSampler{Sampler: s, samplingRateKey: noPriorityRateKey}}
+}
+
+var _ AdditionalMetricsReporter = (*NoPrioritySampler)(nil)
+
+func (s *NoPrioritySampler) report(statsd statsd.ClientInterface) {
+	s.Sampler.report(statsd, NameNoPriority)
 }
 
 // NewErrorsSampler returns an initialized Sampler dedicate to errors. It behaves
 // just like the normal ScoreEngine except for its GetType method (useful
 // for reporting).
-func NewErrorsSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ErrorsSampler {
-	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS, []string{"sampler:error"}, statsd)
+func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
+	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS)
 	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey, disabled: conf.ErrorTPS == 0}}
+}
+
+var _ AdditionalMetricsReporter = (*ErrorsSampler)(nil)
+
+func (s *ErrorsSampler) report(statsd statsd.ClientInterface) {
+	s.Sampler.report(statsd, NameError)
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
@@ -71,7 +83,8 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 
 	rate := s.getSignatureSampleRate(signature)
 
-	return s.applySampleRate(root, rate)
+	sampled := s.applySampleRate(root, rate)
+	return sampled
 }
 
 // UpdateTargetTPS updates the target tps
@@ -90,7 +103,6 @@ func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 	traceID := root.TraceID
 	sampled := SampleByRate(traceID, newRate)
 	if sampled {
-		s.countSample()
 		setMetric(root, s.samplingRateKey, rate)
 	}
 	return sampled

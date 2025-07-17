@@ -13,6 +13,7 @@ package tcpqueuelength
 
 import (
 	"fmt"
+
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -22,13 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	statsMapName = "tcp_queue_stats"
+
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
+	maxActive = 512
 )
 
 // Tracer is the eBPF side of the TCP Queue Length check
@@ -74,6 +78,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	}
 
 	managerOptions.RemoveRlimit = true
+	managerOptions.DefaultKProbeMaxActive = maxActive
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -82,6 +87,8 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	if err := m.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
+
+	ebpf.AddProbeFDMappings(m)
 
 	statsMap, err := ebpfmaps.GetMap[StructStatsKey, []StructStatsValue](m, statsMapName)
 	if err != nil {
@@ -171,7 +178,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*Tracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"})
 	if err != nil {
 		return nil, err
 	}

@@ -3,25 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator
+
 package redact
 
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const consulOriginalPodAnnotation = "consul.hashicorp.com/original-pod"
-
-var sensitiveAnnotationsAndLabels = []string{v1.LastAppliedConfigAnnotation, consulOriginalPodAnnotation}
 
 // RemoveSensitiveAnnotationsAndLabels redacts sensitive annotations and labels like the whole
 // "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
 // may contain duplicate information and secrets.
 func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels map[string]string) {
-	for _, v := range sensitiveAnnotationsAndLabels {
+	for _, v := range GetSensitiveAnnotationsAndLabels() {
 		if _, found := annotations[v]; found {
 			annotations[v] = redactedAnnotationValue
 		}
@@ -29,16 +27,6 @@ func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels m
 			labels[v] = redactedAnnotationValue
 		}
 	}
-}
-
-// UpdateSensitiveAnnotationsAndLabels adds new sensitive annotations or labels key to the list to redact.
-func UpdateSensitiveAnnotationsAndLabels(annotationsAndLabels []string) {
-	sensitiveAnnotationsAndLabels = append(sensitiveAnnotationsAndLabels, annotationsAndLabels...)
-}
-
-// GetSensitiveAnnotationsAndLabels returns the list of sensitive annotations and labels.
-func GetSensitiveAnnotationsAndLabels() []string {
-	return sensitiveAnnotationsAndLabels
 }
 
 // ScrubPodTemplateSpec scrubs a pod template.

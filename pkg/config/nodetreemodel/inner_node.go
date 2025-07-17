@@ -17,17 +17,14 @@ import (
 // innerNode represents an non-leaf node of the config
 type innerNode struct {
 	children map[string]Node
-	// remapCase maps each lower-case key to the original case. This
-	// enables GetChild to retrieve values using case-insensitive keys
-	remapCase map[string]string
 }
 
 func newInnerNode(children map[string]Node) *innerNode {
-	if children == nil {
-		children = map[string]Node{}
+	contents := make(map[string]Node, len(children))
+	for k, v := range children {
+		contents[strings.ToLower(k)] = v
 	}
-	node := &innerNode{children: children, remapCase: map[string]string{}}
-	node.makeRemapCase()
+	node := &innerNode{children: contents}
 	return node
 }
 
@@ -42,18 +39,9 @@ func (n *innerNode) Clone() Node {
 	return newInnerNode(children)
 }
 
-// makeRemapCase creates a map that converts keys from their lower-cased version to their original case
-func (n *innerNode) makeRemapCase() {
-	remap := make(map[string]string)
-	for k := range n.children {
-		remap[strings.ToLower(k)] = k
-	}
-	n.remapCase = remap
-}
-
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerNode) GetChild(key string) (Node, error) {
-	mkey := n.remapCase[strings.ToLower(key)]
+	mkey := strings.ToLower(key)
 	child, found := n.children[mkey]
 	if !found {
 		return nil, ErrNotFound
@@ -69,8 +57,6 @@ func (n *innerNode) HasChild(key string) bool {
 
 // Merge mergs src node within current tree
 func (n *innerNode) Merge(src InnerNode) error {
-	defer n.makeRemapCase()
-
 	for _, name := range src.ChildrenKeys() {
 		srcChild, _ := src.GetChild(name)
 
@@ -84,7 +70,10 @@ func (n *innerNode) Merge(src InnerNode) error {
 			dstLeaf, dstIsLeaf := dstChild.(LeafNode)
 			srcLeaf, srcIsLeaf := srcChild.(LeafNode)
 			if srcIsLeaf != dstIsLeaf {
-				return fmt.Errorf("tree conflict, can't merge inner and leaf nodes for '%s'", name)
+				// Ignore the source (incoming) node and keep the destination (current) node
+				// TODO: Improve error handling in a follow-up PR. We should collect errors
+				// and log.Error them, but not break functionality in doing so
+				continue
 			}
 
 			if srcIsLeaf {
@@ -120,8 +109,6 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 	if keyLen == 0 {
 		return false, fmt.Errorf("empty key given to Set")
 	}
-
-	defer n.makeRemapCase()
 
 	part := key[0]
 	if keyLen == 1 {
@@ -160,13 +147,11 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 // InsertChildNode sets a node in the current node
 func (n *innerNode) InsertChildNode(name string, node Node) {
 	n.children[name] = node
-	n.makeRemapCase()
 }
 
 // RemoveChild removes a node from the current node
 func (n *innerNode) RemoveChild(name string) {
 	delete(n.children, name)
-	n.makeRemapCase()
 }
 
 // DumpSettings clone the entire tree starting from the node into a map based on the leaf source.

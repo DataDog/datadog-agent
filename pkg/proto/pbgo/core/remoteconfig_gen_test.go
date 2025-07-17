@@ -1168,8 +1168,8 @@ func BenchmarkUnmarshalPackageStateTask(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalPoliciesState(t *testing.T) {
-	v := PoliciesState{}
+func TestMarshalUnmarshalResetStateConfigResponse(t *testing.T) {
+	v := ResetStateConfigResponse{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1191,8 +1191,8 @@ func TestMarshalUnmarshalPoliciesState(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgPoliciesState(b *testing.B) {
-	v := PoliciesState{}
+func BenchmarkMarshalMsgResetStateConfigResponse(b *testing.B) {
+	v := ResetStateConfigResponse{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1200,8 +1200,8 @@ func BenchmarkMarshalMsgPoliciesState(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgPoliciesState(b *testing.B) {
-	v := PoliciesState{}
+func BenchmarkAppendMsgResetStateConfigResponse(b *testing.B) {
+	v := ResetStateConfigResponse{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -1212,8 +1212,8 @@ func BenchmarkAppendMsgPoliciesState(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalPoliciesState(b *testing.B) {
-	v := PoliciesState{}
+func BenchmarkUnmarshalResetStateConfigResponse(b *testing.B) {
+	v := ResetStateConfigResponse{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))

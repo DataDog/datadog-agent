@@ -3,7 +3,9 @@ from collections import defaultdict
 
 from gitlab.v4.objects import ProjectJob, ProjectPipeline, ProjectPipelineBridge
 
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.utils import Color, color_message
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
@@ -30,7 +32,7 @@ def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
         # We sort each list per creation date
         jobs.sort(key=lambda x: x.created_at)
         # We truncate the job name to increase readability
-        job_name = truncate_job_name(job_name)
+        name = truncate_job_name(job_name)
         job = jobs[-1]
         is_standard_job = not isinstance(job, ProjectPipelineBridge)
         # Check the final job in the list: it contains the current status of the job
@@ -40,7 +42,8 @@ def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
         final_status = ProjectJob(
             repo.manager,
             attrs={
-                "name": job_name,
+                "name": name,
+                "full_name": job_name,
                 "id": job.id,
                 "stage": job.stage,
                 "status": job.status,
@@ -54,7 +57,7 @@ def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
         )
 
         # Also exclude jobs allowed to fail
-        if final_status.status == "failed" and should_report_job(job_name, final_status.allow_failure):
+        if final_status.status == "failed" and should_report_job(name, final_status.allow_failure):
             processed_failed_jobs.add_failed_job(final_status)
 
     return processed_failed_jobs
@@ -164,3 +167,41 @@ jobs_allowed_to_fail_but_need_report = []
 
 def should_report_job(job_name, allow_failure):
     return not allow_failure or any(pattern.fullmatch(job_name) for pattern in jobs_allowed_to_fail_but_need_report)
+
+
+def get_jobs_skipped_on_pr(pipeline: ProjectPipeline, failed_jobs: FailedJobs) -> tuple[list[str], str]:
+    """
+    Returns the list of jobs that were not run in the last PR pipeline, and the url to this pipeline, if any.
+    """
+    missed_jobs = []
+    gh = GithubAPI()
+    agent = get_gitlab_repo()
+    prs = list(gh._repository.get_commit(pipeline.sha).get_pulls())
+    if len(prs) == 0:
+        return missed_jobs, ""
+    if len(prs) > 1:
+        print(
+            f"[{color_message('WARNING', Color.ORANGE)}]: Multiple PRs found for commit {pipeline.sha}: {[p.number for p in prs]}"
+        )
+        return missed_jobs, ""
+    pr = prs[0]
+    branch = pr.head.ref
+    pipelines = agent.pipelines.list(ref=branch, get_all=False)
+    if len(pipelines) == 0:
+        print(f"No pipeline found for {branch}")
+        return missed_jobs, ""
+    pr_pipeline = pipelines[0]
+    jobs = pr_pipeline.jobs.list(per_page=100, all=True)
+    bridges = pr_pipeline.bridges.list(per_page=100, all=True)
+    jobs.extend(bridges)
+    for failed_job in failed_jobs.all_mandatory_failures():
+        generated = False
+        for job in jobs:
+            if job.name == failed_job.full_name:
+                generated = True
+                if job.status not in ['failed', 'success']:
+                    missed_jobs.append(failed_job.name)
+                    break
+        if not generated:
+            missed_jobs.append(failed_job.name)
+    return missed_jobs, pr_pipeline.web_url

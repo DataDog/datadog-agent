@@ -7,6 +7,7 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WindowsCreateFileSelfTest defines a windows create file self test
@@ -44,10 +44,10 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
+func (o *WindowsCreateFileSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(ctx,
 		"powershell",
 		"-c",
 		"New-Item",
@@ -57,8 +57,7 @@ func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 		"file",
 	)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error creating file: %v", err)
-		return err
+		return fmt.Errorf("error creating file: %w", err)
 	}
 
 	return os.Remove(o.filename)

@@ -10,17 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
@@ -75,18 +74,13 @@ func TestECSEC2TestSuite(t *testing.T) {
 func (s *ECSEC2Suite) TestProcessCheck() {
 	t := s.T()
 
-	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
 // ECSEC2CoreAgentSuite runs the same test as ECSEC2Suite but with the process check running in the core agent
@@ -107,19 +101,26 @@ func TestECSEC2CoreAgentSuite(t *testing.T) {
 
 func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
-	flake.Mark(t)
 
-	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		require.NotEmpty(c, payloads, "no process payloads returned")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		// Check just the last payload as the process-agent should terminate by itself after a while as we are
+		// expecting the process checks to run in the core agent.
+		payloads = payloads[len(payloads)-1:]
+		requireProcessNotCollected(c, payloads, "process-agent")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	requireProcessNotCollected(t, payloads, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
+	// Flush the server to ensure payloads are received from the process checks that are running on the core agent
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+	}, 2*time.Minute, 10*time.Second)
 }

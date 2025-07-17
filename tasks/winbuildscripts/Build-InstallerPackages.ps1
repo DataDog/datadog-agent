@@ -14,9 +14,6 @@ Use this option in Hyper-V based containers to improve build performance.
 .PARAMETER InstallDeps
 Specifies whether to install dependencies (python requirements, go deps, etc.). Default is $true.
 
-.PARAMETER ReleaseVersion
-Specifies the release version of the build. Default is the value of the environment variable RELEASE_VERSION.
-
 .PARAMETER CheckGoVersion
 Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
 
@@ -33,8 +30,7 @@ This script should be run from the root of the repository.
 param(
     [bool] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
-    [bool] $InstallDeps = $true,
-    [string] $ReleaseVersion = $env:RELEASE_VERSION
+    [bool] $InstallDeps = $true
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -47,13 +43,9 @@ Invoke-BuildScript `
     $inv_args = @(
         "--skip-deps"
     )
-    if ($ReleaseVersion) {
-        $inv_args += "--release-version"
-        $inv_args += $ReleaseVersion
-    }
 
-    Write-Host "inv -e winbuild.installer-package $inv_args"
-    inv -e winbuild.installer-package @inv_args
+    Write-Host "dda inv -- -e winbuild.installer-package $inv_args"
+    dda inv -- -e winbuild.installer-package @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1
@@ -66,7 +58,7 @@ Invoke-BuildScript `
 
     if ($BuildOutOfSource) {
         # Copy the resulting package to the mnt directory
-        mkdir C:\mnt\omnibus\pkg -Force -ErrorAction Stop | Out-Null
-        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
+        mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
+        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
     }
 }

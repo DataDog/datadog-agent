@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/DataDog/go-tuf/data"
@@ -228,8 +227,6 @@ func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOptio
 // Update updates the uptane client and rollbacks in case of error
 func (c *CDNClient) Update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.Update")
-	defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
@@ -250,8 +247,6 @@ func (c *CDNClient) Update(ctx context.Context) error {
 // update updates the uptane client
 func (c *CDNClient) update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.update")
-	defer span.Finish(tracer.WithError(err))
 
 	err = c.updateRepos(ctx)
 	if err != nil {
@@ -264,10 +259,8 @@ func (c *CDNClient) update(ctx context.Context) error {
 	return c.verify()
 }
 
-func (c *CDNClient) updateRepos(ctx context.Context) error {
+func (c *CDNClient) updateRepos(_ context.Context) error {
 	var err error
-	span, _ := tracer.StartSpanFromContext(ctx, "CDNClient.updateRepos")
-	defer span.Finish(tracer.WithError(err))
 
 	_, err = c.directorTUFClient.Update()
 	if err != nil {
@@ -287,6 +280,13 @@ func (c *Client) TargetsCustom() ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
 	return c.directorLocalStore.GetMetaCustom(metaTargets)
+}
+
+// TimestampExpires returns the expiry time of the current up-to-date timestamp.json
+func (c *Client) TimestampExpires() (time.Time, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.directorLocalStore.GetMetaExpires(metaTimestamp)
 }
 
 // DirectorRoot returns a director root
@@ -373,14 +373,7 @@ func (c *Client) TargetFiles(targetFiles []string) (map[string][]byte, error) {
 	return files, nil
 }
 
-// TargetsMeta returns the current raw targets.json meta of this uptane client
-func (c *Client) TargetsMeta() ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
-	err := c.verify()
-	if err != nil {
-		return nil, err
-	}
+func (c *Client) unsafeTargetsMeta() ([]byte, error) {
 	metas, err := c.directorLocalStore.GetMeta()
 	if err != nil {
 		return nil, err
@@ -390,6 +383,24 @@ func (c *Client) TargetsMeta() ([]byte, error) {
 		return nil, fmt.Errorf("empty targets meta in director local store")
 	}
 	return targets, nil
+}
+
+// TargetsMeta verifies and returns the current raw targets.json meta of this uptane client
+func (c *Client) TargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	err := c.verify()
+	if err != nil {
+		return nil, err
+	}
+	return c.unsafeTargetsMeta()
+}
+
+// UnsafeTargetsMeta returns the current raw targets.json meta of this uptane client without verifying
+func (c *Client) UnsafeTargetsMeta() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.unsafeTargetsMeta()
 }
 
 func (c *Client) pruneTargetFiles() error {
@@ -488,7 +499,10 @@ func (c *Client) verifyOrg() error {
 		}
 		checkOrgID := configPathMeta.Source != rdata.SourceEmployee
 		if checkOrgID && configPathMeta.OrgID != c.orgID {
-			return fmt.Errorf("director target '%s' does not have the correct orgID", targetPath)
+			return fmt.Errorf(
+				"director target '%s' does not have the correct orgID. %d != %d",
+				targetPath, configPathMeta.OrgID, c.orgID,
+			)
 		}
 	}
 	return nil

@@ -18,55 +18,63 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func makeDeps(t *testing.T) dependencies {
 	return fxutil.Test[dependencies](t, fx.Options(
-		core.MockBundle(),
-		fetchonlyimpl.MockModule(), // use the mock to avoid trying to read the file
+		config.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		telemetryimpl.MockModule(),
+		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		fx.Supply(NewParams(0, false, 0)),
 	))
 }
 
-func makeConfigSync(t *testing.T) *configSync {
-	deps := makeDeps(t)
+func makeConfigSync(deps dependencies) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",
 		Path:   "/config/v1",
 	}
 	cs := &configSync{
-		Config:    deps.Config,
-		Log:       deps.Log,
-		Authtoken: deps.Authtoken,
-		url:       defaultURL,
-		client:    http.DefaultClient,
-		ctx:       context.Background(),
+		Config: deps.Config,
+		Log:    deps.Log,
+		url:    defaultURL,
+		client: deps.IPCClient,
+		ctx:    context.Background(),
 	}
 	return cs
 }
 
-func makeServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *http.Client, *url.URL) {
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
+func makeServer(t *testing.T, ipcmock *ipcmock.IPCMock, handler http.HandlerFunc) (*httptest.Server, *url.URL) {
+	server := ipcmock.NewMockServer(handler)
 
 	url, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	return server, server.Client(), url
+	return server, url
 }
 
 //nolint:revive
 func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.HandlerFunc) *configSync {
-	_, client, url := makeServer(t, handler)
+	deps := makeDeps(t)
 
-	cs := makeConfigSync(t)
+	ipcmock := ipcmock.New(t)
+	_, url := makeServer(t, ipcmock, handler)
+
+	cs := makeConfigSync(deps)
 	cs.ctx = ctx
-	cs.client = client
 	cs.url = url
 
 	return cs

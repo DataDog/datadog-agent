@@ -26,6 +26,8 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
+
+# We want an higher compression level on deploy pipelines.
 if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
@@ -40,10 +42,6 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
-  if ot_target?
-    raise UnknownPlatform
-  end
-
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
@@ -104,12 +102,14 @@ end
 do_build = false
 do_package = false
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-  dependency "package-artifact"
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] or do_repackage?
   do_package = true
   skip_healthcheck true
 else
   do_build = true
+  if ENV["OMNIBUS_FORCE_PACKAGES"]
+    do_package = true
+  end
 end
 
 # For now we build and package in the same stage for heroku
@@ -200,7 +200,6 @@ package :zip do
   else
     # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
   end
@@ -229,16 +228,9 @@ if do_build
     dependency 'datadog-security-agent-policies'
   end
 
-  # System-probe
-  if sysprobe_enabled?
-    dependency 'system-probe'
-  end
-
   if osx_target?
     dependency 'datadog-agent-mac-app'
   end
-
-  dependency 'datadog-agent-integrations-py3'
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
@@ -257,9 +249,24 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
-  dependency "package-artifact"
+  if do_repackage?
+    dependency "existing-agent-package"
+    dependency "datadog-agent"
+  else
+    dependency "package-artifact"
+  end
   dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
 end
+
+# version manifest is based on the built softwares.
+# When packaging, we only build 2, which causes very incomplete manifests
+# to be generated. However, we build correct ones during the build stage, which
+# gets extracted in the correct location in the "package-artifacts" recipe.
+# By disabling manifest generation during packaging jobs, we ensure the manifest we
+# will package is the correct one
+disable_version_manifest do_package
+
 
 if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
@@ -333,8 +340,29 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES + [
+  # We need to strip the debug symbols from the rtloader files
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+
+  if windows_signing_enabled?
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    PYTHON_BINARIES = [
+      "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
+      "#{python_3_embedded}\\python3.dll",
+      "#{python_3_embedded}\\python312.dll",
+    ]
+    OPENSSL_BINARIES = [
+      "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
+      "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
+      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
+    ].compact
+
+    BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]

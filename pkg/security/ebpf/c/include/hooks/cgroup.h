@@ -134,14 +134,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         u64 inode = get_dentry_ino(container_d);
         resolver->key.ino = inode;
 
-        struct file_t *entry = bpf_map_lookup_elem(&exec_file_cache, &inode);
-        if (entry == NULL) {
-            return 0;
-        }
-        else {
-            resolver->key.mount_id = entry->path_key.mount_id;
-        }
-
         resolver->dentry = container_d;
 
         if (is_docker_cgroup(ctx, container_d)) {
@@ -228,7 +220,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     cache_dentry_resolver_input(resolver);
 
-    resolve_dentry_no_syscall(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry_no_syscall(ctx, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
@@ -249,8 +241,8 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_cgroup_write_callback")
-int tail_call_target_dr_cgroup_write_callback(ctx_t *ctx) {
+
+TAIL_CALL_FNC(dr_cgroup_write_callback, ctx_t *ctx) {
     return dr_cgroup_write_callback(ctx);
 }
 

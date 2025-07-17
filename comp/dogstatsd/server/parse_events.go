@@ -43,6 +43,8 @@ type dogstatsdEvent struct {
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection
 	externalData origindetection.ExternalData
+	// cardinality is used for Origin Detection
+	cardinality string
 }
 
 type eventHeader struct {
@@ -170,6 +172,8 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 		newEvent.localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
 		newEvent.externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
+	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, cardinalityPrefix):
+		newEvent.cardinality = string(optionalField[len(cardinalityPrefix):])
 	}
 	if err != nil {
 		return event, err

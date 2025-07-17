@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -15,10 +15,13 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/maps"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -44,10 +47,14 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Avoid waiting for the initial sync to finish in tests, we don't need it
 	cfg.InitialProcessSync = false
 
+	// Enable fatbin parsing in tests so we can validate it runs
+	cfg.EnableFatbinParsing = true
+
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
-		NvmlLib:        testutil.GetBasicNvmlMock(),
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
+		Telemetry:      testutil.GetTelemetryMock(t),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
@@ -75,9 +82,10 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 
 	var handlerStream, handlerGlobal *StreamHandler
 	require.Eventually(t, func() bool {
-		for key, h := range probe.consumer.streamHandlers {
-			if key.pid == uint32(cmd.Process.Pid) {
-				if key.stream == 0 {
+		handlerStream, handlerGlobal = nil, nil // Ensure we see both handlers in the same iteration
+		for h := range probe.streamHandlers.allStreams() {
+			if h.metadata.pid == uint32(cmd.Process.Pid) {
+				if h.metadata.streamID == 0 {
 					handlerGlobal = h
 				} else {
 					handlerStream = h
@@ -85,8 +93,37 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 			}
 		}
 
-		return handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
+		return len(probe.streamHandlers.globalStreams) == 1 && len(probe.streamHandlers.streams) == 1 && handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
 	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+
+	// Check that we're receiving the events we expect
+	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+	require.True(t, ok)
+
+	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+	require.NoError(t, err)
+
+	actualEvents := make(map[string]int)
+	for _, m := range eventMetrics {
+		if evType, ok := m.Tags()["event_type"]; ok {
+			actualEvents[evType] = int(m.Value())
+		}
+	}
+
+	expectedEvents := map[string]int{
+		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeSetDevice.String():         1,
+		ebpf.CudaEventTypeMemory.String():            2,
+		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+	}
+
+	for evName, value := range expectedEvents {
+		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
+		delete(actualEvents, evName)
+	}
+
+	require.Empty(t, actualEvents, "unexpected events: %v", actualEvents)
 
 	// Check device assignments
 	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
@@ -115,23 +152,51 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	cmd, err := testutil.RunSample(t, testutil.CudaSample)
 	require.NoError(t, err)
 
-	//TODO: change this check to  count telemetry counter of the consumer (once added).
-	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return len(probe.consumer.streamHandlers) == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
+		return probe.streamHandlers.streamCount() == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
 	require.NotEmpty(t, stats.Metrics)
 
+	// Check expected events are received, using the telemetry counts
+	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
+	require.True(t, ok)
+
+	eventMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
+	require.NoError(t, err)
+
+	expectedEvents := map[string]int{
+		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeSetDevice.String():         1,
+		ebpf.CudaEventTypeMemory.String():            2,
+		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
+	}
+
+	actualEvents := make(map[string]int)
+	for _, m := range eventMetrics {
+		if evType, ok := m.Tags()["event_type"]; ok {
+			actualEvents[evType] = int(m.Value())
+		}
+	}
+
+	require.ElementsMatch(t, maps.Keys(expectedEvents), maps.Keys(actualEvents))
+	for evName, value := range expectedEvents {
+		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
+	}
+
+	// Ensure the metrics we get are correct
 	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
-
-	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
+
+	// Check that the context was updated with the events
+	require.Equal(t, probe.sysCtx.cudaVisibleDevicesPerProcess[cmd.Process.Pid], "42")
 }
 
 func (s *probeTestSuite) TestMultiGPUSupport() {
@@ -153,8 +218,8 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	//TODO: change this check to  count telemetry counter of the consumer (once added).
 	// we are expecting 2 different streamhandlers because cudasample generates 3 events in total for 2 different streams (stream 0 and stream 30)
 	require.Eventually(t, func() bool {
-		return len(probe.consumer.streamHandlers) == 2
-	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", len(probe.consumer.streamHandlers))
+		return probe.streamHandlers.streamCount() == 2
+	}, 3*time.Second, 100*time.Millisecond, "stream handlers count mismatch: expected: 2, got: %d", probe.streamHandlers.streamCount())
 
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
@@ -163,7 +228,7 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
-	require.Greater(t, metrics.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Greater(t, metrics.UsedCores, 0.0) // average core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
 }
 
@@ -175,9 +240,9 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
 
 	// Check that the stream handlers have the correct container ID assigned
-	for key, handler := range probe.consumer.streamHandlers {
-		if key.pid == uint32(pid) {
-			require.Equal(t, cid, handler.containerID)
+	for handler := range probe.streamHandlers.allStreams() {
+		if handler.metadata.pid == uint32(pid) {
+			require.Equal(t, cid, handler.metadata.containerID)
 		}
 	}
 
@@ -188,6 +253,6 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	pidStats := getMetricsEntry(key, stats)
 	require.NotNil(t, pidStats)
 
-	require.Greater(t, pidStats.UtilizationPercentage, 0.0) // percentage depends on the time this took to run, so it's not deterministic
+	require.Greater(t, pidStats.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, pidStats.Memory.MaxBytes, uint64(110))
 }

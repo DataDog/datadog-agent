@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
@@ -26,11 +26,11 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "datadog_init_version"))
+	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "_dd.datadog_init_version"))
 	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
-	assert.Contains(t, tags[1], "datadog_init_version")
+	assert.Contains(t, tags[1], "_dd.datadog_init_version")
 	assert.Equal(t, "env:myenv", tags[2])
 	assert.Equal(t, "service:superservice", tags[3])
 	assert.Equal(t, "version:123.4", tags[4])
@@ -97,7 +97,8 @@ func TestDdTags(t *testing.T) {
 	overwritingTags := map[string]string{
 		"originalKey": "overWrittenValue",
 	}
-	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)), overwritingTags)
+	cfg := mock.New(t)
+	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(cfg, false)), overwritingTags)
 	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])

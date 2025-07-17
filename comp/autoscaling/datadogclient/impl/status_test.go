@@ -12,13 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestStatusProvider(t *testing.T) {
@@ -32,7 +33,7 @@ func TestStatusProvider(t *testing.T) {
 			metricsRedundantEndpointConfig: []endpoint{
 				{
 					"api.datadoghq.eu",
-					"https://api.datadoghq.eu",
+					"https://api.datadoghq.eu.",
 					"12345",
 					"67890",
 				},
@@ -67,16 +68,16 @@ func TestStatusProvider(t *testing.T) {
 
 			assert.NoError(t, err)
 			expectedTextOutput := `
-  - URL: https://api.datadoghq.com  [Unknown]
+  - URL: https://api.datadoghq.com.  [Unknown]
     Last failure: Never
     Last Success: Never
-  - URL: https://api.datadoghq.eu  [Unknown]
+  - URL: https://api.datadoghq.eu.  [Unknown]
     Last failure: Never
     Last Success: Never
 `
 			// We replace windows line break by linux so the tests pass on every OS
-			expected := strings.Replace(string(expectedTextOutput), "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			expected := strings.ReplaceAll(string(expectedTextOutput), "\r\n", "\n")
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Equal(t, expected, output)
 		}},
 		{"HTML", func(t *testing.T) {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package id contains the ID for a check
 package id
 
 import (
@@ -39,7 +39,7 @@ func BuildID(checkName string, integrationConfigDigest uint64, instance, initCon
 
 // IDToCheckName returns the check name from a check ID
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 func IDToCheckName(id ID) string {
 	return strings.SplitN(string(id), ":", 2)[0]
 }

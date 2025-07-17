@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -72,13 +73,11 @@ func (l *PatternLogger) trace(tag fmt.Stringer, format string, params ...interfa
 	if len(stag) != 0 {
 
 		l.RLock()
-		for _, t := range l.tags {
-			if t == stag {
-				l.RUnlock()
-				log.TraceStackDepth(depth, fmt.Sprintf(format, params...))
+		if slices.Contains(l.tags, stag) {
+			l.RUnlock()
+			log.TraceStackDepth(depth, fmt.Sprintf(format, params...))
 
-				return
-			}
+			return
 		}
 		l.RUnlock()
 	}

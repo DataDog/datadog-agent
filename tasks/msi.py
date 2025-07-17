@@ -2,18 +2,24 @@
 msi namespaced tasks
 """
 
+import glob
 import hashlib
 import mmap
 import os
 import shutil
 import sys
+import tempfile
+import zipfile
 from contextlib import contextmanager
+from pathlib import Path
 
+from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_release_versions
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_dependencies
 
 # Windows only import
 try:
@@ -44,6 +50,7 @@ DATADOG_AGENT_MSI_ALLOW_LIST = [
     "APPLICATIONDATADIRECTORY",
     "EXAMPLECONFSLOCATION",
     "checks.d",
+    "protected",
     "run",
     "logs",
     "ProgramMenuDatadog",
@@ -71,16 +78,23 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', release_version='nightly'):
-    env = load_release_versions(ctx, release_version)
+def _get_env(ctx, major_version='7', flavor=None):
+    env = load_dependencies(ctx)
+
+    if flavor is None:
+        flavor = os.getenv("AGENT_FLAVOR", "")
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
-    env['AGENT_FLAVOR'] = os.getenv("AGENT_FLAVOR", "")
+    env['AGENT_FLAVOR'] = flavor
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
     env['AGENT_PRODUCT_NAME_SUFFIX'] = ""
+    # Used for installation directories registry keys
+    # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
+    # TODO: How best to configure the OpenSSL version?
+    env['AGENT_OPENSSL_VERSION'] = "3.4"
 
     return env
 
@@ -280,12 +294,18 @@ def _msi_output_name(env):
 
 @task
 def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False, build_upgrade=False
+    ctx,
+    vstudio_root=None,
+    arch="x64",
+    major_version='7',
+    flavor=None,
+    debug=False,
+    build_upgrade=False,
 ):
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, release_version)
+    env = _get_env(ctx, major_version, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -384,11 +404,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, release_version)
+    env = _get_env(ctx, major_version)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -401,7 +421,7 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version=
 
     # Generate the config file
     if not ctx.run(
-        f'inv -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):
@@ -479,11 +499,11 @@ def MsiClosing(obj):
         obj.Close()
 
 
-def get_msm_info(ctx, release_version):
+def get_msm_info(ctx):
     """
-    Get the merge module info from the release.json for the given release_version
+    Get the merge module info from the release.json
     """
-    env = load_release_versions(ctx, release_version)
+    env = load_dependencies(ctx)
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:
@@ -520,20 +540,17 @@ def get_msm_info(ctx, release_version):
     iterable=['drivers'],
     help={
         'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
-        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
     },
 )
-def fetch_driver_msm(ctx, drivers=None, release_version=None):
+def fetch_driver_msm(ctx, drivers=None):
     """
     Fetch the driver merge modules (.msm) that are consumed by the Agent MSI.
 
-    Defaults to the versions provided in the @release_version section of release.json
+    Defaults to the versions provided in the dependencies section of release.json
     """
     ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
-    if not release_version:
-        release_version = 'nightly-a7'
 
-    msm_info = get_msm_info(ctx, release_version)
+    msm_info = get_msm_info(ctx)
     if not drivers:
         # if user did not specify drivers, use the ones in the release.json
         drivers = msm_info.keys()
@@ -559,3 +576,69 @@ def fetch_driver_msm(ctx, drivers=None, release_version=None):
 
         print(f"Updated {driver}")
         print(f"\t-> Downloaded {url} to {path}")
+
+
+@task(
+    help={
+        'ref': 'The name of the ref (branch, tag) to fetch the latest artifacts from',
+    },
+)
+def fetch_artifacts(ctx, ref: str | None = None) -> None:
+    """
+    Initialize the build environment with artifacts from a ref (default: main)
+
+    Example:
+    dda inv msi.fetch_artifacts --ref main
+    dda inv msi.fetch_artifacts --ref 7.66.x
+    """
+    if ref is None:
+        ref = 'main'
+
+    project = get_gitlab_repo()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        download_latest_artifacts_for_ref(project, ref, tmp_dir)
+        tmp_dir = Path(tmp_dir) / "omnibus/pkg"
+        # extract datadog-agent*-x86_64.zip (glob) to C:\opt\datadog-agent
+        dest = Path(r'C:\opt\datadog-agent')
+        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-agent-*-x86_64.zip')):
+            print(f"Extracting {zip_file} to {dest}")
+            with zipfile.ZipFile(zip_file, "r") as zip_ref:
+                zip_ref.extractall(dest)
+        # extract datadog-installer-*.zip (glob) to C:\opt\datadog-installer
+        dest = Path(r'C:\opt\datadog-installer')
+        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-installer-*-x86_64.zip')):
+            print(f"Extracting {zip_file} to {dest}")
+            with zipfile.ZipFile(zip_file, "r") as zip_ref:
+                zip_ref.extractall(dest)
+
+
+def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:
+    """
+    Fetch the latest MSI artifacts for a ref from gitlab and store them in the output directory
+    """
+    print(f"Downloading artifacts for branch {ref_name}")
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with os.fdopen(fd, "wb") as f:
+            # fd will be closed by context manager, so we no longer need it
+            fd = None
+
+            # wrap write to satisfy type for action
+            def writewrapper(b: bytes) -> None:
+                f.write(b)
+
+            project.artifacts.download(
+                ref_name=ref_name,
+                job='windows_msi_and_bosh_zip_x64-a7',
+                streamed=True,
+                action=writewrapper,
+            )
+        print(f"Extracting artifacts to {output_dir}")
+        with zipfile.ZipFile(tmp_path, "r") as zip_ref:
+            zip_ref.extractall(output_dir)
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)

@@ -36,16 +36,13 @@ func TestMergeToEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := &innerNode{
-		remapCase: map[string]string{"a": "a", "b": "b", "c": "c"},
 		children: map[string]Node{
 			"a": &leafNodeImpl{val: "apple", source: model.SourceFile},
 			"b": &leafNodeImpl{val: 123, source: model.SourceFile},
 			"c": &innerNode{
-				remapCase: map[string]string{"d": "d", "e": "e"},
 				children: map[string]Node{
 					"d": &leafNodeImpl{val: true, source: model.SourceFile},
 					"e": &innerNode{
-						remapCase: map[string]string{"f": "f"},
 						children: map[string]Node{
 							"f": &leafNodeImpl{val: 456, source: model.SourceFile},
 						},
@@ -95,17 +92,14 @@ func TestMergeTwoTree(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := &innerNode{
-		remapCase: map[string]string{"a": "a", "b": "b", "z": "z", "c": "c"},
 		children: map[string]Node{
 			"a": &leafNodeImpl{val: "orange", source: model.SourceEnvVar},
 			"b": &leafNodeImpl{val: 123, source: model.SourceFile},
 			"z": &leafNodeImpl{val: 987, source: model.SourceEnvVar},
 			"c": &innerNode{
-				remapCase: map[string]string{"d": "d", "e": "e"},
 				children: map[string]Node{
 					"d": &leafNodeImpl{val: false, source: model.SourceEnvVar},
 					"e": &innerNode{
-						remapCase: map[string]string{"f": "f", "g": "g"},
 						children: map[string]Node{
 							"f": &leafNodeImpl{val: 456, source: model.SourceEnvVar},
 							"g": &leafNodeImpl{val: "kiwi", source: model.SourceEnvVar},
@@ -139,11 +133,9 @@ func TestMergeErrorLeafToNode(t *testing.T) {
 
 	// checking leaf to node
 	err = base.Merge(overwrite)
-	require.Error(t, err)
-	assert.Equal(t, "tree conflict, can't merge inner and leaf nodes for 'a'", err.Error())
+	require.NoError(t, err)
 
 	// checking node to leaf
 	err = overwrite.Merge(base)
-	require.Error(t, err)
-	assert.Equal(t, "tree conflict, can't merge inner and leaf nodes for 'a'", err.Error())
+	require.NoError(t, err)
 }

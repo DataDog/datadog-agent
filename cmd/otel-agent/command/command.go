@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 	"go.opentelemetry.io/collector/featuregate"
 )
@@ -27,6 +28,11 @@ import (
 const (
 	// loggerName is the application logger identifier
 	loggerName = "OTELCOL"
+)
+
+var (
+	// BYOC indicates whether the otel agent was built via byoc
+	BYOC string
 )
 
 // MakeRootCommand is the root command for the otel-agent
@@ -37,6 +43,7 @@ func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-otel",
 		LoggerName: loggerName,
+		BYOC:       strings.EqualFold(BYOC, "true"),
 	}
 
 	return makeCommands(&globalParams)
@@ -49,6 +56,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
 		version.MakeCommand("otel-agent"),
+		status.MakeCommand(globalConfGetter),
 	}
 
 	otelAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
@@ -107,6 +115,10 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 			return nil
 		})
 
+	err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+	if err != nil {
+		panic(err)
+	}
 	reg.RegisterFlags(flagSet)
 	return flagSet
 }

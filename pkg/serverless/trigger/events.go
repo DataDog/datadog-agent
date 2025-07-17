@@ -82,6 +82,18 @@ const (
 
 	// LegacyStepFunctionEvent describes an event with a Legacy Lambda Step Function execution context
 	LegacyStepFunctionEvent
+
+	// NestedStepFunctionEvent describes an event with an upstream Step Function's execution context and Execution ID from the top-most Step Function
+	NestedStepFunctionEvent
+
+	// LegacyNestedStepFunctionEvent describes a NestedStepFunctionEvent wrapped by the Legacy Lambda
+	LegacyNestedStepFunctionEvent
+
+	// LambdaRootStepFunctionEvent describes an event with an upstream Step Function's execution context and Trace ID from the top-most Lambda
+	LambdaRootStepFunctionEvent
+
+	// LegacyLambdaRootStepFunctionEvent describes a LambdaRootStepFunctionEvent wrapped by the Legacy Lambda
+	LegacyLambdaRootStepFunctionEvent
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
@@ -118,6 +130,10 @@ var (
 		{isLambdaFunctionURLEvent, LambdaFunctionURLEvent},
 		{isStepFunctionEvent, StepFunctionEvent},
 		{isLegacyStepFunctionEvent, LegacyStepFunctionEvent},
+		{isNestedStepFunctionEvent, NestedStepFunctionEvent},
+		{isLegacyNestedStepFunctionEvent, LegacyNestedStepFunctionEvent},
+		{isLambdaRootStepFunctionPayload, LambdaRootStepFunctionEvent},
+		{isLegacyLambdaRootStepFunctionPayload, LegacyLambdaRootStepFunctionEvent},
 		// Ultimately check this is a Kong API Gateway event as a last resort.
 		// This is because Kong API Gateway events are a subset of API Gateway events
 		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
@@ -279,16 +295,11 @@ func isLambdaFunctionURLEvent(event map[string]any) bool {
 }
 
 func isLegacyStepFunctionEvent(event map[string]any) bool {
-	execId := json.GetNestedValue(event, "payload", "execution", "id")
-	if execId == nil {
+	context, ok := event["payload"].(map[string]any)
+	if !ok {
 		return false
 	}
-	stateName := json.GetNestedValue(event, "payload", "state", "name")
-	if stateName == nil {
-		return false
-	}
-	stateEnteredTime := json.GetNestedValue(event, "payload", "state", "enteredtime")
-	return stateEnteredTime != nil
+	return isStepFunctionEvent(context)
 }
 
 func isStepFunctionEvent(event map[string]any) bool {
@@ -296,12 +307,72 @@ func isStepFunctionEvent(event map[string]any) bool {
 	if execId == nil {
 		return false
 	}
+	execRedriveCount := json.GetNestedValue(event, "execution", "redrivecount")
+	if execRedriveCount == nil {
+		return false
+	}
 	stateName := json.GetNestedValue(event, "state", "name")
 	if stateName == nil {
 		return false
 	}
 	stateEnteredTime := json.GetNestedValue(event, "state", "enteredtime")
-	return stateEnteredTime != nil
+	if stateEnteredTime == nil {
+		return false
+	}
+	stateRetryCount := json.GetNestedValue(event, "state", "retrycount")
+	return stateRetryCount != nil
+}
+
+func isLegacyNestedStepFunctionEvent(event map[string]any) bool {
+	context, ok := event["payload"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return isNestedStepFunctionEvent(context)
+}
+
+func isNestedStepFunctionEvent(event map[string]any) bool {
+	ddData, ok := event["_datadog"].(map[string]any)
+	if !ok {
+		return false
+	}
+	serverlessVersion := json.GetNestedValue(ddData, "serverless-version")
+	if serverlessVersion == nil {
+		return false
+	}
+	rootExecutionId := json.GetNestedValue(ddData, "rootexecutionid")
+	if rootExecutionId == nil {
+		return false
+	}
+	return isStepFunctionEvent(ddData)
+}
+
+func isLegacyLambdaRootStepFunctionPayload(event map[string]any) bool {
+	context, ok := event["payload"].(map[string]any)
+	if !ok {
+		return false
+	}
+	return isLambdaRootStepFunctionPayload(context)
+}
+
+func isLambdaRootStepFunctionPayload(event map[string]any) bool {
+	ddData, ok := event["_datadog"].(map[string]any)
+	if !ok {
+		return false
+	}
+	serverlessVersion := json.GetNestedValue(ddData, "serverless-version")
+	if serverlessVersion == nil {
+		return false
+	}
+	traceId := json.GetNestedValue(ddData, "x-datadog-trace-id")
+	if traceId == nil {
+		return false
+	}
+	tags := json.GetNestedValue(ddData, "x-datadog-tags")
+	if tags == nil {
+		return false
+	}
+	return isStepFunctionEvent(ddData)
 }
 
 func eventRecordsKeyExists(event map[string]any, key string) bool {

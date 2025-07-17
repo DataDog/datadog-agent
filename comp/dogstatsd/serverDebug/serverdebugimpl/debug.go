@@ -136,7 +136,7 @@ func FormatDebugStats(stats []byte) (string, error) {
 
 	header := fmt.Sprintf("%-40s | %-20s | %-10s | %-20s\n", "Metric", "Tags", "Count", "Last Seen")
 	buf.Write([]byte(header))
-	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
+	buf.Write([]byte(strings.Repeat("-", 40) + "-|-" + strings.Repeat("-", 20) + "-|-" + strings.Repeat("-", 10) + "-|-" + strings.Repeat("-", 20) + "\n"))
 
 	for _, key := range order {
 		stats := dogStats[key]

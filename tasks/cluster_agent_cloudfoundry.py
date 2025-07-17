@@ -19,7 +19,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
     Build Cluster Agent for Cloud Foundry
 
      Example invokation:
-        inv cluster-agent-cloudfoundry.build
+        dda inv cluster-agent-cloudfoundry.build
     """
     build_common(
         ctx,

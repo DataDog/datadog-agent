@@ -99,8 +99,14 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) bool {
 		return false
 	}
 
-	// only open events are supported
-	if eventType != model.FileOpenEventType && eventType != model.ExecEventType {
+	// only open and exec events are supported
+	var fileEvent *model.FileEvent
+	switch eventType {
+	case model.FileOpenEventType:
+		fileEvent = &ev.Open.File
+	case model.ExecEventType:
+		fileEvent = &ev.Exec.FileEvent
+	default:
 		return false
 	}
 
@@ -113,7 +119,7 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) bool {
 		pid:       ev.ProcessContext.Pid,
 		crtID:     ev.ProcessContext.ContainerID,
 		seenAt:    ev.Timestamp,
-		fileEvent: ev.Open.File,
+		fileEvent: *fileEvent,
 		eventType: eventType,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)

@@ -66,7 +66,7 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 	}
 	h := &Handler{
 		autoconfig:       ac,
-		leaderStatusFreq: 5 * time.Second,
+		leaderStatusFreq: 1 * time.Second,
 		warmupDuration:   pkgconfigsetup.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
 		leadershipChan:   make(chan state, 1),
 		dispatcher:       newDispatcher(tagger),

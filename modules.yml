@@ -14,16 +14,26 @@ modules:
     - ./comp
   comp/api/api/def:
     used_by_otel: true
-  comp/api/authtoken: default
   comp/core/config:
     used_by_otel: true
+  comp/core/configsync: default
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
     used_by_otel: true
   comp/core/hostname/hostnameinterface:
     used_by_otel: true
+  comp/core/ipc/def:
+    used_by_otel: true
+  comp/core/ipc/httphelpers:
+    used_by_otel: true
+  comp/core/ipc/impl:
+    used_by_otel: true
+  comp/core/ipc/mock:
+    used_by_otel: true
   comp/core/log/def:
+    used_by_otel: true
+  comp/core/log/fx:
     used_by_otel: true
   comp/core/log/impl:
     used_by_otel: true
@@ -35,9 +45,21 @@ modules:
   comp/core/status:
     used_by_otel: true
   comp/core/status/statusimpl: default
+  comp/core/tagger/def:
+    used_by_otel: true
+  comp/core/tagger/fx-remote:
+    used_by_otel: true
+  comp/core/tagger/generic_store:
+    used_by_otel: true
+  comp/core/tagger/impl-remote:
+    used_by_otel: true
   comp/core/tagger/origindetection:
     used_by_otel: true
+  comp/core/tagger/subscriber:
+    used_by_otel: true
   comp/core/tagger/tags:
+    used_by_otel: true
+  comp/core/tagger/telemetry:
     used_by_otel: true
   comp/core/tagger/types:
     used_by_otel: true
@@ -60,9 +82,16 @@ modules:
   comp/otelcol/converter/impl: default
   comp/otelcol/ddflareextension/def: default
   comp/otelcol/ddflareextension/impl: default
+  comp/otelcol/ddflareextension/types: default
+  comp/otelcol/ddprofilingextension/def:
+    used_by_otel: true
+  comp/otelcol/ddprofilingextension/impl:
+    used_by_otel: true
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
+    used_by_otel: true
+  comp/otelcol/otlp/components/connector/datadogconnector:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
@@ -77,6 +106,8 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
+  comp/otelcol/status/def: default
+  comp/otelcol/status/impl: default
   comp/serializer/logscompression:
     used_by_otel: true
   comp/serializer/metricscompression:
@@ -90,6 +121,10 @@ modules:
   comp/trace/compression/impl-zstd:
     used_by_otel: true
   internal/tools:
+    independent: false
+    should_tag: false
+    should_test_condition: never
+  internal/tools/gotest-custom:
     independent: false
     should_tag: false
     should_test_condition: never
@@ -123,6 +158,8 @@ modules:
     used_by_otel: true
   pkg/collector/check/defaults:
     used_by_otel: true
+  pkg/config/create:
+    used_by_otel: true
   pkg/config/env:
     used_by_otel: true
   pkg/config/mock:
@@ -140,13 +177,18 @@ modules:
     used_by_otel: true
   pkg/config/utils:
     used_by_otel: true
+  pkg/config/viperconfig:
+    used_by_otel: true
+  pkg/dyninst/testprogs/progs: ignored
   pkg/errors: default
+  pkg/fips:
+    used_by_otel: true
+  pkg/fleet/installer:
+    should_replace_internal_modules: false
   pkg/gohai: default
   pkg/linters/components/pkgconfigusage:
     independent: false
     should_tag: false
-  pkg/logs/auditor:
-    used_by_otel: true
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:
@@ -159,8 +201,7 @@ modules:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
-  pkg/logs/sds:
-    used_by_otel: true
+  pkg/logs/sds: default
   pkg/logs/sender:
     used_by_otel: true
   pkg/logs/sources:
@@ -173,8 +214,21 @@ modules:
     used_by_otel: true
   pkg/metrics:
     used_by_otel: true
+  pkg/network/payload: default
   pkg/networkdevice/profile: default
+  pkg/networkpath/payload: default
   pkg/obfuscate:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/inframetadata:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest:
+    should_test_condition: never
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/attributes:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/logs:
+    used_by_otel: true
+  pkg/opentelemetry-mapping-go/otlp/metrics:
     used_by_otel: true
   pkg/orchestrator/model:
     used_by_otel: true
@@ -198,6 +252,10 @@ modules:
     used_by_otel: true
   pkg/telemetry:
     used_by_otel: true
+  pkg/template:
+    should_replace_internal_modules: false
+    should_test_condition: never
+    used_by_otel: true
   pkg/trace:
     used_by_otel: true
   pkg/trace/stats/oteltest:
@@ -206,7 +264,8 @@ modules:
     used_by_otel: true
   pkg/util/buf:
     used_by_otel: true
-  pkg/util/cache: default
+  pkg/util/cache:
+    used_by_otel: true
   pkg/util/cgroups:
     should_test_condition: is_linux
     used_by_otel: true
@@ -225,7 +284,8 @@ modules:
   pkg/util/flavor: default
   pkg/util/fxutil:
     used_by_otel: true
-  pkg/util/grpc: default
+  pkg/util/grpc:
+    used_by_otel: true
   pkg/util/hostname/validate:
     used_by_otel: true
   pkg/util/http:
@@ -238,7 +298,14 @@ modules:
     used_by_otel: true
   pkg/util/option:
     used_by_otel: true
+  pkg/util/otel:
+    used_by_otel: true
   pkg/util/pointer:
+    used_by_otel: true
+  pkg/util/prometheus: default
+  pkg/util/quantile:
+    used_by_otel: true
+  pkg/util/quantile/sketchtest:
     used_by_otel: true
   pkg/util/scrubber:
     used_by_otel: true
@@ -256,7 +323,8 @@ modules:
     used_by_otel: true
   pkg/util/utilizationtracker:
     used_by_otel: true
-  pkg/util/uuid: default
+  pkg/util/uuid:
+    used_by_otel: true
   pkg/util/winutil:
     used_by_otel: true
   pkg/version:

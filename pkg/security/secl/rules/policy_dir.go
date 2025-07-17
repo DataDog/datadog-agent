@@ -9,6 +9,7 @@ package rules
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/hashicorp/go-multierror"
@@ -34,13 +35,25 @@ func (p *PoliciesDirProvider) Start() {}
 func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, &ErrPolicyLoad{Name: filename, Err: err}
+		return nil, &ErrPolicyLoad{Name: filename, Source: PolicyProviderTypeDir, Err: err}
 	}
 	defer f.Close()
 
 	name := filepath.Base(filename)
+	var policyType PolicyType
+	if name == DefaultPolicyName {
+		policyType = DefaultPolicyType
+	} else {
+		policyType = CustomPolicyType
+	}
 
-	return LoadPolicy(name, PolicyProviderTypeDir, f, macroFilters, ruleFilters)
+	pInfo := &PolicyInfo{
+		Name:   name,
+		Source: PolicyProviderTypeDir,
+		Type:   policyType,
+	}
+
+	return LoadPolicy(pInfo, f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
@@ -82,6 +95,8 @@ func (p *PoliciesDirProvider) LoadPolicies(macroFilters []MacroFilter, ruleFilte
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
+
+	slices.Sort(policyFiles)
 
 	// Load and parse policies
 	for _, filename := range policyFiles {

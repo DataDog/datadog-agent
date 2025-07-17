@@ -5,11 +5,13 @@
 
 package common
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+)
 
 const (
-	// DatadogInstallerPackage is the datadog installer package
-	DatadogInstallerPackage string = "datadog-installer"
 	// DatadogAgentPackage is the datadog agent package
 	DatadogAgentPackage string = "datadog-agent"
 	// DatadogAPMInjectPackage is the datadog apm inject package
@@ -30,7 +32,6 @@ const (
 
 var (
 	order = []string{
-		DatadogInstallerPackage,
 		DatadogAgentPackage,
 		DatadogAPMInjectPackage,
 		DatadogAPMLibraryJavaPackage,
@@ -52,10 +53,14 @@ var (
 	}
 )
 
-func resolvePackages(packages Packages) []packageWithVersion {
+func resolvePackages(env *env.Env, packages Packages) []packageWithVersion {
 	var resolved []packageWithVersion
 	for _, pkg := range order {
-		if p, ok := packages.install[pkg]; ok {
+		forceInstall := env.DefaultPackagesInstallOverride[pkg]
+		if p, ok := packages.install[pkg]; ok || forceInstall {
+			if env.DefaultPackagesVersionOverride[pkg] != "" {
+				p.version = env.DefaultPackagesVersionOverride[pkg]
+			}
 			resolved = append(resolved, p)
 		}
 	}
@@ -67,7 +72,8 @@ func resolvePackages(packages Packages) []packageWithVersion {
 
 // Packages is a list of packages to install
 type Packages struct {
-	install map[string]packageWithVersion
+	install          map[string]packageWithVersion
+	copyInstallerSSI bool
 }
 
 type packageWithVersion struct {
@@ -81,4 +87,10 @@ func (p *Packages) Install(pkg string, version string) {
 		name:    pkg,
 		version: version,
 	}
+}
+
+// WriteSSIInstaller marks that the installer should be copied to /opt/datadog-packages/run/datadog-installer-ssi
+// Use this when installing SSI without the agent, so that the installer can be used later to remove the packages.
+func (p *Packages) WriteSSIInstaller() {
+	p.copyInstallerSSI = true
 }

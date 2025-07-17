@@ -8,6 +8,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -18,7 +19,7 @@ import (
 
 // ExtractService returns the protobuf model corresponding to a Kubernetes
 // Service resource.
-func ExtractService(s *corev1.Service) *model.Service {
+func ExtractService(ctx processors.ProcessorContext, s *corev1.Service) *model.Service {
 	message := &model.Service{
 		Metadata: extractMetadata(&s.ObjectMeta),
 		Spec: &model.ServiceSpec{
@@ -79,7 +80,9 @@ func ExtractService(s *corev1.Service) *model.Service {
 		})
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(s.ObjectMeta.Labels)...)
+	message.Tags = append(message.Tags, transformers.RetrieveMetadataTags(s.ObjectMeta.Labels, s.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return message
 }

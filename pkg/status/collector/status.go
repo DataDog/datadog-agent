@@ -29,26 +29,26 @@ func GetStatusInfo() map[string]interface{} {
 func PopulateStatus(stats map[string]interface{}) {
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
+	_ = json.Unmarshal(runnerStatsJSON, &runnerStats)
 	stats["runnerStats"] = runnerStats
 
 	if expvar.Get("autoconfig") != nil {
 		autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
 		autoConfigStats := make(map[string]interface{})
-		json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
+		_ = json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
 		stats["autoConfigStats"] = autoConfigStats
 	}
 
 	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
 	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
+	_ = json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats)
 	stats["checkSchedulerStats"] = checkSchedulerStats
 
 	pyLoaderData := expvar.Get("pyLoader")
 	if pyLoaderData != nil {
 		pyLoaderStatsJSON := []byte(pyLoaderData.String())
 		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
+		_ = json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats)
 		stats["pyLoaderStats"] = pyLoaderStats
 	} else {
 		stats["pyLoaderStats"] = nil
@@ -58,7 +58,7 @@ func PopulateStatus(stats map[string]interface{}) {
 	if pythonInitData != nil {
 		pythonInitJSON := []byte(pythonInitData.String())
 		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
+		_ = json.Unmarshal(pythonInitJSON, &pythonInit)
 		stats["pythonInit"] = pythonInit
 	} else {
 		stats["pythonInit"] = nil
@@ -68,7 +68,7 @@ func PopulateStatus(stats map[string]interface{}) {
 	var inventoriesStats map[string]interface{}
 	if inventories != nil {
 		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
+		_ = json.Unmarshal(inventoriesStatsJSON, &inventoriesStats)
 	}
 
 	checkMetadata := map[string]map[string]string{}

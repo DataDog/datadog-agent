@@ -51,7 +51,7 @@ func TestCombineWith(t *testing.T) {
 
 	stats2.AddRequest(testErrorCode, 10, 1, 10.0)
 	stats3.AddRequest(testErrorCode, 15, 2, 15.0)
-	stats4.AddRequest(testErrorCode, 20, 3, 20.0)
+	stats4.AddRequest(testErrorCode, 20, 4, 20.0)
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)
@@ -69,6 +69,7 @@ func TestCombineWith(t *testing.T) {
 	if assert.NotNil(t, s) {
 		assert.Equal(t, 45, s.Count)
 		assert.Equal(t, float64(45), s.Latencies.GetCount())
+		assert.Equal(t, uint64(1|2|4), s.StaticTags)
 
 		verifyQuantile(t, s.Latencies, 0.0, 10.0) // min item
 		verifyQuantile(t, s.Latencies, 0.5, 15.0) // median
@@ -83,4 +84,32 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
 	assert.GreaterOrEqual(t, val, expectedValue-acceptableError)
 	assert.LessOrEqual(t, val, expectedValue+acceptableError)
+}
+
+func benchmarkRequestStatsPool(b *testing.B, reqNum int) {
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stats := NewRequestStats()
+		for j := 0; j < reqNum; j++ {
+			stats.AddRequest(1, 1, 1, 1)
+		}
+		stats.Close()
+	}
+}
+
+func BenchmarkRequestStatsPool_10Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 10)
+}
+
+func BenchmarkRequestStatsPool_100Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 100)
+}
+
+func BenchmarkRequestStatsPool_1000Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 1000)
+}
+
+func BenchmarkRequestStatsPool_10000Reqs(b *testing.B) {
+	benchmarkRequestStatsPool(b, 10000)
 }

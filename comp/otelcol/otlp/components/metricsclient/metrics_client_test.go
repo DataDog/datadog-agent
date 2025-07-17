@@ -9,25 +9,29 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	metricapi "go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/embedded"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
 )
 
-func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
+func setupMetricClient(t *testing.T) (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
 	reader := metric.NewManualReader()
 	meterProvider := metric.NewMeterProvider(metric.WithReader(reader))
-	metricClient := InitializeMetricClient(meterProvider, ExporterSourceTag)
+	metricClient, err := InitializeMetricClient(meterProvider, ExporterSourceTag)
+	require.NoError(t, err)
 	timingReporter := timing.New(metricClient)
 	return reader, metricClient, timingReporter
 }
 
 func TestGauge(t *testing.T) {
-	reader, metricClient, _ := setupMetricClient()
+	reader, metricClient, _ := setupMetricClient(t)
 
 	err := metricClient.Gauge("test_gauge", 1, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
@@ -49,7 +53,7 @@ func TestGauge(t *testing.T) {
 }
 
 func TestGaugeMultiple(t *testing.T) {
-	reader, metricClient, _ := setupMetricClient()
+	reader, metricClient, _ := setupMetricClient(t)
 
 	err := metricClient.Gauge("test_gauge", 1, []string{"otlp:true"}, 1)
 	assert.NoError(t, err)
@@ -74,7 +78,7 @@ func TestGaugeMultiple(t *testing.T) {
 }
 
 func TestGaugeDataRace(t *testing.T) {
-	reader, metricClient, _ := setupMetricClient()
+	reader, metricClient, _ := setupMetricClient(t)
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -111,7 +115,7 @@ func TestGaugeDataRace(t *testing.T) {
 }
 
 func TestCount(t *testing.T) {
-	reader, metricClient, _ := setupMetricClient()
+	reader, metricClient, _ := setupMetricClient(t)
 
 	err := metricClient.Count("test_count", 1, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
@@ -171,7 +175,7 @@ func TestCount(t *testing.T) {
 }
 
 func TestHistogram(t *testing.T) {
-	reader, metricClient, _ := setupMetricClient()
+	reader, metricClient, _ := setupMetricClient(t)
 
 	err := metricClient.Histogram("test_histogram", 1, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
@@ -200,7 +204,7 @@ func TestHistogram(t *testing.T) {
 }
 
 func TestTiming(t *testing.T) {
-	reader, metricClient, _ := setupMetricClient()
+	reader, metricClient, _ := setupMetricClient(t)
 
 	err := metricClient.Timing("test_timing", time.Duration(1000000000), []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
@@ -226,4 +230,20 @@ func TestTiming(t *testing.T) {
 		},
 	}
 	metricdatatest.AssertEqual(t, want, got, metricdatatest.IgnoreTimestamp())
+}
+
+// nilMeterProvider implements the MeterProvider interface and always returns nil Meters
+type nilMeterProvider struct {
+	embedded.MeterProvider
+}
+
+func (*nilMeterProvider) Meter(_ string, _ ...metricapi.MeterOption) metricapi.Meter {
+	return nil
+}
+
+var _ metricapi.MeterProvider = (*nilMeterProvider)(nil)
+
+func TestNoNilMeter(t *testing.T) {
+	_, err := InitializeMetricClient(&nilMeterProvider{}, ExporterSourceTag)
+	assert.ErrorIs(t, err, errNilMeter)
 }

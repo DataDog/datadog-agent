@@ -6,6 +6,9 @@
 package transform
 
 import (
+	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -14,6 +17,8 @@ import (
 const (
 	// TagRedisRawCommand represents a redis raw command tag
 	TagRedisRawCommand = "redis.raw_command"
+	// TagValkeyRawCommand represents a redis raw command tag
+	TagValkeyRawCommand = "valkey.raw_command"
 	// TagMemcachedCommand represents a memcached command tag
 	TagMemcachedCommand = "memcached.command"
 	// TagMongoDBQuery represents a MongoDB query tag
@@ -35,6 +40,15 @@ const (
 	TextNonParsable = "Non-parsable SQL query"
 )
 
+func obfuscateOTelDBAttributes(oq *obfuscate.ObfuscatedQuery, span *pb.Span) {
+	if _, ok := traceutil.GetMeta(span, string(semconv.DBStatementKey)); ok {
+		traceutil.SetMeta(span, string(semconv.DBStatementKey), oq.Query)
+	}
+	if _, ok := traceutil.GetMeta(span, string(semconv126.DBQueryTextKey)); ok {
+		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), oq.Query)
+	}
+}
+
 // ObfuscateSQLSpan obfuscates a SQL span using pkg/obfuscate logic
 func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.ObfuscatedQuery, error) {
 	if span.Resource == "" {
@@ -48,6 +62,7 @@ func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.Obfusc
 		return nil, err
 	}
 	span.Resource = oq.Query
+	obfuscateOTelDBAttributes(oq, span)
 	if len(oq.Metadata.TablesCSV) > 0 {
 		traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
 	}
@@ -65,4 +80,16 @@ func ObfuscateRedisSpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bo
 		return
 	}
 	span.Meta[TagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[TagRedisRawCommand])
+}
+
+// ObfuscateValkeySpan obfuscates a Valkey span using pkg/obfuscate logic
+func ObfuscateValkeySpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
+	if span.Meta == nil || span.Meta[TagValkeyRawCommand] == "" {
+		return
+	}
+	if removeAllArgs {
+		span.Meta[TagValkeyRawCommand] = o.RemoveAllRedisArgs(span.Meta[TagValkeyRawCommand])
+		return
+	}
+	span.Meta[TagValkeyRawCommand] = o.ObfuscateRedisString(span.Meta[TagValkeyRawCommand])
 }

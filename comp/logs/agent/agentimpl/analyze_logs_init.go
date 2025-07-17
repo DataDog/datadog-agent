@@ -13,8 +13,8 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
@@ -22,19 +22,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// SetUpLaunchers creates intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
-func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.ConfigSources) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+// SetUpLaunchers intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
+func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.ConfigSources) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
 	processingRules, err := config.GlobalProcessingRules(conf)
 	if err != nil {
-		log.Errorf("Error while getting processing rules from config: %v", err)
-		return nil, nil, nil
+		return nil, nil, nil, err
 	}
 
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
-	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, conf, nil)
+	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, nil)
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(nil, pipelineProvider, nil, nil)
@@ -52,10 +50,10 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		nil)
 	tracker := tailers.NewTailerTracker()
 
-	a := auditor.NewNullAuditor()
+	a := auditornoop.NewAuditor()
 	pipelineProvider.Start()
 	fileLauncher.Start(sourceProvider, pipelineProvider, a, tracker)
 	lnchrs.AddLauncher(fileLauncher)
 	outputChan := pipelineProvider.GetOutputChan()
-	return outputChan, lnchrs, pipelineProvider
+	return outputChan, lnchrs, pipelineProvider, nil
 }

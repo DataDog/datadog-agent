@@ -14,9 +14,10 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,10 +28,34 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	out := bytes.NewBuffer(parameterBytes)
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
-		params := procInfo.TypeMap.Functions[probe.FuncName]
+		preChange := procInfo.TypeMap.Functions[probe.FuncName]
+		depthLimit := probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth
+		fieldCountLimit := ditypes.MaxFieldCount
+		setDepthLimit(preChange, depthLimit)
+		setFieldLimit(preChange, fieldCountLimit)
+		dontCaptureInterfaces(preChange)
+
+		// We make a copy of the parameter tree to avoid modifying the original
+		// for the sake of event translation when uploading to backend
+		params := make([]*ditypes.Parameter, len(preChange))
+		copyTree(&params, &preChange)
+
+		params = applyExclusions(params)
+		correctPointersWithoutPieces(params)
+
 		for i := range params {
+			if params[i].DoNotCapture {
+				log.Tracef("Not capturing parameter %d %s: %s", i, params[i].Name, params[i].NotCaptureReason.String())
+				continue
+			}
+
+			err := generateParameterIndexText(i, out)
+			if err != nil {
+				return err
+			}
+
 			flattenedParams := flattenParameters([]*ditypes.Parameter{params[i]})
-			err := generateHeadersText(flattenedParams, out)
+			err = generateHeadersText(flattenedParams, out)
 			if err != nil {
 				return err
 			}
@@ -43,6 +68,7 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 		log.Info("Not capturing parameters")
 	}
 
+	log.Tracef("Generated BPF parameters source code:\n %s", out.String())
 	probe.InstrumentationInfo.BPFParametersSourceCode = out.String()
 	return nil
 }
@@ -71,23 +97,31 @@ func generateHeadersText(params []*ditypes.Parameter, out io.Writer) error {
 	return nil
 }
 
+func generateParameterIndexText(index int, out io.Writer) error {
+	expr := ditypes.SetParameterIndexLocationExpression(uint16(index))
+	t, err := resolveLocationExpressionTemplate(expr.Opcode)
+	if err != nil {
+		return err
+	}
+	return t.Execute(out, expr)
+}
+
 func generateHeaderText(param *ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
 		return generateSliceHeader(param, out)
 	} else if reflect.Kind(param.Kind) == reflect.String {
 		return generateStringHeader(param, out)
-	} else { //nolint:revive // TODO
-		tmplt, err := resolveHeaderTemplate(param)
-		if err != nil {
-			return err
-		}
-		err = tmplt.Execute(out, param)
-		if err != nil {
-			return err
-		}
-		if len(param.ParameterPieces) != 0 {
-			return generateHeadersText(param.ParameterPieces, out)
-		}
+	}
+	template, err := resolveHeaderTemplate(param)
+	if err != nil {
+		return err
+	}
+	err = template.Execute(out, param)
+	if err != nil {
+		return err
+	}
+	if len(param.ParameterPieces) != 0 {
+		return generateHeadersText(param.ParameterPieces, out)
 	}
 	return nil
 }
@@ -96,7 +130,7 @@ func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, o
 	for i := range params {
 		collectedExpressions := collectLocationExpressions(params[i])
 		for _, locationExpression := range collectedExpressions {
-			template, err := resolveLocationExpressionTemplate(locationExpression)
+			template, err := resolveLocationExpressionTemplate(locationExpression.Opcode)
 			if err != nil {
 				return err
 			}
@@ -129,15 +163,36 @@ func collectLocationExpressions(param *ditypes.Parameter) []ditypes.LocationExpr
 		}
 		queue = append(queue, top.ParameterPieces...)
 		if len(top.LocationExpressions) > 0 {
-			collectedExpressions = append(top.LocationExpressions, collectedExpressions...)
+			expressions := []ditypes.LocationExpression{}
+			for i := range top.LocationExpressions {
+				expressions = append(expressions, collectSubLocationExpressions(top.LocationExpressions[i])...)
+			}
+			collectedExpressions = append(expressions, collectedExpressions...)
 			top.LocationExpressions = []ditypes.LocationExpression{}
 		}
 	}
 	return collectedExpressions
 }
 
-func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpression) (*template.Template, error) {
-	switch locationExpression.Opcode {
+func collectSubLocationExpressions(location ditypes.LocationExpression) []ditypes.LocationExpression {
+	collectedExpressions := []ditypes.LocationExpression{}
+	queue := []ditypes.LocationExpression{location}
+	var top ditypes.LocationExpression
+
+	for len(queue) != 0 {
+		top = queue[0]
+		queue = queue[1:]
+		queue = append(queue, top.IncludedExpressions...)
+		if top.Opcode != ditypes.OpPopPointerAddress {
+			collectedExpressions = append(collectedExpressions, top)
+		}
+		top.IncludedExpressions = []ditypes.LocationExpression{}
+	}
+	return collectedExpressions
+}
+
+var resolveLocationExpressionTemplate = funcs.MemoizeArg(func(opcode ditypes.LocationExpressionOpcode) (*template.Template, error) {
+	switch opcode {
 	case ditypes.OpReadUserRegister:
 		return template.New("read_register_location_expression").Parse(readRegisterTemplateText)
 	case ditypes.OpReadUserStack:
@@ -176,23 +231,28 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 		return template.New("print_statement").Parse(printStatementText)
 	case ditypes.OpComment:
 		return template.New("comment").Parse(commentText)
+	case ditypes.OpSetParameterIndex:
+		return template.New("set_parameter_index").Parse(setParameterIndexText)
+	case ditypes.OpCompilerError:
+		return template.New("compiler_error").Parse(compilerErrorText)
+	case ditypes.OpVerifierError:
+		return template.New("verifier_error").Parse(verifierErrorText)
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}
-}
+})
 
 func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
-	if slice == nil {
-		return errors.New("nil slice parameter when generating header code")
-	}
-	if len(slice.ParameterPieces) != 3 {
-		return fmt.Errorf("invalid slice parameter when generating header code: %d fields", len(slice.ParameterPieces))
-	}
-
 	// Slices are defined with an "array" pointer as piece 0, which is a pointer to the actual
 	// type, which is defined as piece 0 under that.
-	if len(slice.ParameterPieces) != 3 &&
-		len(slice.ParameterPieces[0].ParameterPieces) != 1 {
+
+	// Validate entire data structure is valid and not nil before accessing
+	if slice == nil ||
+		len(slice.ParameterPieces) != 3 ||
+		slice.ParameterPieces[0] == nil ||
+		slice.ParameterPieces[1] == nil ||
+		len(slice.ParameterPieces[0].ParameterPieces) != 1 ||
+		slice.ParameterPieces[0].ParameterPieces[0] == nil {
 		return errors.New("malformed slice type")
 	}
 
@@ -203,8 +263,12 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	lenHeaderBuf.Write([]byte("// Capture length of slice:"))
 	err := generateHeaderText(slice.ParameterPieces[0].ParameterPieces[0], typeHeaderBuf)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not generate header text for underlying slice element type: %w", err)
 	}
+	if slice == nil || len(slice.ParameterPieces) == 0 || slice.ParameterPieces[1] == nil {
+		return fmt.Errorf("could not read slice length parameter")
+	}
+	excludePopPointerAddressExpressions(&slice.ParameterPieces[1].LocationExpressions)
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{slice.ParameterPieces[1]}, lenHeaderBuf)
 	if err != nil {
 		return err
@@ -217,7 +281,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 
 	sliceTemplate, err := resolveHeaderTemplate(slice)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not resolve header for slice type: %w", err)
 	}
 
 	err = sliceTemplate.Execute(out, w)
@@ -243,6 +307,10 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating string header: %w", err)
 	}
+	if stringParam == nil || len(stringParam.ParameterPieces) == 0 || stringParam.ParameterPieces[1] == nil {
+		return fmt.Errorf("could not read string length parameter")
+	}
+	excludePopPointerAddressExpressions(&stringParam.ParameterPieces[1].LocationExpressions)
 	err = generateParametersTextViaLocationExpressions([]*ditypes.Parameter{stringParam.ParameterPieces[1]}, out)
 	if err != nil {
 		return err
@@ -253,7 +321,76 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	return nil
 }
 
+func excludePopPointerAddressExpressions(expressions *[]ditypes.LocationExpression) {
+	if expressions == nil {
+		return
+	}
+	filteredExpressions := []ditypes.LocationExpression{}
+	for i := range *expressions {
+		if (*expressions)[i].Opcode != ditypes.OpPopPointerAddress {
+			filteredExpressions = append(filteredExpressions, (*expressions)[i])
+		}
+	}
+	*expressions = filteredExpressions
+}
+
 type sliceHeaderWrapper struct {
 	Parameter           *ditypes.Parameter
 	SliceTypeHeaderText string
+}
+
+func copyTree(dst, src *[]*ditypes.Parameter) {
+	if dst == nil || src == nil || len(*src) == 0 {
+		return
+	}
+	*dst = make([]*ditypes.Parameter, len(*src))
+	for i := range *src {
+		if (*src)[i] == nil {
+			continue
+		}
+
+		// Create a new Parameter object for each element
+		srcParam := (*src)[i]
+		(*dst)[i] = &ditypes.Parameter{
+			Name:             srcParam.Name,
+			ID:               srcParam.ID,
+			Type:             srcParam.Type,
+			TotalSize:        srcParam.TotalSize,
+			Kind:             srcParam.Kind,
+			FieldOffset:      srcParam.FieldOffset,
+			DoNotCapture:     srcParam.DoNotCapture,
+			NotCaptureReason: srcParam.NotCaptureReason,
+		}
+
+		// Deep copy the Location if present
+		if srcParam.Location != nil {
+			(*dst)[i].Location = &ditypes.Location{
+				InReg:            srcParam.Location.InReg,
+				StackOffset:      srcParam.Location.StackOffset,
+				Register:         srcParam.Location.Register,
+				NeedsDereference: srcParam.Location.NeedsDereference,
+				PointerOffset:    srcParam.Location.PointerOffset,
+			}
+		}
+
+		// Deep copy the LocationExpressions slice
+		if len(srcParam.LocationExpressions) > 0 {
+			(*dst)[i].LocationExpressions = make([]ditypes.LocationExpression, len(srcParam.LocationExpressions))
+			for j, expr := range srcParam.LocationExpressions {
+				// Copy the LocationExpression struct
+				(*dst)[i].LocationExpressions[j] = expr
+
+				// Deep copy any IncludedExpressions
+				if len(expr.IncludedExpressions) > 0 {
+					(*dst)[i].LocationExpressions[j].IncludedExpressions = make([]ditypes.LocationExpression, len(expr.IncludedExpressions))
+					copy((*dst)[i].LocationExpressions[j].IncludedExpressions, expr.IncludedExpressions)
+				}
+			}
+		}
+
+		// Recursively copy ParameterPieces
+		if len(srcParam.ParameterPieces) > 0 {
+			copyTree(&((*dst)[i].ParameterPieces), &(srcParam.ParameterPieces))
+		}
+	}
 }

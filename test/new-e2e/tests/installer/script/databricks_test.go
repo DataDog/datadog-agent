@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	databricksAgentVersion          = "7.58.2-1"
-	databricksApmInjectVersion      = "0.26.0"
-	databricksApmLibraryJavaVersion = "1.42.2"
+	databricksAgentVersion          = "7.66.0-1"
+	databricksApmInjectVersion      = "0.40.0"
+	databricksApmLibraryJavaVersion = "1.49.0"
 )
 
 type installScriptDatabricksSuite struct {
@@ -28,7 +28,7 @@ func testDatabricksScript(os e2eos.Descriptor, arch e2eos.Architecture) installe
 	s := &installScriptDatabricksSuite{
 		installerScriptBaseSuite: newInstallerScriptSuite("installer-databricks", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
 	}
-	s.url = fmt.Sprintf("https://installtesting.datad0g.com/%s/scripts/install-databricks.sh", s.commitHash)
+	s.url = s.scriptURLPrefix + "install-databricks.sh"
 
 	return s
 }
@@ -59,5 +59,5 @@ func (s *installScriptDatabricksSuite) TestDatabricksDriverInstallScript() {
 
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/conf.d/spark.d/databricks.yaml", 0644, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/inject/tracer.yaml", 0644, "root", "root")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
 }

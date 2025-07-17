@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,6 +33,8 @@ const (
 	tlsProcessTailCall     = "uprobe__redis_tls_process"
 	tlsTerminationTailCall = "uprobe__redis_tls_termination"
 	eventStream            = "redis"
+	netifProbe             = "tracepoint__net__netif_receive_skb_redis"
+	netifProbe414          = "netif_receive_skb_core_redis_4_14"
 )
 
 type protocol struct {
@@ -39,6 +42,7 @@ type protocol struct {
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatsKeeper
+	mgr            *manager.Manager
 }
 
 // Spec is the protocol spec for the redis protocol.
@@ -46,6 +50,22 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newRedisProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -73,7 +93,7 @@ var Spec = &protocols.ProtocolSpec{
 }
 
 // newRedisProtocol is the factory for the Redis protocol object
-func newRedisProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newRedisProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableRedisMonitoring {
 		return nil, nil
 	}
@@ -81,6 +101,7 @@ func newRedisProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	return &protocol{
 		cfg:         cfg,
 		statskeeper: NewStatsKeeper(cfg),
+		mgr:         mgr,
 	}, nil
 }
 
@@ -91,19 +112,27 @@ func (p *protocol) Name() string {
 
 // ConfigureOptions add the necessary options for the redis monitoring
 // to work, to be used by the manager.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "redis_monitoring_enabled")
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
-		mgr,
+		p.mgr,
 		p.processRedis,
 	)
 
@@ -115,15 +144,15 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
+	p.setupMapCleaner()
 
 	return nil
 }
 
 // Stop stops all resources associated with the protocol.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
@@ -145,14 +174,19 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	}
 }
 
-// GetStats returns a map of Redis stats.
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+// GetStats returns a map of Redis stats and a callback to clean resources.
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 
+	keysToStats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Redis,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Redis,
+			Stats: keysToStats,
+		}, func() {
+			for _, stats := range keysToStats {
+				stats.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as Redis module is supported by all modes.
@@ -163,18 +197,19 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processRedis(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(tx)
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
 	}
 }
 
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	redisInFlight, _, err := mgr.GetMap(inFlightMap)
+func (p *protocol) setupMapCleaner() {
+	redisInFlight, _, err := p.mgr.GetMap(inFlightMap)
 	if err != nil {
 		log.Errorf("error getting %s map: %s", inFlightMap, err)
 		return
 	}
 
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](redisInFlight, 1024, inFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](redisInFlight, protocols.DefaultMapCleanerBatchSize, inFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -182,7 +217,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 
 	// Clean up idle connections. We currently use the same TTL as HTTP, but we plan to rename this variable to be more generic.
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

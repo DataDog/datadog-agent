@@ -7,14 +7,19 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -41,8 +46,8 @@ type GlobalParams struct {
 	ExtraConfFilePaths   []string
 	ConfigName           string
 	LoggerName           string
-	SettingsClient       func() (settings.Client, error)
 	FleetPoliciesDirPath string
+	SettingsBuilder      func(ipc.HTTPClient) (settings.Client, error)
 }
 
 // MakeCommand returns a `config` command to be used by agent binaries.
@@ -63,6 +68,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		}
 	}
@@ -98,16 +104,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.AddCommand(getCmd)
 	getCmd.Flags().BoolVarP(&cliParams.source, "source", "s", false, "print every source and its value")
 
+	otelCmd := &cobra.Command{
+		Use:   "otel-agent",
+		Short: "Otel-agent, prints out the read-only runtime configs of otel-agent if otel-agent is present and converter is enabled",
+		Long:  ``,
+		RunE:  oneShotRunE(otelAgentCfg),
+	}
+	cmd.AddCommand(otelCmd)
+
 	return cmd
 }
 
-func showRuntimeConfiguration(_ log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
+func showRuntimeConfiguration(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+	c, err := cliParams.SettingsBuilder(client)
 	if err != nil {
 		return err
 	}
@@ -122,13 +131,8 @@ func showRuntimeConfiguration(_ log.Component, config config.Component, cliParam
 	return nil
 }
 
-func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliParams *cliParams) error {
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
+func listRuntimeConfigurableValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+	c, err := cliParams.SettingsBuilder(client)
 	if err != nil {
 		return err
 	}
@@ -148,17 +152,12 @@ func listRuntimeConfigurableValue(_ log.Component, config config.Component, cliP
 	return nil
 }
 
-func setConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+func setConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
 
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
+	c, err := cliParams.SettingsBuilder(client)
 	if err != nil {
 		return err
 	}
@@ -177,17 +176,12 @@ func setConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 	return nil
 }
 
-func getConfigValue(_ log.Component, config config.Component, cliParams *cliParams) error {
+func getConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
 
-	err := util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	c, err := cliParams.GlobalParams.SettingsClient()
+	c, err := cliParams.SettingsBuilder(client)
 	if err != nil {
 		return err
 	}
@@ -215,5 +209,27 @@ func getConfigValue(_ log.Component, config config.Component, cliParams *cliPara
 		}
 	}
 
+	return nil
+}
+
+func otelAgentCfg(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {
+	if !config.GetBool("otelcollector.enabled") {
+		return errors.New("otel-agent is not enabled")
+	}
+	if !config.GetBool("otelcollector.converter.enabled") {
+		return errors.New("otel-agent converter must be enabled to get otel-agent's runtime configs")
+	}
+
+	otelCollectorURL := config.GetString("otelcollector.extension_url")
+
+	resp, err := client.Get(otelCollectorURL, ipchttp.WithLeaveConnectionOpen)
+	if err != nil {
+		return err
+	}
+	var extensionResp ddflareextensiontypes.Response
+	if err = json.Unmarshal(resp, &extensionResp); err != nil {
+		return err
+	}
+	fmt.Println(extensionResp.RuntimeConfig)
 	return nil
 }

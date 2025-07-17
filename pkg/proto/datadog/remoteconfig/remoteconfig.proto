@@ -100,6 +100,8 @@ message ClientTracer {
   string env = 5;
   string app_version = 6;
   repeated string tags = 7;
+  repeated string process_tags = 9;
+  repeated string container_tags = 10;
 }
 
 message ClientAgent {
@@ -121,17 +123,9 @@ message PackageState {
   string stable_version = 2;
   string experiment_version = 3;
   PackageStateTask task = 4;
-  reserved 5;
-  reserved 6;
-  reserved 7;
-  PoliciesState stable_config_state = 8;
-  PoliciesState experiment_config_state = 9;
-  PoliciesState remote_config_state = 10;
-}
-
-message PoliciesState {
-  string version = 1;
-  repeated string matched_policies = 2;
+  reserved 5, 6, 7, 8, 9, 10;
+  string stable_config_version = 11;
+  string experiment_config_version = 12;
 }
 
 message PackageStateTask {
@@ -189,11 +183,17 @@ message ClientGetConfigsRequest {
   repeated TargetFileMeta cached_target_files = 2;
 }
 
+enum ConfigStatus {
+  CONFIG_STATUS_OK = 0;
+  CONFIG_STATUS_EXPIRED = 1;
+}
+
 message ClientGetConfigsResponse {
   repeated bytes roots = 1;
   bytes targets = 2;
   repeated File target_files = 3;
   repeated string client_configs = 4;
+  ConfigStatus config_status = 5;
 }
 
 // Full state
@@ -209,6 +209,8 @@ message GetStateConfigResponse {
   map<string, string> target_filenames = 3;
   repeated Client active_clients = 4;
 }
+
+message ResetStateConfigResponse {}
 
 
 message TracerPredicateV1 {

@@ -1,0 +1,9 @@
+init_config:
+  loader: core
+instances:
+  - ip_address: '127.0.0.1'
+    port: 1161
+    community_string: 'public'
+  - ip_address: '127.0.0.2'
+    port: 1161
+    community_string: 'public'

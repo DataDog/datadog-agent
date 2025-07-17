@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"reflect"
@@ -30,17 +31,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -138,10 +138,10 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -160,7 +160,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	matches := PrintableInt(0)
 
 	require.Eventuallyf(t, func() bool {
-		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				matches.Add(stat.Data[200].Count)
 			}
@@ -200,10 +200,10 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -286,7 +286,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 
 				res := make(map[usmhttp.Key]int)
 				assert.Eventually(t, func() bool {
-					for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 						if key.DstPort == srvPort || key.SrcPort == srvPort {
 							count := stat.Data[200].Count
 							newKey := usmhttp.Key{
@@ -334,38 +334,78 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 var (
 	// pathExceedingMaxSize is path with size 166, which is exceeding the maximum path size in the kernel (HTTP2_MAX_PATH_LEN).
 	pathExceedingMaxSize = "X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph"
-
-	http2UniquePaths = []string{
-		// size 82 bucket 0
-		"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
-		// size 127 bucket 1
-		"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
-		// size 137, bucket 2
-		"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
-		// size 147, bucket 3
-		"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
-		// size 158, bucket 4
-		"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
-		// size 166, bucket 5
-		pathExceedingMaxSize,
-		// size 172, bucket 6
-		"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
-		// size 247, bucket 7
-		"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
-	}
 )
+
+// generateRandomString creates a random ASCII string of a given size, ensuring it starts with '/'
+func generateRandomString(size int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	if size == 0 {
+		return "/"
+	}
+
+	result := make([]byte, size)
+	result[0] = '/' // Ensure the first character is '/'
+
+	for i := 1; i < size; i++ {
+		result[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(result)
+}
+
+// generateHuffmanEncodedString ensures the encoded output is exactly 'length' bytes.
+// Since there's no direct way to control the output size of Huffman encoding, we need to guess what input
+// string will produce the desired output size.
+func generateHuffmanEncodedString(targetLength int) ([]byte, string) {
+	estimate := targetLength
+	var encoded []byte
+	var original string
+
+	for {
+		original = generateRandomString(estimate)
+		encoded = hpack.AppendHuffmanString(nil, original)
+
+		if len(encoded) == targetLength {
+			break
+		} else if len(encoded) > targetLength {
+			estimate-- // Reduce input size if output is too long
+		} else {
+			estimate++ // Increase input size if output is too short
+		}
+	}
+
+	return encoded, original
+}
+
+// TestEncode meant to verify the correctness of generateHuffmanEncodedString function.
+func TestEncode(t *testing.T) {
+	for i := 1; i < 500; i++ {
+		encoded, original := generateHuffmanEncodedString(i)
+		require.Len(t, encoded, i)
+		require.True(t, strings.HasPrefix(original, "/"))
+		decoded, err := hpack.HuffmanDecodeToString(encoded)
+		require.NoError(t, err)
+		assert.Equal(t, original, decoded)
+	}
+}
 
 func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t := s.T()
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
 
 	tests := []struct {
 		name              string
@@ -376,9 +416,15 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 			name: "Fill each bucket",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
-				for _, path := range http2UniquePaths {
+				lengths := make([]int, usmhttp2.PathBucketsCount+1)
+				for i := 0; i < len(lengths); i++ {
+					lengths[i] = usmhttp2.MaxTelemetryPathLen + i*usmhttp2.PathBucketSize
+				}
+				for _, length := range lengths {
+					enc, original := generateHuffmanEncodedString(length)
+					require.Len(t, enc, length)
 					client := clients[getClientsIndex(1, clientsCount)]
-					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
+					req, err := client.Post(http2SrvAddr+original, "application/json", bytes.NewReader([]byte("test")))
 					require.NoError(t, err, "could not make request")
 					_ = req.Body.Close()
 				}
@@ -392,13 +438,22 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				Path_size_bucket:  [8]uint64{1, 1, 1, 1, 1, 1, 1, 1},
 			},
 		},
+		{
+			name: "CONTINUATION frame",
+			runClients: func(t *testing.T, _ int) {
+				conn := dialHTTP2Server(t)
+				require.NoError(t, writeInput(conn, 500*time.Millisecond, buildContinuationMessage(t)...))
+			},
+			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
+				Request_seen:        1,
+				Response_seen:       1,
+				Continuation_frames: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
-			}
+			t.Cleanup(func() { cleanProtocolMaps(t, "http2", monitor.ebpfProgram.Manager.Manager) })
 
 			tt.runClients(t, 1)
 
@@ -429,6 +484,9 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 				if telemetry.End_of_stream+telemetry.End_of_stream_rst < expectedEOSOrRST {
 					return false
 				}
+				if telemetry.Continuation_frames != tt.expectedTelemetry.Continuation_frames {
+					return false
+				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
@@ -438,15 +496,39 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 }
 
+// buildContinuationMessage creates a message with an explicit continuation frame.
+// Note that the server and client set max frame sizes during connection setup
+// and continuation frame is used when headers are too large for a single frame.
+func buildContinuationMessage(t *testing.T) [][]byte {
+	const headersFrameEndHeaders = false
+	fullHeaders := generateTestHeaderFields(headersGenerationOptions{})
+	prefixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+		Headers: fullHeaders[:2],
+	})
+	require.NoError(t, err, "could not create prefix headers frame")
+
+	suffixHeadersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{
+		Headers: fullHeaders[2:],
+	})
+
+	require.NoError(t, err, "could not create suffix headers frame")
+
+	return [][]byte{
+		newFramer().writeRawHeaders(t, 1, headersFrameEndHeaders, prefixHeadersFrame).
+			writeRawContinuation(t, 1, endHeaders, suffixHeadersFrame).
+			writeData(t, 1, endStream, emptyBody).bytes(),
+	}
+}
+
 func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t := s.T()
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -474,7 +556,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	seenRequests := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
-		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
 					seenRequests[key.Path.Content.Get()] = 0
@@ -510,10 +592,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1252,7 +1334,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				return validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS)
+				return validateStats(t, usmMonitor, res, tt.expectedEndpoints, s.isTLS)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1272,10 +1354,10 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1327,7 +1409,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS))
+				require.True(t, validateStats(t, usmMonitor, res, tt.expectedEndpoints, s.isTLS))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -1353,10 +1435,10 @@ func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1427,10 +1509,10 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	cfg := s.getCfg()
 
 	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+	t.Cleanup(usmhttp2.StartH2CServer(t, authority, s.isTLS))
 
 	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS, false)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
@@ -1483,7 +1565,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
+				if !validateStats(t, usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
 					return false
 				}
 
@@ -1532,8 +1614,8 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
-	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
+func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
+	for key, stat := range getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
 			// statusCode 0 represents an error returned from the function, which means the URL is not in the special
@@ -1542,7 +1624,7 @@ func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]i
 			if statusCode == 0 {
 				statusCode = 200
 			}
-			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			hasTag := stat.Data[statusCode].StaticTags == ebpftls.ConnTagGo
 			if hasTag != isTLS {
 				continue
 			}
@@ -1810,46 +1892,6 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[usmhttp.Key]captureRange {
 		}
 	}
 	return expected
-}
-
-func startH2CServer(t *testing.T, address string, isTLS bool) func() {
-	srv := &http.Server{
-		Addr: authority,
-		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			statusCode := testutil.StatusFromPath(r.URL.Path)
-			if statusCode == 0 {
-				w.WriteHeader(http.StatusOK)
-			} else {
-				w.WriteHeader(int(statusCode))
-			}
-			defer func() { _ = r.Body.Close() }()
-			_, _ = io.Copy(w, r.Body)
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
-
-	require.NoError(t, http2.ConfigureServer(srv, nil), "could not configure server")
-
-	l, err := net.Listen("tcp", address)
-	require.NoError(t, err, "could not listen")
-
-	if isTLS {
-		cert, key, err := testutil.GetCertsPaths()
-		require.NoError(t, err, "could not get certs paths")
-		go func() {
-			if err := srv.ServeTLS(l, cert, key); err != http.ErrServerClosed {
-				require.NoError(t, err, "could not serve TLS")
-			}
-		}()
-	} else {
-		go func() {
-			if err := srv.Serve(l); err != http.ErrServerClosed {
-				require.NoError(t, err, "could not serve")
-			}
-		}()
-	}
-
-	return func() { _ = srv.Shutdown(context.Background()) }
 }
 
 func getClientsIndex(index, totalCount int) int {

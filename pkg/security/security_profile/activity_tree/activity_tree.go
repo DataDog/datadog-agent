@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -156,11 +157,12 @@ func (cs *cookieSelector) fillFromEntry(entry *model.ProcessCacheEntry) {
 type ActivityTree struct {
 	Stats *Stats
 
-	treeType          string
+	treeType  string
+	validator Owner
+
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    Owner
 	pathsReducer *PathsReducer
 
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
@@ -189,6 +191,12 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	}
 }
 
+// SetType changes the type and owner of the ActivityTree
+func (at *ActivityTree) SetType(treeType string, validator Owner) {
+	at.treeType = treeType
+	at.validator = validator
+}
+
 // GetChildren returns the list of root ProcessNodes from the ActivityTree
 func (at *ActivityTree) GetChildren() *[]*ProcessNode {
 	return &at.ProcessNodes
@@ -206,7 +214,7 @@ func (at *ActivityTree) AppendChild(node *ProcessNode) {
 }
 
 // AppendImageTag appends the given image tag
-func (at *ActivityTree) AppendImageTag(_ string) {
+func (at *ActivityTree) AppendImageTag(_ string, _ time.Time) {
 }
 
 // GetParent returns nil for the ActivityTree
@@ -403,6 +411,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
+	case model.NetworkFlowMonitorEventType:
+		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -833,9 +843,9 @@ func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 }
 
 // TagAllNodes tags all the activity tree's nodes with the given image tag
-func (at *ActivityTree) TagAllNodes(imageTag string) {
+func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
-		rootNode.TagAllNodes(imageTag)
+		rootNode.TagAllNodes(imageTag, timestamp)
 	}
 }
 

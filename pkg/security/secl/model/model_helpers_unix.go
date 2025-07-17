@@ -8,7 +8,6 @@
 package model
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"path"
@@ -18,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"modernc.org/mathutil"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -32,6 +31,9 @@ const (
 
 	// SizeOfCookie size of cookie
 	SizeOfCookie = 8
+
+	// FakeInodeMSW inode used internally
+	fakeInodeMSW uint64 = 0xdeadc001
 )
 
 // check that all path are absolute
@@ -115,6 +117,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// IsFakeInode returns whether the given inode is a fake inode
+func IsFakeInode(inode uint64) bool {
+	return inode>>32 == fakeInodeMSW
+}
+
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
@@ -134,7 +141,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID mathutil.Int128) {
+func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
 	p.SpanID = spanID
 	p.TraceID = traceID
 }
@@ -199,13 +206,13 @@ func (f *FileFields) HasHardLinks() bool {
 	return f.NLink > 1
 }
 
-// GetInLowerLayer returns whether a file is in a lower layer
-func (f *FileFields) GetInLowerLayer() bool {
+// IsInLowerLayer returns whether a file is in a lower layer
+func (f *FileFields) IsInLowerLayer() bool {
 	return f.Flags&LowerLayer != 0
 }
 
-// GetInUpperLayer returns whether a file is in the upper layer
-func (f *FileFields) GetInUpperLayer() bool {
+// IsInUpperLayer returns whether a file is in the upper layer
+func (f *FileFields) IsInUpperLayer() bool {
 	return f.Flags&UpperLayer != 0
 }
 
@@ -243,17 +250,19 @@ func (e *FileEvent) IsOverlayFS() bool {
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown MountOrigin = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs                     //MountOriginProcfs mount point info from procfs
-	MountOriginEvent                      // MountOriginEvent mount point info from an event
-	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
+	MountOriginUnknown  MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                      // MountOriginProcfs mount point info from procfs
+	MountOriginEvent                       // MountOriginEvent mount point info from an event
+	MountOriginUnshare                     // MountOriginUnshare mount point info from an event
+	MountOriginFsmount                     // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginOpenTree                    // MountOriginOpenTree mount point created from the open_tree syscall
 )
 
 // MountSource source of the mount
 type MountSource = uint32
 
 const (
-	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
 	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
@@ -267,6 +276,16 @@ var MountSources = [...]string{
 	"snapshot",
 }
 
+// MountEventSource source syscall of the mount event
+type MountEventSource = uint32
+
+const (
+	MountEventSourceInvalid         MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
+	MountEventSourceMountSyscall                            // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
+	MountEventSourceFsmountSyscall                          // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
+	MountEventSourceOpenTreeSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+)
+
 // MountSourceToString returns the string corresponding to a mount source
 func MountSourceToString(source MountSource) string {
 	return MountSources[source]
@@ -278,6 +297,8 @@ var MountOrigins = [...]string{
 	"procfs",
 	"event",
 	"unshare",
+	"fsmount",
+	"open_tree",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin
@@ -330,31 +351,9 @@ func (d NetDevice) GetKey() string {
 	return fmt.Sprintf("%v_%v", d.IfIndex, d.NetNS)
 }
 
-func (p *PathKey) Write(buffer []byte) {
-	binary.NativeEndian.PutUint64(buffer[0:8], p.Inode)
-	binary.NativeEndian.PutUint32(buffer[8:12], p.MountID)
-	binary.NativeEndian.PutUint32(buffer[12:16], p.PathID)
-}
-
 // IsNull returns true if a key is invalid
 func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
-}
-
-func (p *PathKey) String() string {
-	return fmt.Sprintf("%x/%x", p.MountID, p.Inode)
-}
-
-// MarshalBinary returns the binary representation of a path key
-func (p *PathKey) MarshalBinary() ([]byte, error) {
-	if p.IsNull() {
-		return nil, &ErrInvalidKeyPath{Inode: p.Inode, MountID: p.MountID}
-	}
-
-	buff := make([]byte, 16)
-	p.Write(buff)
-
-	return buff, nil
 }
 
 // PathKeySize defines the path key size
@@ -380,17 +379,6 @@ func (pl *PathLeaf) GetName() string {
 func (pl *PathLeaf) SetName(name string) {
 	copy(pl.Name[:], []byte(name))
 	pl.Len = uint16(len(name) + 1)
-}
-
-// MarshalBinary returns the binary representation of a path key
-func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
-	buff := make([]byte, PathLeafSize)
-
-	pl.Parent.Write(buff)
-	copy(buff[16:], pl.Name[:])
-	binary.NativeEndian.PutUint16(buff[16+len(pl.Name):], pl.Len)
-
-	return buff, nil
 }
 
 // ResolveHashes resolves the hash of the provided file

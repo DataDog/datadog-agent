@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -33,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -99,6 +100,7 @@ type dependencies struct {
 	Serializer serializer.MetricSerializer
 	Coll       option.Option[collector.Component]
 	LogAgent   option.Option[logagent.Component]
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
@@ -111,7 +113,7 @@ type provides struct {
 }
 
 func newInventoryChecksProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ic := &inventorychecksImpl{
 		conf:     deps.Config,
 		log:      deps.Log,
@@ -184,9 +186,7 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 
 	res := map[string]interface{}{}
 	if instance, found := ic.data[instanceID]; found {
-		for name, value := range instance.metadata {
-			res[name] = value
-		}
+		maps.Copy(res, instance.metadata)
 	}
 	return res
 }
@@ -211,9 +211,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 				cm := check.GetMetadata(c, withConfigs)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
-					for key, val := range checkData.metadata {
-						cm[key] = val
-					}
+					maps.Copy(cm, checkData.metadata)
 				}
 
 				checkName := c.String()
@@ -264,6 +262,14 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 				})
 			}
 		}
+	}
+
+	jmxMetadata := ic.getJMXChecksMetadata()
+	for checkName, checks := range jmxMetadata {
+		if _, ok := payloadData[checkName]; !ok {
+			payloadData[checkName] = []metadata{}
+		}
+		payloadData[checkName] = append(payloadData[checkName], checks...)
 	}
 
 	return &Payload{

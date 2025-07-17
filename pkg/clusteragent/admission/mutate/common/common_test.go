@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -146,6 +147,54 @@ func Test_injectEnv(t *testing.T) {
 	}
 }
 
+func Test_addAnnotation(t *testing.T) {
+	tests := []struct {
+		name             string
+		pod              *corev1.Pod
+		key              string
+		value            string
+		expected         map[string]string
+		expectedMutation bool
+	}{
+		{
+			name:             "add annotation",
+			pod:              FakePod("foo"),
+			key:              "foo",
+			value:            "bar",
+			expected:         map[string]string{"foo": "bar"},
+			expectedMutation: true,
+		},
+		{
+			name:             "add annotation to existing",
+			pod:              FakePodWithAnnotations(map[string]string{"foo": "bar"}),
+			key:              "baz",
+			value:            "qux",
+			expected:         map[string]string{"foo": "bar", "baz": "qux"},
+			expectedMutation: true,
+		},
+		{
+			name:             "add annotation to existing with same key",
+			pod:              FakePodWithAnnotations(map[string]string{"foo": "bar"}),
+			key:              "foo",
+			value:            "qux",
+			expected:         map[string]string{"foo": "bar"},
+			expectedMutation: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := AddAnnotation(tt.pod, tt.key, tt.value)
+			if got != tt.expectedMutation {
+				t.Errorf("AddAnnotation() = %v, want %v", got, tt.expectedMutation)
+			}
+
+			require.Equal(t, tt.expected, tt.pod.Annotations)
+		})
+	}
+
+}
+
 func Test_injectVolume(t *testing.T) {
 	type args struct {
 		pod         *corev1.Pod
@@ -189,7 +238,7 @@ func Test_injectVolume(t *testing.T) {
 			args: args{
 				pod:         withContainer(fakePodWithVolume("podfoo", "volumefoo", "/foo"), "second-container"),
 				volume:      corev1.Volume{Name: "differentName"},
-				volumeMount: corev1.VolumeMount{Name: "volumefoo"},
+				volumeMount: corev1.VolumeMount{Name: "volumefoo", MountPath: "/foo"},
 			},
 			injected: true,
 		},
@@ -214,7 +263,17 @@ func Test_injectVolume(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.injected, InjectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
+			injectedVolume, injectedMount := InjectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount)
+			assert.Equal(t, tt.injected, injectedVolume)
+			if injectedMount {
+				for _, container := range tt.args.pod.Spec.Containers {
+					foundVolumeMount := false
+					for _, vMount := range container.VolumeMounts {
+						foundVolumeMount = foundVolumeMount || (vMount.MountPath == tt.args.volumeMount.MountPath)
+					}
+					assert.Truef(t, foundVolumeMount, "Expected finding volume mount path %q in container %q", tt.args.volumeMount.MountPath, container.Name)
+				}
+			}
 		})
 	}
 }

@@ -16,8 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,14 +26,15 @@ import (
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
-	adsched := scheduler.NewController()
+	adsched := scheduler.NewControllerAndStart()
 	ac := fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
 		secretsimpl.MockModule(),
 		autodiscoveryimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		taggermock.Module(),
+		taggerfxmock.MockModule(),
+		workloadfilterfxmock.MockModule(),
 	)
 
 	got1 := make(chan struct{}, 1)

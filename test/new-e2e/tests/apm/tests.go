@@ -17,6 +17,7 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
@@ -90,6 +91,54 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
 }
 
+func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	for _, p := range traces {
+		assert.NotEmpty(c, p.TracerPayloads)
+		for _, tp := range p.TracerPayloads {
+			tags, ok := tp.Tags["_dd.tags.process"]
+			assert.True(c, ok)
+			assert.Equal(c, processTags, tags)
+		}
+	}
+}
+
+func testStatsHaveProcessTags(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	for _, p := range stats {
+		assert.NotEmpty(c, p.StatsPayload.Stats)
+		for _, s := range p.StatsPayload.Stats {
+			assert.Equal(c, processTags, s.ProcessTags)
+		}
+	}
+}
+
+func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Logf("Got %d apm stats", len(stats))
+
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if ss.Service == service {
+						assert.NotEmpty(c, s.ContainerID, "ContainerID should not be empty. Got Stats: %v", stats)
+						assert.NotEmpty(c, s.Tags, "Container Tags should not be empty. Got Stats: %v", stats)
+						assert.Contains(c, s.Tags, fmt.Sprintf("container_name:%s", service))
+					}
+				}
+			}
+		}
+	}
+}
+
 func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	traces, err := intake.Client().GetTraces()
@@ -104,7 +153,7 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 			imageTag, ok := ctags["image_tag"]
 			assert.True(t, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
-			assert.Equal(t, "main", imageTag)
+			assert.Equal(t, apps.Version, imageTag)
 		}
 	}
 }
@@ -140,7 +189,7 @@ func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.F
 		for _, s := range p.StatsPayload.Stats {
 			t.Log("Client Payload:", spew.Sdump(s))
 			t.Logf("Got image Tag: %v", s.GetImageTag())
-			assert.Equal(t, "main", s.GetImageTag())
+			assert.Equal(t, apps.Version, s.GetImageTag())
 			t.Logf("Got git commit sha: %v", s.GetGitCommitSha())
 			assert.Equal(t, "abcd1234", s.GetGitCommitSha())
 		}
@@ -225,47 +274,49 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	return false
 }
 
-func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.FakeIntake, rcEnabled bool) {
 	t.Helper()
 	expected := map[string]struct{}{
-		"datadog.trace_agent.heartbeat":                        {},
-		"datadog.trace_agent.heap_alloc":                       {},
-		"datadog.trace_agent.cpu_percent":                      {},
-		"datadog.trace_agent.events.max_eps.current_rate":      {},
-		"datadog.trace_agent.events.max_eps.max_rate":          {},
-		"datadog.trace_agent.events.max_eps.reached_max":       {},
-		"datadog.trace_agent.events.max_eps.sample_rate":       {},
-		"datadog.trace_agent.sampler.kept":                     {},
-		"datadog.trace_agent.sampler.rare.hits":                {},
-		"datadog.trace_agent.sampler.rare.misses":              {},
-		"datadog.trace_agent.sampler.rare.shrinks":             {},
-		"datadog.trace_agent.sampler.seen":                     {},
-		"datadog.trace_agent.sampler.size":                     {},
-		"datadog.trace_agent.stats_writer.bytes":               {},
-		"datadog.trace_agent.stats_writer.client_payloads":     {},
-		"datadog.trace_agent.stats_writer.encode_ms.avg":       {},
-		"datadog.trace_agent.stats_writer.encode_ms.count":     {},
-		"datadog.trace_agent.stats_writer.encode_ms.max":       {},
-		"datadog.trace_agent.stats_writer.errors":              {},
-		"datadog.trace_agent.stats_writer.payloads":            {},
-		"datadog.trace_agent.stats_writer.retries":             {},
-		"datadog.trace_agent.stats_writer.splits":              {},
-		"datadog.trace_agent.stats_writer.stats_buckets":       {},
-		"datadog.trace_agent.stats_writer.stats_entries":       {},
-		"datadog.trace_agent.trace_writer.bytes":               {},
-		"datadog.trace_agent.trace_writer.bytes_uncompressed":  {},
-		"datadog.trace_agent.trace_writer.errors":              {},
-		"datadog.trace_agent.trace_writer.events":              {},
-		"datadog.trace_agent.trace_writer.payloads":            {},
-		"datadog.trace_agent.trace_writer.retries":             {},
-		"datadog.trace_agent.trace_writer.spans":               {},
-		"datadog.trace_agent.trace_writer.traces":              {},
-		"datadog.trace_agent.trace_writer.encode_ms.avg":       {},
-		"datadog.trace_agent.trace_writer.encode_ms.count":     {},
-		"datadog.trace_agent.trace_writer.encode_ms.max":       {},
-		"datadog.trace_agent.receiver.config_process_ms.avg":   {},
-		"datadog.trace_agent.receiver.config_process_ms.count": {},
-		"datadog.trace_agent.receiver.config_process_ms.max":   {},
+		"datadog.trace_agent.heartbeat":                       {},
+		"datadog.trace_agent.heap_alloc":                      {},
+		"datadog.trace_agent.cpu_percent":                     {},
+		"datadog.trace_agent.events.max_eps.current_rate":     {},
+		"datadog.trace_agent.events.max_eps.max_rate":         {},
+		"datadog.trace_agent.events.max_eps.reached_max":      {},
+		"datadog.trace_agent.events.max_eps.sample_rate":      {},
+		"datadog.trace_agent.sampler.kept":                    {},
+		"datadog.trace_agent.sampler.rare.hits":               {},
+		"datadog.trace_agent.sampler.rare.misses":             {},
+		"datadog.trace_agent.sampler.rare.shrinks":            {},
+		"datadog.trace_agent.sampler.seen":                    {},
+		"datadog.trace_agent.sampler.size":                    {},
+		"datadog.trace_agent.stats_writer.bytes":              {},
+		"datadog.trace_agent.stats_writer.client_payloads":    {},
+		"datadog.trace_agent.stats_writer.encode_ms.avg":      {},
+		"datadog.trace_agent.stats_writer.encode_ms.count":    {},
+		"datadog.trace_agent.stats_writer.encode_ms.max":      {},
+		"datadog.trace_agent.stats_writer.errors":             {},
+		"datadog.trace_agent.stats_writer.payloads":           {},
+		"datadog.trace_agent.stats_writer.retries":            {},
+		"datadog.trace_agent.stats_writer.splits":             {},
+		"datadog.trace_agent.stats_writer.stats_buckets":      {},
+		"datadog.trace_agent.stats_writer.stats_entries":      {},
+		"datadog.trace_agent.trace_writer.bytes":              {},
+		"datadog.trace_agent.trace_writer.bytes_uncompressed": {},
+		"datadog.trace_agent.trace_writer.errors":             {},
+		"datadog.trace_agent.trace_writer.events":             {},
+		"datadog.trace_agent.trace_writer.payloads":           {},
+		"datadog.trace_agent.trace_writer.retries":            {},
+		"datadog.trace_agent.trace_writer.spans":              {},
+		"datadog.trace_agent.trace_writer.traces":             {},
+		"datadog.trace_agent.trace_writer.encode_ms.avg":      {},
+		"datadog.trace_agent.trace_writer.encode_ms.count":    {},
+		"datadog.trace_agent.trace_writer.encode_ms.max":      {},
+	}
+	if rcEnabled {
+		expected["datadog.trace_agent.receiver.config_process_ms.avg"] = struct{}{}
+		expected["datadog.trace_agent.receiver.config_process_ms.count"] = struct{}{}
+		expected["datadog.trace_agent.receiver.config_process_ms.max"] = struct{}{}
 	}
 	metrics, err := intake.Client().GetMetricNames()
 	assert.NoError(c, err)
@@ -285,17 +336,18 @@ func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.
 func testTraceAgentMetricTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	expected := map[string]struct{}{
-		"datadog.trace_agent.receiver.payload_accepted":         {},
-		"datadog.trace_agent.receiver.trace":                    {},
-		"datadog.trace_agent.receiver.traces_received":          {},
-		"datadog.trace_agent.receiver.spans_received":           {},
-		"datadog.trace_agent.receiver.traces_bytes":             {},
-		"datadog.trace_agent.receiver.traces_filtered":          {},
-		"datadog.trace_agent.receiver.spans_dropped":            {},
-		"datadog.trace_agent.receiver.spans_filtered":           {},
-		"datadog.trace_agent.receiver.traces_priority":          {},
-		"datadog.trace_agent.normalizer.traces_dropped":         {},
-		"datadog.trace_agent.normalizer.spans_malformed":        {},
+		"datadog.trace_agent.receiver.payload_accepted": {},
+		"datadog.trace_agent.receiver.trace":            {},
+		"datadog.trace_agent.receiver.traces_received":  {},
+		"datadog.trace_agent.receiver.spans_received":   {},
+		"datadog.trace_agent.receiver.traces_bytes":     {},
+		"datadog.trace_agent.receiver.traces_filtered":  {},
+		"datadog.trace_agent.receiver.spans_dropped":    {},
+		"datadog.trace_agent.receiver.spans_filtered":   {},
+		"datadog.trace_agent.receiver.traces_priority":  {},
+		// These metrics are only emitted when non-zero to reduce cardinality
+		//"datadog.trace_agent.normalizer.traces_dropped":         {},
+		//"datadog.trace_agent.normalizer.spans_malformed":        {},
 		"datadog.trace_agent.receiver.client_dropped_p0_spans":  {},
 		"datadog.trace_agent.receiver.client_dropped_p0_traces": {},
 		"datadog.trace_agent.receiver.events_sampled":           {},

@@ -19,7 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
+	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -42,9 +43,9 @@ func patcherTestStoreWithData() *store {
 		ScalingValues: model.ScalingValues{
 			VerticalError: errors.New("error on dd side"),
 			Vertical: &model.VerticalScalingValues{
-				Source:        datadoghq.DatadogPodAutoscalerAutoscalingValueSource,
+				Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
 				ResourcesHash: "version1",
-				ContainerResources: []datadoghq.DatadogPodAutoscalerContainerResources{
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 					{Name: "container1", Limits: corev1.ResourceList{"cpu": resource.MustParse("500m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")}},
 					{Name: "container2", Limits: corev1.ResourceList{"cpu": resource.MustParse("600m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("512Mi")}},
 				},
@@ -250,7 +251,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 			},
 		},
 		{
-			name: "no update on empty recommendations",
+			name: "only autoscaler id on empty recommendations",
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -271,7 +272,8 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					}},
 				},
 			},
-			wantErr: false,
+			wantErr:      false,
+			wantInjected: true,
 			wantPod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -281,6 +283,9 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 						APIVersion: "foo.com/v1",
 						Name:       "test",
 					}},
+					Annotations: map[string]string{
+						model.AutoscalerIDAnnotation: "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -298,7 +303,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := patcherTestStoreWithData()
-			patcherAdapter := newPODPatcher(store, nil, nil, nil)
+			patcherAdapter := NewPodPatcher(store, nil, nil, nil)
 
 			injected, err := patcherAdapter.ApplyRecommendations(&tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -323,6 +328,24 @@ func TestFindAutoscaler(t *testing.T) {
 			pod:                  &corev1.Pod{},
 			expectedAutoscalerID: "",
 			expectedError:        nil,
+		},
+		{
+			name: "Pod with directly deployment owner should return nil",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns",
+					Name:      "pod1",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind:       "Deployment",
+							Name:       "deployment",
+							APIVersion: "apps/v1",
+						},
+					},
+				},
+			},
+			expectedAutoscalerID: "",
+			expectedError:        errDeploymentNotValidOwner,
 		},
 		{
 			name: "Pod with owner but no matching autoscaler should return nil",

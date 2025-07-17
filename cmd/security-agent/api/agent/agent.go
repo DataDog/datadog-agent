@@ -14,13 +14,15 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/api/coverage"
+	"github.com/DataDog/datadog-agent/pkg/api/version"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,20 +33,22 @@ type Agent struct {
 	statusComponent status.Component
 	settings        settings.Component
 	wmeta           workloadmeta.Component
+	secrets         secrets.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) *Agent {
+func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, secrets secrets.Component) *Agent {
 	return &Agent{
 		statusComponent: statusComponent,
 		settings:        settings,
 		wmeta:           wmeta,
+		secrets:         secrets,
 	}
 }
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func (a *Agent) SetupHandlers(r *mux.Router) {
-	r.HandleFunc("/version", common.GetVersion).Methods("GET")
+	r.HandleFunc("/version", version.Get).Methods("GET")
 	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
 	r.HandleFunc("/hostname", a.getHostname).Methods("GET")
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
@@ -60,6 +64,10 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 		verbose := r.URL.Query().Get("verbose") == "true"
 		workloadList(w, verbose, a.wmeta)
 	}).Methods("GET")
+	r.HandleFunc("/secret/refresh", a.refreshSecrets).Methods("GET")
+
+	// Special handler to compute running agent Code coverage
+	coverage.SetupCoverageHandler(r)
 }
 
 func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {
@@ -142,7 +150,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	logFile := pkgconfigsetup.Datadog().GetString("security_agent.log_file")
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
+	filePath, err := securityagent.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -152,4 +160,16 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func (a *Agent) refreshSecrets(w http.ResponseWriter, _ *http.Request) {
+	res, err := a.secrets.Refresh()
+	if err != nil {
+		log.Errorf("error while refresing secrets: %s", err)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(res))
 }

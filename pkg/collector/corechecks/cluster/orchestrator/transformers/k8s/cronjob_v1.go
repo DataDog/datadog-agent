@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -16,7 +17,7 @@ import (
 
 // ExtractCronJobV1 returns the protobuf model corresponding to a Kubernetes
 // CronJob resource.
-func ExtractCronJobV1(cj *batchv1.CronJob) *model.CronJob {
+func ExtractCronJobV1(ctx processors.ProcessorContext, cj *batchv1.CronJob) *model.CronJob {
 	cronJob := model.CronJob{
 		Metadata: extractMetadata(&cj.ObjectMeta),
 		Spec: &model.CronJobSpec{
@@ -58,7 +59,10 @@ func ExtractCronJobV1(cj *batchv1.CronJob) *model.CronJob {
 	}
 
 	cronJob.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(cj.Spec.JobTemplate.Spec.Template)
+
+	pctx := ctx.(*processors.K8sProcessorContext)
 	cronJob.Tags = append(cronJob.Tags, transformers.RetrieveUnifiedServiceTags(cj.ObjectMeta.Labels)...)
+	cronJob.Tags = append(cronJob.Tags, transformers.RetrieveMetadataTags(cj.ObjectMeta.Labels, cj.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &cronJob
 }

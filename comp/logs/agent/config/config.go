@@ -20,9 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ContainerCollectAll is the name of the docker integration that collect logs from all containers
-const ContainerCollectAll = "container_collect_all"
-
 // logs-intake endpoint prefix.
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."
@@ -41,6 +38,12 @@ const DefaultIntakeOrigin IntakeOrigin = "agent"
 
 // ServerlessIntakeOrigin is the lambda extension origin
 const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
+
+// DDOTIntakeOrigin is the DDOT Collector origin
+const DDOTIntakeOrigin IntakeOrigin = "ddot"
+
+// OTelCollectorIntakeOrigin is the OSS OTel Collector origin
+const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
@@ -115,7 +118,13 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 	}
 
 	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
-	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+
+	// logs_config.logs_dd_url might specify a HTTP(S) proxy. Never fall back to TCP in this case.
+	haveHTTPProxy := false
+	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
+		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
+	}
+	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -127,7 +136,11 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
+	compressionOptions := EndpointCompressionOptions{
+		CompressionKind:  GzipCompressionKind,
+		CompressionLevel: GzipCompressionLevel,
+	}
+	return buildHTTPEndpoints(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin, compressionOptions)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
@@ -142,7 +155,7 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
-	main := NewTCPEndpoint(logsConfig)
+	main := newTCPEndpoint(logsConfig)
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -185,12 +198,22 @@ func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgconfigmodel.Reader, inta
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
-// BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+// BuildHTTPEndpointsWithCompressionOverride returns the HTTP endpoints to send logs to with compression options.
+func BuildHTTPEndpointsWithCompressionOverride(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, compressionOptions)
+}
+
+// BuildHTTPEndpointsWithConfig returns the HTTP endpoints to send logs to.
 func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+	return buildHTTPEndpoints(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin, EndpointCompressionOptions{})
+}
+
+// buildHTTPEndpoints uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
+func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin, compressionOptions EndpointCompressionOptions) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := NewHTTPEndpoint(logsConfig)
+	main := newHTTPEndpoint(logsConfig)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -199,6 +222,11 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Origin = intakeOrigin
 	} else {
 		main.Version = EPIntakeVersion1
+	}
+
+	if compressionOptions.CompressionKind != "" {
+		main.CompressionKind = compressionOptions.CompressionKind
+		main.CompressionLevel = compressionOptions.CompressionLevel
 	}
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
@@ -243,9 +271,10 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), mrfHost, mrfPort, mrfUseSSL)
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
+		e.CompressionKind = main.CompressionKind
 		e.CompressionLevel = main.CompressionLevel
 		e.BackoffBase = main.BackoffBase
 		e.BackoffMax = main.BackoffMax

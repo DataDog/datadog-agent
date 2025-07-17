@@ -10,13 +10,10 @@ package oomkill
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -26,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -46,7 +45,7 @@ type OOMKillCheck struct {
 	core.CheckBase
 	instance       *OOMKillConfig
 	tagger         tagger.Component
-	sysProbeClient *http.Client
+	sysProbeClient *sysprobeclient.CheckClient
 }
 
 // Factory creates a new check factory
@@ -78,8 +77,7 @@ func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	if err != nil {
 		return err
 	}
-	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
-
+	m.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return m.instance.Parse(config)
 }
 
@@ -91,7 +89,7 @@ func (m *OOMKillCheck) Run() error {
 
 	oomkillStats, err := sysprobeclient.GetCheck[[]model.OOMKillStats](m.sysProbeClient, sysconfig.OOMKillProbeModule)
 	if err != nil {
-		return err
+		return sysprobeclient.IgnoreStartupError(err)
 	}
 
 	// sender is just what is used to submit the data
@@ -111,7 +109,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := types.NewEntityID(types.ContainerID, containerID)
 		var tags []string
 		if !entityID.Empty() {
-			tags, err = m.tagger.Tag(entityID, m.tagger.ChecksCardinality())
+			tags, err = m.tagger.Tag(entityID, types.ChecksConfigCardinality)
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}

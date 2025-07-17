@@ -9,7 +9,6 @@ package remoteconfighandler
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 
@@ -36,18 +35,25 @@ type rareSampler interface {
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
-	remoteClient                  config.RemoteClient
+	client                        config.RemoteClient
+	mrfClient                     config.RemoteClient
 	prioritySampler               prioritySampler
 	errorsSampler                 errorsSampler
 	rareSampler                   rareSampler
 	agentConfig                   *config.AgentConfig
 	configState                   *state.AgentConfigState
+	configHTTPClient              *http.Client
 	configSetEndpointFormatString string
 }
 
 // New creates a new RemoteConfigHandler
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
+		return nil
+	}
+
+	if conf.DebugServerPort == 0 {
+		log.Errorf("debug server(apm_config.debug.port) was disabled, server is required for remote config, RC is disabled.")
 		return nil
 	}
 
@@ -58,7 +64,8 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 	}
 
 	return &RemoteConfigHandler{
-		remoteClient:    conf.RemoteConfigClient,
+		client:          conf.RemoteConfigClient,
+		mrfClient:       conf.MRFRemoteConfigClient,
 		prioritySampler: prioritySampler,
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
@@ -66,8 +73,13 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
+		configHTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: conf.IPCTLSClientConfig,
+			},
+		},
 		configSetEndpointFormatString: fmt.Sprintf(
-			"http://%s/config/set?log_level=%%s", net.JoinHostPort(conf.ReceiverHost, strconv.Itoa(conf.ReceiverPort)),
+			"https://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
 		),
 	}
 }
@@ -78,13 +90,56 @@ func (h *RemoteConfigHandler) Start() {
 		return
 	}
 
-	h.remoteClient.Start()
-	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
-	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	h.client.Start()
+	h.client.Subscribe(state.ProductAPMSampling, h.onUpdate)
+	h.client.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	if h.mrfClient != nil {
+		h.mrfClient.Start()
+		h.mrfClient.Subscribe(state.ProductAgentFailover, h.mrfUpdateCallback)
+	}
+}
+
+// mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
+// It fetches all the configs targeting the agent and applies the failover_apm settings.
+// Note: we only care about APM (failover_apm) configuration, but Logs (failover_logs) and Metrics (failover_metrics)
+// may also be present on the MRF configuration. These are handled on the core agent RC.
+func (h *RemoteConfigHandler) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	var failoverAPM *bool
+	var failoverAPMCfgPth string
+	for cfgPath, update := range updates {
+		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			continue
+		}
+
+		if mrfUpdate == nil || mrfUpdate.FailoverAPM == nil {
+			continue
+		}
+
+		if failoverAPM == nil || *mrfUpdate.FailoverAPM {
+			failoverAPM = mrfUpdate.FailoverAPM
+			failoverAPMCfgPth = cfgPath
+
+			if *mrfUpdate.FailoverAPM {
+				break
+			}
+		}
+	}
+
+	h.agentConfig.MRFFailoverAPMRC = failoverAPM
+	if failoverAPM != nil {
+		pkglog.Infof("Setting `multi_region_failover.failover_apm: %t` through remote config", *failoverAPM)
+		applyStateCallback(failoverAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
+	mergedConfig, err := state.MergeRCAgentConfig(h.client.UpdateApplyStatus, updates)
 	if err != nil {
 		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
 		return
@@ -104,7 +159,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			if err != nil {
 				return
 			}
-			resp, err = http.DefaultClient.Do(req)
+			resp, err = h.configHTTPClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 				h.configState.LatestLogLevel = mergedConfig.LogLevel
@@ -122,7 +177,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			if err != nil {
 				return
 			}
-			resp, err = http.DefaultClient.Do(req)
+			resp, err = h.configHTTPClient.Do(req)
 			if err == nil {
 				resp.Body.Close()
 			}
@@ -152,9 +207,7 @@ func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Reque
 		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
 		return nil, err
 	}
-	if h.agentConfig.GetAgentAuthToken != nil {
-		req.Header.Set("Authorization", "Bearer "+h.agentConfig.GetAgentAuthToken())
-	}
+	req.Header.Set("Authorization", "Bearer "+h.agentConfig.AuthToken) // TODO IPC: avoid using the auth token directly
 	return req, nil
 }
 

@@ -7,6 +7,7 @@
 package analyzelogs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,11 +18,22 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -42,6 +54,9 @@ type CliParams struct {
 
 	// CoreConfigPath represents the path to the core configuration file.
 	CoreConfigPath string
+
+	// inactivityTimeout represents the time in seconds that the program will wait for new logs before exiting
+	inactivityTimeout time.Duration
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -63,22 +78,36 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runAnalyzeLogs,
 				core.Bundle(),
 				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot("", "off", true)}),
+				dualTaggerfx.Module(common.DualTaggerParams()),
+				workloadmetafx.Module(defaults.DefaultParams()),
+				workloadfilterfx.Module(),
+				autodiscoveryimpl.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
-
+	defaultInactivityTimeout := time.Duration(1) * time.Second
 	// Add flag for core config (optional)
 	cmd.Flags().StringVarP(&cliParams.CoreConfigPath, "core-config", "C", defaultCoreConfigPath, "Path to the core configuration file (optional)")
+	// Add flag for inactivity timeout (optional)
+	cmd.Flags().DurationVarP(&cliParams.inactivityTimeout, "inactivity-timeout", "t", defaultInactivityTimeout, "Time that the program will wait for new logs before exiting (optional)")
 
 	return []*cobra.Command{cmd}
 }
 
 // runAnalyzeLogs initializes the launcher and sends the log config file path to the source provider.
-func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
-	outputChan, launchers, pipelineProvider := runAnalyzeLogsHelper(cliParams, config)
+func runAnalyzeLogs(cliParams *CliParams, config config.Component, ac autodiscovery.Component) error {
+	outputChan, launchers, pipelineProvider, err := runAnalyzeLogsHelper(cliParams, config, ac)
+	if err != nil {
+		return err
+	}
+
 	// Set up an inactivity timeout
-	inactivityTimeout := 1 * time.Second
+	inactivityTimeout := cliParams.inactivityTimeout
 	idleTimer := time.NewTimer(inactivityTimeout)
 
 	for {
@@ -100,42 +129,90 @@ func runAnalyzeLogs(cliParams *CliParams, config config.Component) error {
 			idleTimer.Reset(inactivityTimeout)
 		case <-idleTimer.C:
 			// Timeout reached, signal quit
-			pipelineProvider.Stop()
 			launchers.Stop()
+			pipelineProvider.Stop()
 			return nil
 		}
 	}
 }
 
 // Used to make testing easier
-func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider) {
+func runAnalyzeLogsHelper(cliParams *CliParams, config config.Component, ac autodiscovery.Component) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
 	configSource := sources.NewConfigSources()
-	wd, err := os.Getwd()
+	sources, err := getSources(ac, cliParams)
 	if err != nil {
-		fmt.Println("Cannot get working directory")
-		return nil, nil, nil
-	}
-	absolutePath := wd + "/" + cliParams.LogConfigPath
-	data, err := os.ReadFile(absolutePath)
-	if err != nil {
-		fmt.Println("Cannot read file path of logs config")
-		return nil, nil, nil
-	}
-	sources, err := ad.CreateSources(integration.Config{
-		Provider:   names.File,
-		LogsConfig: data,
-	})
-
-	if err != nil {
-		fmt.Println("Cannot create source")
-		return nil, nil, nil
+		return nil, nil, nil, err
 	}
 
 	for _, source := range sources {
+		err := source.Config.Validate()
+		if err != nil {
+			fmt.Println("Error with config: ", err)
+			return nil, nil, nil, err
+		}
 		if source.Config.TailingMode == "" {
 			source.Config.TailingMode = "beginning"
 		}
 		configSource.AddSource(source)
 	}
 	return agentimpl.SetUpLaunchers(config, configSource)
+}
+
+func getSources(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
+	sources, err := resolveFileConfig(cliParams)
+	if err == nil {
+		return sources, nil
+	}
+
+	sources, err = resolveCheckConfig(ac, cliParams)
+	if err != nil {
+		fmt.Println("Invalid check name OR config path, please make sure the check/config is properly set up")
+		return nil, err
+	}
+	return sources, nil
+}
+
+func resolveFileConfig(cliParams *CliParams) ([]*sources.LogSource, error) {
+	data, err := os.ReadFile(cliParams.LogConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	sources, err := ad.CreateSources(integration.Config{
+		Provider:   names.File,
+		LogsConfig: data,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sources, nil
+}
+
+func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*sources.LogSource, error) {
+	waitTime := time.Duration(1) * time.Second
+	waitCtx, cancelTimeout := context.WithTimeout(
+		context.Background(), waitTime)
+	common.LoadComponents(nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
+	cancelTimeout()
+	if err != nil {
+		return nil, err
+	}
+	for _, config := range allConfigs {
+		if len(config.LogsConfig) == 0 {
+			fmt.Println("Logs collection is not configured for this check")
+		}
+		if config.Name != cliParams.LogConfigPath {
+			continue
+		}
+		sources, err := ad.CreateSources(integration.Config{
+			Provider:   names.File,
+			LogsConfig: config.LogsConfig,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return sources, nil
+	}
+	return nil, fmt.Errorf("Cannot get source")
 }

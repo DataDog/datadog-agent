@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {
@@ -28,6 +28,9 @@ type Component interface {
 
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
+
+	// SetBlocklist sets the blocklist to apply when parsing metrics from the DogStatsD listener.
+	SetBlocklist([]string, bool)
 }
 
 // Mock implements mock-specific methods.

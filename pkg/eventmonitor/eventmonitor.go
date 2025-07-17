@@ -18,13 +18,13 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -113,11 +113,6 @@ func (m *EventMonitor) Start() error {
 			seclog.Errorf("error launching the grpc server: %v", err)
 		}
 	}()
-
-	// setup the manager and its probes / perf maps
-	if err := m.Probe.Setup(); err != nil {
-		return fmt.Errorf("failed to setup probe: %w", err)
-	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
 	// context is ready when we start the probes
@@ -223,16 +218,16 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc.Component, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
-		opts.StatsdClient = procstatsd.Client
+		opts.StatsdClient = &statsd.NoOpClient{}
 	}
 
 	if opts.ProbeOpts.StatsdClient == nil {
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts)
+	probe, err := probe.NewProbe(secconfig, ipc, opts.ProbeOpts)
 	if err != nil {
 		return nil, err
 	}

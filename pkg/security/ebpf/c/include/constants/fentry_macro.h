@@ -26,12 +26,14 @@ typedef unsigned long long ctx_t;
 #define HOOK_SYSCALL_COMPAT_EXIT(name) SYSCALL_FEXIT(name)
 #define HOOK_SYSCALL_COMPAT_TIME_EXIT(name) SYSCALL_TIME_FEXIT(name)
 #define TAIL_CALL_TARGET(_name) SEC("fentry/start_kernel") // `start_kernel` is only used at boot time, the hook should never be hit
+#define TAIL_CALL_TARGET_WITH_HOOK_POINT(name) SEC("fentry/" name)
 
 #define CTX_PARM1(ctx) (u64)(ctx[0])
 #define CTX_PARM2(ctx) (u64)(ctx[1])
 #define CTX_PARM3(ctx) (u64)(ctx[2])
 #define CTX_PARM4(ctx) (u64)(ctx[3])
 #define CTX_PARM5(ctx) (u64)(ctx[4])
+#define CTX_PARM6(ctx) (u64)(ctx[5])
 
 u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
 	u64 argc;
@@ -79,12 +81,14 @@ typedef struct pt_regs ctx_t;
 #define HOOK_SYSCALL_COMPAT_EXIT(name) SYSCALL_COMPAT_KRETPROBE(name)
 #define HOOK_SYSCALL_COMPAT_TIME_EXIT(name) SYSCALL_COMPAT_TIME_KRETPROBE(name)
 #define TAIL_CALL_TARGET(name) SEC("kprobe/" name)
+#define TAIL_CALL_TARGET_WITH_HOOK_POINT(name) SEC("kprobe/" name)
 
 #define CTX_PARM1(ctx) PT_REGS_PARM1(ctx)
 #define CTX_PARM2(ctx) PT_REGS_PARM2(ctx)
 #define CTX_PARM3(ctx) PT_REGS_PARM3(ctx)
 #define CTX_PARM4(ctx) PT_REGS_PARM4(ctx)
 #define CTX_PARM5(ctx) PT_REGS_PARM5(ctx)
+#define CTX_PARM6(ctx) PT_REGS_PARM6(ctx)
 
 u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
     return PT_REGS_RC(ctx);

@@ -17,7 +17,7 @@ import (
 )
 
 func (c *ntmConfig) leafAtPath(key string) LeafNode {
-	if !c.isReady() {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
 	}
@@ -49,8 +49,8 @@ func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
 	vars := make([]string, 0, len(c.configEnvVars))
-	for v := range c.configEnvVars {
-		vars = append(vars, v)
+	for _, v := range c.configEnvVars {
+		vars = append(vars, v...)
 	}
 	return vars
 }
@@ -66,7 +66,8 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	if c.GetBool("fips.enabled") {
 		return nil
 	}
-	if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
+
+	if c.GetString("proxy.http") == "" && c.GetString("proxy.https") == "" && len(c.GetStringSlice("proxy.no_proxy")) == 0 {
 		return nil
 	}
 	p := &model.Proxy{
@@ -106,17 +107,36 @@ func (c *ntmConfig) inferTypeFromDefault(key string, value interface{}) (interfa
 		}
 	}
 
+	// if we don't have a default and the value is a map[interface{}]interface{} we try to cast is as a
+	// map[string]interface{}. This mimic the behavior from viper that default to that type.
+	//
+	// TODO: once all settings in the config have a default value we can remove this logic
+	if m, ok := value.(map[interface{}]interface{}); ok {
+		res := map[string]interface{}{}
+
+		for k, v := range m {
+			if keyString, ok := k.(string); ok {
+				res[keyString] = deepcopy.Copy(v)
+			} else {
+				goto simplyCopy
+			}
+		}
+		return res, nil
+	}
+
 	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
 	// and we shouldn't ever return complex types like maps and slices that could be modified
 	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
+simplyCopy:
 	return deepcopy.Copy(value), nil
 }
 
 func (c *ntmConfig) getNodeValue(key string) interface{} {
-	if !c.isReady() {
+	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
 	}
+	c.maybeRebuild()
 
 	node := c.nodeAtPathFromNode(key, c.root)
 

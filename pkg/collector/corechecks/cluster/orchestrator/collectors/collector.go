@@ -34,20 +34,38 @@ type Collector interface {
 	// Run triggers the collection process given a configuration and returns the
 	// collection result. Returns an error if the collection failed.
 	Run(*CollectorRunConfig) (*CollectorRunResult, error)
+
+	// Process is used to process the list of resources and return the result.
+	Process(rcfg *CollectorRunConfig, list interface{}) (*CollectorRunResult, error)
 }
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsDefaultVersion          bool
-	IsMetadataProducer        bool
-	IsManifestProducer        bool
-	IsStable                  bool
-	SupportsManifestBuffering bool
-	Name                      string
-	NodeType                  pkgorchestratormodel.NodeType
-	Version                   string
-	IsSkipped                 bool
-	SkippedReason             string
+	IsDefaultVersion                     bool
+	IsMetadataProducer                   bool
+	IsManifestProducer                   bool
+	IsStable                             bool
+	SupportsManifestBuffering            bool
+	Name                                 string
+	NodeType                             pkgorchestratormodel.NodeType
+	Kind                                 string
+	Version                              string
+	IsSkipped                            bool
+	SkippedReason                        string
+	LabelsAsTags                         map[string]string
+	AnnotationsAsTags                    map[string]string
+	SupportsTerminatedResourceCollection bool
+	IsGenericCollector                   bool
+}
+
+// CollectorTags returns static tags to be added to all resources collected by the collector.
+func (cm CollectorMetadata) CollectorTags() []string {
+	// This is only set for Kubernetes collectors that rely on a dedicated resource API.
+	// This is not applicable to certain collectors like ECS Task collector or Kubernetes cluster collector.
+	if cm.Version == "" {
+		return nil
+	}
+	return []string{fmt.Sprintf("kube_api_version:%s", cm.Version)}
 }
 
 // FullName returns a string that contains the collector name and version.
@@ -67,7 +85,7 @@ type K8sCollectorRunConfig struct {
 // ECSCollectorRunConfig is the configuration used to initialize or run the ECS collector.
 type ECSCollectorRunConfig struct {
 	WorkloadmetaStore workloadmeta.Component
-	AWSAccountID      int
+	AWSAccountID      string
 	Region            string
 	ClusterName       string
 	SystemInfo        *model.SystemInfo
@@ -79,9 +97,11 @@ type ECSCollectorRunConfig struct {
 type CollectorRunConfig struct {
 	K8sCollectorRunConfig
 	ECSCollectorRunConfig
-	ClusterID   string
-	Config      *config.OrchestratorConfig
-	MsgGroupRef *atomic.Int32
+	ClusterID           string
+	Config              *config.OrchestratorConfig
+	MsgGroupRef         *atomic.Int32
+	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
 }
 
 // CollectorRunResult contains information about what the collector has done.

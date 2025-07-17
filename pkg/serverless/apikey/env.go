@@ -6,18 +6,26 @@
 package apikey
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"os"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // decryptFunc is a function that takes in a value and retrieves it from
 // the appropriate AWS service. KMS, SM, etc.
-type decryptFunc func(string) (string, error)
+type decryptFunc func(string, aws.FIPSEndpointState) (string, error)
 
-func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc) map[string]string {
+func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc, shouldUseFips bool) map[string]string {
+	fipsEndpointState := aws.FIPSEndpointStateUnset
+	if shouldUseFips {
+		fipsEndpointState = aws.FIPSEndpointStateEnabled
+		log.Debug("Using FIPS endpoints for secrets management.")
+	}
+
 	decryptedEnvVars := make(map[string]string)
 	for _, envVar := range envVars {
 		envKey, envVal, ok := strings.Cut(envVar, "=")
@@ -29,26 +37,26 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 		}
 		if strings.HasSuffix(envKey, kmsKeySuffix) {
 			log.Debugf("Decrypting %v", envVar)
-			secretVal, err := kmsFunc(envVal)
+			secretVal, err := kmsFunc(envVal, fipsEndpointState)
 			if err != nil {
-				log.Debugf("Couldn't read API key from KMS: %v", err)
+				log.Errorf("Couldn't read API key from KMS: %v", err)
 				continue
 			}
 			decryptedEnvVars[strings.TrimSuffix(envKey, kmsKeySuffix)] = secretVal
 		}
 		if envKey == apiKeyKmsEnvVar {
-			secretVal, err := kmsFunc(envVal)
+			secretVal, err := kmsFunc(envVal, fipsEndpointState)
 			if err != nil {
-				log.Debugf("Couldn't read API key from KMS: %v", err)
+				log.Errorf("Couldn't read API key from KMS: %v", err)
 				continue
 			}
 			decryptedEnvVars[apiKeyEnvVar] = secretVal
 		}
 		if strings.HasSuffix(envKey, secretArnSuffix) {
 			log.Debugf("Retrieving %v from secrets manager", envVar)
-			secretVal, err := smFunc(envVal)
+			secretVal, err := smFunc(envVal, fipsEndpointState)
 			if err != nil {
-				log.Debugf("Couldn't read API key from Secrets Manager: %v", err)
+				log.Errorf("Couldn't read API key from Secrets Manager: %v", err)
 				continue
 			}
 			decryptedEnvVars[strings.TrimSuffix(envKey, secretArnSuffix)] = secretVal
@@ -66,7 +74,13 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
 func setSecretsFromEnv(envVars []string) {
-	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
+	shouldUseFips, err := fips.Enabled()
+	if err != nil {
+		log.Debugf("Could not determine if FIPS is enabled, assuming it is not: %v", err)
+		shouldUseFips = false
+	}
+
+	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager, shouldUseFips) {
 		os.Setenv(envKey, strings.TrimSpace(envVal))
 	}
 }

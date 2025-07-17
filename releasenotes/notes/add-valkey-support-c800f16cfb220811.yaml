@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added support for obfuscation for valkey command. This feature is enabled by default.
+    To disable it, set ``DD_APM_OBFUSCATION_VALKEY_ENABLED=false``.
+    To replace all valkey command arguments with a single ``?``,
+    set ``DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS=true`` (default: false).

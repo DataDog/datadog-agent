@@ -26,6 +26,9 @@ source :url => "https://github.com/gluster/gstatus/releases/download/v#{version}
 build do
   license "GPL-3.0"
 
+  # fix the shebang of the gstatus artifact to use the embedded agent python environment
+  # #!/usr/bin/env python3 -> #!/opt/datadog-agent/embedded/bin/python
+  command "sed -i '1s|.*|#!#{install_dir}/embedded/bin/python|' gstatus"
   copy "gstatus", "#{install_dir}/embedded/sbin/gstatus"
   command "chmod +x #{install_dir}/embedded/sbin/gstatus"
 end

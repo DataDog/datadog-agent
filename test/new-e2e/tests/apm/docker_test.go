@@ -14,9 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 )
 
 type DockerFakeintakeSuite struct {
@@ -78,7 +79,7 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
+		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake, !s.Env().Agent.FIPSEnabled)
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
@@ -142,17 +143,32 @@ func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
 }
 
 func (s *DockerFakeintakeSuite) TestStatsForService() {
+	// Test both normal stats computed by agent, and client stats from tracer
+	s.testStatsForService(false)
+	s.testStatsForService(true)
+}
+
+func (s *DockerFakeintakeSuite) testStatsForService(enableClientSideStats bool) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	service := fmt.Sprintf("tracegen-stats-%t-%s", enableClientSideStats, s.transport)
 	addSpanTags := "peer.hostname:foo,span.kind:client"
 	expectPeerTag := "peer.hostname:foo"
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
-	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport, addSpanTags: addSpanTags})()
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{
+		transport:             s.transport,
+		addSpanTags:           addSpanTags,
+		enableClientSideStats: enableClientSideStats,
+	})()
+
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, expectPeerTag, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding stats")
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testStatsHaveContainerTags(s.T(), c, service, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed finding container ID on stats")
 }
 
 func (s *DockerFakeintakeSuite) TestBasicTrace() {

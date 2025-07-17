@@ -6,8 +6,10 @@
 package listeners
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -31,14 +33,28 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 	socketPath := cfg.GetString("dogstatsd_socket")
 	transport := "unixgram"
 
-	address, err := setupSocketBeforeListen(socketPath, transport)
+	_, err := setupSocketBeforeListen(socketPath, transport)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.ListenUnixgram(transport, address)
+	originDetection := cfg.GetBool("dogstatsd_origin_detection")
+
+	conf := net.ListenConfig{
+		Control: func(_, address string, c syscall.RawConn) (err error) {
+			originDetection, err = setupUnixConn(c, originDetection, address)
+			return
+		},
+	}
+
+	connGeneric, err := conf.ListenPacket(context.Background(), transport, socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)
+	}
+
+	conn, ok := connGeneric.(*net.UnixConn)
+	if !ok {
+		return nil, fmt.Errorf("unexpected return type from ListenPacket, expected UnixConn: %#v", connGeneric)
 	}
 
 	err = setSocketWriteOnly(socketPath)
@@ -46,7 +62,7 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 		return nil, err
 	}
 
-	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent)
+	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent, originDetection)
 	if err != nil {
 		return nil, err
 	}
@@ -54,12 +70,6 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 	listener := &UDSDatagramListener{
 		UDSListener: *l,
 		conn:        conn,
-	}
-
-	// Setup origin detection early
-	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
-	if err != nil {
-		return nil, err
 	}
 
 	log.Infof("dogstatsd-uds: %s successfully initialized", conn.LocalAddr())

@@ -27,4 +27,6 @@ type Component interface {
 	ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 	// ConfigGetState returns the state of the configuration and the director repos in the local store
 	ConfigGetState() (*pbgo.GetStateConfigResponse, error)
+	// ConfigResetState resets the remote configuration state, clearing the local store and reinitializing the uptane client
+	ConfigResetState() (*pbgo.ResetStateConfigResponse, error)
 }

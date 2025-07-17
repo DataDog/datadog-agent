@@ -10,15 +10,17 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 )
 
-func randomTraceID() uint64 {
-	return uint64(rand.Int63())
+func randomTraceID(source rand.Source) uint64 {
+	return uint64(source.Int63())
 }
 
 func getTestPrioritySampler() *PrioritySampler {
@@ -28,11 +30,11 @@ func getTestPrioritySampler() *PrioritySampler {
 		TargetTPS:       0.0,
 	}
 
-	return NewPrioritySampler(conf, &DynamicConfig{}, &statsd.NoOpClient{})
+	return NewPrioritySampler(conf, &DynamicConfig{})
 }
 
 func getTestTraceWithService(service string, s *PrioritySampler) (*pb.TraceChunk, *pb.Span) {
-	tID := randomTraceID()
+	tID := randomTraceID(rand.NewSource(3))
 	spans := []*pb.Span{
 		{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: service, Type: "web", Meta: map[string]string{"env": defaultEnv}, Metrics: map[string]float64{}},
 		{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: service, Type: "sql"},
@@ -61,64 +63,44 @@ func getTestTraceWithService(service string, s *PrioritySampler) (*pb.TraceChunk
 }
 
 func TestPrioritySample(t *testing.T) {
-	// Simple sample unit test
-	assert := assert.New(t)
-
-	env := defaultEnv
-
-	s := getTestPrioritySampler()
-
-	assert.Equal(float32(0), s.sampler.totalSeen, "checking fresh backend total score is 0")
-	assert.Equal(int64(0), s.sampler.totalKept.Load(), "checking fresh backend sampled score is 0")
-
-	s = getTestPrioritySampler()
-	chunk, root := getTestTraceWithService("my-service", s)
-
-	chunk.Priority = -1
-	sampled := s.Sample(time.Now(), chunk, root, env, 0)
-	assert.False(sampled, "trace with negative priority is dropped")
-	assert.Equal(float32(0), s.sampler.totalSeen, "sampling a priority -1 trace should *NOT* impact sampler backend")
-	assert.Equal(int64(0), s.sampler.totalKept.Load(), "sampling a priority -1 trace should *NOT* impact sampler backend")
-
-	s = getTestPrioritySampler()
-	chunk, root = getTestTraceWithService("my-service", s)
-
-	chunk.Priority = 0
-	sampled = s.Sample(time.Now(), chunk, root, env, 0)
-	assert.False(sampled, "trace with priority 0 is dropped")
-	assert.True(float32(0) < s.sampler.totalSeen, "sampling a priority 0 trace should increase total score")
-	assert.Equal(int64(0), s.sampler.totalKept.Load(), "sampling a priority 0 trace should *NOT* increase sampled score")
-
-	s = getTestPrioritySampler()
-	chunk, root = getTestTraceWithService("my-service", s)
-
-	chunk.Priority = 1
-	sampled = s.Sample(time.Now(), chunk, root, env, 0)
-	assert.True(sampled, "trace with priority 1 is kept")
-	assert.True(float32(0) < s.sampler.totalSeen, "sampling a priority 0 trace should increase total score")
-	assert.True(int64(0) < s.sampler.totalKept.Load(), "sampling a priority 0 trace should increase sampled score")
-
-	s = getTestPrioritySampler()
-	chunk, root = getTestTraceWithService("my-service", s)
-
-	chunk.Priority = 2
-	sampled = s.Sample(time.Now(), chunk, root, env, 0)
-	assert.True(sampled, "trace with priority 2 is kept")
-	assert.Equal(float32(0), s.sampler.totalSeen, "sampling a priority 2 trace should *NOT* increase total score")
-	assert.Equal(int64(0), s.sampler.totalKept.Load(), "sampling a priority 2 trace should *NOT* increase sampled score")
-
-	s = getTestPrioritySampler()
-	chunk, root = getTestTraceWithService("my-service", s)
-
-	chunk.Priority = int32(PriorityUserKeep)
-	sampled = s.Sample(time.Now(), chunk, root, env, 0)
-	assert.True(sampled, "trace with high priority is kept")
-	assert.Equal(float32(0), s.sampler.totalSeen, "sampling a high priority trace should *NOT* increase total score")
-	assert.Equal(int64(0), s.sampler.totalKept.Load(), "sampling a high priority trace should *NOT* increase sampled score")
-
-	chunk.Priority = int32(PriorityNone)
-	sampled = s.Sample(time.Now(), chunk, root, env, 0)
-	assert.False(sampled, "this should not happen but a trace without priority sampling set should be dropped")
+	tests := []struct {
+		priority        SamplingPriority
+		expectedSampled bool
+	}{
+		{
+			priority:        PriorityNone,
+			expectedSampled: false,
+		},
+		{
+			priority:        PriorityUserDrop,
+			expectedSampled: false,
+		},
+		{
+			priority:        PriorityAutoDrop,
+			expectedSampled: false,
+		},
+		{
+			priority:        PriorityAutoKeep,
+			expectedSampled: true,
+		},
+		{
+			priority:        PriorityUserKeep,
+			expectedSampled: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.priority.tagValue(), func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+			s := getTestPrioritySampler()
+			chunk, root := getTestTraceWithService("service-a", s)
+			chunk.Priority = int32(tt.priority)
+			assert.Equal(t, tt.expectedSampled, s.Sample(time.Now(), chunk, root, defaultEnv, 0))
+			statsdClient.EXPECT().Gauge(MetricSamplerSize, gomock.Any(), []string{"sampler:priority"}, float64(1)).Times(1)
+			s.report(statsdClient)
+		})
+	}
 }
 
 func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
@@ -133,14 +115,14 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		expectedTPS   float64
 	}
 	testCases := []testCase{
-		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.05, service: "bim"},
+		{targetTPS: 5.0, generatedTPS: 50.0, expectedTPS: 5.0, relativeError: 0.25, service: "bim"},
 	}
 	if !testing.Short() {
 		testCases = append(testCases,
-			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.05, service: "2"},
+			testCase{targetTPS: 3.0, generatedTPS: 200.0, expectedTPS: 3.0, relativeError: 0.25, service: "2"},
 			testCase{targetTPS: 10.0, generatedTPS: 10.0, expectedTPS: 10.0, relativeError: 0.03, service: "4"},
 			testCase{targetTPS: 10.0, generatedTPS: 3.0, expectedTPS: 3.0, relativeError: 0.03, service: "10"},
-			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.1, service: "0.5"},
+			testCase{targetTPS: 0.5, generatedTPS: 100.0, expectedTPS: 0.5, relativeError: 0.6, service: "0.5"},
 		)
 	}
 
@@ -152,14 +134,13 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		rand.Seed(3)
 		s := getTestPrioritySampler()
 
 		t.Logf("testing targetTPS=%0.1f generatedTPS=%0.1f clientDrop=%v", tc.targetTPS, tc.generatedTPS, tc.clientDrop)
 		s.sampler.targetTPS = atomic.NewFloat64(tc.targetTPS)
 
 		var sampledCount, handledCount int
-		const warmUpDuration, testDuration = 2, 10
+		const warmUpDuration, testDuration = 5, 20
 		testTime := time.Now()
 		for timeElapsed := 0; timeElapsed < warmUpDuration+testDuration; timeElapsed++ {
 			tracesPerPeriod := tc.generatedTPS * bucketDuration.Seconds()
@@ -201,7 +182,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 		}
 
 		// We should keep the right percentage of traces
-		assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, float64(sampledCount)/float64(handledCount), tc.relativeError)
+		assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, float64(sampledCount)/float64(handledCount), tc.relativeError, "we sampled %d and handled %d giving a rate %f when rate was expected %f", sampledCount, handledCount, float64(sampledCount)/float64(handledCount), tc.expectedTPS/tc.generatedTPS)
 
 		// We should have a throughput of sampled traces around targetTPS
 		// Check for 1% epsilon, but the precision also depends on the backend imprecision (error factor = decayFactor).

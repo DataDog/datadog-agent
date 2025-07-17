@@ -8,7 +8,6 @@ Notes about Agent6:
 
 import json
 import os
-import re
 import sys
 import tempfile
 import time
@@ -17,7 +16,7 @@ from datetime import date
 from time import sleep
 
 from gitlab import GitlabError
-from invoke import task
+from invoke import Failure, task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
@@ -30,22 +29,24 @@ from tasks.libs.common.datadog_api import get_ci_pipeline_events
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
-    clone,
+    create_tree,
     get_default_branch,
     get_last_commit,
     get_last_release_tag,
     is_agent6,
-    set_git_config,
+    push_tags_in_batches,
     try_git_command,
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import running_in_ci, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
     load_and_validate,
     warn_new_commits,
+    warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
     create_release_page,
@@ -60,14 +61,18 @@ from tasks.libs.releasing.json import (
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
+    get_current_milestone,
     load_release_json,
+    set_current_milestone,
     set_new_release_branch,
     update_release_json,
 )
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
+    FINAL_VERSION_RE,
     MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
+    RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _create_version_from_match,
     current_version,
@@ -76,16 +81,12 @@ from tasks.libs.releasing.version import (
     next_final_version,
     next_rc_version,
 )
+from tasks.notify import post_message
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
-GITLAB_FILES_TO_UPDATE = [
-    ".gitlab-ci.yml",
-    ".gitlab/notify/notify.yml",
-]
-
 BACKPORT_LABEL_COLOR = "5319e7"
-TAG_BATCH_SIZE = 3
+QUALIFICATION_TAG = "qualification"
 
 
 @task
@@ -112,7 +113,7 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
         verify: Checks for correctness on the Agent Version (on by default).
 
     Examples:
-        $ inv -e release.update-modules 7.27.x
+        $ dda inv -e release.update-modules 7.27.x
     """
 
     assert release_branch or version
@@ -149,10 +150,11 @@ def __get_force_option(force: bool) -> str:
     return force_option
 
 
-def __tag_single_module(ctx, module, agent_version, commit, force_option, devel):
+def __tag_single_module(ctx, module, tag_name, commit, force_option, devel):
     """Tag a given module."""
     tags = []
-    for tag in module.tag(agent_version):
+    tags_to_commit = module.tag(tag_name) if VERSION_RE.match(tag_name) else [tag_name]
+    for tag in tags_to_commit:
         if devel:
             tag += "-devel"
 
@@ -170,7 +172,15 @@ def __tag_single_module(ctx, module, agent_version, commit, force_option, devel)
 
 @task
 def tag_modules(
-    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
+    ctx,
+    release_branch=None,
+    commit="HEAD",
+    push=True,
+    force=False,
+    devel=False,
+    version=None,
+    trust=False,
+    skip_agent_context=False,
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
@@ -180,19 +190,20 @@ def tag_modules(
         push: Will push the tags to the origin remote (on by default).
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
         devel: Will create -devel tags (used after creation of the release branch).
+        skip_agent_context: Won't do context change if set.
 
     Examples:
-        $ inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
-        $ inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
-        $ inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-modules 7.27.x                 # Create tags and push them to origin
+        $ dda inv -e release.tag-modules 7.27.x --no-push       # Create tags locally; don't push them
+        $ dda inv -e release.tag-modules 7.29.x --force         # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
-    tags = []
-    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+    def _tag_modules():
+        tags = []
         force_option = __get_force_option(force)
         for module in get_default_modules().values():
             # Skip main module; this is tagged at tag_version via __tag_single_module.
@@ -201,58 +212,89 @@ def tag_modules(
                 tags.extend(new_tags)
 
         if push:
-            tags_list = ' '.join(tags)
-            for idx in range(0, len(tags), TAG_BATCH_SIZE):
-                batch_tags = tags[idx : idx + TAG_BATCH_SIZE]
-                ctx.run(f"git push origin {' '.join(batch_tags)}{force_option}")
-            print(f"Pushed tag {tags_list}")
+            set_gitconfig_in_ci(ctx)
+            push_tags_in_batches(ctx, tags, force_option)
         print(f"Created module tags for version {agent_version}")
+
+    if skip_agent_context:
+        _tag_modules()
+    else:
+        with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+            _tag_modules()
 
 
 @task
 def tag_version(
-    ctx, release_branch=None, commit="HEAD", push=True, force=False, devel=False, version=None, trust=False
+    ctx,
+    release_branch=None,
+    commit="HEAD",
+    push=True,
+    force=False,
+    devel=False,
+    version=None,
+    trust=False,
+    start_qual=False,
+    skip_agent_context=False,
 ):
     """Create tags for a given Datadog Agent version.
 
     Args:
-        commit: Will tag `commit` with the tags (default HEAD)
+        commit: Will tag `commit` with the tags (default HEAD).
         verify: Checks for correctness on the Agent version (on by default).
         push: Will push the tags to the origin remote (on by default).
         force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
-        devel: Will create -devel tags (used after creation of the release branch)
+        devel: Will create -devel tags (used after creation of the release branch).
+        start_qual: Will start the qualification phase for agent 6 release candidate by adding a qualification tag.
+        skip_agent_context: Won't do context change if set.
 
     Examples:
-        $ inv -e release.tag-version 7.27.x            # Create tags and push them to origin
-        $ inv -e release.tag-version 7.27.x --no-push  # Create tags locally; don't push them
-        $ inv -e release.tag-version 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x            # Create tags and push them to origin
+        $ dda inv -e release.tag-version -r 7.27.x --no-push  # Create tags locally; don't push them
+        $ dda inv -e release.tag-version -r 7.29.x --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
 
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
-    # Always tag the main module
-    force_option = __get_force_option(force)
-    with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+    def _tag_version():
+        # Always tag the main module
+        force_option = __get_force_option(force)
         tags = __tag_single_module(ctx, get_default_modules()["."], agent_version, commit, force_option, devel)
 
-    if push:
-        tags_list = ' '.join(tags)
-        ctx.run(f"git push origin {tags_list}{force_option}")
-        print(f"Pushed tag {tags_list}")
-    print(f"Created tags for version {agent_version}")
+        set_gitconfig_in_ci(ctx)
+        if is_agent6(ctx) and (start_qual or is_qualification(ctx, "6.53.x")):
+            # remove all the qualification tags if it is the final version
+            if FINAL_VERSION_RE.match(agent_version):
+                qualification_tags = [tag for _, tag in get_qualification_tags(ctx, release_branch)]
+                push_tags_in_batches(ctx, qualification_tags, delete=True)
+            # create or update the qualification tag on the current commit
+            else:
+                tags += __tag_single_module(
+                    ctx, get_default_modules()["."], f"{QUALIFICATION_TAG}-{int(time.time())}", commit, "", False
+                )
+
+        if push:
+            push_tags_in_batches(ctx, tags, force_option)
+            print(f"Created tags for version {agent_version}")
+
+    if skip_agent_context:
+        _tag_version()
+    else:
+        with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
+            _tag_version()
 
 
 @task
 def tag_devel(ctx, release_branch, commit="HEAD", push=True, force=False):
-    tag_version(ctx, release_branch, commit, push, force, devel=True)
-    tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True)
+    with agent_context(ctx, get_default_branch(major=get_version_major(release_branch))):
+        tag_version(ctx, release_branch, commit, push, force, devel=True, skip_agent_context=True)
+        tag_modules(ctx, release_branch, commit, push, force, devel=True, trust=True, skip_agent_context=True)
 
 
 @task
 def finish(ctx, release_branch, upstream="origin"):
-    """Updates the release entry in the release.json file for the new version.
+    """Updates the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
@@ -270,12 +312,21 @@ def finish(ctx, release_branch, upstream="origin"):
         # find the correct new version.
         # To support this, we'd have to support a --patch-version param in
         # release.finish
-        new_version = next_final_version(ctx, major_version, False)
+        new_version = next_final_version(ctx, release_branch, False)
         if not yes_no_question(
             f'Do you want to finish the release with version {new_version}?', color="bold", default=False
         ):
             raise Exit(color_message("Aborting.", "red"), code=1)
         update_release_json(new_version, new_version)
+
+        next_milestone = next_final_version(ctx, release_branch, True)
+        next_milestone = next_milestone.next_version(bump_patch=True)
+        previous_milestone = get_current_milestone()
+        print(f"Creating the {next_milestone} milestone...")
+
+        gh = GithubAPI()
+        gh.create_milestone(str(next_milestone), exist_ok=True)
+        set_current_milestone(str(next_milestone))
 
         # Step 2: Update internal module dependencies
 
@@ -299,6 +350,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
 
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m {commit_message}")
         if not ok:
             raise Exit(
@@ -343,11 +395,12 @@ def finish(ctx, release_branch, upstream="origin"):
             release_branch,
             final_branch,
             new_version,
+            milestone=previous_milestone,
         )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack_webhook=None):
+def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
     """Updates the release entries in release.json to prepare the next RC build.
 
     If the previous version of the Agent (determined as the latest tag on the
@@ -363,19 +416,17 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
     If the previous version of the Agent was an RC, updates the release entries for RC + 1.
 
     Examples:
-        If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+        If the latest tag on the branch is 7.31.0, and dda inv release.create-rc --patch-version
         is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
         will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
 
-        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and dda inv release.create-rc
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
         Updates internal module dependencies with the new RC.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
-
-        If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
         This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
@@ -387,20 +438,14 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
     with agent_context(ctx, release_branch):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
-        github_action = os.environ.get("GITHUB_ACTIONS")
-
-        if github_action:
-            set_git_config('user.name', 'github-actions[bot]')
-            set_git_config('user.email', 'github-actions[bot]@users.noreply.github.com')
-            upstream = f"https://x-access-token:{os.environ.get('GITHUB_TOKEN')}@github.com/{GITHUB_REPO_NAME}.git"
 
         # Get the version of the highest major: useful for some logging & to get
         # the version to use for Go submodules updates
-        new_highest_version = next_rc_version(ctx, major_version, patch_version)
+        new_highest_version = next_rc_version(ctx, release_branch, patch_version)
         # Get the next final version of the highest major: useful to know which
         # milestone to target, as well as decide which tags from dependency repositories
         # can be used.
-        new_final_version = next_final_version(ctx, major_version, patch_version)
+        new_final_version = next_final_version(ctx, release_branch, patch_version)
         print(color_message(f"Preparing RC for agent version {major_version}", "bold"))
 
         # Step 0: checks
@@ -413,7 +458,10 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         check_clean_branch_state(ctx, github, update_branch)
         active_releases = [branch.name for branch in github.latest_unreleased_release_branches()]
-        if not any(check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases):
+        # Bypass if we want to cut a patch release, in that case the branch is not considered "active"
+        if not patch_version and not any(
+            check_base_branch(release_branch, unreleased_branch) for unreleased_branch in active_releases
+        ):
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or amongst the active release branches ({active_releases}). Aborting.",
@@ -424,7 +472,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
 
         # Step 1: Update release entries
         print(color_message("Updating release entries", "bold"))
-        new_version = next_rc_version(ctx, major_version, patch_version)
+        new_version = next_rc_version(ctx, release_branch, patch_version)
 
         update_release_json(new_version, new_final_version)
 
@@ -433,11 +481,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         print(color_message("Updating Go modules", "bold"))
         update_modules(ctx, version=str(new_highest_version))
 
-        # Step 3: branch out, commit change, push branch
+        # Step 3: branch out, push branch, then add, and create signed commit with Github API
 
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
-
+        ctx.run(f"git push --set-upstream {upstream} {update_branch}")
         print(color_message("Committing release.json and Go modules updates", "bold"))
         print(
             color_message(
@@ -447,30 +495,31 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
         ctx.run("git add release.json")
         ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-        ok = try_git_command(
-            ctx,
-            f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'",
-            github_action,
-        )
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
+        commit_message = f"Update release.json and Go modules for {new_highest_version}"
+        if running_in_ci():
+            print("Creating signed commits using Github API")
+            tree = create_tree(ctx, release_branch)
+            github.commit_and_push_signed(update_branch, commit_message, tree)
+        else:
+            print("Creating commits using your local git configuration, please make sure to sign them")
+            ok = try_git_command(ctx, f"git commit --no-verify -m '{commit_message}'")
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {release_branch}.",
+                        "red",
+                    ),
+                    code=1,
+                )
+            res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
+            if res.exited is None or res.exited > 0:
+                raise Exit(
+                    color_message(
+                        f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
         pr_url = create_release_pr(
             f"[release] Update release.json and Go modules for {new_highest_version}",
@@ -479,18 +528,51 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin", slack
             new_final_version,
         )
 
-        # Step 4 - If slack workflow webhook is provided, send a slack message
-        if slack_webhook:
-            print(color_message("Sending slack notification", "bold"))
-            payload = {
-                "pr_url": pr_url,
-                "version": str(new_highest_version),
-            }
-            send_slack_msg(ctx, payload, slack_webhook)
+        # Step 4 - Send a slack message
+        message = f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}."
+        channel = 'agent-release-sync'
+        if major_version == 6:
+            channel = 'agent-ci-on-call'
+            message += "\nCan you please merge this PR and trigger a build pipeline according to <https://datadoghq.atlassian.net/wiki/x/cgEaCgE|this document>?"
+        post_message(ctx, channel, message)
 
 
 @task
-def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
+def is_qualification(ctx, release_branch, output=False):
+    if qualification_tag_query(ctx, release_branch):
+        if output:
+            print('true')
+        return True
+    if output:
+        print("false")
+    return False
+
+
+def qualification_tag_query(ctx, release_branch, sort=False):
+    with agent_context(ctx, release_branch):
+        sort_option = " --sort=-refname" if sort else ""
+        res = ctx.run(f"git ls-remote --tags{sort_option} origin '{QUALIFICATION_TAG}-*^{{}}'", hide=True)
+        if res.stdout:
+            return res.stdout.splitlines()
+        return None
+
+
+@task
+def get_qualification_tags(ctx, release_branch, latest_tag=False):
+    """Get the qualification tags in remote repository
+
+    Args:
+        latest_tag: if True, only return the latest commit and tag
+    """
+    qualification_tags = qualification_tag_query(ctx, release_branch, sort=True)
+    if latest_tag:
+        qualification_tags = [qualification_tags[0]]
+
+    return [ref.replace("^{}", "").split("\t") for ref in qualification_tags]
+
+
+@task
+def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, start_qual=False):
     """To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
@@ -499,16 +581,15 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
 
     Args:
         k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
+        start_qual: Start the qualification phase for agent 6 release candidates.
     """
-
-    major_version = get_version_major(release_branch)
 
     with agent_context(ctx, release_branch):
         datadog_agent = get_gitlab_repo()
 
         # Get the version of the highest major: needed for tag_version and to know
         # which tag to target when creating the pipeline.
-        new_version = next_rc_version(ctx, major_version, patch_version)
+        new_version = next_rc_version(ctx, release_branch, patch_version)
 
         # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
         versions_string = str(new_version)
@@ -548,7 +629,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
         # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-        tag_version(ctx, version=str(new_version), force=False)
+        tag_version(ctx, version=str(new_version), force=False, start_qual=start_qual)
         tag_modules(ctx, version=str(new_version), force=False)
 
         print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
@@ -564,16 +645,44 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False):
         print(color_message("Creating RC pipeline", "bold"))
 
         # Step 2: Run the RC pipeline
+        run_rc_pipeline(ctx, gitlab_tag.name, k8s_deployments)
 
-        run(
-            ctx,
-            git_ref=gitlab_tag.name,
-            use_release_entries=True,
-            repo_branch="beta",
-            deploy=True,
-            rc_build=True,
-            rc_k8s_deployments=k8s_deployments,
-        )
+
+def get_qualification_rc_tag(ctx, release_branch):
+    with agent_context(ctx, release_branch):
+        err_msg = "Error: Expected exactly one release candidate tag associated with the qualification tag commit. Tags found:"
+        try:
+            latest_commit, _ = get_qualification_tags(ctx, release_branch, latest_tag=True)[0]
+            res = ctx.run(f"git tag --points-at {latest_commit} | grep 6.53")
+        except Failure as err:
+            raise Exit(message=f"{err_msg} []", code=1) from err
+
+        tags = [tag for tag in res.stdout.split("\n") if tag.strip()]
+        if len(tags) > 1:
+            raise Exit(message=f"{err_msg} {tags}", code=1)
+        if not RC_VERSION_RE.match(tags[0]):
+            raise Exit(message=f"Error: The tag '{tags[0]}' does not match expected release candidate pattern", code=1)
+
+        return tags[0]
+
+
+@task
+def run_rc_pipeline(ctx, gitlab_tag, k8s_deployments=False):
+    run(
+        ctx,
+        git_ref=gitlab_tag,
+        repo_branch="beta",
+        deploy=True,
+        rc_build=True,
+        rc_k8s_deployments=k8s_deployments,
+    )
+
+
+@task
+def alert_ci_on_call(ctx, release_branch):
+    gitlab_tag = get_qualification_rc_tag(ctx, release_branch)
+    message = f":loudspeaker: Agent 6 Update:\nThere is an ongoing Agent 6 release and since there are no new changes there will be no RC bump this week.\n\nPlease rerun the previous build pipeline:\ndda inv release.run-rc-pipeline --gitlab-tag {gitlab_tag}"
+    post_message(ctx, "agent-ci-on-call", message)
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -623,13 +732,13 @@ def create_and_update_release_branch(
     """
 
     def _main():
-        ctx.run("git pull")
         print(color_message(f"Branching out to {release_branch}", "bold"))
         ctx.run(f"git checkout -b {release_branch}")
 
         # Step 2 - Push newly created release branch to the remote repository
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
+        set_gitconfig_in_ci(ctx)
         res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
         if res.exited is None or res.exited > 0:
             raise Exit(
@@ -643,8 +752,7 @@ def create_and_update_release_branch(
     # Perform branch out in all required repositories
     print(color_message(f"Working repository: {repo}", "bold"))
     if repo == 'datadog-agent':
-        with agent_context(ctx, base_branch or get_default_branch(major=get_version_major(release_branch))):
-            _main()
+        _main()
     else:
         with ctx.cd(f"{base_directory}/{repo}"):
             # Step 1 - Create a local branch out from the default branch
@@ -653,26 +761,30 @@ def create_and_update_release_branch(
                 or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
             )
             ctx.run(f"git checkout {main_branch}")
+            ctx.run("git pull", warn=True)
 
             _main()
 
 
 # TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
 @task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
-def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True):
+def create_release_branches(
+    ctx, commit, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True
+):
     """Create and push release branches in Agent repositories and update them.
 
     That includes:
-        - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+        - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
+        - updates release.json on new datadog-agent branch to point to newly created release branches
         - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Args:
+        commit: the commit on which the branch should be created (usually the one before the milestone bump)
         base_directory: Path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
         use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
 
     Notes:
-        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
+        This requires a GitHub token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
         with 'repo' permissions.
         This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
@@ -680,14 +792,14 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    current = current_version(ctx, major_version)
-    current.rc = False
-    current.devel = False
+    with agent_context(ctx, commit=commit):
+        current = current_version(ctx, major_version)
+        current.rc = False
+        current.devel = False
 
-    # Strings with proper branch/tag names
-    release_branch = current.branch()
+        # Strings with proper branch/tag names
+        release_branch = current.branch()
 
-    with agent_context(ctx, get_default_branch(major=major_version)):
         # Step 0: checks
         ctx.run("git fetch")
 
@@ -704,9 +816,8 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
         # Step 1 - Create release branches in all required repositories
 
-        base_branch = get_default_branch() if major_version == 6 else None
-
         for repo in UNFREEZE_REPOS:
+            base_branch = get_default_branch() if major_version == 6 else DEFAULT_BRANCHES[repo]
             create_and_update_release_branch(
                 ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
             )
@@ -717,6 +828,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
             f'backport/{release_branch}',
             BACKPORT_LABEL_COLOR,
             f'Automatically create a backport PR to {release_branch}',
+            exist_ok=True,
         )
 
         # Step 2 - Create PRs with new settings in datadog-agent repository
@@ -728,23 +840,17 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
 
         set_new_release_branch(release_branch)
 
-        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
-        for file in GITLAB_FILES_TO_UPDATE:
-            with open(file) as gl:
-                file_content = gl.readlines()
-
-            with open(file, "w") as gl:
-                for line in file_content:
-                    if re.search(rf"compare_to: {get_default_branch()}", line):
-                        gl.write(line.replace(get_default_branch(), f"{release_branch}"))
-                    else:
-                        gl.write(line)
+        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml
+        with open(".gitlab-ci.yml") as f:
+            content = f.read()
+        with open(".gitlab-ci.yml", "w") as f:
+            f.write(
+                content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
+            )
 
         # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
-        ok = try_git_command(
-            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
-        )
+        ctx.run("git add release.json .gitlab-ci.yml")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'")
         if not ok:
             raise Exit(
                 color_message(
@@ -767,7 +873,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
             )
 
         create_release_pr(
-            f"[release] Update release.json and gitlab files for {release_branch} branch",
+            f"[release] Update release.json and .gitlab-ci.yml files for {release_branch} branch",
             release_branch,
             update_branch,
             current,
@@ -816,6 +922,7 @@ def cleanup(ctx, release_branch):
         ctx.run("git add release.json")
 
         commit_message = f"Update last_stable to {version}"
+        set_gitconfig_in_ci(ctx)
         ok = try_git_command(ctx, f"git commit -m '{commit_message}'")
         if not ok:
             raise Exit(
@@ -848,10 +955,8 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
         if base_branch == get_default_branch():
             default_branches = DEFAULT_BRANCHES_AGENT6 if is_agent6(ctx) else DEFAULT_BRANCHES
             omnibus_ruby_branch = default_branches['omnibus-ruby']
-            omnibus_software_branch = default_branches['omnibus-software']
         else:
             omnibus_ruby_branch = base_branch
-            omnibus_software_branch = base_branch
 
         def _check_commit_in_repo(repo_name, branch, release_json_field):
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -859,21 +964,16 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
                     f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                     hide='stdout',
                 )
-                for version in ['nightly', 'nightly-a7']:
-                    commit = _get_release_json_value(f'{version}::{release_json_field}')
-                    if (
-                        ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited
-                        != 0
-                    ):
-                        raise Exit(
-                            code=1,
-                            message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
-                        )
-                    else:
-                        print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+                commit = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[nightly] Commit {commit} was found in {repo_name} branch {branch}')
 
         _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
-        _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
 
         return True
 
@@ -919,7 +1019,7 @@ def update_build_links(_, new_version, patch_version=False):
     if username is None or password is None:
         raise Exit(
             color_message(
-                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "No Atlassian credentials provided. Run dda inv --help update-build-links for more details.",
                 "red",
             ),
             code=1,
@@ -1003,12 +1103,12 @@ def get_next_version(gh, latest_release=None):
 
 
 @task
-def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     """Task to run after the release is done to generate release metrics.
 
     Args:
         milestone: Github milestone number for the release. Expected format like '7.54.0'
-        freeze_date: Date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+        cutoff_date: Date when the code cutoff was started. Expected format YYYY-MM-DD, like '2022-02-01'
         release_date: Date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
 
     Notes:
@@ -1017,17 +1117,20 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     """
 
     # Step 1: Lead Time for Changes data
-    lead_time = get_release_lead_time(freeze_date, release_date)
+    lead_time = get_release_lead_time(cutoff_date, release_date)
     print("Lead Time for Changes data")
     print("--------------------------")
     print(lead_time)
 
     # Step 2: Agent stability data
-    prs = get_prs_metrics(milestone, freeze_date)
+    prs = get_prs_metrics(milestone, cutoff_date)
     print("\n")
-    print("Agent stability data")
+    print("Agent stability data: Pull Requests")
     print("--------------------")
-    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    print(
+        f"total: {prs['total']}, before_cutoff: {prs['before_cutoff']}, on_cutoff: {prs['on_cutoff']}, after_cutoff: {prs['after_cutoff']}"
+    )
 
     # Step 3: Code changes
     code_stats = ctx.run(
@@ -1072,7 +1175,7 @@ def chase_release_managers(_, version):
 
     from slack_sdk import WebClient
 
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     for channel in sorted(channels):
         print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
@@ -1091,7 +1194,7 @@ def chase_for_qa_cards(_, version):
         grouped_cards[card["fields"]["project"]["key"]].append(card)
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client = WebClient(os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
     print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
         team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
@@ -1110,10 +1213,10 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     Check if there was any modification on the release repositories since last release candidate.
     """
     with agent_context(ctx, release_branch):
-        major_version = get_version_major(release_branch)
-        next_version = next_rc_version(ctx, major_version)
+        next_version = next_rc_version(ctx, release_branch)
         repo_data = generate_repo_data(ctx, warning_mode, next_version, release_branch)
         changes = 'false'
+        message = [f":warning: Please add the `{next_version}` tag on the head of `{release_branch}` for:\n"]
         for repo_name, repo in repo_data.items():
             head_commit = get_last_commit(ctx, repo_name, repo['branch'])
             last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
@@ -1126,11 +1229,9 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     warn_new_commits(emails, team, repo['branch'], next_version)
                 else:
                     if repo_name not in ["datadog-agent", "integrations-core"]:
-                        with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
-                            # We can add the new commit now to be used by release candidate creation
-                            print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
-                            ctx.run(f"git tag {next_version}")
-                            ctx.run(f"git push origin tag {next_version}")
+                        message.append(
+                            f" - <https://github.com/DataDog/{repo_name}/commits/{release_branch}/|{repo_name}>\n"
+                        )
                 # This repo has changes, the next check is not needed
                 continue
             if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
@@ -1139,23 +1240,12 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
                     f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
                     file=sys.stderr,
                 )
+        # Notify the release manager if there are changes
+        if len(message) > 1:
+            message.append("Make sure to tag them before merging the next RC PR.")
+            warn_new_tags("".join(message))
         # Send a value for the create_rc_pr.yml workflow
         print(changes)
-
-
-@task
-def create_qa_cards(ctx, tag):
-    """
-    Automate the call to ddqa
-    """
-    from tasks.libs.releasing.qa import get_labels, setup_ddqa
-
-    version = _create_version_from_match(VERSION_RE.match(tag))
-    if not version.rc:
-        print(f"{tag} is not a release candidate, skipping")
-        return
-    setup_ddqa(ctx)
-    ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
 
 
 @task
@@ -1217,7 +1307,6 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     """
     Create a PR to bump the current_milestone in the release.json file
     """
-    import github
 
     gh = GithubAPI()
 
@@ -1226,21 +1315,12 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
     next.devel = False
 
     print(f"Creating the {next} milestone...")
-
-    try:
-        gh.create_milestone(str(next))
-    except github.GithubException as e:
-        if e.status == 422:
-            print(f"Milestone {next} already exists")
-        else:
-            raise e
+    gh.create_milestone(str(next), exist_ok=True)
 
     with agent_context(ctx, get_default_branch(major=major_version)):
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = load_release_json()
-        rj["current_milestone"] = f"{next}"
-        _save_release_json(rj)
+        set_current_milestone(str(next))
         # Commit release.json
         ctx.run("git add release.json")
         ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
@@ -1272,10 +1352,6 @@ def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
         )
 
 
-def send_slack_msg(ctx, payload, webhook):
-    ctx.run(f'curl -X POST -H "Content-Type: application/json" --data "{payload}" {webhook}')
-
-
 @task
 def check_previous_agent6_rc(ctx):
     """
@@ -1294,13 +1370,12 @@ def check_previous_agent6_rc(ctx):
         err_msg += agent6_prs
 
     response = get_ci_pipeline_events(
-        'ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true',
+        'ci_level:pipeline @ci.pipeline.name:"DataDog/datadog-agent" @git.tag:6.53.* -@ci.pipeline.downstream:true -@ci.partial_pipeline:retry',
         7,
     )
     if not response.data:
         err_msg += "\nAGENT 6 ERROR: No Agent 6 build pipelines have run in the past week. Please trigger a build pipeline for the next agent 6 release candidate."
 
     if err_msg:
-        payload = {'message': err_msg}
-        send_slack_msg(ctx, payload, os.environ.get("SLACK_DATADOG_AGENT_CI_WEBHOOK"))
+        post_message(ctx, "agent-ci-on-call", err_msg)
         raise Exit(message=err_msg, code=1)

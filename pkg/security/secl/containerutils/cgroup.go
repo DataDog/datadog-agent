@@ -17,49 +17,42 @@ type CGroupManager uint64
 
 // CGroup managers
 const (
-	CGroupManagerDocker  CGroupManager = iota + 1 // docker
-	CGroupManagerCRIO                             // cri-o
-	CGroupManagerPodman                           // podman
-	CGroupManagerCRI                              // containerd
-	CGroupManagerSystemd                          // systemd
+	CgroupManagerUndefined CGroupManager = iota // unknown
+	CGroupManagerDocker                         // docker
+	CGroupManagerCRIO                           // cri-o
+	CGroupManagerPodman                         // podman
+	CGroupManagerCRI                            // containerd
+	CGroupManagerSystemd                        // systemd
+	CGroupManagerECS                            // ecs
 )
 
 // CGroup flags
 const (
-	SystemdService CGroupFlags = (0 << 8)
-	SystemdScope   CGroupFlags = (1 << 8)
+	SystemdService CGroupFlags = iota + (1 << 8)
+	SystemdScope
 )
 
-const (
-	// ContainerRuntimeDocker is used to specify that a container is managed by Docker
-	ContainerRuntimeDocker = "docker"
-	// ContainerRuntimeCRI is used to specify that a container is managed by containerd
-	ContainerRuntimeCRI = "containerd"
-	// ContainerRuntimeCRIO is used to specify that a container is managed by CRI-O
-	ContainerRuntimeCRIO = "cri-o"
-	// ContainerRuntimePodman is used to specify that a container is managed by Podman
-	ContainerRuntimePodman = "podman"
-)
-
-// RuntimePrefixes holds the cgroup prefixed used by the different runtimes
-var RuntimePrefixes = []struct {
-	prefix string
-	flags  CGroupManager
+// RuntimeToken holds the cgroup token used by the different runtimes
+var RuntimeToken = []struct {
+	token string
+	flags CGroupManager
 }{
 	{"docker/", CGroupManagerDocker}, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
 	{"docker-", CGroupManagerDocker},
 	{"cri-containerd-", CGroupManagerCRI},
 	{"crio-", CGroupManagerCRIO},
 	{"libpod-", CGroupManagerPodman},
+	{"ecs/", CGroupManagerECS},
+
+	// fallback to containerd in case of kubepods a
+	{"kubepods", CGroupManagerCRI},
 }
 
-// getContainerFromCgroup extracts the container ID from a cgroup name
-func getContainerFromCgroup(cgroup CGroupID) (ContainerID, CGroupFlags) {
-	cgroupID := strings.TrimLeft(string(cgroup), "/")
-	for _, runtimePrefix := range RuntimePrefixes {
-		if strings.HasPrefix(cgroupID, runtimePrefix.prefix) {
-			return ContainerID(cgroupID[len(runtimePrefix.prefix):]), CGroupFlags(runtimePrefix.flags)
+func getCGroupManager(cgroupID CGroupID) CGroupManager {
+	for _, rt := range RuntimeToken {
+		if strings.Contains(string(cgroupID), rt.token) {
+			return rt.flags
 		}
 	}
-	return "", 0
+	return CgroupManagerUndefined
 }

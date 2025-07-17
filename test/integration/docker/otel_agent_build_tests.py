@@ -11,7 +11,7 @@ def setUpModule():
 
 class OtelAgentBuildTest(unittest.TestCase):
     """contains setup and tests for otel agent build. Must be invoked directly
-    by 'inv otel-agent.test-image-build' so that necessary image is built and
+    by 'dda inv otel-agent.test-image-build' so that necessary image is built and
     environment variables are set"""
 
     def setUp(self):

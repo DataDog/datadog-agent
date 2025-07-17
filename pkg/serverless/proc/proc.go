@@ -21,14 +21,15 @@ import (
 )
 
 const (
-	ProcStatPath           = "/proc/stat"
-	ProcUptimePath         = "/proc/uptime"
-	ProcNetDevPath         = "/proc/net/dev"
-	ProcPath               = "/proc"
-	PidLimitsPathFormat    = "/%d/limits"
-	PidFdPathFormat        = "/%d/fd"
-	PidTaskPathFormat      = "/%d/task"
-	lambdaNetworkInterface = "vinternal_1"
+	ProcStatPath                  = "/proc/stat"
+	ProcUptimePath                = "/proc/uptime"
+	ProcNetDevPath                = "/proc/net/dev"
+	ProcPath                      = "/proc"
+	PidLimitsPathFormat           = "/%d/limits"
+	PidFdPathFormat               = "/%d/fd"
+	PidTaskPathFormat             = "/%d/task"
+	lambdaNetworkInterface        = "vinternal_1"
+	lambdaRuntimeNetworkInterface = "vint_runtime"
 )
 
 func GetPidList(procPath string) []int {
@@ -193,7 +194,7 @@ func getNetworkData(path string) (*NetworkData, error) {
 		if errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("network data not found in file '%s'", path)
 		}
-		if err == nil && strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
+		if err == nil && (strings.HasPrefix(interfaceName, lambdaNetworkInterface) || strings.HasPrefix(interfaceName, lambdaRuntimeNetworkInterface)) {
 			return &NetworkData{
 				RxBytes: rxBytes,
 				TxBytes: txBytes,

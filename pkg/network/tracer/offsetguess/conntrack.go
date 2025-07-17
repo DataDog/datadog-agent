@@ -5,7 +5,8 @@
 
 //go:build linux_bpf
 
-package offsetguess //nolint:revive // TODO
+// Package offsetguess provides offsetguesses for tracer
+package offsetguess
 
 import (
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,7 +46,8 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
-func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) { //nolint:revive // TODO
+// NewConntrackOffsetGuesser creates a new OffsetGuesser
+func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
 	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)
 	return &conntrackOffsetGuesser{
@@ -59,7 +62,7 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) { //no
 				// it twice in a process (once by the tracer offset guesser)
 				// does not seem to work; this will be not be enabled,
 				// so explicitly disabled, and the manager won't load it
-				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
+				{ProbeIdentificationPair: idPair(probes.NetDevQueueTracepoint)}},
 		},
 		status:       &ConntrackStatus{},
 		tcpv6Enabled: tcpv6EnabledConst,
@@ -250,7 +253,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	defer currentNs.Close()
 	nss = append(nss, currentNs)
 
-	rootNs, err := kernel.GetRootNetNamespace(kernel.ProcFSRoot())
+	rootNs, err := netnsutil.GetRootNetNamespace(kernel.ProcFSRoot())
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +332,7 @@ func newConntrackEventGenerator(ns netns.NsHandle) (*conntrackEventGenerator, er
 	// port 0 means we let the kernel choose a free port
 	var err error
 	addr := fmt.Sprintf("%s:0", listenIPv4)
-	err = kernel.WithNS(eg.ns, func() error {
+	err = netnsutil.WithNS(eg.ns, func() error {
 		eg.udpAddr, eg.udpDone, err = newUDPServer(addr)
 		return err
 	})
@@ -349,7 +352,7 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 			e.udpConn.Close()
 		}
 		var err error
-		err = kernel.WithNS(e.ns, func() error {
+		err = netnsutil.WithNS(e.ns, func() error {
 			// we use a dialer instance to override the local
 			// address to use with the udp connection. this is
 			// because on kernel 4.4 using the default loopback
@@ -387,7 +390,7 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValue
 
 	expected.saddr = saddr
 	expected.daddr = daddr
-	expected.netns, err = kernel.GetCurrentIno()
+	expected.netns, err = netnsutil.GetCurrentIno()
 	if err != nil {
 		return err
 	}

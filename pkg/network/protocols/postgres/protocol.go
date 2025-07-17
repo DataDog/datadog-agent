@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	postgresebpf "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,6 +44,8 @@ const (
 	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
 	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
 	eventStream               = "postgres"
+	netifProbe                = "tracepoint__net__netif_receive_skb_postgres"
+	netifProbe414             = "netif_receive_skb_core_postgres_4_14"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -54,6 +57,7 @@ type protocol struct {
 	statskeeper           *StatKeeper
 	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
 	kernelTelemetryStopCh chan struct{}
+	mgr                   *manager.Manager
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -77,6 +81,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "postgres_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStream,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStream,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -132,7 +151,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newPostgresProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnablePostgresMonitoring {
 		return nil, nil
 	}
@@ -143,6 +162,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		statskeeper:           NewStatkeeper(cfg),
 		kernelTelemetry:       newKernelTelemetry(),
 		kernelTelemetryStopCh: make(chan struct{}),
+		mgr:                   mgr,
 	}, nil
 }
 
@@ -152,21 +172,29 @@ func (p *protocol) Name() string {
 }
 
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStream,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
 	utils.EnableOption(opts, "postgres_monitoring_enabled")
 	// Configure event stream
-	events.Configure(p.cfg, eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, p.mgr, opts)
 }
 
 // PreStart runs setup required before starting the protocol.
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart() (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
-		mgr,
+		p.mgr,
 		p.processPostgres,
 	)
 	if err != nil {
@@ -179,15 +207,15 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 }
 
 // PostStart starts the map cleaner.
-func (p *protocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart() error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
-	p.startKernelTelemetry(mgr)
+	p.setupMapCleaner()
+	p.startKernelTelemetry()
 	return nil
 }
 
 // Stop stops all resources associated with the protocol.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
@@ -228,15 +256,20 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	}
 }
 
-// GetStats returns a map of Postgres stats.
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+// GetStats returns a map of Postgres stats and a callback to clean resources.
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.kernelTelemetry.Log()
 
+	stats := p.statskeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Postgres,
-		Stats: p.statskeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Postgres,
+			Stats: stats,
+		}, func() {
+			for _, stat := range stats {
+				stat.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as postgres module is supported by all modes.
@@ -253,13 +286,13 @@ func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 	}
 }
 
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	postgresInflight, _, err := mgr.GetMap(InFlightMap)
+func (p *protocol) setupMapCleaner() {
+	postgresInflight, _, err := p.mgr.GetMap(InFlightMap)
 	if err != nil {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, 1024, InFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, protocols.DefaultMapCleanerBatchSize, InFlightMap, "usm_monitor")
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -267,7 +300,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 
 	// Clean up idle connections. We currently use the same TTL as HTTP, but we plan to rename this variable to be more generic.
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val postgresebpf.EbpfTx) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val postgresebpf.EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
@@ -279,8 +312,8 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	p.mapCleaner = mapCleaner
 }
 
-func (p *protocol) startKernelTelemetry(mgr *manager.Manager) {
-	telemetryMap, err := protocols.GetMap(mgr, KernelTelemetryMap)
+func (p *protocol) startKernelTelemetry() {
+	telemetryMap, err := protocols.GetMap(p.mgr, KernelTelemetryMap)
 	if err != nil {
 		log.Errorf("couldnt find kernel telemetry map: %s, error: %v", telemetryMap, err)
 		return

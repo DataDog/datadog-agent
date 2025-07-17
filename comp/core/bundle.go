@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
@@ -45,5 +45,6 @@ func Bundle() fxutil.BundleOptions {
 		sysprobeconfigimpl.Module(),
 		telemetryimpl.Module(),
 		hostnameimpl.Module(),
-		pidimpl.Module()) // You must supply pidimpl.NewParams in order to use it
+		pidimpl.Module(), // You must supply pidimpl.NewParams in order to use it
+	)
 }

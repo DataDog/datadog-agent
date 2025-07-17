@@ -7,7 +7,11 @@
 
 package setup
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
 // Variables to initialize at build time
 var (
@@ -45,6 +49,8 @@ const (
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
@@ -53,4 +59,8 @@ func osinit() {
 	if defaultRunPath == "" {
 		defaultRunPath = filepath.Join(InstallPath, "run")
 	}
+}
+
+// FleetConfigOverride is a no-op on Linux
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }

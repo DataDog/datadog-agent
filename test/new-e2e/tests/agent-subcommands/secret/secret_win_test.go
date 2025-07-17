@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
 type windowsSecretSuite struct {
@@ -38,7 +38,7 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 		output := v.Env().Agent.Client.Secret()
 		assert.Contains(t, output, "=== Checking executable permissions ===")
 		assert.Contains(t, output, "Executable path: /does/not/exist")
-		assert.Contains(t, output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
+		assert.Contains(t, output, "Executable permissions: error: the executable does not have the correct permissions")
 		assert.Regexp(t, "Number of secrets .+: 0", output)
 	}, 30*time.Second, 2*time.Second)
 }
@@ -50,7 +50,7 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 		output := v.Env().Agent.Client.Secret()
 		assert.Contains(t, output, "=== Checking executable permissions ===")
 		assert.Contains(t, output, "Executable path: C:\\Windows\\system32\\cmd.exe")
-		assert.Regexp(t, "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
+		assert.Regexp(t, "Executable permissions: error: the executable does not have the correct permissions", output)
 		assert.Regexp(t, "Number of secrets .+: 0", output)
 	}, 30*time.Second, 2*time.Second)
 }
@@ -65,10 +65,10 @@ host_aliases:
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(config),
 	}
-	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
 
 	// Create secret before running the Agent
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
 	secretClient.SetSecret("alias_secret", "a_super_secret_string")
 
 	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
@@ -103,10 +103,10 @@ api_key: ENC[api_key]
 		agentparams.WithSkipAPIKeyInConfig(),
 		agentparams.WithAgentConfig(config),
 	}
-	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+	agentParams = append(agentParams, secretsutils.WithWindowsSetupScript("C:/TestFolder/wrapper.bat", false)...)
 
 	// Create API Key secret before running the Agent
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(

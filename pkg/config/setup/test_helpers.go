@@ -8,14 +8,25 @@
 package setup
 
 import (
-	"strings"
+	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// newTestConf generates and returns a new configuration
-func newTestConf() pkgconfigmodel.Config {
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+// newEmptyMockConf returns an empty config appropriate for running tests
+// we can't use pkg/config/mock here because that package depends upon this one, so
+// this avoids a circular dependency
+func newEmptyMockConf(_ *testing.T) pkgconfigmodel.Config {
+	cfg := create.NewConfig("test")
+	cfg.SetTestOnlyDynamicSchema(true)
+	return cfg
+}
+
+// newTestConf generates and returns a new configuration that has been setup
+// by running the schema constructing code InitConfig found in setup/config.go
+func newTestConf(t *testing.T) pkgconfigmodel.Config {
+	conf := newEmptyMockConf(t)
 	InitConfig(conf)
 	conf.SetConfigFile("")
 	pkgconfigmodel.ApplyOverrideFuncs(conf)

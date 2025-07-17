@@ -10,16 +10,17 @@ package apiserver
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("Kubernetes API Server availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("Kubernetes API Server availability", diagnose)
 }
 
 // diagnose the API server availability

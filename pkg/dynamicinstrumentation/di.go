@@ -10,10 +10,13 @@
 package dynamicinstrumentation
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -51,14 +54,16 @@ func newGoDIStats() GoDIStats {
 	}
 }
 
-type OfflineOptions struct { //nolint:revive // TODO
+// OfflineOptions configures the Offline options for the running Dynamic Instrumentation process
+type OfflineOptions struct {
 	Offline          bool
 	ProbesFilePath   string
 	SnapshotOutput   string
 	DiagnosticOutput string
 }
 
-type ReaderWriterOptions struct { //nolint:revive // TODO
+// ReaderWriterOptions configures the ReaderWriter options for the running Dynamic Instrumentation process
+type ReaderWriterOptions struct {
 	CustomReaderWriters bool
 	SnapshotWriter      io.Writer
 	DiagnosticWriter    io.Writer
@@ -74,15 +79,21 @@ type DIOptions struct {
 
 // RunDynamicInstrumentation is the main entry point into running the Dynamic
 // Instrumentation project for Go. It does not block.
-func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
+func RunDynamicInstrumentation(ctx context.Context, consumer *consumers.ProcessConsumer, opts *DIOptions) (*GoDI, error) {
 	var goDI *GoDI
 	err := ebpf.SetupEventsMap()
 	if err != nil {
 		return nil, err
 	}
+
+	pm, err := process.NewMonitor(consumer, process.SyncInterval(ctx, 30*time.Second))
+	if err != nil {
+		return nil, err
+	}
+
 	stopFunctions := []func(){}
 	if opts.ReaderWriterOptions.CustomReaderWriters {
-		cm, err := diconfig.NewReaderConfigManager()
+		cm, err := diconfig.NewReaderConfigManager(pm)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new reader config manager: %w", err)
 		}
@@ -101,7 +112,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			stats:         newGoDIStats(),
 		}
 	} else if opts.OfflineOptions.Offline {
-		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(opts.OfflineOptions.ProbesFilePath)
+		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(pm, opts.OfflineOptions.ProbesFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new file config manager: %w", err)
 		}
@@ -121,7 +132,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 		}
 		stopFunctions = append(stopFunctions, stopFileConfigManager)
 	} else {
-		cm, err := diconfig.NewRCConfigManager()
+		cm, err := diconfig.NewRCConfigManager(pm)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new RC config manager: %w", err)
 		}
@@ -153,31 +164,9 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	return goDI, nil
 }
 
-func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) { //nolint:unused // TODO
-	if event == nil {
-		return
-	}
-	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
-	diLog := uploader.NewDILog(procInfo, event)
-
-	var bs []byte
-	var err error
-
-	if diLog != nil {
-		bs, err = json.MarshalIndent(diLog, "", " ")
-	} else {
-		bs, err = json.MarshalIndent(event, "", " ")
-	}
-
-	if err != nil {
-		log.Info(err)
-	}
-	log.Debug(string(bs))
-}
-
 func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {
 	// goDI.printSnapshot(event)
-	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
+	procInfo := goDI.ConfigManager.GetProcInfo(event.PID)
 	diLog := uploader.NewDILog(procInfo, event)
 	if diLog != nil {
 		err := goDI.lu.Enqueue(diLog)

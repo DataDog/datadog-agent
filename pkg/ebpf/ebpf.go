@@ -49,8 +49,8 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 			success telemetry.Counter
 			error   telemetry.Counter
 		}{
-			success: telemetry.NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "gauge of CO-RE load successes"),
-			error:   telemetry.NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "gauge of CO-RE load errors"),
+			success: telemetry.NewCounter("ebpf__core__load", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "btf_type"}, "count of CO-RE load successes"),
+			error:   telemetry.NewCounter("ebpf__core__load", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "error_type"}, "count of CO-RE load errors"),
 		},
 	}
 	return core.loader, nil

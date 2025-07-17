@@ -119,11 +119,19 @@ func TestPodParser_Parse(t *testing.T) {
 			},
 		},
 		PersistentVolumeClaimNames: []string{"pvcName"},
-		Ready:                      true,
-		IP:                         "127.0.0.1",
-		PriorityClass:              "priorityClass",
-		GPUVendorList:              []string{"nvidia", "intel"},
-		QOSClass:                   "Guaranteed",
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				Name: "gpuContainer1",
+			},
+			{
+				Name: "gpuContainer2",
+			},
+		},
+		Ready:         true,
+		IP:            "127.0.0.1",
+		PriorityClass: "priorityClass",
+		GPUVendorList: []string{"nvidia", "intel"},
+		QOSClass:      "Guaranteed",
 	}
 
 	opt := cmpopts.SortSlices(func(a, b string) bool {

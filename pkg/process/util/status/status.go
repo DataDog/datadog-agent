@@ -9,31 +9,16 @@ package status
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"runtime"
-	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// httpClients should be reused instead of created as needed. They keep cached TCP connections
-// that may leak otherwise
-var (
-	httpClient     *http.Client
-	clientInitOnce sync.Once
-)
-
-func getHTTPClient() *http.Client {
-	clientInitOnce.Do(func() {
-		httpClient = apiutil.GetClient(false)
-	})
-
-	return httpClient
-}
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
@@ -94,6 +79,7 @@ type ExpvarsMap struct {
 	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
 	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
 	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
+	SubmissionErrorCount            int                 `json:"submission_error_count"`
 }
 
 // ProcessExpvars holds values fetched from the exp var server
@@ -128,7 +114,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig pkgconfigmodel.Reader) (s CoreStatus) {
+func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) (s CoreStatus) {
 	return CoreStatus{
 		AgentVersion: version.AgentVersion,
 		GoVersion:    runtime.Version(),
@@ -136,24 +122,30 @@ func getCoreStatus(coreConfig pkgconfigmodel.Reader) (s CoreStatus) {
 		Config: ConfigStatus{
 			LogLevel: coreConfig.GetString("log_level"),
 		},
-		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig),
+		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig, hostname),
 	}
 }
 
 func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
-	client := getHTTPClient()
-	b, err := apiutil.DoGet(client, expVarURL, apiutil.CloseConnection)
+	client := http.Client{}
+	resp, err := client.Get(expVarURL)
+	if err != nil {
+		return s, ConnectionError{err}
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return s, ConnectionError{err}
 	}
 
-	err = json.Unmarshal(b, &s)
+	err = json.Unmarshal(body, &s)
 	return
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string) (*Status, error) {
-	coreStatus := getCoreStatus(coreConfig)
+func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
+	coreStatus := getCoreStatus(coreConfig, hostname)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {
 		return nil, err

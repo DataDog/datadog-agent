@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 	"github.com/tinylib/msgp/msgp"
@@ -72,6 +73,15 @@ var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSo
 }
 
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
+
+// SerializerConsumer is a consumer that consumes OTLP metrics.
+type SerializerConsumer interface {
+	otlpmetrics.Consumer
+	Send(s serializer.MetricSerializer) error
+	addRuntimeTelemetryMetric(hostname string, languageTags []string)
+	addTelemetryMetric(hostname string)
+	addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage)
+}
 
 type serializerConsumer struct {
 	enricher        tagenricher
@@ -158,6 +168,20 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 			Name:           "datadog.agent.otlp.runtime_metrics",
 			Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
 			Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("language:%v", lang)}),
+			Host:           hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+}
+
+func (c *serializerConsumer) addGatewayUsage(hostname string, gatewayUsage otel.GatewayUsage) {
+	value, enabled := gatewayUsage.Gauge()
+	if enabled {
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "datadog.otel.gateway",
+			Points:         []metrics.Point{{Value: value, Ts: float64(time.Now().Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice([]string{}),
 			Host:           hostname,
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",

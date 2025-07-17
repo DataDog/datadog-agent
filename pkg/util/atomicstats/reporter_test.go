@@ -45,7 +45,7 @@ func TestReport_NotStructPtr(t *testing.T) {
 }
 
 func TestReport_BadType(t *testing.T) {
-	//nolint:structcheck,unused
+	//nolint:unused
 	type myStats struct {
 		// (if and when we support strings, think of something more interesting)
 		stringStat string `stats:""`
@@ -54,7 +54,7 @@ func TestReport_BadType(t *testing.T) {
 }
 
 func TestReporterAllowedTypes(t *testing.T) {
-	//nolint:structcheck,unused
+	//nolint:unused
 	type test struct {
 		i64 int64 `stats:""`
 		i32 int32 `stats:""`
@@ -89,7 +89,7 @@ func TestReporterAllowedTypes(t *testing.T) {
 }
 
 func TestReporterSnakeCase(t *testing.T) {
-	//nolint:structcheck,unused
+	//nolint:unused
 	type test struct {
 		foo       int `stats:""`
 		barBaz    int `stats:""`
@@ -105,7 +105,7 @@ func TestReporterSnakeCase(t *testing.T) {
 }
 
 func TestReporterSkipNoTag(t *testing.T) {
-	//nolint:structcheck,unused
+	//nolint:unused
 	type test struct {
 		foo int `stats:""`
 		bar int
@@ -120,7 +120,6 @@ func TestReporterSkipNoTag(t *testing.T) {
 }
 
 func TestReporterAllowedTypesAtomic(t *testing.T) {
-	//nolint:structcheck,unused
 	type test struct {
 		boolp *atomic.Bool   `stats:""`
 		i64p  *atomic.Int64  `stats:""`

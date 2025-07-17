@@ -8,9 +8,9 @@ package api
 import (
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints
@@ -26,7 +26,7 @@ func getAggregatedNamespaces() []string {
 	namespaces := []string{
 		config.Namespace,
 	}
-	for _, m := range modules.All {
+	for _, m := range modules.All() {
 		namespaces = append(namespaces, m.ConfigNamespaces...)
 	}
 	return namespaces

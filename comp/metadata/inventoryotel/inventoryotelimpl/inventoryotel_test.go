@@ -6,22 +6,21 @@
 package inventoryotelimpl
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,7 +34,9 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
@@ -70,79 +71,18 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, data, payload.Metadata)
 }
 
-func TestGet(t *testing.T) {
-	overrides := map[string]any{
-		"otelcollector.enabled":               true,
-		"otelcollector.submit_dummy_metadata": true,
-	}
-	io := getTestInventoryPayload(t, overrides)
-
-	// Collect metadata
-	io.refreshMetadata()
-
-	p := io.Get()
-
-	// Grab dummy data
-	d, err := io.fetchDummyOtelConfig(nil)
-	assert.Nil(t, err)
-	assert.Equal(t, d, io.data)
-
-	// verify that the return map is a copy
-	p["provided_configuration"] = ""
-	assert.NotEqual(t, p["provided_configuration"], io.data["provided_configuration"])
-}
-
 func TestFlareProviderFilename(t *testing.T) {
 	io := getTestInventoryPayload(t, nil)
 	assert.Equal(t, "otel.json", io.FlareFileName)
 }
 
 func TestConfigRefresh(t *testing.T) {
+	cfg := configmock.New(t)
 	io := getTestInventoryPayload(t, nil)
 
 	assert.False(t, io.RefreshTriggered())
-	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.True(t, io.RefreshTriggered())
-}
-
-func TestStatusHeaderProvider(t *testing.T) {
-	ret, _ := getProvides(t, nil)
-
-	headerStatusProvider := ret.StatusHeaderProvider.Provider
-
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerStatusProvider.JSON(false, stats)
-
-			keys := maps.Keys(stats)
-
-			assert.Contains(t, keys, "otel_metadata")
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerStatusProvider.Text(false, b)
-
-			assert.NoError(t, err)
-
-			assert.NotEmpty(t, b.String())
-		}},
-		{"HTML", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerStatusProvider.HTML(false, b)
-
-			assert.NoError(t, err)
-
-			assert.NotEmpty(t, b.String())
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
+	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	assert.Eventually(t, func() bool {
+		return assert.True(t, io.RefreshTriggered())
+	}, 5*time.Second, 200*time.Millisecond)
 }

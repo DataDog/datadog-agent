@@ -19,6 +19,7 @@ This guide will help you to develop and contribute code to the project.
 * Advice / Style Guide
 *   * [Using Atomics](atomics.md)
 *   * [Go Imports](imports.md)
+*   * [Logger best practices](logger.md)
 
 ## How to contribute
 
@@ -31,6 +32,6 @@ This guide will help you to develop and contribute code to the project.
 [testing]: agent_tests.md
 [memory]: agent_memory.md
 [caveats]: caveats.md
-[contributing]: contributing.md
+[contributing]: ../public/guidelines/contributing.md
 [agent-omnibus]: agent_omnibus.md
 [tools]: tools.md

@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -101,12 +100,12 @@ func TestGetHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithProjectID(t *testing.T) {
+	mockConfig := configmock.New(t)
 	ctx := context.Background()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", false)
+	mockConfig.SetWithoutSource("gce_send_project_id_tag", true)
 	tags, err := GetTags(ctx)
 	require.NoError(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
@@ -132,7 +131,6 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
-	defer mockConfig.SetWithoutSource("exclude_gce_tags", defaultExclude)
 
 	mockConfig.SetWithoutSource("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
 
@@ -148,9 +146,6 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 func TestGetHostTagsWithProviderKind(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
-	defaultProviderKind := mockConfig.GetString("provider_kind")
-	defer mockConfig.SetWithoutSource("provider_kind", defaultProviderKind)
-
 	mockConfig.SetWithoutSource("provider_kind", "test-provider")
 
 	server := mockMetadataRequest(t)

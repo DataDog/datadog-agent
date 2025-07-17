@@ -21,17 +21,30 @@ import (
 	"net/textproto"
 	"net/url"
 	"strings"
+	"time"
+
+	"github.com/DataDog/go-libddwaf/v4"
+	"github.com/DataDog/go-libddwaf/v4/timer"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	waf "github.com/DataDog/go-libddwaf/v3"
-	json "github.com/json-iterator/go"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
-	Monitor(addresses map[string]any) *waf.Result
+	Monitor(addresses map[string]any) *MonitorResult
+}
+
+// MonitorResult contains the result of a Monitor call including
+// the WAF Result itself, the configuration of the WAF (Diagnostics)
+// and the Metrics (Stats) of the WAF call.
+type MonitorResult struct {
+	Result      libddwaf.Result
+	Diagnostics libddwaf.Diagnostics
+	Timeout     bool
+	Timings     map[timer.Key]time.Duration
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values

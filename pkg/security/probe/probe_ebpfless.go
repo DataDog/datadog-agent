@@ -20,11 +20,14 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -45,11 +48,10 @@ const (
 )
 
 type client struct {
-	conn          net.Conn
-	probe         *EBPFLessProbe
-	nsID          uint64
-	containerID   containerutils.ContainerID
-	containerName string
+	conn        net.Conn
+	probe       *EBPFLessProbe
+	nsID        uint64
+	containerID containerutils.ContainerID
 }
 
 type clientMsg struct {
@@ -84,11 +86,6 @@ type EBPFLessProbe struct {
 
 	// hash action
 	fileHasher *FileHasher
-}
-
-// GetProfileManager returns the Profile Managers
-func (p *EBPFLessProbe) GetProfileManager() interface{} {
-	return nil
 }
 
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
@@ -296,6 +293,46 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeUmount:
 		event.Type = uint32(model.FileUmountEventType)
 		event.Umount.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeConnect:
+		event.Type = uint32(model.ConnectEventType)
+		event.Connect.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Connect.Addr),
+			Port:  syscallMsg.Connect.Port,
+		}
+		event.Connect.AddrFamily = syscallMsg.Connect.AddressFamily
+		event.Connect.Protocol = syscallMsg.Connect.Protocol
+		event.Connect.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeAccept:
+		event.Type = uint32(model.AcceptEventType)
+		event.Accept.Addr = model.IPPortContext{
+			IPNet: *eval.IPNetFromIP(syscallMsg.Accept.Addr),
+			Port:  syscallMsg.Accept.Port,
+		}
+		event.Accept.AddrFamily = syscallMsg.Accept.AddressFamily
+		event.Accept.Retval = syscallMsg.Retval
+
+	case ebpfless.SyscallTypeBind:
+		event.Type = uint32(model.BindEventType)
+		if syscallMsg.Bind.AddressFamily == unix.AF_UNIX {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: net.IPNet{
+					IP:   net.IP(nil),
+					Mask: net.IPMask(nil),
+				},
+				Port: 0,
+			}
+		} else {
+			event.Bind.Addr = model.IPPortContext{
+				IPNet: *eval.IPNetFromIP(syscallMsg.Bind.Addr),
+				Port:  syscallMsg.Bind.Port,
+			}
+		}
+
+		event.Bind.AddrFamily = syscallMsg.Bind.AddressFamily
+		event.Bind.Protocol = syscallMsg.Bind.Protocol
+		event.Bind.Retval = syscallMsg.Retval
 	}
 
 	// container context
@@ -473,10 +510,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 
 // Start the probe
 func (p *EBPFLessProbe) Start() error {
-	family, address := config.GetFamilyAddress(p.config.RuntimeSecurity.EBPFLessSocket)
-	_ = family
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", p.config.RuntimeSecurity.EBPFLessSocket)
 	if err != nil {
 		return err
 	}
@@ -522,7 +556,7 @@ func (p *EBPFLessProbe) Start() error {
 				if msg.Type == ebpfless.MessageTypeGoodbye {
 					if msg.client.containerID != "" {
 						delete(p.containerContexts, msg.client.containerID)
-						seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", msg.client.containerID, msg.client.containerName)
+						seclog.Infof("tracing stopped for container ID [%s]", msg.client.containerID)
 					}
 					continue
 				}
@@ -541,9 +575,9 @@ func (p *EBPFLessProbe) Snapshot() error {
 	return nil
 }
 
-// Setup the probe
-func (p *EBPFLessProbe) Setup() error {
-	return nil
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
+	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
 // OnNewDiscarder handles discarders
@@ -572,8 +606,8 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	return &kfilters.ApplyRuleSetReport{}, nil
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error) {
+	return &kfilters.FilterReport{}, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
@@ -597,9 +631,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
-				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			}) {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
@@ -651,10 +683,10 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
-	processKiller, err := NewProcessKiller(config)
+	processKiller, err := NewProcessKiller(config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +718,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := hostnameutils.GetHostname()
+	hostname, err := hostnameutils.GetHostname(ipc)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

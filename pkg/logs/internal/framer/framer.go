@@ -10,8 +10,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Framing describes the kind of framing applied to the byte stream being broken.
@@ -163,6 +164,7 @@ func (fr *Framer) Process(input *message.Message) {
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
+				input.ParsingExtra.IsTruncated = true
 			} else {
 				// matcher didn't find a frame, so leave the remainder in
 				// buffer
@@ -179,11 +181,13 @@ func (fr *Framer) Process(input *message.Message) {
 			MessageContent: message.MessageContent{
 				State: message.StateUnstructured,
 			},
-			Origin:             input.Origin,
-			Status:             input.Status,
-			IngestionTimestamp: input.IngestionTimestamp,
-			ParsingExtra:       input.ParsingExtra,
-			ServerlessExtra:    input.ServerlessExtra,
+			MessageMetadata: message.MessageMetadata{
+				Origin:             input.Origin,
+				Status:             input.Status,
+				IngestionTimestamp: input.IngestionTimestamp,
+				ParsingExtra:       input.ParsingExtra,
+				ServerlessExtra:    input.ServerlessExtra,
+			},
 		}
 		c.SetContent(owned)
 

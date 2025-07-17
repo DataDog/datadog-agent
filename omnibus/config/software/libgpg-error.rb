@@ -39,6 +39,7 @@ build do
     "--disable-tests",
     "--disable-doc",
     "--disable-languages",
+    "--disable-nls",
   ]
 
   configure(*configure_options, env: env)

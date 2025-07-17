@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -208,12 +209,11 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 
 	e.initializeProbes()
 	for _, identifier := range e.enabledProbes {
-		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{
-				ProbeIdentificationPair: identifier,
-				KProbeMaxActive:         maxActive,
-			},
-		)
+		probe := &manager.Probe{
+			ProbeIdentificationPair: identifier,
+			KProbeMaxActive:         maxActive,
+		}
+		mgr.Probes = append(mgr.Probes, probe)
 	}
 
 	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{})
@@ -313,6 +313,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
+	ddebpf.AddNameMappings(e.Manager.Manager, "shared-libraries")
 	e.isInitialized = true
 	return nil
 }
@@ -323,6 +324,8 @@ func (e *EbpfProgram) start() error {
 	if err != nil {
 		return err
 	}
+
+	ddebpf.AddProbeFDMappings(e.Manager.Manager)
 
 	for _, handler := range e.libsets {
 		if !handler.requested {
@@ -362,10 +365,15 @@ func (l *libsetHandler) eventLoop(wg *sync.WaitGroup) {
 	}
 }
 
+// toLibPath casts the perf event data to the LibPath structure
+func toLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
+}
+
 func (l *libsetHandler) handleEvent(event *ddebpf.DataEvent) {
 	defer event.Done()
 
-	libpath := ToLibPath(event.Data)
+	libpath := toLibPath(event.Data)
 
 	l.callbacksMutex.RLock()
 	defer l.callbacksMutex.RUnlock()
@@ -588,6 +596,12 @@ func fexitSupported(funcName string) bool {
 	}
 	defer l.Close()
 
+	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	if hasPotentialFentryDeadlock || (err != nil) {
+		// incase of error, let's be safe and assume the bug is present
+		return false
+	}
+
 	return true
 }
 
@@ -639,4 +653,13 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+// ToBytes converts the libpath to a byte array containing the path
+func ToBytes(l *LibPath) []byte {
+	return l.Buf[:l.Len]
+}
+
+func (l *LibPath) String() string {
+	return string(ToBytes(l))
 }

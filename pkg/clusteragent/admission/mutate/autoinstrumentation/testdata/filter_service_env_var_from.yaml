@@ -1,0 +1,11 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "name-services"
+        ddTraceConfigs:
+          - name: "DD_SERVICE"
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app.kubernetes.io/name']

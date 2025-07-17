@@ -79,6 +79,8 @@ const (
 	OrchestratorCardinality
 	HighCardinality
 	NoneCardinality
+	// ChecksConfigCardinality is an internal cardinality that represents the checks_tag_cardinality setting.
+	ChecksConfigCardinality
 )
 
 // Entity is an entity ID + tags.
@@ -222,4 +224,13 @@ type Subscription interface {
 	ID() string
 	// Unsubscribe is used cancel subscription to the tagger
 	Unsubscribe()
+}
+
+// TaggerClient provides client for tagger interface,
+// see comp/core/tagger for tagger functions; client for tagger interface
+type TaggerClient interface {
+	// Tag is an interface function that queries taggerclient singleton
+	Tag(entity EntityID, cardinality TagCardinality) ([]string, error)
+	// GlobalTags is an interface function that queries taggerclient singleton
+	GlobalTags(cardinality TagCardinality) ([]string, error)
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -35,6 +36,33 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+// see kernel definitions
+func tailCallFnc(name string) string {
+	return "tail_call_" + name
+}
+
+func tailCallTracepointFnc(name string) string {
+	return "tail_call_tracepoint_" + name
+}
+
+func tailCallClassifierFnc(name string) string {
+	return "tail_call_classifier_" + name
+}
+
+func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
+	for _, syscall := range syscalls {
+		probes = append(probes,
+			ExpandSyscallProbes(&manager.Probe{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID: SecurityAgentUID,
+				},
+				SyscallFuncName: syscall,
+			}, fentry, flag, compat)...)
+	}
+
+	return probes
+}
+
 // computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 // Must be a power of 2 and a multiple of the page size
 func computeDefaultEventsRingBufferSize() uint32 {
@@ -51,7 +79,7 @@ func computeDefaultEventsRingBufferSize() uint32 {
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
-func AllProbes(fentry bool) []*manager.Probe {
+func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	var allProbes []*manager.Probe
 	allProbes = append(allProbes, getAttrProbes(fentry)...)
 	allProbes = append(allProbes, getExecProbes(fentry)...)
@@ -83,6 +111,10 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
 	allProbes = append(allProbes, GetOnDemandProbes()...)
+	allProbes = append(allProbes, GetPerfEventProbes()...)
+	allProbes = append(allProbes, getSysCtlProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getSetSockOptProbe(fentry)...)
+	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -91,7 +123,10 @@ func AllProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "sys_exit",
 			},
 		},
-		// Snapshot probe
+	)
+
+	// procfs fallback, used to get mount_id
+	allProbes = append(allProbes,
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -99,6 +134,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 			},
 		},
 	)
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "newfstatat")
 
 	return allProbes
 }
@@ -115,8 +151,8 @@ func AllMaps() []*manager.Map {
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
-		// Snapshot table
-		{Name: "exec_file_cache"},
+		// Procfs fallback table
+		{Name: "inode_file"},
 		// Open tables
 		{Name: "open_flags_approvers"},
 		// Exec tables
@@ -136,6 +172,13 @@ func AllMaps() []*manager.Map {
 	}
 }
 
+// AllBPFForEachMapElemProgramFunctions returns the list of programs that leverage the bpf_for_each_map_elem helper
+func AllBPFForEachMapElemProgramFunctions() []string {
+	return []string{
+		"network_stats_worker",
+	}
+}
+
 func getMaxEntries(numCPU int, min int, max int) uint32 {
 	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
 	if maxEntries < min {
@@ -147,22 +190,34 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 
 // MapSpecEditorOpts defines some options of the map spec editor
 type MapSpecEditorOpts struct {
-	TracedCgroupSize        int
-	UseMmapableMaps         bool
-	UseRingBuffers          bool
-	RingBufferSize          uint32
-	PathResolutionEnabled   bool
-	SecurityProfileMaxCount int
-	ReducedProcPidCacheSize bool
+	TracedCgroupSize          int
+	UseMmapableMaps           bool
+	UseRingBuffers            bool
+	RingBufferSize            uint32
+	PathResolutionEnabled     bool
+	SecurityProfileMaxCount   int
+	ReducedProcPidCacheSize   bool
+	NetworkFlowMonitorEnabled bool
+	NetworkSkStorageEnabled   bool
+	SpanTrackMaxCount         int
 }
 
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) map[string]manager.MapSpecEditor {
 	var procPidCacheMaxEntries uint32
 	if opts.ReducedProcPidCacheSize {
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries/2)
 	} else {
 		procPidCacheMaxEntries = getMaxEntries(numCPU, minProcEntries, maxProcEntries)
+	}
+
+	var activeFlowsMaxEntries, nsFlowToNetworkStats uint32
+	if opts.NetworkFlowMonitorEnabled {
+		activeFlowsMaxEntries = procPidCacheMaxEntries
+		nsFlowToNetworkStats = 4096
+	} else {
+		activeFlowsMaxEntries = 1
+		nsFlowToNetworkStats = 1
 	}
 
 	editors := map[string]manager.MapSpecEditor{
@@ -178,11 +233,26 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"rate_limiters": {
+		"pid_rate_limiters": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-
+		"active_flows": {
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"active_flows_spin_locks": {
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"ns_flow_to_network_stats": {
+			MaxEntries: nsFlowToNetworkStats,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"inet_bind_args": {
+			MaxEntries: procPidCacheMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
@@ -201,6 +271,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"span_tls": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
@@ -235,6 +309,42 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
+
+	if opts.NetworkSkStorageEnabled {
+		// SK_Storage maps are enabled and available, delete fall back
+		editors["sock_meta"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+		}
+	} else {
+		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
+		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
+		// elimination will clean up the piece of code that work with them prior to running the verifier.
+		editors["sk_storage_meta"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+		}
+	}
+
+	if !kv.HasNoPreallocMapsInPerfEvent() {
+		editors["active_flows"] = manager.MapSpecEditor{
+			MaxEntries: activeFlowsMaxEntries,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
+		}
+	} else {
+		editors["active_flows"] = manager.MapSpecEditor{
+			MaxEntries: activeFlowsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
 	return editors
 }
 
@@ -257,14 +367,18 @@ func AllRingBuffers() []*manager.RingBuffer {
 }
 
 // AllTailRoutes returns the list of all the tail call routes
-func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
+func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonitorEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
+	routes = append(routes, getOpenTailCallRoutes()...)
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	if networkEnabled {
 		routes = append(routes, getTCTailCallRoutes(rawPacketEnabled)...)
+	}
+	if networkFlowMonitorEnabled {
+		routes = append(routes, getFlushNetworkStatsTailCallRoutes()...)
 	}
 
 	return routes
@@ -273,7 +387,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, rawPacketEnabled
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"tail_call_target_dentry_resolver_erpc_write_user",
+		tailCallFnc("dentry_resolver_erpc_write_user"),
 	}
 }
 

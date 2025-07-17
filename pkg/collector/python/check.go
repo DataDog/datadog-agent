@@ -21,6 +21,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkbase "github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,7 +49,7 @@ const (
 
 // PythonCheck represents a Python check, implements `Check` interface
 //
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type PythonCheck struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
@@ -63,10 +63,11 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+	haSupported    bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t) (*PythonCheck, error) {
+func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rtloader_pyobject_t, haSupported bool) (*PythonCheck, error) {
 	glock, err := newStickyLock()
 	if err != nil {
 		return nil, err
@@ -82,6 +83,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
 		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
+		haSupported:   haSupported,
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -116,7 +118,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// grab the warnings and add them to the struct
-	c.lastWarnings = c.getPythonWarnings(gstate)
+	c.lastWarnings = c.getPythonWarnings()
 
 	checkErrStr := C.GoString(cResult)
 	if checkErrStr == "" {
@@ -184,6 +186,11 @@ func (c *PythonCheck) ConfigSource() string {
 	return c.source
 }
 
+// Loader returns the check loader
+func (*PythonCheck) Loader() string {
+	return PythonCheckLoaderName
+}
+
 // InitConfig returns the init_config configuration for the check.
 func (c *PythonCheck) InitConfig() string {
 	return c.initConfig
@@ -202,9 +209,7 @@ func (c *PythonCheck) GetWarnings() []error {
 }
 
 // getPythonWarnings grabs the last warnings from the python check
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
+func (c *PythonCheck) getPythonWarnings() []error {
 	/**
 	This function is run with the GIL locked by runCheck
 	**/
@@ -234,9 +239,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
@@ -369,7 +372,7 @@ func (c *PythonCheck) ID() checkid.ID {
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *PythonCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	// Lock the GIL and release it at the end of the run (will crash otherwise)
 	gstate, err := newStickyLock()
 	if err != nil {
@@ -391,13 +394,18 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 	// Deserialize it
 	strDiagnoses := C.GoString(pyDiagnoses)
-	var diagnoses []diagnosis.Diagnosis
+	var diagnoses []diagnose.Diagnosis
 	err = json.Unmarshal([]byte(strDiagnoses), &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
 	}
 
 	return diagnoses, nil
+}
+
+// IsHASupported returns the HA_SUPPORTED class attribute defined at Python Check level
+func (c *PythonCheck) IsHASupported() bool {
+	return c.haSupported
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned

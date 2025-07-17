@@ -20,5 +20,5 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		GroupID: "daemon",
 	}
 	ctlCmd.AddCommand(apiCommands(global)...)
-	return []*cobra.Command{runCommand(global), statusCommand(global), ctlCmd}
+	return []*cobra.Command{runCommand(global), ctlCmd}
 }

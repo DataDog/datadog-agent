@@ -8,9 +8,22 @@
 // Package user provides helpers to change the user of the process.
 package user
 
-// IsRoot always returns true on windows.
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
+
+// ErrRootRequired is the error returned when an operation requires Administrator privileges.
+var ErrRootRequired = fmt.Errorf("operation requires Administrator privileges")
+
+// IsRoot returns true if token has Administrators group enabled
 func IsRoot() bool {
-	return true
+	isAdmin, err := winutil.IsUserAnAdmin()
+	if err != nil {
+		fmt.Printf("error checking if user is admin: %v\n", err)
+	}
+	return isAdmin
 }
 
 // RootToDatadogAgent is a noop on windows.

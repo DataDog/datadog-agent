@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
+func fakeStatusServer(t *testing.T, ipcMock *ipcmock.IPCMock, stats status.Status) *httptest.Server {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		b, err := json.Marshal(stats)
@@ -36,7 +37,7 @@ func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
 		require.NoError(t, err)
 	}
 
-	return httptest.NewServer(http.HandlerFunc(handler))
+	return ipcMock.NewMockServer(http.HandlerFunc(handler))
 }
 
 func TestStatus(t *testing.T) {
@@ -49,16 +50,93 @@ func TestStatus(t *testing.T) {
 		Expvars: status.ProcessExpvars{},
 	}
 
-	server := fakeStatusServer(t, statusInfo)
-	defer server.Close()
+	ipcMock := ipcmock.New(t)
+
+	server := fakeStatusServer(t, ipcMock, statusInfo)
 
 	// Build the actual status
 	var statusBuilder strings.Builder
-	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder)
+	getAndWriteStatus(log.NoopLogger, ipcMock.GetClient(), server.URL, &statusBuilder)
 
-	expectedOutput := `{"date":0,"core":{"version":"","go_version":"","build_arch":"","config":{"log_level":""},"metadata":{"os":"","agent-flavor":"","python":"","systemStats":null,"meta":{"socket-hostname":"","timezones":null,"socket-fqdn":"","ec2-hostname":"","hostname":"","host_aliases":null,"instance-id":""},"host-tags":null,"network":null,"logs":null,"install-method":null,"proxy-info":null,"otlp":null}},"expvars":{"process_agent":{"pid":0,"uptime":0,"uptime_nano":0,"memstats":{"alloc":0},"version":{"Version":"","GitCommit":"","GitBranch":"","BuildDate":"","GoVersion":""},"docker_socket":"","last_collect_time":"","process_count":0,"container_count":0,"process_queue_size":0,"rtprocess_queue_size":0,"connections_queue_size":0,"event_queue_size":0,"pod_queue_size":0,"process_queue_bytes":0,"rtprocess_queue_bytes":0,"connections_queue_bytes":0,"event_queue_bytes":0,"pod_queue_bytes":0,"container_id":"","proxy_url":"","log_file":"","enabled_checks":null,"endpoints":null,"drop_check_payloads":null,"system_probe_process_module_enabled":false,"language_detection_enabled":false,"workloadmeta_extractor_cache_size":0,"workloadmeta_extractor_stale_diffs":0,"workloadmeta_extractor_diffs_dropped":0}}}`
-
-	assert.Equal(t, expectedOutput, statusBuilder.String())
+	expectedOutput := string(`
+	{
+		"date": 0,
+		"core": {
+			"version": "",
+			"go_version": "",
+			"build_arch": "",
+			"config": {
+			"log_level": ""
+			},
+			"metadata": {
+			"os": "",
+			"agent-flavor": "",
+			"python": "",
+			"systemStats": null,
+			"meta": {
+				"socket-hostname": "",
+				"timezones": null,
+				"socket-fqdn": "",
+				"ec2-hostname": "",
+				"hostname": "",
+				"host_aliases": null,
+				"instance-id": ""
+			},
+			"host-tags": null,
+			"network": null,
+			"logs": null,
+			"install-method": null,
+			"proxy-info": null,
+			"otlp": null,
+			"fips_mode": false
+			}
+		},
+		"expvars": {
+			"process_agent": {
+			"pid": 0,
+			"uptime": 0,
+			"uptime_nano": 0,
+			"memstats": {
+				"alloc": 0
+			},
+			"version": {
+				"Version": "",
+				"GitCommit": "",
+				"GitBranch": "",
+				"BuildDate": "",
+				"GoVersion": ""
+			},
+			"docker_socket": "",
+			"last_collect_time": "",
+			"process_count": 0,
+			"container_count": 0,
+			"process_queue_size": 0,
+			"rtprocess_queue_size": 0,
+			"connections_queue_size": 0,
+			"event_queue_size": 0,
+			"pod_queue_size": 0,
+			"process_queue_bytes": 0,
+			"rtprocess_queue_bytes": 0,
+			"connections_queue_bytes": 0,
+			"event_queue_bytes": 0,
+			"pod_queue_bytes": 0,
+			"container_id": "",
+			"proxy_url": "",
+			"log_file": "",
+			"enabled_checks": null,
+			"endpoints": null,
+			"drop_check_payloads": null,
+			"system_probe_process_module_enabled": false,
+			"language_detection_enabled": false,
+			"workloadmeta_extractor_cache_size": 0,
+			"workloadmeta_extractor_stale_diffs": 0,
+			"workloadmeta_extractor_diffs_dropped": 0,
+			"submission_error_count": 0
+			}
+		}
+	}
+	`)
+	assert.JSONEq(t, expectedOutput, statusBuilder.String())
 }
 
 func TestNotRunning(t *testing.T) {
@@ -66,12 +144,14 @@ func TestNotRunning(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(cfg)
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("https://%s/agent/status", addressPort)
 
+	ipcMock := ipcmock.New(t)
+
 	var b strings.Builder
-	getAndWriteStatus(log.NoopLogger, statusURL, &b)
+	getAndWriteStatus(log.NoopLogger, ipcMock.GetClient(), statusURL, &b)
 
 	assert.Equal(t, notRunning, b.String())
 }
@@ -81,7 +161,7 @@ func TestNotRunning(t *testing.T) {
 func TestError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
-	_, ipcError := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	_, ipcError := pkgconfigsetup.GetIPCAddress(cfg)
 
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()

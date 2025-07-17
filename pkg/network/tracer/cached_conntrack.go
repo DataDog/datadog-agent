@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -145,7 +145,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 		return nil, nil
 	}
 
-	ns, err := kernel.GetNetNamespaceFromPid(cache.procRoot, pid)
+	ns, err := netnsutil.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil

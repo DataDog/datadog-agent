@@ -38,6 +38,11 @@ func TestEventPayloadParsing(t *testing.T) {
 		"sqs.json":                            isSQSEvent,
 		"lambdaurl.json":                      isLambdaFunctionURLEvent,
 		"stepfunction.json":                   isStepFunctionEvent,
+		"legacystepfunction.json":             isLegacyStepFunctionEvent,
+		"nestedstepfunction.json":             isNestedStepFunctionEvent,
+		"legacynestedstepfunction.json":       isLegacyNestedStepFunctionEvent,
+		"lambdarootstepfunction.json":         isLambdaRootStepFunctionPayload,
+		"legacylambdarootstepfunction.json":   isLegacyLambdaRootStepFunctionPayload,
 	}
 	for testFile, testFunc := range testCases {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
@@ -118,6 +123,10 @@ func TestGetEventType(t *testing.T) {
 		"lambdaurl.json":                      LambdaFunctionURLEvent,
 		"stepfunction.json":                   StepFunctionEvent,
 		"legacystepfunction.json":             LegacyStepFunctionEvent,
+		"nestedstepfunction.json":             NestedStepFunctionEvent,
+		"legacynestedstepfunction.json":       LegacyNestedStepFunctionEvent,
+		"lambdarootstepfunction.json":         LambdaRootStepFunctionEvent,
+		"legacylambdarootstepfunction.json":   LegacyLambdaRootStepFunctionEvent,
 	}
 
 	for testFile, expectedEventType := range testCases {

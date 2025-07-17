@@ -8,34 +8,46 @@ package haagentimpl
 import (
 	"context"
 	"encoding/json"
+	"sync"
 
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"go.uber.org/atomic"
 )
 
 type haAgentImpl struct {
 	log            log.Component
+	hostname       hostnameinterface.Component
 	haAgentConfigs *haAgentConfigs
 	state          *atomic.String
+
+	logMissingConfigIDOnce sync.Once
 }
 
-func newHaAgentImpl(log log.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
+func newHaAgentImpl(log log.Component, hostname hostnameinterface.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
 	return &haAgentImpl{
 		log:            log,
+		hostname:       hostname,
 		haAgentConfigs: haAgentConfigs,
 		state:          atomic.NewString(string(haagent.Unknown)),
 	}
 }
 
 func (h *haAgentImpl) Enabled() bool {
+	if h.haAgentConfigs.enabled && h.GetConfigID() == "" {
+		h.logMissingConfigIDOnce.Do(func() {
+			h.log.Error("HA Agent feature requires config_id to be set")
+		})
+		return false
+	}
 	return h.haAgentConfigs.enabled
 }
 
-func (h *haAgentImpl) GetGroup() string {
-	return h.haAgentConfigs.group
+func (h *haAgentImpl) GetConfigID() string {
+	return h.haAgentConfigs.configID
 }
 
 func (h *haAgentImpl) GetState() haagent.State {
@@ -43,7 +55,7 @@ func (h *haAgentImpl) GetState() haagent.State {
 }
 
 func (h *haAgentImpl) SetLeader(leaderAgentHostname string) {
-	agentHostname, err := hostname.Get(context.TODO())
+	agentHostname, err := h.hostname.Get(context.TODO())
 	if err != nil {
 		h.log.Warnf("error getting the hostname: %v", err)
 		return
@@ -70,13 +82,8 @@ func (h *haAgentImpl) resetAgentState() {
 	h.state.Store(string(haagent.Unknown))
 }
 
-// ShouldRunIntegration return true if the agent integrations should to run.
-// When ha-agent is disabled, the agent behave as standalone agent (non HA) and will always run all integrations.
-func (h *haAgentImpl) ShouldRunIntegration(integrationName string) bool {
-	if h.Enabled() && validHaIntegrations[integrationName] {
-		return h.GetState() == haagent.Active
-	}
-	return true
+func (h *haAgentImpl) IsActive() bool {
+	return h.GetState() == haagent.Active
 }
 
 func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
@@ -103,17 +110,17 @@ func (h *haAgentImpl) onHaAgentUpdate(updates map[string]state.RawConfig, applyS
 			})
 			continue
 		}
-		if haAgentMsg.Group != h.GetGroup() {
-			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected group %s, got %s",
-				configPath, h.GetGroup(), haAgentMsg.Group)
+		if haAgentMsg.ConfigID != h.GetConfigID() {
+			h.log.Warnf("Skipping invalid HA_AGENT update %s: expected configID %s, got %s",
+				configPath, h.GetConfigID(), haAgentMsg.ConfigID)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
-				Error: "group does not match",
+				Error: "config_id does not match",
 			})
 			continue
 		}
 
-		h.SetLeader(haAgentMsg.Leader)
+		h.SetLeader(haAgentMsg.ActiveAgent)
 
 		h.log.Debugf("Processed config %s: %v", configPath, haAgentMsg)
 

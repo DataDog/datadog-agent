@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,6 +35,8 @@ type protocol struct {
 
 	kernelTelemetry            *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
+
+	mgr *manager.Manager
 }
 
 const (
@@ -65,6 +68,8 @@ const (
 	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
+	netifProbe414    = "netif_receive_skb_core_kafka_4_14"
+	netifProbe       = "tracepoint__net__netif_receive_skb_kafka"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -97,6 +102,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "kafka_batches",
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe414,
+				UID:          eventStreamName,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifProbe,
+				UID:          eventStreamName,
+			},
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -222,7 +242,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newKafkaProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableKafkaMonitoring {
 		return nil, nil
 	}
@@ -232,6 +252,7 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  NewTelemetry(),
 		kernelTelemetry:            newKernelTelemetry(),
 		kernelTelemetryStopChannel: make(chan struct{}),
+		mgr:                        mgr,
 	}, nil
 }
 
@@ -243,7 +264,7 @@ func (p *protocol) Name() string {
 // ConfigureOptions add the necessary options for the kafka monitoring to work, to be used by the manager.
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
-func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+func (p *protocol) ConfigureOptions(opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
@@ -252,16 +273,24 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	events.Configure(p.cfg, eventStreamName, mgr, opts)
+	netifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: netifProbe,
+		UID:          eventStreamName,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		netifProbeID.EBPFFuncName = netifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: netifProbeID})
+	events.Configure(p.cfg, eventStreamName, p.mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
 // PreStart creates the kafka events consumer and starts it.
-func (p *protocol) PreStart(mgr *manager.Manager) error {
+func (p *protocol) PreStart() error {
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStreamName,
-		mgr,
+		p.mgr,
 		p.processKafka,
 	)
 	if err != nil {
@@ -275,13 +304,13 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 }
 
 // PostStart starts the map cleaner.
-func (p *protocol) PostStart(mgr *manager.Manager) error {
-	p.setUpKernelTelemetryCollection(mgr)
-	return p.setupInFlightMapCleaner(mgr)
+func (p *protocol) PostStart() error {
+	p.setUpKernelTelemetryCollection()
+	return p.setupInFlightMapCleaner()
 }
 
 // Stop stops the kafka events consumer and the map cleaner.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop() {
 	// inFlightMapCleaner handles nil receiver pointers.
 	p.inFlightMapCleaner.Stop()
 	if p.eventsConsumer != nil {
@@ -330,18 +359,18 @@ func (p *protocol) processKafka(events []EbpfTx) {
 	}
 }
 
-func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
-	kafkaInFlight, _, err := mgr.GetMap(inFlightMap)
+func (p *protocol) setupInFlightMapCleaner() error {
+	kafkaInFlight, _, err := p.mgr.GetMap(inFlightMap)
 	if err != nil {
 		return err
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, 1024, inFlightMap, "usm_monitor")
+	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](kafkaInFlight, protocols.DefaultMapCleanerBatchSize, inFlightMap, "usm_monitor")
 	if err != nil {
 		return err
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ KafkaTransactionKey, val KafkaTransaction) bool {
+	mapCleaner.Start(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ KafkaTransactionKey, val KafkaTransaction) bool {
 		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
@@ -350,15 +379,21 @@ func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) error {
 	return nil
 }
 
-// GetStats returns a map of Kafka stats stored in the following format:
+// GetStats returns a map of Kafka stats and a callback to clean resources.
+// The format of the stats:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *protocol) GetStats() *protocols.ProtocolStats {
+func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
+	stats := p.statkeeper.GetAndResetAllStats()
 	return &protocols.ProtocolStats{
-		Type:  protocols.Kafka,
-		Stats: p.statkeeper.GetAndResetAllStats(),
-	}
+			Type:  protocols.Kafka,
+			Stats: stats,
+		}, func() {
+			for _, s := range stats {
+				s.Close()
+			}
+		}
 }
 
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.
@@ -366,8 +401,8 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
-	mp, err := protocols.GetMap(mgr, eBPFTelemetryMap)
+func (p *protocol) setUpKernelTelemetryCollection() {
+	mp, err := protocols.GetMap(p.mgr, eBPFTelemetryMap)
 	if err != nil {
 		log.Warn(err)
 		return

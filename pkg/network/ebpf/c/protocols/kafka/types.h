@@ -75,19 +75,8 @@ typedef struct kafka_fetch_response_record_batches_array_t {
     __s8 partition_error_code;
 } kafka_fetch_response_record_batches_array_t;
 
-typedef struct kafka_response_context_t {
+typedef struct {
     kafka_transaction_t transaction;
-    kafka_response_state state;
-    // The number of remainder bytes stored from the previous packet into
-    // in remainder_buf. The maximum value is 3, even though remainder_buf
-    // needs to have space for 4 bytes to make building of the value easier.
-    // Used when a fetch response is split over multiple TCP segments.
-    __u8 remainder;
-    // The current byte of the varint where we paused processing.
-    __u8 varint_position;
-    __s8 partition_error_code;
-    // Where the parition parsing needs to resume from.
-    kafka_response_state partition_state;
     char remainder_buf[4];
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;
@@ -105,6 +94,17 @@ typedef struct kafka_response_context_t {
     // KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END.
     __u32 record_batches_arrays_idx;
     __u32 record_batches_arrays_count;
+    kafka_response_state state;
+    // The number of remainder bytes stored from the previous packet into
+    // in remainder_buf. The maximum value is 3, even though remainder_buf
+    // needs to have space for 4 bytes to make building of the value easier.
+    // Used when a fetch response is split over multiple TCP segments.
+    __u8 remainder;
+    // The current byte of the varint where we paused processing.
+    __u8 varint_position;
+    __s8 partition_error_code;
+    // Where the parition parsing needs to resume from.
+    kafka_response_state partition_state;
 } kafka_response_context_t;
 
 #define KAFKA_MAX_RECORD_BATCHES_ARRAYS 50u

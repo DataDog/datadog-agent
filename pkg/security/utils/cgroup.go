@@ -44,8 +44,7 @@ type ControlGroup struct {
 
 // GetContainerContext returns both the container ID and its flags
 func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
-	id, flags := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
-	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
+	return containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 }
 
 func parseCgroupLine(line string) (string, string, string, error) {
@@ -289,7 +288,15 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	data, err := os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.procs"))
 	if err != nil {
-		return false, err
+		// the cgroup is in threaded mode, and in that case, reading cgroup.procs returns ENOTSUP.
+		// see https://github.com/opencontainers/runc/issues/3821
+		if errors.Is(err, unix.ENOTSUP) {
+			if data, err = os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.threads")); err != nil {
+				return false, err
+			}
+		} else {
+			return false, err
+		}
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
@@ -298,4 +305,31 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// GetCgroup2MountPoint checks if cgroup v2 is available and returns its mount point
+func GetCgroup2MountPoint() (string, error) {
+	file, err := os.Open(kernel.HostProc("/1/mountinfo"))
+	if err != nil {
+		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: failed to open /proc/self/mountinfo: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+
+		// The cgroup2 mount entry will have "cgroup2" as the filesystem type
+		if len(fields) >= 10 && fields[len(fields)-3] == "cgroup2" {
+			// The 5th field is the mount point
+			return filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(fields[4], "/sys")), nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("couldn't resolve cgroup2 mount point: error reading mountinfo: %w", err)
+	}
+
+	return "", nil
 }

@@ -12,7 +12,6 @@ package processcollector
 import (
 	"context"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -22,15 +21,15 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -80,14 +79,6 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 }
 
 func TestCollection(t *testing.T) {
-	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
-		defer func() {
-			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
-		}()
-	}
 	creationTime := time.Now().Unix()
 	tests := []struct {
 		name      string
@@ -255,9 +246,12 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Create ipc component for the client
+			ipcComp := ipcmock.New(t)
 
 			overrides := map[string]interface{}{
-				"language_detection.enabled": true,
+				"language_detection.enabled":               true,
+				"process_config.run_in_core_agent.enabled": false,
 			}
 
 			// We do not inject any collectors here; we instantiate
@@ -276,7 +270,7 @@ func TestCollection(t *testing.T) {
 			server := newMockServer(ctx, test.serverResponses, test.errorResponse)
 			defer server.stop()
 
-			grpcServer := grpc.NewServer()
+			grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
 
 			lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -298,7 +292,7 @@ func TestCollection(t *testing.T) {
 					Reader: mockStore.GetConfig(),
 					port:   port,
 				},
-				Insecure: true,
+				IPC: ipcComp,
 			}
 
 			mockStore.Notify(test.preEvents)

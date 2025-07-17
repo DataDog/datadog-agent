@@ -11,16 +11,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("ECS Metadata availability", diagnoseECS)
-	diagnosis.RegisterMetadataAvail("ECS Metadata with tags availability", diagnoseECSTags)
-	diagnosis.RegisterMetadataAvail("ECS Fargate Metadata availability", diagnoseFargate)
+	diagnoseComp.RegisterMetadataAvail("ECS Metadata availability", diagnoseECS)
+	diagnoseComp.RegisterMetadataAvail("ECS Metadata with tags availability", diagnoseECSTags)
+	diagnoseComp.RegisterMetadataAvail("ECS Fargate Metadata availability", diagnoseFargate)
 }
 
 // diagnose the ECS metadata API availability

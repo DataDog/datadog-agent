@@ -89,7 +89,6 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
-		"kube_job_duration":                                                                        "job.duration",
 		"kube_ingress_path":                                                                        "ingress.path",
 	}
 }

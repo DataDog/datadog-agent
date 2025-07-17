@@ -183,7 +183,7 @@ func getSymbolsUnified(f *safeelf.File, typ safeelf.SectionType, filter symbolFi
 		}
 
 		// Checking the symbol is relevant for us.
-		if !filter.want(string(symbolNameBuf[:symbolNameSize])) {
+		if !filter.want(symbolNameBuf[:symbolNameSize]) {
 			continue
 		}
 

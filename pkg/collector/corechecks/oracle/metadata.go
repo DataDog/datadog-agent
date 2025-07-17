@@ -24,7 +24,8 @@ type dbInstanceMetadata struct {
 }
 
 type dbInstanceEvent struct {
-	Host               string             `json:"host"`
+	Host               string             `json:"host,omitempty"`
+	DatabaseInstance   string             `json:"database_instance"`
 	AgentVersion       string             `json:"agent_version"`
 	Dbms               string             `json:"dbms"`
 	Kind               string             `json:"kind"`
@@ -39,11 +40,12 @@ func sendDbInstanceMetadata(c *Check) error {
 	configTags := make([]string, len(c.config.Tags))
 	copy(configTags, c.config.Tags)
 	m := dbInstanceMetadata{
-		Dbm:            true,
+		Dbm:            c.dbmEnabled,
 		ConnectionHost: config.GetConnectData(c.config.InstanceConfig),
 	}
 	e := dbInstanceEvent{
 		Host:               c.dbHostname,
+		DatabaseInstance:   c.dbInstanceIdentifier,
 		AgentVersion:       c.agentVersion,
 		Dbms:               common.IntegrationName,
 		Kind:               "database_instance",

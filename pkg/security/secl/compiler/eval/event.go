@@ -19,8 +19,8 @@ type Event interface {
 	Init()
 	// GetType returns the Type of the Event
 	GetType() EventType
-	// GetFieldEventType returns the Event Field Metadata for the given Field
-	GetFieldMetadata(field Field) (EventType, reflect.Kind, error)
+	// GetFieldMetadata returns the Event Field Metadata for the given Field
+	GetFieldMetadata(field Field) (EventType, reflect.Kind, string, error)
 	// SetFieldValue sets the value of the given Field
 	SetFieldValue(field Field, value interface{}) error
 	// GetFieldValue returns the value of the given Field
@@ -32,8 +32,15 @@ type Event interface {
 func eventTypeFromFields(model Model, state *State) (EventType, error) {
 	var eventType EventType
 
+	// if there are no fields, we can't determine the event type
+	// this is not uncommon, especially in macros
+	if len(state.fieldValues) == 0 {
+		return eventType, nil
+	}
+
+	ev := model.NewEvent()
 	for field := range state.fieldValues {
-		evt, _, err := model.NewEvent().GetFieldMetadata(field)
+		evt, _, _, err := ev.GetFieldMetadata(field)
 		if err != nil {
 			return "", err
 		}

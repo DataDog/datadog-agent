@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 	"strings"
@@ -50,9 +51,7 @@ func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 		return fmt.Errorf("JSON error")
 	}
 
-	for key, value := range m.data {
-		stats[key] = value
-	}
+	maps.Copy(stats, m.data)
 
 	return nil
 }
@@ -97,9 +96,7 @@ func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 		return fmt.Errorf("JSON error")
 	}
 
-	for key, value := range m.data {
-		stats[key] = value
-	}
+	maps.Copy(stats, m.data)
 
 	return nil
 }
@@ -272,6 +269,7 @@ func TestGetStatus(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -305,8 +303,8 @@ X Section
 
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -324,6 +322,7 @@ X Section
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -352,8 +351,8 @@ X Section
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -365,7 +364,7 @@ X Section
 				// We have to do this strings replacement because html/temaplte escapes the `+` sign
 				// https://github.com/golang/go/issues/42506
 				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+				unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -374,6 +373,7 @@ X Section
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    FIPS Mode: not available<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -405,8 +405,8 @@ X Section
 `, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusHTMLOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -419,7 +419,7 @@ X Section
 				// We have to do this strings replacement because html/temaplte escapes the `+` sign
 				// https://github.com/golang/go/issues/42506
 				result := string(bytes)
-				unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+				unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -428,6 +428,7 @@ X Section
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    FIPS Mode: not available<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -453,8 +454,8 @@ X Section
 `, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusHTMLOutput, "\r\n", "\n", -1)
-				output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusHTMLOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -515,6 +516,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -531,8 +533,8 @@ Section
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
-	output := strings.Replace(string(bytesResult), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(string(bytesResult), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -602,6 +604,7 @@ func TestGetStatusWithErrors(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: agent
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -623,8 +626,8 @@ Status render errors
 `, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextErrorOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -750,8 +753,8 @@ X Section
 `
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -769,8 +772,8 @@ X Section
 </div>
 `
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -788,8 +791,8 @@ X Section
 `
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(result, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -883,8 +886,8 @@ Status render errors
 `
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expected, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expected, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},
@@ -915,6 +918,7 @@ Status render errors
   Python Version: n/a
   Build arch: %s
   Agent flavor: agent
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -931,8 +935,8 @@ Status render errors
 `, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
-				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(expectedStatusTextErrorOutput, "\r\n", "\n")
+				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			},

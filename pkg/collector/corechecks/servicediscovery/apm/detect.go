@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,10 +54,16 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(lang language.Language, ctx usm.DetectionContext) Instrumentation {
+func Detect(lang language.Language, ctx usm.DetectionContext, tracerMetadata *tracermetadata.TracerMetadata) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(ctx.Envs) {
 		return Injected
+	}
+
+	// if the process has valid tracer's metadata, then the
+	// instrumentation is provided
+	if tracerMetadata != nil {
+		return Provided
 	}
 
 	// different detection for provided instrumentation for each

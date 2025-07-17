@@ -16,17 +16,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	dbmPostgresADIdentifier = "_dbm_postgres_aurora"
-	dbmMySQLADIdentifier    = "_dbm_mysql_aurora"
-	auroraPostgresqlEngine  = "aurora-postgresql"
-	auroraMysqlEngine       = "aurora-mysql"
 )
 
 // DBMAuroraListener implements database-monitoring aurora discovery
@@ -36,22 +29,12 @@ type DBMAuroraListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       dbmconfig.AuroraConfig
-	awsRdsClient aws.RDSClient
+	config       aurora.Config
+	awsRdsClient aws.RdsClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
 	ticks  <-chan time.Time
 	ticker *time.Ticker
-}
-
-var engineToIntegrationType = map[string]string{
-	auroraPostgresqlEngine: "postgres",
-	auroraMysqlEngine:      "mysql",
-}
-
-var engineToADIdentifier = map[string]string{
-	auroraPostgresqlEngine: dbmPostgresADIdentifier,
-	auroraMysqlEngine:      dbmMySQLADIdentifier,
 }
 
 var _ Service = &DBMAuroraService{}
@@ -68,11 +51,11 @@ type DBMAuroraService struct {
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
 func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
-	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
+	config, err := aurora.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
 	}
-	client, region, err := aws.NewRDSClient(config.Region)
+	client, region, err := aws.NewRdsClient(config.Region)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +63,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMAuroraListener(config, client, nil), nil
 }
 
-func newDBMAuroraListener(config dbmconfig.AuroraConfig, awsClient aws.RDSClient, ticks <-chan time.Time) ServiceListener {
+func newDBMAuroraListener(config aurora.Config, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
 		config:       config,
 		services:     make(map[string]Service),
@@ -135,7 +118,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
 		return
 	}
-	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids)
+	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config.DbmTag)
 	if err != nil {
 		_ = log.Error(err)
 		return
@@ -161,7 +144,7 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *
 		return
 	}
 	svc := &DBMAuroraService{
-		adIdentifier: engineToADIdentifier[instance.Engine],
+		adIdentifier: engineToAuroraADIdentifier[instance.Engine],
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
 		instance:     instance,
@@ -179,17 +162,6 @@ func (l *DBMAuroraListener) deleteServices(entityIDs []string) {
 			delete(l.services, entityID)
 		}
 	}
-}
-
-func findDeletedServices(currServices map[string]Service, discoveredServices map[string]struct{}) []string {
-	deletedServices := make([]string, 0)
-	for svc := range currServices {
-		if _, exists := discoveredServices[svc]; !exists {
-			deletedServices = append(deletedServices, svc)
-		}
-	}
-
-	return deletedServices
 }
 
 // Equal returns whether the two DBMAuroraService are equal
@@ -218,17 +190,17 @@ func (d *DBMAuroraService) GetTaggerEntity() string {
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
-func (d *DBMAuroraService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{d.adIdentifier}, nil
+func (d *DBMAuroraService) GetADIdentifiers() []string {
+	return []string{d.adIdentifier}
 }
 
 // GetHosts returns the host for the aurora endpoint
-func (d *DBMAuroraService) GetHosts(context.Context) (map[string]string, error) {
+func (d *DBMAuroraService) GetHosts() (map[string]string, error) {
 	return map[string]string{"": d.instance.Endpoint}, nil
 }
 
 // GetPorts returns the port for the aurora endpoint
-func (d *DBMAuroraService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (d *DBMAuroraService) GetPorts() ([]ContainerPort, error) {
 	port := int(d.instance.Port)
 	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
 }
@@ -244,17 +216,17 @@ func (d *DBMAuroraService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid returns nil and an error because pids are currently not supported
-func (d *DBMAuroraService) GetPid(context.Context) (int, error) {
+func (d *DBMAuroraService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetHostname returns nothing - not supported
-func (d *DBMAuroraService) GetHostname(context.Context) (string, error) {
+func (d *DBMAuroraService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady returns true on DBMAuroraService
-func (d *DBMAuroraService) IsReady(context.Context) bool {
+func (d *DBMAuroraService) IsReady() bool {
 	return true
 }
 
@@ -264,13 +236,15 @@ func (d *DBMAuroraService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns false on DBMAuroraService
-func (d *DBMAuroraService) HasFilter(containers.FilterType) bool {
+func (d *DBMAuroraService) HasFilter(filter.Scope) bool {
 	return false
 }
 
 // GetExtraConfig parses the template variables with the extra_ prefix and returns the value
 func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 	switch key {
+	case "dbm":
+		return strconv.FormatBool(d.instance.DbmEnabled), nil
 	case "region":
 		return d.region, nil
 	case "managed_authentication_enabled":

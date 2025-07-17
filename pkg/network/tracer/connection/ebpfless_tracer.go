@@ -54,7 +54,9 @@ type ebpfLessTracer struct {
 	config *config.Config
 
 	packetSrc *filter.AFPacketSource
-	exit      chan struct{}
+	// packetSrcBusy is needed because you can't close packetSrc while it's still visiting
+	packetSrcBusy sync.WaitGroup
+	exit          chan struct{}
 
 	udp *udpProcessor
 	tcp *ebpfless.TCPProcessor
@@ -77,14 +79,15 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 	}
 
 	tr := &ebpfLessTracer{
-		config:       cfg,
-		packetSrc:    packetSrc,
-		exit:         make(chan struct{}),
-		udp:          &udpProcessor{},
-		tcp:          ebpfless.NewTCPProcessor(cfg),
-		conns:        make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		boundPorts:   ebpfless.NewBoundPorts(cfg),
-		cookieHasher: newCookieHasher(),
+		config:        cfg,
+		packetSrc:     packetSrc,
+		packetSrcBusy: sync.WaitGroup{},
+		exit:          make(chan struct{}),
+		udp:           &udpProcessor{},
+		tcp:           ebpfless.NewTCPProcessor(cfg),
+		conns:         make(map[ebpfless.PCAPTuple]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		boundPorts:    ebpfless.NewBoundPorts(cfg),
+		cookieHasher:  newCookieHasher(),
 	}
 
 	tr.ns, err = netns.Get()
@@ -101,7 +104,11 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		return fmt.Errorf("could not update bound ports: %w", err)
 	}
 
+	t.packetSrcBusy.Add(1)
 	go func() {
+		defer func() {
+			t.packetSrcBusy.Done()
+		}()
 		var eth layers.Ethernet
 		var ip4 layers.IPv4
 		var ip6 layers.IPv6
@@ -111,7 +118,7 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
 		parser.IgnoreUnsupported = true
 		for {
-			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, _ time.Time) error {
+			err := t.packetSrc.VisitPackets(func(b []byte, info filter.PacketInfo, _ time.Time) error {
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
@@ -131,8 +138,15 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 			})
 
 			if err != nil {
-				log.Errorf("exiting packet loop: %s", err)
+				log.Errorf("exiting visiting packets: %s", err)
 				return
+			}
+
+			// Properly synchronizes termination process
+			select {
+			case <-t.exit:
+				return
+			default:
 			}
 		}
 	}()
@@ -212,6 +226,21 @@ func (t *ebpfLessTracer) processConnection(
 		return fmt.Sprintf("connection: %s", conn)
 	})
 
+	if isNewConn && result.ShouldPersist() {
+		conn.Duration = time.Duration(time.Now().UnixNano())
+		direction, err := t.guessConnectionDirection(conn, pktType)
+		if err != nil {
+			return err
+		}
+		if direction == network.UNKNOWN {
+			return fmt.Errorf("could not determine connection direction")
+		}
+		conn.Direction = direction
+
+		// now that the direction is set, hash the connection
+		t.cookieHasher.Hash(conn)
+	}
+
 	switch result {
 	case ebpfless.ProcessResultNone:
 	case ebpfless.ProcessResultStoreConn:
@@ -227,20 +256,6 @@ func (t *ebpfLessTracer) processConnection(
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}()
 
-		if isNewConn {
-			conn.Duration = time.Duration(time.Now().UnixNano())
-			direction, err := t.determineConnectionDirection(conn, pktType)
-			if err != nil {
-				return err
-			}
-			if direction == network.UNKNOWN {
-				return fmt.Errorf("could not determine connection direction")
-			}
-			conn.Direction = direction
-
-			// now that the direction is set, hash the connection
-			t.cookieHasher.Hash(conn)
-		}
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
 		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
@@ -294,23 +309,11 @@ func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.U
 	return tuple, flags
 }
 
-// determineConnectionDirection returns connection direction using information from the TCP processor.
-// If the TCP processor doesn't know the direction, it will attempt to guess.
-func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
-	if conn.Type == network.TCP {
-		tuple := ebpfless.MakeEbpflessTuple(conn.ConnectionTuple)
-		dir, ok := t.tcp.GetConnDirection(tuple)
-		if !ok {
-			return network.UNKNOWN, fmt.Errorf("finalizeConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
-		}
-		switch dir {
-		case network.INCOMING:
-		case network.OUTGOING:
-			return dir, nil
-		case network.UNKNOWN:
-			// This happens when the TCP processor missed the SYN packet.
-			// Fall through and guess the direction.
-		}
+// guessConnectionDirection attempts to guess the connection direction based off bound ports
+func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
+	// if we already have a direction, return that
+	if conn.Direction != network.UNKNOWN {
+		return conn.Direction, nil
 	}
 
 	ok := t.boundPorts.Find(conn.Type, conn.SPort)
@@ -343,6 +346,10 @@ func (t *ebpfLessTracer) Stop() {
 	}
 
 	close(t.exit)
+	// close the packet capture loop and wait for it to finish
+	t.packetSrc.Close()
+	t.packetSrcBusy.Wait()
+
 	t.ns.Close()
 	t.boundPorts.Stop()
 }

@@ -12,15 +12,19 @@ import (
 	"strings"
 	"testing"
 
+	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/exporter/exportertest"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
 
 var _ serializer.MetricSerializer = (*metricRecorder)(nil)
@@ -63,11 +67,12 @@ const (
 
 func Test_ConsumeMetrics_Tags(t *testing.T) {
 	tests := []struct {
-		name           string
-		genMetrics     func(t *testing.T) pmetric.Metrics
-		wantSketchTags tagset.CompositeTags
-		wantSerieTags  tagset.CompositeTags
-		extraTags      []string
+		name                               string
+		genMetrics                         func(t *testing.T) pmetric.Metrics
+		wantSketchTags                     tagset.CompositeTags
+		wantSerieTags                      tagset.CompositeTags
+		extraTags                          []string
+		instrumentationScopeMetadataAsTags bool
 	}{
 		{
 			name: "no tags",
@@ -172,19 +177,45 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				nil,
 			),
 		},
+		{
+			name: "instrumentation scope metadata as tags",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				md := newMetrics(histogramMetricName, h, numberMetricName, n)
+				scope := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Scope()
+				scope.SetName("my_library")
+				scope.SetVersion("v1.0.0")
+				return md
+			},
+			extraTags: []string{},
+			wantSketchTags: tagset.NewCompositeTags([]string{
+				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
+			}, nil),
+			wantSerieTags: tagset.NewCompositeTags([]string{
+				"instrumentation_scope:my_library", "instrumentation_scope_version:v1.0.0",
+			}, nil),
+			instrumentationScopeMetadataAsTags: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
 			ctx := context.Background()
-			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, nil)
+			}, nil, otel.NewDisabledGatewayUsage())
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			cfg.Metrics.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags = tt.instrumentationScopeMetadataAsTags
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetrics(
 				ctx,
-				exportertest.NewNopSettings(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
 				cfg,
 			)
 			require.NoError(t, err)
@@ -233,7 +264,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 				rm := rms.AppendEmpty()
 				ilms := rm.ScopeMetrics()
 				ilm := ilms.AppendEmpty()
-				ilm.Scope().SetName("otelcol/hostmetricsreceiver/memory")
+				ilm.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/memory")
 				metricsArray := ilm.Metrics()
 				met := metricsArray.AppendEmpty()
 				met.SetName(histogramMetricName)
@@ -256,7 +287,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 				rm := rms.AppendEmpty()
 				ilms := rm.ScopeMetrics()
 				ilm := ilms.AppendEmpty()
-				ilm.Scope().SetName("otelcol/kubeletstatsreceiver")
+				ilm.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver")
 				metricsArray := ilm.Metrics()
 				met := metricsArray.AppendEmpty()
 				met.SetName(numberMetricName)
@@ -276,7 +307,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 				rm := rms.AppendEmpty()
 				ilms := rm.ScopeMetrics()
 				ilm := ilms.AppendEmpty()
-				ilm.Scope().SetName("otelcol/myreceiver")
+				ilm.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/myreceiver")
 				metricsArray := ilm.Metrics()
 				met := metricsArray.AppendEmpty()
 				met.SetName(numberMetricName)
@@ -293,13 +324,13 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
 			ctx := context.Background()
-			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+			f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			}, nil, nil)
+			}, nil, otel.NewDisabledGatewayUsage())
 			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			exp, err := f.CreateMetrics(
 				ctx,
-				exportertest.NewNopSettings(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
 				cfg,
 			)
 			require.NoError(t, err)
@@ -321,6 +352,63 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMetricPrefix(t *testing.T) {
+	testMetricPrefixWithFeatureGates(t, false, "datadog_trace_agent_retries", "otelcol_datadog_trace_agent_retries")
+	testMetricPrefixWithFeatureGates(t, false, "system.memory.usage", "otel.system.memory.usage")
+	testMetricPrefixWithFeatureGates(t, false, "process.cpu.utilization", "otel.process.cpu.utilization")
+	testMetricPrefixWithFeatureGates(t, false, "kafka.producer.request-rate", "otel.kafka.producer.request-rate")
+
+	testMetricPrefixWithFeatureGates(t, true, "datadog_trace_agent_retries", "datadog_trace_agent_retries")
+	testMetricPrefixWithFeatureGates(t, true, "system.memory.usage", "system.memory.usage")
+	testMetricPrefixWithFeatureGates(t, true, "process.cpu.utilization", "process.cpu.utilization")
+	testMetricPrefixWithFeatureGates(t, true, "kafka.producer.request-rate", "kafka.producer.request-rate")
+}
+
+func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName string, outName string) {
+	prevVal := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), disablePrefix))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevVal))
+	}()
+
+	rec := &metricRecorder{}
+	ctx := context.Background()
+	f := NewFactoryForOTelAgent(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, otel.NewDisabledGatewayUsage())
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(
+		ctx,
+		exportertest.NewNopSettings(component.MustNewType("datadog")),
+		cfg,
+	)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+
+	md := pmetric.NewMetrics()
+	rms := md.ResourceMetrics()
+	rm := rms.AppendEmpty()
+	ilms := rm.ScopeMetrics()
+	ilm := ilms.AppendEmpty()
+	metricsArray := ilm.Metrics()
+	met := metricsArray.AppendEmpty()
+	met.SetName(inName)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := met.Sum().DataPoints().AppendEmpty()
+	dp.SetIntValue(100)
+
+	require.NoError(t, exp.ConsumeMetrics(ctx, md))
+	require.NoError(t, exp.Shutdown(ctx))
+
+	for _, serie := range rec.series {
+		if serie.Name == outName {
+			return
+		}
+	}
+	t.Errorf("%s not found in metrics", outName)
 }
 
 func newMetrics(

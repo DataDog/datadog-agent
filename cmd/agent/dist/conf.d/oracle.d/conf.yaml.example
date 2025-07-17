@@ -6,6 +6,12 @@ init_config:
   ## Active session sampling interval in seconds
   # min_collection_interval: <interval_in_seconds>
 
+  ## @param propagate_agent_tags - boolean - optional - default: false
+  ## Set to `true` to propagate the tags from `datadog.yaml` and the agent host tags to the check.
+  ## When set to `true`, the tags from the agent host are added to the check's tags for all instances.
+  #
+  # propagate_agent_tags: false
+
   ## @param global_custom_queries - list of mappings - optional
   ## See `custom_queries` defined below.
   ##
@@ -109,10 +115,43 @@ instances:
     #
     # reported_hostname: <REPORTED_HOSTNAME>
 
+    ## @param exclude_hostname - boolean - optional - default: false
+    ## Omit the hostname from tags and events. This is useful when the database host is not monitored by an agent.
+    #
+    # exclude_hostname: false
+
+    ## Controls how the database is identified. The default value is the resolved hostname for the instance,
+    ## which respects the `reported_hostname` option.
+    ##
+    ## This value will be used as-is for the display name of the instance but will be normalized
+    ## when applied as a tag. Please see https://docs.datadoghq.com/getting_started/tagging/ for
+    ## more details on Datadog tag normalization.
+    #
+    # database_identifier:
+
+        ## @param template - string - optional - default: $resolved_hostname
+        ## The template to use for the database identifier. The default value is `$resolved_hostname`.
+        ## You can use the following variables, prefixed by `$` in the template:
+        ## - resolved_hostname: The resolved hostname of the instance, which respects the `reported_hostname` option.
+        ## - server: The provided server of the instance.
+        ## - port: The port number of the instance.
+        ## - service_name: The provided service name of the instance.
+        ## - cbd_name: The resolved CBD name of the instance.
+        ## In addition, you can use any key from the `tags` section of the configuration.
+        #
+        # template: <DATABASE_IDENTIFIER_TEMPLATE>
+
     ## @param dbm - boolean - optional - default: false
     ## Set to `true` to enable Database Monitoring.
     #
     # dbm: false
+
+    ## @param propagate_agent_tags - boolean - optional - default: false
+    ## Set to `true` to propagate the tags from `datadog.yaml` and the agent host tags to the check.
+    ## When set to `true`, the tags from the agent host are added to the check's tags for all instances.
+    ## This option takes precedence over the `propagate_agent_tags` option in `init_config`.
+    #
+    # propagate_agent_tags: false
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
@@ -315,8 +354,3 @@ instances:
       ## Limit the number of traced check executions to avoid filling the file system.
       #
       # traced_runs: 10
-
-    ## @param query_timeout - int - optional - default: 20000
-    ## Aborts any queries that takes more than the specified number of seconds,
-    #
-    # query_timeout: 20000

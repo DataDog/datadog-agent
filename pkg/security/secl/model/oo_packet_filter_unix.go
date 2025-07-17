@@ -9,7 +9,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/google/gopacket/layers"
@@ -17,20 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
-
-var errNonStaticPacketFilterField = errors.New("packet filter fields only support matching a single static")
-
-func errorNonStaticPacketFilterField(a eval.Evaluator, b eval.Evaluator) error {
-	var field string
-	if a.IsStatic() {
-		field = b.GetField()
-	} else if b.IsStatic() {
-		field = a.GetField()
-	} else {
-		return errNonStaticPacketFilterField
-	}
-	return fmt.Errorf("field `%s` only supports matching a single static value", field)
-}
 
 func newPacketFilterEvaluator(field string, value string, state *eval.State) (*eval.BoolEvaluator, error) {
 	switch field {

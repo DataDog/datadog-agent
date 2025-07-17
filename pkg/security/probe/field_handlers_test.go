@@ -72,6 +72,16 @@ func TestIsIPPublic(t *testing.T) {
 			ip:       "2001:0:0eab:dead::a0:abcd:4e",
 			expected: true,
 		},
+		{
+			name:     "IPv4 loopback address",
+			ip:       "127.0.0.1",
+			expected: false,
+		},
+		{
+			name:     "IPv6 loopback address",
+			ip:       "::1",
+			expected: false,
+		},
 	}
 
 	for _, testCase := range testCases {

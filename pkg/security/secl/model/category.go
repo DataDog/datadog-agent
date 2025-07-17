@@ -46,7 +46,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		SignalEventType.String(),
 		ExitEventType.String(),
 		ForkEventType.String(),
-		SyscallsEventType.String():
+		SyscallsEventType.String(),
+		SetrlimitEventType.String():
 		return ProcessCategory
 
 	// Kernel
@@ -59,14 +60,17 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		UnloadModuleEventType.String(),
 		AcceptEventType.String(),
 		BindEventType.String(),
-		ConnectEventType.String():
+		ConnectEventType.String(),
+		SysCtlEventType.String():
 		return KernelCategory
 
 	// Network
 	case
 		IMDSEventType.String(),
 		RawPacketEventType.String(),
-		DNSEventType.String():
+		DNSEventType.String(),
+		FullDNSResponseEventType.String(),
+		NetworkFlowMonitorEventType.String():
 		return NetworkCategory
 	}
 

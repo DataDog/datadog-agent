@@ -1,0 +1,27 @@
+--- a/Makefile
++++ b/Makefile
+@@ -74,8 +74,8 @@ install: bzip2
+ 	if ( test ! -d $(PREFIX)/include ) ; then mkdir -p $(PREFIX)/include ; fi
+ 	cp -f bzlib.h $(PREFIX)/include
+ 	chmod a+r $(PREFIX)/include/bzlib.h
+-	cp -f libbz2.a $(PREFIX)/lib
+-	chmod a+r $(PREFIX)/lib/libbz2.a
++	cp -Pf libbz2.so* libbz2.a $(PREFIX)/lib
++	chmod a+r $(PREFIX)/lib/libbz2.so* $(PREFIX)/lib/libbz2.a
+ 
+ clean: 
+ 	rm -f *.o libbz2.a bzip2 \
+--- a/Makefile-libbz2_so
++++ b/Makefile-libbz2_so
+@@ -37,8 +37,10 @@ OBJS= blocksort.o  \
+ all: $(OBJS)
+ 	$(CC) -shared -Wl,-soname -Wl,libbz2.so.1.0 -o libbz2.so.1.0.8 $(OBJS)
+ 	$(CC) $(CFLAGS) -o bzip2-shared bzip2.c libbz2.so.1.0.8
+-	rm -f libbz2.so.1.0
++	rm -f libbz2.so.1.0 libbz2.so.1 libbz2.so
+ 	ln -s libbz2.so.1.0.8 libbz2.so.1.0
++	ln -s libbz2.so.1.0.8 libbz2.so.1
++	ln -s libbz2.so.1.0.8 libbz2.so
+ 
+ clean: 
+ 	rm -f $(OBJS) bzip2.o libbz2.so.1.0.8 libbz2.so.1.0 bzip2-shared

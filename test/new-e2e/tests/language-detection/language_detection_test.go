@@ -54,8 +54,11 @@ func TestLanguageDetectionSuite(t *testing.T) {
 
 func (s *languageDetectionSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer s.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	s.installPython()
+	s.installPHP()
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string, source string) {

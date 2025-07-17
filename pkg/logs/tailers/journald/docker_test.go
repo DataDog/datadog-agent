@@ -13,15 +13,17 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestIsContainerEntry(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
-	tailer := NewTailer(source, nil, nil, false, fakeTagger)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeRegistry := auditorMock.NewMockAuditor()
+	tailer := NewTailer(source, nil, nil, false, fakeTagger, fakeRegistry)
 
 	var entry *sdjournal.JournalEntry
 
@@ -38,8 +40,9 @@ func TestIsContainerEntry(t *testing.T) {
 
 func TestGetContainerID(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
-	tailer := NewTailer(source, nil, nil, false, fakeTagger)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeRegistry := auditorMock.NewMockAuditor()
+	tailer := NewTailer(source, nil, nil, false, fakeTagger, fakeRegistry)
 
 	entry := &sdjournal.JournalEntry{
 		Fields: map[string]string{

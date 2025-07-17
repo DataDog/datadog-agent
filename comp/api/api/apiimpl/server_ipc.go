@@ -6,6 +6,7 @@
 package apiimpl
 
 import (
+	"crypto/tls"
 	"net/http"
 	"time"
 
@@ -23,8 +24,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 		return err
 	}
 
-	configEndpointMux := configendpoint.GetConfigEndpointMuxCore()
-	configEndpointMux.Use(validateToken)
+	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(
@@ -35,10 +35,14 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 	ipcMuxHandler := tmf.Middleware(ipcServerShortName)(ipcMux)
 	ipcMuxHandler = observability.LogResponseHandler(ipcServerName)(ipcMuxHandler)
 
+	// mTLS is not enabled by default for the IPC server, so we need to enable it explicitly
+	serverTLSConfig := server.ipc.GetTLSServerConfig()
+	serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
 		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
-		TLSConfig: server.authToken.GetTLSServerConfig(),
+		TLSConfig: serverTLSConfig,
 	}
 
 	startServer(server.ipcListener, ipcServer, ipcServerName)

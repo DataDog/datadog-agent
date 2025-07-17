@@ -17,20 +17,18 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
 // Config is a event log tailer configuration
@@ -51,14 +49,16 @@ type Tailer struct {
 
 	cancelTail context.CancelFunc
 	doneTail   chan struct{}
+	done       chan struct{}
 
 	sub                 evtsubscribe.PullSubscription
 	bookmark            evtbookmark.Bookmark
 	systemRenderContext evtapi.EventRenderContextHandle
+	registry            auditor.Registry
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message) *Tailer {
+func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, outputChan chan *message.Message, registry auditor.Registry) *Tailer {
 	if evtapi == nil {
 		evtapi = winevtapi.New()
 	}
@@ -71,8 +71,9 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi:     evtapi,
 		source:     source,
 		config:     config,
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:    decoder.NewNoopDecoder(),
 		outputChan: outputChan,
+		registry:   registry,
 	}
 }
 
@@ -94,8 +95,10 @@ func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
 func (t *Tailer) Start(bookmark string) {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.doneTail = make(chan struct{})
+	t.done = make(chan struct{})
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	t.cancelTail = ctxCancel
+	t.registry.SetTailed(t.Identifier(), true)
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.tail(ctx, bookmark)
@@ -104,18 +107,37 @@ func (t *Tailer) Start(bookmark string) {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
+	t.registry.SetTailed(t.Identifier(), false)
 	t.cancelTail()
 	<-t.doneTail
 
 	t.decoder.Stop()
 
 	t.sub.Stop()
+
+	<-t.done
 }
 
 func (t *Tailer) forwardMessages() {
+	defer func() {
+		// the decoder has successfully been flushed
+		close(t.done)
+	}()
+
 	for decodedMessage := range t.decoder.OutputChan {
 		if len(decodedMessage.GetContent()) > 0 {
-			t.outputChan <- decodedMessage
+			// Leverage the existing message instead of creating a new one
+			// This preserves all bookmark information and is more efficient
+			msg := decodedMessage
+
+			// Update tags to include source config tags
+			if msg.Origin != nil {
+				// Combine tags from multiple sources: parsing extra tags and source config tags
+				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
+				msg.Origin.SetTags(tags)
+			}
+
+			t.outputChan <- msg
 		}
 	}
 }

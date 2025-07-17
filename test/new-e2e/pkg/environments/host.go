@@ -64,8 +64,12 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
 	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
 
+	lines := []string{flareCommandOutput}
+	if err != nil {
+		lines = append(lines, err.Error())
+	}
 	// on error, the flare output is in the error message
-	flareCommandOutput = strings.Join([]string{flareCommandOutput, err.Error()}, "\n")
+	flareCommandOutput = strings.Join(lines, "\n")
 
 	// find <path to flare>.zip in flare command output
 	// (?m) is a flag that allows ^ and $ to match the beginning and end of each line

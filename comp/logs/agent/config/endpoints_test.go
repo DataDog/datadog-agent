@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,25 +28,25 @@ func (suite *EndpointsTestSuite) SetupTest() {
 }
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
-	suite.Equal("agent-intake.logs.datadoghq.com", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("site", "datadoghq.com")
-	suite.Equal("agent-intake.logs.datadoghq.com", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("site", "datadoghq.eu")
-	suite.Equal("agent-intake.logs.datadoghq.eu", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.eu.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Equal("agent-intake.logs.datadoghq.eu", endpoints.Main.Host)
-	suite.Equal(443, endpoints.Main.Port)
+	suite.Equal("agent-intake.logs.datadoghq.eu.", endpoints.Main.Host)
+	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
 	suite.Equal("lambda.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
@@ -74,7 +76,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
-	suite.Equal("agent-intake.logs.datadoghq.com", endpoint.Host)
+	suite.Equal("agent-intake.logs.datadoghq.com.", endpoint.Host)
 	suite.Equal(10516, endpoint.Port)
 	suite.True(endpoint.UseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
@@ -108,10 +110,16 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	endpoint = endpoints.Main
-	suite.Equal("azerty", endpoint.GetAPIKey())
-	suite.Equal("", endpoint.Host)
-	suite.Equal(1234, endpoint.Port)
-	suite.True(endpoint.UseSSL())
+	assert.Eventually(suite.T(), func() bool {
+		suite.Equal("azerty", endpoint.GetAPIKey())
+		return assert.Equal(suite.T(), "", endpoint.Host)
+	}, 5*time.Second, 1*time.Second)
+	assert.Eventually(suite.T(), func() bool {
+		return assert.Equal(suite.T(), 1234, endpoint.Port)
+	}, 5*time.Second, 1*time.Second)
+	assert.Eventually(suite.T(), func() bool {
+		return assert.True(suite.T(), endpoint.UseSSL())
+	}, 5*time.Second, 1*time.Second)
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
 	suite.Equal(1, len(endpoints.Endpoints))
 }
@@ -130,7 +138,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseSSL())
-	suite.Equal("agent-http-intake.logs.datadoghq.com", endpoint.Host)
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoint.Host)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompression() {
@@ -147,7 +155,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 6)
+	suite.Equal(endpoint.CompressionLevel, ZstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
@@ -155,9 +163,11 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	var endpoint Endpoint
 	var err error
 
+	zstdCompressionLevel := 2
+
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 	suite.config.SetWithoutSource("logs_config.use_compression", true)
-	suite.config.SetWithoutSource("logs_config.compression_level", 1)
+	suite.config.SetWithoutSource("logs_config.zstd_compression_level", zstdCompressionLevel)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
@@ -165,7 +175,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, 1)
+	suite.Equal(endpoint.CompressionLevel, zstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndOverride() {
@@ -244,7 +254,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToA
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "")
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 }
 
@@ -354,7 +364,10 @@ func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
 
 func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 	suite.config.SetWithoutSource("api_key", "wassupkey")
-	suite.Equal("wassupkey", defaultLogsConfigKeys(suite.config).getAPIKeyGetter()())
+
+	apiKey, path := defaultLogsConfigKeys(suite.config).getMainAPIKey()
+	assert.Equal(suite.T(), "wassupkey", apiKey)
+	assert.Equal(suite.T(), "api_key", path)
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("wassupkey", endpoints.Main.GetAPIKey())
@@ -363,7 +376,10 @@ func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	suite.config.SetWithoutSource("api_key", "wassupkey")
 	suite.config.SetWithoutSource("logs_config.api_key", "wassuplogskey")
-	suite.Equal("wassuplogskey", defaultLogsConfigKeys(suite.config).getAPIKeyGetter()())
+
+	apiKey, path := defaultLogsConfigKeys(suite.config).getMainAPIKey()
+	assert.Equal(suite.T(), "wassuplogskey", apiKey)
+	assert.Equal(suite.T(), "logs_config.api_key", path)
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("wassuplogskey", endpoints.Main.GetAPIKey())
@@ -627,16 +643,36 @@ func (suite *EndpointsTestSuite) TestMainApiKeyRotation() {
 	suite.config.SetWithoutSource("api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := NewTCPEndpoint(logsConfig)
-	http := NewHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig)
+	http := newHTTPEndpoint(logsConfig)
 
-	suite.Equal("1234", tcp.GetAPIKey())
-	suite.Equal("1234", http.GetAPIKey())
+	suite.Eventually(func() bool {
+		return assert.Equal(suite.T(), "1234", tcp.GetAPIKey()) &&
+			assert.Equal(suite.T(), "1234", http.GetAPIKey())
+	}, 5*time.Second, 200*time.Millisecond)
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("api_key", "5678")
-	suite.Equal("5678", tcp.GetAPIKey())
-	suite.Equal("5678", http.GetAPIKey())
+	suite.Eventually(func() bool {
+		return assert.Equal(suite.T(), "5678", tcp.GetAPIKey()) &&
+			assert.Equal(suite.T(), "5678", http.GetAPIKey())
+	}, 5*time.Second, 200*time.Millisecond)
+}
+
+func (suite *EndpointsTestSuite) TestLogCompressionKind() {
+	suite.config.SetWithoutSource("logs_config.compression_kind", "gzip")
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.Equal(logsConfig.compressionKind(), "gzip")
+
+	suite.config.SetWithoutSource("logs_config.compression_kind", "zstd")
+	suite.Equal(logsConfig.compressionKind(), "zstd")
+
+	suite.config.SetWithoutSource("logs_config.compression_kind", "")
+	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+
+	// Invalid compression should fall back to the default log agent compression kind
+	suite.config.SetWithoutSource("logs_config.compression_kind", "notgzip")
+	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
 }
 
 func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
@@ -644,21 +680,115 @@ func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
 	suite.config.SetWithoutSource("logs_config.api_key", "1234")
 	logsConfig := defaultLogsConfigKeys(suite.config)
 
-	tcp := NewTCPEndpoint(logsConfig)
-	http := NewHTTPEndpoint(logsConfig)
+	tcp := newTCPEndpoint(logsConfig)
+	http := newHTTPEndpoint(logsConfig)
 
 	suite.Equal("1234", tcp.GetAPIKey())
 	suite.Equal("1234", http.GetAPIKey())
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("api_key", "5678")
-	suite.Equal("1234", tcp.GetAPIKey())
-	suite.Equal("1234", http.GetAPIKey())
+	assert.Eventually(suite.T(), func() bool {
+		return assert.Equal(suite.T(), "1234", tcp.GetAPIKey())
+	}, 5*time.Second, 1*time.Second)
+	assert.Eventually(suite.T(), func() bool {
+		return assert.Equal(suite.T(), "1234", http.GetAPIKey())
+	}, 5*time.Second, 1*time.Second)
 
 	// change API key at runtime
 	suite.config.SetWithoutSource("logs_config.api_key", "5678")
-	suite.Equal("5678", tcp.GetAPIKey())
-	suite.Equal("5678", http.GetAPIKey())
+	assert.Eventually(suite.T(), func() bool {
+		return assert.Equal(suite.T(), "5678", tcp.GetAPIKey())
+	}, 5*time.Second, 1*time.Second)
+	assert.Eventually(suite.T(), func() bool {
+		return assert.Equal(suite.T(), "5678", http.GetAPIKey())
+	}, 5*time.Second, 1*time.Second)
+}
+
+func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
+	loadAdditionalEndpoints := map[string]func(Endpoint, *LogsConfigKeys) []Endpoint{
+		"http": func(main Endpoint, l *LogsConfigKeys) []Endpoint {
+			return loadHTTPAdditionalEndpoints(main, l, "", "", "")
+		},
+		"tcp": func(main Endpoint, l *LogsConfigKeys) []Endpoint { return loadTCPAdditionalEndpoints(main, l) },
+	}
+
+	for endpointType, additionalEndpointsLoader := range loadAdditionalEndpoints {
+		suite.Run(endpointType, func() {
+			logsConfig := defaultLogsConfigKeys(suite.config)
+
+			// We configure 3 endpoints: 1 main + 2 additional
+			suite.config.SetWithoutSource("api_key", "top_key")
+			suite.config.SetWithoutSource("logs_config.api_key", "1234")
+			suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{
+			"api_key":           "abcd",
+			"Host":              "localhost1",
+			"Port":              1234,
+			"is_reliable":       true,
+			"use_compression":   true,
+			"compression_level": 12
+			},
+			{
+			"api_key":     "defg",
+			"Host":        "localhost2",
+			"Port":        5678,
+			"use_ssl":     false,
+			"is_reliable": false
+			}]`)
+
+			mainEndpoint := newHTTPEndpoint(logsConfig)
+			additionalEndpoints := additionalEndpointsLoader(mainEndpoint, logsConfig)
+			suite.Suite.Require().Len(additionalEndpoints, 2)
+
+			assert.Eventually(suite.T(), func() bool {
+				return assert.Equal(suite.T(), "1234", mainEndpoint.GetAPIKey()) &&
+					assert.Equal(suite.T(), "abcd", additionalEndpoints[0].GetAPIKey()) &&
+					assert.Equal(suite.T(), "defg", additionalEndpoints[1].GetAPIKey())
+			}, 5*time.Second, 1*time.Second)
+
+			// Setting new values in the config will notify the endpoints and update them
+			suite.config.SetWithoutSource("logs_config.api_key", "1234_updated")
+			suite.config.SetWithoutSource("logs_config.additional_endpoints", `[{
+			"api_key":           "abcd_updated",
+			"Host":              "localhost1",
+			"Port":              1234,
+			"is_reliable":       true,
+			"use_compression":   true,
+			"compression_level": 12
+			},
+			{
+			"api_key":     "defg_updated",
+			"Host":        "localhost2",
+			"Port":        5678,
+			"use_ssl":     false,
+			"is_reliable": false
+			}]`)
+
+			assert.Eventually(suite.T(), func() bool {
+				return assert.Equal(suite.T(), "1234_updated", mainEndpoint.GetAPIKey()) &&
+					assert.Equal(suite.T(), "abcd_updated", additionalEndpoints[0].GetAPIKey()) &&
+					assert.Equal(suite.T(), "defg_updated", additionalEndpoints[1].GetAPIKey())
+			}, 5*time.Second, 1*time.Second)
+
+			// We trigger an unrelated update and verify that it was correctly ignored
+			suite.config.SetWithoutSource("api_key", "top_key_update")
+
+			assert.Eventually(suite.T(), func() bool {
+				return assert.Equal(suite.T(), "1234_updated", mainEndpoint.GetAPIKey()) &&
+					assert.Equal(suite.T(), "abcd_updated", additionalEndpoints[0].GetAPIKey()) &&
+					assert.Equal(suite.T(), "defg_updated", additionalEndpoints[1].GetAPIKey())
+			}, 5*time.Second, 1*time.Second)
+
+			// We trigger an update with invalid types
+			suite.config.SetWithoutSource("logs_config.api_key", 0.1)
+
+			assert.Eventually(suite.T(), func() bool {
+				return assert.Equal(suite.T(), "1234_updated", mainEndpoint.GetAPIKey()) &&
+					assert.Equal(suite.T(), "abcd_updated", additionalEndpoints[0].GetAPIKey()) &&
+					assert.Equal(suite.T(), "defg_updated", additionalEndpoints[1].GetAPIKey())
+			}, 5*time.Second, 1*time.Second)
+		})
+	}
 }
 
 func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
@@ -680,19 +810,25 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", jsonString)
 
 	expected1 := Endpoint{
-		apiKeyGetter:     func() string { return "apiKey2" },
-		isReliable:       true,
-		useSSL:           true,
-		Host:             "localhost1",
-		Port:             1234,
-		UseCompression:   true,
-		CompressionLevel: 12,
+		apiKey:                 atomic.NewString("apiKey2"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		isReliable:             true,
+		useSSL:                 true,
+		Host:                   "localhost1",
+		Port:                   1234,
+		UseCompression:         true,
+		CompressionLevel:       12,
 	}
 	expected2 := Endpoint{
-		apiKeyGetter: func() string { return "apiKey3" },
-		isReliable:   false,
-		Host:         "localhost2",
-		Port:         5678,
+		apiKey:                 atomic.NewString("apiKey3"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		isReliable:             false,
+		Host:                   "localhost2",
+		Port:                   5678,
 	}
 
 	main := Endpoint{useSSL: true}
@@ -720,25 +856,32 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 			"is_reliable": false
 		}]`
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", jsonString)
+	suite.config.SetWithoutSource("logs_config.compression_kind", "gzip") // has to set explicit compression kind to avoid fallback to defaults compression configs when additional endpoints are present
 
 	expected1 := Endpoint{
-		apiKeyGetter:     func() string { return "apiKey2" },
-		isReliable:       true,
-		useSSL:           true,
-		Host:             "localhost1",
-		Port:             1234,
-		UseCompression:   true, // compression from main overwrite the config
-		CompressionLevel: 123,
-		Version:          123,
+		apiKey:                 atomic.NewString("apiKey2"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 0,
+		isReliable:             true,
+		useSSL:                 true,
+		Host:                   "localhost1",
+		Port:                   1234,
+		UseCompression:         true, // compression from main overwrite the config
+		CompressionLevel:       123,
+		Version:                123,
 	}
 	expected2 := Endpoint{
-		apiKeyGetter:     func() string { return "apiKey3" },
-		isReliable:       false,
-		Host:             "localhost2",
-		Port:             5678,
-		UseCompression:   true,
-		CompressionLevel: 123,
-		Version:          EPIntakeVersion2,
+		apiKey:                 atomic.NewString("apiKey3"),
+		configSettingPath:      "logs_config.additional_endpoints",
+		isAdditionalEndpoint:   true,
+		additionalEndpointsIdx: 1,
+		isReliable:             false,
+		Host:                   "localhost2",
+		Port:                   5678,
+		UseCompression:         true,
+		CompressionLevel:       123,
+		Version:                EPIntakeVersion2,
 		// Those are enforce when EPIntakeVersion2 is used
 		TrackType: "some track type",
 		Protocol:  "some intake protocol",
@@ -764,6 +907,64 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 	suite.Suite.Require().Len(endpoints, 2)
 	compareEndpoint(suite.T(), expected1, endpoints[0])
 	compareEndpoint(suite.T(), expected2, endpoints[1])
+}
+
+func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
+	tests := []struct {
+		name                string
+		additionalEndpoints string
+		compressionKind     string
+		expectedMain        EndpointCompressionOptions
+	}{
+		{
+			name:                "No additional endpoints - use default",
+			additionalEndpoints: "",
+			expectedMain: EndpointCompressionOptions{
+				CompressionKind:  ZstdCompressionKind,
+				CompressionLevel: ZstdCompressionLevel,
+			},
+		},
+		{
+			name:                "Additional endpoints without explicit compression - fallback to gzip",
+			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
+			expectedMain: EndpointCompressionOptions{
+				CompressionKind:  GzipCompressionKind,
+				CompressionLevel: GzipCompressionLevel,
+			},
+		},
+		{
+			name:                "Additional endpoints with explicit compression - use configured",
+			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
+			compressionKind:     "zstd",
+			expectedMain: EndpointCompressionOptions{
+				CompressionKind:  ZstdCompressionKind,
+				CompressionLevel: ZstdCompressionLevel,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		suite.Run(tt.name, func() {
+			logsConfig := defaultLogsConfigKeys(suite.config)
+
+			// Setup test config
+			if tt.additionalEndpoints != "" {
+				suite.config.SetWithoutSource("logs_config.additional_endpoints", tt.additionalEndpoints)
+			}
+			if tt.compressionKind != "" {
+				suite.config.SetWithoutSource("logs_config.compression_kind", tt.compressionKind)
+			}
+
+			endpoints, err := BuildHTTPEndpointsWithConfig(
+				suite.config,
+				logsConfig,
+				"", "", "", "",
+			)
+			suite.Nil(err)
+			suite.Equal(tt.expectedMain.CompressionKind, endpoints.Main.CompressionKind)
+			suite.Equal(tt.expectedMain.CompressionLevel, endpoints.Main.CompressionLevel)
+		})
+	}
 }
 
 func TestEndpointsTestSuite(t *testing.T) {

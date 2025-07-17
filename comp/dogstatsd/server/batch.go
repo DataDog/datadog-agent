@@ -12,12 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/twmb/murmur3"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -76,16 +73,12 @@ type batcher struct {
 	tlmChannel telemetry.Histogram
 }
 
-type shardKeyGenerator interface {
-	Generate(sample metrics.MetricSample, shards int) uint32
-}
-
-type shardKeyGeneratorBase struct {
+type shardKeyGenerator struct {
 	keyGenerator *ckey.KeyGenerator
 	tagsBuffer   *tagset.HashingTagsAccumulator
 }
 
-func (s *shardKeyGeneratorBase) Generate(sample metrics.MetricSample, shards int) uint32 {
+func (s *shardKeyGenerator) Generate(sample metrics.MetricSample, shards int) uint32 {
 	// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
 	// it in the sample?) would reduce CPU usage, avoiding to recompute
 	// the tags hashes while generating the context key.
@@ -93,27 +86,6 @@ func (s *shardKeyGeneratorBase) Generate(sample metrics.MetricSample, shards int
 	h := s.keyGenerator.Generate(sample.Name, sample.Host, s.tagsBuffer)
 	s.tagsBuffer.Reset()
 	return fastrange(h, shards)
-}
-
-type shardKeyGeneratorPerOrigin struct {
-	shardKeyGeneratorBase
-}
-
-func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shards int) uint32 {
-	// We fall back on the generic sharding if:
-	// - the sample has a custom cardinality
-	// - we don't have the origin
-	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.ContainerIDFromSocket == "" && sample.OriginInfo.LocalData.PodUID == "" && sample.OriginInfo.LocalData.ContainerID == "") {
-		return s.shardKeyGeneratorBase.Generate(sample, shards)
-	}
-
-	// Otherwise, we isolate the samples based on the origin.
-	i, j := uint64(0), uint64(0)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.LocalData.PodUID)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.LocalData.ContainerID)
-	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerIDFromSocket)
-
-	return fastrange(ckey.ContextKey(i), shards)
 }
 
 // Use fastrange instead of a modulo for better performance.
@@ -163,30 +135,18 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
-		shardGenerator: getShardGenerator(),
+		shardGenerator: newShardGenerator(),
 
 		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
 		tlmChannel:           tlmChannel,
 	}
 }
 
-func getShardGenerator() shardKeyGenerator {
-	isolated := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
-
-	base := shardKeyGeneratorBase{
+func newShardGenerator() shardKeyGenerator {
+	return shardKeyGenerator{
 		keyGenerator: ckey.NewKeyGenerator(),
 		tagsBuffer:   tagset.NewHashingTagsAccumulator(),
 	}
-
-	var g shardKeyGenerator
-	if isolated {
-		g = &shardKeyGeneratorPerOrigin{
-			shardKeyGeneratorBase: base,
-		}
-	} else {
-		g = &base
-	}
-	return g
 }
 
 func newServerlessBatcher(demux aggregator.Demultiplexer, tlmChannel telemetry.Histogram) *batcher {
@@ -211,7 +171,7 @@ func newServerlessBatcher(demux aggregator.Demultiplexer, tlmChannel telemetry.H
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
-		shardGenerator: getShardGenerator(),
+		shardGenerator: newShardGenerator(),
 		tlmChannel:     tlmChannel,
 	}
 }

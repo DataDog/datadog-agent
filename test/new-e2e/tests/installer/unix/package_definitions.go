@@ -11,8 +11,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -67,33 +65,29 @@ func WithAlias(alias string) PackageOption {
 
 // PackagesConfig is the list of known packages configuration for testing
 var PackagesConfig = []TestPackageConfig{
-	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
-	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com"},
+	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
+	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
 	{Name: "datadog-apm-inject", Version: "latest"},
 	{Name: "datadog-apm-library-java", Version: "latest"},
 	{Name: "datadog-apm-library-ruby", Version: "latest"},
 	{Name: "datadog-apm-library-js", Version: "latest"},
-	{Name: "datadog-apm-library-dotnet", Version: "latest"},
+	{Name: "datadog-apm-library-dotnet", Alias: "apm-library-dotnet-package", Version: "latest"},
 	{Name: "datadog-apm-library-python", Version: "latest"},
 }
 
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 	}
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"
 	// Install Script env variables
 	env["DD_INSTALLER"] = "true"
 	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
-	env["TESTING_APT_URL"] = "apttesting.datad0g.com"
-	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
-	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
+	env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID"))
+	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("stable-%s 7", arch)
+	env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"
 	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 }
 
@@ -123,5 +117,18 @@ func InstallScriptEnvWithPackages(arch e2eos.Architecture, packagesConfig []Test
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, arch)
 	installScriptInstallerEnv(env, packagesConfig)
+	return env
+}
+
+// InstallInstallerScriptEnvWithPackages returns the environment variables for the installer script for the given packages
+func InstallInstallerScriptEnvWithPackages() map[string]string {
+	env := map[string]string{}
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+	}
+	env["DD_API_KEY"] = apiKey
+	env["DD_SITE"] = "datadoghq.com"
+	installScriptInstallerEnv(env, PackagesConfig)
 	return env
 }

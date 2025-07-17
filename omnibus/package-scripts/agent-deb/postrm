@@ -8,9 +8,6 @@ INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 
-# Remove the symlink to the binary.
-rm -f "/usr/bin/datadog-agent"
-
 set -e
 
 case "$1" in
@@ -23,10 +20,6 @@ case "$1" in
         rm -rf $INSTALL_DIR
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
-    ;;
-    remove)
-        rm "$CONFIG_DIR/install_info" || true
-        rm "$CONFIG_DIR/install.json" || true
     ;;
     *)
     ;;

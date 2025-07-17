@@ -8,21 +8,22 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
+	_ = x[CgroupManagerUndefined-0]
 	_ = x[CGroupManagerDocker-1]
 	_ = x[CGroupManagerCRIO-2]
 	_ = x[CGroupManagerPodman-3]
 	_ = x[CGroupManagerCRI-4]
 	_ = x[CGroupManagerSystemd-5]
+	_ = x[CGroupManagerECS-6]
 }
 
-const _CGroupManager_name = "dockercri-opodmancontainerdsystemd"
+const _CGroupManager_name = "unknowndockercri-opodmancontainerdsystemdecs"
 
-var _CGroupManager_index = [...]uint8{0, 6, 11, 17, 27, 34}
+var _CGroupManager_index = [...]uint8{0, 7, 13, 18, 24, 34, 41, 44}
 
 func (i CGroupManager) String() string {
-	i -= 1
 	if i >= CGroupManager(len(_CGroupManager_index)-1) {
-		return "CGroupManager(" + strconv.FormatInt(int64(i+1), 10) + ")"
+		return "CGroupManager(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
 	return _CGroupManager_name[_CGroupManager_index[i]:_CGroupManager_index[i+1]]
 }

@@ -5,9 +5,6 @@ Builds the Datadog Agent packages for Windows. Builds everything with omnibus an
 .DESCRIPTION
 This script builds the Datadog Agent packages for Windows, with options to configure the build environment.
 
-.PARAMETER ReleaseVersion
-Specifies the release version of the build. Default is the value of the environment variable RELEASE_VERSION.
-
 .PARAMETER Flavor
 Specifies the flavor of the agent. Default is the value of the environment variable AGENT_FLAVOR.
 
@@ -42,7 +39,6 @@ param(
     [bool] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
-    [string] $ReleaseVersion = $env:RELEASE_VERSION,
     [string] $Flavor = $env:AGENT_FLAVOR,
     [bool] $BuildUpgrade = $false
 )
@@ -57,11 +53,6 @@ Invoke-BuildScript `
     $inv_args = @(
         "--skip-deps"
     )
-    if ($ReleaseVersion) {
-        $inv_args += "--release-version"
-        $inv_args += $ReleaseVersion
-        $env:RELEASE_VERSION=$ReleaseVersion
-    }
 
     if ($Flavor) {
         $inv_args += "--flavor"
@@ -73,8 +64,8 @@ Invoke-BuildScript `
         $inv_args += "--build-upgrade"
     }
 
-    Write-Host "inv -e winbuild.agent-package $inv_args"
-    inv -e winbuild.agent-package @inv_args
+    Write-Host "dda inv -- -e winbuild.agent-package $inv_args"
+    dda inv -- -e winbuild.agent-package @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1
@@ -87,7 +78,7 @@ Invoke-BuildScript `
 
     if ($BuildOutOfSource) {
         # Copy the resulting package to the mnt directory
-        mkdir C:\mnt\omnibus\pkg -Force -ErrorAction Stop | Out-Null
-        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
+        mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
+        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
     }
 }

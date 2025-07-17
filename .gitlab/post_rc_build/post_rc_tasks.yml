@@ -6,17 +6,26 @@ update_rc_build_links:
   rules:
     - if: $RC_BUILD == "true"
   needs:
-    - job: docker_trigger_internal
+    - job: publish_internal_container_image-jmx
       artifacts: false
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+    - job: publish_internal_container_image-fips
+      artifacts: false
+    - job: publish_internal_container_image-ot_standalone
+      artifacts: false
+    - job: publish_internal_dca_container_image
+      artifacts: false
+    - job: publish_internal_container_image-full
+      artifacts: false
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   script:
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
     # Python 3.12 changes default behavior how packages are installed.
     # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615    
-    - python3 -m pip install -r tasks/requirements_release_tasks.txt --break-system-packages
+    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+    - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+    - python3 -m dda self dep sync -f legacy-tasks
     - PATCH=$(echo "$CI_COMMIT_REF_NAME" | cut -d'.' -f3 | cut -c1)
     - if [[ "$PATCH" == "0" ]]; then PATCH_OPTION=""; else PATCH_OPTION="-p"; fi
-    - inv -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}
+    - dda inv -- -e release.update-build-links ${CI_COMMIT_REF_NAME} ${PATCH_OPTION}

@@ -1,24 +1,38 @@
-go 1.23.1
+go 1.24.4
 
-toolchain go1.23.3
+// Disable new post-quantum key exchange mechanism X25519MLKEM768
+// See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
+// This should be revisited for go 1.25.x
+godebug tlsmlkem=0
 
 use (
 	.
 	comp/api/api/def
-	comp/api/authtoken
 	comp/core/config
+	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
+	comp/core/ipc/def
+	comp/core/ipc/httphelpers
+	comp/core/ipc/impl
+	comp/core/ipc/mock
 	comp/core/log/def
+	comp/core/log/fx
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
 	comp/core/secrets
 	comp/core/status
 	comp/core/status/statusimpl
+	comp/core/tagger/def
+	comp/core/tagger/fx-remote
+	comp/core/tagger/generic_store
+	comp/core/tagger/impl-remote
 	comp/core/tagger/origindetection
+	comp/core/tagger/subscriber
 	comp/core/tagger/tags
+	comp/core/tagger/telemetry
 	comp/core/tagger/types
 	comp/core/tagger/utils
 	comp/core/telemetry
@@ -33,8 +47,12 @@ use (
 	comp/otelcol/converter/impl
 	comp/otelcol/ddflareextension/def
 	comp/otelcol/ddflareextension/impl
+	comp/otelcol/ddflareextension/types
+	comp/otelcol/ddprofilingextension/def
+	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -42,6 +60,8 @@ use (
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
 	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
+	comp/otelcol/status/def
+	comp/otelcol/status/impl
 	comp/serializer/logscompression
 	comp/serializer/metricscompression
 	comp/trace/agent/def
@@ -49,6 +69,7 @@ use (
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
 	internal/tools
+	internal/tools/gotest-custom
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
@@ -57,6 +78,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/create
 	pkg/config/env
 	pkg/config/mock
 	pkg/config/model
@@ -66,10 +88,12 @@ use (
 	pkg/config/structure
 	pkg/config/teeconfig
 	pkg/config/utils
+	pkg/config/viperconfig
 	pkg/errors
+	pkg/fips
+	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
-	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
@@ -83,8 +107,15 @@ use (
 	pkg/logs/status/utils
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/payload
 	pkg/networkdevice/profile
+	pkg/networkpath/payload
 	pkg/obfuscate
+	pkg/opentelemetry-mapping-go/inframetadata
+	pkg/opentelemetry-mapping-go/inframetadata/gohai/internal/gohaitest
+	pkg/opentelemetry-mapping-go/otlp/attributes
+	pkg/opentelemetry-mapping-go/otlp/logs
+	pkg/opentelemetry-mapping-go/otlp/metrics
 	pkg/orchestrator/model
 	pkg/process/util/api
 	pkg/proto
@@ -96,6 +127,7 @@ use (
 	pkg/tagger/types
 	pkg/tagset
 	pkg/telemetry
+	pkg/template
 	pkg/trace
 	pkg/trace/stats/oteltest
 	pkg/util/backoff
@@ -117,7 +149,11 @@ use (
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
+	pkg/util/otel
 	pkg/util/pointer
+	pkg/util/prometheus
+	pkg/util/quantile
+	pkg/util/quantile/sketchtest
 	pkg/util/scrubber
 	pkg/util/sort
 	pkg/util/startstop

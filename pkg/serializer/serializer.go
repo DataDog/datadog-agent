@@ -7,7 +7,6 @@
 package serializer
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -32,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -44,10 +43,6 @@ const (
 )
 
 var (
-	// AgentPayloadVersion is the versions of the agent-payload repository
-	// used to serialize to protobuf
-	AgentPayloadVersion string
-
 	expvars                                 = expvar.NewMap("serializer")
 	expvarsSendEventsErrItemTooBigs         = expvar.Int{}
 	expvarsSendEventsErrItemTooBigsFallback = expvar.Int{}
@@ -69,7 +64,7 @@ func initExtraHeaders(s *Serializer) {
 	}
 
 	s.protobufExtraHeaders.Set("Content-Type", protobufContentType)
-	s.protobufExtraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+	s.protobufExtraHeaders.Set(payloadVersionHTTPHeader, version.AgentPayloadVersion)
 
 	s.protobufExtraHeadersWithCompression = make(http.Header)
 	for k := range s.protobufExtraHeaders {
@@ -120,80 +115,55 @@ type Serializer struct {
 	// might collect data considered too sensitive (database IP and
 	// such). By default every kind of payload is enabled since
 	// almost every user won't fall into this use case.
-	enableEvents                  bool
-	enableSeries                  bool
-	enableServiceChecks           bool
-	enableSketches                bool
-	enableJSONToV1Intake          bool
-	enableJSONStream              bool
-	enableServiceChecksJSONStream bool
-	enableEventsJSONStream        bool
-	enableSketchProtobufStream    bool
-	hostname                      string
+	enableEvents         bool
+	enableSeries         bool
+	enableServiceChecks  bool
+	enableSketches       bool
+	enableJSONToV1Intake bool
+	hostname             string
+	logger               log.Component
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, hostName string) *Serializer {
-
-	streamAvailable := compressor.NewStreamCompressor(&bytes.Buffer{}) != nil
-
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Compressor, config config.Component, logger log.Component, hostName string) *Serializer {
 	s := &Serializer{
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
 		config:                              config,
-		seriesJSONPayloadBuilder:            stream.NewJSONPayloadBuilder(config.GetBool("enable_json_stream_shared_compressor_buffers"), config, compressor),
+		seriesJSONPayloadBuilder:            stream.NewJSONPayloadBuilder(config.GetBool("enable_json_stream_shared_compressor_buffers"), config, compressor, logger),
 		enableEvents:                        config.GetBool("enable_payloads.events"),
 		enableSeries:                        config.GetBool("enable_payloads.series"),
 		enableServiceChecks:                 config.GetBool("enable_payloads.service_checks"),
 		enableSketches:                      config.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake:                config.GetBool("enable_payloads.json_to_v1_intake"),
-		enableJSONStream:                    streamAvailable && config.GetBool("enable_stream_payload_serialization"),
-		enableServiceChecksJSONStream:       streamAvailable && config.GetBool("enable_service_checks_stream_payload_serialization"),
-		enableEventsJSONStream:              streamAvailable && config.GetBool("enable_events_stream_payload_serialization"),
-		enableSketchProtobufStream:          streamAvailable && config.GetBool("enable_sketch_stream_payload_serialization"),
 		hostname:                            hostName,
 		Strategy:                            compressor,
 		jsonExtraHeaders:                    make(http.Header),
 		protobufExtraHeaders:                make(http.Header),
 		jsonExtraHeadersWithCompression:     make(http.Header),
 		protobufExtraHeadersWithCompression: make(http.Header),
+		logger:                              logger,
 	}
 
 	initExtraHeaders(s)
 
 	if !s.enableEvents {
-		log.Warn("event payloads are disabled: all events will be dropped")
+		logger.Warn("event payloads are disabled: all events will be dropped")
 	}
 	if !s.AreSeriesEnabled() {
-		log.Warn("series payloads are disabled: all series will be dropped")
+		logger.Warn("series payloads are disabled: all series will be dropped")
 	}
 	if !s.AreSketchesEnabled() {
-		log.Warn("service_checks payloads are disabled: all service_checks will be dropped")
+		logger.Warn("service_checks payloads are disabled: all service_checks will be dropped")
 	}
 	if !s.enableSketches {
-		log.Warn("sketches payloads are disabled: all sketches will be dropped")
+		logger.Warn("sketches payloads are disabled: all sketches will be dropped")
 	}
 	if !s.enableJSONToV1Intake {
-		log.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
-	}
-
-	if !config.GetBool("enable_sketch_stream_payload_serialization") {
-		log.Warn("'enable_sketch_stream_payload_serialization' is set to false which is not recommended. This option is deprecated and will removed in the future. If you need this option, please reach out to support")
+		logger.Warn("JSON to V1 intake is disabled: all payloads to that endpoint will be dropped")
 	}
 
 	return s
-}
-
-func (s Serializer) serializePayload(
-	jsonMarshaler marshaler.JSONMarshaler,
-	protoMarshaler marshaler.ProtoMarshaler,
-	compress bool,
-	useV1API bool,
-) (transaction.BytesPayloads, http.Header, error) {
-	if useV1API {
-		return s.serializePayloadJSON(jsonMarshaler, compress)
-	}
-	return s.serializePayloadProto(protoMarshaler, compress)
 }
 
 func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compress bool) (transaction.BytesPayloads, http.Header, error) {
@@ -208,18 +178,8 @@ func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compre
 	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
 }
 
-func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, compress bool) (transaction.BytesPayloads, http.Header, error) {
-	var extraHeaders http.Header
-	if compress {
-		extraHeaders = s.protobufExtraHeadersWithCompression
-	} else {
-		extraHeaders = s.protobufExtraHeaders
-	}
-	return s.serializePayloadInternal(payload, compress, extraHeaders, split.ProtoMarshalFct)
-}
-
 func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (transaction.BytesPayloads, http.Header, error) {
-	payloads, err := split.Payloads(payload, compress, marshalFct, s.Strategy)
+	payloads, err := split.Payloads(payload, compress, marshalFct, s.Strategy, s.logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
 	}
@@ -248,7 +208,7 @@ func (s Serializer) serializeIterableStreamablePayload(payload marshaler.Iterabl
 //
 // If none of the previous methods work, we fallback to the old serialization method (Serializer.serializePayload).
 func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
-	eventsSerializer metricsserializer.Events, useV1API bool,
+	eventsSerializer metricsserializer.Events,
 ) (transaction.BytesPayloads, http.Header, error) {
 	marshaler := eventsSerializer.CreateSingleMarshaler()
 	eventPayloads, extraHeaders, err := s.serializeStreamablePayload(marshaler, stream.FailOnErrItemTooBig)
@@ -259,7 +219,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 		// Do not use CreateMarshalersBySourceType when there are too many source types (Performance issue).
 		if marshaler.Len() > maxItemCountForCreateMarshalersBySourceType {
 			expvarsSendEventsErrItemTooBigsFallback.Add(1)
-			eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, useV1API)
+			eventPayloads, extraHeaders, err = s.serializePayloadJSON(eventsSerializer, true)
 		} else {
 			eventPayloads = nil
 			for _, v := range eventsSerializer.CreateMarshalersBySourceType() {
@@ -278,23 +238,16 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(events event.Events) error {
 	if !s.enableEvents {
-		log.Debug("events payloads are disabled: dropping it")
+		s.logger.Debug("events payloads are disabled: dropping it")
 		return nil
 	}
-
-	var eventPayloads transaction.BytesPayloads
-	var extraHeaders http.Header
-	var err error
 
 	eventsSerializer := metricsserializer.Events{
 		EventsArr: events,
 		Hostname:  s.hostname,
 	}
-	if s.enableEventsJSONStream {
-		eventPayloads, extraHeaders, err = s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer, true)
-	} else {
-		eventPayloads, extraHeaders, err = s.serializePayload(eventsSerializer, eventsSerializer, true, true)
-	}
+
+	eventPayloads, extraHeaders, err := s.serializeEventsStreamJSONMarshalerPayload(eventsSerializer)
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
@@ -305,20 +258,13 @@ func (s *Serializer) SendEvents(events event.Events) error {
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error {
 	if !s.enableServiceChecks {
-		log.Debug("service_checks payloads are disabled: dropping it")
+		s.logger.Debug("service_checks payloads are disabled: dropping it")
 		return nil
 	}
 
 	serviceChecksSerializer := metricsserializer.ServiceChecks(serviceChecks)
-	var serviceCheckPayloads transaction.BytesPayloads
-	var extraHeaders http.Header
-	var err error
 
-	if s.enableServiceChecksJSONStream {
-		serviceCheckPayloads, extraHeaders, err = s.serializeStreamablePayload(serviceChecksSerializer, stream.DropItemOnErrItemTooBig)
-	} else {
-		serviceCheckPayloads, extraHeaders, err = s.serializePayloadJSON(serviceChecksSerializer, true)
-	}
+	serviceCheckPayloads, extraHeaders, err := s.serializeStreamablePayload(serviceChecksSerializer, stream.DropItemOnErrItemTooBig)
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
 	}
@@ -334,7 +280,7 @@ func (s *Serializer) AreSeriesEnabled() bool {
 // SendIterableSeries serializes a list of series and sends the payload to the forwarder
 func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	if !s.AreSeriesEnabled() {
-		log.Debug("series payloads are disabled: dropping it")
+		s.logger.Debug("series payloads are disabled: dropping it")
 		return nil
 	}
 
@@ -345,10 +291,8 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	var extraHeaders http.Header
 	var err error
 
-	if useV1API && s.enableJSONStream {
+	if useV1API {
 		seriesBytesPayloads, extraHeaders, err = s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
-	} else if useV1API && !s.enableJSONStream {
-		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
 		failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
 		failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
@@ -412,11 +356,19 @@ func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
 	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
 	var allowlist map[string]struct{}
-	if autoscalingFailoverEnabled && s.config.IsSet("autoscaling.failover.metrics") {
-		rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
-		allowlist = make(map[string]struct{}, len(rawList))
-		for _, allowed := range rawList {
-			allowlist[allowed] = struct{}{}
+	if autoscalingFailoverEnabled {
+		if s.config.IsConfigured("autoscaling.failover.metrics") {
+			rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+			allowlist = make(map[string]struct{}, len(rawList))
+			for _, allowed := range rawList {
+				allowlist[allowed] = struct{}{}
+			}
+		} else {
+			s.logger.Info("Local autoscaling.failover.enabled is set but no metrics are configured. Defaulting to container.memory.usage and container.cpu.usage")
+			allowlist = map[string]struct{}{
+				"container.memory.usage": {},
+				"container.cpu.usage":    {},
+			}
 		}
 	}
 	return autoscalingFailoverEnabled, allowlist
@@ -430,46 +382,36 @@ func (s *Serializer) AreSketchesEnabled() bool {
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	if !s.AreSketchesEnabled() {
-		log.Debug("sketches payloads are disabled: dropping it")
+		s.logger.Debug("sketches payloads are disabled: dropping it")
 		return nil
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
-	if s.enableSketchProtobufStream {
-		failoverActive, allowlist := s.getFailoverAllowlist()
-		if failoverActive && len(allowlist) > 0 {
-			payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
-				_, allowed := allowlist[ss.Name]
-				return allowed
-			})
-			if err != nil {
-				return fmt.Errorf("dropping sketch payload: %v", err)
-			}
-			for _, payload := range payloads {
-				payload.Destination = transaction.PrimaryOnly
-			}
-			for _, payload := range filteredPayloads {
-				payload.Destination = transaction.SecondaryOnly
-			}
-			payloads = append(payloads, filteredPayloads...)
 
-			return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
-		} else {
-			payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
-			if err != nil {
-				return fmt.Errorf("dropping sketch payload: %v", err)
-			}
-
-			return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
-		}
-	} else {
-		//nolint:revive // TODO(AML) Fix revive linter
-		compress := true
-		splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
+	failoverActive, allowlist := s.getFailoverAllowlist()
+	if failoverActive && len(allowlist) > 0 {
+		payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
+			_, allowed := allowlist[ss.Name]
+			return allowed
+		}, s.logger)
 		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %s", err)
+			return fmt.Errorf("dropping sketch payload: %v", err)
+		}
+		for _, payload := range payloads {
+			payload.Destination = transaction.PrimaryOnly
+		}
+		for _, payload := range filteredPayloads {
+			payload.Destination = transaction.SecondaryOnly
+		}
+		payloads = append(payloads, filteredPayloads...)
+
+		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+	} else {
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy, s.logger)
+		if err != nil {
+			return fmt.Errorf("dropping sketch payload: %v", err)
 		}
 
-		return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
+		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
 	}
 }
 
@@ -494,7 +436,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
 
-	log.Debugf("Sending metadata payload, content: %v", string(payload))
+	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
 
 	if mustSplit {
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
@@ -504,7 +446,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 		return err
 	}
 
-	log.Debugf("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
+	s.logger.Debugf("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
 	return nil
 }
 
@@ -512,7 +454,7 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 // Used only by the legacy processes metadata collector.
 func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if !s.enableJSONToV1Intake {
-		log.Debug("JSON to V1 intake endpoint payloads are disabled: dropping it")
+		s.logger.Debug("JSON to V1 intake endpoint payloads are disabled: dropping it")
 		return nil
 	}
 
@@ -529,7 +471,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 		return err
 	}
 
-	log.Debugf("Sent processes metadata payload, size: %d bytes, content: %v", len(payload), string(payload))
+	s.logger.Debugf("Sent processes metadata payload, size: %d bytes, content: %v", len(payload), string(payload))
 	return nil
 }
 
@@ -543,12 +485,12 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 	for _, m := range msgs {
 		payloads, extraHeaders, err := makeOrchestratorPayloads(m, hostName, clusterID)
 		if err != nil {
-			return log.Errorf("Unable to encode message: %s", err)
+			return s.logger.Errorf("Unable to encode message: %s", err)
 		}
 
 		responses, err := orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
-			return log.Errorf("Unable to submit payload: %s", err)
+			return s.logger.Errorf("Unable to submit payload: %s", err)
 		}
 
 		// Consume the responses so that writers to the channel do not become blocked
@@ -569,13 +511,13 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 	for _, m := range msgs {
 		payloads, extraHeaders, err := makeOrchestratorPayloads(m, hostName, clusterID)
 		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
+			s.logger.Errorf("Unable to encode message: %s", err)
 			continue
 		}
 
 		responses, err := orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
-			return log.Errorf("Unable to submit payload: %s", err)
+			return s.logger.Errorf("Unable to submit payload: %s", err)
 		}
 
 		// Consume the responses so that writers to the channel do not become blocked

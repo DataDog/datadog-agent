@@ -14,11 +14,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -88,7 +89,12 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
-		d.extraTags = append(d.extraTags, fmt.Sprintf("kube_cluster_name:%s", clusterTagValue))
+		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
+	}
+
+	clusterIDTagValue, _ := clustername.GetClusterID()
+	if clusterIDTagValue != "" {
+		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}
 
 	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
@@ -121,7 +127,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			continue // Ignore non cluster-check configs
 		}
 
-		if c.HasFilter(containers.MetricsFilter) || c.HasFilter(containers.GlobalFilter) {
+		if c.HasFilter(workloadfilter.MetricsFilter) || c.HasFilter(workloadfilter.GlobalFilter) {
 			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
 			continue
 		}

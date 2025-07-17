@@ -98,7 +98,7 @@ func TestUpstreamRequest(t *testing.T) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar","baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"],"container_tags":["baz:qux"]}}}`,
 		},
 		{
 			name:                    "tracer tags only",
@@ -114,7 +114,7 @@ func TestUpstreamRequest(t *testing.T) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","container_tags":["baz:qux"]}}}`,
 		},
 		{
 			name:                    "no tracer",
@@ -126,6 +126,12 @@ func TestUpstreamRequest(t *testing.T) {
 			name:                    "tracer service and env are normalized",
 			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test ww w@","env":"test@ww","tags":["foo:bar"]}}}`,
 			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test_ww_w","env":"test_ww","tags":["foo:bar"]}}}`,
+			cfg:                     &config.AgentConfig{},
+		},
+		{
+			name:                    "process tags",
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"33","process_tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"33","process_tags":["foo:bar"]}}}`,
 			cfg:                     &config.AgentConfig{},
 		},
 	}

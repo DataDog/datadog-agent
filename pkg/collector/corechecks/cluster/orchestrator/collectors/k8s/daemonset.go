@@ -11,7 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
@@ -20,9 +22,9 @@ import (
 )
 
 // NewDaemonSetCollectorVersions builds the group of collector versions.
-func NewDaemonSetCollectorVersions() collectors.CollectorVersions {
+func NewDaemonSetCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDaemonSetCollector(),
+		NewDaemonSetCollector(metadataAsTags),
 	)
 }
 
@@ -36,17 +38,25 @@ type DaemonSetCollector struct {
 
 // NewDaemonSetCollector creates a new collector for the Kubernetes DaemonSet
 // resource.
-func NewDaemonSetCollector() *DaemonSetCollector {
+func NewDaemonSetCollector(metadataAsTags utils.MetadataAsTags) *DaemonSetCollector {
+	resourceType := getResourceType(daemonSetName, daemonSetVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "daemonsets",
-			NodeType:                  orchestrator.K8sDaemonSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 daemonSetName,
+			Kind:                                 kubernetes.DaemonSetKind,
+			NodeType:                             orchestrator.K8sDaemonSet,
+			Version:                              daemonSetVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
 	}
@@ -75,9 +85,14 @@ func (c *DaemonSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *DaemonSetCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -85,7 +100,7 @@ func (c *DaemonSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

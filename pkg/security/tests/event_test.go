@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -281,6 +283,89 @@ func TestEventIteratorRegister(t *testing.T) {
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_2")
 		})
+	})
+}
+
+func TestEventProductTags(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:          "rule_tags_match",
+			Expression:  `open.file.path == "{{.Root}}/test-tags-match" && open.flags&O_CREAT == O_CREAT && event.rule.tags in ["tag:match"]`,
+			ProductTags: []string{"tag:match"},
+		},
+		{
+			ID:          "rule_tags_no_match",
+			Expression:  `open.file.path == "{{.Root}}/test-tags-no-match" && open.flags&O_CREAT == O_CREAT && event.rule.tags in ["tag:match"]`,
+			ProductTags: []string{"tag:no-match"},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFileTagsMatch, _, err := test.Path("test-tags-match")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFileTagsNoMatch, _, err := test.Path("test-tags-no-match")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("match", func(t *testing.T) {
+		test.msgSender.flush()
+		err := test.GetEventSent(t, func() error {
+			f, err := os.OpenFile(testFileTagsMatch, os.O_CREATE, 0)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(rule *rules.Rule, _ *model.Event) bool {
+			assert.Contains(t, rule.Tags, "tag:match")
+			return true
+		}, getEventTimeout, "rule_tags_match")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("rule_tags_match")
+			if msg == nil {
+				return errors.New("not found")
+			}
+
+			assert.Contains(t, msg.Tags, "tag:match")
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("no-match", func(t *testing.T) {
+		test.msgSender.flush()
+		err := test.GetEventSent(t, func() error {
+			f, err := os.OpenFile(testFileTagsNoMatch, os.O_CREATE, 0)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			t.Error("should not have received any event")
+			return true
+		}, 3*time.Second, "rule_tags_no_match")
+		if err != nil {
+			if otherErr, ok := err.(ErrTimeout); !ok {
+				t.Fatal(otherErr)
+			}
+		}
 	})
 }
 

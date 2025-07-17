@@ -11,16 +11,18 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), error) { //nolint:revive // TODO
+// NewFileConfigManager creates a new FileConfigManager
+func NewFileConfigManager(pm process.Subscriber, configFile string) (*ReaderConfigManager, func(), error) {
 	stopChan := make(chan bool)
 	stop := func() {
 		stopChan <- true
 	}
 
-	cm, err := NewReaderConfigManager()
+	cm, err := NewReaderConfigManager(pm)
 	if err != nil {
 		return nil, stop, err
 	}
@@ -35,7 +37,10 @@ func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), erro
 		for {
 			select {
 			case rawBytes := <-updateChan:
-				cm.ConfigWriter.Write(rawBytes) //nolint:errcheck // TODO
+				_, err := cm.ConfigWriter.Write(rawBytes)
+				if err != nil {
+					log.Errorf("Error writing config file %s: %s", configFile, err)
+				}
 			case <-stopChan:
 				log.Info("stopping file config manager")
 				fw.Stop()

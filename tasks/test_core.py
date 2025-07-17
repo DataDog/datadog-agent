@@ -1,30 +1,31 @@
 from __future__ import annotations
 
 import abc
-import json
 import os
-from collections import defaultdict
-from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import running_in_ci
+from tasks.libs.testing.result_json import ResultJson
 from tasks.modules import GoModule
 
+DEFAULT_TEST_OUTPUT_JSON = "test_output.json"
+DEFAULT_E2E_TEST_OUTPUT_JSON = "e2e_test_output.json"
 
-class ModuleResult(abc.ABC):
+
+class ExecResult(abc.ABC):
     def __init__(self, path):
         # The full path of the module
         self.path = path
-        # Whether the command failed for that module
+        # Whether the command failed
         self.failed = False
         # String for representing the result type in printed output
         self.result_type = "generic"
 
     def failure_string(self, flavor):
-        return color_message(f"{self.result_type} for module {self.path} failed ({flavor.name} flavor)\n", "red")
+        return color_message(f"{self.result_type} failed ({flavor.name} flavor)\n", "red")
 
     @abc.abstractmethod
     def get_failure(self, flavor):  # noqa: U100
@@ -36,7 +37,7 @@ class ModuleResult(abc.ABC):
         pass
 
 
-class ModuleLintResult(ModuleResult):
+class LintResult(ExecResult):
     def __init__(self, path):
         super().__init__(path)
         self.result_type = "Linters"
@@ -57,103 +58,48 @@ class ModuleLintResult(ModuleResult):
         return self.failed, failure_string
 
 
-class ModuleTestResult(ModuleResult):
+class TestResult(ExecResult):
     def __init__(self, path):
         super().__init__(path)
         self.result_type = "Tests"
         # Path to the result.json file output by gotestsum (should always be present)
-        self.result_json_path = None
-        # Path to the junit file output by gotestsum (only present if specified in inv test)
-        self.junit_file_path = None
+        self.result_json_path: str | None = None
+
+    def get_failing_tests(self) -> tuple[set[str], dict[str, set[str]]]:
+        obj: ResultJson = ResultJson.from_file(self.result_json_path)
+        return obj.failing_packages, obj.failing_tests
 
     def get_failure(self, flavor):
         failure_string = ""
 
-        if self.failed:
-            failure_string = self.failure_string(flavor)
-            failed_packages = set()
-            failed_tests = defaultdict(set)
+        if not self.failed:
+            return self.failed, failure_string
 
-            # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
-            # here, in system-probe.py, and in libs/pipeline_notifications.py
-            # We should have some common result.json parsing lib.
-            if self.result_json_path is not None and os.path.exists(self.result_json_path):
-                with open(self.result_json_path, encoding="utf-8") as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        # This logic assumes that the lines in result.json are "in order", i.e. that retries
-                        # are logged after the initial test run.
+        if self.result_json_path is None or not os.path.exists(self.result_json_path):
+            failure_string += "No result json saved, cannot determine whether tests failed or not."
+            return self.failed, failure_string
 
-                        # The line is a "Package" line, but not a "Test" line.
-                        # We take these into account, because in some cases (panics, race conditions),
-                        # individual test failures are not reported, only a package-level failure is.
-                        if 'Package' in json_test and 'Test' not in json_test:
-                            package = json_test['Package']
-                            action = json_test["Action"]
+        failure_string = self.failure_string(flavor)
 
-                            if action == "fail":
-                                failed_packages.add(package)
-                            elif action == "pass" and package in failed_tests:
-                                # The package was retried and fully succeeded, removing from the list of packages to report
-                                failed_packages.remove(package)
+        failed_packages, failed_tests = self.get_failing_tests()
 
-                        # The line is a "Test" line.
-                        elif 'Package' in json_test and 'Test' in json_test:
-                            name = json_test['Test']
-                            package = json_test['Package']
-                            action = json_test["Action"]
-                            if action == "fail":
-                                failed_tests[package].add(name)
-                            elif action == "pass" and name in failed_tests.get(package, set()):
-                                # The test was retried and succeeded, removing from the list of tests to report
-                                failed_tests[package].remove(name)
+        if not failed_packages:
+            failure_string += "The test command failed, but no test failures detected in the result json."
+            return self.failed, failure_string
 
-            if failed_packages:
-                failure_string += "Test failures:\n"
-                for package in sorted(failed_packages):
-                    tests = failed_tests.get(package, set())
-                    if not tests:
-                        failure_string += f"- {package} package failed due to panic / race condition\n"
-                    else:
-                        for name in sorted(tests):
-                            failure_string += f"- {package} {name}\n"
-
-                            if running_in_ci():
-                                failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
+        failure_string += "Test failures:\n"
+        for package in sorted(failed_packages):
+            tests = failed_tests.get(package, set())
+            if not tests:
+                failure_string += f"- {package} package failed due to panic / race condition\n"
             else:
-                failure_string += "The test command failed, but no test failures detected in the result json."
+                for name in sorted(tests):
+                    failure_string += f"- {package} {name}\n"
+
+                    if running_in_ci():
+                        failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
 
         return self.failed, failure_string
-
-
-def test_core(
-    modules: Iterable[GoModule],
-    flavor: AgentFlavor,
-    module_class: GoModule,
-    operation_name: str,
-    command,
-    skip_module_class: bool = False,
-    headless_mode: bool = False,
-):
-    """
-    Run the command function on each module of the modules list.
-    """
-    modules_results = []
-    if not headless_mode:
-        print(f"--- Flavor {flavor.name}: {operation_name}")
-    for module in modules:
-        module_result = None
-        if not skip_module_class:
-            module_result = module_class(path=module.full_path())
-        if not headless_mode:
-            skipped_header = "[Skipped]" if not module.should_test() else ""
-            print(f"----- {skipped_header} Module '{module.full_path()}'")
-        if not module.should_test():
-            continue
-
-        command(modules_results, module, module_result)
-
-    return modules_results
 
 
 def process_input_args(
@@ -167,7 +113,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from inv test and inv coverage.upload-to-codecov,
+    Takes the input module, targets and flavor arguments from dda inv test and dda inv coverage.upload-to-codecov,
     sets default values for them & casts them to the expected types.
     """
     if only_modified_packages:
@@ -198,17 +144,16 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results):
+def process_result(flavor: AgentFlavor, result: ExecResult):
     """
-    Prints failures in module results, and returns False if at least one module failed.
+    Prints failures in results, and returns False if the result is a failure.
     """
 
-    success = True
-    for module_result in module_results:
-        if module_result is not None:
-            module_failed, failure_string = module_result.get_failure(flavor)
-            success = success and (not module_failed)
-            if module_failed:
-                print(failure_string)
+    if result is None:
+        return True
 
-    return success
+    failed, failure_string = result.get_failure(flavor)
+    if failed:
+        print(failure_string)
+
+    return not failed

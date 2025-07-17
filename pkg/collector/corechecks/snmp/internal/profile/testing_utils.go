@@ -8,10 +8,13 @@
 package profile
 
 import (
+	"bufio"
+	"bytes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"regexp"
-
-	"github.com/mohae/deepcopy"
+	"strings"
+	"testing"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -20,7 +23,7 @@ import (
 
 // CopyProfileDefinition copies a profile, it's used for testing
 func CopyProfileDefinition(profileDef profiledefinition.ProfileDefinition) profiledefinition.ProfileDefinition {
-	return deepcopy.Copy(profileDef).(profiledefinition.ProfileDefinition)
+	return *profileDef.Clone()
 }
 
 // SetConfdPathAndCleanProfiles is used for testing only
@@ -198,4 +201,115 @@ func FixtureProfileDefinitionMap() ProfileConfigMap {
 			IsUserProfile: true,
 		},
 	}
+}
+
+// LogValidator provides assertion helpers against captured log messages.
+type LogValidator struct {
+	b *bytes.Buffer
+	w *bufio.Writer
+	l log.LoggerInterface
+}
+
+// TrapLogs creates a LogValidator and sets it as the agent-wide logger.
+func TrapLogs(t testing.TB, level log.LogLevel) LogValidator {
+	t.Helper()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, level, "[%LEVEL] %FuncShort: %Msg")
+	if err != nil {
+		t.Errorf("Failed to create a logger: %v", err)
+		return LogValidator{}
+	}
+	log.SetupLogger(l, level.String())
+	return LogValidator{b: &b, w: w, l: l}
+}
+
+// LogCount represents a log message and the expected number of times it should occur.
+type LogCount struct {
+	log   string
+	count int
+}
+
+// GetLogs flushes the logs writer and returns all logs captured so far as a string.
+func (lv *LogValidator) GetLogs() (string, error) {
+	err := lv.w.Flush()
+	if err != nil {
+		return "", err
+	}
+	return lv.b.String(), nil
+}
+
+// AssertAbsent t.Error()s if any of the given strings appears in the logs.
+// It will print out the full logs only if it finds an error.
+func (lv *LogValidator) AssertAbsent(t testing.TB, unexpected ...string) bool {
+	t.Helper()
+	logs, err := lv.GetLogs()
+	if err != nil {
+		t.Errorf("Failed to get logs: %v", err)
+		return false
+	}
+	ok := true
+	for _, line := range unexpected {
+		if strings.Contains(logs, line) {
+			ok = false
+			t.Errorf("Unexpected log message: %q", line)
+		}
+	}
+	if !ok {
+		t.Log("Full logs:\n", logs)
+	}
+	return ok
+}
+
+// AssertPresent t.Error()s if any expected string never appeared in the logs.
+// It will print out the full logs only if at least one string is missing.
+func (lv *LogValidator) AssertPresent(t testing.TB, expected ...string) bool {
+	t.Helper()
+	logs, err := lv.GetLogs()
+	if err != nil {
+		t.Errorf("Failed to get logs: %v", err)
+		return false
+	}
+	ok := true
+	for _, line := range expected {
+		if !strings.Contains(logs, line) {
+			ok = false
+			t.Errorf("Missing log message: %q", line)
+		}
+	}
+	if !ok {
+		t.Log("Full logs:\n", logs)
+	}
+	return ok
+}
+
+// AssertContains asserts that each expected line in LogCount appears the
+// expected number of times, printing useful messages if not. This will only
+// print out the full logs if any of the assertions fail, and will only print
+// the full logs once even if many assertions fail.
+func (lv *LogValidator) AssertContains(t testing.TB, expected []LogCount) bool {
+	t.Helper()
+	logs, err := lv.GetLogs()
+	if err != nil {
+		t.Errorf("Failed to get logs: %v", err)
+		return false
+	}
+	ok := true
+	for _, aLogCount := range expected {
+		n := strings.Count(logs, aLogCount.log)
+		if n == 0 && aLogCount.count > 0 {
+			ok = false
+			t.Errorf("Missing log message: %q", aLogCount.log)
+		} else if aLogCount.count == 0 && n != 0 {
+			ok = false
+			t.Errorf("Unexpected log message: %q", aLogCount.log)
+		} else if aLogCount.count != n {
+			ok = false
+			t.Errorf("Unexpected log message count (expected %d, got %d): %q", aLogCount.count, n, aLogCount.log)
+		}
+	}
+	if !ok {
+		t.Log("Full logs:\n", logs)
+	}
+	return ok
 }

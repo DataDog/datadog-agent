@@ -28,7 +28,6 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -137,7 +136,7 @@ func TestOffsetGuess(t *testing.T) {
 
 func testOffsetGuess(t *testing.T) {
 	cfg := testConfig()
-	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg), statsd.Client)
+	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg))
 	require.NoError(t, err)
 	defer buf.Close()
 
@@ -300,7 +299,7 @@ func testOffsetGuess(t *testing.T) {
 			}
 
 			var offset uint64
-			var name offsetT = o //nolint:revive // TODO
+			var name = o
 			require.NoError(t, mp.Lookup(&name, &offset))
 			assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
 			t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])

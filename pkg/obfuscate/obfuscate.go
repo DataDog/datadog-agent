@@ -14,16 +14,23 @@ package obfuscate
 
 import (
 	"bytes"
+	"encoding/json"
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+// Version is an incrementing integer to identify this "version" of obfuscation logic. This is used to avoid obfuscation
+// conflicts and ensure that clients of the obfuscator can decide where obfuscation should occur.
+const Version = 1
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
 	opts                 *Config
+	sqlOptsStr           string          // string representation of the options, used for caching
 	es                   *jsonObfuscator // nil if disabled
 	openSearch           *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
@@ -90,6 +97,9 @@ type Config struct {
 
 	// Redis holds the obfuscation settings for Redis commands.
 	Redis RedisConfig `mapstructure:"redis"`
+
+	// Valkey holds the obfuscation settings for Valkey commands.
+	Valkey ValkeyConfig `mapstructure:"valkey"`
 
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig `mapstructure:"memcached"`
@@ -232,6 +242,16 @@ type RedisConfig struct {
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
+// ValkeyConfig holds the configuration settings for Valkey obfuscation
+type ValkeyConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Valkey
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
 // MemcachedConfig holds the configuration settings for Memcached obfuscation
 type MemcachedConfig struct {
 	// Enabled specifies whether this feature should be enabled.
@@ -287,8 +307,17 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	if cfg.Logger == nil {
 		cfg.Logger = noopLogger{}
 	}
+	optsStr := ""
+	optsBytes, err := json.Marshal(cfg.SQL)
+	if err == nil {
+		optsStr = string(optsBytes)
+	} else {
+		log.Errorf("failed to marshal obfuscation config: %v", err)
+	}
+
 	o := Obfuscator{
 		opts:              &cfg,
+		sqlOptsStr:        optsStr,
 		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,

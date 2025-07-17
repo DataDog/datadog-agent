@@ -74,6 +74,9 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOsOrigin",
 			"~TestSpan",
 			"~TestChdir",
+			"~TestBindEvent",
+			"~TestAccept",
+			"~TestConnect",
 			"TestMountEvent",
 			"TestMount",
 			"TestMountPropagated",
@@ -104,7 +107,10 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoginUID/login-uid-exec-test",
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
-			"~TestAcceptEvent",
+			"~TestProcessInterpreter",
+			"~TestConnectEvent/io-uring",
+			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
+			"TestOpenTree",
 		}
 
 		if disableSeccomp {

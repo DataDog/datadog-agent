@@ -18,7 +18,7 @@ var kv = kernel.MustHostVersion()
 // Config returns a network.Config setup for test purposes
 func Config() *config.Config {
 	cfg := config.New()
-	if env.IsECSFargate() {
+	if env.IsECSFargate() || cfg.EnableEbpfless {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}

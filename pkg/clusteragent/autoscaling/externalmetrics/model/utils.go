@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
@@ -34,7 +35,7 @@ func formatDatadogMetricValue(v float64) string {
 type tagGetter func(context.Context) (string, error)
 
 var templatedTags = map[string]tagGetter{
-	"kube_cluster_name": func(ctx context.Context) (string, error) {
+	tags.KubeClusterName: func(ctx context.Context) (string, error) {
 		hname, err := hostname.Get(ctx)
 		if err != nil {
 			return "", err

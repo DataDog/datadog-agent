@@ -2,44 +2,44 @@ global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cv
 qa_statuses = ["To Do", "In Progress", "Done"]
 ignored_labels = ["qa/done", "qa/no-code-change"]
 
-[teams."Agent Metrics Logs"]
-jira_project = "AMLII"
+[teams."Agent Log Pipelines"]
+jira_project = "AGNTLOG"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-metrics-logs"
-github_labels = ["team/agent-metrics-logs"]
-exclude_members = ["olivielpeau"]
+github_team = "agent-log-pipelines"
+github_labels = ["team/agent-log-pipelines"]
+exclude_members = [""]
 
-[teams."Agent Processing and Routing"]
-jira_project = "APR"
+[teams."Agent Metric Pipelines"]
+jira_project = "AGTMETRICS"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-processing-and-routing"
-github_labels = ["team/agent-processing-and-routing"]
-exclude_members = []
+github_team = "agent-metric-pipelines"
+github_labels = ["team/agent-metric-pipelines"]
+exclude_members = [""]
 
-[teams."Agent Shared Components"]
-jira_project = "ASCII"
+[teams."Agent Runtimes"]
+jira_project = "AGENTRUN"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-shared-components"
-github_labels = ["team/agent-shared-components"]
-exclude_members = ["sgnn7", "truthbk", "cmourot"]
+github_team = "agent-runtimes"
+github_labels = ["team/agent-runtimes"]
+exclude_members = ["sgnn7", "cmourot"]
 
-[teams."Agent Developer Tools"]
-jira_project = "ADXT"
+[teams."Agent Configuration"]
+jira_project = "AGENTCFG"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-devx-loops"
-github_labels = ["team/agent-devx-loops"]
-exclude_members = []
+github_team = "agent-configuration"
+github_labels = ["team/agent-configuration"]
+exclude_members = ["sgnn7"]
 
-[teams."Agent CI Experience"]
+[teams."Agent Developer Experience"]
 jira_project = "ACIX"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-devx-infra"
-github_labels = ["team/agent-devx-infra"]
+github_team = "agent-devx"
+github_labels = ["team/agent-devx"]
 exclude_members = []
 
 [teams."Agent Delivery"]
@@ -49,6 +49,20 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-delivery"
 github_labels = ["team/agent-delivery"]
 exclude_members = ["KSerrania"]
+
+[teams."Agent Build"]
+jira_project = "ABLD"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-build"
+github_labels = ["team/agent-build"]
+
+[teams."Agent Discovery"]
+jira_project = "DSCVR"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-discovery"
+github_labels = ["team/agent-discovery"]
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMON"
@@ -102,14 +116,6 @@ jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
 exclude_members = ["ofek", "alopezz"]
-
-[teams."Platform Integrations"]
-jira_project = "PLINT"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "platform-integrations"
-github_labels = ["team/platform-integrations"]
-exclude_members = ["hithwen"]
 
 [teams."APM"]
 jira_project = "APMSP"
@@ -176,12 +182,12 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
-[teams."Container Intake"]
-jira_project = "CTK"
+[teams."Container Experiences"]
+jira_project = "CXP"
 jira_issue_type = "Task"
 jira_statuses = ["TRIAGE", "In Progress", "Done"]
-github_team = "container-intake"
-github_labels = ["team/container-intake"]
+github_team = "container-experiences"
+github_labels = ["team/container-experiences"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"
@@ -189,13 +195,6 @@ jira_issue_type = "QA Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
-
-[teams."Windows Kernel Integrations"]
-jira_project = "WKINT"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "windows-kernel-integrations"
-github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
 jira_project = "DBMON"

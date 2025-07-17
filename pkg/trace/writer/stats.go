@@ -43,10 +43,11 @@ const (
 // DatadogStatsWriter ingests stats buckets, combining them over time and flushing them to the API.
 // This implements the stats.Writer interface.
 type DatadogStatsWriter struct {
-	senders []*sender
-	stop    chan struct{}
-	stats   *info.StatsWriterInfo
-	conf    *config.AgentConfig
+	senders         []*sender
+	stop            chan struct{}
+	stats           *info.StatsWriterInfo
+	statsLastMinute *info.StatsWriterInfo // aggregated stats over the last minute. Shared with info package
+	conf            *config.AgentConfig
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -67,14 +68,15 @@ func NewStatsWriter(
 	timing timing.Reporter,
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
-		stats:     &info.StatsWriterInfo{},
-		stop:      make(chan struct{}),
-		flushChan: make(chan chan struct{}),
-		syncMode:  cfg.SynchronousFlushing,
-		easylog:   log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
-		conf:      cfg,
-		statsd:    statsd,
-		timing:    timing,
+		stats:           &info.StatsWriterInfo{},
+		statsLastMinute: &info.StatsWriterInfo{},
+		stop:            make(chan struct{}),
+		flushChan:       make(chan chan struct{}),
+		syncMode:        cfg.SynchronousFlushing,
+		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		conf:            cfg,
+		statsd:          statsd,
+		timing:          timing,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -109,6 +111,8 @@ func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
 // Run starts the DatadogStatsWriter, making it ready to receive stats and report w.statsd.
 func (w *DatadogStatsWriter) Run() {
 	t := time.NewTicker(5 * time.Second)
+	info.UpdateStatsWriterInfo(w.statsLastMinute)
+	var lastReset time.Time
 	defer t.Stop()
 	defer close(w.stop)
 	for {
@@ -116,7 +120,11 @@ func (w *DatadogStatsWriter) Run() {
 		case notify := <-w.flushChan:
 			w.sendPayloads()
 			notify <- struct{}{}
-		case <-t.C:
+		case now := <-t.C:
+			if now.Sub(lastReset) >= time.Minute {
+				w.statsLastMinute.Reset()
+				lastReset = now
+			}
 			w.report()
 		case <-w.stop:
 			return
@@ -175,6 +183,8 @@ func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 }
 
 func (w *DatadogStatsWriter) sendPayloads() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	for _, p := range w.payloads {
 		w.SendPayload(p)
 	}
@@ -356,6 +366,9 @@ func splitPayload(p *pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSt
 var _ eventRecorder = (*DatadogStatsWriter)(nil)
 
 func (w *DatadogStatsWriter) report() {
+	// update aggregated stats before reseting them.
+	w.statsLastMinute.Acc(w.stats)
+
 	_ = w.statsd.Count("datadog.trace_agent.stats_writer.client_payloads", w.stats.ClientPayloads.Swap(0), nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.stats_writer.payloads", w.stats.Payloads.Swap(0), nil, 1)
 	_ = w.statsd.Count("datadog.trace_agent.stats_writer.stats_buckets", w.stats.StatsBuckets.Swap(0), nil, 1)

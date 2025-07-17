@@ -7,6 +7,7 @@
 package model
 
 import (
+	"encoding/binary"
 	"runtime"
 	"testing"
 
@@ -30,4 +31,19 @@ func BenchmarkNullTerminatedString(b *testing.B) {
 		s = NullTerminatedString(array)
 	}
 	runtime.KeepAlive(s)
+}
+
+func BenchmarkUnmarshalStringArray(b *testing.B) {
+	var data []byte
+	for range 4096 {
+		data = binary.NativeEndian.AppendUint32(data, 4)
+		data = append(data, []byte("test")...)
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err := UnmarshalStringArray(data)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

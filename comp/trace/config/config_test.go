@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
@@ -31,9 +32,16 @@ import (
 	"gopkg.in/yaml.v2"
 
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -154,7 +162,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url", func(t *testing.T) {
@@ -214,7 +222,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
@@ -237,7 +245,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
@@ -264,7 +272,7 @@ func TestConfigHostname(t *testing.T) {
 			fallbackHostnameFunc = os.Hostname
 		}()
 
-		taggerComponent := taggermock.SetupFakeTagger(t)
+		taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 		fxutil.TestStart(t, fx.Options(
 			corecomp.MockModule(),
@@ -276,6 +284,7 @@ func TestConfigHostname(t *testing.T) {
 				return taggerComponent
 			}),
 			MockModule(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
@@ -365,6 +374,9 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
+		if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+			t.Skip("TestConfigHostname/external is known to fail on the macOS Gitlab runners.")
+		}
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
@@ -399,7 +411,6 @@ func TestConfigHostname(t *testing.T) {
 		fallbackHostnameFunc = func() (string, error) { return "fallback.host", nil }
 
 		t.Run("good", func(t *testing.T) {
-			t.Skip("Skip flaky test while we explore fixes.")
 			bin := makeProgram(t, "host.name", 0)
 			defer os.Remove(bin)
 
@@ -474,8 +485,8 @@ func TestSite(t *testing.T) {
 		file string
 		url  string
 	}{
-		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
-		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
+		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com."},
+		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu."},
 		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
 		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
 		"vector":   {"./testdata/observability_pipelines_worker_override.yaml", "https://observability_pipelines_worker.domain.tld:8443"},
@@ -570,22 +581,16 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
+	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
-	noProxy := true
-	if _, ok := os.LookupEnv("NO_PROXY"); ok {
-		// Happens in CircleCI: if the environment variable is set,
-		// it will overwrite our loaded configuration and will cause
-		// this test to fail.
-		noProxy = false
-	}
 	assert.ElementsMatch(t, []*traceconfig.Endpoint{
 		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: true},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
@@ -1661,6 +1666,34 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
+	env = "DD_APM_OBFUSCATION_VALKEY_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled"))
+		assert.True(t, cfg.Obfuscation.Valkey.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{
+			Params: corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+		}))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args"))
+		assert.True(t, cfg.Obfuscation.Valkey.RemoveAllArgs)
+	})
+
 	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "true")
@@ -2224,10 +2257,12 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
 
 	handler := config.GetConfigHandler().(http.HandlerFunc)
+	ipcComp := ipcmock.New(t)
 
 	// Refuse non Get query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
@@ -2247,7 +2282,7 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	// Accept valid auth token and returning a valid YAML conf
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("GET", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 
@@ -2261,10 +2296,12 @@ func TestSetConfigHandler(t *testing.T) {
 	config := buildConfigComponent(t, true, fx.Supply(corecomp.Params{}))
 
 	handler := config.SetHandler().ServeHTTP
+	ipcComp := ipcmock.New(t)
 
 	// Refuse non POST query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
@@ -2284,7 +2321,7 @@ func TestSetConfigHandler(t *testing.T) {
 	// Accept valid auth token return OK
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest("POST", "/config", nil)
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusOK, resp.Code)
 }
@@ -2329,8 +2366,11 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 	}
 
 	taggerComponent := fxutil.Test[taggermock.Mock](t,
-		fx.Replace(coreConfig),
-		taggermock.Module(),
+		fx.Provide(func() corecomp.Component { return coreConfig }),
+		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
 	)
 
 	c := fxutil.Test[Component](t, fx.Options(
@@ -2340,7 +2380,110 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		MockModule(),
 	))
 	return c
+}
+
+func TestMultiRegionFailoverConfig(t *testing.T) {
+	t.Run("default-values", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.enabled": true,
+			"multi_region_failover.site":    "site2",
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// Check that the default values are set correctly
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("default-true-config", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.True(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("default-false-config", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.failover_apm": false,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("mrf-disabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      false,
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// When MRF is disabled, the failover_apm setting should not be applied
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify no MRF endpoint is created when MRF is disabled
+		assert.Len(t, cfg.Endpoints, 1)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+	})
+
+	t.Run("mrf-custom-url", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.dd_url":       "https://custom.mrf.site",
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// Verify MRF endpoint is created with custom URL
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
+	})
 }

@@ -28,12 +28,15 @@ const (
 
 func TestPrintConfigCheck(t *testing.T) {
 	integrationConfigCheckResponse := integration.ConfigCheckResponse{
-		Configs: []integration.Config{
+		Configs: []integration.ConfigResponse{
 			{
-				Instances:    []integration.Data{integration.Data("{foo:bar}")},
-				InitConfig:   integration.Data("{baz:qux}"),
-				LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
-				MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+				InstanceIDs: []string{":3c3de4a3617771b4"},
+				Config: integration.Config{
+					Instances:    []integration.Data{integration.Data("{foo:bar}")},
+					InitConfig:   integration.Data("{baz:qux}"),
+					LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
+					MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+				},
 			},
 		},
 		ConfigErrors: map[string]string{
@@ -42,11 +45,10 @@ func TestPrintConfigCheck(t *testing.T) {
 		ResolveWarnings: map[string][]string{
 			"some_identifier": {"some_warning"},
 		},
-		Unresolved: map[string][]integration.Config{
+		Unresolved: map[string]integration.Config{
 			"unresolved_config": {
-				{
-					Instances: []integration.Data{integration.Data("{unresolved:sad}")},
-				},
+				ADIdentifiers: []string{"unresolved_config"},
+				Instances:     []integration.Data{integration.Data("{unresolved:sad}")},
 			},
 		},
 	}
@@ -83,10 +85,9 @@ Log Config:
 some_identifier
 * some_warning
 
-=== Unresolved Configs ===
+=== Collected configs (matched and unmatched) ===
 
 Auto-discovery IDs: unresolved_config
-Templates:
 check_name: ""
 init_config: null
 instances:
@@ -148,8 +149,8 @@ Log Config:
 				assert.Contains(t, b.String(), "\x1b[31m")
 			} else {
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(test.expected, "\r\n", "\n", -1)
-				output := strings.Replace(b.String(), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(test.expected, "\r\n", "\n")
+				output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			}
@@ -197,10 +198,10 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 
 	for i, test := range testCases {
 		t.Run(fmt.Sprintf("case %d: %s", i, test.name), func(t *testing.T) {
-			config := newConfig(test.configType, test.excluded)
+			config, instancesIDs := newConfig(test.configType, test.excluded)
 
 			var result bytes.Buffer
-			PrintConfig(&result, config, "")
+			PrintConfigWithInstanceIDs(&result, config, instancesIDs, "")
 
 			if test.expectMsg {
 				assert.Contains(t, result.String(), outputMsgs[test.configType])
@@ -211,8 +212,9 @@ func TestContainerExclusionRulesInfo(t *testing.T) {
 	}
 }
 
-func newConfig(configType configType, excluded bool) integration.Config {
+func newConfig(configType configType, excluded bool) (integration.Config, []string) {
 	var config integration.Config
+	var instancesIDs []string
 
 	switch configType {
 	case metricsConfig:
@@ -222,13 +224,15 @@ func newConfig(configType configType, excluded bool) integration.Config {
 			ClusterCheck:    false,
 			MetricsExcluded: excluded,
 		}
+		instancesIDs = []string{"{foo:bar}"}
 	case logsConfig:
 		config = integration.Config{
 			LogsConfig:    integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
 			ADIdentifiers: []string{"some_identifier"},
 			LogsExcluded:  excluded,
 		}
+		instancesIDs = []string{}
 	}
 
-	return config
+	return config, instancesIDs
 }

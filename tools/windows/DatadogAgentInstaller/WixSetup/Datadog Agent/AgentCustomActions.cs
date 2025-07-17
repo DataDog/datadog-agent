@@ -18,6 +18,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction PatchInstaller { get; set; }
 
+        public ManagedAction SetupInstaller { get; set; }
+
+        public ManagedAction EnsureGeneratedFilesRemoved { get; }
+
         public ManagedAction WriteConfig { get; }
 
         public ManagedAction ReadInstallState { get; }
@@ -31,6 +35,12 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction ProcessDdAgentUserCredentialsUI { get; }
 
         public ManagedAction PrepareDecompressPythonDistributions { get; }
+
+        public ManagedAction RunPostInstPythonScript { get; }
+
+        public ManagedAction RunPreRemovePythonScriptRollback { get; }
+
+        public ManagedAction RunPreRemovePythonScript { get; }
 
         public ManagedAction DecompressPythonDistributions { get; }
 
@@ -49,6 +59,10 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction OpenMsiLog { get; }
 
         public ManagedAction SendFlare { get; }
+
+        public ManagedAction InstallOciPackages { get; }
+
+        public ManagedAction RollbackOciPackages { get; }
 
         public ManagedAction WriteInstallInfo { get; }
 
@@ -172,6 +186,21 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             };
 
+            EnsureGeneratedFilesRemoved = new CustomAction<CustomActions>(
+                new Id(nameof(EnsureGeneratedFilesRemoved)),
+                CustomActions.CleanupFiles,
+                Return.check,
+                When.Before,
+                Step.InstallFiles,
+                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
             WriteConfig = new CustomAction<CustomActions>(
                     new Id(nameof(WriteConfig)),
                     CustomActions.WriteConfig,
@@ -242,7 +271,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties(
-                    "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
+                    "PROJECTLOCATION=[PROJECTLOCATION], " +
+                    "embedded3_SIZE=[embedded3_SIZE], " +
+                    "AgentFlavor=[AgentFlavor]");
 
             PrepareDecompressPythonDistributions = new CustomAction<CustomActions>(
                 new Id(nameof(PrepareDecompressPythonDistributions)),
@@ -256,6 +287,38 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.immediate
             };
+
+            RunPostInstPythonScript = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPostInstPythonScript)),
+                    CustomActions.RunPostInstPythonScript,
+                    // we now ignore this custom action result to assure there are no failures resulting from
+                    // issues installing third party integrations
+                    Return.ignore,
+                    When.After,
+                    Step.InstallServices,
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], INSTALL_PYTHON_THIRD_PARTY_DEPS=[INSTALL_PYTHON_THIRD_PARTY_DEPS]");
+
+            SetupInstaller = new CustomAction<CustomActions>(
+                    new Id(nameof(SetupInstaller)),
+                    CustomActions.SetupInstaller,
+                    Return.check,
+                    When.After,
+                    Step.InstallServices,
+                    Conditions.FirstInstall | Conditions.Upgrading
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], FLEET_INSTALL=[FLEET_INSTALL], DATABASE=[DATABASE]");
 
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CustomActions>(
@@ -272,6 +335,34 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RunPreRemovePythonScript = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemovePythonScript)),
+                    CustomActions.RunPreRemovePythonScript,
+                    Return.ignore,
+                    When.Before,
+                    new Step(CleanupOnUninstall.Id),
+                    Conditions.RemovingForUpgrade | Conditions.Maintenance | Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RunPreRemovePythonScriptRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemovePythonScriptRollback)),
+                    CustomActions.RunPreRemovePythonScriptRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(RunPreRemovePythonScript.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            };
 
             ConfigureUser = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureUser)),
@@ -293,7 +384,8 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
-                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
+                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED], " +
+                               "DDAGENTUSER_IS_SERVICE_ACCOUNT=[DDAGENTUSER_IS_SERVICE_ACCOUNT]")
                 .HideTarget(true);
 
             ConfigureUserRollback = new CustomAction<CustomActions>(
@@ -323,7 +415,9 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
-                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
+                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                               "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL]");
 
             UninstallUserRollback = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallUserRollback)),
@@ -382,6 +476,39 @@ namespace WixSetup.Datadog_Agent
                 Sequence = Sequence.NotInSequence
             };
 
+            InstallOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(InstallOciPackages)),
+                    CustomActions.InstallOciPackages,
+                    Return.check,
+                    When.Before,
+                    Step.StartServices,
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
+                           "APIKEY=[APIKEY]," +
+                           "SITE=[SITE]," +
+                           "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
+                           "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
+                           "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]");
+
+            RollbackOciPackages = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackOciPackages)),
+                    CustomActions.RollbackOciPackages,
+                    Return.ignore,
+                    When.Before,
+                    new Step(InstallOciPackages.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY]");
+
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
                     CustomActions.WriteInstallInfo,
@@ -397,7 +524,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
+                               "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
 
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`

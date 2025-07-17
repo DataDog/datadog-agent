@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -28,6 +29,8 @@ import (
 
 	"k8s.io/client-go/transport"
 )
+
+const apiServerQuery = "/api/v1/pods?fieldSelector=spec.nodeName=%s"
 
 var (
 	kubeletExpVar = expvar.NewInt("kubeletQueries")
@@ -43,6 +46,10 @@ type kubeletClientConfig struct {
 	clientKeyPath  string
 	token          string
 	tokenPath      string
+
+	useAPIServer  bool
+	apiServerHost string
+	nodeName      string
 }
 
 type kubeletClient struct {
@@ -124,11 +131,21 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	return nil
 }
 
-func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET",
-		fmt.Sprintf("%s%s", kc.kubeletURL, path), nil)
+func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
+	_, response, err := kc.rawQuery(ctx, kc.kubeletURL, path)
+
 	if err != nil {
-		return nil, 0, fmt.Errorf("Failed to create new request: %w", err)
+		return nil, err
+	}
+
+	return response.Body, nil
+}
+
+func (kc *kubeletClient) rawQuery(ctx context.Context, baseURL string, path string) (*http.Request, *http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET",
+		fmt.Sprintf("%s%s", baseURL, path), nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to create new request: %w", err)
 	}
 
 	response, err := kc.client.Do(req)
@@ -146,8 +163,25 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	if err != nil {
 		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
+		return nil, nil, err
+	}
+
+	return req, response, nil
+}
+
+func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, error) {
+	// Redirect pod list requests to the API server when `useAPIServer` is enabled
+	u := kc.kubeletURL
+	if kc.config.useAPIServer && path == kubeletPodPath {
+		path = fmt.Sprintf(apiServerQuery, url.QueryEscape(kc.config.nodeName))
+		u = kc.config.apiServerHost
+	}
+
+	req, response, err := kc.rawQuery(ctx, u, path)
+	if err != nil {
 		return nil, 0, err
 	}
+
 	defer response.Body.Close()
 
 	b, err := io.ReadAll(response.Body)
@@ -165,6 +199,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 
 	kubeletTimeout := 30 * time.Second
 	kubeletProxyEnabled := pkgconfigsetup.Datadog().GetBool("eks_fargate")
+	kubeletUseAPIServer := pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server")
 	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
 	kubeletHTTPSPort := pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
 	kubeletHTTPPort := pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
@@ -196,6 +231,19 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		clientKeyPath:  kubeletClientKeyPath,
 		token:          kubeletToken,
 		tokenPath:      kubeletTokenPath,
+	}
+
+	if kubeletUseAPIServer {
+		apiServerHost := os.Getenv("KUBERNETES_SERVICE_HOST")
+		apiServerPort := os.Getenv("KUBERNETES_SERVICE_PORT_HTTPS")
+		if apiServerHost == "" || apiServerPort == "" {
+			return nil, fmt.Errorf("failed to determine API server host/port")
+		}
+
+		clientConfig.useAPIServer = true
+		clientConfig.apiServerHost = fmt.Sprintf("https://%s:%s", apiServerHost, apiServerPort)
+
+		log.Infof("kubeletUseApiServer set to true, pod list queries will be sent to the apiserver at: %s/api/v1/pods", clientConfig.apiServerHost)
 	}
 
 	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)

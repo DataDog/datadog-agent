@@ -37,17 +37,17 @@ const (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	Setup() error
 	Init() error
 	Start() error
 	Stop()
 	SendStats() error
 	Snapshot() error
+	Walk(_ func(_ *model.ProcessCacheEntry))
 	Close() error
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
@@ -56,7 +56,6 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
-	GetProfileManager() interface{}
 	EnableEnforcement(bool)
 }
 
@@ -137,11 +136,6 @@ func (p *Probe) Init() error {
 	return p.PlatformProbe.Init()
 }
 
-// Setup the runtime security probe
-func (p *Probe) Setup() error {
-	return p.PlatformProbe.Setup()
-}
-
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
 	p.ctx, p.cancelFnc = context.WithCancel(context.Background())
@@ -211,7 +205,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
@@ -227,6 +221,11 @@ func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
 	return p.PlatformProbe.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
+	p.PlatformProbe.Walk(cb)
 }
 
 // OnNewDiscarder is called when a new discarder is found
@@ -413,6 +412,16 @@ func (p *Probe) IsNetworkEnabled() bool {
 // IsNetworkRawPacketEnabled returns whether network raw packet is enabled
 func (p *Probe) IsNetworkRawPacketEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
+// IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
+func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (p *Probe) IsSysctlEventEnabled() bool {
+	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

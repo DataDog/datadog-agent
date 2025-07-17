@@ -7,18 +7,18 @@
 package config
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"html"
 	"net/http"
 	"strings"
 
+	json "github.com/json-iterator/go"
+
 	gorilla "github.com/gorilla/mux"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	util "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,7 +72,7 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
+	log.Debugf("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
 
 	var value interface{}
 	if path == "logs_config.additional_endpoints" {
@@ -89,7 +89,7 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
+	log.Debugf("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
 		if key == "logs_config.additional_endpoints" {
@@ -109,14 +109,8 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 
 // GetConfigEndpointMuxCore builds and returns the mux for the config endpoint with default values
 // for the core agent
-func GetConfigEndpointMuxCore() *gorilla.Router {
-	return GetConfigEndpointMux(pkgconfigsetup.Datadog(), api.AuthorizedConfigPathsCore, "core")
-}
-
-// GetConfigEndpointMux builds and returns the mux for the config endpoint, with the given config,
-// authorized paths, and expvar namespace
-func GetConfigEndpointMux(cfg model.Reader, authorizedConfigPaths api.AuthorizedSet, expvarNamespace string) *gorilla.Router {
-	mux, _ := getConfigEndpoint(cfg, authorizedConfigPaths, expvarNamespace)
+func GetConfigEndpointMuxCore(cfg model.Reader) *gorilla.Router {
+	mux, _ := getConfigEndpoint(cfg, api.AuthorizedConfigPathsCore, "core")
 	return mux
 }
 

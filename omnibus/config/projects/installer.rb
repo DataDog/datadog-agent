@@ -26,6 +26,8 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
+
+# We want an higher compression level on deploy pipelines.
 if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
@@ -85,9 +87,7 @@ else
 
   dependency 'installer'
 
-  # version manifest file
-  dependency 'version-manifest'
-  generate_distro_package = false
+  generate_distro_package = ENV.has_key?("OMNIBUS_FORCE_PACKAGES")
 end
 
 

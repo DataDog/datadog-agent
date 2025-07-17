@@ -7,9 +7,9 @@
 
 package util
 
-// LocalProcessCollectorIsEnabled returns whether the local process collector is enabled
+// ProcessLanguageCollectorIsEnabled returns whether the local process collector is enabled
 // based on agent flavor and config values. This prevents any conflict between the collectors
 // and unnecessary data collection. Always returns false outside of linux.
-func LocalProcessCollectorIsEnabled() bool {
+func ProcessLanguageCollectorIsEnabled() bool {
 	return false
 }

@@ -1,0 +1,440 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testVeryLargeArray",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testVeryLargeArray",
+          "location": {
+            "method": "main.testVeryLargeArray"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "a": {
+                "type": "[100]uint",
+                "size": "100",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "2"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "3"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "4"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "5"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "6"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "7"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "8"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "9"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "10"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "11"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "12"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "13"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "14"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "15"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "16"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "17"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "18"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "19"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "20"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "21"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "22"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "23"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "24"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "25"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "26"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "27"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "28"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "29"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "30"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "31"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "32"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "33"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "34"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "35"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "36"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "37"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "38"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "39"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "40"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "41"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "42"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "43"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "44"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "45"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "46"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "47"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "48"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "49"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "50"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "51"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "52"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "53"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "54"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "55"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "56"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "57"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "58"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "59"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "60"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "61"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "62"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "63"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "64"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "65"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "66"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "67"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "68"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "69"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "70"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "71"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "72"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "73"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "74"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "75"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "76"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "77"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "78"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "79"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "80"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "81"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "82"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "83"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "84"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "85"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "86"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "87"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "88"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "89"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "90"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "91"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "92"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "93"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "94"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "95"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "96"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "97"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "98"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "99"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "100"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

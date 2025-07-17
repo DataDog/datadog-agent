@@ -7,6 +7,7 @@
 package usm
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
 	"io"
@@ -40,7 +41,6 @@ const (
 )
 
 const (
-	javaJarFlag      = "-jar"
 	javaJarExtension = ".jar"
 	javaWarExtension = ".war"
 	dllExtension     = ".dll"
@@ -151,6 +151,8 @@ type DetectionContext struct {
 	fs fs.SubFS
 	// DetectorContextMap a map to pass data between detectors, like some paths.
 	ContextMap DetectorContextMap
+	// cachedWorkingDirs stores the candidate working directories to avoid repeated lookups
+	cachedWorkingDirs []string
 }
 
 // NewDetectionContext initializes DetectionContext.
@@ -163,9 +165,58 @@ func NewDetectionContext(args []string, envs envs.Variables, fs fs.SubFS) Detect
 	}
 }
 
-// workingDirFromEnvs returns the current working dir extracted from the PWD env
-func workingDirFromEnvs(envs envs.Variables) (string, bool) {
-	return extractEnvVar(envs, "PWD")
+// resolveWorkingDirRelativePath attempts to resolve a path relative to the
+// working directory.
+//
+// There are two sources of working directory, the procfs cwd and the PWD
+// environment variable.  However, we can't know which is the correct one to
+// resolve relative paths since the working directory could have changed before
+// or after the command line we're looking at was executed. So, we check if
+// the path we're looking for exists in either of the working directories, and
+// pick that as the correct one.
+func (ctx *DetectionContext) resolveWorkingDirRelativePath(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+
+	if ctx.cachedWorkingDirs == nil {
+		var candidates []string
+
+		if cwd, ok := extractEnvVar(ctx.Envs, "PWD"); ok && cwd != "" {
+			candidates = append(candidates, cwd)
+		}
+
+		if cwd, ok := getWorkingDirectoryFromPid(ctx.Pid); ok && cwd != "" {
+			candidates = append(candidates, cwd)
+		}
+
+		ctx.cachedWorkingDirs = candidates
+	}
+
+	if len(ctx.cachedWorkingDirs) == 0 {
+		return path
+	}
+
+	firstCandidatePath := ""
+	for i, cwd := range ctx.cachedWorkingDirs {
+		absPath := filepath.Join(cwd, path)
+		if i == 0 {
+			// No need to check if the path exists if there's only one candidate
+			if len(ctx.cachedWorkingDirs) == 1 {
+				return absPath
+			}
+
+			firstCandidatePath = absPath
+		}
+		if _, err := fs.Stat(ctx.fs, absPath); err == nil {
+			return absPath
+		}
+	}
+
+	// If we got here, we have multiple candidates but none of the paths appear
+	// to exist. Just return the absolute path of the first candidate, it's the
+	// best we can do.
+	return firstCandidatePath
 }
 
 func extractEnvVar(envs envs.Variables, name string) (string, bool) {
@@ -208,6 +259,24 @@ func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	return io.LimitReader(file, min(size, maxParseFileSize)), nil
 }
 
+// VerifiedZipReader returns a reader for a zip file after ensuring that the
+// file is a regular file.
+func VerifiedZipReader(file fs.File) (*zip.Reader, error) {
+	fi, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	reader, err := zip.NewReader(file.(io.ReaderAt), fi.Size())
+	if err != nil {
+		return nil, err
+	}
+
+	return reader, nil
+}
+
 // Map languages to their context detectors
 var languageDetectors = map[language.Language]detectorCreatorFn{
 	language.Python: newPythonDetector,
@@ -229,10 +298,8 @@ var executableDetectors = map[string]detectorCreatorFn{
 func serviceNameInjected(envs envs.Variables) bool {
 	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		values := strings.Split(env, ",")
-		for _, v := range values {
-			if v == "service_name" {
-				return true
-			}
+		if slices.Contains(values, "service_name") {
+			return true
 		}
 	}
 	return false

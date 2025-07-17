@@ -9,11 +9,20 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
@@ -30,12 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-	"net"
-	"os"
-	"strconv"
-	"time"
 )
 
 const (
@@ -104,6 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				metricscompression.Module(),
 				logscompression.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 			if err != nil {
 				var ue configErr
@@ -169,6 +173,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				metricscompression.Module(),
 				logscompression.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 			if err != nil {
 				var ue configErr
@@ -228,21 +233,8 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func getParamsFromAgent(deviceIP string, conf config.Component) (*snmpparse.SNMPConfig, error) {
-	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(conf)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
-	}
-	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
-	if instance.IPAddress != "" {
-		instance.IPAddress = deviceIP
-		return &instance, nil
-	}
-	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
-}
-
-func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component) error {
-	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
+func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component, client ipc.HTTPClient) error {
+	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentError != nil {
 		return agentError
 	}
@@ -282,7 +274,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	return nil
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -293,81 +285,26 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf)
+	agentErr := setDefaultsFromAgent(connParams, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
-	// Establish connection
-	snmp, err := snmpparse.NewSNMP(connParams, logger)
-	if err != nil {
-		// newSNMP only returns config errors, so any problem is a usage error
-		return configErr{err}
-	}
 	namespace := conf.GetString("network_devices.namespace")
 	deviceID := namespace + ":" + connParams.IPAddress
-	// Since the snmp connection can take a while, start by sending an in progress status for the start of the scan
-	// before connecting to the agent
-	inProgressStatusPayload := metadata.NetworkDevicesMetadata{
-		DeviceScanStatus: &metadata.ScanStatusMetadata{
-			DeviceID:   deviceID,
-			ScanStatus: metadata.ScanStatusInProgress,
-		},
-		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
-	}
-	if err = snmpScanner.SendPayload(inProgressStatusPayload); err != nil {
-		return fmt.Errorf("unable to send in progress status: %v", err)
-	}
-	if err = snmp.Connect(); err != nil {
-		// Send an error status if we can't connect to the agent
-		errorStatusPayload := metadata.NetworkDevicesMetadata{
-			DeviceScanStatus: &metadata.ScanStatusMetadata{
-				DeviceID:   deviceID,
-				ScanStatus: metadata.ScanStatusError,
-			},
-			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
-		}
-		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
-		}
-		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
-	}
-	err = snmpScanner.RunDeviceScan(snmp, namespace, deviceID)
+	// Start the scan
+	fmt.Printf("Launching scan for device: %s\n", deviceID)
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, metadata.ManualScan)
 	if err != nil {
-		// Send an error status if we can't scan the device
-		errorStatusPayload := metadata.NetworkDevicesMetadata{
-			DeviceScanStatus: &metadata.ScanStatusMetadata{
-				DeviceID:   deviceID,
-				ScanStatus: metadata.ScanStatusError,
-			},
-			CollectTimestamp: time.Now().Unix(),
-			Namespace:        namespace,
-		}
-		if err = snmpScanner.SendPayload(errorStatusPayload); err != nil {
-			return fmt.Errorf("unable to send error status: %v", err)
-		}
-		return fmt.Errorf("unable to perform device scan: %v", err)
+		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
 	}
-	// Send a completed status if the scan was successful
-	completedStatusPayload := metadata.NetworkDevicesMetadata{
-		DeviceScanStatus: &metadata.ScanStatusMetadata{
-			DeviceID:   deviceID,
-			ScanStatus: metadata.ScanStatusCompleted,
-		},
-		CollectTimestamp: time.Now().Unix(),
-		Namespace:        namespace,
-	}
-	if err = snmpScanner.SendPayload(completedStatusPayload); err != nil {
-		return fmt.Errorf("unable to send completed status: %v", err)
-	}
-	return nil
+	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
+	return err
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -382,7 +319,7 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf)
+	agentErr := setDefaultsFromAgent(connParams, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.

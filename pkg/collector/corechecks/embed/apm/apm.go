@@ -20,14 +20,15 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -68,6 +69,12 @@ func (c *APMCheck) Version() string {
 // ConfigSource displays the command's source
 func (c *APMCheck) ConfigSource() string {
 	return c.source
+}
+
+// Loader returns the check loader
+func (*APMCheck) Loader() string {
+	// the apm check is scheduled by the Go loader
+	return corechecks.GoCheckLoaderName
 }
 
 // Run executes the check with retries
@@ -243,8 +250,13 @@ func (c *APMCheck) InstanceConfig() string {
 }
 
 // GetDiagnoses returns the diagnoses of the check
-func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *APMCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
+}
+
+// IsHASupported returns if the check is compatible with High Availability
+func (c *APMCheck) IsHASupported() bool {
+	return false
 }
 
 // Factory creates a new check factory

@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -646,7 +645,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := MetricSender{sender: mockSender}
 
-			configvalidation.ValidateEnrichMetricTags(tt.metricsTags)
+			profiledefinition.ValidateEnrichMetricTags(tt.metricsTags)
 			tags := metricSender.GetCheckInstanceMetricTags(tt.metricsTags, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

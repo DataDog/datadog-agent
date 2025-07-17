@@ -1,27 +1,68 @@
 ---
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
-.list_go_versions_commands:
+.macos_runner_maintenance:
+  - DD_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DD_API_KEY
+  - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
+  # Report current version to datadog if main / release branch
   - |
-    echo "Don't forget to regularly delete Go unused versions. Here are the installed Go versions and their disk space on the runner:"
-    echo "Go:"
-    du -sh $HOME/.gimme/versions/*
-    echo "To remove a Go version please run:"
-    echo "gimme uninstall <version>"
-
-.list_python_versions_commands:
+    if [ "$CI_COMMIT_BRANCH" = "main" ] || [[ "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.(x|[0-9]+)$ ]]; then
+      dda inv -- -e macos.report-versions -l all || true
+    fi
+  # Remove inactive versions
   - |
-    echo "Don't forget to regularly delete Python unused versions. Here are the installed Python versions and their disk space on the runner:"
-    echo "Python:"
-    du -sh $(pyenv root)/versions/*
-    echo "To remove a Python version please run:"
-    echo "pyenv uninstall -f <version>"
+    if [ "$((RANDOM%20))" -eq 0 ]; then
+      echo Trying to remove inactive versions
+      dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
+      dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
+    fi
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
-  - PYTHON_VERSION=$(python3 --version | awk '{print $2}')
-  - VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
-  - VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
+  - |
+    export PATH="$(pyenv root)/shims:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+  # Select target python version
+  # 1. If PYTHON_VERSION is set, use it (and install it if necessary)
+  # 2. If PYTHON_VERSION is not set, use a version matching the one in .python-version
+  #   2.a If there is a 3.M.x version (or multiple matches) that is already installed on the runner, select the latest version in this list
+  #   2.b If there is no match, download and install the latest one
+  - |
+    if [ -n "$PYTHON_VERSION" ]; then
+      # 1. Use PYTHON_VERSION if set
+      if ! [[ "$PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Invalid Python version format (should be X.Y.Z): $PYTHON_VERSION" >& 2
+        exit 1
+      fi
+      if ! [ -d "$(pyenv root)/versions/$PYTHON_VERSION" ]; then
+        echo "Python version $PYTHON_VERSION not found. Installing..."
+        pyenv install "$PYTHON_VERSION"
+      fi
+    else
+      # 2. Find appropriate python version from major version
+      PYTHON_VERSION="$(cat .python-version)"
+      echo "Find python version matching $PYTHON_VERSION"
+      PYTHON_VERSION_ESCAPED="${PYTHON_VERSION//./\\.}"
+      versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION_ESCAPED}\\.[0-9]+$")"
+      if [ -n "$versionmatches" ]; then
+        # 2.a.
+        echo "Found already existing python version for $PYTHON_VERSION"
+      else
+        # 2.b.
+        echo "Installing Python $PYTHON_VERSION..."
+        pyenv install "$PYTHON_VERSION"
+        versionmatches="$(ls "$(pyenv root)/versions" | grep -E "^${PYTHON_VERSION_ESCAPED}\\.[0-9]+$")"
+        if [ -z "$versionmatches" ]; then
+          echo "No matching Python version found for $PYTHON_VERSION even after installation." >& 2
+          exit 1
+        fi
+      fi
+      # If there are multiple matches, select the latest one
+      PYTHON_VERSION="$(echo "$versionmatches" | sort -V | tail -n 1)"
+    fi
+    VENV_NAME="datadog-agent-python-$PYTHON_VERSION"
+    VENV_PATH="$(pyenv root)/versions/$VENV_NAME"
   - echo "Using Python $PYTHON_VERSION..."
   - |
     # Check if the virtual environment directory exists
@@ -33,28 +74,37 @@
     fi
   - pyenv activate $VENV_NAME
 
+.install_python_dependencies:
+  # Python 3.12 changes default behavior how packages are installed.
+  # In particular, --break-system-packages command line option is
+  # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+  - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+  - pyenv rehash
+  - python3 -m dda self dep sync -f legacy-tasks
+  - pyenv rehash
+
 .vault_login:
   # Point the CLI to our internal vault
   - export VAULT_ADDR=https://vault.us1.ddbuild.io
   - vault login -method=aws -no-print
 
+.aws_retry_config:
+  - export AWS_RETRY_MODE=standard
+  - export AWS_RETRY_MAX_ATTEMPTS=5
+
 .macos_gitlab:
   before_script:
+    - !reference [.vault_login]
+    - !reference [.aws_retry_config]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
       export GOPATH=$GOROOT
     # Selecting the current Python version
     - !reference [.select_python_env_commands]
-    # List Python and Go existing environments and their disk space
-    - !reference [.list_go_versions_commands]
-    - !reference [.list_python_versions_commands]
-    # Installing the job dependencies
-    # Python 3.12 changes default behavior how packages are installed.
-    # In particular, --break-system-packages command line option is
-    # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
-    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt --break-system-packages
-    - pyenv rehash
-    - inv -e rtloader.make
-    - inv -e rtloader.install
-    - inv -e install-tools
+    - !reference [.install_python_dependencies]
+    # See there is no virtualization, we need to clean the environment regularly
+    - !reference [.macos_runner_maintenance]
+    - dda inv -- -e rtloader.make
+    - dda inv -- -e rtloader.install
+    - dda inv -- -e install-tools

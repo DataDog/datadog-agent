@@ -48,7 +48,22 @@ class Arch:
 
     def is_cross_compiling(self) -> bool:
         """Check whether this architecture is different from one this code is running on."""
-        return platform.machine().lower() not in self.spellings
+        return self != Arch.local()
+
+    def gcc_prefix(self, platform: str = sys.platform) -> str:
+        """Return the GCC prefix to use for this architecture, takes into account
+        the platform we are running on (linux/darwin/windows).
+
+        Raises ValueError if the platform is not recognized.
+        """
+        if platform == "darwin":
+            return f"{self.gcc_arch}-apple-darwin23"
+        elif platform == "linux":
+            return f"{self.gcc_arch}-linux-gnu"
+        elif platform == "windows":
+            return f"{self.gcc_arch}-w64-mingw32"
+        else:
+            raise ValueError(f"Unknown platform: {platform}")
 
     def gcc_compiler(self, platform: str = sys.platform) -> str:
         """Return the GCC compiler to use for this architecture, takes into account
@@ -56,14 +71,15 @@ class Arch:
 
         Raises ValueError if the platform is not recognized.
         """
-        if platform == "darwin":
-            return f"{self.gcc_arch}-apple-darwin23-gcc"
-        elif platform == "linux":
-            return f"{self.gcc_arch}-linux-gnu-gcc"
-        elif platform == "windows":
-            return f"{self.gcc_arch}-w64-mingw32-gcc"
-        else:
-            raise ValueError(f"Unknown platform: {platform}")
+        return f"{self.gcc_prefix(platform)}-gcc"
+
+    def gpp_compiler(self, platform: str = sys.platform) -> str:
+        """Return the G++ compiler to use for this architecture, takes into account
+        the platform we are running on (linux/darwin/windows).
+
+        Raises ValueError if the platform is not recognized.
+        """
+        return f"{self.gcc_prefix(platform)}-g++"
 
     @property
     def kmt_arch(self) -> KMTArchName:

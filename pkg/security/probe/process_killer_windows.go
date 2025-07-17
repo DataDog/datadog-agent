@@ -18,17 +18,35 @@ var (
 	binariesExcluded = []string{}
 )
 
-// KillFromUserspace tries to kill from userspace
-func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, _ *model.Event) error {
+type killContext struct {
+	pid  int
+	path string
+}
+
+// ProcessKillerWindows defines the process kill windows implementation
+type ProcessKillerWindows struct{}
+
+// NewProcessKillerOS returns a ProcessKillerOS
+func NewProcessKillerOS(_ func(pid, sig uint32) error) ProcessKillerOS {
+	return &ProcessKillerWindows{}
+}
+
+// Kill tries to kill from userspace
+func (p *ProcessKillerWindows) Kill(sig uint32, pc *killContext) error {
 	if sig != model.SIGKILL {
 		return nil
 	}
-	return winutil.KillProcess(int(pid), 0)
+	return winutil.KillProcess(int(pc.pid), 0)
 }
 
-func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]uint32, []string, error) {
+func (p *ProcessKillerWindows) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]killContext, error) {
 	if scope == "container" {
-		return nil, nil, errors.New("container scope not supported")
+		return nil, errors.New("container scope not supported")
 	}
-	return []uint32{ev.ProcessContext.Pid}, []string{ev.ProcessContext.FileEvent.PathnameStr}, nil
+	return []killContext{
+		{
+			pid:  int(ev.ProcessContext.Pid),
+			path: ev.ProcessContext.FileEvent.PathnameStr,
+		},
+	}, nil
 }

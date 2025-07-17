@@ -1,7 +1,7 @@
 ---
 # check that go generate has been run in the pkg/security directory
 security_go_generate_check:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   stage: source_test
   needs: [ "go_deps", "go_tools_deps" ]
@@ -10,8 +10,8 @@ security_go_generate_check:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - pip3 install wheel
-    - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
-    - inv -e install-tools
+    - pip3 install wheel "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- -e install-tools
   script:
-    - inv -e security-agent.go-generate-check
+    - dda inv -- -e security-agent.go-generate-check

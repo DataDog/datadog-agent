@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build kubelet || docker
 
 package tailerfactory
 
@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -37,7 +36,6 @@ import (
 var platformDockerLogsBasePath string
 
 func fileTestSetup(t *testing.T) {
-	dockerutilPkg.EnableTestingMode()
 	tmp := t.TempDir()
 	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldPodmanLogsBasePath string
 	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
@@ -107,6 +105,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:                        "docker",
@@ -152,6 +151,7 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:                        "podman",
@@ -199,6 +199,7 @@ func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "podman",
@@ -225,6 +226,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "docker",
@@ -256,6 +258,7 @@ func TestDockerOverride(t *testing.T) {
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
 		Type:       "docker",
@@ -295,6 +298,7 @@ func TestMakeK8sSource(t *testing.T) {
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
 		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
+		dockerUtilGetter:  &dockerUtilGetterImpl{},
 		workloadmetaStore: option.New[workloadmeta.Component](store),
 	}
 	for _, sourceConfigType := range []string{"docker", "containerd"} {
@@ -317,7 +321,7 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, wildcard, child.Config.Path)
 			require.Equal(t, "src", child.Config.Source)
 			require.Equal(t, "svc", child.Config.Service)
-			require.Equal(t, []string{"tag!"}, child.Config.Tags)
+			require.Equal(t, []string{"tag!"}, []string(child.Config.Tags))
 			require.Equal(t, *child.Config.AutoMultiLine, true)
 			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
 			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
@@ -329,35 +333,6 @@ func TestMakeK8sSource(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestMakeK8sSource_pod_not_found(t *testing.T) {
-	fileTestSetup(t)
-
-	p := filepath.Join(platformDockerLogsBasePath, "containers/abc/abc-json.log")
-	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
-
-	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	tf := &factory{
-		pipelineProvider:  pipeline.NewMockProvider(),
-		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
-		workloadmetaStore: workloadmetaStore,
-	}
-	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:       "docker",
-		Identifier: "abc",
-	})
-	child, err := tf.makeK8sFileSource(source)
-	require.Nil(t, child)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot find pod for container")
 }
 
 func TestFindK8sLogPath(t *testing.T) {
@@ -384,4 +359,31 @@ func TestFindK8sLogPath(t *testing.T) {
 			require.Equal(t, filepath.Join(podLogsBasePath, expectedPattern), gotPattern)
 		})
 	}
+}
+
+func TestGetPodAndContainer_wmeta_not_initialize(t *testing.T) {
+	tf := &factory{}
+	container, pod, err := tf.getPodAndContainer("abc")
+
+	require.Nil(t, container)
+	require.Nil(t, pod)
+	require.ErrorContains(t, err, "workloadmeta store is not initialized")
+
+}
+
+func TestGetPodAndContainer_pod_not_found(t *testing.T) {
+	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		compConfig.MockModule(),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	tf := &factory{workloadmetaStore: workloadmetaStore}
+
+	container, pod, err := tf.getPodAndContainer("abc")
+
+	require.Nil(t, container)
+	require.Nil(t, pod)
+	require.ErrorContains(t, err, "cannot find pod for container")
 }

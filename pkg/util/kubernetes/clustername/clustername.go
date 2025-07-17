@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,7 +62,7 @@ func init() {
 	ProviderCatalog = map[string]Provider{
 		"gce":   gce.GetClusterName,
 		"azure": azure.GetClusterName,
-		"ec2":   ec2.GetClusterName,
+		"ec2":   ec2tags.GetClusterName,
 	}
 }
 

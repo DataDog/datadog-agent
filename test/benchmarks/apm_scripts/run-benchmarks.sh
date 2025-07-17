@@ -4,7 +4,7 @@ set -e
 
 bench_loop_x10 () {
   for i in {1..10}; do
-    inv trace-agent.benchmarks --output="/tmp/$1" --bench="BenchmarkAgentTraceProcessing$"
+    dda inv trace-agent.benchmarks --output="/tmp/$1" --bench="BenchmarkAgentTraceProcessing$"
     cat "/tmp/$1" >> "$ARTIFACTS_DIR/$1"
   done
 }

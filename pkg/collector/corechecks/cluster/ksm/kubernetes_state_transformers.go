@@ -13,6 +13,10 @@ import (
 	"strings"
 	"time"
 
+	// time/tzdata embeds the timezone database to support legacy timezone names
+	// (e.g. US/Central) used in upstream cronjob scheduling metric calculations
+	_ "time/tzdata"
+
 	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -100,7 +104,9 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_pod_container_extended_resource_limits":   containerResourceLimitsTransformer,
 		"kube_cronjob_next_schedule_time":               cronJobNextScheduleTransformer,
 		"kube_cronjob_status_last_schedule_time":        cronJobLastScheduleTransformer,
+		"kube_cronjob_status_last_successful_time":      cronJobLastSuccessfulTransformer,
 		"kube_job_complete":                             jobCompleteTransformer,
+		"kube_job_duration":                             jobDurationTransformer,
 		"kube_job_failed":                               jobFailedTransformer,
 		"kube_job_status_failed":                        jobStatusFailedTransformer,
 		"kube_job_status_succeeded":                     jobStatusSucceededTransformer,
@@ -352,6 +358,11 @@ func cronJobLastScheduleTransformer(s sender.Sender, _ string, metric ksmstore.D
 	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(currentTime.Unix())-metric.Val, hostname, tags)
 }
 
+// cronJobLastSuccessfulTransformer sends the duration since the last time the cronjob succeeded
+func cronJobLastSuccessfulTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_successful", float64(currentTime.Unix())-metric.Val, hostname, tags)
+}
+
 // jobCompleteTransformer sends a metric and a service check based on kube_job_complete
 func jobCompleteTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
@@ -370,6 +381,10 @@ func jobCompleteTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 	jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, tagsCopy)
 
 	jobServiceCheck(s, metric, servicecheck.ServiceCheckOK, hostname, tags)
+}
+
+func jobDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	jobMetric(s, metric, ksmMetricPrefix+"job.duration", hostname, tags)
 }
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed

@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -34,7 +34,7 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
-	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/does/not/exist': can't stat it: no such file or directory")
+	assert.Contains(v.T(), output, "Executable permissions: error: the executable does not have the correct permissions")
 	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 
@@ -45,7 +45,7 @@ func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
-	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/usr/bin/echo', 'group' or 'others' have rights on it")
+	assert.Contains(v.T(), output, "Executable permissions: error: the executable does not have the correct permissions")
 	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 
@@ -59,7 +59,7 @@ host_aliases:
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				agentparams.WithFileWithPermissions("/tmp/bin/secret.sh", secretScript, false, secrets.WithUnixSecretPermissions(false)),
+				secretsutils.WithUnixSetupCustomScript("/tmp/bin/secret.sh", secretScript, false),
 				agentparams.WithAgentConfig(config),
 			),
 		),
@@ -86,13 +86,13 @@ secret_backend_arguments:
 api_key: ENC[api_key]
 `
 
-	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp")
 	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
 
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				secrets.WithUnixSecretSetupScript("/tmp/secret.py", false),
+				secretsutils.WithUnixSetupScript("/tmp/secret.py", false),
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
 			),

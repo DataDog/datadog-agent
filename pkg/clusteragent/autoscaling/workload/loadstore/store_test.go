@@ -89,7 +89,7 @@ func TestCreateEntitiesFromPayload(t *testing.T) {
 		assert.Equal(t, len(entities), 1)
 		for k, v := range entities {
 			assert.Equal(t, "container.memory.usage", k.MetricName)
-			assert.Equal(t, ValueType(i), v.value)
+			assert.Equal(t, ValueType(i), v.Value)
 			assert.Equal(t, fmt.Sprintf("redis_%d", i), k.PodName)
 			assert.Equal(t, "test", k.Namespace)
 			assert.Equal(t, "redis_test", k.PodOwnerName)
@@ -151,12 +151,11 @@ func TestGetMetrics(t *testing.T) {
 			payload2 := createSeriesPayload2(i, timeDelta)
 			entities2 := createEntitiesFromPayload(payload2)
 			store.SetEntitiesValues(entities2)
-
 		}
 	}
 	queryResult := store.GetMetricsRaw("container.cpu.usage", "test", "nginx_test", "")
-	assert.Equal(t, 100, len(queryResult.results))
-	for _, podResult := range queryResult.results {
+	assert.Equal(t, 100, len(queryResult.Results))
+	for _, podResult := range queryResult.Results {
 		assert.Equal(t, 1, len(podResult.ContainerValues))
 		assert.Equal(t, 0, len(podResult.PodLevelValue))
 		for containerName, entityValues := range podResult.ContainerValues {
@@ -166,8 +165,46 @@ func TestGetMetrics(t *testing.T) {
 	}
 
 	emptyQueryResult := store.GetMetricsRaw("container.cpu.usage", "test", "nginx_test", "container_test2")
-	assert.Equal(t, 0, len(emptyQueryResult.results))
+	assert.Equal(t, 0, len(emptyQueryResult.Results))
 
 	filteredQueryResult := store.GetMetricsRaw("container.memory.usage", "test", "redis_test", "container_test")
-	assert.Equal(t, 100, len(filteredQueryResult.results))
+	assert.Equal(t, 100, len(filteredQueryResult.Results))
+}
+
+func TestGetMetricsWithNonExistingEntityDoesNotPanic(t *testing.T) {
+	store := EntityStore{
+		key2ValuesMap: make(map[uint64]*dataItem),
+		keyAttrTable:  make(map[compositeKey]podList),
+		lock:          sync.RWMutex{},
+	}
+
+	testDataPerPod := &dataPerPod{
+		containers: map[string]uint64{
+			"test-container": 1,
+		},
+		podEntityID: 0,
+	}
+
+	// add pod to keyAttrTable but not to key2ValuesMap
+	compKey := generateCompositeKey("test-ns", "test-pod", "container.cpu.usage")
+	store.keyAttrTable[compKey] = podList{
+		namespace:    "test-ns",
+		podOwnerName: "test-pod",
+		metricName:   "container.cpu.usage",
+		pods: map[string]*dataPerPod{
+			"test-pod": testDataPerPod,
+		},
+	}
+
+	assert.NotPanics(t, func() {
+		queryResult := store.GetMetricsRaw("container.cpu.usage", "test-ns", "test-pod", "")
+		assert.Equal(t, 0, len(queryResult.Results))
+	})
+
+	// add to key2ValuesMap but with nil entity
+	store.key2ValuesMap[1] = nil
+	assert.NotPanics(t, func() {
+		queryResult := store.GetMetricsRaw("container.cpu.usage", "test-ns", "test-pod", "")
+		assert.Equal(t, 0, len(queryResult.Results))
+	})
 }

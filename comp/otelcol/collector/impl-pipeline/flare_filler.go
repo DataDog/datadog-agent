@@ -17,8 +17,8 @@ import (
 	"strings"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +39,7 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 
 	// add raw response to flare, and unmarshal it
 	fb.AddFile("otel/otel-response.json", responseBytes)
-	var responseInfo extension.Response
+	var responseInfo extensiontypes.Response
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
 		msg := fmt.Sprintf("could not read sources from otel-agent response: %s, error: %v", responseBytes, err)
 		log.Error(msg)
@@ -127,12 +127,7 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return []byte(overrideConfigResponse), nil
 	}
 
-	options := apiutil.ReqOptions{
-		Ctx:       c.ctx,
-		Authtoken: c.authToken.Get(),
-	}
-
-	data, err := apiutil.DoGetWithOptions(c.client, endpointURL, &options)
+	data, err := c.client.Get(endpointURL, ipchttp.WithContext(c.ctx), ipchttp.WithTimeout(c.clientTimeout))
 	if err != nil {
 		return nil, err
 	}

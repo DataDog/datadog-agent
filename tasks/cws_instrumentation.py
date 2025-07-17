@@ -7,8 +7,9 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import get_default_build_tags
+from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -32,7 +33,9 @@ def build(
     major_version='7',
     go_mod="readonly",
     static=False,
+    fips_mode=False,
     no_strip_binary=False,
+    arch_suffix=False,
 ):
     """
     Build cws-instrumentation
@@ -52,25 +55,29 @@ def build(
     }
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="cws-instrumentation"
-    )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
-    build_tags.append("netgo")
-    build_tags.append("osusergo")
+    build_tags += get_default_build_tags(build="cws-instrumentation")
+    build_tags = add_fips_tags(build_tags, fips_mode)
 
-    race_opt = "-race" if race else ""
-    build_type = "-a" if rebuild else ""
-    go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
+    if arch_suffix:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+        agent_bin = f'{agent_bin}.{arch}'
 
-    strip_flags = "" if no_strip_binary else "-s -w"
+    if not no_strip_binary:
+        ldflags += " -s -w"
 
-    cmd = (
-        f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} {strip_flags}" {REPO_PATH}/cmd/cws-instrumentation'
+    go_build(
+        ctx,
+        f"{REPO_PATH}/cmd/cws-instrumentation",
+        mod=go_mod,
+        race=race,
+        rebuild=rebuild,
+        gcflags=gcflags,
+        ldflags=ldflags,
+        build_tags=build_tags,
+        bin_path=agent_bin,
+        env=env,
     )
-
-    ctx.run(cmd, env=env)
 
 
 @task
@@ -96,18 +103,8 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"chmod +x {latest_file}")
 
     build_context = "Dockerfiles/cws-instrumentation"
-    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
-    exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
+    exec_path = f"{build_context}/cws-instrumentation.{arch}"
     dockerfile_path = f"{build_context}/Dockerfile"
-
-    try:
-        os.mkdir(cws_instrumentation_base)
-    except FileExistsError:
-        # Directory already exists
-        pass
-    except OSError as e:
-        # Handle other OS-related errors
-        print(f"Error creating directory: {e}")
 
     shutil.copy2(latest_file, exec_path)
     ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")

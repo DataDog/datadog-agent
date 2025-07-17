@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-processing-and-routing
+// team: agent-metric-pipelines
 
 // Bundle defines the fx options for this bundle.
 func Bundle(params defaultforwarder.Params) fxutil.BundleOptions {

@@ -10,7 +10,8 @@ benchmark:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
     - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
-    - pip install -r requirements.txt
+    - pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+    - dda self dep sync -f legacy-tasks
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
     - ./test/benchmarks/apm_scripts/analyze-results.sh

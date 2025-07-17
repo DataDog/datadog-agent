@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Adds the Datadog Installer service to the Agent MSI. The Datadog Installer service will start on boot but will exit
+    unless the Remote Upgrades preview is enabled.

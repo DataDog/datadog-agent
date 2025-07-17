@@ -18,11 +18,8 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -125,11 +122,7 @@ type Connections struct {
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	PrebuiltAssets              []string
-	HTTP                        map[http.Key]*http.RequestStats
-	HTTP2                       map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStats
-	Postgres                    map[postgres.Key]*postgres.RequestStat
-	Redis                       map[redis.Key]*redis.RequestStat
+	USMData                     USMProtocolsData
 }
 
 // NewConnections create a new Connections object
@@ -163,9 +156,6 @@ const (
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-
-	// USM Payload Telemetry
-	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -194,11 +184,6 @@ var (
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-	}
-
-	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
-	USMPayloadTelemetry = []ConnTelemetryType{
-		USMHTTPHits,
 	}
 )
 
@@ -298,14 +283,13 @@ type ConnectionStats struct {
 }
 
 // Via has info about the routing decision for a flow
-type Via struct {
-	Subnet Subnet `json:"subnet,omitempty"`
-}
+type Via = networkpayload.Via
 
 // Subnet stores info about a subnet
-type Subnet struct {
-	Alias string `json:"alias,omitempty"`
-}
+type Subnet = networkpayload.Subnet
+
+// Interface has information about a network interface
+type Interface = networkpayload.Interface
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {
