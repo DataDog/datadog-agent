@@ -42,11 +42,13 @@ type flowAccumulator struct {
 	portRollupThreshold int
 	portRollupDisabled  bool
 
-	skipHashCollisionDetection bool
-	hashCollisionFlowCount     *atomic.Uint64
+	hashCollisionFlowCount *atomic.Uint64
 
 	logger      log.Component
 	rdnsQuerier rdnsquerier.Component
+
+	skipHashCollisionDetection bool
+	aggregationHashUseSyncPool bool
 }
 
 func newFlowContext(flow *common.Flow) *flowContext {
@@ -65,7 +67,7 @@ func newFlowContextValue(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, useValueMap bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, useValueMap bool, aggregationHashUseSyncPool bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]*flowContext),
 		flowsValues:                make(map[uint64]flowContext),
@@ -75,10 +77,11 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
 		portRollupThreshold:        portRollupThreshold,
 		portRollupDisabled:         portRollupDisabled,
-		skipHashCollisionDetection: skipHashCollisionDetection,
 		hashCollisionFlowCount:     atomic.NewUint64(0),
 		logger:                     logger,
 		rdnsQuerier:                rdnsQuerier,
+		skipHashCollisionDetection: skipHashCollisionDetection,
+		aggregationHashUseSyncPool: aggregationHashUseSyncPool,
 	}
 }
 
@@ -174,8 +177,16 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	}
 }
 
+// getAggregationHash returns the aggregation hash for a flow using the configured implementation
+func (f *flowAccumulator) getAggregationHash(flow *common.Flow) uint64 {
+	if f.aggregationHashUseSyncPool {
+		return flow.AggregationHash()
+	}
+	return flow.AggregationHashOriginal()
+}
+
 func (f *flowAccumulator) addPointers(flowToAdd *common.Flow) {
-	aggHash := flowToAdd.AggregationHash()
+	aggHash := f.getAggregationHash(flowToAdd)
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowContext(flowToAdd)
@@ -216,7 +227,7 @@ func (f *flowAccumulator) addPointers(flowToAdd *common.Flow) {
 }
 
 func (f *flowAccumulator) addValues(flowToAdd *common.Flow) {
-	aggHash := flowToAdd.AggregationHash()
+	aggHash := f.getAggregationHash(flowToAdd)
 	aggFlow, ok := f.flowsValues[aggHash]
 	if !ok {
 		f.flowsValues[aggHash] = newFlowContextValue(flowToAdd)

@@ -55,6 +55,7 @@ network_devices:
           my-ns2<abc
           zz
     reverse_dns_enrichment_enabled: true
+    aggregation_hash_use_sync_pool: true
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -84,6 +85,7 @@ network_devices:
 					},
 				},
 				ReverseDNSEnrichmentEnabled: true,
+				AggregationHashUseSyncPool:  true,
 			},
 		},
 		{
