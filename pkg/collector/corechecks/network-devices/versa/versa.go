@@ -30,17 +30,27 @@ const (
 	// CheckName is the name of the check
 	CheckName            = "versa"
 	defaultCheckInterval = 1 * time.Minute
+	defaultDirectorPort  = 9182
 )
 
 // Configuration for the Versa check
 type checkCfg struct {
 	// add versa specific fields
-	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
-	DirectorEndpoint                string   `yaml:"director_endpoint"`
-	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
-	Username                        string   `yaml:"username"`
-	Password                        string   `yaml:"password"`
-	UseHTTP                         bool     `yaml:"use_http"`
+	Name                      string `yaml:"name"` // TODO: remove this field, only added it for testing
+	DirectorEndpoint          string `yaml:"director_endpoint"`
+	DirectorPort              int    `yaml:"director_port"`
+	AnalyticsEndpoint         string `yaml:"analytics_endpoint"`
+	Username                  string `yaml:"username"`
+	Password                  string `yaml:"password"`
+	MaxAttempts               int    `yaml:"max_attempts"`
+	MaxPages                  int    `yaml:"max_pages"`
+	MaxCount                  int    `yaml:"max_count"`
+	LookbackTimeWindowMinutes int    `yaml:"lookback_time_window_minutes"`
+	UseHTTP                   bool   `yaml:"use_http"`
+	Insecure                  bool   `yaml:"insecure"`
+	CAFile                    string `yaml:"ca_file"`
+	// TODO: remove this in favor of allowing custom certs
+	SkipCertVerification            bool     `yaml:"skip_cert_verification"`
 	Namespace                       string   `yaml:"namespace"`
 	IncludedTenants                 []string `yaml:"included_tenants"`
 	ExcludedTenants                 []string `yaml:"excluded_tenants"`
@@ -69,10 +79,14 @@ type VersaCheck struct {
 
 // Run executes the check
 func (v *VersaCheck) Run() error {
-
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	clientOptions, err := v.buildClientOptions()
+	if err != nil {
+		return err
+	}
+
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, v.config.SkipCertVerification, clientOptions...)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -220,9 +234,44 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
 	}
 
+	if v.config.DirectorPort == 0 {
+		v.config.DirectorPort = defaultDirectorPort
+	}
+
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)
 
 	return nil
+}
+
+func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
+	var clientOptions []client.ClientOptions
+
+	if v.config.Insecure || v.config.CAFile != "" {
+		options, err := client.WithTLSConfig(v.config.Insecure, v.config.CAFile)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOptions = append(clientOptions, options)
+	}
+
+	if v.config.MaxAttempts > 0 {
+		clientOptions = append(clientOptions, client.WithMaxAttempts(v.config.MaxAttempts))
+	}
+
+	if v.config.MaxPages > 0 {
+		clientOptions = append(clientOptions, client.WithMaxPages(v.config.MaxPages))
+	}
+
+	if v.config.MaxCount > 0 {
+		clientOptions = append(clientOptions, client.WithMaxCount(v.config.MaxCount))
+	}
+
+	if v.config.LookbackTimeWindowMinutes > 0 {
+		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(v.config.LookbackTimeWindowMinutes)))
+	}
+
+	return clientOptions, nil
 }
 
 // Interval returns the scheduling time for the check
