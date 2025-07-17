@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/secrets
 
-go 1.23.0
+go 1.24.5
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
