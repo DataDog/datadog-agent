@@ -173,8 +173,8 @@ func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return cmd.Run()
 }
 
-// InstallConfigExperimentMultiple installs an experiment with multiple configs.
-func (i *InstallerExec) InstallConfigExperimentMultiple(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
+// InstallMultipleConfigExperiment installs an experiment with multiple configs.
+func (i *InstallerExec) InstallMultipleConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
 	// For the exec implementation, we'll serialize the multiple configs as a JSON array
 	serializedConfigs, err := json.Marshal(rawConfigs)
 	if err != nil {
@@ -185,15 +185,15 @@ func (i *InstallerExec) InstallConfigExperimentMultiple(ctx context.Context, pkg
 	return cmd.Run()
 }
 
-// RemoveConfigExperimentMultiple removes an experiment with multiple configs.
-func (i *InstallerExec) RemoveConfigExperimentMultiple(ctx context.Context, pkg string) (err error) {
+// RemoveMultipleConfigExperiment removes an experiment with multiple configs.
+func (i *InstallerExec) RemoveMultipleConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "remove-config-experiment-multiple", pkg)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
-// PromoteConfigExperimentMultiple promotes an experiment with multiple configs.
-func (i *InstallerExec) PromoteConfigExperimentMultiple(ctx context.Context, pkg string) (err error) {
+// PromoteMultipleConfigExperiment promotes an experiment with multiple configs.
+func (i *InstallerExec) PromoteMultipleConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-config-experiment-multiple", pkg)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
