@@ -34,10 +34,10 @@ generator:
             event: 5
             service_check: 5
           metric_weights:
-            count: 100
-            gauge: 10
+            count: 87
+            gauge: 8
             timer: 0
-            distribution: 0
+            distribution: 5
             set: 0
             histogram: 0
       # `bytes_per_second` is understood to be a high-end use case,
