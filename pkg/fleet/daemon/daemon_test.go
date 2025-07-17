@@ -103,8 +103,8 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
-func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
-	args := m.Called(ctx, pkg, version, rawConfig)
+func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+	args := m.Called(ctx, pkg, version, rawConfigs)
 	return args.Error(0)
 }
 
@@ -115,11 +115,6 @@ func (m *testPackageManager) RemoveConfigExperiment(ctx context.Context, pkg str
 
 func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testPackageManager) InstallMultipleConfigExperiment(ctx context.Context, pkg string, version string, serializedConfigs [][]byte) error {
-	args := m.Called(ctx, pkg, version, serializedConfigs)
 	return args.Error(0)
 }
 

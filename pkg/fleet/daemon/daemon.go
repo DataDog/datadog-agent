@@ -69,8 +69,7 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
-	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
-	StartMultipleConfigExperiment(ctx context.Context, pkg string, version string, configOrder []string) error
+	StartConfigExperiment(ctx context.Context, pkg string, version string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -435,10 +434,10 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 }
 
 // StartConfigExperiment starts a config experiment with the given package.
-func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, version string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, url, version)
+	return d.startConfigExperiment(ctx, pkg, version)
 }
 
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, version string) (err error) {
@@ -460,7 +459,7 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 	if err != nil {
 		return fmt.Errorf("could not serialize config files: %w", err)
 	}
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, serializedConfigFiles)
+	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, version, [][]byte{serializedConfigFiles})
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -509,45 +508,6 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
-	return nil
-}
-
-// StartConfigExperimentMultiple starts a config experiment with multiple configs.
-func (d *daemonImpl) StartMultipleConfigExperiment(ctx context.Context, pkg string, version string, configOrder []string) error {
-	d.m.Lock()
-	defer d.m.Unlock()
-	return d.startMultipleConfigExperiment(ctx, pkg, version, configOrder)
-}
-
-func (d *daemonImpl) startMultipleConfigExperiment(ctx context.Context, pkg string, version string, configOrder []string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment_multiple")
-	defer func() { span.Finish(err) }()
-	d.refreshState(ctx)
-	defer d.refreshState(ctx)
-
-	configs := d.configs
-	if len(d.configsOverride) > 0 {
-		configs = d.configsOverride
-	}
-	serializedConfigs := make([][]byte, 0, len(configOrder))
-	for _, configID := range configOrder {
-		config, ok := configs[configID]
-		if !ok {
-			return fmt.Errorf("could not find config %s", configID)
-		}
-		serializedConfigFiles, err := json.Marshal(config.Files)
-		if err != nil {
-			return fmt.Errorf("could not serialize config files: %w", err)
-		}
-		serializedConfigs = append(serializedConfigs, serializedConfigFiles)
-	}
-
-	log.Infof("Daemon: Starting config experiment version %s for package %s with multiple configs", version, pkg)
-	err = d.installer(d.env).InstallMultipleConfigExperiment(ctx, pkg, version, serializedConfigs)
-	if err != nil {
-		return fmt.Errorf("could not start config experiment: %w", err)
-	}
-	log.Infof("Daemon: Successfully started config experiment version %s for package %s with multiple configs", version, pkg)
 	return nil
 }
 
@@ -658,10 +618,40 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
-		if len(params.ConfigOrder) > 0 {
-			return d.startMultipleConfigExperiment(ctx, request.Package, params.Version, params.ConfigOrder)
+
+		configs := d.configs
+		if len(d.configsOverride) > 0 {
+			configs = d.configsOverride
 		}
-		return d.startConfigExperiment(ctx, request.Package, params.Version)
+
+		var serializedConfigs [][]byte
+		if len(params.ConfigOrder) > 0 {
+			// Multiple configs case
+			for _, configID := range params.ConfigOrder {
+				config, ok := configs[configID]
+				if !ok {
+					return fmt.Errorf("could not find config %s", configID)
+				}
+				serializedConfigFiles, err := json.Marshal(config.Files)
+				if err != nil {
+					return fmt.Errorf("could not serialize config files: %w", err)
+				}
+				serializedConfigs = append(serializedConfigs, serializedConfigFiles)
+			}
+		} else {
+			// Single config case
+			config, ok := configs[params.Version]
+			if !ok {
+				return fmt.Errorf("could not find config version %s", params.Version)
+			}
+			serializedConfigFiles, err := json.Marshal(config.Files)
+			if err != nil {
+				return fmt.Errorf("could not serialize config files: %w", err)
+			}
+			serializedConfigs = [][]byte{serializedConfigFiles}
+		}
+
+		return d.installer(d.env).InstallConfigExperiment(ctx, request.Package, params.Version, serializedConfigs)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)

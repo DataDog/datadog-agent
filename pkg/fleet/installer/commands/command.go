@@ -383,7 +383,8 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
+			// For backward compatibility, wrap single config in array
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], [][]byte{[]byte(args[2])})
 		},
 	}
 	return cmd

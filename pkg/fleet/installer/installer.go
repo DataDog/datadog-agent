@@ -61,8 +61,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
-	InstallMultipleConfigExperiment(ctx context.Context, pkg string, version string, serializedConfigs [][]byte) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -495,7 +494,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -508,54 +507,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// In the installConfigExperiment there is only one config file
-	mergedConfigs, err := mergeConfigs([][]byte{rawConfig})
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrConfigMergeFailed,
-			fmt.Errorf("could not merge configs: %w", err),
-		)
-	}
-	err = i.writeConfig(tmpDir, mergedConfigs)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not write agent config: %w", err),
-		)
-	}
-
-	configRepo := i.configs.Get(pkg)
-	err = configRepo.SetExperiment(ctx, version, tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not set experiment: %w", err),
-		)
-	}
-
-	// HACK: close so package can be updated as watchdog runs
-	if pkg == packageDatadogAgent && runtime.GOOS == "windows" {
-		i.db.Close()
-	}
-
-	return i.hooks.PostStartConfigExperiment(ctx, pkg)
-}
-
-// InstallConfigExperimentMultiple installs an experiment on top of an existing package with multiple configs.
-func (i *installerImpl) InstallMultipleConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	tmpDir, err := i.configs.MkdirTemp()
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not create temporary directory: %w", err),
-		)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Merge multiple config files
+	// Merge config files
 	mergedConfigs, err := mergeConfigs(rawConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
