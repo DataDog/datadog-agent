@@ -33,16 +33,6 @@ impl AgentCheck {
     pub fn check(self) -> Result<(), Box<dyn Error>> {
         /* check implementation goes here */
 
-        fn fetch(url: &str) -> (Result<reqwest::blocking::Response, reqwest::Error>, std::time::Duration) {
-            let client = reqwest::blocking::Client::new().get(url);
-
-            let start = Instant::now();
-            let res = client.send();
-            let duration = start.elapsed();
-
-            (res, duration)
-        }
-
         // TODO:
         // - tags list
         // - errors handling
@@ -58,16 +48,20 @@ impl AgentCheck {
 
         let mut tags = Vec::<String>::new();
 
-        // variables
+        // list service checks and their custom tags
         let mut service_checks: Vec<(String, ServiceCheckStatus, String)> = Vec::new();
-        let service_tags: Vec<String> = Vec::new(); // to be defined by the tags
+        let service_tags: Vec<String> = Vec::new(); // need to be set equal to the tags list at the beginning
 
 
         // fetch the URL and measure the response time
-        let (response, duration) = fetch(url);
+        let client = reqwest::blocking::Client::new().get(url);
+
+        let start = Instant::now();
+        let response_content = client.send();
+        let response_time = start.elapsed();
 
         // check fetch result
-        match response {
+        match response_content {
             Ok(resp) => {
                 // add url in tags list if not already present
                 let url_tag = format!("url:{}", url);
@@ -76,9 +70,9 @@ impl AgentCheck {
                     tags.push(url_tag);
                 }
 
-                // response time metric if enabled
+                // submit response time metric if enabled
                 if reponse_time {
-                    self.gauge("network.http.response_time", duration.as_secs_f64(), &tags, "", false);
+                    self.gauge("network.http.response_time", response_time.as_secs_f64(), &tags, "", false);
                 }
 
                 // check if http response status code corresponds to an error
@@ -99,19 +93,20 @@ impl AgentCheck {
                     ));
                 }
             }
+            // submit the error as a service check if one occurs
             Err(e) => {
                 if e.is_timeout() {
                     service_checks.push((
                         "http.can_connect".to_string(),
                         ServiceCheckStatus::CRITICAL,
-                        format!("Timeout error: {}. Connection failed after {} ms", e.to_string(), duration.as_millis()),
+                        format!("Timeout error: {}. Connection failed after {} ms", e.to_string(), response_time.as_millis()),
                     ));
 
                 } else if e.is_connect() {
                     service_checks.push((
                         "http.can_connect".to_string(),
                         ServiceCheckStatus::CRITICAL,
-                        format!("Connection error: {}. Connection failed after {} ms", e.to_string(), duration.as_millis()),
+                        format!("Connection error: {}. Connection failed after {} ms", e.to_string(), response_time.as_millis()),
                     ));
                 
                 } else {
@@ -124,8 +119,8 @@ impl AgentCheck {
             }
         }
 
-        // can connect metrics
-        // (by looking at the above implementation, this if statement is useless)
+        // submit can connect metrics
+        // (by looking at the above implementation, this if statement is useless because service_checks will always have at least one element)
         if !service_checks.is_empty() {
             let (can_connect, cant_connect) = match service_checks[0].1 {
                 ServiceCheckStatus::OK => (1.0, 0.0),
@@ -145,7 +140,7 @@ impl AgentCheck {
             let days_left: f64 = 0.0;
             let seconds_left: f64 = 0.0;
 
-            // ssl metrics
+            // submit ssl metrics
             self.gauge("http.ssl.days_left", days_left, &tags, "", false);
             self.gauge("http.ssl.seconds_left", seconds_left, &tags, "", true);
 
@@ -157,7 +152,7 @@ impl AgentCheck {
             ));
         }
 
-        // service checks
+        // submit every service check collected throughout the check
         for (sc_name, status, message) in service_checks {
             self.service_check(&sc_name, status, &service_tags, "", &message);
         }
