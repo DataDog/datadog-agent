@@ -13,9 +13,9 @@ go_library(
         "//pkg/util/log",
         "@com_github_datadog_appsec_internal_go//limiter",
         "@com_github_datadog_appsec_internal_go//log",
-        "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
-        "@com_github_datadog_go_libddwaf_v3//:timer",
-        "@com_github_datadog_go_libddwaf_v3//:waferrors",
+        "@com_github_datadog_go_libddwaf_v4//:go-libddwaf",
+        "@com_github_datadog_go_libddwaf_v4//timer",
+        "@com_github_datadog_go_libddwaf_v4//waferrors",
         "@com_github_json_iterator_go//:go",
     ],
 )
@@ -29,7 +29,7 @@ go_test(
     embed = [":appsec"],
     deps = [
         "@com_github_datadog_appsec_internal_go//appsec",
-        "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
+        "@com_github_datadog_go_libddwaf_v4//:go-libddwaf",
         "@com_github_stretchr_testify//require",
     ],
 )

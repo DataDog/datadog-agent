@@ -21,8 +21,8 @@ go_library(
         "//pkg/util/log",
         "@com_github_aws_aws_lambda_go//events",
         "@com_github_datadog_appsec_internal_go//httpsec",
-        "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
-        "@com_github_datadog_go_libddwaf_v3//:timer",
+        "@com_github_datadog_go_libddwaf_v4//:go-libddwaf",
+        "@com_github_datadog_go_libddwaf_v4//timer",
         "@com_github_json_iterator_go//:go",
     ],
 )
@@ -41,7 +41,7 @@ go_test(
         "//pkg/serverless/executioncontext",
         "//pkg/serverless/invocationlifecycle",
         "//pkg/trace/sampler",
-        "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
+        "@com_github_datadog_go_libddwaf_v4//:go-libddwaf",
         "@com_github_stretchr_testify//require",
     ],
 )
