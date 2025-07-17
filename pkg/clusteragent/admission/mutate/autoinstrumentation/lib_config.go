@@ -39,30 +39,25 @@ func (basicLibConfigInjector) mutatePod(pod *corev1.Pod) error {
 	return nil
 }
 
-type libConfigInjector struct{}
-
-func (l *libConfigInjector) podMutator(lang language) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
-		c, err := lang.libConfigAnnotationExtractor().extract(pod)
-		if err != nil {
-			if isErrAnnotationNotFound(err) {
-				return nil
-			}
-
-			return err
-		}
-
-		for _, env := range c.ToEnvs() {
-			_ = mutatecommon.InjectEnv(pod, env)
-		}
-
+// injectV1LibAnnotations extracts "v1" library injection annotations from a pod and
+// adds the required environment variables for the language to the pod.
+func injectV1LibAnnotations(pod *corev1.Pod, lang language) error {
+	a, ok := pod.GetAnnotations()[lang.libConfigV1AnnotationKey()]
+	if !ok {
+		// annotation not found, do nothing
 		return nil
-	})
-}
+	}
 
-// injectLibConfig injects additional library configuration extracted from pod annotations
-func injectLibConfig(pod *corev1.Pod, lang language) error {
-	return (&libConfigInjector{}).podMutator(lang).mutatePod(pod)
+	lc, err := parseConfigJSON(a)
+	if err != nil {
+		return err
+	}
+
+	for _, env := range lc.ToEnvs() {
+		_ = mutatecommon.InjectEnv(pod, env)
+	}
+
+	return nil
 }
 
 func parseConfigJSON(in string) (common.LibConfig, error) {
