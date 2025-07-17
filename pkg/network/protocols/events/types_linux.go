@@ -11,7 +11,7 @@ type Batch struct {
 	Event_size     uint16
 	Dropped_events uint32
 	Failed_flushes uint32
-	Data           [4096]int8
+	Data           [16384]int8
 }
 type batchKey struct {
 	Cpu uint16
@@ -20,5 +20,5 @@ type batchKey struct {
 
 const (
 	batchPagesPerCPU = 0x8
-	batchBufferSize  = 0x1000
+	batchBufferSize  = 0x4000
 )
