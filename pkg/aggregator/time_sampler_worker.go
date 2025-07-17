@@ -122,7 +122,7 @@ func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
 	if w.flushAsync {
 		w.sampler.flushAsync(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll, trigger.blockChan)
 	} else {
-	    w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll)
+		w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll)
 		trigger.blockChan <- struct{}{}
 	}
 }
