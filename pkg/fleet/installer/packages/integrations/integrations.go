@@ -14,10 +14,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+)
+
+var (
+	datadogInstalledIntegrationsPattern = regexp.MustCompile(`embedded/lib/python[^/]+/site-packages/datadog_.*`)
 )
 
 // SaveCustomIntegrations saves custom integrations from the previous installation
@@ -76,6 +81,22 @@ func RestoreCustomIntegrations(ctx context.Context, installPath string) (err err
 	return nil
 }
 
+// getAllIntegrations retrieves all integration paths installed by the package
+// It walks through the installPath and collects paths that match the './embedded/lib/python*/site-packages/datadog_*' pattern.
+func getAllIntegrations(installPath string) ([]string, error) {
+	allIntegrations := make([]string, 0)
+	err := filepath.Walk(installPath, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if datadogInstalledIntegrationsPattern.MatchString(path) {
+			allIntegrations = append(allIntegrations, path) // Absolute path
+		}
+		return nil
+	})
+	return allIntegrations, err
+}
+
 // RemoveCustomIntegrations removes custom integrations that are not installed by the package
 //
 // Since 6.18.0, a file containing all integrations files which have been installed by
@@ -95,7 +116,7 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	fmt.Println("Removing integrations installed with the 'agent integration' command")
 
 	// Use an in-memory map to store all integration paths
-	allIntegrations, err := filepath.Glob(filepath.Join(installPath, "embedded/lib/python*/site-packages/datadog_*"))
+	allIntegrations, err := getAllIntegrations(installPath)
 	if err != nil {
 		return err
 	}
@@ -110,6 +131,10 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	installedByPkgSet := make(map[string]struct{})
 	for _, line := range strings.Split(string(installedByPkg), "\n") {
 		if line != "" {
+			// Make sure the path is absolute so we can compare apples to apples
+			if !filepath.IsAbs(line) && !strings.HasPrefix(line, "#") {
+				line = filepath.Join(installPath, line)
+			}
 			installedByPkgSet[line] = struct{}{}
 		}
 	}
@@ -117,7 +142,7 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	// Remove paths that are in allIntegrations but not in installedByPkgSet
 	for _, path := range allIntegrations {
 		if _, exists := installedByPkgSet[path]; !exists {
-			// Remove the directory if it was not installed by the package.
+			// Remove if it was not installed by the package.
 			if err := os.RemoveAll(path); err != nil {
 				return err
 			}

@@ -67,10 +67,6 @@ func setupForwarder(config pkgconfigmodel.Config) {
 
 func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Serializer
-	config.Set("enable_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_service_checks_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_events_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
-	config.Set("enable_sketch_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_json_stream_shared_compressor_buffers", true, pkgconfigmodel.SourceDefault)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
