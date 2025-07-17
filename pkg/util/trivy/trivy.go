@@ -142,6 +142,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/run/**",
 			"/sbin/**",
 			"/sys/**",
+			"/sysroot/**",
 			"/tmp/**",
 			"/usr/bin/**",
 			"/usr/sbin/**",
