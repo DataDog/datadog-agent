@@ -39,6 +39,7 @@ type NetflowConfig struct {
 
 	DropFlowsBeforeEPForwarder bool `mapstructure:"drop_flows_before_ep_forwarder"`
 	SkipHashCollisionDetection bool `mapstructure:"skip_hash_collision_detection"`
+	AggregationHashUseSyncPool bool `mapstructure:"aggregation_hash_use_sync_pool"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

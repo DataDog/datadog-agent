@@ -9,9 +9,19 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
-	flowmessage "github.com/netsampler/goflow2/pb"
+	"hash"
 	"hash/fnv"
+	"sync"
+
+	flowmessage "github.com/netsampler/goflow2/pb"
 )
+
+// hashPool is a sync.Pool for reusing hash instances to avoid heap allocations
+var hashPool = sync.Pool{
+	New: func() interface{} {
+		return fnv.New64()
+	},
+}
 
 // Flow contains flow info used for aggregation
 // json annotations are used in AsJSONString() for debugging purpose
@@ -133,6 +143,26 @@ var (
 
 // AggregationHash return a hash used as aggregation key
 func (f *Flow) AggregationHash() uint64 {
+	h := hashPool.Get().(hash.Hash64)
+	defer func() {
+		h.Reset()
+		hashPool.Put(h)
+	}()
+
+	h.Write([]byte(f.Namespace))                           //nolint:errcheck
+	h.Write(f.ExporterAddr)                                //nolint:errcheck
+	h.Write(f.SrcAddr)                                     //nolint:errcheck
+	h.Write(f.DstAddr)                                     //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.SrcPort)        //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.DstPort)        //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.IPProtocol)     //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.Tos)            //nolint:errcheck
+	binary.Write(h, binary.LittleEndian, f.InputInterface) //nolint:errcheck
+	return h.Sum64()
+}
+
+// AggregationHashOriginal return a hash used as aggregation key (original implementation without sync.Pool)
+func (f *Flow) AggregationHashOriginal() uint64 {
 	h := fnv.New64()
 	h.Write([]byte(f.Namespace))                           //nolint:errcheck
 	h.Write(f.ExporterAddr)                                //nolint:errcheck
