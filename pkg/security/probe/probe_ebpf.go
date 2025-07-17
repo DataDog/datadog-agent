@@ -593,7 +593,7 @@ func (p *EBPFProbe) getRawPacketMaps() (rawPacketEventMap, routerMap *lib.Map, e
 	return rawPacketEventMap, routerMap, nil
 }
 
-func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
+func (p *EBPFProbe) enableRawPacket(enable bool) err {
 	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
 	if err != nil {
 		return err
@@ -602,18 +602,16 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 		return errors.New("unable to find `raw_packet_enabled` map")
 	}
 
-	// enable raw packet or not
-	// TODO: remove this once we have a way to enable/disable the raw packet filter
-	enabled := make([]uint32, p.numCPU)
-	//if len(progSpecs) > 0 {
-	for i := range enabled {
-		enabled[i] = 1
+	enabledData := make([]uint32, p.numCPU)
+	if enable {
+		for i := range enabledData {
+			enabledData[i] = 1
+		}
 	}
-	//}
-	if err = enabledMap.Put(uint32(0), enabled); err != nil {
-		seclog.Errorf("couldn't push raw_packet_enabled entry to kernel space: %s", err)
-	}
+	return enabledMap.Put(uint32(0), enabledData)
+}
 
+func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey uint32, maxProgs int, collectionPtr **lib.Collection) error {
 	collection := *collectionPtr
 
 	// unload the previews one
@@ -623,12 +621,9 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 		collection = nil
 	}
 
-	if len(progSpecs) == 0 {
-		return nil
-	}
-
-	// not enabled
-	if enabled[0] == 0 {
+	if len(progSpecs) > 0 {
+		p.enableRawPacket(true)
+	} else {
 		return nil
 	}
 
@@ -640,8 +635,7 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 	}
 
 	// verify that the programs are using the TC_ACT_UNSPEC return code
-	err = probes.CheckUnspecReturnCode(colSpec.Programs)
-	if err != nil {
+	if err := probes.CheckUnspecReturnCode(colSpec.Programs); err != nil {
 		return fmt.Errorf("programs are not using the TC_ACT_UNSPEC return code: %w", err)
 	}
 
@@ -704,6 +698,8 @@ func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		p.enableRawPacket(false)
 	}
 
 	// add or close if none

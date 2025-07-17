@@ -52,9 +52,9 @@ type ProgOpts struct {
 	// internals
 
 	// target register. register holding either the pid or the cgroup id/path
-	target        asm.Register
+	pidReg        asm.Register
 	onMatchLabel  string
-	ctxSave       asm.Register
+	ctxSaveReg    asm.Register
 	tailCallMapFd int
 }
 
@@ -73,9 +73,9 @@ func DefaultProgOpts() ProgOpts {
 			},
 			StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
 		},
-		target:       asm.R8,
+		pidReg:       asm.R8,
 		onMatchLabel: "on_match",
-		ctxSave:      asm.R9,
+		ctxSaveReg:   asm.R9,
 		MaxTailCalls: probes.RawPacketMaxTailCall,
 		MaxProgSize:  4000,
 	}
@@ -117,7 +117,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 	for i := 0; i != opts.NopInstLen; i++ {
 		// insert a nop instruction
 		insts = append(insts,
-			asm.JEq.Imm(opts.ctxSave, 0, opts.onMatchLabel).WithSymbol(resultLabel),
+			asm.JEq.Imm(opts.ctxSaveReg, 0, opts.onMatchLabel).WithSymbol(resultLabel),
 		)
 		resultLabel = ""
 	}
@@ -130,7 +130,7 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// check the pid
-			asm.JEq.Imm(opts.target, int32(filter.Pid), opts.onMatchLabel),
+			asm.JEq.Imm(opts.pidReg, int32(filter.Pid), opts.onMatchLabel),
 			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
 		)
 	} else if !filter.CGroupPathKey.IsNull() {
@@ -140,13 +140,10 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// check the cgroup id
-			asm.Mov.Reg(asm.R1, opts.ctxSave),
-			asm.FnSkbCgroupId.Call(),
-
-			// save result in r7
-			asm.Mov.Reg(asm.R7, asm.R0),
+			asm.FnGetCurrentCgroupId.Call(),
 
 			// printk
+			/*asm.Mov.Reg(asm.R7, asm.R0),
 			asm.Mov.Reg(asm.R3, asm.R0),
 			asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
 			asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
@@ -156,8 +153,10 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.Add.Imm(asm.R1, -16),
 			asm.Mov.Imm(asm.R2, 10),
 			asm.FnTracePrintk.Call(),
+			asm.Mov.Reg(asm.R0, asm.R7),*/
 
-			asm.JNE.Imm(asm.R7, int32(filter.CGroupPathKey.Inode), opts.onMatchLabel),
+			// check the cgroup id
+			asm.JEq.Imm(asm.R7, int32(filter.CGroupPathKey.Inode), opts.onMatchLabel),
 			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
 		)
 	} else {
@@ -192,7 +191,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 		// insert tail call to the current filter if not the last prog
 		if i+1 < len(filters) {
 			tailCallInsts = asm.Instructions{
-				asm.Mov.Reg(asm.R1, opts.ctxSave),
+				asm.Mov.Reg(asm.R1, opts.ctxSaveReg),
 				asm.LoadMapPtr(asm.R2, opts.tailCallMapFd),
 				asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey+uint32(tailCalls)+1)),
 				asm.FnTailCall.Call(),
@@ -240,7 +239,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, footerInsts as
 func getHeaderInsts(rawPacketEventMapFd int, opts ProgOpts) asm.Instructions {
 	return append(asm.Instructions{},
 		// save ctx
-		asm.Mov.Reg(opts.ctxSave, asm.R1),
+		asm.Mov.Reg(opts.ctxSaveReg, asm.R1),
 		// load raw event
 		asm.Mov.Reg(asm.R2, asm.RFP),
 		asm.Add.Imm(asm.R2, -4),
@@ -251,7 +250,7 @@ func getHeaderInsts(rawPacketEventMapFd int, opts ProgOpts) asm.Instructions {
 		asm.Mov.Imm(asm.R0, probes.TCActUnspec),
 		asm.Return(),
 		// load the pid from the packet
-		asm.LoadMem(opts.target, asm.R0, structRawPacketEventPidOffset, asm.Word).WithSymbol("raw-packet-event-not-null"),
+		asm.LoadMem(opts.pidReg, asm.R0, structRawPacketEventPidOffset, asm.Word).WithSymbol("raw-packet-event-not-null"),
 		// place in result in the start register and end register
 		asm.Mov.Reg(opts.PacketStart, asm.R0),
 		asm.Add.Imm(opts.PacketStart, structRawPacketEventDataOffset),
@@ -273,7 +272,7 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 	headerInsts := getHeaderInsts(rawPacketEventMapFd, opts)
 
 	senderInsts := asm.Instructions{
-		asm.Mov.Reg(asm.R1, opts.ctxSave).WithSymbol(opts.onMatchLabel),
+		asm.Mov.Reg(asm.R1, opts.ctxSaveReg).WithSymbol(opts.onMatchLabel),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketSenderKey)),
 		asm.FnTailCall.Call(),
@@ -327,7 +326,7 @@ func DropActionsToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters 
 	headerInsts := getHeaderInsts(rawPacketEventMapFd, opts)
 
 	shotInsts := asm.Instructions{
-		asm.Mov.Reg(asm.R1, opts.ctxSave).WithSymbol(opts.onMatchLabel),
+		asm.Mov.Reg(asm.R1, opts.ctxSaveReg).WithSymbol(opts.onMatchLabel),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketDropActionShotKey)),
 		asm.FnTailCall.Call(),
@@ -338,7 +337,7 @@ func DropActionsToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
 		// chain with regular filter
-		asm.Mov.Reg(asm.R1, opts.ctxSave),
+		asm.Mov.Reg(asm.R1, opts.ctxSaveReg),
 		asm.LoadMapPtr(asm.R2, clsRouterMapFd),
 		asm.Mov.Imm(asm.R3, int32(probes.TCRawPacketFilterKey)),
 		asm.FnTailCall.Call(),
