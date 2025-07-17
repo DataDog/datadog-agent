@@ -12,13 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
@@ -173,7 +173,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 		// If we don't find the container, we assume all devices are available.
 		// This can happen sometimes, e.g. if we don't have the container in the
 		// store yet. Do not block metrics on that.
-		if errors.IsNotFound(err) {
+		if dderrors.IsNotFound(err) {
 			return devices, nil
 		}
 
@@ -182,45 +182,25 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
 
-	var filteredDevices []ddnvml.Device
-	numContainerGPUs := 0
-	for _, resource := range container.ResolvedAllocatedResources {
-		// Only consider NVIDIA GPUs
-		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
-			continue
-		}
-
-		numContainerGPUs++
-
-	outer:
-		for _, device := range devices {
-			if resource.ID == device.GetDeviceInfo().UUID {
-				filteredDevices = append(filteredDevices, device)
-				break
-			}
-
-			// If the device has MIG children, check if any of them matches the resource ID
-			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
-			if ok {
-				for _, migChild := range physicalDevice.MIGChildren {
-					if resource.ID == migChild.UUID {
-						filteredDevices = append(filteredDevices, migChild)
-						break outer
-					}
-				}
-			}
-		}
-	}
+	filteredDevices, err := matchContainerDevices(container, devices)
 
 	// Found matching devices, return them
 	if len(filteredDevices) > 0 {
+		if err != nil {
+			if logLimitProbe.ShouldLog() {
+				log.Warnf("error matching some container devices: %s. Will continue with the available devices", err)
+			}
+		}
 		return filteredDevices, nil
 	}
 
-	// We didn't match any devices to the container. This could be caused by
-	// multiple reasons. One option is that the container has no GPUs assigned
-	// to it. This could be a problem in the PodResources API.
-	if numContainerGPUs == 0 {
+	// We didn't match any devices to the container, but there were not errors
+	// while matching, which means that there were no GPU devices assigned to
+	// the container to try and match. This could be a problem in the PodResources
+	// API, or it could be due to the container environment being different
+	// (e.g., Docker instead of k8s). In any case, we return the available
+	// devices as a fallback.
+	if err == nil {
 		// An special case is when we only have one GPU in the system. In that
 		// case, we don't need the API as there's only one device available, so
 		// return it directly as a fallback
@@ -236,7 +216,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	// If the container has GPUs assigned to it but we couldn't match it to our
 	// devices, return the error for this case and show the allocated resources
 	// for debugging purposes.
-	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.ResolvedAllocatedResources)
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v: %w", containerID, container.ResolvedAllocatedResources, err)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the

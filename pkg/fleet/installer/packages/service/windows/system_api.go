@@ -12,12 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 )
 
 // systemAPI abstracts system-level API calls
 type systemAPI interface {
 	GetServiceProcessID(serviceName string) (uint32, error)
-	IsServiceRunning(serviceName string) (bool, error)
+	GetServiceState(serviceName string) (svc.State, error)
 	StopService(serviceName string) error
 	StartService(serviceName string) error
 	OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error)
@@ -31,29 +32,44 @@ type systemAPI interface {
 // winSystemAPI implements SystemAPI using winutil and Windows API
 type winSystemAPI struct{}
 
-func (api *winSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) {
+func (api *winSystemAPI) queryServiceStatus(serviceName string) (svc.Status, error) {
 	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
-		return 0, fmt.Errorf("could not open SCM for service %s: %w", serviceName, err)
+		return svc.Status{}, err
 	}
 	defer manager.Disconnect()
 
 	service, err := winutil.OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
 	if err != nil {
-		return 0, fmt.Errorf("could not open service %s: %w", serviceName, err)
+		return svc.Status{}, err
 	}
 	defer service.Close()
 
 	status, err := service.Query()
 	if err != nil {
-		return 0, fmt.Errorf("could not query service %s: %w", serviceName, err)
+		return svc.Status{}, fmt.Errorf("could not query service %s: %w", serviceName, err)
+	}
+
+	return status, nil
+}
+
+func (api *winSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) {
+	status, err := api.queryServiceStatus(serviceName)
+	if err != nil {
+		return 0, err
 	}
 
 	return status.ProcessId, nil
 }
 
-func (api *winSystemAPI) IsServiceRunning(serviceName string) (bool, error) {
-	return winutil.IsServiceRunning(serviceName)
+// GetServiceState returns the current state of the service.
+func (api *winSystemAPI) GetServiceState(serviceName string) (svc.State, error) {
+	status, err := api.queryServiceStatus(serviceName)
+	if err != nil {
+		return svc.Stopped, err
+	}
+
+	return status.State, nil
 }
 
 func (api *winSystemAPI) StopService(serviceName string) error {

@@ -11,19 +11,18 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type controllerReporter controller
+type controllerReporter Controller
 
 // ReportAttached implements actuator.Reporter.
 func (c *controllerReporter) ReportAttached(
 	procID actuator.ProcessID, program *ir.Program,
 ) {
-	ctrl := (*controller)(c)
+	ctrl := (*Controller)(c)
 	ctrl.store.link(program.ID, procID)
 
 	runtimeID, ok := ctrl.store.getRuntimeID(procID)
@@ -41,7 +40,7 @@ func (c *controllerReporter) ReportAttachingFailed(
 	procID actuator.ProcessID, program *ir.Program, err error,
 ) {
 	log.Errorf("attaching program %v to process %v failed: %v", program.ID, procID, err)
-	ctrl := (*controller)(c)
+	ctrl := (*Controller)(c)
 	runtimeID, ok := ctrl.store.getRuntimeID(procID)
 	if !ok {
 		return
@@ -57,7 +56,7 @@ func (c *controllerReporter) ReportAttachingFailed(
 func (c *controllerReporter) ReportDetached(
 	_ actuator.ProcessID, program *ir.Program,
 ) {
-	ctrl := (*controller)(c)
+	ctrl := (*Controller)(c)
 	ctrl.store.unlink(program.ID)
 	ctrl.procRuntimeIDbyProgramID.Delete(program.ID)
 }
@@ -69,7 +68,7 @@ func (c *controllerReporter) ReportIRGenFailed(
 	probes []ir.ProbeDefinition,
 ) {
 	log.Errorf("IR generation for process %v failed: %v", procID, err)
-	ctrl := (*controller)(c)
+	ctrl := (*Controller)(c)
 	runtimeID, ok := ctrl.store.getRuntimeID(procID)
 	if !ok {
 		return
@@ -85,7 +84,7 @@ func (c *controllerReporter) ReportLoaded(
 	executable actuator.Executable,
 	program *ir.Program,
 ) (actuator.Sink, error) {
-	ctrl := (*controller)(c)
+	ctrl := (*Controller)(c)
 	// The process must have already exited.
 	runtimeID, ok := ctrl.store.updateOnLoad(procID, executable, program.ID)
 	if !ok {
@@ -93,7 +92,7 @@ func (c *controllerReporter) ReportLoaded(
 	}
 	ctrl.procRuntimeIDbyProgramID.Store(program.ID, runtimeID)
 
-	decoder, err := decode.NewDecoder(program)
+	decoder, err := ctrl.decoderFactory.NewDecoder(program)
 	if err != nil {
 		return nil, fmt.Errorf("creating decoder: %w", err)
 	}
@@ -131,7 +130,7 @@ func (c *controllerReporter) ReportLoadingFailed(
 	procID actuator.ProcessID, program *ir.Program, err error,
 ) {
 	log.Errorf("loading program %v to process %v failed: %v", program.ID, procID, err)
-	ctrl := (*controller)(c)
+	ctrl := (*Controller)(c)
 	ctrl.procRuntimeIDbyProgramID.Delete(program.ID)
 	runtimeID, ok := ctrl.store.getRuntimeID(procID)
 	if !ok {
