@@ -8,7 +8,7 @@ from tasks.kernel_matrix_testing.tool import info, is_root
 from tasks.libs.common.status import Status
 
 
-def get_requirements(remote_setup_only: bool):
+def get_requirements(remote_setup_only: bool, exclude_requirements: list[str] | None = None):
     from . import common, linux, linux_localvms, mac, mac_localvms
 
     requirements: list[Requirement] = []
@@ -26,7 +26,12 @@ def get_requirements(remote_setup_only: bool):
         elif sys.platform == "darwin":
             requirements += _get_requirements_from_module(mac_localvms)
 
-    return _topological_sort_requirements(requirements)
+    requirements = _topological_sort_requirements(requirements)
+
+    if exclude_requirements is not None:
+        requirements = [r for r in requirements if r.__class__.__name__ not in exclude_requirements]
+
+    return requirements
 
 
 def _topological_sort_requirements(requirements: list[Requirement]) -> list[Requirement]:
