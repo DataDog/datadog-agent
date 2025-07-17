@@ -18,8 +18,9 @@ import (
 func TestReplacer(t *testing.T) {
 	t.Run("traces", func(tt *testing.T) {
 		for _, testCase := range []struct {
-			rules     [][3]string
-			got, want map[string]string
+			rules                   [][3]string
+			gotMeta, wantMeta       map[string]string
+			gotMetrics, wantMetrics map[string]float64
 		}{
 			{
 				rules: [][3]string{
@@ -27,14 +28,35 @@ func TestReplacer(t *testing.T) {
 					{"http.url", "guid", "[REDACTED]"},
 					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
 					{"a", "b", "c"},
+					{"nested.value", "foo", "bar"},
+					{"counter", "1", "2"},
+					{"nested.counter", "100", "200"},
 				},
-				got: map[string]string{
-					"http.url":   "some/guid/token/abcdef/abc",
-					"custom.tag": "/foo/bar/foo",
+				gotMeta: map[string]string{
+					"http.url":               "some/guid/token/abcdef/abc",
+					"custom.tag":             "/foo/bar/foo",
+					"nested.value.1":         "this is foo",
+					"nested.value.2":         "this is another foo",
+					"nested.value_unchanged": "this is still foo",
 				},
-				want: map[string]string{
-					"http.url":   "some/[REDACTED]/token/?/abc",
-					"custom.tag": "/foo/bar/extra",
+				wantMeta: map[string]string{
+					"http.url":               "some/[REDACTED]/token/?/abc",
+					"custom.tag":             "/foo/bar/extra",
+					"nested.value.1":         "this is bar",
+					"nested.value.2":         "this is another bar",
+					"nested.value_unchanged": "this is still foo",
+				},
+				gotMetrics: map[string]float64{
+					"counter":              1,
+					"nested.counter.one":   100,
+					"nested.counter.two":   200,
+					"nested.counter.three": 300,
+				},
+				wantMetrics: map[string]float64{
+					"counter":              2,
+					"nested.counter.one":   200,
+					"nested.counter.two":   200,
+					"nested.counter.three": 300,
 				},
 			},
 			{
@@ -45,14 +67,14 @@ func TestReplacer(t *testing.T) {
 					{"custom.tag", "(/foo/bar/).*", "${1}extra"},
 					{"resource.name", "prod", "stage"},
 				},
-				got: map[string]string{
+				gotMeta: map[string]string{
 					"resource.name": "this is prod",
 					"http.url":      "some/[REDACTED]/token/abcdef/abc",
 					"other.url":     "some/guid/token/abcdef/abc",
 					"custom.tag":    "/foo/bar/foo",
 					"_special":      "this should not be changed",
 				},
-				want: map[string]string{
+				wantMeta: map[string]string{
 					"resource.name": "that is stage",
 					"http.url":      "some/[REDACTED]/token/?/abc",
 					"other.url":     "some/guid/token/?/abc",
@@ -63,11 +85,11 @@ func TestReplacer(t *testing.T) {
 		} {
 			rules := parseRulesFromString(testCase.rules)
 			tr := NewReplacer(rules)
-			root := replaceFilterTestSpan(testCase.got)
-			childSpan := replaceFilterTestSpan(testCase.got)
+			root := replaceFilterTestSpan(testCase.gotMeta, testCase.gotMetrics)
+			childSpan := replaceFilterTestSpan(testCase.gotMeta, testCase.gotMetrics)
 			trace := pb.Trace{root, childSpan}
 			tr.Replace(trace)
-			for k, v := range testCase.want {
+			for k, v := range testCase.wantMeta {
 				switch k {
 				case "resource.name":
 					// test that the filter applies to all spans, not only the root
@@ -77,6 +99,10 @@ func TestReplacer(t *testing.T) {
 					assert.Equal(tt, v, root.Meta[k])
 					assert.Equal(tt, v, childSpan.Meta[k])
 				}
+			}
+			for k, v := range testCase.wantMetrics {
+				assert.Equal(tt, v, root.Metrics[k])
+				assert.Equal(tt, v, childSpan.Metrics[k])
 			}
 		}
 	})
@@ -240,8 +266,8 @@ func parseRulesFromString(rules [][3]string) []*config.ReplaceRule {
 
 // replaceFilterTestSpan creates a span from a list of tags and uses
 // special tag names (e.g. resource.name) to target attributes.
-func replaceFilterTestSpan(tags map[string]string) *pb.Span {
-	span := &pb.Span{Meta: make(map[string]string)}
+func replaceFilterTestSpan(tags map[string]string, metrics map[string]float64) *pb.Span {
+	span := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
 	for k, v := range tags {
 		switch k {
 		case "resource.name":
@@ -250,10 +276,13 @@ func replaceFilterTestSpan(tags map[string]string) *pb.Span {
 			span.Meta[k] = v
 		}
 	}
+	for k, v := range metrics {
+		span.Metrics[k] = v
+	}
 	return span
 }
 
-// replaceFilterTestSpan creates a span with a span event with the provided attributes
+// replaceFilterTestSpanEvent creates a span with a span event with the provided attributes
 func replaceFilterTestSpanEvent(attributes map[string]*pb.AttributeAnyValue) *pb.Span {
 	span := &pb.Span{SpanEvents: []*pb.SpanEvent{
 		{
@@ -269,8 +298,9 @@ func replaceFilterTestSpanEvent(attributes map[string]*pb.AttributeAnyValue) *pb
 // helper function.
 func TestReplaceFilterTestSpan(t *testing.T) {
 	for _, tt := range []struct {
-		tags map[string]string
-		want *pb.Span
+		tags    map[string]string
+		metrics map[string]float64
+		want    *pb.Span
 	}{
 		{
 			tags: map[string]string{
@@ -284,10 +314,11 @@ func TestReplaceFilterTestSpan(t *testing.T) {
 					"http.url":   "url",
 					"custom.tag": "val",
 				},
+				Metrics: map[string]float64{},
 			},
 		},
 	} {
-		got := replaceFilterTestSpan(tt.tags)
+		got := replaceFilterTestSpan(tt.tags, tt.metrics)
 		assert.Equal(t, tt.want, got)
 	}
 }
