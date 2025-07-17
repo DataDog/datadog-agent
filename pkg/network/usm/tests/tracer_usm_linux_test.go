@@ -82,6 +82,7 @@ const (
 	http2Port      = "9090"
 	httpsPort      = "8443"
 	kafkaPort      = "9092"
+	kafkaTLSPort   = "9093"
 	mongoPort      = "27017"
 	mysqlPort      = "3306"
 	postgresPort   = "5432"
@@ -610,6 +611,7 @@ func testTLSClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHo
 			{"mysql", testMySQLProtocolClassificationTLS},
 			{"postgres", testPostgresProtocolClassificationWrapper(protocolsUtils.TLSEnabled)},
 			{"redis", testTLSRedisProtocolClassification},
+			{"kafka", testKafkaProtocolClassificationTLS},
 		}
 
 		for _, tt := range tests {

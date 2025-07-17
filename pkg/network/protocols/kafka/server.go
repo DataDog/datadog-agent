@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -29,7 +30,7 @@ const (
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"KAFKA_ADDR=" + serverAddr,
-		"KAFKA_PORT=" + serverPort,
+		//"KAFKA_PORT=" + serverPort,
 	}
 
 	t.Helper()
@@ -56,6 +57,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 			"kafka",
 			scanner,
 			dockerutils.WithEnv(env),
+			dockerutils.WithTimeout(2*time.Minute),
 		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)

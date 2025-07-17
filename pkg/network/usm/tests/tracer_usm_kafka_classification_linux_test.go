@@ -9,7 +9,9 @@ package tests
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"net"
 	"strings"
 	"testing"
@@ -25,20 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
-func buildProduceVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress, topicName string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+func buildProduceVersionTest(name string, version *kversion.Versions, tContext testContext, dialFn func(context.Context, string, string) (net.Conn, error), expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
-		name: name,
-		context: testContext{
-			targetAddress: targetAddress,
-			serverAddress: serverAddress,
-			extras: map[string]interface{}{
-				"topic_name": topicName,
-			},
-		},
+		name:    name,
+		context: tContext,
 		preTracerSetup: func(t *testing.T, ctx testContext) {
 			produceClient, err := kafka.NewClient(kafka.Options{
 				ServerAddress: ctx.targetAddress,
-				DialFn:        dialer.DialContext,
+				DialFn:        dialFn,
 				CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
 			})
 			require.NoError(t, err)
@@ -56,21 +52,14 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 	}
 }
 
-func buildFetchVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress, topicName string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+func buildFetchVersionTest(name string, version *kversion.Versions, tContext testContext, dialFn func(context.Context, string, string) (net.Conn, error), expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
-		name: name,
-		context: testContext{
-			serverPort:    kafkaPort,
-			targetAddress: targetAddress,
-			serverAddress: serverAddress,
-			extras: map[string]interface{}{
-				"topic_name": topicName,
-			},
-		},
+		name:    name,
+		context: tContext,
 		preTracerSetup: func(t *testing.T, ctx testContext) {
 			produceClient, err := kafka.NewClient(kafka.Options{
 				ServerAddress: ctx.targetAddress,
-				DialFn:        dialer.DialContext,
+				DialFn:        dialFn,
 				CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 			})
 			require.NoError(t, err)
@@ -84,7 +73,7 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 
 			fetchClient, err := kafka.NewClient(kafka.Options{
 				ServerAddress: ctx.targetAddress,
-				DialFn:        dialer.DialContext,
+				DialFn:        dialFn,
 				CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 			})
 			require.NoError(t, err)
@@ -102,7 +91,7 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 	}
 }
 
-func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
 	const topicName = "franz-kafka"
 	testIndex := 0
 	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
@@ -112,17 +101,39 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		return fmt.Sprintf("%s-%d", topicName, testIndex)
 	}
 
-	skipFunc := composeSkips(skipIfUsingNAT)
+	skippers := []func(*testing.T, testContext){
+		skipIfUsingNAT,
+	}
+	if withTLS {
+		skippers = append(skippers, skipIfGoTLSNotSupported)
+	}
+
+	port := kafkaPort
+	if withTLS {
+		port = kafkaTLSPort
+	}
+
+	skipFunc := composeSkips(skippers...)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    kafkaPort,
+		serverPort:    port,
 		targetAddress: targetHost,
 	})
 
-	defaultDialer := &net.Dialer{
+	var baseDialer = &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
 		},
+	}
+	// Configure the dial function based on whether TLS is enabled or not
+	dialFn := baseDialer.DialContext
+	if withTLS {
+		dialFn = (&tls.Dialer{
+			NetDialer: baseDialer,
+			Config: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}).DialContext
 	}
 
 	kafkaTeardown := func(_ *testing.T, ctx testContext) {
@@ -134,15 +145,15 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		}
 	}
 
-	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
-	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
+	serverAddress := net.JoinHostPort(serverHost, port)
+	targetAddress := net.JoinHostPort(targetHost, port)
+	require.NoError(t, kafka.RunServer(t, serverHost, port))
 
 	tests := []protocolClassificationAttributes{
 		{
 			name: "connect",
 			context: testContext{
-				serverPort:    kafkaPort,
+				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
@@ -150,7 +161,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					DialFn:        defaultDialer.DialContext,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
@@ -162,7 +173,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "create topic",
 			context: testContext{
-				serverPort:    kafkaPort,
+				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -172,7 +183,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					DialFn:        defaultDialer.DialContext,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
@@ -188,7 +199,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "produce - empty string client id",
 			context: testContext{
-				serverPort:    kafkaPort,
+				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -198,7 +209,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					DialFn:        defaultDialer.DialContext,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
@@ -218,7 +229,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		{
 			name: "produce - multiple topics",
 			context: testContext{
-				serverPort:    kafkaPort,
+				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -229,7 +240,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					DialFn:        defaultDialer.DialContext,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V1_0_0())},
 				})
 				require.NoError(t, err)
@@ -257,7 +268,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		expectedProtocol := protocols.Kafka
 
 		version := kversion.V4_0_0()
-		targetPort := kafkaPort
+		targetPort := port
 
 		// on older versions of kafka, test against old kafka server
 		if produceVersion < 8 {
@@ -270,10 +281,14 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		currentTest := buildProduceVersionTest(
 			fmt.Sprintf("produce v%d", produceVersion),
 			version,
-			net.JoinHostPort(targetHost, targetPort),
-			net.JoinHostPort(serverHost, targetPort),
-			getTopicName(),
-			defaultDialer,
+			testContext{
+				targetAddress: net.JoinHostPort(targetHost, targetPort),
+				serverAddress: net.JoinHostPort(serverHost, targetPort),
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			dialFn,
 			expectedProtocol,
 		)
 		currentTest.teardown = kafkaTeardown
@@ -286,7 +301,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 
 		// Default to kafka v4 and port 9092 (kafka server 4.0)
 		version := kversion.V4_0_0()
-		targetPort := kafkaPort
+		targetPort := port
 
 		// on older versions of kafka, test against old kafka server
 		if fetchVersion < 8 {
@@ -300,10 +315,15 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		currentTest := buildFetchVersionTest(
 			fmt.Sprintf("fetch v%d", fetchVersion),
 			version,
-			net.JoinHostPort(targetHost, targetPort),
-			net.JoinHostPort(serverHost, targetPort),
-			getTopicName(),
-			defaultDialer,
+			testContext{
+				serverPort:    port,
+				targetAddress: net.JoinHostPort(targetHost, targetPort),
+				serverAddress: net.JoinHostPort(serverHost, targetPort),
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			dialFn,
 			expectedProtocol,
 		)
 		currentTest.teardown = kafkaTeardown
@@ -315,4 +335,12 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Kafka)
 		})
 	}
+}
+
+func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+	testKafkaProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
+}
+
+func testKafkaProtocolClassificationTLS(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+	testKafkaProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
