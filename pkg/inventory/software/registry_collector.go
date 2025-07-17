@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package softwareinventory
+package software
 
 import (
 	"errors"
@@ -51,14 +51,14 @@ const (
 // Helper value to indicate we want all entries from the registry
 const wantAll = -1
 
-// RegistryCollector implements SoftwareCollector for Windows Registry
+// RegistryCollector implements Collector for Windows Registry
 type registryCollector struct{}
 
 // Collect returns a list of product codes to software entries from HKLM registry (both 64-bit and 32-bit views)
 // Warnings are returned for any issues encountered during collection but didn't prevent the collection of other entries.
 // Errors are returned for critical failures that prevent the collector from functioning properly.
-func (rc *registryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
-	var results []*SoftwareEntry
+func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
+	var results []*Entry
 	var warnings []*Warning
 	paths := []struct {
 		root   registry.Key
@@ -209,8 +209,8 @@ func getKeyLastWriteTime(key registry.Key) (string, error) {
 }
 
 // Helper to collect from a given root key and subkey
-func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareEntry, []*Warning) {
-	var results []*SoftwareEntry
+func collectFromKey(root registry.Key, subkey string, view uint32) ([]*Entry, []*Warning) {
+	var results []*Entry
 	var warnings []*Warning
 
 	key, err := registry.OpenKey(root, subkey, registry.READ|view)
@@ -246,7 +246,7 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareE
 				// Windows will pull the registry key creation date when no InstallDate is present
 				date, err = getKeyLastWriteTime(sk)
 			}
-			entry := &SoftwareEntry{
+			entry := &Entry{
 				DisplayName: name,
 				Version:     trimVersion(properties[displayVersion]),
 				InstallDate: date,

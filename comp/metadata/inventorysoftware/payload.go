@@ -10,7 +10,7 @@ package inventorysoftware
 import (
 	"encoding/json"
 	"fmt"
-	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -23,7 +23,7 @@ type Payload struct {
 
 // HostSoftware is a simple struct containing the list of software entries
 type HostSoftware struct {
-	Software []softwareinventory.SoftwareEntry `json:"software"`
+	Software []software.Entry `json:"software"`
 }
 
 // MarshalJSON serialization a Payload to JSON

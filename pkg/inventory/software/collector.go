@@ -4,14 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package softwareinventory software provides cross-platform software inventory collection. This file contains Windows-specific logic.
-package softwareinventory
+package software
 
 import "fmt"
 
-// SoftwareCollector defines the interface for collecting software entries
-type SoftwareCollector interface {
+// Collector defines the interface for collecting software entries
+type Collector interface {
 	// Collect returns a list of software entries and any warnings encountered
-	Collect() ([]*SoftwareEntry, []*Warning, error)
+	Collect() ([]*Entry, []*Warning, error)
 }
 
 // Warning represents a non-fatal error during collection
@@ -23,8 +23,8 @@ func warnf(format string, args ...interface{}) *Warning {
 	return &Warning{Message: fmt.Sprintf(format, args...)}
 }
 
-// SoftwareEntry represents a software installation
-type SoftwareEntry struct {
+// Entry represents a software installation
+type Entry struct {
 	DisplayName string `json:"name"`
 	Version     string `json:"version"`
 	InstallDate string `json:"deployment_time,omitempty"`
@@ -37,6 +37,6 @@ type SoftwareEntry struct {
 }
 
 // GetID returns a unique identifier for the software entry
-func (se *SoftwareEntry) GetID() string {
+func (se *Entry) GetID() string {
 	return se.DisplayName
 }

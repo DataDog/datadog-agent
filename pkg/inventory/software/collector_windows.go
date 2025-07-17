@@ -6,7 +6,7 @@
 //go:build windows
 
 // Package softwareinventory implements code to collect installed software from a Windows system.
-package softwareinventory
+package software
 
 import (
 	"errors"
@@ -16,8 +16,8 @@ import (
 )
 
 // defaultCollectors returns the default collectors for production use
-func defaultCollectors() []SoftwareCollector {
-	return []SoftwareCollector{
+func defaultCollectors() []Collector {
+	return []Collector{
 		// desktopAppCollector aggregates MSI and Registry collectors
 		&desktopAppCollector{},
 	}
@@ -44,14 +44,14 @@ func convertTimestamp(dateStr string) (string, error) {
 	return t.UTC().Format(time.RFC3339Nano), nil
 }
 
-func (d *desktopAppCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
+func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
 	regCollector := registryCollector{}
 	regEntries, regWarnings, err := regCollector.Collect()
 	if err != nil {
 		return nil, regWarnings, err
 	}
 	// Build a map of software entry for quick lookup
-	regMap := map[string]*SoftwareEntry{}
+	regMap := map[string]*Entry{}
 	for _, regEntry := range regEntries {
 		regMap[regEntry.GetID()] = regEntry
 	}
@@ -78,14 +78,14 @@ func (d *desktopAppCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 }
 
 // GetSoftwareInventory returns a list of software entries found on the system
-func GetSoftwareInventory() ([]*SoftwareEntry, []*Warning, error) {
+func GetSoftwareInventory() ([]*Entry, []*Warning, error) {
 	return GetSoftwareInventoryWithCollectors(defaultCollectors())
 }
 
 // GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
-func GetSoftwareInventoryWithCollectors(collectors []SoftwareCollector) ([]*SoftwareEntry, []*Warning, error) {
+func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Warning, error) {
 	var allWarnings []*Warning
-	var allEntries []*SoftwareEntry
+	var allEntries []*Entry
 	var allErrors error
 
 	// Collect from all sources

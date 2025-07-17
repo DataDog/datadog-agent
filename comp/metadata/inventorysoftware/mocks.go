@@ -10,7 +10,7 @@ package inventorysoftware
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/stretchr/testify/mock"
 )
@@ -20,9 +20,9 @@ type mockSysProbeClient struct {
 	mock.Mock
 }
 
-func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]softwareinventory.SoftwareEntry, error) {
+func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	args := m.Called(module)
-	return args.Get(0).([]softwareinventory.SoftwareEntry), args.Error(1)
+	return args.Get(0).([]software.Entry), args.Error(1)
 }
 
 // mockHostname implements hostnameinterface.Component for testing

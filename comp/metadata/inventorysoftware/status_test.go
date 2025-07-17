@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"testing"
 
-	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +22,7 @@ func TestStatusFundamentals(t *testing.T) {
 }
 
 func TestGetPayloadRefreshesCachedValues(t *testing.T) {
-	mockData := []softwareinventory.SoftwareEntry{
+	mockData := []software.Entry{
 		{DisplayName: "FooApp", ProductCode: "foo"},
 		{DisplayName: "BarApp", ProductCode: "bar"},
 	}
@@ -45,13 +45,13 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 func TestStatusTemplates(t *testing.T) {
 	tests := []struct {
 		name     string
-		mockData []softwareinventory.SoftwareEntry
+		mockData []software.Entry
 		wantText string
 		wantHTML []string
 	}{
 		{
 			name: "software with display name",
-			mockData: []softwareinventory.SoftwareEntry{
+			mockData: []software.Entry{
 				{DisplayName: "TestApp", Version: "1.0", ProductCode: "test"},
 			},
 			wantText: "Detected 1 installed software entries",
@@ -64,7 +64,7 @@ func TestStatusTemplates(t *testing.T) {
 		},
 		{
 			name: "software without display name",
-			mockData: []softwareinventory.SoftwareEntry{
+			mockData: []software.Entry{
 				{Version: "2.0", ProductCode: "test-product"},
 			},
 			wantText: "Detected 1 installed software entries",
@@ -76,7 +76,7 @@ func TestStatusTemplates(t *testing.T) {
 		},
 		{
 			name: "empty display name",
-			mockData: []softwareinventory.SoftwareEntry{
+			mockData: []software.Entry{
 				{DisplayName: "", Publisher: "Test Corp", ProductCode: "test-empty"},
 			},
 			wantText: "Detected 1 installed software entries",
@@ -88,7 +88,7 @@ func TestStatusTemplates(t *testing.T) {
 		},
 		{
 			name: "multiple software entries",
-			mockData: []softwareinventory.SoftwareEntry{
+			mockData: []software.Entry{
 				{DisplayName: "App One", Version: "1.0", ProductCode: "product1"},
 				{Version: "2.0", ProductCode: "product2"},
 			},
@@ -133,7 +133,7 @@ func TestStatusTemplates(t *testing.T) {
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	is, sp := newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, nil)
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, nil)
 
 	// Test Text template
 	var buf bytes.Buffer

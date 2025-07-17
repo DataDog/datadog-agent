@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package softwareinventory
+package software
 
 // Installation context flags from Windows SDK (msi.h)
 // See: https://learn.microsoft.com/en-us/windows/win32/msi/product-context

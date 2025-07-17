@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package softwareinventory
+package software
 
 import (
 	"errors"
@@ -51,7 +51,7 @@ var (
 	}
 )
 
-// MSICollector implements SoftwareCollector for Windows Installer
+// MSICollector implements Collector for Windows Installer
 type mSICollector struct{}
 
 // Collect enumerates all products in the Windows Installer database.
@@ -63,14 +63,14 @@ type mSICollector struct{}
 //
 // The ARPSYSTEMCOMPONENT=1 flag only hides the product from Add/Remove Programs,
 // but does not prevent the creation of registry entries.
-func (mc *mSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
+func (mc *mSICollector) Collect() ([]*Entry, []*Warning, error) {
 	// When making multiple calls to MsiEnumProducts to enumerate all the products, each call should be made from the same thread.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	var index uint32
 	var warnings []*Warning
-	var entries []*SoftwareEntry
+	var entries []*Entry
 	for {
 		var productCodeBuf [39]uint16
 		var context uint32
@@ -105,7 +105,7 @@ func (mc *mSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 	return entries, warnings, nil
 }
 
-func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*SoftwareEntry, error) {
+func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Entry, error) {
 	// Helper to fetch a property
 	getProp := func(propName string) (string, error) {
 		bufLen := uint32(windows.MAX_PATH)
@@ -167,7 +167,7 @@ func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Softw
 		date = mappedProperties[installDate]
 	}
 
-	return &SoftwareEntry{
+	return &Entry{
 		DisplayName: name,
 		Version:     version,
 		InstallDate: date,

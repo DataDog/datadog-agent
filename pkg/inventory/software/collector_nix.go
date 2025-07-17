@@ -6,11 +6,11 @@
 //go:build !windows
 
 // Package softwareinventory implements code to collect installed software from a Windows system.
-package softwareinventory
+package software
 
 // defaultCollectors returns the default collectors for production use
-func defaultCollectors() []SoftwareCollector {
-	return []SoftwareCollector{
+func defaultCollectors() []Collector {
+	return []Collector{
 		// todo
 	}
 }

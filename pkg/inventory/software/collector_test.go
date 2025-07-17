@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package softwareinventory
+package software
 
 import (
 	"fmt"
@@ -11,18 +11,18 @@ import (
 	"testing"
 )
 
-// MockCollector implements SoftwareCollector for testing
+// MockCollector implements Collector for testing
 type MockCollector struct {
-	entries  map[string]*SoftwareEntry
+	entries  map[string]*Entry
 	warnings []*Warning
 	err      error
 }
 
-func (m *MockCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
+func (m *MockCollector) Collect() ([]*Entry, []*Warning, error) {
 	if m.err != nil {
 		return nil, m.warnings, m.err
 	}
-	var result []*SoftwareEntry
+	var result []*Entry
 	var warnings []*Warning
 	for _, entry := range m.entries {
 		if entry != nil {
@@ -38,22 +38,22 @@ func (m *MockCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 func TestCollectorOrchestration(t *testing.T) {
 	tests := []struct {
 		name                string
-		collectors          []SoftwareCollector
+		collectors          []Collector
 		expectedEntryCount  int
 		expectedWarningMsgs []string
 		expectError         bool
 	}{
 		{
 			name: "Multiple collectors with overlapping data",
-			collectors: []SoftwareCollector{
+			collectors: []Collector{
 				&MockCollector{
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"app1": {DisplayName: "App 1", Version: "1.0", Source: "desktop"},
 						"app2": {DisplayName: "App 2", Version: "2.0", Source: "desktop"},
 					},
 				},
 				&MockCollector{
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"app1": {DisplayName: "App 1", Version: "1.0", Source: "desktop"}, // Same app, different source
 						"app3": {DisplayName: "App 3", Version: "3.0", Source: "desktop"},
 					},
@@ -63,9 +63,9 @@ func TestCollectorOrchestration(t *testing.T) {
 		},
 		{
 			name: "Collector with mixed valid and invalid entries",
-			collectors: []SoftwareCollector{
+			collectors: []Collector{
 				&MockCollector{
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"valid":   {DisplayName: "Valid App", Version: "1.0", Source: "desktop"},
 						"invalid": nil, // This should generate a warning
 					},
@@ -76,12 +76,12 @@ func TestCollectorOrchestration(t *testing.T) {
 		},
 		{
 			name: "Collector error handling - continues with other collectors",
-			collectors: []SoftwareCollector{
+			collectors: []Collector{
 				&MockCollector{
 					err: fmt.Errorf("registry access denied"),
 				},
 				&MockCollector{
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 				},
@@ -91,10 +91,10 @@ func TestCollectorOrchestration(t *testing.T) {
 		},
 		{
 			name: "Collector error handling - multiple errors",
-			collectors: []SoftwareCollector{
+			collectors: []Collector{
 				&MockCollector{
 					err: fmt.Errorf("msi error"),
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 				},
@@ -105,15 +105,15 @@ func TestCollectorOrchestration(t *testing.T) {
 		},
 		{
 			name: "Warning aggregation from multiple sources",
-			collectors: []SoftwareCollector{
+			collectors: []Collector{
 				&MockCollector{
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"app1": {DisplayName: "Registry App", Version: "1.0", Source: "desktop"},
 					},
 					warnings: []*Warning{warnf("registry warning 1"), warnf("registry warning 2")},
 				},
 				&MockCollector{
-					entries: map[string]*SoftwareEntry{
+					entries: map[string]*Entry{
 						"app2": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 					warnings: []*Warning{warnf("msi warning 1")},
@@ -124,16 +124,16 @@ func TestCollectorOrchestration(t *testing.T) {
 		},
 		{
 			name: "Empty collectors",
-			collectors: []SoftwareCollector{
+			collectors: []Collector{
 				// In both cases mock collectors return empty entries
-				&MockCollector{entries: map[string]*SoftwareEntry{}},
+				&MockCollector{entries: map[string]*Entry{}},
 				&MockCollector{entries: nil},
 			},
 			expectedEntryCount: 0,
 		},
 		{
 			name:               "No collectors provided",
-			collectors:         []SoftwareCollector{},
+			collectors:         []Collector{},
 			expectedEntryCount: 0,
 		},
 	}

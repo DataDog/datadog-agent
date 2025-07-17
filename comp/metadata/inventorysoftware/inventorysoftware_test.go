@@ -49,7 +49,7 @@ func newInventorySoftware(t *testing.T, confOverrides map[string]any) (*inventor
 }
 
 func TestRefreshCachedValues(t *testing.T) {
-	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "FooApp", ProductCode: "foo"}, {DisplayName: "BarApp", ProductCode: "bar"}}
+	mockData := []software.Entry{{DisplayName: "FooApp", ProductCode: "foo"}, {DisplayName: "BarApp", ProductCode: "bar"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -67,7 +67,7 @@ func TestRefreshCachedValues(t *testing.T) {
 
 func TestRefreshCachedValuesWithError(t *testing.T) {
 	is, sp := newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, fmt.Errorf("error"))
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, fmt.Errorf("error"))
 
 	// Assert that we attempted to refresh the cached values but
 	// system probe returned an error
@@ -78,7 +78,7 @@ func TestRefreshCachedValuesWithError(t *testing.T) {
 
 func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 	is, sp := newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, nil)
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, nil)
 
 	err := is.refreshCachedValues()
 	assert.NoError(t, err)
@@ -86,7 +86,7 @@ func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 }
 
 func TestFlareProviderOutput(t *testing.T) {
-	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "TestApp"}}
+	mockData := []software.Entry{{DisplayName: "TestApp"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -105,7 +105,7 @@ func TestFlareProviderOutput(t *testing.T) {
 }
 
 func TestWritePayloadAsJSON(t *testing.T) {
-	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "TestApp"}}
+	mockData := []software.Entry{{DisplayName: "TestApp"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -120,7 +120,7 @@ func TestWritePayloadAsJSON(t *testing.T) {
 }
 
 func TestGetPayload(t *testing.T) {
-	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "TestApp", ProductCode: "test"}}
+	mockData := []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -134,7 +134,7 @@ func TestGetPayload(t *testing.T) {
 
 	// Test error case
 	is, sp = newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, fmt.Errorf("error"))
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, fmt.Errorf("error"))
 
 	payload = is.getPayload()
 	assert.Nil(t, payload)

@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package softwareinventory
+package software
 
 import (
 	"errors"
@@ -157,7 +157,7 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 	assert.Len(t, entries, len(testData), "Should collect all test entries")
 
 	// Verify each entry was collected correctly
-	entryMap := make(map[string]*SoftwareEntry)
+	entryMap := make(map[string]*Entry)
 	for _, entry := range entries {
 		entryMap[entry.DisplayName] = entry
 	}

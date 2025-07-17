@@ -11,7 +11,7 @@ package inventorysoftware
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"net/http"
 	"time"
 
@@ -45,7 +45,7 @@ func Module() fxutil.Module {
 
 // SysProbeClient is an interface for the sysprobeclient used for dependency injection and testing.
 type SysProbeClient interface {
-	GetCheck(module types.ModuleName) ([]softwareinventory.SoftwareEntry, error)
+	GetCheck(module types.ModuleName) ([]software.Entry, error)
 }
 
 // sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement SysProbeClient.
@@ -53,8 +53,8 @@ type sysProbeClientWrapper struct {
 	client *sysprobeclient.CheckClient
 }
 
-func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]softwareinventory.SoftwareEntry, error) {
-	return sysprobeclient.GetCheck[[]softwareinventory.SoftwareEntry](w.client, module)
+func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.Entry, error) {
+	return sysprobeclient.GetCheck[[]software.Entry](w.client, module)
 }
 
 // inventorySoftware is the implementation of the Component interface.
@@ -63,7 +63,7 @@ type inventorySoftware struct {
 
 	log             log.Component
 	sysProbeClient  SysProbeClient
-	cachedInventory []softwareinventory.SoftwareEntry
+	cachedInventory []software.Entry
 	hostname        string
 }
 
