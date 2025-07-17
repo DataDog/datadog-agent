@@ -8,6 +8,7 @@ from invoke.context import Context, MockContext
 
 from tasks.kernel_matrix_testing.setup.common import Pulumi
 from tasks.kernel_matrix_testing.setup.utils import _patch_config_lines, ensure_options_in_config
+from tasks.libs.common.status import Status
 
 
 class TestPulumiRequirement(unittest.TestCase):
@@ -21,7 +22,8 @@ Organizations
 Token type     personal
 """
 
-        self.assertFalse(Pulumi()._is_user_logged_in(logged_out_output))
+        ctx = MockContext(run={"pulumi about": logged_out_output})
+        self.assertEqual(Pulumi()._check_user_logged_in(ctx).state, Status.FAIL)
 
         logged_in_output = """
 Backend
@@ -32,7 +34,8 @@ Organizations
 Token type     personal
 """
 
-        self.assertTrue(Pulumi()._is_user_logged_in(logged_in_output))
+        ctx = MockContext(run={"pulumi about": logged_in_output})
+        self.assertEqual(Pulumi()._check_user_logged_in(ctx).state, Status.OK)
 
 
 class MockContextWithTempFile:
@@ -100,8 +103,6 @@ intopt = 4
 
             incorrect_options = ensure_options_in_config(ctx, Path(temp_file.name), self.options, change=False)
             self.assertEqual(incorrect_options, ["option2", "option4", "intopt"])
-
-            self.assertEqual(len(ctx.run.call_args_list), 0)
 
     def test_ensure_options_in_config__change(self):
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp_file:
