@@ -72,12 +72,13 @@ func (n networkDeviceConfigImpl) RetrieveConfiguration(ipAddress string) (string
 	for _, cmd := range commands {
 		session, err := client.NewSession()
 		if err != nil {
-			return "", n.log.Errorf("Failed to create session: %s", err)
+			return "", n.log.Errorf("Failed to create session to device %s: %s", ipAddress, err)
 		}
 		n.log.Debugf("Running command: %s\n", cmd)
 		output, err := session.CombinedOutput(cmd)
 		if err != nil {
-			return "", n.log.Errorf("Command failed: %s\n", err)
+			session.Close()
+			return "", n.log.Errorf("Command %s on device %s failed: %s\n", cmd, ipAddress, err)
 		}
 		n.log.Debugf("Output: %s\n", output)
 		result = append(result, string(output))
