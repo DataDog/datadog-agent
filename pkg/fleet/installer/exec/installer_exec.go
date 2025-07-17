@@ -154,12 +154,11 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) (err error) {
-	// For the exec implementation, we'll serialize the configs as a JSON array
-	serializedConfigs, err := json.Marshal(rawConfigs)
-	if err != nil {
-		return fmt.Errorf("could not serialize configs: %w", err)
+	// TODO: append all configs and forward them as parameters
+	if len(rawConfigs) == 0 {
+		return fmt.Errorf("no configs provided")
 	}
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(serializedConfigs))
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg, version, string(rawConfigs[0]))
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

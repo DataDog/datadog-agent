@@ -57,8 +57,8 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) StartConfigExperiment(ctx context.Context, pkg string, version string) error {
-	args := m.Called(ctx, pkg, version)
+func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, hash string) error {
+	args := m.Called(ctx, url, hash)
 	return args.Error(0)
 }
 
@@ -69,11 +69,6 @@ func (m *testDaemon) StopConfigExperiment(ctx context.Context, pkg string) error
 
 func (m *testDaemon) PromoteConfigExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
-	return args.Error(0)
-}
-
-func (m *testDaemon) StartMultipleConfigExperiment(ctx context.Context, pkg string, version string, configOrder []string) error {
-	args := m.Called(ctx, pkg, version, configOrder)
 	return args.Error(0)
 }
 
