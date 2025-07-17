@@ -46,3 +46,10 @@ deploy_installer_oci:
   variables:
     OCI_PRODUCT: "datadog-installer"
     S3_PACKAGE: "installer-package"
+
+deploy_ddot_oci:
+  extends: ".deploy_packages_oci"
+  needs: [ "ddot_oci", "go_tools_deps" ]
+  variables:
+    OCI_PRODUCT: "datadog-agent-ddot"
+    S3_PACKAGE: "ddot-package"
