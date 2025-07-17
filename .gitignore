@@ -112,6 +112,9 @@ pkg/process/config/logs
 *.ninja
 compile_commands.json
 pkg/ebpf/bytecode/build/**/*.d
+pkg/ebpf/kernelbugs/c/*.d
+pkg/ebpf/kernelbugs/c/*.o
+pkg/ebpf/kernelbugs/c/detect-seccomp-bug
 pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts
