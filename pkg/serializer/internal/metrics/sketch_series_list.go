@@ -275,6 +275,13 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 			return err
 		}
 
+		if len(ss.RawPnt) > 0 {
+			err = ps.Bytes(sketchDogsketches, ss.RawPnt)
+			if err != nil {
+				return err
+			}
+		}
+
 		for _, p := range ss.Points {
 			err = ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
 				b := p.Sketch.Basic

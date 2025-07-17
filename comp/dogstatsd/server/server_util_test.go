@@ -228,7 +228,7 @@ type tMetricSample struct {
 	Tags       []string
 	Mtype      metrics.MetricType
 	SampleRate float64
-	RawValue   string
+	RawValue   []byte
 	Timestamp  float64
 }
 
@@ -268,7 +268,7 @@ func (m *tMetricSample) withSampleRate(srate float64) *tMetricSample {
 	return m
 }
 
-func (m *tMetricSample) withRawValue(rval string) *tMetricSample {
+func (m *tMetricSample) withRawValue(rval []byte) *tMetricSample {
 	m.RawValue = rval
 	return m
 }
