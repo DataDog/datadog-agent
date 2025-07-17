@@ -37,7 +37,8 @@ var (
 
 type ddotInstallSuite struct {
 	e2e.BaseSuite[environments.Host]
-	host      *host.Host
+	host *host.Host
+
 	osVersion float64
 }
 
@@ -133,7 +134,7 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 	is.T().Run("add config file", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"echo 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && chmod 640 /etc/datadog-agent/otel-config.yaml\"")
 		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {
@@ -141,7 +142,17 @@ func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestCli
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
 		}
-		is.T().Log("--- ConfigureAndRunAgentService 1---", is.T().Name(), is.host.State().Units)
+	})
+
+	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
+		ddotUnit := is.host.State().Units["datadog-agent-ddot.service"]
+		require.NotNil(t, ddotUnit)
+		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name)
+		require.Equal(t, "active", ddotUnit.Active)
+		require.Equal(t, host.Loaded, ddotUnit.LoadState)
+		require.Equal(t, host.Running, ddotUnit.SubState)
+
+		is.T().Log("--- ConfigureAndRunAgentService ---")
 		for s, u := range is.host.State().Units {
 			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
 		}
@@ -157,17 +168,7 @@ func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
 	is.T().Run("check otel-agent example config exists", func(tt *testing.T) {
 		_, err := VMclient.FileManager.FileExists("/etc/datadog-agent/otel-config.yaml.example")
 		require.NoError(tt, err, "otel-agent example config file should be present")
-
-		is.T().Log("--- CheckDDOTInstallation 1---", is.T().Name(), is.host.State().Units)
-		for s, u := range is.host.State().Units {
-			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-		}
 	})
-
-	is.T().Log("--- CheckDDOTInstallation 2---", is.T().Name(), is.host.State().Units)
-	for s, u := range is.host.State().Units {
-		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-	}
 }
 
 func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
@@ -215,15 +216,7 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 
 		require.Equal(t, strings.TrimSpace(agentVersion), strings.TrimSpace(ddotVersion),
 			"datadog-agent and datadog-agent-ddot should have the same version")
-		is.T().Log("--- ddotDebianTest 1---", is.T().Name(), is.host.State().Units)
-		for s, u := range is.host.State().Units {
-			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-		}
 	})
-	is.T().Log("--- ddotDebianTest 2---", is.T().Name(), is.host.State().Units)
-	for s, u := range is.host.State().Units {
-		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-	}
 }
 
 func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
@@ -276,15 +269,7 @@ func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
 
 		require.Equal(t, strings.TrimSpace(agentVersion), strings.TrimSpace(ddotVersion),
 			"datadog-agent and datadog-agent-ddot should have the same version")
-		is.T().Log("--- ddotRhelTest 1 ---", is.T().Name(), is.host.State().Units)
-		for s, u := range is.host.State().Units {
-			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-		}
 	})
-	is.T().Log("--- ddotRhelTest 2 ---", is.T().Name(), is.host.State().Units)
-	for s, u := range is.host.State().Units {
-		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-	}
 }
 
 func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
@@ -346,13 +331,5 @@ func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
 
 		require.Equal(t, strings.TrimSpace(agentVersion), strings.TrimSpace(ddotVersion),
 			"datadog-agent and datadog-agent-ddot should have the same version")
-		is.T().Log("--- ddotSuseTest 1 ---", is.T().Name(), is.host.State().Units)
-		for s, u := range is.host.State().Units {
-			is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-		}
 	})
-	is.T().Log("--- ddotSuseTest 2 ---", is.T().Name(), is.host.State().Units)
-	for s, u := range is.host.State().Units {
-		is.T().Log(s, u.Name, u.Enabled, u.Active, u.LoadState, u.SubState)
-	}
 }
