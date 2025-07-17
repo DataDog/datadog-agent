@@ -15,8 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -31,6 +33,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mockSys
 		fxutil.Test[Dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() hostnameinterface.Component { return &mockHostname{} }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -46,10 +49,7 @@ func newInventorySoftware(t *testing.T, confOverrides map[string]any) (*inventor
 }
 
 func TestRefreshCachedValues(t *testing.T) {
-	mockData := SoftwareInventoryMap{
-		"foo": {"DisplayName": "FooApp"},
-		"bar": {"DisplayName": "BarApp"},
-	}
+	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "FooApp", ProductCode: "foo"}, {DisplayName: "BarApp", ProductCode: "bar"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -59,15 +59,15 @@ func TestRefreshCachedValues(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, is.cachedInventory, 2)
 	assert.Equal(t, "foo", is.cachedInventory[0].ProductCode)
-	assert.Equal(t, "FooApp", is.cachedInventory[0].Metadata["DisplayName"])
+	assert.Equal(t, "FooApp", is.cachedInventory[0].DisplayName)
 	assert.Equal(t, "bar", is.cachedInventory[1].ProductCode)
-	assert.Equal(t, "BarApp", is.cachedInventory[1].Metadata["DisplayName"])
+	assert.Equal(t, "BarApp", is.cachedInventory[1].DisplayName)
 	sp.AssertNumberOfCalls(t, "GetCheck", 1)
 }
 
 func TestRefreshCachedValuesWithError(t *testing.T) {
 	is, sp := newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(SoftwareInventoryMap{}, fmt.Errorf("error"))
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, fmt.Errorf("error"))
 
 	// Assert that we attempted to refresh the cached values but
 	// system probe returned an error
@@ -78,7 +78,7 @@ func TestRefreshCachedValuesWithError(t *testing.T) {
 
 func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 	is, sp := newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(SoftwareInventoryMap{}, nil)
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, nil)
 
 	err := is.refreshCachedValues()
 	assert.NoError(t, err)
@@ -86,9 +86,7 @@ func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 }
 
 func TestFlareProviderOutput(t *testing.T) {
-	mockData := SoftwareInventoryMap{
-		"test": {"DisplayName": "TestApp"},
-	}
+	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "TestApp"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -107,9 +105,7 @@ func TestFlareProviderOutput(t *testing.T) {
 }
 
 func TestWritePayloadAsJSON(t *testing.T) {
-	mockData := SoftwareInventoryMap{
-		"test": {"DisplayName": "TestApp"},
-	}
+	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "TestApp"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -120,13 +116,11 @@ func TestWritePayloadAsJSON(t *testing.T) {
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
-	assert.Contains(t, response, "software_inventory_metadata")
+	assert.Contains(t, response, "host_software")
 }
 
 func TestGetPayload(t *testing.T) {
-	mockData := SoftwareInventoryMap{
-		"test": {"DisplayName": "TestApp"},
-	}
+	mockData := []softwareinventory.SoftwareEntry{{DisplayName: "TestApp", ProductCode: "test"}}
 	is, sp := newInventorySoftware(t, nil)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
@@ -134,13 +128,13 @@ func TestGetPayload(t *testing.T) {
 	assert.NotNil(t, payload)
 	p, ok := payload.(*Payload)
 	assert.True(t, ok)
-	assert.Len(t, p.Metadata, 1)
-	assert.Equal(t, "test", p.Metadata[0].ProductCode)
-	assert.Equal(t, "TestApp", p.Metadata[0].Metadata["DisplayName"])
+	assert.Len(t, p.Metadata.Software, 1)
+	assert.Equal(t, "test", p.Metadata.Software[0].ProductCode)
+	assert.Equal(t, "TestApp", p.Metadata.Software[0].DisplayName)
 
 	// Test error case
 	is, sp = newInventorySoftware(t, nil)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(SoftwareInventoryMap{}, fmt.Errorf("error"))
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]softwareinventory.SoftwareEntry{}, fmt.Errorf("error"))
 
 	payload = is.getPayload()
 	assert.Nil(t, payload)

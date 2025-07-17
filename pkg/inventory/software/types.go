@@ -7,10 +7,6 @@
 
 package softwareinventory
 
-import (
-	"fmt"
-)
-
 // Installation context flags from Windows SDK (msi.h)
 // See: https://learn.microsoft.com/en-us/windows/win32/msi/product-context
 const (
@@ -54,29 +50,3 @@ const (
 	versionMajor = "VersionMajor"
 )
 
-// Warning represents a non-fatal error during collection
-type Warning struct {
-	Message string
-}
-
-func warnf(format string, args ...interface{}) *Warning {
-	return &Warning{Message: fmt.Sprintf(format, args...)}
-}
-
-// SoftwareEntry represents a software installation
-type SoftwareEntry struct {
-	DisplayName string `json:"name"`
-	Version     string `json:"version"`
-	InstallDate string `json:"deployment_time,omitempty"`
-	Source      string `json:"software_type"`
-	UserSID     string `json:"user,omitempty"`
-	Is64Bit     bool   `json:"is_64_bit"`
-	Publisher   string `json:"publisher"`
-	Status      string `json:"deployment_status"`
-	ProductCode string `json:"product_code"`
-}
-
-// GetID returns a unique identifier for the software entry
-func (se *SoftwareEntry) GetID() string {
-	return se.DisplayName
-}

@@ -8,8 +8,11 @@
 package inventorysoftware
 
 import (
+	"context"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/stretchr/testify/mock"
-	types "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // mockSysProbeClient implements SysProbeClient for testing.
@@ -17,24 +20,25 @@ type mockSysProbeClient struct {
 	mock.Mock
 }
 
-func (m *mockSysProbeClient) GetCheck(module types.ModuleName) (SoftwareInventoryMap, error) {
+func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]softwareinventory.SoftwareEntry, error) {
 	args := m.Called(module)
-	return args.Get(0).(SoftwareInventoryMap), args.Error(1)
+	return args.Get(0).([]softwareinventory.SoftwareEntry), args.Error(1)
 }
 
-// mockFlareBuilder implements a minimal FlareBuilder for testing
-type mockFlareBuilder struct {
-    addedFiles map[string][]byte
+// mockHostname implements hostnameinterface.Component for testing
+type mockHostname struct{}
+
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{
+		Hostname: "test-hostname",
+		Provider: "test-provider",
+	}, nil
 }
 
-func (m *mockFlareBuilder) AddFile(filepath string, content []byte) error {
-    if m.addedFiles == nil {
-        m.addedFiles = make(map[string][]byte)
-    }
-    m.addedFiles[filepath] = content
-    return nil
+func (m *mockHostname) GetSafe(_ context.Context) string {
+	return "test-hostname"
 }
 
-func (m *mockFlareBuilder) Logf(format string, args ...interface{}) error {
-    return nil
+func (m *mockHostname) Get(_ context.Context) (string, error) {
+	return "test-hostname", nil
 }

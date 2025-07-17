@@ -5,7 +5,7 @@
 
 //go:build windows
 
-// Package winsoftware implements code to collect installed software from a Windows system.
+// Package softwareinventory implements code to collect installed software from a Windows system.
 package softwareinventory
 
 import (
@@ -14,12 +14,6 @@ import (
 	"strings"
 	"time"
 )
-
-// SoftwareCollector defines the interface for collecting software entries
-type SoftwareCollector interface {
-	// Collect returns a list of software entries and any warnings encountered
-	Collect() ([]*SoftwareEntry, []*Warning, error)
-}
 
 // defaultCollectors returns the default collectors for production use
 func defaultCollectors() []SoftwareCollector {

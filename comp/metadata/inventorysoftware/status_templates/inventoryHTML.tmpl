@@ -8,7 +8,7 @@
       {{- range $, $meta := $swMap }}
         <details>
           <summary>
-          {{ $meta.DisplayName }} {{ $meta.Version }}
+          {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}
           {{- if contains $meta.Status "broken" }}
             <span class="source-bubble broken">broken</span>
           {{- end }}

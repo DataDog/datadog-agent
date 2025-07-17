@@ -10,7 +10,7 @@ package inventorysoftware
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
+	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -21,7 +21,7 @@ type Payload struct {
 	Metadata  HostSoftware `json:"host_software"`
 }
 
-// HostSofware is a simple struct containing the list of software entries
+// HostSoftware is a simple struct containing the list of software entries
 type HostSoftware struct {
 	Software []softwareinventory.SoftwareEntry `json:"software"`
 }

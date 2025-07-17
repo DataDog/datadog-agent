@@ -7,15 +7,18 @@ package inventorysoftware
 
 import (
 	"encoding/json"
+	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestPayloadMarshalJSON(t *testing.T) {
 	p := &Payload{
-		Metadata: []*SoftwareMetadata{
-			{ProductCode: "foo", Metadata: map[string]string{"DisplayName": "FooApp"}},
-			{ProductCode: "bar", Metadata: map[string]string{"DisplayName": "BarApp"}},
+		Metadata: HostSoftware{
+			Software: []softwareinventory.SoftwareEntry{
+				{DisplayName: "FooApp", ProductCode: "foo"},
+				{DisplayName: "BarApp", ProductCode: "bar"},
+			},
 		},
 	}
 	b, err := p.MarshalJSON()

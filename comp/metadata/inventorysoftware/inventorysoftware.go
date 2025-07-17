@@ -11,7 +11,7 @@ package inventorysoftware
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
+	softwareinventory "github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"net/http"
 	"time"
 
@@ -138,12 +138,11 @@ func (is *inventorySoftware) getPayload() marshaler.JSONMarshaler {
 	return &Payload{
 		Hostname:  is.hostname,           // Set from the component's hostname field
 		Timestamp: time.Now().UnixNano(), // Set to current time (nanoseconds)
-		Metadata:  HostSoftware{
+		Metadata: HostSoftware{
 			Software: is.cachedInventory,
 		},
 	}
 }
-
 
 func (is *inventorySoftware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	json, err := is.GetAsJSON()
