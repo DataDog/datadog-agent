@@ -210,19 +210,22 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.send_metrics_to_datadog()
 
-    metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
-
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
         github = GithubAPI()
         if github.get_pr_for_branch(branch).totalCount > 0:
             ancestor = get_common_ancestor(ctx, "HEAD")
-            metric_handler.generate_relative_size(ctx, ancestor=ancestor)
+            metric_handler.generate_relative_size(
+                ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json"
+            )
             display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         if final_state != "success" and not nightly_run:
+            metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
             raise Exit(code=1)
+    # We are generating our metric reports at the end to include relative size metrics
+    metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
@@ -372,21 +375,26 @@ def debug_specific_quality_gate(ctx, gate_name):
 
 
 @task()
-def exception_threshold_bump(ctx):
+def exception_threshold_bump(ctx, pipeline_id):
     """
     When a PR is exempt of static quality gates, they have to use this invoke task to adjust the quality gates thresholds accordingly to the exempted added size.
 
     Note: This invoke task must be run on a pipeline that has finished running static quality gates
     :param ctx:
+    :param pipeline_id: pipeline ID we want to fetch the artifact from to bump gates
     :return:
     """
     current_branch_name = get_current_branch(ctx)
-    ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):
+        cur_pipeline = repo.pipelines.get(pipeline_id)
+        gate_job_id = next(
+            job.id for job in cur_pipeline.jobs.list(iterator=True) if job.name == "static_quality_gates"
+        )
+        gate_job = repo.jobs.get(id=gate_job_id)
         with open(f"{extract_dir}/gate_archive.zip", "wb") as f:
             try:
-                f.write(repo.artifacts.download(ref_name=current_branch_name, job="static_quality_gates"))
+                f.write(gate_job.artifacts())
             except gitlab.exceptions.GitlabGetError as e:
                 print(
                     color_message(
@@ -401,7 +409,6 @@ def exception_threshold_bump(ctx):
             metric_handler = GateMetricHandler(
                 git_ref=current_branch_name, bucket_branch="dev", filename=static_gate_report_path
             )
-            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, report_path=static_gate_report_path)
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 

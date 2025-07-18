@@ -21,7 +21,9 @@ import (
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,8 @@ var (
 
 type ddotInstallSuite struct {
 	e2e.BaseSuite[environments.Host]
+	host *host.Host
+
 	osVersion float64
 }
 
@@ -99,6 +103,14 @@ func TestDDOTInstallScript(t *testing.T) {
 	}
 }
 
+func (is *ddotInstallSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer is.CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer is.CleanupOnSetupFailure()
+
+	is.host = host.New(is.T, is.Env().RemoteHost, e2eos.NewDescriptor(e2eos.FlavorFromString(*platform), *osVersion), e2eos.ArchitectureFromString(*architecture))
+}
+
 func (is *ddotInstallSuite) TestDDOTInstall() {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnix()
@@ -114,7 +126,32 @@ func (is *ddotInstallSuite) TestDDOTInstall() {
 		require.Equal(is.T(), *platform, "suse", "NonSupportedPlatformError : %s isn't supported !", *platform)
 		is.ddotSuseTest(VMclient)
 	}
+	is.ConfigureAndRunAgentService(VMclient)
 	is.CheckDDOTInstallation(VMclient)
+}
+
+func (is *ddotInstallSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
+	is.T().Run("add config file", func(t *testing.T) {
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"printf 'otelcollector:\\n  enabled: true\\n' >> /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed -e 's/\\${env:DD_API_KEY}/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' -e 's/\\${env:DD_SITE}/datadoghq.com/' /etc/datadog-agent/otel-config.yaml.example > /etc/datadog-agent/otel-config.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/otel-config.yaml && chmod 640 /etc/datadog-agent/otel-config.yaml\"")
+		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {
+			ExecuteWithoutError(t, VMclient, "sudo initctl start datadog-agent")
+		} else {
+			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
+		}
+	})
+
+	is.T().Run("check ddot systemd units are running", func(t *testing.T) {
+		ddotUnit := is.host.State().Units["datadog-agent-ddot.service"]
+		require.NotNil(t, ddotUnit, "DDOT unit should be present after installation")
+		require.Equal(t, "datadog-agent-ddot.service", ddotUnit.Name, "DDOT unit name should be datadog-agent-ddot.service")
+		require.Equal(t, "active", ddotUnit.Active, "DDOT unit should be active because of dependency on datadog-agent")
+		require.Equal(t, host.Loaded, ddotUnit.LoadState, "DDOT unit should be loaded")
+		require.Equal(t, host.Running, ddotUnit.SubState, "DDOT unit should be started when datadog-agent is started")
+	})
 }
 
 func (is *ddotInstallSuite) CheckDDOTInstallation(VMclient *common.TestClient) {
