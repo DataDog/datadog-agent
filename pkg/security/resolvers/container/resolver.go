@@ -22,7 +22,7 @@ type Resolver struct {
 // New creates a new container resolver
 func New() *Resolver {
 	return &Resolver{
-		fs: utils.NewCGroupFS(),
+		fs: utils.DefaultCGroupFS(),
 	}
 }
 
