@@ -166,5 +166,6 @@ func isAccessDenied(err error) bool {
 func isAgentNotInstalled(err error) bool {
 	errMsg := err.Error()
 	return strings.Contains(errMsg, "could not open registry key") ||
-		strings.Contains(errMsg, "cannot find the file specified")
+		strings.Contains(errMsg, "cannot find the file specified") ||
+		strings.Contains(errMsg, "The specified service does not exist as an installed service")
 }
