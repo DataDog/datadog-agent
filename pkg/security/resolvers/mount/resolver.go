@@ -11,6 +11,7 @@ package mount
 import (
 	"encoding/json"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -64,6 +65,11 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		if root == "" {
 			root = "/"
 		}
+	}
+
+	if strings.HasPrefix(root, "/..") {
+		cfs := utils.DefaultCGroupFS()
+		root = filepath.Join(cfs.GetRootCGroupPath(), root)
 	}
 
 	// create a Mount out of the parsed MountInfo
