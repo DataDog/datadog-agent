@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    If a path is specified in the URL in `logs_config.logs_dd_url` use it as a prefix.
+    If a path is specified in the URL in `logs_config.logs_dd_url`, use it as a prefix.
