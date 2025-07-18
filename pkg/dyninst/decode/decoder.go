@@ -34,6 +34,7 @@ type Decoder struct {
 	probeEvents           map[ir.TypeID]probeEvent
 	snapshotMessage       snapshotMessage
 	addressReferenceCount map[typeAndAddr]output.DataItem
+	decoderTypes          map[ir.TypeID]decoderType
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -42,6 +43,7 @@ func NewDecoder(
 ) (*Decoder, error) {
 	decoder := &Decoder{
 		addressReferenceCount: make(map[typeAndAddr]output.DataItem),
+		decoderTypes:          make(map[ir.TypeID]decoderType),
 		program:               program,
 		stackFrames:           make(map[uint64][]symbol.StackFrame),
 		probeEvents:           make(map[ir.TypeID]probeEvent),
@@ -61,6 +63,14 @@ func NewDecoder(
 			}
 		}
 	}
+	for _, t := range program.Types {
+		decoderType, err := decoder.getDecoderType(t)
+		if err != nil {
+			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
+		}
+		decoder.decoderTypes[t.GetID()] = decoderType
+	}
+
 	return decoder, nil
 }
 
