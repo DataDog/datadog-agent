@@ -69,7 +69,8 @@ func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
-		if value.CGroupContext.IsContainer() {
+
+		if value.ContainerContext.Resolved && value.ContainerContext.ContainerID != "" {
 			value.ContainerContext.CallReleaseCallback()
 		}
 		value.CGroupContext.CallReleaseCallback()
