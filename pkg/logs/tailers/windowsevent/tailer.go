@@ -172,12 +172,27 @@ func (t *Tailer) tail(ctx context.Context, bookmark string) {
 		}
 	}
 	if t.bookmark == nil {
-		// new bookmark
-		t.bookmark, err = evtbookmark.New(
-			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		// Create initial bookmark from the most recent event in the log
+		// This ensures we have a valid starting position even if no events are processed
+		log.Debug("Creating initial bookmark from most recent event")
+		t.bookmark, err = t.createInitialBookmark()
 		if err != nil {
-			t.logErrorAndSetStatus(fmt.Errorf("error creating new bookmark: %w", err))
+			t.logErrorAndSetStatus(fmt.Errorf("error creating initial bookmark: %w", err))
 			return
+		}
+
+		// Save the initial bookmark to the registry immediately using direct SetOffset
+		// This ensures the bookmark is persisted even if no real events are processed
+		if t.bookmark != nil {
+			offset, err := t.bookmark.Render()
+			if err == nil {
+				log.Debugf("Saving initial bookmark to registry: %s", offset)
+				// Use direct SetOffset call for immediate persistence
+				t.registry.SetOffset(t.Identifier(), offset)
+				log.Debug("Initial bookmark saved to registry")
+			} else {
+				log.Warnf("Failed to render initial bookmark: %v", err)
+			}
 		}
 	}
 
@@ -312,22 +327,74 @@ func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
-		return fmt.Errorf("Error rendering event values: %v", err)
+		return fmt.Errorf("error rendering event values: %v", err)
 	}
 	defer vals.Close()
 
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return fmt.Errorf("Failed to get provider name: %v", err)
+		return fmt.Errorf("failed to get provider name: %v", err)
 	}
 
 	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err != nil {
-		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
+		return fmt.Errorf("failed to get publisher metadata for provider '%s': %v", providerName, err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
 
 	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
 
 	return nil
+}
+
+// createInitialBookmark creates a bookmark from the most recent event in the log
+// This ensures we have a valid starting position even if no events are processed
+func (t *Tailer) createInitialBookmark() (evtbookmark.Bookmark, error) {
+	// Query for the most recent event using EvtQuery with reverse direction
+	resultSetHandle, err := t.evtapi.EvtQuery(
+		0, // Session (0 = local computer)
+		t.config.ChannelPath,
+		t.config.Query,
+		evtapi.EvtQueryChannelPath|evtapi.EvtQueryReverseDirection)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for most recent event: %w", err)
+	}
+	defer evtapi.EvtCloseResultSet(t.evtapi, resultSetHandle)
+
+	// Get one event handle from the query result
+	eventHandles := make([]evtapi.EventRecordHandle, 1)
+	returnedHandles, err := t.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
+	if err != nil {
+		// Check if it's just no events available
+		if err == windows.ERROR_NO_MORE_ITEMS {
+			// No events in the log, create empty bookmark
+			return evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		}
+		return nil, fmt.Errorf("failed to get recent event: %w", err)
+	}
+
+	if len(returnedHandles) == 0 {
+		// No events available, create empty bookmark
+		return evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	}
+
+	// Create bookmark from the most recent event
+	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+	if err != nil {
+		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to create initial bookmark: %w", err)
+	}
+
+	// Update bookmark with the most recent event
+	err = bookmark.Update(returnedHandles[0])
+	if err != nil {
+		bookmark.Close()
+		evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+		return nil, fmt.Errorf("failed to update initial bookmark: %w", err)
+	}
+
+	// Clean up the event handle
+	evtapi.EvtCloseRecord(t.evtapi, returnedHandles[0])
+
+	return bookmark, nil
 }

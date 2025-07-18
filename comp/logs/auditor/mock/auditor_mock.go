@@ -131,7 +131,7 @@ func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
 }
 
-// SetTailed stores the tailed status of the identifier.
+// SetTailed stores the tailed status of the identifiers
 func (r *Registry) SetTailed(identifier string, isTailed bool) {
 	r.Lock()
 	defer r.Unlock()
