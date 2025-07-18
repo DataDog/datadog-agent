@@ -8,6 +8,7 @@ package fetch
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,9 +43,13 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
 	fmt.Println("======================================")
 	fmt.Println("======================================")
 	fmt.Println("SCALAR OIDS")
-	fmt.Println(scalarOIDs)
+	cop := append([]string(nil), scalarOIDs...)
+	sort.Strings(cop)
+	fmt.Println(cop)
 	fmt.Println("COLUMN OIDS")
-	fmt.Println(columnOIDs)
+	cop = append([]string(nil), columnOIDs...)
+	sort.Strings(cop)
+	fmt.Println(cop)
 	fmt.Println("======================================")
 	fmt.Println("======================================")
 	fmt.Println("======================================")

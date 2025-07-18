@@ -6,7 +6,9 @@
 package buildprofile
 
 import (
+	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -387,11 +389,26 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 // checkOid checks whether a given OID is present on the device
 func checkOid(sess session.Session, oid string) bool {
 	result, err := sess.GetNext([]string{oid})
-	if err != nil {
+	if err != nil || len(result.Variables) != 1 {
 		return false
 	}
 
-	return len(result.Variables) != 0
+	fmt.Println("========================")
+	fmt.Println("========================")
+	fmt.Println("========================")
+	fmt.Println("RESULT")
+	fmt.Println(result)
+	fmt.Println("VARIABLES")
+	fmt.Println(result.Variables)
+	fmt.Println("LEN VARIABLES")
+	fmt.Println(len(result.Variables))
+	fmt.Println("========================")
+	fmt.Println("========================")
+	fmt.Println("========================")
+
+	// We check that the returned full OID starts with the parameter OID because
+	// SNMP GETNEXT command returns the next OID whether it's from the same OID or not
+	return strings.HasPrefix(result.Variables[0].Name, "."+oid)
 }
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
