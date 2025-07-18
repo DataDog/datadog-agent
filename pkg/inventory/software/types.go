@@ -32,14 +32,8 @@ const (
 	softwareTypeMSU = "msu"
 )
 
-// Source identifiers for software entries
+// Common properties for all sources
 const (
-	// sourceRegistry indicates the software was found in the Windows Registry
-	sourceRegistry = "registry"
-	// sourceMSI indicates the software was found via MSI API
-	sourceMSI = "msi"
-
-	// Common properties for all sources
 	// installDate is the installation date in YYYYMMDD format
 	installDate = "InstallDate"
 	// publisher is the software publisher/vendor
