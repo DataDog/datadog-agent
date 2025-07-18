@@ -1254,7 +1254,7 @@ core,github.com/gophercloud/gophercloud/v2/openstack/utils,Apache-2.0,"Copyright
 core,github.com/gophercloud/gophercloud/v2/pagination,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gorilla/handlers,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
-core,github.com/gorilla/websocket,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
+core,github.com/gorilla/websocket,BSD-2-Clause,Copyright (c) 2013 The Gorilla WebSocket Authors. All rights reserved | Gary Burd <gary@beagledreams.com> | Google LLC (https://opensource.google.com/) | Joachim Bauch <mail@joachim-bauch.de>
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
 core,github.com/grafana/regexp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/grafana/regexp/syntax,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
