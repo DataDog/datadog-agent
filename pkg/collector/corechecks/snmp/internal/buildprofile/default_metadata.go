@@ -19,9 +19,24 @@ type DefaultMetadataConfig profiledefinition.ListMap[DefaultMetadataResourceConf
 
 // DefaultMetadataResourceConfig holds default configs for a metadata resource
 type DefaultMetadataResourceConfig struct {
-	MergeFields func(sess session.Session, config *checkconfig.CheckConfig) bool
-	Fields      profiledefinition.ListMap[profiledefinition.MetadataField]
-	IDTags      profiledefinition.MetricTagConfigList
+	ShouldMergeMetadata func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool
+	Fields              profiledefinition.ListMap[profiledefinition.MetadataField]
+	IDTags              profiledefinition.MetricTagConfigList
+}
+
+func (dmc DefaultMetadataConfig) ToMetadataConfig() profiledefinition.MetadataConfig {
+	metadataConfig := make(profiledefinition.MetadataConfig)
+	for resourceName, resourceConfig := range dmc {
+		metadataConfig[resourceName] = resourceConfig.ToMetadataResourceConfig()
+	}
+	return metadataConfig
+}
+
+func (dmrc DefaultMetadataResourceConfig) ToMetadataResourceConfig() profiledefinition.MetadataResourceConfig {
+	return profiledefinition.MetadataResourceConfig{
+		Fields: dmrc.Fields,
+		IDTags: dmrc.IDTags,
+	}
 }
 
 // DefaultMetadataConfigs contains the default metadata collected on a device
@@ -32,7 +47,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
 	{
 		"device": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return true
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -57,7 +72,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"interface": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return true
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -110,7 +125,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"ip_addresses": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return true
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -133,7 +148,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// Topology metadata
 	{
 		"lldp_remote": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -185,7 +200,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"lldp_remote_management": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -198,7 +213,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"lldp_local": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -217,7 +232,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"cdp_remote": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -288,9 +303,9 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// VPN tunnels metadata
 	{
 		"cisco_ipsec_tunnel": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectVPN &&
-					checkOid(sess, "1.3.6.1.4.1.9.9.171.1.3.2.1.4")
+					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.4.1.9.9.171.1.3.2.1.4")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"local_outside_ip": {
@@ -312,9 +327,9 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// Route table metadata needed for VPN tunnels
 	{
 		"ipforward_deprecated": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectVPN &&
-					checkOid(sess, "1.3.6.1.2.1.4.24.4.1.5")
+					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.4.24.4.1.5")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -332,9 +347,9 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"ipforward": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectVPN &&
-					checkOid(sess, "1.3.6.1.2.1.4.24.7.1.7")
+					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.4.24.7.1.7")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -356,9 +371,9 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// Tunnel metadata needed for VPN tunnels
 	{
 		"tunnel_config_deprecated": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectVPN &&
-					checkOid(sess, "1.3.6.1.2.1.10.131.1.1.2.1.5")
+					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.10.131.1.1.2.1.5")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -370,9 +385,9 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"tunnel_config": {
-			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectVPN &&
-					checkOid(sess, "1.3.6.1.2.1.10.131.1.1.3.1.6")
+					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.10.131.1.1.3.1.6")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -384,6 +399,15 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 	},
+}
+
+// checkOidIfConnectedOrSkip checks whether a given OID is present on the device only when validConnection is true
+// If validConnection is false, it returns true by default
+func checkOidIfConnectedOrSkip(sess session.Session, validConnection bool, oid string) bool {
+	if !validConnection {
+		return true
+	}
+	return checkOid(sess, oid)
 }
 
 // checkOid checks whether a given OID is present on the device
@@ -403,31 +427,27 @@ func checkOid(sess session.Session, oid string) bool {
 }
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, sess session.Session, config *checkconfig.CheckConfig) profiledefinition.MetadataConfig {
+func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) profiledefinition.MetadataConfig {
 	newMetadataConfig := maps.Clone(metadataConfig)
 	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
-		mergeMetadata(newMetadataConfig, defaultMetadataConfig, sess, config)
-
+		mergeMetadata(newMetadataConfig, defaultMetadataConfig, sess, validConnection, config)
 	}
 	return newMetadataConfig
 }
 
-func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig, sess session.Session, config *checkconfig.CheckConfig) {
+func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
-		if resourceConfig.MergeFields == nil {
-			// This is to force always having to specify the MergeFields function, else the Agent will panic
-			panic("function MergeFields not specified in default metadata config")
+		if resourceConfig.ShouldMergeMetadata == nil {
+			// This is to force always having to specify the ShouldMergeMetadata function, else the Agent will panic
+			panic("function ShouldMergeMetadata not specified in default metadata config")
 		}
 
-		if sess != nil && !resourceConfig.MergeFields(sess, config) {
+		if !resourceConfig.ShouldMergeMetadata(sess, validConnection, config) {
 			continue
 		}
 
-		if _, ok := metadataConfig[resourceName]; !ok {
-			metadataConfig[resourceName] = profiledefinition.MetadataResourceConfig{
-				Fields: resourceConfig.Fields,
-				IDTags: resourceConfig.IDTags,
-			}
+		if _, exists := metadataConfig[resourceName]; !exists {
+			metadataConfig[resourceName] = resourceConfig.ToMetadataResourceConfig()
 		}
 	}
 }

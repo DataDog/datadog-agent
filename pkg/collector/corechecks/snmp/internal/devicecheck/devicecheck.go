@@ -78,7 +78,7 @@ func (pc *profileCache) GetProfile() profiledefinition.ProfileDefinition {
 	return *pc.profile
 }
 
-func (pc *profileCache) Update(sysObjectID string, now time.Time, sess session.Session, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
+func (pc *profileCache) Update(sysObjectID string, now time.Time, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
 	if pc.IsOutdated(sysObjectID, config.ProfileName, now, config.ProfileProvider.LastUpdated()) {
 		// we cache the value even if there's an error, because an error indicates that
 		// the ProfileProvider couldn't find a match for either config.ProfileName or
@@ -86,7 +86,7 @@ func (pc *profileCache) Update(sysObjectID string, now time.Time, sess session.S
 		// again without either the sysObjectID or the ProfileProvider changing.
 		pc.sysObjectID = sysObjectID
 		pc.timestamp = now
-		profile, err := buildprofile.BuildProfile(sysObjectID, sess, config)
+		profile, err := buildprofile.BuildProfile(sysObjectID, sess, validConnection, config)
 		pc.profile = &profile
 		pc.err = err
 		pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
@@ -160,15 +160,29 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 
 	d.readTagsFromCache()
 
+	var validConnection bool
 	d.session, err = d.sessionFactory(d.config)
 	if err != nil {
-		log.Warnf("failed to create session: %s", err)
+		log.Warnf("failed to create session: %v", err)
+	} else {
+		err = d.session.Connect()
+		if err != nil {
+			log.Warnf("failed to connect: %v", err)
+		} else {
+			validConnection = true
+			defer func() {
+				err = d.session.Close()
+				if err != nil {
+					log.Warnf("failed to close session: %v", err)
+				}
+			}()
+		}
 	}
 
-	_, err = d.profileCache.Update("", time.Now(), d.session, d.config)
+	_, err = d.profileCache.Update("", time.Now(), d.session, validConnection, d.config)
 	if err != nil {
 		// This could happen e.g. if the config references a profile that hasn't been loaded yet.
-		_ = log.Warnf("failed to refresh profile cache: %s", err)
+		_ = log.Warnf("failed to refresh profile cache: %v", err)
 	}
 
 	return &d, nil
@@ -408,7 +422,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefin
 	if err != nil {
 		return d.profileCache.GetProfile(), err
 	}
-	profile, err := d.profileCache.Update(sysObjectID, time.Now(), sess, d.config)
+	profile, err := d.profileCache.Update(sysObjectID, time.Now(), sess, true, d.config)
 	if err != nil {
 		return profile, fmt.Errorf("failed to refresh profile cache: %w", err)
 	}
