@@ -465,6 +465,7 @@ core,github.com/aquasecurity/trivy/pkg/detector/ospkg/alma,Apache-2.0,Copyright 
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/alpine,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/amazon,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/azure,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy/pkg/detector/ospkg/bottlerocket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/chainguard,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/debian,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/oracle,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -522,7 +523,7 @@ core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/redhatbase,Apache-2.0,C
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/release,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/ubuntu,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/apk,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/bottlerocket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/bottlerocket_inventory,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/dpkg,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/rpm,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/repo/apk,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
