@@ -508,15 +508,9 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
-            collapsed = '[collapsed=true]' if collapsed else ''
-            escape = bytearray([27, 91, 48, 75])
-            log_date = str(int(time.time()))
-            message = "section_start:" + log_date + ":" + section_name + collapsed + "\r"
-            b = escape + message.encode('utf-8') + escape + (section_name + "...").encode('utf-8')
-            sys.stdout.buffer.write(b)
-            print()
-
-            print('start:', repr(b))
+            sys.stdout.flush()
+            # os.system(r'echo -e "\e[0Ksection_start:9999:my_first_section\r\e[0KHeader of the 1st collapsible section"')
+            os.system(rf'echo -e "\e[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\e[0K{section_name + '...'}"')
 
             # print(
             #     f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
@@ -527,15 +521,8 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
         yield
     finally:
         if in_ci:
-            escape = bytearray([27, 91, 48, 75])
-            log_date = str(int(time.time()))
-            message = "section_end:" + log_date + ":" + section_name + "\r"
-            b = escape + message.encode('utf-8') + escape
-            sys.stdout.buffer.write(b)
-            print()
-
-            print('end:', repr(b))
-
+            sys.stdout.flush()
+            os.system(rf'echo -e "\e[0Ksection_end:{int(time.time())}:{section_id}\r\e[0K"')
             # print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
