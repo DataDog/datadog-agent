@@ -43,6 +43,8 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Kafka
 	case ebpfTLS:
 		return TLS
+	case ebpfPlaintext:
+		return Plaintext
 	case ebpfMongo:
 		return Mongo
 	case ebpfPostgres:
@@ -71,6 +73,8 @@ func FromProtocolType(protocolType ProtocolType) uint8 {
 		return uint8((uint16(ebpfKafka) ^ uint16(layerApplicationBit)) & uint16(0xff))
 	case TLS:
 		return uint8((uint16(ebpfTLS) ^ uint16(layerEncryptionBit)) & uint16(0xff))
+	case Plaintext:
+		return uint8((uint16(ebpfPlaintext) ^ uint16(layerEncryptionBit)) & uint16(0xff))
 	case Mongo:
 		return uint8((uint16(ebpfMongo) ^ uint16(layerApplicationBit)) & uint16(0xff))
 	case Postgres:

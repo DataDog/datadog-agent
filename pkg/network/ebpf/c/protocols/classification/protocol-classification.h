@@ -193,6 +193,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             }
         }
         return;
+    } else {
+        // Add a plaintext encryption layer tag if TLS classification returns false
+        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
+        if (!protocol_stack) {
+            return;
+        }
+        update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_PLAINTEXT);
     }
 
     // If we have already classified the encryption layer, we can skip the rest of the classification
