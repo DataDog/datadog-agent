@@ -55,6 +55,7 @@ const (
 	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30 // Thirty seconds
+	profileRefreshDelay     = 60 // Number of seconds after which a profile needs to be refreshed
 )
 
 type profileCache struct {
@@ -78,17 +79,38 @@ func (pc *profileCache) GetProfile() profiledefinition.ProfileDefinition {
 }
 
 func (pc *profileCache) Update(sysObjectID string, now time.Time, sess session.Session, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
-	// we cache the value even if there's an error, because an error indicates that
-	// the ProfileProvider couldn't find a match for either config.ProfileName or
-	// the given sysObjectID, and we're going to have the same error if we call this
-	// again without either the sysObjectID or the ProfileProvider changing.
-	pc.sysObjectID = sysObjectID
-	pc.timestamp = now
-	profile, err := buildprofile.BuildProfile(sysObjectID, sess, config)
-	pc.profile = &profile
-	pc.err = err
-	pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
+	if pc.IsOutdated(sysObjectID, config.ProfileName, now, config.ProfileProvider.LastUpdated()) {
+		// we cache the value even if there's an error, because an error indicates that
+		// the ProfileProvider couldn't find a match for either config.ProfileName or
+		// the given sysObjectID, and we're going to have the same error if we call this
+		// again without either the sysObjectID or the ProfileProvider changing.
+		pc.sysObjectID = sysObjectID
+		pc.timestamp = now
+		profile, err := buildprofile.BuildProfile(sysObjectID, sess, config)
+		pc.profile = &profile
+		pc.err = err
+		pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
+	}
 	return pc.GetProfile(), pc.err
+}
+
+func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, now time.Time, lastUpdate time.Time) bool {
+	if pc.profile == nil {
+		return true
+	}
+	if profileName == checkconfig.ProfileNameInline {
+		// inline profiles never change, so if we have a profile it's up-to-date.
+		return false
+	}
+	if profileName == checkconfig.ProfileNameAuto && pc.sysObjectID != sysObjectID {
+		// If we're auto-detecting profiles and the sysObjectID has changed, we're out of date.
+		return true
+	}
+	// If we get here then either we're auto-detecting but the sysobjectid hasn't
+	// changed, or we have a static name; either way we're out of date if the profile
+	// refresh delay has been exceeded or if the profile provider has updated.
+	return now.Sub(pc.timestamp) > profileRefreshDelay*time.Second ||
+		pc.timestamp.Before(lastUpdate)
 }
 
 // DeviceCheck hold info necessary to collect info for a single device
