@@ -86,6 +86,10 @@ func analyzeProcess(
 		exeFile, rootErr = os.Open(exePath)
 		if rootErr != nil {
 			err = errors.Join(err, rootErr)
+		} else {
+			// If we found the exe under the proc root, we can ignore the
+			// original error.
+			err = nil
 		}
 	}
 	if err != nil {
