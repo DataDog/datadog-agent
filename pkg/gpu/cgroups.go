@@ -10,6 +10,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,15 +35,15 @@ func ConfigureDeviceCgroups(pid uint32, rootfs string) error {
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
-	if err := configureSystemDAllow(filepath.Base(cgroupPath), rootfs); err != nil {
+	if err := configureSystemDAllow(rootfs, filepath.Base(cgroupPath)); err != nil {
 		return fmt.Errorf("failed to configure systemd device allow for cgroup %s: %w", cgroupPath, err)
 	}
 
 	// Now configure the cgroup device allow, depending on the cgroup version
 	if cgroups.Mode() == cgroups.Legacy {
-		err = configureCgroupV1DeviceAllow(cgroupPath, rootfs, nvidiaDeviceMajor)
+		err = configureCgroupV1DeviceAllow(rootfs, cgroupPath, nvidiaDeviceMajor)
 	} else {
-		err = detachAllDeviceCgroupPrograms(cgroupPath, rootfs)
+		err = detachAllDeviceCgroupPrograms(rootfs, cgroupPath)
 	}
 
 	if err != nil {
@@ -145,7 +146,7 @@ func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
 	rootSysFsCgroup := filepath.Join(rootfs, "/sys/fs/cgroup")
 	err = filepath.WalkDir(rootSysFsCgroup, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to walk path %s: %w", path, err)
 		}
 		if !d.IsDir() {
 			return nil
@@ -194,7 +195,8 @@ func getAbsoluteCgroupForProcess(rootfs string, pid uint32) (string, error) {
 	return "/" + hostCgroupPath, nil
 }
 
-// insertAfterSection finds a section header in the lines and inserts the new line after it
+// insertAfterSection finds a section header (e.g. [Scope]) in the lines of a
+// SystemD configuration file and inserts the new line after it
 func insertAfterSection(lines []string, sectionHeader, newLine string) ([]string, error) {
 	// Find the section header line
 	sectionIndex := -1
@@ -218,7 +220,7 @@ func insertAfterSection(lines []string, sectionHeader, newLine string) ([]string
 	return newLines, nil
 }
 
-func configureSystemDAllow(containerID, rootfs string) error {
+func configureSystemDAllow(rootfs, containerID string) error {
 	// The SystemD device configuration might be either in a 50-DeviceAllow.conf
 	// file in a service configuration directory, or in a service file directly.
 	// Default to the 50-DeviceAllow.conf file and fall back to the service file
@@ -239,8 +241,14 @@ func configureSystemDAllow(containerID, rootfs string) error {
 		}
 	}
 
-	// Read the entire file
-	content, err := os.ReadFile(configFilePath)
+	configFile, err := os.OpenFile(configFilePath, os.O_RDWR, 0) // Permissions are not important here, we're not creating the file if it doesn't exist
+	if err != nil {
+		return fmt.Errorf("failed to open config file %s: %w", configFilePath, err)
+	}
+	defer configFile.Close()
+
+	// Read the entire file into memory
+	content, err := io.ReadAll(configFile)
 	if err != nil {
 		return fmt.Errorf("failed to read config file %s: %w", configFilePath, err)
 	}
@@ -255,8 +263,13 @@ func configureSystemDAllow(containerID, rootfs string) error {
 
 	// Write the modified content back to the file
 	newContent := strings.Join(newLines, "\n")
-	err = os.WriteFile(configFilePath, []byte(newContent), 0644)
-	if err != nil {
+	if err := configFile.Truncate(0); err != nil {
+		return fmt.Errorf("failed to truncate config file %s: %w", configFilePath, err)
+	}
+	if _, err := configFile.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek to start of config file %s: %w", configFilePath, err)
+	}
+	if _, err := configFile.WriteString(newContent); err != nil {
 		return fmt.Errorf("failed to write modified config to %s: %w", configFilePath, err)
 	}
 
@@ -289,7 +302,7 @@ func configureCgroupV1DeviceAllow(rootfs, cgroupPath string, majorNumber int) er
 // detachAllDeviceCgroupPrograms finds and detaches all device cgroup BPF programs from a cgroup
 // cgroupName is the name of the cgroup, e.g. "/kubepods.slice"
 // rootfs is the rootfs where /sys/fs/cgroup is mounted
-func detachAllDeviceCgroupPrograms(cgroupName, rootfs string) error {
+func detachAllDeviceCgroupPrograms(rootfs, cgroupName string) error {
 	cgroupHostPath, err := buildSafePath(rootfs, "sys/fs/cgroup", cgroupName)
 	if err != nil {
 		return fmt.Errorf("failed to build host path for cgroup %s: %w", cgroupName, err)
@@ -320,30 +333,37 @@ func detachAllDeviceCgroupPrograms(cgroupName, rootfs string) error {
 	// Detach each program
 	var detachErrs error
 	for _, prog := range queryResult.Programs {
-		// Load the program by ID
-		program, err := ebpf.NewProgramFromID(prog.ID)
-		if err != nil {
-			detachErrs = errors.Join(detachErrs, fmt.Errorf("failed to load program %d for cgroup %s: %w", prog.ID, cgroupName, err))
-			continue
-		}
-
 		// Detach the program
-		err = link.RawDetachProgram(link.RawDetachProgramOptions{
-			Target:  int(cgroup.Fd()),
-			Program: program,
-			Attach:  ebpf.AttachCGroupDevice,
-		})
-		if err != nil {
-			program.Close()
+		if err := detachDeviceCgroupProgram(prog, int(cgroup.Fd())); err != nil {
 			detachErrs = errors.Join(detachErrs, fmt.Errorf("failed to detach program %d from cgroup %s: %w", prog.ID, cgroupName, err))
 			continue
 		}
 
 		log.Debugf("successfully detached device program %d from cgroup %s", prog.ID, cgroupName)
-		program.Close()
 	}
 
 	return detachErrs
+}
+
+func detachDeviceCgroupProgram(prog link.AttachedProgram, cgroupFd int) error {
+	// Load the program by ID
+	program, err := ebpf.NewProgramFromID(prog.ID)
+	if err != nil {
+		return err
+	}
+	defer program.Close()
+
+	// Detach the program
+	err = link.RawDetachProgram(link.RawDetachProgramOptions{
+		Target:  cgroupFd,
+		Program: program,
+		Attach:  ebpf.AttachCGroupDevice,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // buildSafePath builds a safe path from the rootfs and basedir, and appends the
