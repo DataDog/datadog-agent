@@ -451,6 +451,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "File basename"
                 },
+                "extension": {
+                    "type": "string",
+                    "description": "File extension"
+                },
                 "path_resolution_error": {
                     "type": "string",
                     "description": "Error message from path resolution"
@@ -551,6 +555,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "mount_origin": {
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
+                },
+                "mount_visible": {
+                    "type": "boolean",
+                    "description": "MountVisible origin of the mount"
+                },
+                "mount_detached": {
+                    "type": "boolean",
+                    "description": "MountDetached origin of the mount"
                 },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
@@ -574,6 +586,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "File basename"
                 },
+                "extension": {
+                    "type": "string",
+                    "description": "File extension"
+                },
                 "path_resolution_error": {
                     "type": "string",
                     "description": "Error message from path resolution"
@@ -674,6 +690,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "mount_origin": {
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
+                },
+                "mount_visible": {
+                    "type": "boolean",
+                    "description": "MountVisible origin of the mount"
+                },
+                "mount_detached": {
+                    "type": "boolean",
+                    "description": "MountDetached origin of the mount"
                 },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
@@ -1042,6 +1066,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "source.path_error": {
                     "type": "string",
                     "description": "Mount source path error"
+                },
+                "detached": {
+                    "type": "boolean",
+                    "description": "Mount is not attached to the VFS tree"
+                },
+                "visible": {
+                    "type": "boolean",
+                    "description": "Mount is not visible in the VFS tree"
                 }
             },
             "additionalProperties": false,
@@ -1726,18 +1758,49 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "SetSockOptEvent": {
             "properties": {
-                "level": {
+                "socket_type": {
+                    "type": "string",
+                    "description": "Socket file descriptor"
+                },
+                "socket_family": {
+                    "type": "string",
+                    "description": "Socket family"
+                },
+                "filter_len": {
                     "type": "integer",
+                    "description": "Length of the filter"
+                },
+                "socket_protocol": {
+                    "type": "string",
+                    "description": "Socket protocol"
+                },
+                "level": {
+                    "type": "string",
                     "description": "Level at which the option is defined"
                 },
                 "optname": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Name of the option being set"
+                },
+                "is_filter_truncated": {
+                    "type": "boolean",
+                    "description": "Filter truncated"
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "Filter instructions"
+                },
+                "filter_hash": {
+                    "type": "string",
+                    "description": "Filter hash"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "socket_type",
+                "socket_family",
+                "socket_protocol",
                 "level",
                 "optname"
             ],
@@ -2878,6 +2941,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "File basename"
         },
+        "extension": {
+            "type": "string",
+            "description": "File extension"
+        },
         "path_resolution_error": {
             "type": "string",
             "description": "Error message from path resolution"
@@ -2979,6 +3046,14 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "MountOrigin origin of the mount"
         },
+        "mount_visible": {
+            "type": "boolean",
+            "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+            "type": "boolean",
+            "description": "MountDetached origin of the mount"
+        },
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
         }
@@ -2998,6 +3073,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `path` | File path |
 | `name` | File basename |
+| `extension` | File extension |
 | `path_resolution_error` | Error message from path resolution |
 | `inode` | File inode number |
 | `mode` | File mode |
@@ -3021,6 +3097,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_path` | MountPath path of the mount |
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
+| `mount_visible` | MountVisible origin of the mount |
+| `mount_detached` | MountDetached origin of the mount |
 
 | References |
 | ---------- |
@@ -3039,6 +3117,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "name": {
             "type": "string",
             "description": "File basename"
+        },
+        "extension": {
+            "type": "string",
+            "description": "File extension"
         },
         "path_resolution_error": {
             "type": "string",
@@ -3140,6 +3222,14 @@ Workload Protection events for Linux systems have the following JSON schema:
         "mount_origin": {
             "type": "string",
             "description": "MountOrigin origin of the mount"
+        },
+        "mount_visible": {
+            "type": "boolean",
+            "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+            "type": "boolean",
+            "description": "MountDetached origin of the mount"
         },
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
@@ -3176,6 +3266,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `path` | File path |
 | `name` | File basename |
+| `extension` | File extension |
 | `path_resolution_error` | Error message from path resolution |
 | `inode` | File inode number |
 | `mode` | File mode |
@@ -3199,6 +3290,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_path` | MountPath path of the mount |
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
+| `mount_visible` | MountVisible origin of the mount |
+| `mount_detached` | MountDetached origin of the mount |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -3699,6 +3792,14 @@ Workload Protection events for Linux systems have the following JSON schema:
         "source.path_error": {
             "type": "string",
             "description": "Mount source path error"
+        },
+        "detached": {
+            "type": "boolean",
+            "description": "Mount is not attached to the VFS tree"
+        },
+        "visible": {
+            "type": "boolean",
+            "description": "Mount is not visible in the VFS tree"
         }
     },
     "additionalProperties": false,
@@ -3727,6 +3828,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source.path` | Mount source path |
 | `mountpoint.path_error` | Mount point path error |
 | `source.path_error` | Mount source path error |
+| `detached` | Mount is not attached to the VFS tree |
+| `visible` | Mount is not visible in the VFS tree |
 
 | References |
 | ---------- |
@@ -4725,18 +4828,49 @@ Workload Protection events for Linux systems have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
-        "level": {
+        "socket_type": {
+            "type": "string",
+            "description": "Socket file descriptor"
+        },
+        "socket_family": {
+            "type": "string",
+            "description": "Socket family"
+        },
+        "filter_len": {
             "type": "integer",
+            "description": "Length of the filter"
+        },
+        "socket_protocol": {
+            "type": "string",
+            "description": "Socket protocol"
+        },
+        "level": {
+            "type": "string",
             "description": "Level at which the option is defined"
         },
         "optname": {
-            "type": "integer",
+            "type": "string",
             "description": "Name of the option being set"
+        },
+        "is_filter_truncated": {
+            "type": "boolean",
+            "description": "Filter truncated"
+        },
+        "filter": {
+            "type": "string",
+            "description": "Filter instructions"
+        },
+        "filter_hash": {
+            "type": "string",
+            "description": "Filter hash"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "socket_type",
+        "socket_family",
+        "socket_protocol",
         "level",
         "optname"
     ],
@@ -4747,8 +4881,15 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
+| `socket_type` | Socket file descriptor |
+| `socket_family` | Socket family |
+| `filter_len` | Length of the filter |
+| `socket_protocol` | Socket protocol |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
+| `is_filter_truncated` | Filter truncated |
+| `filter` | Filter instructions |
+| `filter_hash` | Filter hash |
 
 
 ## `SignalEvent`

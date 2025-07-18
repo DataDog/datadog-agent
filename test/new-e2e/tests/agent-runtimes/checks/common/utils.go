@@ -53,6 +53,11 @@ func CompareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	return math.Abs(x-y) <= relMarg
 }
 
+// CompareValuesWithDistance is a comparison functions that compares values to be within an integer distance of each other
+func CompareValuesWithDistance(a float64, b float64, distance int) bool {
+	return math.Abs(a-b) <= float64(distance)
+}
+
 // MetricPayloadCompare is a comparison function that compares metric payloads
 func MetricPayloadCompare(a, b check.Metric) int {
 	return cmp.Or(

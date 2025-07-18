@@ -23,7 +23,9 @@ type ContainerID string
 // GetProcessContainerID returns the container ID associated with the given
 // process ID. Returns an empty string if no container found.
 func GetProcessContainerID(pid int32) (ContainerID, bool) {
-	containerID, err := secutils.GetProcContainerID(uint32(pid), uint32(pid))
+	cfs := secutils.NewCGroupFS()
+
+	containerID, _, _, err := cfs.FindCGroupContext(uint32(pid), uint32(pid))
 	if containerID == "" || err != nil {
 		return "", false
 	}

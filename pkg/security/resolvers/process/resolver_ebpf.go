@@ -19,6 +19,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -379,13 +380,18 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	}
 
 	// Retrieve the container ID of the process from /proc and /sys/fs/cgroup/[cgroup]
-	containerID, cgroup, cgroupSysFSPath, err := p.containerResolver.GetContainerContext(pid)
+	containerID, cgroup, cgroupPath, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
-		// log error instead of returning it to allow the process to be added to the cache and eBPF maps
-		seclog.Errorf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		errMsg := fmt.Sprintf("snapshot failed for %d: couldn't parse container and cgroup context: %s", proc.Pid, err)
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+			// If the process is not found, it may have exited, so we log a warning
+			seclog.Warnf("%s", errMsg)
+		} else {
+			seclog.Errorf("%s", errMsg)
+		}
 	} else if cgroup.CGroupFile.Inode != 0 && cgroup.CGroupFile.MountID == 0 { // the mount id is unavailable through statx
 		// Get the file fields of the sysfs cgroup file
-		info, err := p.RetrieveFileFieldsFromProcfs(cgroupSysFSPath)
+		info, err := p.RetrieveFileFieldsFromProcfs(cgroupPath)
 		if err != nil {
 			seclog.Warnf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
 		} else {
@@ -404,10 +410,15 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// force mount from procfs/snapshot
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
+	entry.FileEvent.MountVisibilityResolved = true
 
 	if entry.FileEvent.IsFileless() {
+		entry.FileEvent.MountVisible = false
+		entry.FileEvent.MountDetached = true
 		entry.FileEvent.Filesystem = model.TmpFS
 	} else {
+		entry.FileEvent.MountVisible = true
+		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
 		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.FileEvent.Device, entry.Process.Pid, containerID)
 		if err != nil {
@@ -766,6 +777,10 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
+	err = p.pathResolver.ResolveMountAttributes(fileEvent, &pce.PIDContext, ctrCtx)
+	if err != nil {
+		seclog.Warnf("Failed to resolve mount attributes for mount id %d: %s", fileEvent.MountID, err)
+	}
 
 	return fileEvent.PathnameStr, nil
 }

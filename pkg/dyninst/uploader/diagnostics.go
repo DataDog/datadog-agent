@@ -16,12 +16,14 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"time"
 )
 
 // DiagnosticMessage is the message sent to the DataDog backend conveying diagnostic information
 type DiagnosticMessage struct {
-	Service  string         `json:"service"`
-	DDSource debuggerSource `json:"ddsource"`
+	Service   string         `json:"service"`
+	DDSource  debuggerSource `json:"ddsource"`
+	Timestamp int64          `json:"timestamp"`
 
 	Debugger struct {
 		Diagnostic `json:"diagnostics"`
@@ -34,6 +36,13 @@ var debuggerSourceJSON = []byte(`"dd_debugger"`)
 
 func (d debuggerSource) MarshalJSON() ([]byte, error) {
 	return debuggerSourceJSON, nil
+}
+
+func (d debuggerSource) UnmarshalJSON(b []byte) error {
+	if !bytes.Equal(b, debuggerSourceJSON) {
+		return fmt.Errorf("unexpected debugger source: %s", string(b))
+	}
+	return nil
 }
 
 // NewDiagnosticMessage creates a new DiagnosticMessage with the given service
@@ -61,9 +70,10 @@ const (
 
 // Diagnostic contains fields relevant for conveying the status of a probe
 type Diagnostic struct {
-	RuntimeID string `json:"runtimeId"`
-	ProbeID   string `json:"probeId"`
-	Status    Status `json:"status"`
+	RuntimeID    string `json:"runtimeId"`
+	ProbeID      string `json:"probeId"`
+	Status       Status `json:"status"`
+	ProbeVersion int    `json:"probeVersion,omitempty"`
 
 	*DiagnosticException `json:"exception,omitempty"`
 }
@@ -83,16 +93,17 @@ type DiagnosticsUploader struct {
 func NewDiagnosticsUploader(opts ...Option) *DiagnosticsUploader {
 	cfg := defaultConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
-	sender := newDiagnosticsSender(cfg.client, cfg.url)
+	sender := newDiagnosticsSender(cfg.client, cfg.url.String())
 	return &DiagnosticsUploader{
-		batcher: newBatcher("diagnostics", sender, opts...),
+		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig),
 	}
 }
 
 // Enqueue adds a message to the uploader's queue.
 func (u *DiagnosticsUploader) Enqueue(diag *DiagnosticMessage) error {
+	diag.Timestamp = time.Now().UnixMilli()
 	data, err := json.Marshal(diag)
 	if err != nil {
 		return err

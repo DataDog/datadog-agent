@@ -37,21 +37,20 @@ const (
 
 var (
 	tcpStateMetricsSuffixMapping = map[string]string{
-		"ESTABLISHED": "established",
-		"SYN_SENT":    "opening",
-		"SYN_RECV":    "opening",
-		"FIN_WAIT1":   "closing",
-		"FIN_WAIT2":   "closing",
-		"TIME_WAIT":   "time_wait",
-		"CLOSE":       "closing",
-		"CLOSE_WAIT":  "closing",
-		"LAST_ACK":    "closing",
-		"LISTEN":      "listening",
-		"CLOSING":     "closing",
-		"NONE":        "connections", // CONN_NONE is always returned for udp connections
+		"ESTABLISHED":  "established",
+		"SYN_SENT":     "opening",
+		"SYN_RECEIVED": "opening",
+		"FIN_WAIT_1":   "closing",
+		"FIN_WAIT_2":   "closing",
+		"TIME_WAIT":    "time_wait",
+		"CLOSED":       "closing",
+		"CLOSE_WAIT":   "closing",
+		"LAST_ACK":     "closing",
+		"LISTEN":       "listening",
+		"CLOSING":      "closing",
 	}
 	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
+		"": "connections", // gopsutil does not return a ConnectionStat.Status for UDP so it is an empty string
 	}
 )
 
@@ -150,12 +149,17 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, connect
 	case "tcp4", "tcp6":
 		stateMetricSuffixMapping = tcpStateMetricsSuffixMapping
 	}
+
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
 	}
 
 	for _, connectionStats := range connectionsStats {
-		metricCount[stateMetricSuffixMapping[connectionStats.Status]]++
+		if suffix, ok := stateMetricSuffixMapping[connectionStats.Status]; ok {
+			metricCount[suffix]++
+		} else {
+			log.Debugf("%s state mapping not found for %s", protocolName, connectionStats.Status)
+		}
 	}
 
 	for suffix, count := range metricCount {

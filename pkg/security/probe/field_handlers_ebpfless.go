@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -260,6 +261,16 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFieldsUser(_ *model.Event, e *model.
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.FileEvent) string {
 	return e.Filesystem
+}
+
+// ResolveFileExtension resolves the extension of a file
+func (fh *EBPFLessFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
+	if f.Extension == "" {
+		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }
 
 // ResolveFileMetadataSize resolves file metadata size
@@ -544,4 +555,16 @@ func (fh *EBPFLessFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *mode
 // ResolveAcceptHostnames resolves the hostnames of an accept event
 func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
 	return e.Hostnames
+}
+
+// ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, _ *model.SetSockOptEvent) string {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return ""
+}
+
+// ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, _ *model.SetSockOptEvent) string {
+	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
+	return ""
 }
