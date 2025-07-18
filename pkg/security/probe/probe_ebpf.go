@@ -593,7 +593,7 @@ func (p *EBPFProbe) getRawPacketMaps() (rawPacketEventMap, routerMap *lib.Map, e
 	return rawPacketEventMap, routerMap, nil
 }
 
-func (p *EBPFProbe) enableRawPacket(enable bool) err {
+func (p *EBPFProbe) enableRawPacket(enable bool) error {
 	enabledMap, _, err := p.Manager.GetMap("raw_packet_enabled")
 	if err != nil {
 		return err
@@ -651,8 +651,6 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 
 	// setup tail calls
 	for i, progSpec := range progSpecs {
-		fmt.Printf("PROG!!!!!!! : %d => %s\n", progKey+uint32(i), progSpec.Name)
-
 		if err := p.Manager.UpdateTailCallRoutes(manager.TailCallRoute{
 			Program:       col.Programs[progSpec.Name],
 			Key:           progKey + uint32(i),
@@ -698,8 +696,6 @@ func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 		if err != nil {
 			return err
 		}
-	} else {
-		p.enableRawPacket(false)
 	}
 
 	// add or close if none
@@ -737,8 +733,7 @@ func (p *EBPFProbe) applyRawPacketActionFilters() error {
 }
 
 func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) error {
-
-	fmt.Printf("addRawPacketActionFilter: %+v\n", actionFilter)
+	seclog.Infof("add raw packet action filter: %+v\n", actionFilter)
 
 	if slices.ContainsFunc(p.rawPacketActionFilters, func(af rawpacket.Filter) bool {
 		return actionFilter.RuleID == af.RuleID
@@ -747,7 +742,6 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	}
 	p.rawPacketActionFilters = append(p.rawPacketActionFilters, actionFilter)
 
-	fmt.Printf("p.rawPacketActionFilters: %+v\n", p.rawPacketActionFilters)
 	return p.applyRawPacketActionFilters()
 }
 
@@ -841,11 +835,6 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	logTraceEvent(event.GetEventType(), event)
-
-	if event.GetEventType() == model.RawPacketActionEventType {
-		fmt.Printf("!!!!!!!!!!!!!!!!!!!!!!!!!: %+v\n", event)
-		return
-	}
 
 	// filter out event if already present on a profile
 	p.profileManager.LookupEventInProfiles(event)
@@ -2277,6 +2266,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	}
 
 	if p.probe.IsNetworkRawPacketEnabled() {
+		// disable first, and let the following code enable it if needed
+		p.enableRawPacket(false)
+
 		if err := p.setupRawPacketFilters(rs); err != nil {
 			seclog.Errorf("unable to load raw packet filter programs: %v", err)
 		}
