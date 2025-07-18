@@ -972,11 +972,6 @@ func ensureRepositoriesExist() error {
 // each with a `path` and `contents` field.
 func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
 	mergedFiles := make(map[string]configFile)
-
-	for _, rawConfig := range rawConfigs {
-		fmt.Println(string(rawConfig))
-	}
-
 	for _, rawConfig := range rawConfigs {
 		var configFiles []configFile
 		err := json.Unmarshal(rawConfig, &configFiles)
