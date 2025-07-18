@@ -244,7 +244,8 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*Entry, []
 			date, err := convertTimestamp(properties[installDate])
 			if err != nil {
 				// Windows will pull the registry key creation date when no InstallDate is present
-				date, err = getKeyLastWriteTime(sk)
+				// If err, date will be blank ""
+				date, _ = getKeyLastWriteTime(sk)
 			}
 			entry := &Entry{
 				DisplayName: name,
