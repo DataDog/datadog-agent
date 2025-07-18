@@ -3,17 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 // Package inventorysoftware implements the inventory software component, to collect installed software inventory.
 package inventorysoftware
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"net/http"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
