@@ -94,7 +94,7 @@ func (c *Check) initSubscription() error {
 		// Create initial bookmark to prevent amnesia bug
 		// This follows the pattern from pkg/logs/tailers/windowsevent/tailer.go
 		log.Debugf("Creating initial bookmark for channel '%s' (start: %s)", channelPath, startMode)
-		
+
 		if startMode == "now" {
 			// For "now" mode, create bookmark from most recent event
 			bookmark, err = c.createInitialBookmark(channelPath, query)
@@ -113,7 +113,7 @@ func (c *Check) initSubscription() error {
 			}
 			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
 		}
-		
+
 		// Always persist the initial bookmark immediately
 		// This ensures we have a saved position even if no events are processed before shutdown
 		if bookmark != nil {

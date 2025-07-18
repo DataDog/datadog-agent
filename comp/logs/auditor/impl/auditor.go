@@ -383,7 +383,6 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	}
 }
 
-
 // SetOffset allows direct setting of an offset for an identifier, marking it as tailed
 func (a *registryAuditor) SetOffset(identifier string, offset string) {
 	a.registryMutex.Lock()

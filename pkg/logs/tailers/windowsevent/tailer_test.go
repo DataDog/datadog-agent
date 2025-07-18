@@ -279,12 +279,12 @@ func TestInitialBookmarkSeeding(t *testing.T) {
 	// Setup test environment
 	channelPath := "dd-test-channel-initial-bookmark"
 	eventSource := "dd-test-source-initial-bookmark"
-	
+
 	ti := eventlog_test.GetAPITesterByName("Windows", t)
 	if ti == nil {
 		t.Skip("Windows API tester not available")
 	}
-	
+
 	// Setup channel and source
 	err := ti.InstallChannel(channelPath)
 	require.NoError(t, err)
@@ -321,20 +321,20 @@ func TestInitialBookmarkSeeding(t *testing.T) {
 	// Step 3: Get the initial bookmark directly from the registry
 	// The implementation now uses direct SetOffset instead of synthetic messages
 	var initialBookmark string
-	
+
 	// Wait a moment for the tailer to initialize and set the bookmark
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Get the bookmark directly from the mock registry
 	mockRegistry := tailer.registry.(*auditormock.Auditor)
 	initialBookmark = mockRegistry.GetOffset(tailer.Identifier())
 	require.NotEmpty(t, initialBookmark, "Initial bookmark must not be empty")
-	
+
 	// Verify the bookmark content
 	require.Contains(t, initialBookmark, "RecordId=", "Bookmark should contain a RecordId")
 	require.Contains(t, initialBookmark, channelPath, "Bookmark should contain the channel path")
 	require.Contains(t, initialBookmark, "BookmarkList", "Bookmark should be valid XML")
-	
+
 	// Log the actual registry contents for debugging
 	t.Logf("Registry contains bookmark for %s: %s", tailer.Identifier(), initialBookmark)
 	t.Logf("Full mock registry state: %+v", mockRegistry.StoredOffsets)
@@ -371,7 +371,7 @@ drainLoop:
 	t.Cleanup(func() {
 		tailer.Stop()
 	})
-	
+
 	// Verify the new tailer has access to the bookmark
 	t.Logf("Restarted tailer with bookmark: %s", initialBookmark)
 
@@ -396,7 +396,7 @@ collectLoop:
 	// the missed events (not 0, and not all 15)
 	require.Greater(t, receivedEvents, uint(0), "Should receive at least some events (not 0 due to amnesia)")
 	require.LessOrEqual(t, receivedEvents, missedEvents+uint(2), "Should not receive significantly more than missed events")
-	
+
 	// Log final test results
 	t.Logf("Test completed successfully: Received %d events after restart (expected ~%d missed events)", receivedEvents, missedEvents)
 	t.Logf("Initial bookmark seeding prevented amnesia bug - no events were lost!")
@@ -409,12 +409,12 @@ func TestInitialBookmarkSeedingNoEvents(t *testing.T) {
 	// Setup test environment
 	channelPath := "dd-test-channel-no-events"
 	eventSource := "dd-test-source-no-events"
-	
+
 	ti := eventlog_test.GetAPITesterByName("Windows", t)
 	if ti == nil {
 		t.Skip("Windows API tester not available")
 	}
-	
+
 	// Setup channel and source
 	err := ti.InstallChannel(channelPath)
 	require.NoError(t, err)
@@ -442,18 +442,18 @@ func TestInitialBookmarkSeedingNoEvents(t *testing.T) {
 
 	// Wait for tailer to initialize and set the bookmark
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Get the bookmark directly from the mock registry
 	var bookmark string
 	mockRegistry := tailer.registry.(*auditormock.Auditor)
 	bookmark = mockRegistry.GetOffset(tailer.Identifier())
 	// Bookmark might be empty for an empty log, but should be present (even if empty string)
 	require.NotNil(t, &bookmark)
-	
+
 	// Log the bookmark for an empty log
 	t.Logf("Empty log bookmark for %s: %s", tailer.Identifier(), bookmark)
 	t.Logf("Mock registry state for empty log: %+v", mockRegistry.StoredOffsets)
-	
+
 	// Verify SetOffset was called even for empty log
 	require.Contains(t, mockRegistry.StoredOffsets, tailer.Identifier(), "Registry should have entry for identifier")
 
