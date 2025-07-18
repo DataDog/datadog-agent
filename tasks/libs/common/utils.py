@@ -510,7 +510,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             sys.stdout.flush()
-            sys.stdout.buffer.write(bytes(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}", 'utf-8'))
+            sys.stdout.buffer.write(bytes(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}\n", 'utf-8'))
             sys.stdout.flush()
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
@@ -518,7 +518,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     finally:
         if in_ci:
             sys.stdout.flush()
-            sys.stdout.buffer.write(bytes(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", 'utf-8'))
+            sys.stdout.buffer.write(bytes(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K\n", 'utf-8'))
             sys.stdout.flush()
 
 
