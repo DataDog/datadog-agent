@@ -24,6 +24,7 @@ type DefaultMetadataResourceConfig struct {
 	IDTags      profiledefinition.MetricTagConfigList
 }
 
+// DefaultMetadataConfigs contains the default metadata collected on a device
 var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// LegacyMetadataConfig contains metadata config used for backward compatibility
 	// When users have their own copy of _base.yaml and _generic_if.yaml files
