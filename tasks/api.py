@@ -25,6 +25,8 @@ def cast_type(value: str):
         return float(value[6:])
     elif value.startswith('bool:'):
         return bool(value[5:])
+    else:
+        return value
 
 
 @task(default=True)
@@ -62,7 +64,7 @@ def run(
         $ dda inv -- api hello --env staging
         $ dda inv -- api hello --env local
         # Note that we can cast types using a type prefix, e.g. `int:`, `float:` or `bool:`
-        $ dda inv -- api stackcleaner/workflow --env staging --ty stackcleaner_workflow_request --attrs job_name=abc,job_id=123,pipeline_id=1234,ref=cc,ignore_lock=bool:true
+        $ dda inv -- api stackcleaner/job --env staging --ty stackcleaner_workflow_request --attrs job_name=abc,job_id=123,pipeline_id=1234,ref=cc,ignore_lock=bool:true
     """
 
     assert env in ('prod', 'staging', 'local'), (
