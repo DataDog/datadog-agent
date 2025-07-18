@@ -1,6 +1,6 @@
 name: Backport PR
 on:
-  pull_request_target:
+  pull_request:
     types:
       - closed
       - labeled
@@ -12,28 +12,29 @@ jobs:
     name: Backport PR
     runs-on: ubuntu-latest
     if: >
-      github.event.pull_request.merged
-      && (
         github.event.action == 'closed'
         || (
           github.event.action == 'labeled'
           && contains(github.event.label.name, 'backport')
         )
-      )
+      # github.event.pull_request.merged
+      # && (
+      # )
     permissions:
-      contents: write
-      pull-requests: write
+      id-token: write
+      # contents: write
+      # pull-requests: write
     steps:
-      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
-        id: app-token
+      - uses: DataDog/dd-octo-sts-action@08f2144903ced3254a3dafec2592563409ba2aa0 # v1.0.1
+        id: octo-sts
         with:
-          app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
-          private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
+          scope: DataDog/datadog-agent
+          policy: datadog-agent.backport.write.sts.yaml
       - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
         with:
           label_pattern: "^backport/(?<base>([^ ]+))$"
           labels_template: "<%= JSON.stringify([...labels, 'backport', 'bot']) %>"
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.octo-sts.outputs.token }}
           body_template: |
             Backport <%- mergeCommitSha %> from #<%- number %>.
 
