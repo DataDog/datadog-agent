@@ -1,4 +1,0 @@
-init_config:
-
-instances:
-  - collect_tcp_queue_length: true
