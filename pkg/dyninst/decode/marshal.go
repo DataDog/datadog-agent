@@ -461,7 +461,6 @@ func (d *Decoder) encodeValueFields(
 				jsontext.Bool(true),
 			)
 		}
-
 		stringValue, ok := dataItems[typeAndAddr{
 			irType: uint32(v.Data.GetID()),
 			addr:   address,
@@ -844,7 +843,6 @@ func (d *Decoder) collectSwissMapTables(
 		if !ok {
 			return fmt.Errorf("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
 		}
-
 		elementType := groupType.GroupSliceType.Element
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {

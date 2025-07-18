@@ -1,0 +1,139 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testMapStringToInt",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testMapStringToInt",
+          "location": {
+            "method": "main.testMapStringToInt"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "m": {
+                "type": "map[string]int",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "AAA"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "BBB"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "CCC"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "DDD"
+                    },
+                    {
+                      "type": "int",
+                      "value": "4"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "EEE"
+                    },
+                    {
+                      "type": "int",
+                      "value": "5"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "FFF"
+                    },
+                    {
+                      "type": "int",
+                      "value": "6"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "GGG"
+                    },
+                    {
+                      "type": "int",
+                      "value": "7"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "HHH"
+                    },
+                    {
+                      "type": "int",
+                      "value": "8"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "III"
+                    },
+                    {
+                      "type": "int",
+                      "value": "9"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "JJJ"
+                    },
+                    {
+                      "type": "int",
+                      "value": "10"
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

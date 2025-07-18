@@ -262,7 +262,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize() - g.typeFuncMetadata[t.Element.GetID()].offsetShift},
 			ReturnOp{},
 		}
 
@@ -281,7 +281,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize() - g.typeFuncMetadata[t.Element.GetID()].offsetShift},
 			ReturnOp{},
 		}
 
