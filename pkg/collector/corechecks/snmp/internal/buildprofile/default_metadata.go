@@ -405,23 +405,21 @@ func checkOid(sess session.Session, oid string) bool {
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, sess session.Session, config *checkconfig.CheckConfig) profiledefinition.MetadataConfig {
 	newMetadataConfig := maps.Clone(metadataConfig)
-
 	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
 		mergeMetadata(newMetadataConfig, defaultMetadataConfig, sess, config)
 
 	}
-
 	return newMetadataConfig
 }
 
 func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig, sess session.Session, config *checkconfig.CheckConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
-		// TODO: VPN
 		if resourceConfig.MergeFields == nil {
-
+			// This is to force always having to specify the MergeFields function, else the Agent will panic
+			panic("function MergeFields not specified in default metadata config")
 		}
 
-		if !resourceConfig.MergeFields(sess, config) {
+		if sess != nil && !resourceConfig.MergeFields(sess, config) {
 			continue
 		}
 

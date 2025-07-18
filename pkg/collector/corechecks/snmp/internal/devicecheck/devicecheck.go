@@ -162,8 +162,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 
 	d.session, err = d.sessionFactory(d.config)
 	if err != nil {
-		// TODO: VPN
-		d.session = nil
+		log.Warnf("failed to create session: %s", err)
 	}
 
 	_, err = d.profileCache.Update("", time.Now(), d.session, d.config)
