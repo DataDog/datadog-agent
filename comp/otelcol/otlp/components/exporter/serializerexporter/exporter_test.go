@@ -466,7 +466,7 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	store := TelemetryStore{
 		OTLPIngestMetrics: telemetryComp.NewGauge(
 			"runtime",
-			"datadog.agent.otlp.ingest.metrics",
+			"datadog_agent_otlp_ingest_metrics",
 			[]string{"version", "command", "host"},
 			"Usage metric of OTLP metrics in OTLP ingestion",
 		),
@@ -493,14 +493,14 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
-	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog.agent.otlp.ingest.metrics")
+	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_otlp_ingest_metrics")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
 	assert.Equal(t, map[string]string{"host": "agent-host", "command": "otelcol", "version": "latest"}, usageMetric[0].Tags())
 	assert.Equal(t, 1.0, usageMetric[0].Value())
 
-	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog.agent.ddot.metrics")
-	assert.ErrorContains(t, err, "runtime__datadog.agent.ddot.metrics not found")
+	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_metrics")
+	assert.ErrorContains(t, err, "runtime__datadog_agent_ddot_metrics not found")
 }
 
 func TestUsageMetric_DDOT(t *testing.T) {
@@ -510,7 +510,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	store := TelemetryStore{
 		DDOTMetrics: telemetryComp.NewGauge(
 			"runtime",
-			"datadog.agent.ddot.metrics",
+			"datadog_agent_ddot_metrics",
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP metrics in OTLP ingestion",
 		),
@@ -544,12 +544,12 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	require.NoError(t, exp.ConsumeMetrics(ctx, md))
 	require.NoError(t, exp.Shutdown(ctx))
 
-	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog.agent.ddot.metrics")
+	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_metrics")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
 	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
 	assert.Equal(t, 1.0, usageMetric[0].Value())
 
-	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog.agent.otlp.ingest.metrics")
-	assert.ErrorContains(t, err, "runtime__datadog.agent.otlp.ingest.metrics not found")
+	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_otlp_ingest_metrics")
+	assert.ErrorContains(t, err, "runtime__datadog_agent_otlp_ingest_metrics not found")
 }

@@ -114,7 +114,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	store := serializerexporter.TelemetryStore{
 		DDOTTraces: telemetryComp.NewGauge(
 			"runtime",
-			"datadog.agent.ddot.traces",
+			"datadog_agent_ddot_traces",
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP traces in DDOT",
 		),
@@ -136,7 +136,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 	require.NoError(t, exporter.Shutdown(ctx))
 
-	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog.agent.ddot.traces")
+	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_traces")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
 	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
@@ -171,7 +171,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	store := serializerexporter.TelemetryStore{
 		DDOTTraces: telemetryComp.NewGauge(
 			"runtime",
-			"datadog.agent.ddot.traces",
+			"datadog_agent_ddot_traces",
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP traces in DDOT",
 		),

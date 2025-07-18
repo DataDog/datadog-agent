@@ -138,13 +138,13 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	if reqs.Telemetry != nil {
 		store.DDOTTraces = reqs.Telemetry.NewGauge(
 			"runtime",
-			"datadog.agent.ddot.traces",
+			"datadog_agent_ddot_traces",
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP traces in DDOT",
 		)
 		store.DDOTMetrics = reqs.Telemetry.NewGauge(
 			"runtime",
-			"datadog.agent.ddot.metrics",
+			"datadog_agent_ddot_metrics",
 			[]string{"version", "command", "host", "task_arn"},
 			"Usage metric of OTLP metrics in DDOT",
 		)

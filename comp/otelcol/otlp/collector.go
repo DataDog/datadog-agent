@@ -124,7 +124,7 @@ func getComponents(
 	if telemetry != nil {
 		store.OTLPIngestMetrics = telemetry.NewGauge(
 			"runtime",
-			"datadog.agent.otlp.ingest.metrics",
+			"datadog_agent_otlp_ingest_metrics",
 			[]string{"version", "command", "host"},
 			"Usage metric of OTLP metrics in OTLP ingestion",
 		)
