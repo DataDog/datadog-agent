@@ -217,16 +217,17 @@ func TestBuildProfile(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			var validConnection bool
 			var sess session.Session
 			var err error
-			if tc.sessionFactory == nil {
-				sess = nil
-			} else {
+
+			if tc.sessionFactory != nil {
+				validConnection = true
 				sess, err = tc.sessionFactory(tc.config)
 				assert.NoError(t, err)
 			}
 
-			profile, err := BuildProfile(tc.sysObjectID, sess, tc.config)
+			profile, err := BuildProfile(tc.sysObjectID, sess, validConnection, tc.config)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
