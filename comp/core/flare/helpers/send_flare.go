@@ -146,7 +146,19 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 	// -1 here means 'unknown' and makes this a 'chunked' request. See https://github.com/golang/go/issues/18117
 	request.ContentLength = -1
 
-	return client.Do(request)
+	resp, err := client.Do(request)
+	if err != nil {
+		return resp, err
+	}
+
+	// Convert 5xx HTTP error status codes to Go errors for retry logic
+	if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return resp, fmt.Errorf("HTTP %d %s\nServer returned:\n%s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
+	}
+
+	return resp, nil
 }
 
 func analyzeResponse(r *http.Response, apiKey string) (string, error) {
@@ -262,61 +274,63 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 
 	// Retry logic for the actual flare file posting
 	var lastErr error
-	var defaultRetryConfig = RetryConfig{
-		MaxRetries: 3,
-		BaseDelay:  100 * time.Millisecond,
-	}
+	var maxTries = 3
+	var baseDelay = 100 * time.Millisecond
 
-	for attempt := 0; attempt <= defaultRetryConfig.MaxRetries; attempt++ {
-		if attempt > 0 {
+	for attempt := 1; attempt <= maxTries; attempt++ {
+		if attempt > 1 {
 			// Exponential backoff
-			delay := time.Duration(attempt) * defaultRetryConfig.BaseDelay
+			delay := time.Duration(attempt-1) * baseDelay
 			time.Sleep(delay)
 		}
 
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
-			if isRetryableFlareError(err) {
-				lastErr = err
-				continue // Retry
+			// Always close the response body if it exists
+			if r != nil && r.Body != nil {
+				r.Body.Close()
 			}
-			// Non-retryable error - return immediately
-			return "", err
+
+			statusCode := 0
+			if r != nil {
+				statusCode = r.StatusCode
+			}
+			lastErr = err
+			if attempt < maxTries && isRetryableFlareError(err, statusCode) {
+				continue
+			}
+			// If it's not retryable, return immediately
+			if !isRetryableFlareError(err, statusCode) {
+				return "", err
+			}
+
+			// If we've exhausted retries for a retryable error, fall through to return retry exhaustion error
+			break
 		}
 
-		if r.StatusCode >= 200 && r.StatusCode < 500 {
-			defer r.Body.Close()
-			return analyzeResponse(r, apiKey)
-		} else if r.StatusCode >= 500 && r.StatusCode < 600 {
-			// 5xx error - retry
-			r.Body.Close()
-			lastErr = fmt.Errorf("server error: %s", r.Status)
-			continue
-		}
-		// Other unexpected status code - don't retry
+		// Success case - analyze the response
 		defer r.Body.Close()
 		return analyzeResponse(r, apiKey)
 	}
-
-	return "", fmt.Errorf("failed to send flare after %d attempts: %w", defaultRetryConfig.MaxRetries+1, lastErr)
+	return "", fmt.Errorf("failed to send flare after %d attempts: %w", maxTries, lastErr)
 }
 
-func isRetryableFlareError(err error) bool {
+func isRetryableFlareError(err error, statusCode int) bool {
 	if err == nil {
 		return false
 	}
 
-	errStr := strings.ToLower(err.Error())
-
-	if strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "network unreachable") ||
-		strings.Contains(errStr, "temporary failure") {
+	if statusCode >= 500 && statusCode < 600 {
 		return true
 	}
 
-	return false
+	errStr := strings.ToLower(err.Error())
+
+	return strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "network unreachable") ||
+		strings.Contains(errStr, "temporary failure")
 }
 
 // GetFlareEndpoint creates the flare endpoint URL
