@@ -24,7 +24,6 @@ func main() {
 	if loglevel == "" {
 		loglevel = "warn"
 	}
-	println(loglevel)
 
 	err := pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("udp"),

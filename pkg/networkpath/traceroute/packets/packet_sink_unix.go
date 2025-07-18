@@ -15,6 +15,9 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 // sinkUnix is an implementation of the packet sink interface for unix OSes
@@ -25,16 +28,17 @@ type sinkUnix struct {
 var _ Sink = &sinkUnix{}
 
 // NewSinkUnix returns a new sinkUnix implementing packet sink
-func NewSinkUnix(addr netip.Addr) (Sink, error) {
-	var domain int
-	var level int
-	switch {
-	case addr.Is4():
+func NewSinkUnix(family gopacket.LayerType) (Sink, error) {
+	var domain, protocol, hdrincl int
+	switch family {
+	case layers.LayerTypeIPv4:
 		domain = unix.AF_INET
-		level = unix.IPPROTO_IP
-	case addr.Is6():
+		protocol = unix.IPPROTO_IP
+		hdrincl = unix.IP_HDRINCL
+	case layers.LayerTypeIPv6:
 		domain = unix.AF_INET6
-		level = unix.IPPROTO_IPV6
+		protocol = unix.IPPROTO_IPV6
+		hdrincl = unix.IPV6_HDRINCL
 	default:
 		return nil, fmt.Errorf("SinkUnix supports only IPv4 or IPv6 addresses")
 	}
@@ -44,7 +48,7 @@ func NewSinkUnix(addr netip.Addr) (Sink, error) {
 		return nil, fmt.Errorf("failed to create raw socket: %w", err)
 	}
 
-	err = unix.SetsockoptInt(fd, level, unix.IP_HDRINCL, 1)
+	err = unix.SetsockoptInt(fd, protocol, hdrincl, 1)
 	if err != nil {
 		unix.Close(fd)
 		return nil, fmt.Errorf("failed to set header include option: %w", err)

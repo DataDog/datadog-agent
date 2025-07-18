@@ -66,8 +66,13 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 	writerCtx, writerCancel := context.WithCancel(groupCtx)
 	defer writerCancel()
 
+	hasSent := make(chan struct{})
+
 	// start a goroutine to SendProbe() in a loop
 	g.Go(func() error {
+		var sentOnce sync.Once
+		defer sentOnce.Do(func() { close(hasSent) })
+
 		for i := int(p.MinTTL); i <= int(p.MaxTTL); i++ {
 			// leave if we got cancelled
 			if writerCtx.Err() != nil {
@@ -78,6 +83,7 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 			if err != nil {
 				return fmt.Errorf("SendProbe() failed: %w", err)
 			}
+			sentOnce.Do(func() { close(hasSent) })
 
 			time.Sleep(p.SendDelay)
 		}
@@ -85,6 +91,9 @@ func TracerouteParallel(ctx context.Context, t TracerouteDriver, p TraceroutePar
 	})
 
 	g.Go(func() error {
+		// Windows raw sockets don't let you read from them until you send something first.
+		// If you try to read first, you will get WSAEINVAL. So wait until we send something
+		<-hasSent
 		for {
 			// leave if we got cancelled, SendProbe() failed, etc
 			// doesn't use writerCtx because when we find the destination, we writerCancel(), and we want to keep reading

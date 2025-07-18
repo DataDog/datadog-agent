@@ -10,12 +10,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
 	"math/rand"
 	"net"
 	"net/netip"
 	"slices"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -165,7 +166,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 }
 
 func (r *Runner) runICMP(cfg config.Config, hname string, target net.IP, maxTTL uint8, timeout time.Duration) (payload.NetworkPath, error) {
-	targetAddr, ok := netip.AddrFromSlice(target)
+	targetAddr, ok := common.UnmappedAddrFromSlice(target)
 	if !ok {
 		return payload.NetworkPath{}, fmt.Errorf("invalid target IP")
 	}

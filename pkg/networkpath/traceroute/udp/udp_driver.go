@@ -11,10 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/gopacket/layers"
+
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/gopacket/layers"
 )
 
 type probeID struct {
@@ -40,7 +41,6 @@ type udpDriver struct {
 	sentProbes map[probeID]probeData
 }
 
-//nolint:unused // This is used, but not on all platforms yet
 func newUDPDriver(config *UDPv4, sink packets.Sink, source packets.Source) *udpDriver {
 	return &udpDriver{
 		config: config,
@@ -113,7 +113,7 @@ func (u *udpDriver) SendProbe(ttl uint8) error {
 
 	err = u.sink.WriteTo(buffer, u.getTargetAddrPort())
 	if err != nil {
-		return fmt.Errorf("tcpDriver SendProbe failed to write packet: %w", err)
+		return fmt.Errorf("udpDriver SendProbe failed to write packet: %w", err)
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func (u *udpDriver) SendProbe(ttl uint8) error {
 func (u *udpDriver) ReceiveProbe(timeout time.Duration) (*common.ProbeResponse, error) {
 	err := u.source.SetReadDeadline(time.Now().Add(timeout))
 	if err != nil {
-		return nil, fmt.Errorf("tcpDriver failed to SetReadDeadline: %w", err)
+		return nil, fmt.Errorf("udpDriver failed to SetReadDeadline: %w", err)
 	}
 	err = packets.ReadAndParse(u.source, u.buffer, u.parser)
 	if err != nil {

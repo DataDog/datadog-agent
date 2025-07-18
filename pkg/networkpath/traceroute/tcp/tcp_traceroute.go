@@ -11,10 +11,17 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 )
 
 // Traceroute runs a TCP traceroute
 func (t *TCPv4) Traceroute() (*common.Results, error) {
+	targetAddr, ok := common.UnmappedAddrFromSlice(t.Target)
+	if !ok {
+		return nil, fmt.Errorf("failed to get netipAddr for target %s", t.Target)
+	}
+	t.Target = targetAddr.AsSlice()
+
 	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("TCP Traceroute failed to get local address for target: %w", err)
@@ -27,14 +34,19 @@ func (t *TCPv4) Traceroute() (*common.Results, error) {
 	if err != nil {
 		return nil, fmt.Errorf("TCP Traceroute failed to create TCP listener: %w", err)
 	}
+
 	defer tcpListener.Close()
 	t.srcPort = port
 
-	// get this platform's tcpDriver implementation
-	driver, err := t.newTracerouteDriver()
+	// get this platform's Source and Sink implementations
+	handle, err := packets.NewSourceSink(common.IPFamily(targetAddr))
 	if err != nil {
-		return nil, fmt.Errorf("TCP Traceroute failed to getTracerouteDriver: %w", err)
+		return nil, fmt.Errorf("TCP Traceroute failed to make NewSourceSink: %w", err)
 	}
+	if handle.MustClosePort {
+		tcpListener.Close()
+	}
+	driver := newTCPDriver(t, handle.Sink, handle.Source)
 
 	params := common.TracerouteSerialParams{
 		TracerouteParams: common.TracerouteParams{

@@ -11,31 +11,43 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 )
 
-// Traceroute runs a TCP traceroute
-func (t *UDPv4) Traceroute() (*common.Results, error) {
-	addr, conn, err := common.LocalAddrForHost(t.Target, t.TargetPort)
+// Traceroute runs a UDP traceroute
+func (u *UDPv4) Traceroute() (*common.Results, error) {
+	targetAddr, ok := common.UnmappedAddrFromSlice(u.Target)
+	if !ok {
+		return nil, fmt.Errorf("failed to get netipAddr for target %s", u.Target)
+	}
+	u.Target = targetAddr.AsSlice()
+
+	addr, conn, err := common.LocalAddrForHost(u.Target, u.TargetPort)
 	if err != nil {
 		return nil, fmt.Errorf("UDP Traceroute failed to get local address for target: %w", err)
 	}
 	defer conn.Close()
-	t.srcIP = addr.IP
-	t.srcPort = uint16(addr.Port)
+	u.srcIP = addr.IP
+	u.srcPort = uint16(addr.Port)
 
-	// get this platform's tcpDriver implementation
-	driver, err := t.newTracerouteDriver()
+	// get this platform's Source and Sink implementations
+	handle, err := packets.NewSourceSink(common.IPFamily(targetAddr))
 	if err != nil {
-		return nil, fmt.Errorf("UDP Traceroute failed to getTracerouteDriver: %w", err)
+		return nil, fmt.Errorf("UDP Traceroute failed to make NewSourceSink: %w", err)
 	}
+	if handle.MustClosePort {
+		conn.Close()
+	}
+
+	driver := newUDPDriver(u, handle.Sink, handle.Source)
 
 	params := common.TracerouteParallelParams{
 		TracerouteParams: common.TracerouteParams{
-			MinTTL:            t.MinTTL,
-			MaxTTL:            t.MaxTTL,
-			TracerouteTimeout: t.Timeout,
+			MinTTL:            u.MinTTL,
+			MaxTTL:            u.MaxTTL,
+			TracerouteTimeout: u.Timeout,
 			PollFrequency:     100 * time.Millisecond,
-			SendDelay:         t.Delay,
+			SendDelay:         u.Delay,
 		},
 	}
 	resp, err := common.TracerouteParallel(context.Background(), driver, params)
@@ -49,10 +61,10 @@ func (t *UDPv4) Traceroute() (*common.Results, error) {
 	}
 
 	result := &common.Results{
-		Source:     t.srcIP,
-		SourcePort: t.srcPort,
-		Target:     t.Target,
-		DstPort:    t.TargetPort,
+		Source:     u.srcIP,
+		SourcePort: u.srcPort,
+		Target:     u.Target,
+		DstPort:    u.TargetPort,
 		Hops:       hops,
 		Tags:       nil,
 	}

@@ -179,6 +179,7 @@ func (t *tcpDriver) handleProbeLayers() (*common.ProbeResponse, error) {
 
 	switch t.parser.GetTransportLayer() {
 	case layers.LayerTypeTCP:
+		log.Tracef("tcpDriver found TCP packet")
 		isSynack := t.parser.TCP.SYN && t.parser.TCP.ACK
 		isRst := t.parser.TCP.RST
 		isRstAck := t.parser.TCP.RST && t.parser.TCP.ACK

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
 package sack
 
 import (
@@ -38,18 +36,7 @@ type sackDriver struct {
 	state     *sackTCPState
 }
 
-func newSackDriver(params Params, localAddr netip.Addr) (*sackDriver, error) {
-	sink, err := packets.NewSinkUnix(params.Target.Addr())
-	if err != nil {
-		return nil, fmt.Errorf("newSackDriver failed to make SinkUnix: %w", err)
-	}
-
-	source, err := packets.NewAFPacketSource()
-	if err != nil {
-		sink.Close()
-		return nil, fmt.Errorf("newSackDriver failed to make AFPacketSource: %w", err)
-	}
-
+func newSackDriver(params Params, localAddr netip.Addr, sink packets.Sink, source packets.Source) (*sackDriver, error) {
 	retval := &sackDriver{
 		sink:      sink,
 		source:    source,

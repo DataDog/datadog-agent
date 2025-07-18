@@ -7,11 +7,14 @@
 package icmp
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NotSupportedError means not on a supported platform.
@@ -38,4 +41,82 @@ type Params struct {
 func (p Params) MaxTimeout() time.Duration {
 	ttl := time.Duration(p.ParallelParams.MaxTTL - p.ParallelParams.MinTTL)
 	return ttl * p.ParallelParams.MaxTimeout()
+}
+
+func (p Params) validate() error {
+	addr := p.Target
+	if !addr.IsValid() {
+		return fmt.Errorf("ICMP traceroute provided invalid IP address")
+	}
+	return nil
+}
+
+type icmpResult struct {
+	LocalAddr netip.AddrPort
+	Hops      []*common.ProbeResponse
+}
+
+func runICMPTraceroute(ctx context.Context, p Params) (*icmpResult, error) {
+	err := p.validate()
+	if err != nil {
+		return nil, fmt.Errorf("invalid icmp driver params: %w", err)
+	}
+
+	local, udpConn, err := common.LocalAddrForHost(p.Target.AsSlice(), 80)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get local addr: %w", err)
+	}
+	udpConn.Close()
+	deadline := time.Now().Add(p.MaxTimeout())
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
+	// get this platform's Source and Sink implementations
+	handle, err := packets.NewSourceSink(common.IPFamily(p.Target))
+	if err != nil {
+		return nil, fmt.Errorf("TCP Traceroute failed to make NewSourceSink: %w", err)
+	}
+
+	// create the raw packet connection which watches for TCP/ICMP responses
+	driver, err := newICMPDriver(p, local.AddrPort().Addr(), handle.Sink, handle.Source)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init icmp driver: %w", err)
+	}
+	defer driver.Close()
+
+	log.Debugf("icmp traceroute dialing %s", p.Target)
+	// this actually runs the traceroute
+	resp, err := common.TracerouteParallel(ctx, driver, p.ParallelParams)
+	if err != nil {
+		return nil, fmt.Errorf("icmp traceroute failed: %w", err)
+	}
+
+	result := &icmpResult{
+		LocalAddr: local.AddrPort(),
+		Hops:      resp,
+	}
+	return result, nil
+}
+
+// RunICMPTraceroute fully executes a ICMP traceroute using the given parameters
+func RunICMPTraceroute(ctx context.Context, p Params) (*common.Results, error) {
+	icmpResult, err := runICMPTraceroute(ctx, p)
+	if err != nil {
+		return nil, fmt.Errorf("icmp traceroute failed: %w", err)
+	}
+
+	hops, err := common.ToHops(p.ParallelParams.TracerouteParams, icmpResult.Hops)
+	if err != nil {
+		return nil, fmt.Errorf("icmp traceroute ToHops failed: %w", err)
+	}
+
+	result := &common.Results{
+		Source:     icmpResult.LocalAddr.Addr().AsSlice(),
+		SourcePort: icmpResult.LocalAddr.Port(),
+		Target:     p.Target.AsSlice(),
+		Hops:       hops,
+		Tags:       []string{"icmp"},
+	}
+
+	return result, nil
 }

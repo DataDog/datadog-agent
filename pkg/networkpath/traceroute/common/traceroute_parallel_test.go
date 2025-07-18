@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/netip"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -494,4 +495,30 @@ func TestParallelSupport(t *testing.T) {
 
 	_, err := TracerouteParallel(context.Background(), m, parallelParams)
 	require.ErrorContains(t, err, "doesn't support parallel")
+}
+
+func TestParallelSendFirst(t *testing.T) {
+	// this test checks the hasSent logic -- i.e. that it does not call ReceiveProbe until after SendProbe finishes
+	m := initMockDriver(t, parallelParams.TracerouteParams, parallelInfo)
+	t.Parallel()
+
+	var hasSent, hasReceived atomic.Bool
+
+	m.sendHandler = func(_ uint8) error {
+		// imitate a slow send where ReceiveProbe could accidentally happen first
+		time.Sleep(100 * time.Millisecond)
+		hasSent.Store(true)
+		return nil
+	}
+
+	m.receiveHandler = func() (*ProbeResponse, error) {
+		hasReceived.Store(true)
+		require.True(t, hasSent.Load(), "ReceiveProbe() called before SendProbe() finished")
+		return noData(parallelParams.PollFrequency)
+	}
+
+	_, err := TracerouteParallel(context.Background(), m, parallelParams)
+	require.NoError(t, err)
+	require.True(t, hasSent.Load())
+	require.True(t, hasReceived.Load())
 }
