@@ -107,7 +107,7 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-    # Create temporary folder
+    # Create custom temporary folder to isolate jobs from each other
     - |
       export TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
       mkdir -p "$TMPDIR"
