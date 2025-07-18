@@ -817,6 +817,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EventServerRetention":                       opts.eventServerRetention,
 		"EnableSelfTests":                            opts.enableSelfTests,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
+		"CapabilitiesUsageMonitoringEnabled":         opts.capabilitiesUsageMonitoringEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}
