@@ -1634,6 +1634,30 @@ int test_connect_and_send(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_chroot(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a directory to change root to\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *new_root = argv[1];
+
+    if (chroot(new_root)) {
+        perror("chroot");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_acct(int argc, char **argv) {
+    int err = acct(NULL);
+    if (err) {
+        perror("acct");
+    }
+    return err;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1739,6 +1763,10 @@ int main(int argc, char **argv) {
             exit_code = test_bind_and_listen(sub_argc, sub_argv);
         } else if (strcmp(cmd, "connect-and-send") == 0) {
             exit_code = test_connect_and_send(sub_argc, sub_argv);  
+        } else if (strcmp(cmd, "chroot") == 0) {
+            exit_code = test_chroot(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "acct") == 0) {
+            exit_code = test_acct(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;
