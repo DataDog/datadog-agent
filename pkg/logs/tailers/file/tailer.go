@@ -20,10 +20,9 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -117,24 +117,28 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info            *status.InfoRegistry
-	bytesRead       *status.CountInfo
-	movingSum       *util.MovingSum
-	CapacityMonitor *metrics.CapacityMonitor
-	registry        auditor.Registry
+	info                  *status.InfoRegistry
+	bytesRead             *status.CountInfo
+	movingSum             *util.MovingSum
+	fingerprintConfig     *logsconfig.FingerprintConfig
+	fingerprint           uint64
+	fingerprintingEnabled bool
+	registry              auditor.Registry
+	CapacityMonitor       *metrics.CapacityMonitor
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan      chan *message.Message    // Required
-	File            *File                    // Required
-	SleepDuration   time.Duration            // Required
-	Decoder         *decoder.Decoder         // Required
-	Info            *status.InfoRegistry     // Required
-	Rotated         bool                     // Optional
-	TagAdder        tag.EntityTagAdder       // Required
-	CapacityMonitor *metrics.CapacityMonitor // Required
-	Registry        auditor.Registry         // Required
+	OutputChan        chan *message.Message         // Required
+	File              *File                         // Required
+	SleepDuration     time.Duration                 // Required
+	Decoder           *decoder.Decoder              // Required
+	Info              *status.InfoRegistry          // Required
+	Rotated           bool                          // Optional
+	TagAdder          tag.EntityTagAdder            // Required
+	FingerprintConfig *logsconfig.FingerprintConfig //Optional
+	Registry          auditor.Registry              //Required
+	CapacityMonitor   *metrics.CapacityMonitor      // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -147,16 +151,22 @@ type TailerOptions struct {
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
 func NewTailer(opts *TailerOptions) *Tailer {
+	log.Debugf("Creating new tailer for file: %s", opts.File.Path)
+
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
+		log.Debugf("Creating container tag provider for identifier: %s", opts.File.Source.Config().Identifier)
 		tagProvider = tag.NewProvider(types.NewEntityID(types.ContainerID, opts.File.Source.Config().Identifier), opts.TagAdder)
 	} else {
+		log.Debugf("Creating local tag provider for file: %s", opts.File.Path)
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
 	closeTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.close_timeout") * time.Second
 	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
+
+	log.Debugf("Tailer timeouts - closeTimeout: %v, windowsOpenFileTimeout: %v", closeTimeout, windowsOpenFileTimeout)
 
 	bytesRead := status.NewCountInfo("Bytes Read")
 	fileRotated := opts.Rotated
@@ -167,6 +177,15 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	bucketSize := timeWindow / time.Duration(totalBucket)
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
+
+	fingerprintConfig := ReturnFingerprintConfig()
+	fingerprintingEnabled := false
+	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") == "checksum" {
+		fingerprintingEnabled = true
+		log.Debugf("Fingerprinting enabled for file: %s", opts.File.Path)
+	} else {
+		log.Debugf("Fingerprinting disabled for file: %s", opts.File.Path)
+	}
 
 	t := &Tailer{
 		file:                   opts.File,
@@ -187,14 +206,23 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
+		fingerprintConfig:      fingerprintConfig,
+		fingerprint:            0,
+		fingerprintingEnabled:  fingerprintingEnabled,
 		CapacityMonitor:        opts.CapacityMonitor,
 		registry:               opts.Registry,
 	}
 
 	if fileRotated {
+		log.Debugf("Tailer created for rotated file: %s", opts.File.Path)
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
+	if t.fingerprintingEnabled {
+		t.fingerprint = ComputeFingerprint(t.file.Path, t.fingerprintConfig)
+		log.Debugf("Computed initial fingerprint for file %s: 0x%x", t.file.Path, t.fingerprint)
+	}
 
+	log.Debugf("Successfully created tailer for file: %s", opts.File.Path)
 	return t
 }
 
@@ -217,15 +245,16 @@ func (t *Tailer) NewRotatedTailer(
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   t.sleepDuration,
-		Decoder:         decoder,
-		Info:            info,
-		Rotated:         true,
-		TagAdder:        tagAdder,
-		CapacityMonitor: capacityMonitor,
-		Registry:        registry,
+		OutputChan:        outputChan,
+		File:              file,
+		SleepDuration:     t.sleepDuration,
+		Decoder:           decoder,
+		Info:              info,
+		Rotated:           true,
+		TagAdder:          tagAdder,
+		CapacityMonitor:   capacityMonitor,
+		FingerprintConfig: t.fingerprintConfig,
+		Registry:          registry,
 	}
 
 	return NewTailer(options)
@@ -245,17 +274,23 @@ func (t *Tailer) Identifier() string {
 
 // Start begins the tailer's operation in a dedicated goroutine.
 func (t *Tailer) Start(offset int64, whence int) error {
+	log.Debugf("Starting tailer for file: %s (offset: %d, whence: %d)", t.file.Path, offset, whence)
 	err := t.setup(offset, whence)
 	if err != nil {
+		log.Debugf("Failed to setup tailer for file %s: %v", t.file.Path, err)
 		t.file.Source.Status().Error(err)
 		return err
 	}
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 	t.registry.SetTailed(t.Identifier(), true)
+	log.Debugf("Starting message forwarding goroutine for file: %s", t.file.Path)
 	go t.forwardMessages()
+	log.Debugf("Starting decoder for file: %s", t.file.Path)
 	t.decoder.Start()
+	log.Debugf("Starting readForever goroutine for file: %s", t.file.Path)
 	go t.readForever()
+	log.Debugf("Successfully started tailer for file: %s", t.file.Path)
 
 	return nil
 }
@@ -263,24 +298,30 @@ func (t *Tailer) Start(offset int64, whence int) error {
 // StartFromBeginning is a shortcut to start the tailer at the beginning of the
 // file.
 func (t *Tailer) StartFromBeginning() error {
+	log.Debugf("Starting tailer from beginning for file: %s", t.file.Path)
 	return t.Start(0, io.SeekStart)
 }
 
 // Stop stops the tailer and returns only after all in-flight messages have
 // been flushed to the output channel.
 func (t *Tailer) Stop() {
+	log.Debugf("Stopping tailer for file: %s", t.file.Path)
 	t.registry.SetTailed(t.Identifier(), false)
 	t.stop <- struct{}{}
 	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
+	log.Debugf("Tailer stopped for file: %s", t.file.Path)
 }
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
+	log.Debugf("Preparing tailer for rotation timeout for file: %s", t.file.Path)
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
+	log.Debugf("Bytes read at rotation time for file %s: %d", t.file.Path, bytesReadAtRotationTime)
+
 	go func() {
 		time.Sleep(t.closeTimeout)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
@@ -296,6 +337,7 @@ func (t *Tailer) StopAfterFileRotation() {
 				}
 			}
 		}
+		log.Debugf("Rotation timeout expired for file: %s, stopping forward context", t.file.Path)
 		t.stopForward()
 		t.stop <- struct{}{}
 	}()
@@ -305,31 +347,52 @@ func (t *Tailer) StopAfterFileRotation() {
 // readForever lets the tailer tail the content of a file
 // until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
+	log.Debugf("Starting readForever for file: %s", t.file.Path)
 	defer func() {
 		if t.osFile != nil {
+			log.Debugf("Closing OS file for: %s", t.file.Path)
 			t.osFile.Close()
 		}
+		log.Debugf("Stopping decoder for file: %s", t.file.Path)
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
-
 	for {
 		n, err := t.read()
 		if err != nil {
+			log.Debugf("Tailer %s read error: %v", t.file.Path, err)
 			return
 		}
+
+		log.Debugf("Tailer %s read %d bytes", t.file.Path, n)
+
+		if n > 0 && t.fingerprintingEnabled && t.fingerprint == 0 {
+			log.Debugf("Tailer %s attempting fingerprint retry (read %d bytes, fingerprinting enabled, current fingerprint: 0)",
+				t.file.Path, n)
+			identifier := t.Identifier()
+			if len(identifier) > 5 {
+				filePath := identifier[5:]
+				t.fingerprint = ComputeFingerprint(filePath, t.fingerprintConfig)
+				log.Debugf("Tailer %s computed retry fingerprint: 0x%x", t.file.Path, t.fingerprint)
+			}
+			if t.fingerprint != 0 {
+				log.Infof("Successfully computed fingerprint for file %q on retry", t.file.Path)
+			}
+		}
+
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
-
 		select {
 		case <-t.stop:
 			if n != 0 && t.didFileRotate.Load() {
 				log.Warn("Tailer stopped after rotation close timeout with remaining unread data")
 			}
+			log.Debugf("Tailer %s received stop signal", t.file.Path)
 			// stop reading data from file
 			return
 		default:
 			if n == 0 {
+				log.Debugf("Tailer %s read 0 bytes, waiting for new data", t.file.Path)
 				// wait for new data to come
 				t.wait()
 			}
@@ -355,15 +418,21 @@ func (t *Tailer) IsFinished() bool {
 
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
+	log.Debugf("Starting message forwarding for file: %s", t.file.Path)
 	defer func() {
 		// the decoder has successfully been flushed
+		log.Debugf("Message forwarding completed for file: %s", t.file.Path)
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan {
+		log.Debugf("Tailer %s received message from decoder (content length: %d, raw data len: %d)",
+			t.file.Path, len(output.GetContent()), output.RawDataLen)
+
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
+			log.Debugf("File rotated, resetting offset to 0 for file: %s", t.file.Path)
 			offset = 0
 			identifier = ""
 		}
@@ -371,6 +440,8 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
+		origin.FilePath = t.file.Path
+		origin.Fingerprint = t.fingerprint
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
@@ -379,8 +450,12 @@ func (t *Tailer) forwardMessages() {
 		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
+			log.Debugf("Tailer %s filtering out empty message (content length: 0)", t.file.Path)
 			continue
 		}
+
+		log.Debugf("Tailer %s forwarding message to pipeline (content: '%s', length: %d)",
+			t.file.Path, string(output.GetContent()), len(output.GetContent()))
 
 		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
@@ -391,8 +466,10 @@ func (t *Tailer) forwardMessages() {
 		// normal case.
 		select {
 		case t.outputChan <- msg:
+			log.Debugf("Tailer %s successfully sent message to pipeline", t.file.Path)
 			t.CapacityMonitor.AddIngress(msg)
 		case <-t.forwardContext.Done():
+			log.Debugf("Tailer %s context cancelled, stopping message forwarding", t.file.Path)
 		}
 	}
 }
@@ -413,16 +490,19 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
+	log.Debugf("Tailer %s sleeping for %v", t.file.Path, t.sleepDuration)
 	time.Sleep(t.sleepDuration)
 }
 
 func (t *Tailer) recordBytes(n int64) {
+	log.Debugf("Recording %d bytes read for file: %s", n, t.file.Path)
 	t.Source().BytesRead.Add(n)
 	t.bytesRead.Add(n)
 }
 
 // ReplaceSource replaces the current source
 func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
+	log.Debugf("Replacing source for file: %s (old: %s, new: %s)", t.file.Path, t.file.Source.UnderlyingSource().Name, newSource.Name)
 	t.file.Source.Replace(newSource)
 }
 
