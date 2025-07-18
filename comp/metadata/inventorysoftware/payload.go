@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 package inventorysoftware
 
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
