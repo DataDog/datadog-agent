@@ -1,7 +1,3 @@
-import getpass
-import os
-import platform
-import plistlib
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +5,6 @@ from pathlib import Path
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.tool import Exit, info
-from tasks.system_probe import is_root
 
 
 def get_home_linux():

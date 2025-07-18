@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import getpass
-import os
-import shutil
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.compiler import get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os

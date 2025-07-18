@@ -2,7 +2,6 @@
 Utility functions for the setup requirements
 """
 
-import io
 import re
 import tempfile
 from pathlib import Path
