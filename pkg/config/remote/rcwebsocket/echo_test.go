@@ -173,7 +173,7 @@ func TestWebSocketTest_PING_PONG(t *testing.T) {
 		defer conn.Close()
 
 		pongCh := make(chan struct{}, 1)
-		conn.SetPongHandler(func(data string) error {
+		conn.SetPongHandler(func(_data string) error {
 			select {
 			case pongCh <- struct{}{}:
 			default:

@@ -303,10 +303,11 @@ func (c *HTTPClient) NewWebSocket(ctx context.Context, endpointPath string) (*we
 
 	// Send the HTTP request, wait for the upgrade response and then perform the
 	// WebSocket handshake.
-	conn, _, err := dialer.DialContext(ctx, url.String(), headers)
+	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
 	}
+	_ = resp.Body.Close()
 
 	log.Debug("websocket connected")
 

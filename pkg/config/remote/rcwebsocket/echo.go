@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rcwebsocket implements WebSocket connectivity to the RC backend.
 package rcwebsocket
 
 import (
@@ -19,7 +20,7 @@ import (
 // messageTimeout interval or the test times out.
 const messageTimeout = 5 * time.Minute
 
-// RunWebSocketTest connects to the echo test endpoint ("/api/v0.2/echo-test") in the
+// RunEchoTest connects to the echo test endpoint ("/api/v0.2/echo-test") in the
 // Remote Config backend, upgrades the HTTP request to a WebSocket connection,
 // and exchanges a series of data frames to measure connectivity, delivery and
 // latency metrics.
@@ -91,7 +92,7 @@ func runEchoLoop(ctx context.Context, client *api.HTTPClient) (uint, error) {
 			conn.EnableWriteCompression(false)
 		}
 
-		conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+		_ = conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 		if err := conn.WriteMessage(messageType, p); err != nil {
 			return n, mapWsClose(err)
 		}
@@ -117,7 +118,7 @@ func mapWsClose(err error) error {
 // Set the deadline for the next message from the server to be NOW() +
 // messageTimeout.
 func bumpReadDeadline(conn *websocket.Conn) {
-	conn.SetReadDeadline(time.Now().Add(messageTimeout))
+	_ = conn.SetReadDeadline(time.Now().Add(messageTimeout))
 }
 
 // Attempt to gracefully close the websocket connection due to an interrupted

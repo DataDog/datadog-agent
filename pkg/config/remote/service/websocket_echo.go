@@ -50,7 +50,7 @@ func (s *WebSocketTestActor) Start() {
 	}()
 }
 
-// Signals the background task to stop asynchronously.
+// Stop signals the background task to stop asynchronously.
 //
 // This method is not concurrency safe, and panics if Start() has not previously
 // been called. It is safe to call Stop() repeatedly.
