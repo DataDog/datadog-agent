@@ -97,7 +97,7 @@
 build_clang_x64:
   extends: .build_clang_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     ARCH: amd64
     CMAKE_ARCH: x86_64
@@ -116,7 +116,7 @@ build_processed_btfhub_archive:
     - !reference [.manual]
   stage: deps_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   variables:
     KUBERNETES_CPU_REQUEST: 32
   script:

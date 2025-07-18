@@ -19,7 +19,7 @@
 
 build_otel_agent_binary_x64:
   extends: .build_otel_agent_binary_common
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64-ci-test"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
 
 build_otel_agent_binary_arm64:
