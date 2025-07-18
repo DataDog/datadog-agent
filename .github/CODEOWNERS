@@ -344,6 +344,7 @@
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
+/comp/networkdeviceconfig @DataDog/network-device-monitoring
 /comp/rdnsquerier @DataDog/ndm-integrations
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
@@ -513,7 +514,7 @@
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/quantile/                     @DataDog/opentelemetry-agent
 /pkg/util/tags/                         @DataDog/container-platform
-/pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
+/pkg/util/trivy/                        @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                         @DataDog/agent-runtimes
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-platform

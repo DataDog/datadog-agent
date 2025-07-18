@@ -214,14 +214,15 @@ func DiagnoseInventory(ctx context.Context, cfg config.Component, log log.Compon
 		allEndpoints = append(allEndpoints, endpoints...)
 	}
 
-	// Create HTTP client for workers
-	client := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withOneRedirect(), withTimeout(httpClientTimeout))
+	// Create HTTP clients for workers
+	clientNormal := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withTimeout(httpClientTimeout))                      // unlimited redirects
+	clientRedirect := getClient(cfg, min(maxParallelWorkers, len(allEndpoints)), log, withTimeout(httpClientTimeout), withOneRedirect()) // limited redirects
 
-	return checkEndpoints(ctx, allEndpoints, client)
+	return checkEndpoints(ctx, allEndpoints, clientNormal, clientRedirect)
 }
 
 // checkEndpoints checks the connectivity of the provided endpoints in parallel
-func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *http.Client) ([]diagnose.Diagnosis, error) {
+func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, clientNormal, clientRedirect *http.Client) ([]diagnose.Diagnosis, error) {
 	workerCount := min(maxParallelWorkers, len(endpoints))
 
 	// Create channels for work distribution and results collection
@@ -245,6 +246,15 @@ func checkEndpoints(ctx context.Context, endpoints []resolvedEndpoint, client *h
 				if endpoint.isFailover {
 					description += " - failover"
 				}
+
+				// Select the appropriate client based on redirect configuration
+				var client *http.Client
+				if endpoint.limitRedirect {
+					client = clientRedirect
+				} else {
+					client = clientNormal
+				}
+
 				diagnosis, err := endpoint.checkServiceConnectivity(ctx, client)
 
 				var result diagnose.Diagnosis
@@ -321,13 +331,7 @@ func (e resolvedEndpoint) checkServiceConnectivity(ctx context.Context, client *
 }
 
 func (e resolvedEndpoint) checkHead(ctx context.Context, client *http.Client) (string, error) {
-	if e.limitRedirect {
-		withOneRedirect()(client)
-	}
 	statusCode, _, err := sendHead(ctx, client, e.url)
-	if e.limitRedirect {
-		client.CheckRedirect = nil
-	}
 	if err != nil {
 		return "Failed to connect", err
 	}

@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/netip"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -87,6 +88,11 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
+		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext, ev.ContainerContext)
+		if err != nil && f.PathResolutionError == nil {
+			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
+			ev.SetPathResolutionError(f, err)
+		}
 	}
 
 	return f.PathnameStr
@@ -118,6 +124,16 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		}
 	}
 	return f.Filesystem
+}
+
+// ResolveFileExtension resolves the extension of a file
+func (fh *EBPFFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
+	if f.Extension == "" {
+		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
@@ -156,6 +172,9 @@ func (fh *EBPFFieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.Set
 
 // ResolveMountPointPath resolves a mount point path
 func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
+	if e.Detached {
+		return "/"
+	}
 	if len(e.MountPointPath) == 0 {
 		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
 		if err != nil {
@@ -948,7 +967,11 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 			})
 		}
 
-		instructions, _ := bpf.Disassemble(raw)
+		instructions, allDecoded := bpf.Disassemble(raw)
+		if !allDecoded {
+			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
+			return ""
+		}
 
 		for i, inst := range instructions {
 			e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)

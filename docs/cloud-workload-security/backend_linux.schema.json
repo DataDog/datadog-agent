@@ -440,6 +440,10 @@
           "type": "string",
           "description": "File basename"
         },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
+        },
         "path_resolution_error": {
           "type": "string",
           "description": "Error message from path resolution"
@@ -540,6 +544,14 @@
         "mount_origin": {
           "type": "string",
           "description": "MountOrigin origin of the mount"
+        },
+        "mount_visible": {
+          "type": "boolean",
+          "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+          "type": "boolean",
+          "description": "MountDetached origin of the mount"
         },
         "metadata": {
           "$ref": "#/$defs/FileMetadata"
@@ -563,6 +575,10 @@
           "type": "string",
           "description": "File basename"
         },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
+        },
         "path_resolution_error": {
           "type": "string",
           "description": "Error message from path resolution"
@@ -663,6 +679,14 @@
         "mount_origin": {
           "type": "string",
           "description": "MountOrigin origin of the mount"
+        },
+        "mount_visible": {
+          "type": "boolean",
+          "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+          "type": "boolean",
+          "description": "MountDetached origin of the mount"
         },
         "metadata": {
           "$ref": "#/$defs/FileMetadata"
@@ -1031,6 +1055,14 @@
         "source.path_error": {
           "type": "string",
           "description": "Mount source path error"
+        },
+        "detached": {
+          "type": "boolean",
+          "description": "Mount is not attached to the VFS tree"
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "Mount is not visible in the VFS tree"
         }
       },
       "additionalProperties": false,

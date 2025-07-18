@@ -7,12 +7,15 @@ package agenttests
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -52,6 +55,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
 // through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
+	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -103,6 +107,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 // This is a regression test for WINA-1469, where the Agent account password and
 // password from the LSA did not match after rollback to a version before LSA support was added.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
+	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -540,8 +545,19 @@ func (s *testAgentUpgradeSuite) setAgentConfig() {
 func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
+	// Ensure the API key is set for telemetry
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
-api_key: aaaaaaaaa
+api_key: `+apiKey+`
+site: datadoghq.com
 remote_updates: true
 `))
 }

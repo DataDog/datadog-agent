@@ -59,6 +59,24 @@ func (s *clusterStore) getNodeStore(nodeName string) (*nodeStore, bool) {
 	return node, ok
 }
 
+// CountNodeTypes returns the number of nodes with NodeTypeCLCRunner and NodeTypeNodeAgent.
+func (s *clusterStore) CountNodeTypes() (clcRunnerCount, nodeAgentCount int) {
+	s.RLock()
+	defer s.RUnlock()
+	for _, node := range s.nodes {
+		if node == nil {
+			continue
+		}
+		switch node.nodetype {
+		case types.NodeTypeCLCRunner:
+			clcRunnerCount++
+		case types.NodeTypeNodeAgent:
+			nodeAgentCount++
+		}
+	}
+	return
+}
+
 // getOrCreateNodeStore retrieves the store struct for a given node name.
 // If the node is not yet in the store, an entry will be inserted and returned.
 func (s *clusterStore) getOrCreateNodeStore(nodeName, clientIP string) *nodeStore {
@@ -93,6 +111,7 @@ type nodeStore struct {
 	clcRunnerStats   types.CLCRunnersStats
 	busyness         int
 	workers          int
+	nodetype         types.NodeType
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {

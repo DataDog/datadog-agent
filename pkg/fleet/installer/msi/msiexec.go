@@ -5,33 +5,48 @@
 
 //go:build windows
 
-// Package msi contains helper functions to work with msi packages
+// Package msi contains helper functions to work with msi packages.
+//
+// The package provides automatic retry functionality for MSI operations using exponential backoff
+// to handle transient errors, particularly exit code 1618 (ERROR_INSTALL_ALREADY_RUNNING)
+// which occurs when another MSI installation is in progress.
 package msi
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/sys/windows"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/sys/windows"
 )
 
+// exitCodeError interface for errors that have an exit code
+//
+// Used in place of exec.ExitError to enable mocks for testing.
+type exitCodeError interface {
+	error
+	ExitCode() int
+}
+
 var (
-	msiexecPath = `C:\Windows\System32\msiexec.exe`
+	system32Path = `C:\Windows\System32`
+	msiexecPath  = filepath.Join(system32Path, "msiexec.exe")
 )
 
 func init() {
-	system32, err := windows.KnownFolderPath(windows.FOLDERID_System, 0)
+	system32Path, err := windows.KnownFolderPath(windows.FOLDERID_System, 0)
 	if err == nil {
-		msiexecPath = filepath.Join(system32, "msiexec.exe")
+		msiexecPath = filepath.Join(system32Path, "msiexec.exe")
 	}
 }
 
@@ -50,6 +65,12 @@ type msiexecArgs struct {
 
 	// additionalArgs are further args that can be passed to msiexec
 	additionalArgs []string
+
+	// cmdRunner allows injecting a custom command runner for testing
+	cmdRunner cmdRunner
+
+	// backoff allows injecting a custom backoff strategy for testing
+	backoff backoff.BackOff
 }
 
 // MsiexecOption is an option type for creating msiexec command lines
@@ -158,15 +179,47 @@ func HideControlPanelEntry() MsiexecOption {
 	}
 }
 
+// withCmdRunner overrides how msiexec commands are executed.
+//
+// Note: intended only for testing.
+func withCmdRunner(cmdRunner cmdRunner) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.cmdRunner = cmdRunner
+		return nil
+	}
+}
+
+// withBackOff overrides the default backoff strategy for msiexec retry logic
+//
+// Note: intended only for testing.
+func withBackOff(backoffStrategy backoff.BackOff) MsiexecOption {
+	return func(a *msiexecArgs) error {
+		a.backoff = backoffStrategy
+		return nil
+	}
+}
+
 // Msiexec is a type wrapping msiexec
 type Msiexec struct {
-	*exec.Cmd
-
 	// logFile is the path to the MSI log file
 	logFile string
 
 	// postExecActions is a list of actions to be executed after msiexec has run
 	postExecActions []func()
+
+	// args saved for use in telemetry
+	args *msiexecArgs
+
+	// cmdRunner runs the execPath+cmdLine
+	cmdRunner cmdRunner
+
+	// backoff provides the retry strategy, for example for exit code 1618.
+	// See isRetryableExitCode for more details.
+	backoff backoff.BackOff
+
+	// Command execution options
+	execPath string
+	cmdLine  string
 }
 
 func (m *Msiexec) openAndProcessLogFile() ([]byte, error) {
@@ -257,42 +310,72 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 		})
 }
 
-// Run runs msiexec synchronously
-func (m *Msiexec) Run() ([]byte, error) {
-	err := m.Cmd.Run()
-	// The log file *should not* be too big. Avoid verbose log files.
-	logFileBytes, err2 := m.openAndProcessLogFile()
-	err = errors.Join(err, err2)
+// isRetryableExitCode returns true if the exit code indicates the msiexec operation should be retried
+func isRetryableExitCode(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var exitError exitCodeError
+	if errors.As(err, &exitError) {
+		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Run runs msiexec synchronously with retry logic
+func (m *Msiexec) Run(ctx context.Context) ([]byte, error) {
+	var attemptCount int
+
+	operation := func() (any, err error) {
+		span, _ := telemetry.StartSpanFromContext(ctx, "msiexec")
+		defer func() {
+			// Add telemetry metadata about the msiexec operation
+			// Don't artibrarily add MSI parameters to the span, as they may
+			// contain sensitive information like DDAGENTUSER_PASSWORD.
+			span.SetTag("params.action", m.args.msiAction)
+			span.SetTag("params.target", m.args.target)
+			span.SetTag("params.logfile", m.args.logFile)
+			span.SetTag("attempt_count", attemptCount)
+			if err != nil {
+				span.SetTag("is_error_retryable", isRetryableExitCode(err))
+			}
+			span.Finish(err)
+		}()
+
+		attemptCount++
+
+		// Execute the command
+		err = m.cmdRunner.Run(m.execPath, m.cmdLine)
+
+		// Return permanent error for non-retryable exit codes
+		if err != nil && !isRetryableExitCode(err) {
+			return nil, backoff.Permanent(err)
+		}
+
+		return nil, err
+	}
+
+	// Execute with retry
+	_, err := backoff.Retry(ctx, operation,
+		backoff.WithBackOff(m.backoff),
+	)
+
+	// Process log file once after all retries are complete
+	logFileBytes, logErr := m.openAndProcessLogFile()
+	if logErr != nil {
+		err = errors.Join(err, logErr)
+	}
+
+	// Execute post-execution actions
 	for _, p := range m.postExecActions {
 		p()
 	}
 
 	return logFileBytes, err
-}
-
-// RunAsync runs msiexec asynchronously
-func (m *Msiexec) RunAsync(done func([]byte, error)) error {
-	err := m.Cmd.Start()
-	if err != nil {
-		return err
-	}
-	go func() {
-		err := m.Cmd.Wait()
-		// The log file *should not* be too big. Avoid verbose log files.
-		logFileBytes, err2 := m.openAndProcessLogFile()
-		err = errors.Join(err, err2)
-		for _, p := range m.postExecActions {
-			p()
-		}
-		done(logFileBytes, err)
-	}()
-	return nil
-}
-
-// FireAndForget starts msiexec and doesn't wait for it to finish.
-// The log file won't be read at the end and post execution actions will not be executed.
-func (m *Msiexec) FireAndForget() error {
-	return m.Cmd.Start()
 }
 
 // Cmd creates a new Msiexec wrapper around cmd.Exec that will call msiexec
@@ -306,8 +389,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	if a.msiAction == "" || a.target == "" {
 		return nil, fmt.Errorf("argument error")
 	}
-
-	cmd := &Msiexec{}
+	cmd := &Msiexec{
+		args: a,
+	}
 	if len(a.logFile) == 0 {
 		tempDir, err := os.MkdirTemp("", "datadog-installer-tmp")
 		if err != nil {
@@ -328,6 +412,9 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		a.additionalArgs = append(a.additionalArgs, "MSIFASTINSTALL=7")
 	}
 
+	cmd.logFile = a.logFile
+
+	// Create command line for the MSI execution after all options are processed
 	// Do NOT pass the args to msiexec in exec.Command as it will apply some quoting algorithm (CommandLineToArgvW) that is
 	// incompatible with msiexec. It will make arguments like `TARGETDIR` fail because they will be quoted.
 	// Instead, we use the SysProcAttr.CmdLine option and do the quoting ourselves.
@@ -339,17 +426,30 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 		"/log", fmt.Sprintf(`"%s"`, a.logFile),
 	}, a.additionalArgs...)
 
-	cmd.Cmd = &exec.Cmd{
-		// Don't call exec.Command("msiexec") to create the exec.Cmd struct
-		// as it will try to lookup msiexec.exe using %PATH%.
-		// Alternatively we could pass the full path of msiexec.exe to exec.Command(...)
-		// but it's much simpler to create the struct manually.
-		Path: msiexecPath,
-		SysProcAttr: &syscall.SysProcAttr{
-			CmdLine: strings.Join(args, " "),
-		},
+	// Set command execution options
+	// Don't call exec.Command("msiexec") to create the exec.Cmd struct
+	// as it will try to lookup msiexec.exe using %PATH%.
+	// Alternatively we could pass the full path of msiexec.exe to exec.Command(...)
+	// but it's much simpler to create the struct manually.
+	cmd.execPath = msiexecPath
+	cmd.cmdLine = strings.Join(args, " ")
+
+	// Set command runner (use provided one or default)
+	if a.cmdRunner != nil {
+		cmd.cmdRunner = a.cmdRunner
+	} else {
+		cmd.cmdRunner = newRealCmdRunner()
 	}
-	cmd.logFile = a.logFile
+
+	// Set backoff strategy (use provided one or default)
+	if a.backoff != nil {
+		cmd.backoff = a.backoff
+	} else {
+		b := backoff.NewExponentialBackOff()
+		b.InitialInterval = 10 * time.Second
+		b.MaxInterval = 120 * time.Second
+		cmd.backoff = b
+	}
 
 	return cmd, nil
 }
