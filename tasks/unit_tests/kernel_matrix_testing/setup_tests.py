@@ -6,7 +6,9 @@ from typing import cast
 
 from invoke.context import Context, MockContext
 
+from tasks.kernel_matrix_testing.setup import _topological_sort_requirements
 from tasks.kernel_matrix_testing.setup.common import Pulumi
+from tasks.kernel_matrix_testing.setup.requirement import Requirement
 from tasks.kernel_matrix_testing.setup.utils import _patch_config_lines, ensure_options_in_config
 from tasks.libs.common.status import Status
 
@@ -133,3 +135,37 @@ intopt = 4
 
             # Check that the file was modified
             self.assertEqual(ctx.internal_temp_file_contents.strip(), self.expected_file_content.strip())
+
+
+class TestTopologicalSortRequirements(unittest.TestCase):
+    def test_no_dependencies(self):
+        class Req1(Requirement):  # noqa: F821
+            pass
+
+        class Req2(Requirement):
+            pass
+
+        reqs = [Req1(), Req2()]
+        result = _topological_sort_requirements(reqs)
+
+        self.assertEqual(len(result), 2)
+        self.assertIn(reqs[0], result)
+        self.assertIn(reqs[1], result)
+
+    def test_with_dependencies(self):
+        class ReqBase(Requirement):
+            pass
+
+        class ReqDependent(Requirement):
+            dependencies: list[type[Requirement]] = [ReqBase]
+
+        class ReqOther(Requirement):
+            pass
+
+        reqs = [ReqDependent(), ReqOther(), ReqBase()]
+        result = _topological_sort_requirements(reqs)
+        self.assertEqual(len(result), 3)
+        baseIndex = result.index(reqs[2])
+        dependentIndex = result.index(reqs[0])
+
+        self.assertGreater(dependentIndex, baseIndex)
