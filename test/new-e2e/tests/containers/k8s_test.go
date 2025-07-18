@@ -561,6 +561,7 @@ func (suite *k8sSuite) TestNginx() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^cluster_name:`,
 				`^kube_cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:nginx$`,
@@ -666,6 +667,7 @@ func (suite *k8sSuite) TestRedis() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^cluster_name:`,
 				`^kube_cluster_name:`,
 				`^orch_cluster_id:`,
 				`^kube_deployment:redis$`,
@@ -879,6 +881,7 @@ func (suite *k8sSuite) TestKSM() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^cluster_name:`,
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
@@ -905,6 +908,7 @@ func (suite *k8sSuite) TestKSM() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^cluster_name:`,
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
@@ -924,6 +928,7 @@ func (suite *k8sSuite) TestKSM() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
+				`^cluster_name:`,
 				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^customresource_group:datadoghq.com$`,
