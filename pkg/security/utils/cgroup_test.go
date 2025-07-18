@@ -8,12 +8,15 @@
 package utils
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 )
 
 func TestCGroupvParseLine(t *testing.T) {
@@ -265,6 +268,14 @@ func TestCGroup(t *testing.T) {
 			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerECS),
 			path:        "/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770",
 		},
+		{
+			name:          "relative-path",
+			cgroupContent: `0::/../../../../kuberuntime.slice/containerd.service`,
+			error:         false,
+			containerID:   "",
+			flags:         containerutils.CGroupFlags(containerutils.CGroupManagerSystemd) | containerutils.SystemdService,
+			path:          "/../../../../kuberuntime.slice/containerd.service",
+		},
 	}
 
 	for _, test := range testsCgroup {
@@ -276,22 +287,22 @@ func TestCGroup(t *testing.T) {
 		)
 
 		t.Run(test.name, func(t *testing.T) {
-			err := parseProcControlGroupsData([]byte(test.cgroupContent), func(id, ctrl, path string) bool {
+			err := parseProcControlGroupsData([]byte(test.cgroupContent), func(id, ctrl, path string) (bool, error) {
 				if path == "/" {
-					return false
+					return false, nil
 				} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
-					return false
+					return false, nil
 				}
 				cgroup, err := makeControlGroup(id, ctrl, path)
 				if err != nil {
-					return false
+					return false, err
 				}
 
 				containerID, flags = cgroup.GetContainerContext()
 				cgroupContext.CGroupID = containerutils.CGroupID(cgroup.Path)
 				cgroupContext.CGroupFlags = flags
 				cgroupPath = path
-				return true
+				return true, nil
 			})
 
 			assert.Equal(t, test.error, err != nil)
@@ -300,4 +311,23 @@ func TestCGroup(t *testing.T) {
 			assert.Equal(t, test.path, cgroupPath)
 		})
 	}
+}
+
+func TestContainerContext(t *testing.T) {
+	// create a temp dir
+	tempDir := t.TempDir()
+
+	err := archive.TarXZExtractAll("testdata/cgroupv2.tar.xz", tempDir)
+	assert.NoError(t, err)
+
+	os.Setenv("HOST_PROC", filepath.Join(tempDir, "proc"))
+	os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+
+	cfs := NewCGroupFS()
+	cfs.cGroupMountPoints = []string{
+		"/sys/fs/cgroup",
+	}
+
+	_, _, _, err = cfs.FindCGroupContext(600894, 600894)
+	assert.Error(t, err)
 }
