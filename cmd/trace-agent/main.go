@@ -9,12 +9,15 @@ package main
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/internal/rssshrinker"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func main() {
+	rssshrinker.Setup()
+
 	flavor.SetFlavor(flavor.TraceAgent)
 
 	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
