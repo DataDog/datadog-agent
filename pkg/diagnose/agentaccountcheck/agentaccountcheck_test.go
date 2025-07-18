@@ -96,7 +96,11 @@ func TestNoCriticalErrors(t *testing.T) {
 			warnings++
 		case diagnose.DiagnosisUnexpectedError:
 			unexpectedErrors++
-			t.Errorf("Unexpected error in diagnosis '%s': %s", diagnosis.Name, diagnosis.Diagnosis)
+			if diagnosis.RawError != "" {
+				t.Errorf("Unexpected error in diagnosis '%s': %s\n  RawError: %s", diagnosis.Name, diagnosis.Diagnosis, diagnosis.RawError)
+			} else {
+				t.Errorf("Unexpected error in diagnosis '%s': %s", diagnosis.Name, diagnosis.Diagnosis)
+			}
 		}
 	}
 
