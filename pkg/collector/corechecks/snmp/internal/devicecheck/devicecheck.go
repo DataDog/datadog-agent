@@ -164,23 +164,8 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	if err != nil {
 		// TODO: VPN
 		d.session = nil
-		fmt.Println("===================")
-		fmt.Println("===================")
-		fmt.Println("===================")
-		fmt.Println("COULD NOT CREATE SESSION:")
-		fmt.Println(err)
-		fmt.Println("===================")
-		fmt.Println("===================")
-		fmt.Println("===================")
 	}
 
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("CALLING UPDATE FROM NEWDEVICEHCECK")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
 	_, err = d.profileCache.Update("", time.Now(), d.session, d.config)
 	if err != nil {
 		// This could happen e.g. if the config references a profile that hasn't been loaded yet.
@@ -424,14 +409,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefin
 	if err != nil {
 		return d.profileCache.GetProfile(), err
 	}
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("CALLING UPDATE FROM DETECTMETRICSTOMONITOR")
 	profile, err := d.profileCache.Update(sysObjectID, time.Now(), sess, d.config)
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
 	if err != nil {
 		return profile, fmt.Errorf("failed to refresh profile cache: %w", err)
 	}

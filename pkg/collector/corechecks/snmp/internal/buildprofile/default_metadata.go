@@ -6,7 +6,6 @@
 package buildprofile
 
 import (
-	"fmt"
 	"maps"
 	"strings"
 
@@ -396,19 +395,6 @@ func checkOid(sess session.Session, oid string) bool {
 	if len(result.Variables) != 1 {
 		return false
 	}
-
-	fmt.Println("========================")
-	fmt.Println("========================")
-	fmt.Println("========================")
-	fmt.Println("RESULT")
-	fmt.Println(result)
-	fmt.Println("VARIABLES")
-	fmt.Println(result.Variables)
-	fmt.Println("LEN VARIABLES")
-	fmt.Println(len(result.Variables))
-	fmt.Println("========================")
-	fmt.Println("========================")
-	fmt.Println("========================")
 
 	// We check that the returned full OID starts with the parameter OID because
 	// SNMP GETNEXT command returns the next OID whether it's from the same OID or not
