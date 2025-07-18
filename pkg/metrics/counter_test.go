@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,9 +26,7 @@ func TestCounterAddSample(t *testing.T) {
 	// Initialize counter
 	counter := NewCounter()
 
-	assert.False(t, counter.sampled)
-	assert.EqualValues(t, 10, counter.interval)
-	assert.EqualValues(t, 0, counter.value)
+	assert.True(t, math.IsNaN(counter.value))
 
 	// Add sample with SampleRate
 	sample := MetricSample{
@@ -37,7 +36,6 @@ func TestCounterAddSample(t *testing.T) {
 
 	counter.addSample(&sample, 10)
 	assert.EqualValues(t, 4, counter.value, "SampleRate should have modify the counter value")
-	assert.True(t, counter.sampled)
 
 	// Add more samples
 	sampleValues := []float64{1, 2, 5, 0, 8, 3}
@@ -56,9 +54,7 @@ func TestCounterAddSample(t *testing.T) {
 	assert.Equal(t, APIRateType, series[0].MType)
 
 	// counter should have been reset
-	assert.False(t, counter.sampled)
-	assert.EqualValues(t, 10, counter.interval)
-	assert.EqualValues(t, 0, counter.value)
+	assert.True(t, math.IsNaN(counter.value))
 
 	// Add a few new samples and flush: the counter should've been reset after the previous flush
 	sampleValues = []float64{5, 3}
