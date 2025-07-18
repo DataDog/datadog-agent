@@ -85,7 +85,7 @@ func (sm *subscriptionManager) Unsubscribe(subscriptionID string) {
 
 	sub, found := sm.subscribers[subscriptionID]
 	if !found {
-		log.Debugf("subscriber with %q is already unsubscribed", sub.id)
+		log.Debugf("subscriber with %q is already unsubscribed", subscriptionID)
 		return
 	}
 
