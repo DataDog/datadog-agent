@@ -557,9 +557,7 @@
       "type": "object",
       "required": [
         "uid",
-        "gid",
-        "mount_visible",
-        "mount_detached"
+        "gid"
       ],
       "description": "FileSerializer serializes a file to JSON"
     },
@@ -706,9 +704,7 @@
       "type": "object",
       "required": [
         "uid",
-        "gid",
-        "mount_visible",
-        "mount_detached"
+        "gid"
       ],
       "description": "FileEventSerializer serializes a file event to JSON"
     },

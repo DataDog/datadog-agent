@@ -443,11 +443,12 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
-	MountPath     string `field:"-"`
-	MountSource   uint32 `field:"-"`
-	MountOrigin   uint32 `field:"-"`
-	MountVisible  bool   `field:"mount_visible"`  // SECLDoc[mount_visible] Definition:`Indicates whether the file's mount is visible in the VFS`
-	MountDetached bool   `field:"mount_detached"` // SECLDoc[mount_detached] Definition:`Indicates whether the file's mount is detached from the VFS`
+	MountPath               string `field:"-"`
+	MountSource             uint32 `field:"-"`
+	MountOrigin             uint32 `field:"-"`
+	MountVisible            bool   `field:"mount_visible"`  // SECLDoc[mount_visible] Definition:`Indicates whether the file's mount is visible in the VFS`
+	MountDetached           bool   `field:"mount_detached"` // SECLDoc[mount_detached] Definition:`Indicates whether the file's mount is detached from the VFS`
+	MountVisibilityResolved bool   `field:"-"`
 
 	PathResolutionError error `field:"-"`
 
