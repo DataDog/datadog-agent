@@ -39,6 +39,12 @@ const (
 	ProtobufContentType = "application/x-protobuf"
 )
 
+// NoTimeoutOverride is a special value that tells the httpClientFactory to use the logs_config.http_timeout setting.
+// This should generally be used for all HTTP destinations barring special cases like the HTTP connectivity check.
+const (
+	NoTimeoutOverride = -1
+)
+
 // HTTP errors.
 var (
 	errClient  = errors.New("client error")
@@ -112,7 +118,7 @@ func NewDestination(endpoint config.Endpoint,
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
-		0,
+		NoTimeoutOverride,
 		shouldRetry,
 		destMeta,
 		cfg,
@@ -424,7 +430,7 @@ func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration)
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
 	timeout := timeoutOverride
-	if timeout == 0 {
+	if timeout == NoTimeoutOverride {
 		timeout = time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
 	}
 
