@@ -86,14 +86,18 @@ func TestGetDDUserGroupsAndRights(t *testing.T) {
 	// Test both functions together to ensure they work consistently
 	// This test helps verify that both functions can access the same user information
 
-	userName, _ := getDDAgentUserName()
+	userName, userNameErr := GetServiceUser("datadogagent")
 	groups, groupsErr := GetDDUserGroups()
 	rights, rightsErr := GetDDUserRights()
 	_, hasDesiredGroups, _ := DoesAgentUserHaveDesiredGroups()
 	_, hasDesiredRights, _ := DoesAgentUserHaveDesiredRights()
 
 	// Output user groups - one per line
-	fmt.Printf("DDAgent User Name: %s\n", userName)
+	if userNameErr == nil {
+		fmt.Printf("DDAgent User Name: %s\n", userName)
+	} else {
+		fmt.Printf("Error getting DDAgent user name: %v\n", userNameErr)
+	}
 	if groupsErr == nil {
 		fmt.Println("DDAgent User Groups:")
 		for _, group := range groups {
