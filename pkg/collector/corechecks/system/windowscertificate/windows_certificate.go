@@ -252,6 +252,7 @@ func (w *WinCertChk) Run() error {
 		}
 
 		if w.config.CertChainValidation.EnableCertChainValidation {
+			// Report both the trust status and chain policy errors if they exist
 			if cert.TrustStatusError != 0 {
 				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
@@ -266,6 +267,7 @@ func (w *WinCertChk) Run() error {
 					tags,
 					message,
 				)
+				// Report the chain policy error only if it exists
 			} else if cert.ChainPolicyError != 0 {
 				log.Debugf("Certificate %s has chain policy error: %d", cert.Certificate.Subject.String(), cert.ChainPolicyError)
 				chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
@@ -275,6 +277,7 @@ func (w *WinCertChk) Run() error {
 					tags,
 					chainPolicyError,
 				)
+				// Report OK if there are no errors
 			} else {
 				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckOK,
