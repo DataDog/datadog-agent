@@ -881,7 +881,7 @@ api_key:
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
 ## This feature is in preview.
 ##
-## The section contains information required to resolved secrets.
+## The section contains information required by `secret_backend_type` to resolve secrets.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_config:
