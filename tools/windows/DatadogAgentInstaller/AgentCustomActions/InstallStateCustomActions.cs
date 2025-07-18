@@ -72,33 +72,50 @@ namespace Datadog.AgentCustomActions
             _session["DDDRIVERROLLBACK_NPM"] = "1";
             _session["DDDRIVERROLLBACK_PROCMON"] = "1";
 
-            var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
-            if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
+            try
             {
-                _session.Log($"WIX_UPGRADE_DETECTED: {_session["WIX_UPGRADE_DETECTED"]}");
-                var versionString = _nativeMethods.GetVersionString(upgradeDetected);
-                _session.Log($"versionString: {versionString}");
-                // Using Version class
-                // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
-                var currentVersion = new Version(versionString);
-                var procmonDriverMinimumVersion = new Version(currentVersion.Major, 52);
-                var driverRollbackMinimumVersion = new Version(currentVersion.Major, 56);
-
-                var compareResult = currentVersion.CompareTo(driverRollbackMinimumVersion);
-                if (compareResult < 0) // currentVersion is less than minimumVersion
+                // We've seen cases where WIX_UPGRADE_DETECTED refers to products that are not actually installed,
+                // some of these cases are further corrupted and `GetVersionString` fails.
+                // We've also seen cases where WIX_UPGRADE_DETECTED contains MULTIPLE product codes, even though only one is expected.
+                // These appear to be Windows installer bugs and it creates a state where we can't reliably determine
+                // if this is a major upgrade or a "fresh" install, and we can't reliably determine the previous version.
+                var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
+                if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
                 {
-                    // case: upgrading from a version that did not implement driver rollback
-                    // Clear NPM flag to ensure NPM service is not deleted on rollback.
-                    _session["DDDRIVERROLLBACK_NPM"] = "";
+                    _session.Log($"WIX_UPGRADE_DETECTED: {_session["WIX_UPGRADE_DETECTED"]}");
+                    var versionString = _nativeMethods.GetVersionString(upgradeDetected);
+                    _session.Log($"versionString: {versionString}");
+                    // Using Version class
+                    // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
+                    var currentVersion = new Version(versionString);
+                    var procmonDriverMinimumVersion = new Version(currentVersion.Major, 52);
+                    var driverRollbackMinimumVersion = new Version(currentVersion.Major, 56);
 
-                    var compare_52 = currentVersion.CompareTo(procmonDriverMinimumVersion);
-                    if (compare_52 >= 0) //currentVersion is greater or equal to 6.52/7.52
+                    var compareResult = currentVersion.CompareTo(driverRollbackMinimumVersion);
+                    if (compareResult < 0) // currentVersion is less than minimumVersion
                     {
-                        // case: upgrading from a version that did include the procmon driver
-                        // Clear PROCMON flag to ensure procmon driver is kept on rollback for compatibility.
-                        _session["DDDRIVERROLLBACK_PROCMON"] = "";
+                        // case: upgrading from a version that did not implement driver rollback
+                        // Clear NPM flag to ensure NPM service is not deleted on rollback.
+                        _session["DDDRIVERROLLBACK_NPM"] = "";
+
+                        var compare_52 = currentVersion.CompareTo(procmonDriverMinimumVersion);
+                        if (compare_52 >= 0) //currentVersion is greater or equal to 6.52/7.52
+                        {
+                            // case: upgrading from a version that did include the procmon driver
+                            // Clear PROCMON flag to ensure procmon driver is kept on rollback for compatibility.
+                            _session["DDDRIVERROLLBACK_PROCMON"] = "";
+                        }
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Error setting DDDriverRollback, values may not be set correctly for the version being upgraded from: {e}");
+                // Do not fail the installer here.
+                // We should only end up here in the Windows installer bug cases described above.
+                // In this case we assume that the version being upgraded from is a recent version that implements driver rollback.
+                // If upgrading from a version that did not implement driver rollback AND the upgrade happens
+                // to rollback then the host could be left without the driver installed.
             }
 
             _session.Log($"DDDriverRollback_NPM: {_session["DDDRIVERROLLBACK_NPM"]}");
