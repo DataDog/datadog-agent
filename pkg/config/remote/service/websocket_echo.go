@@ -9,8 +9,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcwebsocket"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/rcwebsocket"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
