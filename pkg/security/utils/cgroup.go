@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -318,9 +319,31 @@ func GetCgroup2MountPoint() (string, error) {
 	return "", nil
 }
 
+func isInCGroupNamespace(pid uint32) (bool, error) {
+	cgroups, err := GetProcControlGroups(pid, pid)
+	if err != nil {
+		return false, err
+	}
+	for _, cgroup := range cgroups {
+		if len(cgroup.Controllers) == 0 && cgroup.Path != "/" { // cgroup v2
+			return false, nil
+		} else if slices.ContainsFunc(cgroup.Controllers, func(ctrl string) bool { // cgroup v1
+			return strings.HasPrefix(ctrl, "name=")
+		}) && cgroup.Path != "/" {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // DetectCurrentCgroupPath returns the cgroup path of the current process
 func (cfs *CGroupFS) detectCurrentCgroupPath() {
-	expectedPid := Getpid()
+	currentPid := Getpid()
+
+	// check if in a namespace
+	if inNamespace, err := isInCGroupNamespace(currentPid); err != nil || !inNamespace {
+		return
+	}
 
 	grepPid := func(dir string) string {
 		var cgroupPath string
@@ -331,7 +354,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath() {
 				if err == nil {
 					scanner := bufio.NewScanner(bytes.NewReader(data))
 					for scanner.Scan() {
-						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentPid {
 							cgroupPath = filepath.Dir(path)
 							return fs.SkipAll
 						}
