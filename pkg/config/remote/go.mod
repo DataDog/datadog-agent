@@ -11,9 +11,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.5
+	github.com/gorilla/websocket v1.5.3
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0
 	github.com/stretchr/testify v1.10.0
