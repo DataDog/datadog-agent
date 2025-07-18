@@ -67,9 +67,11 @@ def run(
         $ dda inv -- api stackcleaner/job --env staging --ty stackcleaner_workflow_request --attrs job_name=abc,job_id=123,pipeline_id=1234,ref=cc,ignore_lock=bool:true
     """
 
-    assert env in ('prod', 'staging', 'local'), (
-        f'Unknown environment: {env}. Supported environments are: prod, staging, local.'
-    )
+    assert env in (
+        'prod',
+        'staging',
+        'local',
+    ), f'Unknown environment: {env}. Supported environments are: prod, staging, local.'
     if payload or ty or attrs:
         assert not (payload and (ty or attrs)), 'Cannot specify payload and type/attributes at the same time.'
 
