@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package checkconfig
+package buildprofile
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +101,7 @@ func TestBuildProfile(t *testing.T) {
 
 	type testCase struct {
 		name          string
-		config        *CheckConfig
+		config        *checkconfig.CheckConfig
 		sysObjectID   string
 		expected      profiledefinition.ProfileDefinition
 		expectedError string
@@ -108,13 +109,13 @@ func TestBuildProfile(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			name: "inline",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:        "1.2.3.4",
 				RequestedMetrics: metrics,
 				RequestedMetricTags: []profiledefinition.MetricTagConfig{
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
-				ProfileName: ProfileNameInline,
+				ProfileName: checkconfig.ProfileNameInline,
 			},
 			expected: profiledefinition.ProfileDefinition{
 				Metrics: metrics,
@@ -125,7 +126,7 @@ func TestBuildProfile(t *testing.T) {
 			},
 		}, {
 			name: "static",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
 				ProfileName:     "profile1",
@@ -142,10 +143,10 @@ func TestBuildProfile(t *testing.T) {
 			},
 		}, {
 			name: "dynamic",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
-				ProfileName:     ProfileNameAuto,
+				ProfileName:     checkconfig.ProfileNameAuto,
 			},
 			sysObjectID: "1.1.1.1",
 			expected: profiledefinition.ProfileDefinition{
@@ -160,7 +161,7 @@ func TestBuildProfile(t *testing.T) {
 			},
 		}, {
 			name: "static with requested metrics",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:             "1.2.3.4",
 				ProfileProvider:       mockProfiles,
 				CollectDeviceMetadata: true,
@@ -187,7 +188,7 @@ func TestBuildProfile(t *testing.T) {
 			},
 		}, {
 			name: "static unknown",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
 				ProfileName:     "f5",
@@ -195,10 +196,10 @@ func TestBuildProfile(t *testing.T) {
 			expectedError: "unknown profile \"f5\"",
 		}, {
 			name: "dynamic unknown",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
-				ProfileName:     ProfileNameAuto,
+				ProfileName:     checkconfig.ProfileNameAuto,
 			},
 			sysObjectID: "3.3.3.3",
 			expectedError: "failed to get profile for sysObjectID \"3.3.3.3\": no profiles found for sysObjectID \"3." +

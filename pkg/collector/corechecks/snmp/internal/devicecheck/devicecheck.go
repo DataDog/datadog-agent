@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/buildprofile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"go.uber.org/atomic"
@@ -76,38 +77,18 @@ func (pc *profileCache) GetProfile() profiledefinition.ProfileDefinition {
 	return *pc.profile
 }
 
-func (pc *profileCache) Update(sysObjectID string, now time.Time, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
-	if pc.IsOutdated(sysObjectID, config.ProfileName, config.ProfileProvider.LastUpdated()) {
-		// we cache the value even if there's an error, because an error indicates that
-		// the ProfileProvider couldn't find a match for either config.ProfileName or
-		// the given sysObjectID, and we're going to have the same error if we call this
-		// again without either the sysObjectID or the ProfileProvider changing.
-		pc.sysObjectID = sysObjectID
-		pc.timestamp = now
-		profile, err := config.BuildProfile(sysObjectID)
-		pc.profile = &profile
-		pc.err = err
-		pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
-	}
+func (pc *profileCache) Update(sysObjectID string, now time.Time, sess session.Session, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
+	// we cache the value even if there's an error, because an error indicates that
+	// the ProfileProvider couldn't find a match for either config.ProfileName or
+	// the given sysObjectID, and we're going to have the same error if we call this
+	// again without either the sysObjectID or the ProfileProvider changing.
+	pc.sysObjectID = sysObjectID
+	pc.timestamp = now
+	profile, err := buildprofile.BuildProfile(sysObjectID, sess, config)
+	pc.profile = &profile
+	pc.err = err
+	pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
 	return pc.GetProfile(), pc.err
-}
-
-func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, lastUpdate time.Time) bool {
-	if pc.profile == nil {
-		return true
-	}
-	if profileName == checkconfig.ProfileNameInline {
-		// inline profiles never change, so if we have a profile it's up-to-date.
-		return false
-	}
-	if profileName == checkconfig.ProfileNameAuto && pc.sysObjectID != sysObjectID {
-		// If we're auto-detecting profiles and the sysObjectID has changed, we're out of date.
-		return true
-	}
-	// If we get here then either we're auto-detecting but the sysobjectid hasn't
-	// changed, or we have a static name; either way we're out of date if and only
-	// if the profile provider has updated.
-	return pc.timestamp.Before(lastUpdate)
 }
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -156,7 +137,15 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	d.readTagsFromCache()
-	if _, err := d.profileCache.Update("", time.Now(), d.config); err != nil {
+
+	d.session, err = d.sessionFactory(d.config)
+	if err != nil {
+		// TODO: VPN
+		d.session = nil
+	}
+
+	_, err = d.profileCache.Update("", time.Now(), d.session, d.config)
+	if err != nil {
 		// This could happen e.g. if the config references a profile that hasn't been loaded yet.
 		_ = log.Warnf("failed to refresh profile cache: %s", err)
 	}
@@ -398,7 +387,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefin
 	if err != nil {
 		return d.profileCache.GetProfile(), err
 	}
-	profile, err := d.profileCache.Update(sysObjectID, time.Now(), d.config)
+	profile, err := d.profileCache.Update(sysObjectID, time.Now(), sess, d.config)
 	if err != nil {
 		return profile, fmt.Errorf("failed to refresh profile cache: %w", err)
 	}

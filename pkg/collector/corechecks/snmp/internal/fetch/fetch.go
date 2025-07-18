@@ -37,6 +37,18 @@ func (c columnFetchStrategy) String() string {
 // Fetch oid values from device
 func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
 	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("SCALAR OIDS")
+	fmt.Println(scalarOIDs)
+	fmt.Println("COLUMN OIDS")
+	fmt.Println(columnOIDs)
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSize)
 	if err != nil {

@@ -3,17 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package buildprofile
 
 import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
+
+// DefaultMetadataConfig holds default configs per resource type
+type DefaultMetadataConfig profiledefinition.ListMap[DefaultMetadataResourceConfig]
+
+// DefaultMetadataResourceConfig holds default configs for a metadata resource
+type DefaultMetadataResourceConfig struct {
+	MergeFields func(sess session.Session, config *checkconfig.CheckConfig) bool
+	Fields      profiledefinition.ListMap[profiledefinition.MetadataField]
+	IDTags      profiledefinition.MetricTagConfigList
+}
 
 // LegacyMetadataConfig contains metadata config used for backward compatibility
 // When users have their own copy of _base.yaml and _generic_if.yaml files
 // they won't have the new profile based metadata definitions for device and interface resources
 // The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
-var LegacyMetadataConfig = profiledefinition.MetadataConfig{
+var LegacyMetadataConfig = DefaultMetadataConfig{
 	"device": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"description": {
@@ -105,7 +119,7 @@ var LegacyMetadataConfig = profiledefinition.MetadataConfig{
 }
 
 // TopologyMetadataConfig represent the metadata needed for topology
-var TopologyMetadataConfig = profiledefinition.MetadataConfig{
+var TopologyMetadataConfig = DefaultMetadataConfig{
 	"lldp_remote": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"chassis_id_type": {
@@ -248,8 +262,39 @@ var TopologyMetadataConfig = profiledefinition.MetadataConfig{
 }
 
 // VPNMetadataConfig contains VPN tunnels metadata
-var VPNMetadataConfig = profiledefinition.MetadataConfig{
+var VPNMetadataConfig = DefaultMetadataConfig{
 	"cisco_ipsec_tunnel": {
+		MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+			if !config.CollectVPN {
+				return false
+			}
+
+			result, err := sess.GetNext([]string{"1.3.6.1.4.1.9.9.171.1.3.2.1.4"})
+			if err != nil {
+				return false
+			}
+			if len(result.Variables) == 0 {
+				return false
+			}
+			checkOid(sess, "1.3.6.1.4.1.9.9.171.1.3.2.1.4")
+
+			fmt.Println("=========================================")
+			fmt.Println("=========================================")
+			fmt.Println("=========================================")
+			fmt.Println("RESULT CISCO IPSEC")
+			fmt.Println(result)
+			fmt.Println("*RESULT CISCO IPSEC")
+			fmt.Println(*result)
+			fmt.Println("PDU TABLE")
+			fmt.Println(result.Variables)
+			fmt.Println("ERROR")
+			fmt.Println(err)
+			fmt.Println("=========================================")
+			fmt.Println("=========================================")
+			fmt.Println("=========================================")
+
+			return true
+		},
 		Fields: map[string]profiledefinition.MetadataField{
 			"local_outside_ip": {
 				Symbol: profiledefinition.SymbolConfig{
@@ -268,7 +313,7 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 }
 
 // RouteMetadataConfig contains route tables metadata
-var RouteMetadataConfig = profiledefinition.MetadataConfig{
+var RouteMetadataConfig = DefaultMetadataConfig{
 	"ipforward_deprecated": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"if_index": {
@@ -304,7 +349,7 @@ var RouteMetadataConfig = profiledefinition.MetadataConfig{
 }
 
 // TunnelMetadataConfig contains tunnel metadata
-var TunnelMetadataConfig = profiledefinition.MetadataConfig{
+var TunnelMetadataConfig = DefaultMetadataConfig{
 	"tunnel_config_deprecated": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"if_index": {
@@ -327,27 +372,53 @@ var TunnelMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// checkOid checks whether a given OID is present on the device
+func checkOid(sess session.Session, oid string) bool {
+	result, err := sess.GetNext([]string{oid})
+	if err != nil {
+		return false
+	}
+
+	return len(result.Variables) != 0
+}
+
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool, collectVPN bool) profiledefinition.MetadataConfig {
+func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, sess session.Session, config *checkconfig.CheckConfig) profiledefinition.MetadataConfig {
 	newConfig := make(profiledefinition.MetadataConfig)
-	mergeMetadata(newConfig, metadataConfig)
-	mergeMetadata(newConfig, LegacyMetadataConfig)
-	if collectTopology {
-		mergeMetadata(newConfig, TopologyMetadataConfig)
+	// TODO: VPN
+	for resourceName, resourceConfig := range metadataConfig {
+		if _, ok := metadataConfig[resourceName]; !ok {
+			metadataConfig[resourceName] = profiledefinition.MetadataResourceConfig{
+				Fields: resourceConfig.Fields,
+				IDTags: resourceConfig.IDTags,
+			}
+		}
 	}
-	if collectVPN {
-		mergeMetadata(newConfig, VPNMetadataConfig)
-		mergeMetadata(newConfig, RouteMetadataConfig)
-		mergeMetadata(newConfig, TunnelMetadataConfig)
+	mergeMetadata(newConfig, LegacyMetadataConfig, sess, config)
+	if config.CollectTopology {
+		mergeMetadata(newConfig, TopologyMetadataConfig, sess, config)
+	}
+	if config.CollectVPN {
+		mergeMetadata(newConfig, VPNMetadataConfig, sess, config)
+		mergeMetadata(newConfig, RouteMetadataConfig, sess, config)
+		mergeMetadata(newConfig, TunnelMetadataConfig, sess, config)
 	}
 	return newConfig
 }
 
-func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata profiledefinition.MetadataConfig) {
+func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig, sess session.Session, config *checkconfig.CheckConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
+		if resourceConfig.MergeFields != nil {
+			if !resourceConfig.MergeFields(sess, config) {
+				continue
+			}
+		}
 		if _, ok := metadataConfig[resourceName]; !ok {
-			metadataConfig[resourceName] = resourceConfig
+			metadataConfig[resourceName] = profiledefinition.MetadataResourceConfig{
+				Fields: resourceConfig.Fields,
+				IDTags: resourceConfig.IDTags,
+			}
 		}
 	}
 }
