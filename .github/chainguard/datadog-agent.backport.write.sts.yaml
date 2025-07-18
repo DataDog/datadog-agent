@@ -1,0 +1,10 @@
+issuer: https://token.actions.githubusercontent.com
+subject: repo:DataDog/datadog-agent:ref_type:branch:ref:.*
+claim_pattern:
+  event_name: pull_request
+  ref_type: branch
+  ref_protected: "true"
+  job_workflow_ref: DataDog/datadog-agent/.github/workflows/backport-pr.yml
+permissions:
+  contents: write
+  pull_requests: write
