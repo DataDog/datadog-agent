@@ -17,8 +17,6 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-
-
 func TestMountUnmountHive(t *testing.T) {
 	// Test mountHive with non-existent path
 	err := mountHive("nonexistent/path/NTUSER.DAT")

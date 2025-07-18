@@ -43,4 +43,3 @@ const (
 	// versionMajor is the major version number
 	versionMajor = "VersionMajor"
 )
-

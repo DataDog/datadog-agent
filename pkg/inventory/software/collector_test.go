@@ -182,4 +182,3 @@ func TestWarnings(t *testing.T) {
 	warn := Warning{Message: "test warning"}
 	assert.Equal(t, "test warning", warn.Message)
 }
-
