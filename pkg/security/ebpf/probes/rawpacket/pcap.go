@@ -141,19 +141,21 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 
 			// check the cgroup id
 			asm.FnGetCurrentCgroupId.Call(),
+			asm.Mov.Reg(asm.R7, asm.R0),
 
 			// printk
-			/*asm.Mov.Reg(asm.R7, asm.R0),
-			asm.Mov.Reg(asm.R3, asm.R0),
-			asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
-			asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
-			asm.Mov.Imm(asm.R2, 100),
-			asm.StoreMem(asm.RFP, -8, asm.R2, asm.Half),
-			asm.Mov.Reg(asm.R1, asm.RFP),
-			asm.Add.Imm(asm.R1, -16),
-			asm.Mov.Imm(asm.R2, 10),
-			asm.FnTracePrintk.Call(),
-			asm.Mov.Reg(asm.R0, asm.R7),*/
+			/*
+				asm.Mov.Reg(asm.R3, asm.R0),
+				asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
+				asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
+				asm.Mov.Imm(asm.R2, 100),
+				asm.StoreMem(asm.RFP, -8, asm.R2, asm.Half),
+				asm.Mov.Reg(asm.R1, asm.RFP),
+				asm.Add.Imm(asm.R1, -16),
+				asm.Mov.Imm(asm.R2, 10),
+				asm.FnTracePrintk.Call(),
+				asm.Mov.Reg(asm.R0, asm.R7),
+			*/
 
 			// check the cgroup id
 			asm.JEq.Imm(asm.R7, int32(filter.CGroupPathKey.Inode), opts.onMatchLabel),
