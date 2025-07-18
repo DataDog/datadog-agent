@@ -263,8 +263,8 @@ func TestClusterRoleHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, clusterRole)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, clusterRole.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, clusterRole.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", clusterRole.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", clusterRole.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestClusterRoleProcessor_Process(t *testing.T) {

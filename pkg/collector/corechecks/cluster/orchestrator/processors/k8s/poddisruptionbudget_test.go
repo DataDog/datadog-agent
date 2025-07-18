@@ -249,8 +249,8 @@ func TestPodDisruptionBudgetHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, pdb)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, pdb.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, pdb.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", pdb.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", pdb.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestPodDisruptionBudgetProcessor_Process(t *testing.T) {

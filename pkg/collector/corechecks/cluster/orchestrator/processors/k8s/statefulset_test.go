@@ -254,8 +254,8 @@ func TestStatefulSetHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, statefulSet)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, statefulSet.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, statefulSet.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", statefulSet.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", statefulSet.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestStatefulSetProcessor_Process(t *testing.T) {

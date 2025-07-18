@@ -251,8 +251,8 @@ func TestReplicaSetHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, rs)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, rs.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, rs.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", rs.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", rs.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestReplicaSetProcessor_Process(t *testing.T) {

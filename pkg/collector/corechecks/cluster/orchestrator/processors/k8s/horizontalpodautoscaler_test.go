@@ -252,8 +252,8 @@ func TestHorizontalPodAutoscalerHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, hpa)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, hpa.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, hpa.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", hpa.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", hpa.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestHorizontalPodAutoscalerProcessor_Process(t *testing.T) {

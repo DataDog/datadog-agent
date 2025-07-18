@@ -266,8 +266,8 @@ func TestPodHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, pod)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, pod.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", pod.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestPodHandlers_ScrubBeforeMarshalling(t *testing.T) {

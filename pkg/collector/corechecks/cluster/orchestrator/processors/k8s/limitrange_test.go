@@ -254,8 +254,8 @@ func TestLimitRangeHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, limitRange)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, limitRange.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, limitRange.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", limitRange.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", limitRange.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestLimitRangeProcessor_Process(t *testing.T) {

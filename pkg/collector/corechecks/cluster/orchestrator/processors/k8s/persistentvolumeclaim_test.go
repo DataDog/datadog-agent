@@ -257,8 +257,8 @@ func TestPersistentVolumeClaimHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, pvc)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, pvc.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, pvc.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", pvc.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", pvc.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestPersistentVolumeClaimProcessor_Process(t *testing.T) {

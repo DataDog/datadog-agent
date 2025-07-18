@@ -255,8 +255,8 @@ func TestNamespaceHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, namespace)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, namespace.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, namespace.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", namespace.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", namespace.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestNamespaceProcessor_Process(t *testing.T) {
