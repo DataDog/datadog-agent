@@ -173,8 +173,6 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 
 	for _, action := range candidateActions {
 		if !reflect.ValueOf(action).IsNil() {
-			fmt.Printf("action: %+v\n", action)
-
 			if err := action.Check(opts); err != nil {
 				return err
 			}
