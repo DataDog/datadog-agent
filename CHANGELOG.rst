@@ -2,6 +2,32 @@
 Release Notes
 =============
 
+.. _Release Notes_7.68.2:
+
+7.68.2
+======
+
+.. _Release Notes_7.68.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-07-21
+
+- Please refer to the `7.68.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7682>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.68.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue with the Agent pre-install script that caused integrations shipped with the Agent
+  to be removed during an Agent upgrade.
+
+- Print the correct FIPS status for the Cluster Agent when running in FIPS mode.
+
+
 .. _Release Notes_7.68.1:
 
 7.68.1
