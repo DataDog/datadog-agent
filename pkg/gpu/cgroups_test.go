@@ -12,16 +12,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	containerdcgroups "github.com/containerd/cgroups/v3"
 	"github.com/containerd/cgroups/v3/cgroup1"
 	"github.com/containerd/cgroups/v3/cgroup2"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
@@ -276,16 +279,89 @@ func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 		t.Skip("Test requires root privileges")
 	}
 
-	currentCgroup, err := getAbsoluteCgroupForProcess("", uint32(os.Getpid()))
+	currentCgroup, err := getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()))
 	require.NoError(t, err)
 	require.NotEmpty(t, currentCgroup) // Cgroup could be anything, but it should not be empty
 
 	testCgroupName := fmt.Sprintf("test-get-cgroup-for-process-%s", utils.RandString(10))
 	moveSelfToCgroup(t, testCgroupName)
 
-	currentCgroup, err = getAbsoluteCgroupForProcess("", uint32(os.Getpid()))
+	currentCgroup, err = getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()))
 	require.NoError(t, err)
 	require.Equal(t, "/"+testCgroupName, currentCgroup)
+}
+
+func TestGetAbsoluteCgroupForProcessInsideContainer(t *testing.T) {
+	// For this test, instead of setting up the container completely as we do in the other tests,
+	// we will just mock the cgroup hierarchy
+	containerRoot := t.TempDir()
+
+	// Create the procfs structure
+	hostRootMountpoint := "/host"
+	hostProc := filepath.Join(containerRoot, hostRootMountpoint, "proc")
+	pid := 10
+	siblingProc := 20
+
+	// Avoid memoization of ProcFSRoot, as we're not using the real procfs for utils.GetProcControlGroups
+	kernel.ResetProcFSRoot()
+	t.Setenv("HOST_PROC", hostProc)
+
+	mainProcCgroupFile := filepath.Join(hostProc, strconv.Itoa(pid), "task", strconv.Itoa(pid), "cgroup")
+	require.NoError(t, os.MkdirAll(filepath.Dir(mainProcCgroupFile), 0755))
+	require.NoError(t, os.WriteFile(mainProcCgroupFile, []byte("0::/"), 0644))
+
+	siblingCgroupName := fmt.Sprintf("test-sibling-cgroup-%s", utils.RandString(10))
+	siblingProcCgroupFile := filepath.Join(hostProc, strconv.Itoa(siblingProc), "task", strconv.Itoa(siblingProc), "cgroup")
+	require.NoError(t, os.MkdirAll(filepath.Dir(siblingProcCgroupFile), 0755))
+	require.NoError(t, os.WriteFile(siblingProcCgroupFile, []byte(fmt.Sprintf("0::/../%s", siblingCgroupName)), 0644))
+
+	// The container Cgroupfs is just a single directory (no child cgroups)
+	containerCgroupFs := filepath.Join(containerRoot, "/sys/fs/cgroup")
+	require.NoError(t, os.MkdirAll(containerCgroupFs, 0755))
+
+	// The host Cgroupfs is a single directory with some cgroups
+	hostCgroupFs := filepath.Join(containerRoot, hostRootMountpoint, "/sys/fs/cgroup")
+
+	for i := 0; i < 10; i++ {
+		cgroupName := fmt.Sprintf("test-cgroup-%d", i)
+		cgroupPath := filepath.Join(hostCgroupFs, cgroupName, "cgroup.procs")
+		require.NoError(t, os.MkdirAll(filepath.Dir(cgroupPath), 0755))
+		require.NoError(t, os.WriteFile(cgroupPath, []byte(strconv.Itoa(pid)), 0644))
+	}
+
+	// Our target cgroup is a child cgroup too, so create a nested hierarchy
+	parentCgroupName := fmt.Sprintf("test-parent-cgroup-%s", utils.RandString(10))
+
+	// Create our child cgroup, using a bind mount so the inode is the same as the cgroup directory for the parent
+	childCgroupName := fmt.Sprintf("test-child-cgroup-%s", utils.RandString(10))
+	childCgroupPath := filepath.Join(parentCgroupName, childCgroupName)
+	childCgroupFullPath := filepath.Join(hostCgroupFs, childCgroupPath)
+	require.NoError(t, os.MkdirAll(childCgroupFullPath, 0755))
+	require.NoError(t, unix.Mount(containerCgroupFs, childCgroupFullPath, "bind", unix.MS_BIND, ""))
+	t.Cleanup(func() {
+		require.NoError(t, unix.Unmount(childCgroupFullPath, unix.MNT_DETACH))
+	})
+
+	// For sanity check, ensure here that the inodes of containerCgroupFs and childCgroupFullPath are the same
+	var containerCgroupFsStat, childCgroupFullPathStat unix.Stat_t
+	require.NoError(t, unix.Stat(containerCgroupFs, &containerCgroupFsStat))
+	require.NoError(t, unix.Stat(childCgroupFullPath, &childCgroupFullPathStat))
+	require.Equal(t, containerCgroupFsStat.Ino, childCgroupFullPathStat.Ino, "the inodes should be the same, something is wrong with the bind mount")
+
+	// For the sibling cgroup we don't need the directory structure, we just need the cgroup name
+	siblingCgroupPath := filepath.Join(parentCgroupName, siblingCgroupName)
+
+	t.Run("SameProcess", func(t *testing.T) {
+		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(pid))
+		require.NoError(t, err)
+		require.Equal(t, "/"+childCgroupPath, cgroupPath)
+	})
+
+	t.Run("SiblingProcess", func(t *testing.T) {
+		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(siblingProc))
+		require.NoError(t, err)
+		require.Equal(t, "/"+siblingCgroupPath, cgroupPath)
+	})
 }
 
 func moveSelfToCgroup(t *testing.T, cgroupName string) {
@@ -367,7 +443,7 @@ func BenchmarkGetAbsoluteCgroupForProcess(b *testing.B) {
 	// want the code to iterate though all the directories in the
 	// cgroup directory.
 	for b.Loop() {
-		getAbsoluteCgroupForProcess(cgroupDir, uint32(os.Getpid()))
+		getAbsoluteCgroupForProcess("", tempdir, uint32(os.Getpid()), uint32(os.Getpid()))
 	}
 
 	b.ReportMetric(float64(numDirs), "dirs/op")
