@@ -33,7 +33,7 @@ func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
 
 // getContainerTags returns all the tags of a given container.
 func (t *Tailer) getContainerTags(containerID string) []string {
-	tags, err := t.tagger.Tag(types.NewEntityID(types.ContainerID, containerID), types.HighCardinality)
+	tags, err := t.tagger.Tag(types.NewEntityID(types.ContainerID, containerID), types.LogsConfigCardinality)
 	if err != nil {
 		log.Warn(err)
 	}
