@@ -510,7 +510,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             escape = bytearray([27, 91, 48, 75])
-            log_date = int(time.time())
+            log_date = str(int(time.time()))
             message = "section_start:" + log_date + ":" + section_name + collapsed + "\r"
             b = escape + message.encode('utf-8') + escape + (section_name + "...").encode('utf-8')
             sys.stdout.buffer.write(b)
@@ -528,7 +528,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     finally:
         if in_ci:
             escape = bytearray([27, 91, 48, 75])
-            log_date = int(time.time())
+            log_date = str(int(time.time()))
             message = "section_end:" + log_date + ":" + section_name + "\r"
             b = escape + message.encode('utf-8') + escape
             sys.stdout.buffer.write(b)
