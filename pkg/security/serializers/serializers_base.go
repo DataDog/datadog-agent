@@ -264,6 +264,7 @@ type RawPacketSerializer struct {
 	*NetworkContextSerializer
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
+	Dropped    *bool                 `json:"dropped,omitempty"`
 }
 
 // NetworkStatsSerializer defines a new network stats serializer
