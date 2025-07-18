@@ -8,7 +8,6 @@
 package software
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -79,32 +78,6 @@ func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
 // GetSoftwareInventory returns a list of software entries found on the system
 func GetSoftwareInventory() ([]*Entry, []*Warning, error) {
 	return GetSoftwareInventoryWithCollectors(defaultCollectors())
-}
-
-// GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
-func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Warning, error) {
-	var allWarnings []*Warning
-	var allEntries []*Entry
-	var allErrors error
-
-	// Collect from all sources
-	for _, collector := range collectors {
-		entries, warnings, err := collector.Collect()
-
-		// Add any warnings from the collector
-		allWarnings = append(allWarnings, warnings...)
-
-		if err != nil {
-			// Log error but continue with other collectors
-			allErrors = errors.Join(allErrors, err)
-			continue
-		}
-
-		// Add entries to result list
-		allEntries = append(allEntries, entries...)
-	}
-
-	return allEntries, allWarnings, allErrors
 }
 
 // trimVersion trims leading zeros from each part of a version string.

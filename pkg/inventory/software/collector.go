@@ -6,7 +6,10 @@
 // Package software provides cross-platform software inventory collection.
 package software
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Collector defines the interface for collecting software entries
 type Collector interface {
@@ -39,4 +42,30 @@ type Entry struct {
 // GetID returns a unique identifier for the software entry
 func (se *Entry) GetID() string {
 	return se.DisplayName
+}
+
+// GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
+func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Warning, error) {
+	var allWarnings []*Warning
+	var allEntries []*Entry
+	var allErrors error
+
+	// Collect from all sources
+	for _, collector := range collectors {
+		entries, warnings, err := collector.Collect()
+
+		// Add any warnings from the collector
+		allWarnings = append(allWarnings, warnings...)
+
+		if err != nil {
+			// Log error but continue with other collectors
+			allErrors = errors.Join(allErrors, err)
+			continue
+		}
+
+		// Add entries to result list
+		allEntries = append(allEntries, entries...)
+	}
+
+	return allEntries, allWarnings, allErrors
 }
