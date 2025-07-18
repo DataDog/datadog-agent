@@ -374,7 +374,7 @@ func createMarshaler2(
 func (e *eventsMarshaler2) flushPayload() error {
 	err := e.closePayload()
 	if err != nil {
-		return nil
+		return err
 	}
 
 	e.compressor, err = stream.NewCompressor(
