@@ -900,7 +900,7 @@ func TestMultipleProtocols(t *testing.T) {
 				_ = cmd.Wait()
 			}()
 			return nil
-		}, func(ev *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, _ *rules.Rule) {
 		})
 
 		// --- UDP BIND ---
@@ -942,7 +942,7 @@ func TestMultipleProtocols(t *testing.T) {
 				_ = cmd.Wait()
 			}()
 			return nil
-		}, func(ev *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, _ *rules.Rule) {
 
 		})
 
