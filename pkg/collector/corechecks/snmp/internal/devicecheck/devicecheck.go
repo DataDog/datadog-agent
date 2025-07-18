@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/buildprofile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
 	"go.uber.org/atomic"
@@ -54,6 +55,7 @@ const (
 	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30 // Thirty seconds
+	profileRefreshDelay     = 60 // Number of seconds after which a profile needs to be refreshed
 )
 
 type profileCache struct {
@@ -76,15 +78,15 @@ func (pc *profileCache) GetProfile() profiledefinition.ProfileDefinition {
 	return *pc.profile
 }
 
-func (pc *profileCache) Update(sysObjectID string, now time.Time, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
-	if pc.IsOutdated(sysObjectID, config.ProfileName, config.ProfileProvider.LastUpdated()) {
+func (pc *profileCache) Update(sysObjectID string, now time.Time, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
+	if pc.IsOutdated(sysObjectID, config.ProfileName, now, config.ProfileProvider.LastUpdated()) {
 		// we cache the value even if there's an error, because an error indicates that
 		// the ProfileProvider couldn't find a match for either config.ProfileName or
 		// the given sysObjectID, and we're going to have the same error if we call this
 		// again without either the sysObjectID or the ProfileProvider changing.
 		pc.sysObjectID = sysObjectID
 		pc.timestamp = now
-		profile, err := config.BuildProfile(sysObjectID)
+		profile, err := buildprofile.BuildProfile(sysObjectID, sess, validConnection, config)
 		pc.profile = &profile
 		pc.err = err
 		pc.scalarOIDs, pc.columnOIDs = pc.profile.SplitOIDs(config.CollectDeviceMetadata)
@@ -92,7 +94,7 @@ func (pc *profileCache) Update(sysObjectID string, now time.Time, config *checkc
 	return pc.GetProfile(), pc.err
 }
 
-func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, lastUpdate time.Time) bool {
+func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, now time.Time, lastUpdate time.Time) bool {
 	if pc.profile == nil {
 		return true
 	}
@@ -105,9 +107,10 @@ func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, lastU
 		return true
 	}
 	// If we get here then either we're auto-detecting but the sysobjectid hasn't
-	// changed, or we have a static name; either way we're out of date if and only
-	// if the profile provider has updated.
-	return pc.timestamp.Before(lastUpdate)
+	// changed, or we have a static name; either way we're out of date if the profile
+	// refresh delay has been exceeded or if the profile provider has updated.
+	return now.Sub(pc.timestamp) > profileRefreshDelay*time.Second ||
+		pc.timestamp.Before(lastUpdate)
 }
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -156,9 +159,30 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	d.readTagsFromCache()
-	if _, err := d.profileCache.Update("", time.Now(), d.config); err != nil {
+
+	var validConnection bool
+	d.session, err = d.sessionFactory(d.config)
+	if err != nil {
+		log.Warnf("failed to create session: %v", err)
+	} else {
+		err = d.session.Connect()
+		if err != nil {
+			log.Warnf("failed to connect: %v", err)
+		} else {
+			validConnection = true
+			defer func() {
+				err = d.session.Close()
+				if err != nil {
+					log.Warnf("failed to close session: %v", err)
+				}
+			}()
+		}
+	}
+
+	_, err = d.profileCache.Update("", time.Now(), d.session, validConnection, d.config)
+	if err != nil {
 		// This could happen e.g. if the config references a profile that hasn't been loaded yet.
-		_ = log.Warnf("failed to refresh profile cache: %s", err)
+		_ = log.Warnf("failed to refresh profile cache: %v", err)
 	}
 
 	return &d, nil
@@ -398,7 +422,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefin
 	if err != nil {
 		return d.profileCache.GetProfile(), err
 	}
-	profile, err := d.profileCache.Update(sysObjectID, time.Now(), d.config)
+	profile, err := d.profileCache.Update(sysObjectID, time.Now(), sess, true, d.config)
 	if err != nil {
 		return profile, fmt.Errorf("failed to refresh profile cache: %w", err)
 	}

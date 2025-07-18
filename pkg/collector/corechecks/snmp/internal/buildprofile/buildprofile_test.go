@@ -3,14 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package checkconfig
+package buildprofile
 
 import (
+	"maps"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestBuildProfile(t *testing.T) {
@@ -88,9 +92,10 @@ func TestBuildProfile(t *testing.T) {
 		SysObjectIDs: profiledefinition.StringArray{"1.1.1.*"},
 	}
 
-	mergedMetadata := make(profiledefinition.MetadataConfig)
-	mergeMetadata(mergedMetadata, profile1.Metadata)
-	mergedMetadata["ip_addresses"] = LegacyMetadataConfig["ip_addresses"]
+	legacyMetadataConfig := DefaultMetadataConfigs[0].ToMetadataConfig()
+
+	profile1MergedMetadata := maps.Clone(profile1.Metadata)
+	profile1MergedMetadata["ip_addresses"] = legacyMetadataConfig["ip_addresses"]
 
 	mockProfiles := profile.StaticProvider(profile.ProfileConfigMap{
 		"profile1": profile.ProfileConfig{
@@ -99,33 +104,35 @@ func TestBuildProfile(t *testing.T) {
 	})
 
 	type testCase struct {
-		name          string
-		config        *CheckConfig
-		sysObjectID   string
-		expected      profiledefinition.ProfileDefinition
-		expectedError string
+		name           string
+		sessionFactory session.Factory
+		config         *checkconfig.CheckConfig
+		sysObjectID    string
+		expected       profiledefinition.ProfileDefinition
+		expectedError  string
 	}
 	for _, tc := range []testCase{
 		{
 			name: "inline",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:        "1.2.3.4",
 				RequestedMetrics: metrics,
 				RequestedMetricTags: []profiledefinition.MetricTagConfig{
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
-				ProfileName: ProfileNameInline,
+				ProfileName: checkconfig.ProfileNameInline,
 			},
 			expected: profiledefinition.ProfileDefinition{
 				Metrics: metrics,
 				MetricTags: []profiledefinition.MetricTagConfig{
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
-				Metadata: LegacyMetadataConfig,
+				Metadata: legacyMetadataConfig,
 			},
-		}, {
+		},
+		{
 			name: "static",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
 				ProfileName:     "profile1",
@@ -138,14 +145,15 @@ func TestBuildProfile(t *testing.T) {
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
 				StaticTags: []string{"snmp_profile:profile1"},
-				Metadata:   mergedMetadata,
+				Metadata:   profile1MergedMetadata,
 			},
-		}, {
+		},
+		{
 			name: "dynamic",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
-				ProfileName:     ProfileNameAuto,
+				ProfileName:     checkconfig.ProfileNameAuto,
 			},
 			sysObjectID: "1.1.1.1",
 			expected: profiledefinition.ProfileDefinition{
@@ -156,11 +164,12 @@ func TestBuildProfile(t *testing.T) {
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
 				StaticTags: []string{"snmp_profile:profile1"},
-				Metadata:   mergedMetadata,
+				Metadata:   profile1MergedMetadata,
 			},
-		}, {
+		},
+		{
 			name: "static with requested metrics",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:             "1.2.3.4",
 				ProfileProvider:       mockProfiles,
 				CollectDeviceMetadata: true,
@@ -182,23 +191,25 @@ func TestBuildProfile(t *testing.T) {
 					{Tag: "global-tag", Symbol: profiledefinition.SymbolConfigCompat{OID: "3.2", Name: "globalSymbol"}},
 					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
 				},
-				Metadata:   mergedMetadata,
+				Metadata:   profile1MergedMetadata,
 				StaticTags: []string{"snmp_profile:profile1"},
 			},
-		}, {
+		},
+		{
 			name: "static unknown",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
 				ProfileName:     "f5",
 			},
 			expectedError: "unknown profile \"f5\"",
-		}, {
+		},
+		{
 			name: "dynamic unknown",
-			config: &CheckConfig{
+			config: &checkconfig.CheckConfig{
 				IPAddress:       "1.2.3.4",
 				ProfileProvider: mockProfiles,
-				ProfileName:     ProfileNameAuto,
+				ProfileName:     checkconfig.ProfileNameAuto,
 			},
 			sysObjectID: "3.3.3.3",
 			expectedError: "failed to get profile for sysObjectID \"3.3.3.3\": no profiles found for sysObjectID \"3." +
@@ -206,7 +217,17 @@ func TestBuildProfile(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			profile, err := tc.config.BuildProfile(tc.sysObjectID)
+			var validConnection bool
+			var sess session.Session
+			var err error
+
+			if tc.sessionFactory != nil {
+				validConnection = true
+				sess, err = tc.sessionFactory(tc.config)
+				assert.NoError(t, err)
+			}
+
+			profile, err := BuildProfile(tc.sysObjectID, sess, validConnection, tc.config)
 			if tc.expectedError != "" {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {

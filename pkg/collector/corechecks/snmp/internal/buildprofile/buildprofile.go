@@ -3,14 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package checkconfig
+package buildprofile
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"maps"
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // BuildProfile builds the fetchable profile for this config.
@@ -28,17 +31,17 @@ import (
 // ProfileName is ProfileNameAuto and ProfileProvider finds no match for
 // sysObjectID. In this case the returned profile will still be non-nil, and
 // will be the same as what you'd get for an inline profile.
-func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.ProfileDefinition, error) {
+func BuildProfile(sysObjectID string, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
 	var rootProfile *profiledefinition.ProfileDefinition
 	var profileErr error
 
-	switch c.ProfileName {
-	case ProfileNameInline: // inline profile -> no parent
+	switch config.ProfileName {
+	case checkconfig.ProfileNameInline: // inline profile -> no parent
 		rootProfile = nil
-	case ProfileNameAuto: // determine based on sysObjectID
+	case checkconfig.ProfileNameAuto: // determine based on sysObjectID
 		// empty sysObjectID happens when we need the profile but couldn't connect to the device.
 		if sysObjectID != "" {
-			if profileConfig, err := c.ProfileProvider.GetProfileForSysObjectID(sysObjectID); err != nil {
+			if profileConfig, err := config.ProfileProvider.GetProfileForSysObjectID(sysObjectID); err != nil {
 				profileErr = fmt.Errorf("failed to get profile for sysObjectID %q: %v", sysObjectID, err)
 			} else {
 				rootProfile = &profileConfig.Definition
@@ -46,16 +49,16 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 			}
 		}
 	default:
-		if profile := c.ProfileProvider.GetProfile(c.ProfileName); profile == nil {
-			profileErr = fmt.Errorf("unknown profile %q", c.ProfileName)
+		if profile := config.ProfileProvider.GetProfile(config.ProfileName); profile == nil {
+			profileErr = fmt.Errorf("unknown profile %q", config.ProfileName)
 		} else {
 			rootProfile = &profile.Definition
 		}
 	}
 
 	profile := *profiledefinition.NewProfileDefinition()
-	profile.Metrics = slices.Clone(c.RequestedMetrics)
-	profile.MetricTags = slices.Clone(c.RequestedMetricTags)
+	profile.Metrics = slices.Clone(config.RequestedMetrics)
+	profile.MetricTags = slices.Clone(config.RequestedMetricTags)
 	if rootProfile != nil {
 		profile.Name = rootProfile.Name
 		profile.Version = rootProfile.Version
@@ -70,7 +73,7 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 		profile.MetricTags = append(profile.MetricTags, rootProfile.MetricTags...)
 		profile.Device.Vendor = rootProfile.Device.Vendor
 	}
-	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology, c.CollectVPN)
+	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, sess, validConnection, config)
 
 	return profile, profileErr
 }

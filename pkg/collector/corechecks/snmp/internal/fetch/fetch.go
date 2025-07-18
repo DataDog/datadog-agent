@@ -8,6 +8,7 @@ package fetch
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +38,22 @@ func (c columnFetchStrategy) String() string {
 // Fetch oid values from device
 func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
 	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("SCALAR OIDS")
+	cop := append([]string(nil), scalarOIDs...)
+	sort.Strings(cop)
+	fmt.Println(cop)
+	fmt.Println("COLUMN OIDS")
+	cop = append([]string(nil), columnOIDs...)
+	sort.Strings(cop)
+	fmt.Println(cop)
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+	fmt.Println("======================================")
+
 	// fetch scalar values
 	scalarResults, err := fetchScalarOidsWithBatching(sess, scalarOIDs, batchSize)
 	if err != nil {
