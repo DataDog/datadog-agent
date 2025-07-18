@@ -1275,7 +1275,7 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 				{
 					DrillKey:    "test-branch-2B,HTTP",
 					Site:        "test-branch-2B",
-					AppId:       "HTTP",
+					AppID:       "HTTP",
 					Sessions:    50.0,
 					VolumeTx:    1024000.0,
 					VolumeRx:    512000.0,
@@ -1326,7 +1326,7 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 				{
 					DrillKey:    "branch-1,HTTPS",
 					Site:        "branch-1",
-					AppId:       "HTTPS",
+					AppID:       "HTTPS",
 					Sessions:    100.0,
 					VolumeTx:    2048000.0,
 					VolumeRx:    1024000.0,
@@ -1337,7 +1337,7 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 				{
 					DrillKey:    "branch-2,SSH",
 					Site:        "branch-2",
-					AppId:       "SSH",
+					AppID:       "SSH",
 					Sessions:    25.0,
 					VolumeTx:    256000.0,
 					VolumeRx:    128000.0,

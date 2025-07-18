@@ -533,7 +533,7 @@ func TestGetApplicationsByAppliance(t *testing.T) {
 		{
 			DrillKey:    "test-branch-2B,HTTP",
 			Site:        "test-branch-2B",
-			AppId:       "HTTP",
+			AppID:       "HTTP",
 			Sessions:    50.0,
 			VolumeTx:    1024000.0,
 			VolumeRx:    512000.0,

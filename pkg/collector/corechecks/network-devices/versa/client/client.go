@@ -485,7 +485,7 @@ func parseApplicationsByApplianceMetrics(data [][]interface{}) ([]ApplicationsBy
 		if m.Site, ok = row[1].(string); !ok {
 			return nil, fmt.Errorf("expected string for Site")
 		}
-		if m.AppId, ok = row[2].(string); !ok {
+		if m.AppID, ok = row[2].(string); !ok {
 			return nil, fmt.Errorf("expected string for AppId")
 		}
 
@@ -676,7 +676,7 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 // GetTopUsers retrieves top users of applications by appliance from the Versa Analytics API
 func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
-	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "appUser(site,user)", "summary", []string{
+	analyticsURL := buildAnalyticsPath(tenant, "SDWAN", "1daysAgo", "appUser(site,user)", "tabledata", []string{
 		"sessions",
 		"volume-tx",
 		"volume-rx",

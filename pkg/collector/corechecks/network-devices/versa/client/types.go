@@ -445,7 +445,7 @@ type LinkStatusMetrics struct {
 type ApplicationsByApplianceMetrics struct {
 	DrillKey    string
 	Site        string
-	AppId       string
+	AppID       string
 	Sessions    float64
 	VolumeTx    float64
 	VolumeRx    float64

@@ -207,7 +207,7 @@ func (s *Sender) SendApplicationsByApplianceMetrics(appsByApplianceMetrics []cli
 	for _, appMetric := range appsByApplianceMetrics {
 		var tags = []string{
 			"site:" + appMetric.Site,
-			"app_id:" + appMetric.AppId,
+			"app_id:" + appMetric.AppID,
 		}
 		if deviceIP, ok := deviceNameToIDMap[appMetric.Site]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
