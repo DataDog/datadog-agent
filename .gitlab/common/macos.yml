@@ -17,7 +17,7 @@
       dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
     fi
   # Flush temporary folder
-  - rm -rf /tmp/gitlabci
+  - sudo rm -rf /tmp/gitlabci
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
