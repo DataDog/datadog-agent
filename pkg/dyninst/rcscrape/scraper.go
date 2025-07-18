@@ -151,7 +151,7 @@ func (s *scraperReporter) ReportAttached(
 	procID actuator.ProcessID,
 	_ *ir.Program,
 ) {
-	log.Tracef("rcscrape: attached to process %v", procID)
+	log.Debugf("rcscrape: attached to process %v", procID)
 }
 
 // ReportAttachingFailed implements actuator.Reporter.

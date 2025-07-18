@@ -42,6 +42,8 @@ function Start-Test($TestName) {
     $env:DD_SITE = $null
     $env:DD_URL = $null
     $env:DD_REMOTE_UPDATES = $null
+    $env:DD_TAGS = $null
+    $env:DD_LOGS_ENABLED = $null
 }
 
 function Get-TestConfigContent() {
