@@ -211,7 +211,7 @@ func TestDetachAllDeviceCgroupPrograms(t *testing.T) {
 	require.Error(t, err, "expected /dev/null open to fail after attaching BPF program, but it succeeded")
 
 	// Now detach all device programs
-	err = detachAllDeviceCgroupPrograms(testCgroupName, "")
+	err = detachAllDeviceCgroupPrograms("", testCgroupName)
 	require.NoError(t, err)
 
 	// /dev/null should be accessible again
@@ -334,4 +334,41 @@ func moveSelfToCgroup(t *testing.T, cgroupName string) {
 			}
 		})
 	}
+}
+
+// createDeepDirStructure creates a directory structure with a lot of subdirectories
+// and returns the number of directories created.
+func createDeepDirStructure(path string, depth int, numDirs int) int {
+	numDirsCreated := 0
+
+	for i := 0; i < numDirs; i++ {
+		dirPath := filepath.Join(path, fmt.Sprintf("test-%d", i))
+		os.MkdirAll(dirPath, 0755) //nolint:gosec
+		numDirsCreated++
+
+		if depth > 0 {
+			numDirsCreated += createDeepDirStructure(dirPath, depth-1, numDirs)
+		}
+	}
+	return numDirsCreated
+}
+
+func BenchmarkGetAbsoluteCgroupForProcess(b *testing.B) {
+	// Create a directory structure with a lot of subdirectories
+	tempdir := b.TempDir()
+	cgroupDir := filepath.Join(tempdir, "sys/fs/cgroup")
+	os.MkdirAll(cgroupDir, 0755)
+
+	// Create a lot of subdirectories recursively
+	numDirs := createDeepDirStructure(cgroupDir, 4, 10)
+	b.Logf("Created %d directories", numDirs)
+
+	// Doesn't matter that the cgroup here is not found, we in fact
+	// want the code to iterate though all the directories in the
+	// cgroup directory.
+	for b.Loop() {
+		getAbsoluteCgroupForProcess(cgroupDir, uint32(os.Getpid()))
+	}
+
+	b.ReportMetric(float64(numDirs), "dirs/op")
 }
