@@ -568,9 +568,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "uid",
-                "gid",
-                "mount_visible",
-                "mount_detached"
+                "gid"
             ],
             "description": "FileSerializer serializes a file to JSON"
         },
@@ -717,9 +715,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "uid",
-                "gid",
-                "mount_visible",
-                "mount_detached"
+                "gid"
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
         },
@@ -3054,9 +3050,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "uid",
-        "gid",
-        "mount_visible",
-        "mount_detached"
+        "gid"
     ],
     "description": "FileSerializer serializes a file to JSON"
 }
@@ -3244,9 +3238,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "uid",
-        "gid",
-        "mount_visible",
-        "mount_detached"
+        "gid"
     ],
     "description": "FileEventSerializer serializes a file event to JSON"
 }

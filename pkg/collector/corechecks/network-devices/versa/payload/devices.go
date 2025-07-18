@@ -157,6 +157,7 @@ func buildApplianceDeviceTags(namespace string, device client.Appliance) []strin
 		"device_vendor:versa",
 		"device_namespace:" + namespace,
 		"hostname:" + device.Name,
+		"site:" + device.Name,
 		"system_ip:" + device.IPAddress,
 		"location_id:" + device.ApplianceLocation.LocationID, // TODO: is this appropriate?
 		"type:" + device.Type,

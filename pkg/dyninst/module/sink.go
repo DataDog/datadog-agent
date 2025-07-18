@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +29,7 @@ type sink struct {
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
 	service      string
-	logUploader  *uploader.LogsUploader
+	logUploader  LogsUploader
 }
 
 var _ actuator.Sink = &sink{}
@@ -41,12 +40,22 @@ var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 func (s *sink) HandleEvent(event output.Event) error {
 	var buf bytes.Buffer
-	// TODO: Find a way to report a partial failure of a single probe.
 	probe, err := s.decoder.Decode(decode.Event{
 		Event:       event,
 		ServiceName: s.service,
 	}, s.symbolicator, &buf)
 	if err != nil {
+		if probe != nil {
+			if reported := s.controller.reportProbeError(
+				s.programID, probe, err, "DecodeFailed",
+			); reported {
+				log.Warnf(
+					"failed to report probe error for probe %s in service %s: %v",
+					probe.GetID(), s.service, err,
+				)
+			}
+			return nil
+		}
 		if decodingErrorLogLimiter.Allow() {
 			log.Warnf(
 				"failed to decode event in service %s: %v",
