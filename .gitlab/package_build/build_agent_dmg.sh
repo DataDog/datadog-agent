@@ -10,9 +10,9 @@ fi
 
 # --- Setup environment ---
 unset OMNIBUS_BASE_DIR
-export INSTALL_DIR="$MACOS_TMPDIR/datadog-agent-build/bin"
-export CONFIG_DIR="$MACOS_TMPDIR/datadog-agent-build/config"
-export OMNIBUS_DIR="$MACOS_TMPDIR/omnibus_build"
+export INSTALL_DIR="$TMPDIR/datadog-agent-build/bin"
+export CONFIG_DIR="$TMPDIR/datadog-agent-build/config"
+export OMNIBUS_DIR="$TMPDIR/omnibus_build"
 export OMNIBUS_PACKAGE_DIR="$PWD"/omnibus/pkg
 
 rm -rf "$INSTALL_DIR" "$CONFIG_DIR" "$OMNIBUS_DIR"

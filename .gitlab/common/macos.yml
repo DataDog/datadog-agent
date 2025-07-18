@@ -109,9 +109,9 @@
     - !reference [.macos_runner_maintenance]
     # Create temporary folder
     - |
-      export MACOS_TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
-      mkdir -p "$MACOS_TMPDIR"
-      echo "Temporary folder created at $MACOS_TMPDIR"
+      export TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
+      mkdir -p "$TMPDIR"
+      echo "Temporary folder created at $TMPDIR"
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
     - dda inv -- -e install-tools
