@@ -216,16 +216,12 @@ func (h *PodHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, re
 }
 
 type apmInstrumentationTagsAccumulator struct {
-	tags            []string
-	langs           []string
+	sdks            map[string]string
 	appliedTarget   string
 	annotationBased bool
 	usesInjector    bool
+	injectorTag     string
 	mutated         bool
-}
-
-func (a *apmInstrumentationTagsAccumulator) pushTag(name, value string) {
-	a.tags = append(a.tags, fmt.Sprintf("apm.instrumentation.%s:%s", name, value))
 }
 
 func (a *apmInstrumentationTagsAccumulator) imageTag(image string) string {
@@ -236,8 +232,7 @@ func (a *apmInstrumentationTagsAccumulator) imageTag(image string) string {
 }
 
 func (a *apmInstrumentationTagsAccumulator) pushLanguage(lang, tag string) {
-	a.pushTag(fmt.Sprintf("sdk.%s", lang), tag)
-	a.langs = append(a.langs, lang)
+	a.sdks[lang] = tag
 }
 
 func (a *apmInstrumentationTagsAccumulator) processAppliedTargetAnnotation(key, value string) bool {
@@ -287,7 +282,7 @@ func (a *apmInstrumentationTagsAccumulator) processPodAnnotation(key, value stri
 // In order to be consistent with what we can do at intake,
 // we keep this implementation to be consistent with proto schema defined here:
 // https://github.com/DataDog/agent-payload/blob/master/proto/process/agent.proto#L1145-L1169
-func (a *apmInstrumentationTagsAccumulator) extractTags(pod *corev1.Pod) []string {
+func (a *apmInstrumentationTagsAccumulator) processPod(pod *corev1.Pod) {
 	// we look at the annotations first, as they might tell us what the intent
 	// was if the user was using "libinjection".
 	//
@@ -308,7 +303,7 @@ func (a *apmInstrumentationTagsAccumulator) extractTags(pod *corev1.Pod) []strin
 			a.usesInjector = true
 			a.mutated = true
 			if tag := a.imageTag(c.Image); tag != "" {
-				a.pushTag("injector", tag)
+				a.injectorTag = tag
 			}
 		} else if suffix, ok := strings.CutPrefix(c.Name, "datadog-lib-"); ok {
 			a.mutated = true
@@ -318,45 +313,67 @@ func (a *apmInstrumentationTagsAccumulator) extractTags(pod *corev1.Pod) []strin
 			}
 		}
 	}
+}
+
+func (a *apmInstrumentationTagsAccumulator) buildTags() []string {
+	tags := []string{}
+	pushTag := func(name, value string) {
+		tags = append(tags, fmt.Sprintf("apm.instrumentation.%s:%s", name, value))
+	}
+
+	// generate the method (annotation, workload-selection, auto)
+	if a.annotationBased {
+		pushTag("method", "annotation")
+	} else if a.appliedTarget != "" {
+		pushTag("method", "workload-selection")
+		pushTag("applied-target", a.appliedTarget)
+	} else if a.mutated {
+		pushTag("method", "auto")
+	}
 
 	// if we didn't find any relevant init containers, we don't have APM auto-instrumentation
 	// and don't need to tag version, or check for applied target annotations.
-	if !a.mutated && a.annotationBased {
-		a.pushTag("status", "missing")
-		return a.tags
+	if !a.mutated {
+		if a.annotationBased {
+			pushTag("status", "missing")
+		}
+		return tags
 	}
 
-	a.pushTag("status", "mutated")
+	// if we are here we have been mutated.
+	pushTag("status", "mutated")
+
 	// instrumentation version corresponds to how we are doing injection,
 	// whether or not there is an "injector" init container present or not.
 	// we default to v1, and if we find the injector container, set to v2.
 	//
 	// https://github.com/DataDog/datadog-agent/blob/main/pkg/clusteragent/admission/mutate/autoinstrumentation/version.go#L16-L22
 	if a.usesInjector {
-		a.pushTag("version", "v2")
+		pushTag("version", "v2")
+		if a.injectorTag != "" {
+			pushTag("injector", a.injectorTag)
+		}
 	} else {
-		a.pushTag("version", "v1")
+		pushTag("version", "v1")
 	}
 
-	// add sorted languages tag
-	if len(a.langs) > 0 {
-		sort.Strings(a.langs)
-		a.pushTag("sdk", strings.Join(a.langs, ","))
+	// add SDK info
+	if len(a.sdks) > 0 {
+		langs := make([]string, 0, len(a.sdks))
+		for lang, tag := range a.sdks {
+			langs = append(langs, lang)
+			pushTag(fmt.Sprintf("sdk.%s", lang), tag)
+		}
+		sort.Strings(langs)
+		pushTag("sdk", strings.Join(langs, ","))
 	}
 
-	if a.annotationBased {
-		a.pushTag("method", "annotation")
-	} else if a.appliedTarget != "" {
-		a.pushTag("method", "workload-selection")
-	} else {
-		a.pushTag("method", "auto")
-	}
+	return tags
+}
 
-	if a.appliedTarget != "" {
-		a.pushTag("applied-target", a.appliedTarget)
-	}
-
-	return a.tags
+func (a *apmInstrumentationTagsAccumulator) extractPodTags(pod *corev1.Pod) []string {
+	a.processPod(pod)
+	return a.buildTags()
 }
 
 // extractAPMInstrumentationTags extracts tags from the pod that correspond
@@ -368,6 +385,6 @@ func (a *apmInstrumentationTagsAccumulator) extractTags(pod *corev1.Pod) []strin
 // - one tag for each language library version
 // - one tag for the workload target name (if used)
 func extractAPMInstrumentationTags(pod *corev1.Pod) []string {
-	accumulator := &apmInstrumentationTagsAccumulator{tags: []string{}}
-	return accumulator.extractTags(pod)
+	accumulator := &apmInstrumentationTagsAccumulator{sdks: make(map[string]string)}
+	return accumulator.extractPodTags(pod)
 }
