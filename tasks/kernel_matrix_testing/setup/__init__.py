@@ -45,12 +45,8 @@ def _topological_sort_requirements(requirements: list[Requirement]) -> list[Requ
     # Build adjacency list
     adj: dict[Requirement, list[Requirement]] = {r: [] for r in requirements}
     for r in requirements:
-        if r.dependencies is None:
-            continue
-
-        for dep in r.dependencies:
-            if dep in req_by_class:
-                adj[r].append(req_by_class[dep])
+        for dep in r.dependencies or []:
+            adj[req_by_class[dep]].append(r)
 
     in_degree = {r: 0 for r in requirements}
     for r in requirements:
