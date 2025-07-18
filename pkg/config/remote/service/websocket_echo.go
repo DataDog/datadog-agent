@@ -57,7 +57,6 @@ func (s *WebSocketTestActor) Start() {
 func (s *WebSocketTestActor) Stop() {
 	if s.stopCh != nil { // CoreAgentService.Stop() calls more than once
 		close(s.stopCh)
-		s.stopCh = nil
 	}
 }
 
