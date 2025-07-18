@@ -1,37 +1,83 @@
-use std::time::Instant;
+// this file is only used as a sketch for the future implementation in lib.rs
+
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::sync::Arc;
+use std::time::Duration;
+
+use rustls::{ClientConnection, RootCertStore, Stream};
 
 fn main() {
-    fn fetch(url: &str, timeout: u64) -> (Result<reqwest::blocking::Response, reqwest::Error>, std::time::Duration) {
-        let client = reqwest::blocking::Client::new()
-            .get(url)
-            .timeout(std::time::Duration::from_millis(timeout));
+    let root_store = RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.into()};
 
-        let start = Instant::now();
-        let res = client.send();
-        let duration = start.elapsed();
+    let mut config = rustls::ClientConfig::builder()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
 
-        (res, duration)
+    // Allow using SSLKEYLOGFILE.
+    config.key_log = Arc::new(rustls::KeyLogFile::new());
+
+    let url = "github.com";
+
+    let server_name = url.try_into().unwrap();
+
+    // TODO: check error here to handle connection errors
+    let mut conn = ClientConnection::new(Arc::new(config), server_name).expect("Failed to create TLS connection");
+
+    // TODO: check error here to handle connection errors
+    let mut sock = TcpStream::connect(format!("{}:443", url)).expect("Failed to connect to server");
+    
+    // Set timeouts
+    // TODO: handle timeout errors later in the code
+    sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+    
+    // Create the TLS stream
+    let mut tls = Stream::new(&mut conn, &mut sock);
+
+    // Send the HTTP request with this TLS stream
+    tls.write_all(
+        format!("
+GET / HTTP/1.1
+Host: {}
+Connection: close
+Accept-Encoding: identity
+\n
+",
+    url
+    )
+    .as_bytes(),
+    )
+    .expect("Failed to write request");
+
+    // Read the response from the TLS stream
+    let mut plaintext = Vec::new();
+    match tls.read_to_end(&mut plaintext) {
+        Ok(_) => println!("Response read successfully"),
+        Err(e) => println!("Failed to read response: {}", e),
+    }
+    let response = String::from_utf8(plaintext).expect("Failed to convert response to String");
+    
+    // Handling of status code
+    let first_line = response.lines().nth(0).expect("Failed to get first line of response");
+    let status_code = first_line
+        .split_whitespace().nth(1).expect("Failed to get status code at position 1")
+        .trim().parse::<i32>().expect("Failed to parse status code");
+
+
+    if status_code >= 400 {
+        println!("HTTP Error: {}", status_code);
     }
 
-    // hardcoded variables
-    let url = "https://datadoghq.com";
-
-    let (response, duration) = fetch(url, 10000);
-
-    match response {
-        Ok(resp) => {
-            if resp.status().is_success() {
-                println!("Successfully fetched {} in {} ms", url, duration.as_millis());
-            } else {
-                println!("Failed to fetch {}: HTTP {}", url, resp.status());
+    // TODO: habndle SSL certificates here
+    match tls.conn.peer_certificates() {
+        Some(certs) => {
+            for _cert in certs {
+                //println!("Certificate: {:?}", cert);
             }
         }
-        Err(e) => {
-            if e.is_timeout() {
-                eprintln!("Timeout while fetching {} after {} ms", url, duration.as_millis());
-            } else {
-                eprintln!("Error fetching {}: {}", url, e);
-            }
+        None => {
+            println!("No peer certificates found.");
         }
     }
 }

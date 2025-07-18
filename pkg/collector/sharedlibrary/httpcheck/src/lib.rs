@@ -40,7 +40,7 @@ impl AgentCheck {
         // - service checks tags 
         // - ssl metrics
 
-        // hardcoded variables (should be passed as parameters in an instance)
+        // hardcoded variables (should be passed as parameters inside a struct)
         let url = "https://datadoghq.com";
         let reponse_time = true;
         let ssl_expire = true;
@@ -52,13 +52,15 @@ impl AgentCheck {
         let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
         let service_checks_tags = Vec::<String>::new(); // need to be set equal to the tags list at the beginning
 
+        // build the request with the desired configuration
+        let request = Client::builder()
+            .build()?
+            .get(url);
 
         // fetch the URL and measure the response time
-        let client = Client::new().get(url);
-
-        let start = Instant::now();
-        let response_content = client.send();
-        let response_time = start.elapsed();
+        let start_time = Instant::now();
+        let response_content = request.send();
+        let response_time = start_time.elapsed();
 
         // check fetch result
         match response_content {
