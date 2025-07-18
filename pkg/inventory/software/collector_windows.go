@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package softwareinventory implements code to collect installed software from a Windows system.
 package software
 
 import (

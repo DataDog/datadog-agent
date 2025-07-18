@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package softwareinventory software provides cross-platform software inventory collection. This file contains Windows-specific logic.
+// Package software provides cross-platform software inventory collection.
 package software
 
 import "fmt"
