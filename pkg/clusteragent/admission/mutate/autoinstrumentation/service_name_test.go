@@ -8,19 +8,30 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestServiceNameMutatorForMetaAsTags(t *testing.T) {
 	testData := []struct {
 		name            string
 		pod             *corev1.Pod
-		podMetaAsTags   podMetaAsTags
+		metaAsTags      metaAsTags
+		withMetaData    func(wmeta workloadmetamock.Mock)
 		expectedMutator *serviceNameMutator
 	}{
 		{
@@ -34,8 +45,10 @@ func TestServiceNameMutatorForMetaAsTags(t *testing.T) {
 					Labels: map[string]string{"app": "banana"},
 				},
 			},
-			podMetaAsTags: podMetaAsTags{
-				Labels: map[string]string{"app": "service"},
+			metaAsTags: metaAsTags{
+				Pod: resourceMetaAsTags{
+					Labels: map[string]string{"app": "service"},
+				},
 			},
 			expectedMutator: &serviceNameMutator{
 				EnvVar: corev1.EnvVar{
@@ -49,10 +62,61 @@ func TestServiceNameMutatorForMetaAsTags(t *testing.T) {
 				Source: serviceNameSourceLabelsAsTags,
 			},
 		},
+		{
+			name: "match namespace-environment",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "banana",
+				},
+			},
+			metaAsTags: metaAsTags{
+				Namespace: resourceMetaAsTags{
+					Labels: map[string]string{"kubernetes.io/metadata.name": "service"},
+				},
+			},
+			expectedMutator: &serviceNameMutator{
+				EnvVar: corev1.EnvVar{
+					Name:  serviceUST.envVarName,
+					Value: "banana",
+				},
+				Source: serviceNameSource("namespace_labels_as_tags"),
+			},
+			withMetaData: func(wmeta workloadmetamock.Mock) {
+				wmeta.Set(&workloadmeta.KubernetesMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   "/namespaces//banana",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "banana",
+						Labels: map[string]string{
+							"kubernetes.io/metadata.name": "banana",
+						},
+					},
+				})
+			},
+		},
 	}
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
-			mutator := serviceNameMutatorForMetaAsTags(tt.pod, tt.podMetaAsTags)
+			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				coreconfig.MockModule(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			if tt.withMetaData != nil {
+				tt.withMetaData(mockStore)
+			}
+
+			var mutator *serviceNameMutator
+			if m := serviceUST.ustEnvVarMutatorForPodMeta(mockStore, tt.pod, tt.metaAsTags); m != nil {
+				mutator = &serviceNameMutator{
+					EnvVar: m.EnvVar,
+					Source: serviceNameSource(m.SourceKind),
+				}
+			}
+
 			require.Equal(t, tt.expectedMutator, mutator)
 		})
 	}
