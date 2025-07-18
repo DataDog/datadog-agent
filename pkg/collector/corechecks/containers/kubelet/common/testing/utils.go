@@ -251,7 +251,7 @@ func AssertMetricCallsMatch(t *testing.T, expectedMetrics []string, mockSender *
 			// Handle both regular metric calls (4 args) and MonotonicCountWithFlushFirstValue calls (5 args)
 			expected4Args := tmock.Arguments{expectedMetric, tmock.AnythingOfType("float64"), "", mocksender.MatchTagsContains(InstanceTags)}
 			expected5Args := tmock.Arguments{expectedMetric, tmock.AnythingOfType("float64"), "", mocksender.MatchTagsContains(InstanceTags), tmock.AnythingOfType("bool")}
-			
+
 			if _, diffs := expected4Args.Diff(call.Arguments); diffs == 0 {
 				matches++
 				matchedAsserts = append(matchedAsserts, call)
