@@ -16,6 +16,17 @@ def get_datacenter(env):
         raise ValueError(f'Unknown environment: {env}. Supported environments are: prod, staging.')
 
 
+def cast_type(value: str):
+    """We can cast types using a type prefix, will parse this prefix."""
+
+    if value.startswith('int:'):
+        return int(value[4:])
+    elif value.startswith('float:'):
+        return float(value[6:])
+    elif value.startswith('bool:'):
+        return bool(value[5:])
+
+
 @task(default=True)
 def run(
     ctx,
@@ -28,7 +39,7 @@ def run(
     localport=8080,
     prefix='internal/agent-ci-api/',
     jq='auto',
-    query='.data',
+    query='.errors // .data',
     silent_curl=True,
 ):
     """Triggers the agent-ci-api service.
@@ -50,7 +61,8 @@ def run(
     Examples:
         $ dda inv -- api hello --env staging
         $ dda inv -- api hello --env local
-        $ dda inv -- api stackcleaner/workflow --env staging --ty stackcleaner_workflow_request --attrs debug_job_name=abc,debug_job_id=123,debug_pipeline_id=1234,debug_ref=cc
+        # Note that we can cast types using a type prefix, e.g. `int:`, `float:` or `bool:`
+        $ dda inv -- api stackcleaner/workflow --env staging --ty stackcleaner_workflow_request --attrs job_name=abc,job_id=123,pipeline_id=1234,ref=cc,ignore_lock=bool:true
     """
 
     assert env in ('prod', 'staging', 'local'), (
@@ -63,7 +75,8 @@ def run(
     if ty or attrs:
         assert ty and attrs, 'Type and attributes must be specified together.'
 
-        all_attrs = {kv.split('=')[0]: '='.join(kv.split('=')[1:]) for kv in attrs.split(',')}
+        # From the comma separated attributes, we build a payload
+        all_attrs = {kv.split('=')[0]: cast_type('='.join(kv.split('=')[1:])) for kv in attrs.split(',')}
         body = {
             'data': {
                 'type': ty,
