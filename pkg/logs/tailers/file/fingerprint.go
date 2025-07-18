@@ -208,6 +208,9 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	}
 
 	// Compute fingerprint
+	log.Debugf("Buffer contents before checksum computation for file %q: %q", filePath, string(buffer))
+	log.Debugf("Buffer hex dump for file %q: %x", filePath, buffer)
+	log.Debugf("Buffer length: %d bytes", len(buffer))
 	checksum := crc64.Checksum(buffer, crc64Table)
 
 	log.Debugf("Computed byte-based fingerprint 0x%x for file %q (bytes=%d)", checksum, filePath, bytesRead)
@@ -287,6 +290,7 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	}
 
 	// Compute fingerprint
+	log.Debugf("Buffer contents before checksum computation for file %q: %q", filePath, string(buffer))
 	checksum := crc64.Checksum(buffer, crc64Table)
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, filePath, len(buffer), linesRead)
 	return checksum
