@@ -63,7 +63,11 @@ func ImageSBOMProgram(config config.Component, logger log.Component) program.CEL
 		logger.Warnf("Error creating include program for %s: %v", programName, includeErr)
 	}
 
-	excludeProgram, excludeErr := createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_exclude"), workloadfilter.ImageType)
+	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
+	if config.GetBool("sbom.container_image.exclude_pause_container") {
+		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
+	}
+	excludeProgram, excludeErr := createProgramFromOldFilters(excludeList, workloadfilter.ImageType)
 	if excludeErr != nil {
 		initErrors = append(initErrors, excludeErr)
 		logger.Warnf("Error creating exclude program for %s: %v", programName, excludeErr)

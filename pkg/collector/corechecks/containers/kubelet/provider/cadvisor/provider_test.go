@@ -8,8 +8,6 @@
 package cadvisor
 
 import (
-	"reflect"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +19,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -29,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
@@ -133,12 +131,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 			Namespace:            common.KubeletMetricsPrefix,
 		},
 	}
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
 	p, err := NewProvider(
-		&containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
-		},
+		mockFilterStore,
 		config,
 		store,
 		podUtils,
@@ -194,7 +190,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 			_ = suite.provider.Provide(kubeletMock, suite.mockSender)
 			suite.mockSender.ResetCalls()
 			err = suite.provider.Provide(kubeletMock, suite.mockSender)
-			if !reflect.DeepEqual(err, tt.want.err) {
+			if err != tt.want.err {
 				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
 				return
 			}
@@ -271,7 +267,7 @@ func (suite *ProviderTestSuite) TestIgnoreMetrics() {
 		ignoreMetrics = oldIgnore
 	})
 	// since we updated ignoreMetrics, we need to recreate the provider
-	suite.provider, _ = NewProvider(suite.provider.filter, suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
+	suite.provider, _ = NewProvider(suite.provider.filterStore, suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
 
 	response := commontesting.NewEndpointResponse(
 		"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil)

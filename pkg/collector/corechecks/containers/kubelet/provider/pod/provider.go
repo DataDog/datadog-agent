@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,19 +44,19 @@ const kubeNamespaceTag = tags.KubeNamespace
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filter   *containers.Filter
-	config   *common.KubeletConfig
-	podUtils *common.PodUtils
-	tagger   tagger.Component
+	filterStore workloadfilter.Component
+	config      *common.KubeletConfig
+	podUtils    *common.PodUtils
+	tagger      tagger.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
+func NewProvider(filterStore workloadfilter.Component, config *common.KubeletConfig, podUtils *common.PodUtils, tagger tagger.Component) *Provider {
 	return &Provider{
-		filter:   filter,
-		config:   config,
-		podUtils: podUtils,
-		tagger:   tagger,
+		filterStore: filterStore,
+		config:      config,
+		podUtils:    podUtils,
+		tagger:      tagger,
 	}
 }
 
@@ -107,7 +107,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			runningAggregator.recordContainer(p, pod, &cStatus, cID)
 
 			// don't exclude filtered containers from aggregation, but filter them out from other reported metrics
-			if p.filter.IsExcluded(pod.Metadata.Annotations, cStatus.Name, cStatus.Image, pod.Metadata.Namespace) {
+			if p.filterStore.IsContainerExcluded(common.CreateFilterableContainerFromStatus(cStatus, common.CreateFilterablePodFromKubelet(pod)), workloadfilter.GetContainerSharedMetricFilters()) {
 				continue
 			}
 
