@@ -509,6 +509,7 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     try:
         if in_ci:
             sys.stdout.flush()
+            collapsed = '[collapsed=true]' if collapsed else ''
             os.system(f'bash -c \'echo -e "\\e[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\\r\\e[0K{section_name + '...'}"\'')
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
