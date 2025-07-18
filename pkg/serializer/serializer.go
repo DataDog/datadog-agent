@@ -287,10 +287,6 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	seriesSerializer := metricsserializer.CreateIterableSeries(serieSource)
 	useV1API := !s.config.GetBool("use_v2_api.series")
 
-	var seriesBytesPayloads transaction.BytesPayloads
-	var extraHeaders http.Header
-	var err error
-
 	if useV1API {
 		seriesBytesPayloads, extraHeaders, err := s.serializeIterableStreamablePayload(seriesSerializer, stream.DropItemOnErrItemTooBig)
 		if err != nil {
@@ -336,14 +332,19 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 
 
-	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
-	extraHeaders = s.protobufExtraHeadersWithCompression
+	err := seriesSerializer.MarshalSplitCompressPipelines(
+		s.config,
+		s.Strategy,
+		s.Forwarder,
+		s.protobufExtraHeadersWithCompression,
+		pipelines,
+	)
 
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
+	return nil
 }
 
 func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {

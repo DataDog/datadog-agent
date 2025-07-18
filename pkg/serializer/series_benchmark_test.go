@@ -53,7 +53,7 @@ func generateData(points int, items int, tags int) metrics.Series {
 var payloads transaction.BytesPayloads
 
 func BenchmarkSeries(b *testing.B) {
-	bench := func(points, items, tags int, build func(series metrics.Series) (transaction.BytesPayloads, error)) func(b *testing.B) {
+	bench := func(points, items, tags int, build func(series metrics.Series) error) func(b *testing.B) {
 		return func(b *testing.B) {
 			series := generateData(points, items, tags)
 
@@ -64,7 +64,7 @@ func BenchmarkSeries(b *testing.B) {
 			var payloadCompressedSize uint64
 			for n := 0; n < b.N; n++ {
 				var err error
-				payloads, err = build(series)
+				err = build(series)
 				payloadCount += len(payloads)
 				for _, pl := range payloads {
 					payloadCompressedSize += uint64(pl.Len())
@@ -77,9 +77,9 @@ func BenchmarkSeries(b *testing.B) {
 	}
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
+	pb := func(series metrics.Series) error {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
-		return iterableSeries.MarshalSplitCompressPipelines(mockConfig, compressor, []metricsserializer.Pipeline{{
+		return iterableSeries.MarshalSplitCompressPipelines(mockConfig, compressor, nil, nil, []metricsserializer.Pipeline{{
 			FilterFunc: func(_ *metrics.Serie) bool {
 				return true
 			},
@@ -88,9 +88,10 @@ func BenchmarkSeries(b *testing.B) {
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
-	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
+	json := func(series metrics.Series) error {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
-		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
+		_, err := payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
+		return err
 	}
 
 	for _, items := range []int{5, 10, 100, 500, 1000, 10000, 100000} {
