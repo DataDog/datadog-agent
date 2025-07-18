@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -87,9 +88,10 @@ func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
 }
 
-func mandatoryMetricTagRegexes() []*regexp.Regexp {
-	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
-	for _, tag := range mandatoryMetricTags {
+func mandatoryMetricTagRegexes(additionalTags ...string) []*regexp.Regexp {
+	allTags := append(mandatoryMetricTags, additionalTags...)
+	regexes := make([]*regexp.Regexp, 0, len(allTags))
+	for _, tag := range allTags {
 		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
 	}
 
@@ -273,12 +275,14 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 func (v *gpuBaseSuite[Env]) runCudaDockerWorkload() string {
 	// Configure some defaults
 	vectorSize := 50000
-	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
-	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	numLoops := 100           // Loop extra times to ensure the kernel runs for a bit
+	startWaitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	//killWaitTimeSeconds := 120 // Give enough time to find the container and get the tags
 	binary := "/usr/local/bin/cuda-basic"
-	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops), strconv.Itoa(waitTimeSeconds)}
+	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops),
+		strconv.Itoa(startWaitTimeSeconds)}
 
-	containerID, err := v.caps.RunContainerWorkloadWithGPUs(dockerImageName(), args...)
+	containerID, err := v.caps.RunWorkload(dockerImageName(), args...)
 	v.Require().NoError(err)
 	v.Require().NotEmpty(containerID)
 
@@ -388,31 +392,36 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
+	// Check if we're in a Kubernetes environment using the generic type parameter
+	var env Env
+	isKubernetes := reflect.TypeOf(env) == reflect.TypeOf(environments.Kubernetes{})
+
+	if isKubernetes {
+		_ = v.runCudaDockerWorkload()
+	}
+
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
+
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
-		metrics := []struct {
-			name           string
-			deviceSpecific bool
-		}{
-			{"gpu.temperature", true},
-			{"gpu.pci.throughput.tx", true},
-			{"gpu.power.usage", true},
-			{"gpu.device.total", false},
-		}
+		metrics := []string{"gpu.temperature", "gpu.pci.throughput.tx", "gpu.power.usage", "gpu.device.total"}
 		for _, metric := range metrics {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
 			var options []client.MatchOpt[*aggregator.MetricSeries]
-			if metric.deviceSpecific {
-				// device-specific metrics should be tagged with device tags
-				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			var tagRegexes []*regexp.Regexp
+			if isKubernetes {
+				// In Kubernetes environments, device-specific metrics should also have pod_name tag
+				tagRegexes = mandatoryMetricTagRegexes("pod_name")
+			} else {
+				tagRegexes = mandatoryMetricTagRegexes()
 			}
+			options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
 
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric.name, options...)
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric, options...)
 			assert.NoError(c, err)
 
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
+			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }

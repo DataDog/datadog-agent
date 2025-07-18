@@ -53,7 +53,7 @@ type suiteCapabilities interface {
 	FakeIntake() *components.FakeIntake
 	Agent() agentclient.Agent
 	QuerySysprobe(path string) (string, error)
-	RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error)
+	RunWorkload(image string, arguments ...string) (string, error)
 	GetRestartCount(component agentComponent) int
 }
 
@@ -83,12 +83,12 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 	return c.suite.Env().RemoteHost.Execute(cmd)
 }
 
-// RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
-func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+// RunWorkload runs a container workload with GPUs on the host using Docker
+func (c *hostCapabilities) RunWorkload(image string, arguments ...string) (string, error) {
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
 	args := strings.Join(arguments, " ")
-	cmd := fmt.Sprintf("sudo docker run --gpus all --name %s %s %s", containerName, image, args)
+	cmd := fmt.Sprintf("sudo docker run -d --gpus all --name %s %s %s", containerName, image, args)
 
 	out, err := c.suite.Env().RemoteHost.Execute(cmd)
 	if err != nil {
@@ -96,7 +96,7 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 	}
 
 	c.suite.T().Cleanup(func() {
-		// Cleanup the container
+		// Cleanup the container as fallback
 		_, _ = c.suite.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
 	})
 	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
@@ -161,9 +161,9 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 	return stdout + " " + stderr, err
 }
 
-// RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
+// RunWorkload runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
-func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+func (c *kubernetesCapabilities) RunWorkload(image string, arguments ...string) (string, error) {
 	jobName := strings.ToLower("workload-" + common.RandString(5))
 	jobNamespace := "default"
 

@@ -334,14 +334,34 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
-	gpuToContainers := make(map[string][]*workloadmeta.Container)
+	containers2 := c.wmeta.ListContainers()
+	for _, container := range containers2 {
+		for _, resource := range container.ResolvedAllocatedResources {
+			log.Errorf("container2 %s (ID: %s) has resource %s (ID: %s)", container.Name, container.ID, resource.Name, resource.ID)
+		}
+	}
 
+	gpuToContainers := make(map[string][]*workloadmeta.Container)
+	log.Errorf("found total of %d containers", len(containers2))
+
+	log.Errorf("found %d containers with allocated resources", len(containers))
 	for _, container := range containers {
 		for _, resource := range container.ResolvedAllocatedResources {
+			log.Errorf("container %s (ID: %s) has resource %s (ID: %s)", container.Name, container.ID, resource.Name, resource.ID)
 			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
 			}
 		}
+	}
+
+	// Debug: print the content of gpuToContainers map
+	log.Errorf("gpuToContainers map content: %d GPU(s) found", len(gpuToContainers))
+	for gpuID, cs := range gpuToContainers {
+		containerNames := make([]string, 0, len(cs))
+		for _, container := range cs {
+			containerNames = append(containerNames, fmt.Sprintf("%s (ID: %s)", container.Name, container.ID))
+		}
+		log.Errorf("GPU %s -> %d container(s): %v", gpuID, len(cs), containerNames)
 	}
 
 	return gpuToContainers
