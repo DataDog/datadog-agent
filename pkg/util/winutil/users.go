@@ -13,7 +13,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -161,33 +160,26 @@ func GetDDAgentUserSID() (*windows.SID, error) {
 	return GetServiceUserSID("datadogagent")
 }
 
-// get DDAgent user name from registry
-// the registry key is: HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent
-// the user name is stored in the "installedUser" value
-func getDDAgentUserName() (string, error) {
-	regKey, err := registry.OpenKey(
-		registry.LOCAL_MACHINE,
-		`SOFTWARE\Datadog\Datadog Agent`,
-		registry.QUERY_VALUE)
-	if err != nil {
-		return "", fmt.Errorf("could not open registry key: %s", err)
-	}
-	defer regKey.Close()
-
-	installedUser, _, err := regKey.GetStringValue("installedUser")
-	if err != nil {
-		return "", fmt.Errorf("could not get installedUser value: %s", err)
-	}
-
-	return installedUser, nil
-}
-
 // GetDDUserGroups retrieves the local groups that the DDAgent user is a member of
 func GetDDUserGroups() ([]string, error) {
-	// Get the DDAgent username
-	username, err := getDDAgentUserName()
+	// Get the DDAgent username using service lookup
+	user, err := GetServiceUser("datadogagent")
 	if err != nil {
-		return nil, fmt.Errorf("could not get DDAgent username: %w", err)
+		return nil, fmt.Errorf("could not get datadogagent service user: %w", err)
+	}
+
+	// Process username to handle domain formats properly
+	username, err := getUserFromServiceUser(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// For local accounts, use computer name prefix instead of "." to avoid LookupAccountNameW issues
+	if !strings.Contains(username, "\\") {
+		computerName, err := windows.ComputerName()
+		if err == nil {
+			username = computerName + "\\" + username
+		}
 	}
 
 	// Convert username to C string
@@ -248,10 +240,24 @@ func DoesAgentUserHaveDesiredGroups() ([]string, bool, error) {
 
 // GetDDUserRights retrieves the account rights that the DDAgent user has
 func GetDDUserRights() ([]string, error) {
-	// Get the DDAgent username
-	username, err := getDDAgentUserName()
+	// Get the DDAgent username using service lookup
+	user, err := GetServiceUser("datadogagent")
 	if err != nil {
-		return nil, fmt.Errorf("could not get DDAgent username: %w", err)
+		return nil, fmt.Errorf("could not get datadogagent service user: %w", err)
+	}
+
+	// Process username to handle domain formats properly
+	username, err := getUserFromServiceUser(user)
+	if err != nil {
+		return nil, err
+	}
+
+	// For local accounts, use computer name prefix instead of "." to avoid LookupAccountNameW issues
+	if !strings.Contains(username, "\\") {
+		computerName, err := windows.ComputerName()
+		if err == nil {
+			username = computerName + "\\" + username
+		}
 	}
 
 	// Convert username to C string
@@ -278,7 +284,7 @@ func GetDDUserRights() ([]string, error) {
 	return rights, nil
 }
 
-// DoesAgentUserHaveDesiredRights checks if agent account has desired rights:
+// DoesAgentUserHaveDesiredRights checks if agent user account has desired rights:
 // - SeServiceLogonRight
 // - SeDenyInteractiveLogonRight
 // - SeDenyNetworkLogonRight

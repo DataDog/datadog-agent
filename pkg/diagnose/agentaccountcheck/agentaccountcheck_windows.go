@@ -16,22 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// diagnoseImpl provides the Windows-specific implementation for agent account check diagnosis
+// diagnoseImpl provides the Windows-specific implementation for agent user account check diagnosis
 func diagnoseImpl() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
 
-	// Check agent account groups
+	// Check agent user account groups
 	actualGroups, hasDesiredGroups, err := winutil.DoesAgentUserHaveDesiredGroups()
 	diagnoses = append(diagnoses, createGroupsDiagnosis(actualGroups, hasDesiredGroups, err))
 
-	// Check agent account rights
+	// Check agent user account rights
 	actualRights, hasDesiredRights, err := winutil.DoesAgentUserHaveDesiredRights()
 	diagnoses = append(diagnoses, createRightsDiagnosis(actualRights, hasDesiredRights, err))
 
 	return diagnoses
 }
 
-// createGroupsDiagnosis creates a diagnosis for agent account group membership
+// createGroupsDiagnosis creates a diagnosis for agent user account group membership
 func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) diagnose.Diagnosis {
 	name := "Agent Account Group Membership"
 	category := "agent-account-check"
@@ -48,17 +48,17 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 			return diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisWarning,
 				Name:        name,
-				Diagnosis:   fmt.Sprintf("Cannot verify agent account group membership due to insufficient privileges.\n  Expected: %v\n  Detected: unable to check due to access denied", requiredGroups),
+				Diagnosis:   fmt.Sprintf("Cannot verify agent user account group membership due to insufficient privileges.\n  Expected: %v\n  Detected: unable to check due to access denied", requiredGroups),
 				Category:    category,
 				RawError:    err.Error(),
-				Remediation: "Run as Administrator to check agent account group membership, or ensure the agent service is running with appropriate privileges.",
+				Remediation: "Run as Administrator to check agent user account group membership, or ensure the agent service is running with appropriate privileges.",
 			}
 		}
 		if isAgentNotInstalled(err) {
 			return diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisWarning,
 				Name:        name,
-				Diagnosis:   fmt.Sprintf("Cannot verify agent account group membership because agent is not installed.\n  Expected: %v\n  Detected: agent not found", requiredGroups),
+				Diagnosis:   fmt.Sprintf("Cannot verify agent user account group membership because agent is not installed.\n  Expected: %v\n  Detected: agent not found", requiredGroups),
 				Category:    category,
 				RawError:    err.Error(),
 				Remediation: "Install the Datadog Agent first, or ensure the agent installation completed successfully.",
@@ -67,10 +67,10 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisUnexpectedError,
 			Name:        name,
-			Diagnosis:   fmt.Sprintf("Failed to check agent account group membership.\n  Expected: %v\n  Detected: error occurred\n  Missing groups: %v", requiredGroups, missingGroups),
+			Diagnosis:   fmt.Sprintf("Failed to check agent user account group membership.\n  Expected: %v\n  Detected: error occurred\n  Missing groups: %v", requiredGroups, missingGroups),
 			Category:    category,
 			RawError:    err.Error(),
-			Remediation: "Add missing groups to the agent account using Computer Management or run: net localgroup \"<group_name>\" \"<username>\" /add",
+			Remediation: "Please contact Datadog support for assistance.",
 		}
 	}
 
@@ -89,11 +89,11 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 		Name:        name,
 		Diagnosis:   fmt.Sprintf("Agent account is missing required group memberships.\n  Expected: %v\n  Detected: %v\n  Missing groups: %v", requiredGroups, actualGroups, missingGroups),
 		Category:    category,
-		Remediation: "Add the missing groups to the agent account using Computer Management or run: net localgroup \"<group_name>\" \"<username>\" /add",
+		Remediation: "Add the missing groups to the agent user account using Computer Management or run: net localgroup \"<group_name>\" \"<username>\" /add",
 	}
 }
 
-// createRightsDiagnosis creates a diagnosis for agent account rights
+// createRightsDiagnosis creates a diagnosis for agent user account rights
 func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) diagnose.Diagnosis {
 	name := "Agent Account Rights"
 	category := "agent-account-check"
@@ -110,17 +110,17 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 			return diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisWarning,
 				Name:        name,
-				Diagnosis:   fmt.Sprintf("Cannot verify agent account rights due to insufficient privileges.\n  Expected: %v\n  Detected: unable to check due to access denied", requiredRights),
+				Diagnosis:   fmt.Sprintf("Cannot verify agent user account rights due to insufficient privileges.\n  Expected: %v\n  Detected: unable to check due to access denied", requiredRights),
 				Category:    category,
 				RawError:    err.Error(),
-				Remediation: "Run as Administrator to check agent account rights, or ensure the agent service is running with appropriate privileges.",
+				Remediation: "Current agent user account might not have the required privileges. To work around, please run command with --local flag with elevated privileges.",
 			}
 		}
 		if isAgentNotInstalled(err) {
 			return diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisWarning,
 				Name:        name,
-				Diagnosis:   fmt.Sprintf("Cannot verify agent account rights because agent is not installed.\n  Expected: %v\n  Detected: agent not found", requiredRights),
+				Diagnosis:   fmt.Sprintf("Cannot verify agent user account rights because agent is not installed.\n  Expected: %v\n  Detected: agent not found", requiredRights),
 				Category:    category,
 				RawError:    err.Error(),
 				Remediation: "Install the Datadog Agent first, or ensure the agent installation completed successfully.",
@@ -129,10 +129,10 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisUnexpectedError,
 			Name:        name,
-			Diagnosis:   fmt.Sprintf("Failed to check agent account rights.\n  Expected: %v\n  Detected: error occurred", requiredRights),
+			Diagnosis:   fmt.Sprintf("Failed to check agent user account rights.\n  Expected: %v\n  Detected: error occurred", requiredRights),
 			Category:    category,
 			RawError:    err.Error(),
-			Remediation: "Check if the agent is running with appropriate permissions.",
+			Remediation: "Please contact Datadog support for assistance.",
 		}
 	}
 
@@ -140,7 +140,7 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 		return diagnose.Diagnosis{
 			Status:    diagnose.DiagnosisSuccess,
 			Name:      name,
-			Diagnosis: "Agent account has all required account rights",
+			Diagnosis: "Agent user account has all required account rights",
 			Category:  category,
 		}
 	}

@@ -19,7 +19,7 @@ func diagnoseImpl() []diagnose.Diagnosis {
 			Name:        "Agent Account Check",
 			Diagnosis:   "Agent account check is only available on Windows",
 			Category:    "agent-account-check",
-			Description: "This diagnostic suite is specific to Windows agent account permissions and group memberships",
+			Description: "This diagnostic suite is specific to Windows agent user account permissions and group memberships",
 		},
 	}
 }
