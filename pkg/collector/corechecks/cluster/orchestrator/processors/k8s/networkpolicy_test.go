@@ -259,8 +259,8 @@ func TestNetworkPolicyHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, networkPolicy)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, networkPolicy.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, networkPolicy.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", networkPolicy.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", networkPolicy.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestNetworkPolicyProcessor_Process(t *testing.T) {

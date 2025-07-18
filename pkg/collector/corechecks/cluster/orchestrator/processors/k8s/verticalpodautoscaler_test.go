@@ -258,8 +258,8 @@ func TestVerticalPodAutoscalerHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, vpa)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, vpa.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, vpa.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", vpa.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", vpa.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestVerticalPodAutoscalerProcessor_Process(t *testing.T) {

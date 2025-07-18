@@ -252,8 +252,8 @@ func TestDaemonSetHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, daemonSet)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, daemonSet.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, daemonSet.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", daemonSet.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", daemonSet.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestDaemonSetProcessor_Process(t *testing.T) {

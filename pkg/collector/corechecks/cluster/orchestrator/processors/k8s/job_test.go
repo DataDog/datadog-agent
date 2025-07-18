@@ -253,8 +253,8 @@ func TestJobHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, job)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, job.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, job.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", job.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", job.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestJobProcessor_Process(t *testing.T) {

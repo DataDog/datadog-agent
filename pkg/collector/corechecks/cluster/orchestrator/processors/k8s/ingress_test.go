@@ -252,8 +252,8 @@ func TestIngressHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, ingress)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, ingress.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, ingress.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", ingress.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", ingress.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestIngressProcessor_Process(t *testing.T) {

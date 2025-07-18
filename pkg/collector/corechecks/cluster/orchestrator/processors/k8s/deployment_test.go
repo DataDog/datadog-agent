@@ -252,8 +252,8 @@ func TestDeploymentHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, deployment)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, deployment.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, deployment.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", deployment.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", deployment.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestDeploymentProcessor_Process(t *testing.T) {

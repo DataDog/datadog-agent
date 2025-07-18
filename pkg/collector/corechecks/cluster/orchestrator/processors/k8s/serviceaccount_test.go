@@ -253,8 +253,8 @@ func TestServiceAccountHandlers_ScrubBeforeExtraction(t *testing.T) {
 	handlers.ScrubBeforeExtraction(nil, serviceAccount)
 
 	// Validate that sensitive data was removed
-	assert.Equal(t, serviceAccount.Annotations["kubectl.kubernetes.io/last-applied-configuration"], "-")
-	assert.Equal(t, serviceAccount.Labels["kubectl.kubernetes.io/last-applied-configuration"], "-")
+	assert.Equal(t, "-", serviceAccount.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	assert.Equal(t, "-", serviceAccount.Labels["kubectl.kubernetes.io/last-applied-configuration"])
 }
 
 func TestServiceAccountProcessor_Process(t *testing.T) {
