@@ -488,3 +488,10 @@ probes:
   where:
     methodName: main.testMapIntToInt
   captureSnapshot: true
+- id: testMapStringToInt
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapStringToInt
+  captureSnapshot: true

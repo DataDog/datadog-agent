@@ -774,8 +774,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_PROCESS_ARRAY_DATA_PREP: {
     uint32_t array_len = sm_read_program_uint32(sm);
     // We need to iterate over the slice data, push the length on the data stack to control the loop.
-    sm_data_stack_push(sm, array_len);
-    LOG(4, "array data prep: %d", array_len);
+    sm_data_stack_push(sm, sm->offset + array_len);
+    LOG(4, "array data prep: %d (offset: %d)", array_len, sm->offset);
   } break;
 
   case SM_OP_PROCESS_SLICE_DATA_PREP: {
@@ -786,12 +786,13 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
 
     // We need to iterate over the slice data, push the length on the data stack to control the loop.
-    sm_data_stack_push(sm, sm->di_0.length);
+    sm_data_stack_push(sm, sm->offset + sm->di_0.length);
   } break;
 
   case SM_OP_PROCESS_SLICE_DATA_REPEAT: {
-    uint32_t elem_byte_len = sm_read_program_uint32(sm);
-    sm->offset += elem_byte_len;
+    uint32_t buffer_advancement = sm_read_program_uint32(sm);
+    sm->offset += buffer_advancement;
+    LOG(4, "offset after increment: %d", sm->offset);
     uint32_t sp = *(volatile uint32_t *)&sm->data_stack_pointer;
     uint32_t stack_idx = sp - 1;
     if (stack_idx >= ENQUEUE_STACK_DEPTH) {
@@ -802,14 +803,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       }
       return 1;
     }
-    uint32_t* remaining =  &sm->data_stack[stack_idx];
-    LOG(4, "remaining: %d", *remaining);
-    if (*remaining <= elem_byte_len) {
+    if (sm->offset >= sm->data_stack[stack_idx]) {
       // End of the slice.
       sm_data_stack_pop(sm);
       break;
     }
-    *remaining -= elem_byte_len;
     // Jump back to a call instruction that directly preceedes this one.
     sm->pc -= 5 + 5;
   } break;
@@ -829,7 +827,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
         LOG(3, "enqueue: failed string chase");
       }
     }
-    LOG(4, "enqueue: string len @%llx !%lld", addr, len)
+    LOG(4, "enqueue: string len @%llx !%lld (offset: %d)", addr, len, sm->offset);
   } break;
 
   // case SM_OP_PREPARE_POINTEE_DATA: {
@@ -851,6 +849,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     pointers_queue_item_t* item = pointers_queue_pop_front(&sm->pointers_queue);
     if (item != NULL) {
       // Loop as long as there are more pointers to chase.
+      LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
       sm_chase_pointer(ctx, *item);
     }
