@@ -318,7 +318,10 @@ func (c *Check) getProcessTagsForKey(key model.StatsKey) []string {
 func (c *Check) getContainerTags(containerID string) []string {
 	// Container ID tag will be added or not depending on the tagger configuration
 	containerEntityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-	containerTags, err := c.tagger.Tag(containerEntityID, taggertypes.ChecksConfigCardinality)
+
+	// we use orchestrator cardinality here to ensure we get the pod_name tag
+	// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
+	containerTags, err := c.tagger.Tag(containerEntityID, taggertypes.OrchestratorCardinality)
 	if err != nil {
 		log.Errorf("Error collecting container tags for container %s: %s", containerID, err)
 	}
@@ -375,7 +378,10 @@ func (c *Check) emitNvmlMetrics(snd sender.Sender, gpuToContainersMap map[string
 		var extraTags []string
 		for _, container := range gpuToContainersMap[deviceUUID] {
 			entityID := taggertypes.NewEntityID(taggertypes.ContainerID, container.EntityID.ID)
-			tags, err := c.tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
+
+			// we use orchestrator cardinality here to ensure we get the pod_name tag
+			// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
+			tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
 			if err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
 				continue
