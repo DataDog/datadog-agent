@@ -1,5 +1,5 @@
 /* Program to test whether seccomp allows uretprobe syscalls
- * Compile with: gcc detect-seccomp-bug -o bug -lseccomp
+ * Compile with: gcc -static -o detect-seccomp-bug detect-seccomp-bug.c -lseccomp
  */
 
 #include <stdio.h>
