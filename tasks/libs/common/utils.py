@@ -509,16 +509,17 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
-                flush=True,
-            )
+            sys.stdout.flush()
+            sys.stdout.buffer.write(bytes(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}", 'utf-8'))
+            sys.stdout.flush()
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
+            sys.stdout.flush()
+            sys.stdout.buffer.write(bytes(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", 'utf-8'))
+            sys.stdout.flush()
 
 
 # @contextmanager
