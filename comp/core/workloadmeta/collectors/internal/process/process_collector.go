@@ -134,9 +134,7 @@ func GetFxOptions() fx.Option {
 
 // isProcessCollectionEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isProcessCollectionEnabled() bool {
-	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
-	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return false
+	return c.config.GetBool("process_config.process_collection.use_wlm")
 }
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled

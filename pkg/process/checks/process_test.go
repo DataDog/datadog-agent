@@ -454,6 +454,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	procMap[1].Cmdline = nil
 	procMap[1].Exe = "datadog-process-agent --cfgpath datadog.conf"
 
+	now := time.Now()
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
 
@@ -462,7 +463,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -494,6 +495,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	cfg := configmock.New(t)
 	processCheck.config = cfg
+	cfg.SetWithoutSource("process_config.ignore_zombie_processes", false)
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
 	now := time.Now().Unix()
