@@ -509,21 +509,14 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     try:
         if in_ci:
             sys.stdout.flush()
-            # os.system(r'echo -e "\e[0Ksection_start:9999:my_first_section\r\e[0KHeader of the 1st collapsible section"')
-            os.system(rf'echo -e "\e[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\e[0K{section_name + '...'}"')
-
-            # print(
-            #     f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
-            #     flush=True,
-            # )
+            os.system(f'bash -c \'echo -e "\\e[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\\r\\e[0K{section_name + '...'}"\'')
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
             sys.stdout.flush()
-            os.system(rf'echo -e "\e[0Ksection_end:{int(time.time())}:{section_id}\r\e[0K"')
-            # print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
+            os.system(f'bash -c \'echo -e "\\e[0Ksection_end:{int(time.time())}:{section_id}\\r\\e[0K"\'')
 
 
 # @contextmanager
