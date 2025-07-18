@@ -64,7 +64,7 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 		case SetType:
 			m[contextKey] = NewSet()
 		case CounterType:
-			m[contextKey] = NewCounter(interval)
+			m[contextKey] = NewCounter()
 		case GaugeWithTimestampType:
 			m[contextKey] = NewMetricWithTimestamp(APIGaugeType)
 		case CountWithTimestampType:

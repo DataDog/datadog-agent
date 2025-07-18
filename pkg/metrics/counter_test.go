@@ -14,7 +14,7 @@ import (
 
 func TestCounterEmptyFlush(t *testing.T) {
 	// Initialize counter
-	counter := NewCounter(10)
+	counter := NewCounter()
 
 	// Flush w/o samples: error
 	_, err := counter.flush(50)
@@ -23,7 +23,7 @@ func TestCounterEmptyFlush(t *testing.T) {
 
 func TestCounterAddSample(t *testing.T) {
 	// Initialize counter
-	counter := NewCounter(10)
+	counter := NewCounter()
 
 	assert.False(t, counter.sampled)
 	assert.EqualValues(t, 10, counter.interval)
