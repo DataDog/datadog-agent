@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added support for a path prefix in the `logs_config.logs_dd_url` configuration.
+    If a path is specified in the URL in `logs_config.logs_dd_url` use it as a prefix.
