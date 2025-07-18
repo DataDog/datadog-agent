@@ -14,10 +14,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/sys/unix"
@@ -167,6 +169,18 @@ var ErrNoCGroupMountpoint = errors.New("no cgroup mount point found")
 // CGroupFS is a helper type used to find the cgroup context of a process
 type CGroupFS struct {
 	cGroupMountPoints []string
+	rootCGroupPath    string
+}
+
+var defaultCGroupFS *CGroupFS
+var once sync.Once
+
+// DefaultCGroupFS returns a singleton instance of CGroupFS
+func DefaultCGroupFS() *CGroupFS {
+	once.Do(func() {
+		defaultCGroupFS = NewCGroupFS()
+	})
+	return defaultCGroupFS
 }
 
 // NewCGroupFS creates a new CGroupFS instance
@@ -179,6 +193,8 @@ func NewCGroupFS() *CGroupFS {
 			cfs.cGroupMountPoints = append(cfs.cGroupMountPoints, hostMountpoint)
 		}
 	}
+
+	cfs.detectCurrentCgroupPath()
 
 	return cfs
 }
@@ -213,7 +229,12 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 
 		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
 		for _, mountpoint := range cfs.cGroupMountPoints {
-			cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
+			// in case of relative path use rootCgroupPath
+			if strings.HasPrefix(path, "/..") {
+				cgroupPath = filepath.Join(cfs.rootCGroupPath, path)
+			} else {
+				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
+			}
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(path)
@@ -295,4 +316,45 @@ func GetCgroup2MountPoint() (string, error) {
 	}
 
 	return "", nil
+}
+
+// DetectCurrentCgroupPath returns the cgroup path of the current process
+func (cfs *CGroupFS) detectCurrentCgroupPath() {
+	expectedPid := Getpid()
+
+	grepPid := func(dir string) string {
+		var cgroupPath string
+
+		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if filepath.Base(path) == "cgroup.procs" || filepath.Base(path) == "cgroup.threads" {
+				data, err := os.ReadFile(path)
+				if err == nil {
+					scanner := bufio.NewScanner(bytes.NewReader(data))
+					for scanner.Scan() {
+						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+							cgroupPath = filepath.Dir(path)
+							return fs.SkipAll
+						}
+					}
+				}
+			}
+			return nil
+		})
+		return cgroupPath
+	}
+
+	var rootCGroupPath string
+	for _, mountpoint := range cfs.cGroupMountPoints {
+		if cgroupPath := grepPid(mountpoint); cgroupPath != "" {
+			rootCGroupPath = cgroupPath
+			break
+		}
+	}
+
+	cfs.rootCGroupPath = rootCGroupPath
+}
+
+// GetRootCGroupPath returns the root cgroup path
+func (cfs *CGroupFS) GetRootCGroupPath() string {
+	return cfs.rootCGroupPath
 }
