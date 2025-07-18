@@ -87,9 +87,10 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
-		f.MountVisible, f.MountDetached, err = fh.resolvers.PathResolver.ResolveMountAttributes(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
-		if err != nil {
-			seclog.Errorf("failed to resolve mount attributes: %s", err)
+		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext, ev.ContainerContext)
+		if err != nil && f.PathResolutionError == nil {
+			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
+			ev.SetPathResolutionError(f, err)
 		}
 	}
 

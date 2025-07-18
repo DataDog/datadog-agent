@@ -62,8 +62,9 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	// `tickInterval` seconds (3s currently) for
 	// the circuit breaker to detect the over-limit
 	// rate of updates
-	sleepAmt := 100 * time.Millisecond
-	loopCount := (cfg.ConntrackRateLimitInterval.Nanoseconds() / sleepAmt.Nanoseconds()) + 1
+	sleepAmt := 50 * time.Millisecond
+	loopTime := 2 * cfg.ConntrackRateLimitInterval
+	loopCount := loopTime.Nanoseconds() / sleepAmt.Nanoseconds()
 
 	for i := int64(0); i < loopCount; i++ {
 		conn, err := net.Dial("tcp", l.Addr().String())
@@ -79,11 +80,11 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.False(collect, isRecvLoopRunning(), "receive loop should not be running")
 			assert.True(collect, c.breaker.IsOpen(), "breaker should be open")
-		}, 2*cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
+		}, 2*time.Second, 100*time.Millisecond)
 	} else {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			assert.Lessf(collect, c.samplingRate, 1.0, "sampling rate should be less than 1.0")
-		}, 2*cfg.ConntrackRateLimitInterval, 100*time.Millisecond)
+		}, 2*time.Second, 100*time.Millisecond)
 		require.True(t, isRecvLoopRunning())
 	}
 }
