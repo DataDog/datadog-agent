@@ -389,7 +389,11 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 // checkOid checks whether a given OID is present on the device
 func checkOid(sess session.Session, oid string) bool {
 	result, err := sess.GetNext([]string{oid})
-	if err != nil || len(result.Variables) != 1 {
+	if err != nil {
+		return false
+	}
+
+	if len(result.Variables) != 1 {
 		return false
 	}
 
