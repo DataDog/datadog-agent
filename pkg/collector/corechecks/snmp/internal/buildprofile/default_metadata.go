@@ -6,9 +6,7 @@
 package buildprofile
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
@@ -23,349 +21,361 @@ type DefaultMetadataResourceConfig struct {
 	IDTags      profiledefinition.MetricTagConfigList
 }
 
-// LegacyMetadataConfig contains metadata config used for backward compatibility
-// When users have their own copy of _base.yaml and _generic_if.yaml files
-// they won't have the new profile based metadata definitions for device and interface resources
-// The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
-var LegacyMetadataConfig = DefaultMetadataConfig{
-	"device": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"description": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.1.1.0",
-					Name: "sysDescr",
+var DefaultMetadataConfigs = []DefaultMetadataConfig{
+	// LegacyMetadataConfig contains metadata config used for backward compatibility
+	// When users have their own copy of _base.yaml and _generic_if.yaml files
+	// they won't have the new profile based metadata definitions for device and interface resources
+	// The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
+	{
+		"device": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return true
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"description": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.1.1.0",
+						Name: "sysDescr",
+					},
+				},
+				"name": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.1.5.0",
+						Name: "sysName",
+					},
+				},
+				"sys_object_id": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.1.2.0",
+						Name: "sysObjectID",
+					},
 				},
 			},
-			"name": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.1.5.0",
-					Name: "sysName",
+		},
+		"interface": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return true
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"name": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.31.1.1.1.1",
+						Name: "ifName",
+					},
+				},
+				"description": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.2.2.1.2",
+						Name: "ifDescr",
+					},
+				},
+				"admin_status": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.2.2.1.7",
+						Name: "ifAdminStatus",
+					},
+				},
+				"oper_status": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.2.2.1.8",
+						Name: "ifOperStatus",
+					},
+				},
+				"alias": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.31.1.1.1.18",
+						Name: "ifAlias",
+					},
+				},
+				"mac_address": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:    "1.3.6.1.2.1.2.2.1.6",
+						Name:   "ifPhysAddress",
+						Format: "mac_address",
+					},
 				},
 			},
-			"sys_object_id": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.1.2.0",
-					Name: "sysObjectID",
+			IDTags: profiledefinition.MetricTagConfigList{
+				{
+					Tag: "interface",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:  "1.3.6.1.2.1.31.1.1.1.1",
+						Name: "ifName",
+					},
+				},
+			},
+		},
+		"ip_addresses": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return true
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"if_index": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.20.1.2",
+						Name: "ipAdEntIfIndex",
+					},
+				},
+				"netmask": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.20.1.3",
+						Name: "ipAdEntNetMask",
+					},
 				},
 			},
 		},
 	},
-	"interface": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"name": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.31.1.1.1.1",
-					Name: "ifName",
-				},
-			},
-			"description": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.2.2.1.2",
-					Name: "ifDescr",
-				},
-			},
-			"admin_status": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.2.2.1.7",
-					Name: "ifAdminStatus",
-				},
-			},
-			"oper_status": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.2.2.1.8",
-					Name: "ifOperStatus",
-				},
-			},
-			"alias": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.31.1.1.1.18",
-					Name: "ifAlias",
-				},
-			},
-			"mac_address": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:    "1.3.6.1.2.1.2.2.1.6",
-					Name:   "ifPhysAddress",
-					Format: "mac_address",
-				},
-			},
-		},
-		IDTags: profiledefinition.MetricTagConfigList{
-			{
-				Tag: "interface",
-				Symbol: profiledefinition.SymbolConfigCompat{
-					OID:  "1.3.6.1.2.1.31.1.1.1.1",
-					Name: "ifName",
-				},
-			},
-		},
-	},
-	"ip_addresses": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"if_index": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.20.1.2",
-					Name: "ipAdEntIfIndex",
-				},
-			},
-			"netmask": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.20.1.3",
-					Name: "ipAdEntNetMask",
-				},
-			},
-		},
-	},
-}
 
-// TopologyMetadataConfig represent the metadata needed for topology
-var TopologyMetadataConfig = DefaultMetadataConfig{
-	"lldp_remote": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"chassis_id_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.4",
-					Name: "lldpRemChassisIdSubtype",
-				},
+	// Topology metadata
+	{
+		"lldp_remote": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectTopology
 			},
-			"chassis_id": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.5",
-					Name: "lldpRemChassisId",
+			Fields: map[string]profiledefinition.MetadataField{
+				"chassis_id_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.4",
+						Name: "lldpRemChassisIdSubtype",
+					},
 				},
-			},
-			"interface_id_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.6",
-					Name: "lldpRemPortIdSubtype",
+				"chassis_id": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.5",
+						Name: "lldpRemChassisId",
+					},
 				},
-			},
-			"interface_id": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.7",
-					Name: "lldpRemPortId",
+				"interface_id_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.6",
+						Name: "lldpRemPortIdSubtype",
+					},
 				},
-			},
-			"interface_desc": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.8",
-					Name: "lldpRemPortDesc",
+				"interface_id": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.7",
+						Name: "lldpRemPortId",
+					},
 				},
-			},
-			"device_name": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.9",
-					Name: "lldpRemSysName",
+				"interface_desc": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.8",
+						Name: "lldpRemPortDesc",
+					},
 				},
-			},
-			"device_desc": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.1.1.10",
-					Name: "lldpRemSysDesc",
+				"device_name": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.9",
+						Name: "lldpRemSysName",
+					},
 				},
-			},
-			// TODO: Implement later lldpRemSysCapSupported and lldpRemSysCapEnabled
-			//   - 1.0.8802.1.1.2.1.4.1.1.11 lldpRemSysCapSupported
-			//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
-		},
-	},
-	"lldp_remote_management": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"interface_id_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.4.2.1.3",
-					Name: "lldpRemManAddrIfSubtype",
+				"device_desc": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.1.1.10",
+						Name: "lldpRemSysDesc",
+					},
 				},
+				// TODO: Implement later lldpRemSysCapSupported and lldpRemSysCapEnabled
+				//   - 1.0.8802.1.1.2.1.4.1.1.11 lldpRemSysCapSupported
+				//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
 			},
 		},
-	},
-	"lldp_local": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"interface_id_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.3.7.1.2",
-					Name: "lldpLocPortIdSubtype",
-				},
+		"lldp_remote_management": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectTopology
 			},
-			"interface_id": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.0.8802.1.1.2.1.3.7.1.3",
-					Name: "lldpLocPortID",
+			Fields: map[string]profiledefinition.MetadataField{
+				"interface_id_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.4.2.1.3",
+						Name: "lldpRemManAddrIfSubtype",
+					},
 				},
 			},
 		},
-	},
-	"cdp_remote": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"device_desc": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
-					Name: "cdpCacheVersion",
+		"lldp_local": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectTopology
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"interface_id_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.3.7.1.2",
+						Name: "lldpLocPortIdSubtype",
+					},
+				},
+				"interface_id": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.0.8802.1.1.2.1.3.7.1.3",
+						Name: "lldpLocPortID",
+					},
 				},
 			},
-			"device_id": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
-					Name: "cdpCacheDeviceId",
-				},
+		},
+		"cdp_remote": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectTopology
 			},
-			"interface_id": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
-					Name: "cdpCacheDevicePort",
+			Fields: map[string]profiledefinition.MetadataField{
+				"device_desc": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.5",
+						Name: "cdpCacheVersion",
+					},
 				},
-			},
-			"device_name": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
-					Name: "cdpCacheSysName",
+				"device_id": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.6",
+						Name: "cdpCacheDeviceId",
+					},
 				},
-			},
-			"device_address_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
-					Name: "cdpCachePrimaryMgmtAddrType",
+				"interface_id": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.7",
+						Name: "cdpCacheDevicePort",
+					},
 				},
-			},
-			"device_address": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
-					Name: "cdpCachePrimaryMgmtAddr",
+				"device_name": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.17",
+						Name: "cdpCacheSysName",
+					},
 				},
-			},
-			"device_secondary_address_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.21",
-					Name: "cdpCacheSecondaryMgmtAddrType",
+				"device_address_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.19",
+						Name: "cdpCachePrimaryMgmtAddrType",
+					},
 				},
-			},
-			"device_secondary_address": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.22",
-					Name: "cdpCacheSecondaryMgmtAddr",
+				"device_address": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.20",
+						Name: "cdpCachePrimaryMgmtAddr",
+					},
 				},
-			},
-			"device_cache_address_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.3",
-					Name: "cdpCacheAddressType",
+				"device_secondary_address_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.21",
+						Name: "cdpCacheSecondaryMgmtAddrType",
+					},
 				},
-			},
-			"device_cache_address": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.4",
-					Name: "cdpCacheAddress",
+				"device_secondary_address": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.22",
+						Name: "cdpCacheSecondaryMgmtAddr",
+					},
+				},
+				"device_cache_address_type": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.3",
+						Name: "cdpCacheAddressType",
+					},
+				},
+				"device_cache_address": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.23.1.2.1.1.4",
+						Name: "cdpCacheAddress",
+					},
 				},
 			},
 		},
 	},
-}
 
-// VPNMetadataConfig contains VPN tunnels metadata
-var VPNMetadataConfig = DefaultMetadataConfig{
-	"cisco_ipsec_tunnel": {
-		MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
-			if !config.CollectVPN {
-				return false
-			}
-
-			result, err := sess.GetNext([]string{"1.3.6.1.4.1.9.9.171.1.3.2.1.4"})
-			if err != nil {
-				return false
-			}
-			if len(result.Variables) == 0 {
-				return false
-			}
-			checkOid(sess, "1.3.6.1.4.1.9.9.171.1.3.2.1.4")
-
-			fmt.Println("=========================================")
-			fmt.Println("=========================================")
-			fmt.Println("=========================================")
-			fmt.Println("RESULT CISCO IPSEC")
-			fmt.Println(result)
-			fmt.Println("*RESULT CISCO IPSEC")
-			fmt.Println(*result)
-			fmt.Println("PDU TABLE")
-			fmt.Println(result.Variables)
-			fmt.Println("ERROR")
-			fmt.Println(err)
-			fmt.Println("=========================================")
-			fmt.Println("=========================================")
-			fmt.Println("=========================================")
-
-			return true
-		},
-		Fields: map[string]profiledefinition.MetadataField{
-			"local_outside_ip": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
-					Name: "cipSecTunLocalAddr",
-				},
+	// VPN tunnels metadata
+	{
+		"cisco_ipsec_tunnel": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectVPN &&
+					checkOid(sess, "1.3.6.1.4.1.9.9.171.1.3.2.1.4")
 			},
-			"remote_outside_ip": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
-					Name: "cipSecTunRemoteAddr",
+			Fields: map[string]profiledefinition.MetadataField{
+				"local_outside_ip": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
+						Name: "cipSecTunLocalAddr",
+					},
+				},
+				"remote_outside_ip": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
+						Name: "cipSecTunRemoteAddr",
+					},
 				},
 			},
 		},
 	},
-}
 
-// RouteMetadataConfig contains route tables metadata
-var RouteMetadataConfig = DefaultMetadataConfig{
-	"ipforward_deprecated": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"if_index": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.4.1.5",
-					Name: "ipCidrRouteIfIndex",
+	// Route table metadata needed for VPN tunnels
+	{
+		"ipforward_deprecated": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectVPN &&
+					checkOid(sess, "1.3.6.1.2.1.4.24.4.1.5")
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"if_index": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.24.4.1.5",
+						Name: "ipCidrRouteIfIndex",
+					},
+				},
+				"route_status": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.24.4.1.16",
+						Name: "ipCidrRouteStatus",
+					},
 				},
 			},
-			"route_status": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.4.1.16",
-					Name: "ipCidrRouteStatus",
+		},
+		"ipforward": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectVPN &&
+					checkOid(sess, "1.3.6.1.2.1.4.24.7.1.7")
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"if_index": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.24.7.1.7",
+						Name: "inetCidrRouteIfIndex",
+					},
+				},
+				"route_status": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.4.24.7.1.17",
+						Name: "inetCidrRouteStatus",
+					},
 				},
 			},
 		},
 	},
-	"ipforward": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"if_index": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.7.1.7",
-					Name: "inetCidrRouteIfIndex",
-				},
-			},
-			"route_status": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.7.1.17",
-					Name: "inetCidrRouteStatus",
-				},
-			},
-		},
-	},
-}
 
-// TunnelMetadataConfig contains tunnel metadata
-var TunnelMetadataConfig = DefaultMetadataConfig{
-	"tunnel_config_deprecated": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"if_index": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.10.131.1.1.2.1.5",
-					Name: "tunnelConfigIfIndex",
+	// Tunnel metadata needed for VPN tunnels
+	{
+		"tunnel_config_deprecated": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectVPN &&
+					checkOid(sess, "1.3.6.1.2.1.10.131.1.1.2.1.5")
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"if_index": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.10.131.1.1.2.1.5",
+						Name: "tunnelConfigIfIndex",
+					},
 				},
 			},
 		},
-	},
-	"tunnel_config": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"if_index": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.10.131.1.1.3.1.6",
-					Name: "tunnelInetConfigIfIndex",
+		"tunnel_config": {
+			MergeFields: func(sess session.Session, config *checkconfig.CheckConfig) bool {
+				return config.CollectVPN &&
+					checkOid(sess, "1.3.6.1.2.1.10.131.1.1.3.1.6")
+			},
+			Fields: map[string]profiledefinition.MetadataField{
+				"if_index": {
+					Symbol: profiledefinition.SymbolConfig{
+						OID:  "1.3.6.1.2.1.10.131.1.1.3.1.6",
+						Name: "tunnelInetConfigIfIndex",
+					},
 				},
 			},
 		},
@@ -395,15 +405,11 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 			}
 		}
 	}
-	mergeMetadata(newConfig, LegacyMetadataConfig, sess, config)
-	if config.CollectTopology {
-		mergeMetadata(newConfig, TopologyMetadataConfig, sess, config)
+
+	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
+		mergeMetadata(newConfig, defaultMetadataConfig, sess, config)
 	}
-	if config.CollectVPN {
-		mergeMetadata(newConfig, VPNMetadataConfig, sess, config)
-		mergeMetadata(newConfig, RouteMetadataConfig, sess, config)
-		mergeMetadata(newConfig, TunnelMetadataConfig, sess, config)
-	}
+
 	return newConfig
 }
 
