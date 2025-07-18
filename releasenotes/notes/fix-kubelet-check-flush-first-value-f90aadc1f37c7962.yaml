@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    Adds check to only flush first value on first run of the
-    kubelet check.
+    Fixes a bug in the kubelet check where the first seen eviction would not result in the `kubernetes.kubelet.evictions` metric being emitted.
