@@ -6,6 +6,8 @@
 package buildprofile
 
 import (
+	"maps"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -392,34 +394,29 @@ func checkOid(sess session.Session, oid string) bool {
 	return len(result.Variables) != 0
 }
 
-// updateMetadataDefinitionWithDefaults will add metadata config for resources
-// that does not have metadata definitions
+// updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, sess session.Session, config *checkconfig.CheckConfig) profiledefinition.MetadataConfig {
-	newConfig := make(profiledefinition.MetadataConfig)
-	// TODO: VPN
-	for resourceName, resourceConfig := range metadataConfig {
-		if _, ok := metadataConfig[resourceName]; !ok {
-			metadataConfig[resourceName] = profiledefinition.MetadataResourceConfig{
-				Fields: resourceConfig.Fields,
-				IDTags: resourceConfig.IDTags,
-			}
-		}
-	}
+	newMetadataConfig := maps.Clone(metadataConfig)
 
 	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
-		mergeMetadata(newConfig, defaultMetadataConfig, sess, config)
+		mergeMetadata(newMetadataConfig, defaultMetadataConfig, sess, config)
+
 	}
 
-	return newConfig
+	return newMetadataConfig
 }
 
 func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig, sess session.Session, config *checkconfig.CheckConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
-		if resourceConfig.MergeFields != nil {
-			if !resourceConfig.MergeFields(sess, config) {
-				continue
-			}
+		// TODO: VPN
+		if resourceConfig.MergeFields == nil {
+
 		}
+
+		if !resourceConfig.MergeFields(sess, config) {
+			continue
+		}
+
 		if _, ok := metadataConfig[resourceName]; !ok {
 			metadataConfig[resourceName] = profiledefinition.MetadataResourceConfig{
 				Fields: resourceConfig.Fields,
