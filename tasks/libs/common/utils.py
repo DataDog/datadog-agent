@@ -509,17 +509,34 @@ def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            sys.stdout.flush()
-            sys.stdout.buffer.write(bytes(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}\n", 'utf-8'))
-            sys.stdout.flush()
+            escape = bytearray([27, 91, 48, 75])
+            log_date = int(time.time())
+            message = "section_start:" + log_date + ":" + section_name + collapsed + "\r"
+            b = escape + message.encode('utf-8') + escape + (section_name + "...").encode('utf-8')
+            sys.stdout.buffer.write(b)
+            print()
+
+            print('start:', repr(b))
+
+            # print(
+            #     f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
+            #     flush=True,
+            # )
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            sys.stdout.flush()
-            sys.stdout.buffer.write(bytes(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K\n", 'utf-8'))
-            sys.stdout.flush()
+            escape = bytearray([27, 91, 48, 75])
+            log_date = int(time.time())
+            message = "section_end:" + log_date + ":" + section_name + "\r"
+            b = escape + message.encode('utf-8') + escape
+            sys.stdout.buffer.write(b)
+            print()
+
+            print('end:', repr(b))
+
+            # print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
 # @contextmanager
