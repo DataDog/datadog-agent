@@ -500,11 +500,11 @@ def set_gitconfig_in_ci(ctx):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False, echo=False):
+def gitlab_section(section_name, collapsed=False, echo=False, section_id=None):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = str(uuid.uuid4())
+    section_id = section_id or str(uuid.uuid4())
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:

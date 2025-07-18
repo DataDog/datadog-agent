@@ -62,6 +62,7 @@ myjob:
   script:
     - dda inv -- -e gitlab.test
 
+# TODO: It's only on python -> compare binary output
 myjob2:
   extends:
     - .linux_x64
