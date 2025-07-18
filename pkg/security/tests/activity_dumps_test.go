@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -46,7 +48,7 @@ func TestActivityDumps(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds", "capabilities"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -58,6 +60,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
 		networkIngressEnabled:               true,
+		capabilitiesMonitoringEnabled:       true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -366,6 +369,75 @@ func TestActivityDumps(t *testing.T) {
 				t.Errorf("bind syscall not found in activity dump")
 			}
 			return exitOK && bindOK
+		}, nil)
+	})
+
+	t.Run("activity-dump-capabilities", func(t *testing.T) {
+		checkKernelCompatibility(t, "Missing bpf_for_each_map_elem helper", func(kv *kernel.Version) bool {
+			return !kv.HasBPFForEachMapElemHelper()
+		})
+
+		dockerInstance, ad, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+		cmd := dockerInstance.Command(syscallTester, []string{"chroot", "/tmp", ";", "acct"}, []string{})
+		_, _ = cmd.CombinedOutput() // ignore error, as the `acct` command is expected to fail
+
+		time.Sleep(1 * time.Second) // 1 second to let events be added to the dump
+
+		err = test.StopActivityDump(ad.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
+			if nodes == nil {
+				t.Fatal("Node not found in activity dump")
+			}
+
+			const (
+				capSysChrootFound          = 1 << 0
+				capSysChrootCapableFound   = 1 << 1
+				capSysPacctFound           = 1 << 2
+				capSysPacctNotCapableFound = 1 << 3
+				allFound                   = capSysChrootFound | capSysChrootCapableFound | capSysPacctFound | capSysPacctNotCapableFound
+			)
+
+			var result int
+			for _, node := range nodes {
+				for _, capabilityNode := range node.Capabilities {
+					switch capabilityNode.Capability {
+					case unix.CAP_SYS_CHROOT:
+						result |= capSysChrootFound
+						if capabilityNode.Capable {
+							result |= capSysChrootCapableFound
+							if result == allFound {
+								break
+							}
+						}
+					case unix.CAP_SYS_PACCT:
+						result |= capSysPacctFound
+						if !capabilityNode.Capable {
+							result |= capSysPacctNotCapableFound
+							if result == allFound {
+								break
+							}
+						}
+					}
+				}
+			}
+
+			assert.True(t, (result&capSysChrootFound) != 0, "CAP_SYS_CHROOT not found in activity dump")
+			assert.True(t, (result&capSysChrootCapableFound) != 0, "CAP_SYS_CHROOT capable not found in activity dump")
+			assert.True(t, (result&capSysPacctFound) != 0, "CAP_SYS_PACCT not found in activity dump")
+			assert.True(t, (result&capSysPacctNotCapableFound) != 0, "CAP_SYS_PACCT not capable not found in activity dump")
+
+			return result == allFound
 		}, nil)
 	})
 

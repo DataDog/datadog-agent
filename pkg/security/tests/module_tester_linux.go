@@ -105,9 +105,10 @@ event_monitoring_config:
   {{range .EnvsWithValue}}
     - {{.}}
   {{end}}
-
   span_tracking:
     enabled: true
+  capabilities_monitoring:
+    enabled: {{ .CapabilitiesMonitoringEnabled }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
