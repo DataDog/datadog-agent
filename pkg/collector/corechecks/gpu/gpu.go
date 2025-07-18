@@ -334,7 +334,10 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
+	containers2 := c.wmeta.ListContainers()
+
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
+	log.Errorf("found total of %d containers", len(containers2))
 
 	log.Errorf("found %d containers with allocated resources", len(containers))
 	for _, container := range containers {
