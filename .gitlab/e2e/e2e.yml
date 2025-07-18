@@ -211,9 +211,12 @@ new-e2e-containers-eks:
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
-    EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestEKSSuite
+      - EXTRA_PARAMS: --run TestEKSAutoscalingSuite
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64

@@ -106,29 +106,51 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 			if cont.Name != reco.Name {
 				continue
 			}
-			if cont.Resources.Limits == nil {
-				cont.Resources.Limits = corev1.ResourceList{}
+			patched = pa.patchContainerByRecommendation(reco, cont) || patched
+			break
+		}
+
+		// recommendation can be also applied to sidecar containers
+		// kubernetes implements sidecar containers as a special case of init containers (see https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
+		for i := range pod.Spec.InitContainers {
+			cont := &pod.Spec.InitContainers[i]
+			// sidecar container by definition is an init container with `restartPolicy: Always`
+			if cont.RestartPolicy == nil || *cont.RestartPolicy != corev1.ContainerRestartPolicyAlways {
+				continue
 			}
-			if cont.Resources.Requests == nil {
-				cont.Resources.Requests = corev1.ResourceList{}
+			if cont.Name != reco.Name {
+				continue
 			}
-			for resource, limit := range reco.Limits {
-				if limit != cont.Resources.Limits[resource] {
-					cont.Resources.Limits[resource] = limit
-					patched = true
-				}
-			}
-			for resource, request := range reco.Requests {
-				if request != cont.Resources.Requests[resource] {
-					cont.Resources.Requests[resource] = request
-					patched = true
-				}
-			}
+			patched = pa.patchContainerByRecommendation(reco, cont) || patched
 			break
 		}
 	}
 
 	return patched, nil
+}
+
+func (pa podPatcher) patchContainerByRecommendation(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
+	patched = false
+
+	if cont.Resources.Limits == nil {
+		cont.Resources.Limits = corev1.ResourceList{}
+	}
+	if cont.Resources.Requests == nil {
+		cont.Resources.Requests = corev1.ResourceList{}
+	}
+	for resource, limit := range reco.Limits {
+		if limit != cont.Resources.Limits[resource] {
+			cont.Resources.Limits[resource] = limit
+			patched = true
+		}
+	}
+	for resource, request := range reco.Requests {
+		if request != cont.Resources.Requests[resource] {
+			cont.Resources.Requests[resource] = request
+			patched = true
+		}
+	}
+	return patched
 }
 
 func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerInternal, error) {
