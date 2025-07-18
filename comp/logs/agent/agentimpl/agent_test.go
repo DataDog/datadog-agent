@@ -210,7 +210,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, config.EmptyPathPrefix, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	env.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
