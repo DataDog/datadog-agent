@@ -618,31 +618,34 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 	for _, row := range data {
 		m := TunnelMetrics{}
 		// Based on the new structure, we expect 6 columns
-		if len(row) != 6 {
-			return nil, fmt.Errorf("expected 6 columns, got %d", len(row))
+		if len(row) != 7 {
+			return nil, fmt.Errorf("expected 7 columns, got %d", len(row))
 		}
 		// Type assertions for each value
 		var ok bool
-		if m.Appliance, ok = row[0].(string); !ok {
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Appliance, ok = row[1].(string); !ok {
 			return nil, fmt.Errorf("expected string for Appliance")
 		}
-		if m.LocalIP, ok = row[1].(string); !ok {
+		if m.LocalIP, ok = row[2].(string); !ok {
 			return nil, fmt.Errorf("expected string for LocalIP")
 		}
-		if m.RemoteIP, ok = row[2].(string); !ok {
+		if m.RemoteIP, ok = row[3].(string); !ok {
 			return nil, fmt.Errorf("expected string for RemoteIP")
 		}
-		if m.VpnProfName, ok = row[3].(string); !ok {
+		if m.VpnProfName, ok = row[4].(string); !ok {
 			return nil, fmt.Errorf("expected string for VpnProfName")
 		}
 
 		// Handle float metrics from indices 4-5
-		if val, ok := row[4].(float64); ok {
+		if val, ok := row[5].(float64); ok {
 			m.VolumeRx = val
 		} else {
 			return nil, fmt.Errorf("expected float64 for VolumeRx at index 4")
 		}
-		if val, ok := row[5].(float64); ok {
+		if val, ok := row[6].(float64); ok {
 			m.VolumeTx = val
 		} else {
 			return nil, fmt.Errorf("expected float64 for VolumeTx at index 5")

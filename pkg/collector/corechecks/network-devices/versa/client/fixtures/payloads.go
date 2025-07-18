@@ -483,7 +483,7 @@ const GetTunnelMetrics = `
     "iTotalRecords": 1,
     "aaData": [
         [
-			"test-branch-2B,INET-1",
+			"test-branch-2B,10.1.1.1",
             "test-branch-2B",
             "10.1.1.1",
             "10.2.2.2",

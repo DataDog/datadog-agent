@@ -443,6 +443,7 @@ type LinkStatusMetrics struct {
 
 // TunnelMetrics represents the columns to parse from the TunnelMetricsResponse
 type TunnelMetrics struct {
+	DrillKey    string
 	Appliance   string
 	LocalIP     string
 	RemoteIP    string

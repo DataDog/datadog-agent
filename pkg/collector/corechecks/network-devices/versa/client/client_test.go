@@ -530,6 +530,7 @@ func TestParseLinkStatusMetrics(t *testing.T) {
 func TestGetTunnelMetrics(t *testing.T) {
 	expectedTunnelMetrics := []TunnelMetrics{
 		{
+			DrillKey:    "test-branch-2B,10.1.1.1",
 			Appliance:   "test-branch-2B",
 			LocalIP:     "10.1.1.1",
 			RemoteIP:    "10.2.2.2",
@@ -557,6 +558,7 @@ func TestGetTunnelMetrics(t *testing.T) {
 func TestParseTunnelMetrics(t *testing.T) {
 	testData := [][]interface{}{
 		{
+			"test-branch-2B,10.1.1.1",
 			"test-branch-2B",
 			"10.1.1.1",
 			"10.2.2.2",
@@ -568,6 +570,7 @@ func TestParseTunnelMetrics(t *testing.T) {
 
 	expected := []TunnelMetrics{
 		{
+			DrillKey:    "test-branch-2B,10.1.1.1",
 			Appliance:   "test-branch-2B",
 			LocalIP:     "10.1.1.1",
 			RemoteIP:    "10.2.2.2",
