@@ -691,8 +691,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 		if err != nil {
 			bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			continue
 		}
 		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
+			bs.T().Logf("Running Diagnose for provisioner %s", id)
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
 				bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
@@ -701,26 +703,20 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if bs.IsWithinCI() {
-			if os.Getenv("REMOTE_STACK_CLEANING") == "true" {
-				fullStackName := fmt.Sprintf("organization/e2eci/%s", stackName)
-				bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
+		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
+			fullStackName := fmt.Sprintf("organization/e2eci/%s", stackName)
+			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
 
-				// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-				cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
-				} else {
-					bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
-				}
+			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
+			cmd := exec.Command("dda", "inv", "api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=true,ignore_not_found=false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
 			} else {
-				bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
-				if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-					bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
-				}
+				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
 			}
 		} else {
+			bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
