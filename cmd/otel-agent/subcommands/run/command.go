@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
@@ -171,7 +171,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		fxutil.ProvideNoneOptional[secrets.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
-			InitHelper: common.GetWorkloadmetaInit(),
+			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
