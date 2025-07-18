@@ -112,7 +112,7 @@ func NewDestination(endpoint config.Endpoint,
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
-		time.Second*10,
+		0,
 		shouldRetry,
 		destMeta,
 		cfg,
@@ -125,7 +125,7 @@ func NewDestination(endpoint config.Endpoint,
 func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
-	timeout time.Duration,
+	timeoutOverride time.Duration,
 	shouldRetry bool,
 	destMeta *client.DestinationMetadata,
 	cfg pkgconfigmodel.Reader,
@@ -157,7 +157,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -419,11 +419,14 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(cfg pkgconfigmodel.Reader) func() *http.Client {
+func httpClientFactory(cfg pkgconfigmodel.Reader, timeoutOverride time.Duration) func() *http.Client {
 	var transport *http.Transport
 
 	transportConfig := cfg.Get("logs_config.http_protocol")
-	timeout := time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
+	timeout := timeoutOverride
+	if timeout == 0 {
+		timeout = time.Second * time.Duration(cfg.GetInt("logs_config.http_timeout"))
+	}
 
 	// Configure transport based on user setting
 	switch transportConfig {
