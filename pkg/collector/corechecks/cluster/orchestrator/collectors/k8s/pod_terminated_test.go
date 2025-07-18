@@ -94,7 +94,7 @@ func TestTerminatedPodCollector(t *testing.T) {
 			// Set up the terminated pod informer factory
 			runCfg.OrchestratorInformerFactory.TerminatedPodInformerFactory = runCfg.OrchestratorInformerFactory.InformerFactory
 		},
-		AssertionsFn: func(t *testing.T, runCfg *collectors.CollectorRunConfig, result *collectors.CollectorRunResult) {
+		AssertionsFn: func(t *testing.T, runCfg *collectors.CollectorRunConfig, _ *collectors.CollectorRunResult) {
 			terminatedPods := []*corev1.Pod{pod}
 			processResult, err := collector.Process(runCfg, terminatedPods)
 			assert.NoError(t, err)
