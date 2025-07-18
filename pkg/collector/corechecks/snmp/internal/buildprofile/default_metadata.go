@@ -398,7 +398,7 @@ func checkOid(sess session.Session, oid string) bool {
 
 	// We check that the returned full OID starts with the parameter OID because
 	// SNMP GETNEXT command returns the next OID whether it's from the same OID or not
-	return strings.HasPrefix(result.Variables[0].Name, "."+oid)
+	return strings.HasPrefix(strings.TrimPrefix(result.Variables[0].Name, "."), oid)
 }
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
