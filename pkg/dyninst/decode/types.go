@@ -42,16 +42,13 @@ type decoderContext struct {
 
 // Type equivalent definitions
 type baseType ir.BaseType
-type pointerType struct {
-	*ir.PointerType
-	pointedDecoderType decoderType
-}
+type pointerType ir.PointerType
 type structureType ir.StructureType
 type arrayType ir.ArrayType
 type voidPointerType ir.VoidPointerType
 type goSliceHeaderType struct {
 	*ir.GoSliceHeaderType
-	elementDecoderType decoderType
+	elementTypeID uint32
 }
 type goSliceDataType ir.GoSliceDataType
 type goStringHeaderType ir.GoStringHeaderType
@@ -61,8 +58,16 @@ type goHMapHeaderType ir.GoHMapHeaderType
 type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
-	keyType   decoderType
-	valueType decoderType
+	keyTypeID    uint32
+	valueTypeID  uint32
+	dirLenOffset uint32
+	dirLenSize   uint32
+	dirPtrOffset uint32
+	dirPtrSize   uint32
+	ctrlOffset   uint32
+	ctrlSize     uint32
+	slotsOffset  uint32
+	slotsSize    uint32
 }
 type goSwissMapGroupsType ir.GoSwissMapGroupsType
 type goChannelType ir.GoChannelType
@@ -95,33 +100,11 @@ var (
 
 func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 	switch s := irType.(type) {
-	case *ir.PointerType:
-		pointedTypeID := s.Pointee.GetID()
-		pointedType, ok := d.program.Types[pointedTypeID]
-		if !ok {
-			return nil, errors.New("pointer pointed type not found in types")
-		}
-		pointedDecoderType, err := d.getDecoderType(pointedType)
-		if err != nil {
-			return nil, err
-		}
-		return &pointerType{
-			PointerType:        s,
-			pointedDecoderType: pointedDecoderType,
-		}, nil
 	case *ir.GoSliceHeaderType:
 		elementTypeID := s.Data.Element.GetID()
-		elementType, ok := d.program.Types[elementTypeID]
-		if !ok {
-			return nil, errors.New("slice element type not found in types")
-		}
-		elementDecoderType, err := d.getDecoderType(elementType)
-		if err != nil {
-			return nil, err
-		}
 		return &goSliceHeaderType{
-			GoSliceHeaderType:  s,
-			elementDecoderType: elementDecoderType,
+			GoSliceHeaderType: s,
+			elementTypeID:     uint32(elementTypeID),
 		}, nil
 	case *ir.GoSwissMapHeaderType:
 		if len(s.GroupType.RawFields) < 2 {
@@ -132,6 +115,12 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		if !ok {
 			return nil, errors.New("type map slot field not found in types: " + s.GroupType.Name)
 		}
+		ctrlField, err := getFieldByName(s.GroupType.RawFields, "ctrl")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		ctrlOffset := ctrlField.Offset
+		ctrlSize := ctrlField.Type.GetByteSize()
 		entryArray, ok := slotsFieldType.(*ir.ArrayType)
 		if !ok {
 			return nil, errors.New("type map slot field is not an array type: " + slotsFieldType.GetName())
@@ -157,18 +146,38 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		valueField := noalgstructType.RawFields[1]
 		valueIrType, ok := d.program.Types[valueField.Type.GetID()]
 		if !ok {
-			return nil, fmt.Errorf("value type %s not found in types", elem.Type.GetName())
+			return nil, fmt.Errorf("value type %s not found in types", valueField.Type.GetName())
 		}
 		valueType, err := d.getDecoderType(valueIrType)
 		if err != nil {
 			return nil, err
 		}
+		dirLenField, err := getFieldByName(s.RawFields, "dirLen")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		dirLenOffset := dirLenField.Offset
+		dirLenSize := dirLenField.Type.GetByteSize()
+		dirPtrField, err := getFieldByName(s.RawFields, "dirPtr")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		dirPtrOffset := dirPtrField.Offset
+		dirPtrSize := dirPtrField.Type.GetByteSize()
+
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
-			keyType:              keyType,
-			valueType:            valueType,
+			keyTypeID:            uint32(keyType.irType().GetID()),
+			valueTypeID:          uint32(valueType.irType().GetID()),
+			dirLenOffset:         dirLenOffset,
+			dirLenSize:           dirLenSize,
+			dirPtrOffset:         dirPtrOffset,
+			dirPtrSize:           dirPtrSize,
+			ctrlOffset:           ctrlOffset,
+			ctrlSize:             ctrlSize,
+			slotsOffset:          slotsField.Offset,
+			slotsSize:            slotsFieldType.GetByteSize(),
 		}, nil
-
 	case *ir.BaseType:
 		return (*baseType)(s), nil
 	case *ir.StructureType:
@@ -177,6 +186,8 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		return (*arrayType)(s), nil
 	case *ir.VoidPointerType:
 		return (*voidPointerType)(s), nil
+	case *ir.PointerType:
+		return (*pointerType)(s), nil
 	case *ir.GoSliceDataType:
 		return (*goSliceDataType)(s), nil
 	case *ir.GoStringHeaderType:
@@ -302,23 +313,12 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	ctx *decoderContext,
 	data []byte,
 ) error {
-
 	var (
 		dirLen int64
 		dirPtr uint64
 	)
-	for f := range s.Fields() {
-		fieldEnd := f.Offset + f.Type.GetByteSize()
-		if fieldEnd > uint32(len(data)) {
-			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", f.Name, fieldEnd, len(data))
-		}
-		switch f.Name {
-		case "dirLen":
-			dirLen = int64(binary.NativeEndian.Uint64(data[f.Offset : f.Offset+f.Type.GetByteSize()]))
-		case "dirPtr":
-			dirPtr = binary.NativeEndian.Uint64(data[f.Offset : f.Offset+f.Type.GetByteSize()])
-		}
-	}
+	dirLen = int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+s.dirLenSize]))
+	dirPtr = binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+s.dirPtrSize])
 	if err := writeTokens(
 		ctx.enc, jsontext.String("entries"), jsontext.BeginArray,
 	); err != nil {
@@ -338,8 +338,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			ctx.currentlyEncoding,
 			s,
 			groupDataItem.Data(),
-			s.keyType,
-			s.valueType,
+			s.keyTypeID,
+			s.valueTypeID,
 		)
 		if err != nil {
 			return err
@@ -404,7 +404,7 @@ func (v *voidPointerType) encodeValueFields(
 	)
 }
 
-func (p *pointerType) irType() ir.Type { return p.PointerType }
+func (p *pointerType) irType() ir.Type { return (*ir.PointerType)(p) }
 func (p *pointerType) encodeValueFields(
 	ctx *decoderContext,
 	data []byte,
@@ -458,7 +458,11 @@ func (p *pointerType) encodeValueFields(
 	if _, alreadyEncoding := ctx.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
 		ctx.currentlyEncoding[pointeeKey] = struct{}{}
 		defer delete(ctx.currentlyEncoding, pointeeKey)
-		if err = p.pointedDecoderType.encodeValueFields(
+		pointedDecoderType, err := ctx.decoder.getDecoderType(p.Pointee)
+		if err != nil {
+			return err
+		}
+		if err = pointedDecoderType.encodeValueFields(
 			ctx,
 			pointedValue.Data(),
 		); err != nil {
@@ -582,8 +586,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 			jsontext.BeginArray,
 			jsontext.EndArray)
 	}
-	elementDecoderIrType := s.elementDecoderType.irType()
-	elementSize := int(elementDecoderIrType.GetByteSize())
+	var elementDecoderType decoderType
+	var err error
+	elementDecoderType, err = ctx.decoder.getDecoderType(s.Data.Element)
+	if err != nil {
+		return err
+	}
+	elementSize := int(s.Data.Element.GetByteSize())
 	taa := typeAndAddr{
 		addr:   address,
 		irType: uint32(s.Data.GetID()),
@@ -595,7 +604,6 @@ func (s *goSliceHeaderType) encodeValueFields(
 			jsontext.String("no buffer space"),
 		)
 	}
-	var err error
 	if err = writeTokens(ctx.enc,
 		jsontext.String("elements"),
 		jsontext.BeginArray); err != nil {
@@ -604,13 +612,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 	sliceLength := int(sliceDataItem.Header().Length) / elementSize
 	sliceData := sliceDataItem.Data()
 	for i := range int(sliceLength) {
-		elementData := sliceData[i*int(elementDecoderIrType.GetByteSize()) : (i+1)*int(elementDecoderIrType.GetByteSize())]
+		elementData := sliceData[i*int(s.Data.Element.GetByteSize()) : (i+1)*int(s.Data.Element.GetByteSize())]
 		if err := ctx.decoder.encodeValue(ctx.enc,
 			ctx.dataItems,
 			ctx.currentlyEncoding,
-			s.elementDecoderType,
+			elementDecoderType,
 			elementData,
-			elementDecoderIrType.GetName(),
+			s.Data.Element.GetName(),
 		); err != nil {
 			return err
 		}
