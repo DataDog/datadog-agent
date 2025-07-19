@@ -332,7 +332,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			addr:   dirPtr,
 		}]
 
-		err := ctx.decoder.collectSwissMapGroup(
+		err := ctx.decoder.encodeSwissMapGroup(
 			ctx.enc,
 			ctx.dataItems,
 			ctx.currentlyEncoding,
