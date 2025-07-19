@@ -207,10 +207,12 @@ func (d *Decoder) encodeValue(
 	}
 
 	if err := decoderType.encodeValueFields(
-		d,
-		enc,
-		dataItems,
-		currentlyEncoding,
+		&decoderContext{
+			decoder:           d,
+			enc:               enc,
+			dataItems:         dataItems,
+			currentlyEncoding: currentlyEncoding,
+		},
 		data,
 	); err != nil {
 		return err
