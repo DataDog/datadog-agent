@@ -83,7 +83,6 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"
 	// Install Script env variables
-	env["DD_INSTALLER"] = "true"
 	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
 	env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID"))
 	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("stable-%s 7", arch)
