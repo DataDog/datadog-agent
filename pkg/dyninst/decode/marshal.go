@@ -405,7 +405,7 @@ func (d *Decoder) encodeSwissMapTables(
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
 			singleGroupData := groupDataItem.Data()[groupType.GroupSliceType.Element.GetByteSize()*i : groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.collectSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, s.keyType, s.valueType)
+			err := d.encodeSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, s.keyType, s.valueType)
 			if err != nil {
 				return err
 			}
@@ -414,7 +414,7 @@ func (d *Decoder) encodeSwissMapTables(
 	return nil
 }
 
-func (d *Decoder) collectSwissMapGroup(
+func (d *Decoder) encodeSwissMapGroup(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
@@ -434,7 +434,6 @@ func (d *Decoder) collectSwissMapGroup(
 		if fieldEnd > uint32(len(groupData)) {
 			return fmt.Errorf("group field %s extends beyond data bounds: need %d bytes, have %d", groupField.Name, fieldEnd, len(groupData))
 		}
-
 		switch groupField.Name {
 		case "slots":
 			slotsData = groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
