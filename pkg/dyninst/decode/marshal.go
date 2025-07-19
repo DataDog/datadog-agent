@@ -205,7 +205,6 @@ func (d *Decoder) encodeValue(
 	); err != nil {
 		return err
 	}
-
 	if err := decoderType.encodeValueFields(
 		&decoderContext{
 			decoder:           d,
@@ -405,7 +404,7 @@ func (d *Decoder) encodeSwissMapTables(
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
 			singleGroupData := groupDataItem.Data()[groupType.GroupSliceType.Element.GetByteSize()*i : groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.encodeSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, s.keyType, s.valueType)
+			err := d.encodeSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, s.keyTypeID, s.valueTypeID)
 			if err != nil {
 				return err
 			}
@@ -420,27 +419,26 @@ func (d *Decoder) encodeSwissMapGroup(
 	currentlyEncoding map[typeAndAddr]struct{},
 	s *goSwissMapHeaderType,
 	groupData []byte,
-	keyType decoderType,
-	valueType decoderType,
+	keyTypeID uint32,
+	valueTypeID uint32,
 ) error {
-	keySize := keyType.irType().GetByteSize()
-	valueSize := valueType.irType().GetByteSize()
+	keyType, ok := d.program.Types[ir.TypeID(keyTypeID)]
+	if !ok {
+		return fmt.Errorf("key type %d not found in types", keyTypeID)
+	}
+	valueType, ok := d.program.Types[ir.TypeID(valueTypeID)]
+	if !ok {
+		return fmt.Errorf("value type %d not found in types", valueTypeID)
+	}
+	keySize := keyType.GetByteSize()
+	valueSize := valueType.GetByteSize()
 	var (
 		controlWord uint64
 		slotsData   []byte
 	)
-	for _, groupField := range s.GroupType.Fields {
-		fieldEnd := groupField.Offset + groupField.Type.GetByteSize()
-		if fieldEnd > uint32(len(groupData)) {
-			return fmt.Errorf("group field %s extends beyond data bounds: need %d bytes, have %d", groupField.Name, fieldEnd, len(groupData))
-		}
-		switch groupField.Name {
-		case "slots":
-			slotsData = groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
-		case "ctrl":
-			controlWord = binary.LittleEndian.Uint64(groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()])
-		}
-	}
+	slotsData = groupData[s.slotsOffset : s.slotsOffset+s.slotsSize]
+	controlWord = binary.LittleEndian.Uint64(groupData[s.ctrlOffset : s.ctrlOffset+s.ctrlSize])
+
 	entrySize := keySize + valueSize
 	for i := range 8 {
 		if controlWord&(1<<(7+(8*i))) != 0 {
@@ -465,16 +463,23 @@ func (d *Decoder) encodeSwissMapGroup(
 		); err != nil {
 			return err
 		}
-		err := d.encodeValue(enc, dataItems, currentlyEncoding,
-			keyType, keyData, keyType.irType().GetName(),
-		)
+		keyDecoderType, err := d.getDecoderType(keyType)
+		if err != nil {
+			return err
+		}
+		valueDecoderType, err := d.getDecoderType(valueType)
 		if err != nil {
 			return err
 		}
 		err = d.encodeValue(enc, dataItems, currentlyEncoding,
-			valueType, valueData, valueType.irType().GetName(),
+			keyDecoderType, keyData, keyType.GetName(),
 		)
 		if err != nil {
+			return err
+		}
+		if err = d.encodeValue(enc, dataItems, currentlyEncoding,
+			valueDecoderType, valueData, valueType.GetName(),
+		); err != nil {
 			return err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {
