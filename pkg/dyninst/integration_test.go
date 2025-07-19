@@ -303,10 +303,6 @@ func testDyninst(
 		probeRet := retMap[probeID]
 		expIdx := len(probeRet)
 		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
-		if expIdx < len(expOut[probeID]) {
-			outputToCompare := expOut[probeID][expIdx]
-			assert.JSONEq(t, string(outputToCompare), string(redacted))
-		}
 		if !rewriteEnabled {
 			expOut, ok := expOut[probeID]
 			assert.True(t, ok, "expected output for probe %s not found", probeID)
