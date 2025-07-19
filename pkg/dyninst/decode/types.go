@@ -334,6 +334,10 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		dirPtr uint64
 	)
 	for f := range s.Fields() {
+		fieldEnd := f.Offset + f.Type.GetByteSize()
+		if fieldEnd > uint32(len(data)) {
+			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", f.Name, fieldEnd, len(data))
+		}
 		switch f.Name {
 		case "dirLen":
 			dirLen = int64(binary.NativeEndian.Uint64(data[f.Offset : f.Offset+f.Type.GetByteSize()]))
@@ -441,8 +445,8 @@ func (p *pointerType) encodeValueFields(
 	currentlyEncoding map[typeAndAddr]struct{},
 	data []byte,
 	valueType string) error {
-	if len(data) < int(p.Pointee.GetByteSize()) {
-		return errors.New("passed data not long enough for pointer")
+	if len(data) < 8 {
+		return errors.New("passed data not long enough for pointer: need 8 bytes")
 	}
 	addr := binary.NativeEndian.Uint64(data)
 	pointeeKey := typeAndAddr{
@@ -526,6 +530,14 @@ func (s *structureType) encodeValueFields(
 		if err != nil {
 			return err
 		}
+		fieldEnd := field.Offset + field.Type.GetByteSize()
+		if fieldEnd < field.Offset {
+			return fmt.Errorf("overflow in field %s offset calculation", field.Name)
+		}
+		if fieldEnd > uint32(len(data)) {
+			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", field.Name, fieldEnd, len(data))
+		}
+
 		if err = decoder.encodeValue(enc,
 			dataItems,
 			currentlyEncoding,
@@ -566,7 +578,15 @@ func (a *arrayType) encodeValueFields(
 	}
 
 	for i := range numElements {
-		elementData := data[i*elementSize : (i+1)*elementSize]
+		offset := i * elementSize
+		endIdx := offset + elementSize
+		if endIdx < offset {
+			return fmt.Errorf("overflow in array element %d offset calculation", i)
+		}
+		if endIdx > len(data) {
+			return fmt.Errorf("array element %d extends beyond data bounds: need %d bytes, have %d", i, endIdx, len(data))
+		}
+		elementData := data[offset:endIdx]
 		if err := decoder.encodeValue(enc,
 			dataItems,
 			currentlyEncoding,
@@ -596,6 +616,12 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return writeTokens(enc,
 			jsontext.String("notCapturedReason"),
 			jsontext.String("no buffer space"),
+		)
+	}
+	if len(data) < 16 {
+		return writeTokens(enc,
+			jsontext.String("notCapturedReason"),
+			jsontext.String("insufficient data for slice header: need 16 bytes"),
 		)
 	}
 	address := binary.NativeEndian.Uint64(data[0:8])
@@ -687,8 +713,12 @@ func (s *goStringHeaderType) encodeValueFields(
 	for field := range s.Fields() {
 		if field.Name == "str" {
 			fieldByteSize = field.Type.GetByteSize()
-			if fieldByteSize != 8 || len(data) < int(field.Offset+fieldByteSize) {
-				return fmt.Errorf("malformed string field 'str': field size %d != 8 or data length %d < required %d", fieldByteSize, len(data), field.Offset+fieldByteSize)
+			fieldEnd := field.Offset + fieldByteSize
+			if fieldByteSize != 8 {
+				return fmt.Errorf("malformed string field 'str': expected 8 bytes, got %d", fieldByteSize)
+			}
+			if fieldEnd > uint32(len(data)) {
+				return fmt.Errorf("string field 'str' extends beyond data bounds: need %d bytes, have %d", fieldEnd, len(data))
 			}
 			address = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+fieldByteSize])
 		}
