@@ -342,7 +342,12 @@ func (d *Decoder) collectSwissMapTables(
 	addrs := []uint64{}
 
 	for i := range tablePtrSliceDataItem.Header().Length / 8 {
-		addrs = append(addrs, binary.NativeEndian.Uint64(tablePointers[i*8:i*8+8]))
+		startIdx := i * 8
+		endIdx := startIdx + 8
+		if endIdx > uint32(len(tablePointers)) {
+			return fmt.Errorf("table pointer %d extends beyond data bounds: need %d bytes, have %d", i, endIdx, len(tablePointers))
+		}
+		addrs = append(addrs, binary.NativeEndian.Uint64(tablePointers[startIdx:endIdx]))
 	}
 	// Deduplicate addrs by sorting and then removing duplicates.
 	// Go swiss maps may have multiple table pointers for the same group.
@@ -430,6 +435,11 @@ func (d *Decoder) collectSwissMapGroup(
 		slotsData   []byte
 	)
 	for _, groupField := range s.GroupType.Fields {
+		fieldEnd := groupField.Offset + groupField.Type.GetByteSize()
+		if fieldEnd > uint32(len(groupData)) {
+			return fmt.Errorf("group field %s extends beyond data bounds: need %d bytes, have %d", groupField.Name, fieldEnd, len(groupData))
+		}
+
 		switch groupField.Name {
 		case "slots":
 			slotsData = groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
@@ -444,7 +454,16 @@ func (d *Decoder) collectSwissMapGroup(
 			continue
 		}
 		offset := entrySize * uint32(i)
-		entryData := slotsData[offset : offset+entrySize]
+		entryEnd := offset + entrySize
+		if entryEnd > uint32(len(slotsData)) {
+			return fmt.Errorf("entry %d extends beyond slots data bounds: need %d bytes, have %d", i, entryEnd, len(slotsData))
+		}
+
+		entryData := slotsData[offset:entryEnd]
+		if uint32(len(entryData)) < keySize+valueSize {
+			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, keySize+valueSize, len(entryData))
+		}
+
 		keyData := entryData[0:keySize]
 		valueData := entryData[keySize : keySize+valueSize]
 		if err := writeTokens(enc,
