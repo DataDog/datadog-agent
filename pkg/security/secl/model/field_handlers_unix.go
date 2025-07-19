@@ -63,6 +63,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 	if ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+	}
+	if ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	}
 	if ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
@@ -91,6 +94,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	if ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields)
+	}
+	if ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 	}
 	if ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
@@ -160,6 +166,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
@@ -188,6 +197,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
@@ -256,6 +268,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.CgroupWrite.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
@@ -269,6 +282,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chdir.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File)
@@ -285,6 +299,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Chmod.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chmod.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chmod.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chmod.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Chmod.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chmod.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chmod.File)
@@ -304,6 +319,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Chown.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chown.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chown.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Chown.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Chown.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chown.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chown.File)
@@ -349,6 +365,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exec.Process.FileEvent)
 		}
 		if ev.Exec.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.FileEvent)
+		}
+		if ev.Exec.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.FileEvent)
 		}
 		if ev.Exec.Process.IsNotKworker() {
@@ -381,6 +400,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Exec.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exec.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 		}
 		if ev.Exec.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
@@ -455,6 +477,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exit.Process.FileEvent)
 		}
 		if ev.Exit.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.FileEvent)
+		}
+		if ev.Exit.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.FileEvent)
 		}
 		if ev.Exit.Process.IsNotKworker() {
@@ -487,6 +512,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Exit.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Exit.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 		}
 		if ev.Exit.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
@@ -522,6 +550,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Link.Source)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Link.Source)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Link.Source)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Link.Source)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Link.Source)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Link.Source)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Link.Source)
@@ -534,6 +563,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Link.Target)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Link.Target)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Link.Target)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Link.Target)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Link.Target)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Link.Target)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Link.Target)
@@ -553,6 +583,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.LoadModule.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.LoadModule.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.LoadModule.File)
@@ -568,6 +599,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Mkdir.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Mkdir.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Mkdir.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Mkdir.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Mkdir.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Mkdir.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Mkdir.File)
@@ -587,6 +619,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.MMap.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.MMap.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.MMap.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.MMap.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.MMap.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.MMap.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.MMap.File)
@@ -630,6 +663,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Open.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Open.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Open.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Open.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Open.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Open.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Open.File)
@@ -673,6 +707,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Process.FileEvent)
 		}
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Process.FileEvent)
+		}
+		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.FileEvent)
 		}
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
@@ -705,6 +742,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.PTrace.Tracee.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.PTrace.Tracee.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 		}
 		if ev.PTrace.Tracee.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
@@ -751,6 +791,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.IsNotKworker() {
@@ -791,6 +834,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
@@ -847,6 +893,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.RemoveXAttr.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.RemoveXAttr.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.RemoveXAttr.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.RemoveXAttr.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.RemoveXAttr.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.RemoveXAttr.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.RemoveXAttr.File)
@@ -862,6 +909,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Rename.Old)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Rename.Old)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Rename.Old)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Rename.Old)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Rename.Old)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Rename.Old)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Rename.Old)
@@ -874,6 +922,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Rename.New)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Rename.New)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Rename.New)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Rename.New)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Rename.New)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Rename.New)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Rename.New)
@@ -893,6 +942,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Rmdir.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Rmdir.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Rmdir.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Rmdir.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Rmdir.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Rmdir.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Rmdir.File)
@@ -928,6 +978,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Process.FileEvent)
 		}
 		if ev.Setrlimit.Target.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Process.FileEvent)
+		}
+		if ev.Setrlimit.Target.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.FileEvent)
 		}
 		if ev.Setrlimit.Target.Process.IsNotKworker() {
@@ -960,6 +1013,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Setrlimit.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Setrlimit.Target.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
 		}
 		if ev.Setrlimit.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
@@ -1006,6 +1062,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Parent.FileEvent)
 		}
 		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+		}
+		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.FileEvent)
 		}
 		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.IsNotKworker() {
@@ -1046,6 +1105,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
 		}
 		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
@@ -1109,6 +1171,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.SetXAttr.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.SetXAttr.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.SetXAttr.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.SetXAttr.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.SetXAttr.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.SetXAttr.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.SetXAttr.File)
@@ -1135,6 +1198,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Signal.Target.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Process.FileEvent)
+		}
+		if ev.Signal.Target.Process.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Process.FileEvent)
 		}
 		if ev.Signal.Target.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.FileEvent)
@@ -1169,6 +1235,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Signal.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+		}
+		if ev.Signal.Target.Process.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 		}
 		if ev.Signal.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
@@ -1215,6 +1284,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Parent.FileEvent)
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.IsNotKworker() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Parent.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.FileEvent)
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.IsNotKworker() {
@@ -1255,6 +1327,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
@@ -1311,6 +1386,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Splice.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Splice.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Splice.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Splice.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Splice.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Splice.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Splice.File)
@@ -1325,6 +1401,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Unlink.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Unlink.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Unlink.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Unlink.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Unlink.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Unlink.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Unlink.File)
@@ -1348,6 +1425,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Utimes.File)
+		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Utimes.File)
@@ -1376,6 +1454,7 @@ type FieldHandlers interface {
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
+	ResolveFileExtension(ev *Event, e *FileEvent) string
 	ResolveFileFieldsGroup(ev *Event, e *FileFields) string
 	ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool
 	ResolveFileFieldsUser(ev *Event, e *FileFields) string
@@ -1496,6 +1575,9 @@ func (dfh *FakeFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 }
 func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
 	return string(e.BasenameStr)
+}
+func (dfh *FakeFieldHandlers) ResolveFileExtension(ev *Event, e *FileEvent) string {
+	return string(e.Extension)
 }
 func (dfh *FakeFieldHandlers) ResolveFileFieldsGroup(ev *Event, e *FileFields) string {
 	return string(e.Group)

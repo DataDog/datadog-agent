@@ -246,7 +246,9 @@ func TestCGroupSnapshot(t *testing.T) {
 
 	SkipIfNotAvailable(t)
 
-	_, cgroupContext, err := utils.GetProcContainerContext(uint32(os.Getpid()), uint32(os.Getpid()))
+	cfs := utils.NewCGroupFS()
+
+	_, cgroupContext, _, err := cfs.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 	if err != nil {
 		t.Fatal(err)
 	}

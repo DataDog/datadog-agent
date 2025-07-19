@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/netip"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -87,9 +88,10 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
-		f.MountVisible, f.MountDetached, err = fh.resolvers.PathResolver.ResolveMountAttributes(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
-		if err != nil {
-			seclog.Errorf("failed to resolve mount attributes: %s", err)
+		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext, ev.ContainerContext)
+		if err != nil && f.PathResolutionError == nil {
+			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
+			ev.SetPathResolutionError(f, err)
 		}
 	}
 
@@ -122,6 +124,16 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		}
 	}
 	return f.Filesystem
+}
+
+// ResolveFileExtension resolves the extension of a file
+func (fh *EBPFFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
+	if f.Extension == "" {
+		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event

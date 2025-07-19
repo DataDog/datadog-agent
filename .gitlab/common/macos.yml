@@ -16,6 +16,8 @@
       dda inv -- -e macos.remove-inactive-versions -l python -t "$PYTHON_VERSION" || true
       dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
     fi
+  # Flush temporary folder
+  - sudo rm -rf /tmp/gitlabci
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
@@ -105,6 +107,11 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
+    # Create custom temporary folder to isolate jobs from each other
+    - |
+      export TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
+      mkdir -p "$TMPDIR"
+      echo "Temporary folder created at $TMPDIR"
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
     - dda inv -- -e install-tools
