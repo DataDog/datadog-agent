@@ -212,7 +212,6 @@ func (d *Decoder) encodeValue(
 		dataItems,
 		currentlyEncoding,
 		data,
-		valueType,
 	); err != nil {
 		return err
 	}
@@ -223,10 +222,10 @@ func (d *Decoder) encodeValue(
 	return nil
 }
 
-func encodeBaseTypeValue(enc *jsontext.Encoder, decodeType *baseType, data []byte) error {
-	kind, ok := decodeType.GetGoKind()
+func encodeBaseTypeValue(enc *jsontext.Encoder, t *baseType, data []byte) error {
+	kind, ok := t.GetGoKind()
 	if !ok {
-		return fmt.Errorf("no go kind for type %s (ID: %d)", decodeType.GetName(), decodeType.GetID())
+		return fmt.Errorf("no go kind for type %s (ID: %d)", t.GetName(), t.GetID())
 	}
 	switch kind {
 	case reflect.Bool:
@@ -329,9 +328,9 @@ func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
 	return nil
 }
 
-// collectSwissMapTables collects the data items for the swiss map tables.
-// It is called for each table pointer in the table pointer slice.
-func (d *Decoder) collectSwissMapTables(
+// encodeSwissMapTables collects the data items for the swiss map tables.
+// It traverses the table pointer slice and collects the data items for each table.
+func (d *Decoder) encodeSwissMapTables(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
@@ -352,13 +351,7 @@ func (d *Decoder) collectSwissMapTables(
 	// Deduplicate addrs by sorting and then removing duplicates.
 	// Go swiss maps may have multiple table pointers for the same group.
 	slices.Sort(addrs)
-	dedupedAddrs := addrs[:0]
-	for i, addr := range addrs {
-		if i == 0 || addr != addrs[i-1] {
-			dedupedAddrs = append(dedupedAddrs, addr)
-		}
-	}
-	addrs = dedupedAddrs
+	addrs = slices.Compact(addrs)
 	tableType, ok := s.TablePtrSliceType.Element.(*ir.PointerType)
 	if !ok {
 		return fmt.Errorf("table ptr slice type element is not a pointer type: %s", s.TablePtrSliceType.Element.GetName())
@@ -483,9 +476,7 @@ func (d *Decoder) collectSwissMapGroup(
 		if err != nil {
 			return err
 		}
-		if err := writeTokens(enc,
-			jsontext.EndArray,
-		); err != nil {
+		if err := writeTokens(enc, jsontext.EndArray); err != nil {
 			return err
 		}
 	}

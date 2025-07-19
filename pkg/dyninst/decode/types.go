@@ -33,8 +33,7 @@ type decoderType interface {
 		enc *jsontext.Encoder,
 		dataItems map[typeAndAddr]output.DataItem,
 		currentlyEncoding map[typeAndAddr]struct{},
-		data []byte,
-		valueType string) error
+		data []byte) error
 }
 
 // Type equivalent definitions
@@ -122,10 +121,13 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 			elementDecoderType: elementDecoderType,
 		}, nil
 	case *ir.GoSwissMapHeaderType:
-		if len(s.GroupType.Fields) < 2 {
-			return nil, errors.New("type map group has less than 2 fields: " + s.GroupType.Name)
+		var (
+			slotsField *ir.Field
+		)
+		slotsField, err := getFieldByName(s.GroupType.Fields, "slots")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
-		slotsField := s.GroupType.Fields[1]
 		slotsFieldType, ok := d.program.Types[slotsField.Type.GetID()]
 		if !ok {
 			return nil, errors.New("type map slot field not found in types: " + s.GroupType.Name)
@@ -138,11 +140,13 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		if !ok {
 			return nil, errors.New("type map entry array element is not a structure type: " + entryArray.Element.GetName())
 		}
-
-		if len(noalgstructType.Fields) < 2 {
-			return nil, errors.New("type map entry array element has less than 2 fields: " + entryArray.Element.GetName())
+		keyField, err := getFieldByName(noalgstructType.Fields, "key")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
-		keyField := noalgstructType.Fields[0]
+		if keyField == nil {
+			return nil, errors.New("type map entry array element has no key field: " + entryArray.Element.GetName())
+		}
 		keyIrType, ok := d.program.Types[keyField.Type.GetID()]
 		if !ok {
 			return nil, fmt.Errorf("key type %s not found in types", keyField.Type.GetName())
@@ -151,11 +155,13 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		valueField := noalgstructType.Fields[1]
-		valueIrType, ok := d.program.Types[valueField.Type.GetID()]
+		elem, err := getFieldByName(noalgstructType.Fields, "elem")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		valueIrType, ok := d.program.Types[elem.Type.GetID()]
 		if !ok {
-			return nil, fmt.Errorf("value type %s not found in types", valueField.Type.GetName())
+			return nil, fmt.Errorf("value type %s not found in types", elem.Type.GetName())
 		}
 		valueType, err := d.getDecoderType(valueIrType)
 		if err != nil {
@@ -210,8 +216,7 @@ func (b *baseType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	data []byte,
-	_ string) error {
+	data []byte) error {
 
 	if err := writeTokens(enc,
 		jsontext.String("value"),
@@ -227,8 +232,7 @@ func (e *eventRootType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -241,11 +245,10 @@ func (m *goMapType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 
 	if len(data) < int(m.GetByteSize()) {
-		return errors.New("passed data not long enough for pointer")
+		return errors.New("passed data not long enough for map")
 	}
 	addr := binary.NativeEndian.Uint64(data)
 	key := typeAndAddr{
@@ -261,22 +264,16 @@ func (m *goMapType) encodeValueFields(
 		}
 		return nil
 	}
-	var address uint64
 	pointedValue, dataItemExists := dataItems[key]
 	if !dataItemExists {
 		return writeTokens(enc,
 			jsontext.String("notCapturedReason"),
-			jsontext.String("depth"), //TODO: can we distinguish if it's depth or ran out of buffer space?
+			jsontext.String("depth"),
 		)
 	}
-	address = pointedValue.Header().Address
-	headerDataItem := dataItems[typeAndAddr{
-		irType: uint32(m.HeaderType.GetID()),
-		addr:   address,
-	}]
-	headerType, ok := decoder.program.Types[ir.TypeID(headerDataItem.Header().Type)]
+	headerType, ok := decoder.program.Types[ir.TypeID(pointedValue.Header().Type)]
 	if !ok {
-		return fmt.Errorf("no type for header type (ID: %d)", headerDataItem.Header().Type)
+		return fmt.Errorf("no type for header type (ID: %d)", pointedValue.Header().Type)
 	}
 	headerDecoderType, err := decoder.getDecoderType(headerType)
 	if err != nil {
@@ -287,8 +284,7 @@ func (m *goMapType) encodeValueFields(
 		enc,
 		dataItems,
 		currentlyEncoding,
-		headerDataItem.Data(),
-		headerType.GetName(),
+		pointedValue.Data(),
 	)
 }
 
@@ -298,8 +294,7 @@ func (h *goHMapHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -312,8 +307,7 @@ func (b *goHMapBucketType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -326,8 +320,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 
 	var (
 		dirLen int64
@@ -335,9 +328,6 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	)
 	for _, f := range s.Fields {
 		fieldEnd := f.Offset + f.Type.GetByteSize()
-		if fieldEnd < f.Offset {
-			return fmt.Errorf("overflow in field %s offset calculation", f.Name)
-		}
 		if fieldEnd > uint32(len(data)) {
 			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", f.Name, fieldEnd, len(data))
 		}
@@ -348,10 +338,9 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			dirPtr = binary.NativeEndian.Uint64(data[f.Offset : f.Offset+f.Type.GetByteSize()])
 		}
 	}
-
-	if err := writeTokens(enc,
-		jsontext.String("entries"),
-		jsontext.BeginArray); err != nil {
+	if err := writeTokens(
+		enc, jsontext.String("entries"), jsontext.BeginArray,
+	); err != nil {
 		return err
 	}
 	if dirLen == 0 {
@@ -391,7 +380,7 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 		if !ok {
 			return fmt.Errorf("table ptr slice data item not found for addr %x", tablePtrSliceDataItemPtr.Header().Address)
 		}
-		err := decoder.collectSwissMapTables(
+		err := decoder.encodeSwissMapTables(
 			enc,
 			dataItems,
 			currentlyEncoding,
@@ -415,8 +404,7 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -429,8 +417,7 @@ func (v *voidPointerType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	data []byte,
-	_ string) error {
+	data []byte) error {
 	if len(data) != 8 {
 		return errors.New("passed data not long enough for void pointer")
 	}
@@ -446,8 +433,7 @@ func (p *pointerType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 	if len(data) < 8 {
 		return errors.New("passed data not long enough for pointer: need 8 bytes")
 	}
@@ -471,7 +457,7 @@ func (p *pointerType) encodeValueFields(
 	if !dataItemExists {
 		return writeTokens(enc,
 			jsontext.String("notCapturedReason"),
-			jsontext.String("depth"), //TODO: can we distinguish if it's depth or ran out of buffer space?
+			jsontext.String("depth"),
 		)
 	}
 	address = pointedValue.Header().Address
@@ -503,7 +489,6 @@ func (p *pointerType) encodeValueFields(
 			dataItems,
 			currentlyEncoding,
 			pointedValue.Data(),
-			valueType,
 		); err != nil {
 			return fmt.Errorf("could not encode referenced value: %w", err)
 		}
@@ -517,8 +502,7 @@ func (s *structureType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 	var err error
 	if err = writeTokens(enc,
 		jsontext.String("fields"),
@@ -534,9 +518,6 @@ func (s *structureType) encodeValueFields(
 			return err
 		}
 		fieldEnd := field.Offset + field.Type.GetByteSize()
-		if fieldEnd < field.Offset {
-			return fmt.Errorf("overflow in field %s offset calculation", field.Name)
-		}
 		if fieldEnd > uint32(len(data)) {
 			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", field.Name, fieldEnd, len(data))
 		}
@@ -563,8 +544,7 @@ func (a *arrayType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 	var err error
 	elementDecoderType, err := decoder.getDecoderType(a.Element)
 	if err != nil {
@@ -583,9 +563,6 @@ func (a *arrayType) encodeValueFields(
 	for i := range numElements {
 		offset := i * elementSize
 		endIdx := offset + elementSize
-		if endIdx < offset {
-			return fmt.Errorf("overflow in array element %d offset calculation", i)
-		}
 		if endIdx > len(data) {
 			return fmt.Errorf("array element %d extends beyond data bounds: need %d bytes, have %d", i, endIdx, len(data))
 		}
@@ -612,8 +589,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 
 	if len(data) < int(s.ByteSize) {
 		return writeTokens(enc,
@@ -641,7 +617,8 @@ func (s *goSliceHeaderType) encodeValueFields(
 			jsontext.BeginArray,
 			jsontext.EndArray)
 	}
-	elementSize := int(s.elementDecoderType.irType().GetByteSize())
+	elementDecoderIrType := s.elementDecoderType.irType()
+	elementSize := int(elementDecoderIrType.GetByteSize())
 	taa := typeAndAddr{
 		addr:   address,
 		irType: uint32(s.Data.GetID()),
@@ -662,13 +639,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 	sliceLength := int(sliceDataItem.Header().Length) / elementSize
 	sliceData := sliceDataItem.Data()
 	for i := range int(sliceLength) {
-		elementData := sliceData[i*int(s.elementDecoderType.irType().GetByteSize()) : (i+1)*int(s.elementDecoderType.irType().GetByteSize())]
+		elementData := sliceData[i*int(elementDecoderIrType.GetByteSize()) : (i+1)*int(elementDecoderIrType.GetByteSize())]
 		if err := decoder.encodeValue(enc,
 			dataItems,
 			currentlyEncoding,
 			s.elementDecoderType,
 			elementData,
-			s.elementDecoderType.irType().GetName(),
+			elementDecoderIrType.GetName(),
 		); err != nil {
 			return err
 		}
@@ -691,8 +668,7 @@ func (s *goSliceDataType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
@@ -706,26 +682,26 @@ func (s *goStringHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	data []byte) error {
 
 	var (
 		address       uint64
 		fieldByteSize uint32
 	)
-	for _, field := range s.Fields {
-		if field.Name == "str" {
-			fieldByteSize = field.Type.GetByteSize()
-			fieldEnd := field.Offset + fieldByteSize
-			if fieldByteSize != 8 {
-				return fmt.Errorf("malformed string field 'str': expected 8 bytes, got %d", fieldByteSize)
-			}
-			if fieldEnd > uint32(len(data)) {
-				return fmt.Errorf("string field 'str' extends beyond data bounds: need %d bytes, have %d", fieldEnd, len(data))
-			}
-			address = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+fieldByteSize])
-		}
+	field, err := getFieldByName(s.Fields, "str")
+	if err != nil {
+		return fmt.Errorf("malformed string field 'str': %w", err)
 	}
+
+	fieldByteSize = field.Type.GetByteSize()
+	fieldEnd := field.Offset + fieldByteSize
+	if fieldByteSize != 8 {
+		return fmt.Errorf("malformed string field 'str': expected 8 bytes, got %d", fieldByteSize)
+	}
+	if fieldEnd > uint32(len(data)) {
+		return fmt.Errorf("string field 'str' extends beyond data bounds: need %d bytes, have %d", fieldEnd, len(data))
+	}
+	address = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+fieldByteSize])
 	if address == 0 {
 		return writeTokens(enc,
 			jsontext.String("isNull"),
@@ -769,8 +745,7 @@ func (s *goStringDataType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -783,8 +758,7 @@ func (c *goChannelType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -797,8 +771,7 @@ func (e *goEmptyInterfaceType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -811,8 +784,7 @@ func (i *goInterfaceType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -825,10 +797,18 @@ func (s *goSubroutineType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ map[typeAndAddr]output.DataItem,
 	_ map[typeAndAddr]struct{},
-	_ []byte,
-	_ string) error {
+	_ []byte) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
 	)
+}
+
+func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {
+	for _, f := range fields {
+		if f.Name == name {
+			return &f, nil
+		}
+	}
+	return nil, fmt.Errorf("field %s not found", name)
 }
