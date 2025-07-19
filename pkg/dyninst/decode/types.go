@@ -206,12 +206,12 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 
 func (b *baseType) irType() ir.Type { return (*ir.BaseType)(b) }
 func (b *baseType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
 	data []byte,
-	valueType string) error {
+	_ string) error {
 
 	if err := writeTokens(enc,
 		jsontext.String("value"),
@@ -223,12 +223,12 @@ func (b *baseType) encodeValueFields(
 
 func (e *eventRootType) irType() ir.Type { return (*ir.EventRootType)(e) }
 func (e *eventRootType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -294,12 +294,12 @@ func (m *goMapType) encodeValueFields(
 
 func (h *goHMapHeaderType) irType() ir.Type { return (*ir.GoHMapHeaderType)(h) }
 func (h *goHMapHeaderType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -308,12 +308,12 @@ func (h *goHMapHeaderType) encodeValueFields(
 
 func (b *goHMapBucketType) irType() ir.Type { return (*ir.GoHMapBucketType)(b) }
 func (b *goHMapBucketType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -411,12 +411,12 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 
 func (s *goSwissMapGroupsType) irType() ir.Type { return (*ir.GoSwissMapGroupsType)(s) }
 func (s *goSwissMapGroupsType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -425,12 +425,12 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 
 func (v *voidPointerType) irType() ir.Type { return (*ir.VoidPointerType)(v) }
 func (v *voidPointerType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
 	data []byte,
-	valueType string) error {
+	_ string) error {
 	if len(data) != 8 {
 		return errors.New("passed data not long enough for void pointer")
 	}
@@ -687,12 +687,12 @@ func (s *goSliceHeaderType) encodeValueFields(
 
 func (s *goSliceDataType) irType() ir.Type { return (*ir.GoSliceDataType)(s) }
 func (s *goSliceDataType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
@@ -765,12 +765,12 @@ func (s *goStringHeaderType) encodeValueFields(
 
 func (s *goStringDataType) irType() ir.Type { return (*ir.GoStringDataType)(s) }
 func (s *goStringDataType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -779,12 +779,12 @@ func (s *goStringDataType) encodeValueFields(
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
 func (c *goChannelType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -793,12 +793,12 @@ func (c *goChannelType) encodeValueFields(
 
 func (e *goEmptyInterfaceType) irType() ir.Type { return (*ir.GoEmptyInterfaceType)(e) }
 func (e *goEmptyInterfaceType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -807,12 +807,12 @@ func (e *goEmptyInterfaceType) encodeValueFields(
 
 func (i *goInterfaceType) irType() ir.Type { return (*ir.GoInterfaceType)(i) }
 func (i *goInterfaceType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),
@@ -821,12 +821,12 @@ func (i *goInterfaceType) encodeValueFields(
 
 func (s *goSubroutineType) irType() ir.Type { return (*ir.GoSubroutineType)(s) }
 func (s *goSubroutineType) encodeValueFields(
-	decoder *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
-	data []byte,
-	valueType string) error {
+	_ map[typeAndAddr]output.DataItem,
+	_ map[typeAndAddr]struct{},
+	_ []byte,
+	_ string) error {
 	return writeTokens(enc,
 		jsontext.String("notCapturedReason"),
 		jsontext.String("unimplemented"),

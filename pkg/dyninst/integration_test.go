@@ -296,14 +296,16 @@ func testDyninst(
 			t.Logf("Output: %s", decodeOut.String())
 		}
 		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
-		sorted := sortJSON(t, redacted, defaultSorters)
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Sorted and redacted: %s", redacted)
+		}
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
 		expIdx := len(probeRet)
-		retMap[probeID] = append(retMap[probeID], json.RawMessage(sorted))
+		retMap[probeID] = append(retMap[probeID], json.RawMessage(redacted))
 		if expIdx < len(expOut[probeID]) {
 			outputToCompare := expOut[probeID][expIdx]
-			assert.JSONEq(t, string(outputToCompare), string(sorted))
+			assert.JSONEq(t, string(outputToCompare), string(redacted))
 		}
 		if !rewriteEnabled {
 			expOut, ok := expOut[probeID]
@@ -313,7 +315,7 @@ func testDyninst(
 				"expected at least %d events for probe %s, got %d",
 				expIdx+1, probeID, len(expOut),
 			)
-			assert.Equal(t, string(expOut[expIdx]), string(sorted))
+			assert.Equal(t, string(expOut[expIdx]), string(redacted))
 		}
 	}
 	return retMap
