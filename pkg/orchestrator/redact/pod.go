@@ -94,7 +94,7 @@ func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
+			log.Errorf("Failed to parse cmd from pod, obscuring whole command, container: %s, error: %v", c.Name, r)
 			// we still want to obscure to be safe
 			c.Command = []string{redactedSecret}
 		}
@@ -114,9 +114,21 @@ func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 
 	// if part of the merged command got scrubbed the updated value will be split, even for e.g. c.Args only if the c.Command got scrubbed
 	if len(c.Command) > 0 {
-		c.Command = scrubbedMergedCommand[:words]
-	}
-	if len(c.Args) > 0 {
-		c.Args = scrubbedMergedCommand[words:]
+		// Ensure we don't slice beyond the bounds of scrubbedMergedCommand
+		if words > len(scrubbedMergedCommand) {
+			// If word count exceeds available elements, take all elements for command
+			c.Command = scrubbedMergedCommand
+			// Clear args since all elements went to command
+			if len(c.Args) > 0 {
+				c.Args = []string{}
+			}
+		} else {
+			c.Command = scrubbedMergedCommand[:words]
+			if len(c.Args) > 0 {
+				c.Args = scrubbedMergedCommand[words:]
+			}
+		}
+	} else if len(c.Args) > 0 {
+		c.Args = scrubbedMergedCommand
 	}
 }
