@@ -52,7 +52,7 @@ static bool chased_pointers_push(chased_pointers_t* chased, target_ptr_t ptr,
   }
   uint32_t i = chased->n;
   if (i >= MAX_CHASED_POINTERS) { // to please the verifier
-    LOG(1, "chased_pointers_push: pointers buffer exhausted");
+    LOG(3, "chased_pointers_push: pointers buffer exhausted");
     return false;
   }
   chased->ptrs[i] = ptr;
@@ -296,7 +296,7 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
     item = pointers_queue_push_front(&ctx->stack_machine->pointers_queue);
   }
   if (item == NULL) {
-    LOG(1, "sm_record_pointer: pointers queue push failed");
+    LOG(3, "sm_record_pointer: pointers queue push failed");
     return false;
   }
   *item = (pointers_queue_item_t){
@@ -988,7 +988,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     type_t group_type = (type_t)sm_read_program_uint32(sm);
     sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
     sm->buf_offset_1 = sm->offset + sm_read_program_uint8(sm);
-    LOG(1, "offset: %d", sm->buf_offset_1-sm->offset);
+    LOG(4, "offset: %d", sm->buf_offset_1-sm->offset);
 
     if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
       return 1;
@@ -998,7 +998,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
     int64_t dir_len = *(int64_t*)&((*buf)[sm->buf_offset_1]);
-    LOG(1, "type: %d, dir_ptr: 0x%llx, dir_len: %lld", group_type, dir_ptr, dir_len)
+    LOG(4, "type: %d, dir_ptr: 0x%llx, dir_len: %lld", group_type, dir_ptr, dir_len)
 
     if (dir_len > 0) {
       if (!sm_record_pointer(ctx, table_ptr_slice_type, dir_ptr, /*decrease_ttl=*/false, 8 * dir_len)) {
@@ -1017,7 +1017,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
 
-    LOG(1, "Offset diff: %d", sm->buf_offset_0-sm->offset);
+    LOG(5, "Offset diff: %d", sm->buf_offset_0-sm->offset);
     if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
       return 1;
     }
@@ -1028,7 +1028,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
     uint64_t length_mask = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
-    LOG(1, "group_slice_type: %d, data: 0x%llx, length_mask: %llu", group_slice_type, data, length_mask);
+    LOG(3, "group_slice_type: %d, data: 0x%llx, length_mask: %llu", group_slice_type, data, length_mask);
     if (!sm_record_pointer(ctx, group_slice_type, data, /*decrease_ttl=*/false,
                            group_byte_len * (length_mask + 1))) {
       LOG(3, "enqueue: failed swiss map groups record");
