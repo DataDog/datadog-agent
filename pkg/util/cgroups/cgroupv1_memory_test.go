@@ -25,6 +25,8 @@ shmem 0
 mapped_file 0
 dirty 0
 writeback 0
+workingset_refault_anon 4321
+workingset_refault_file 1755220566
 swap 0
 pgpgin 878460
 pgpgout 872515
@@ -40,20 +42,22 @@ hierarchical_memsw_limit 9223372036854771712
 total_cache 4866048
 total_rss 19058688
 total_rss_huge 0
-total_shmem 0
-total_mapped_file 0
-total_dirty 0
-total_writeback 0
+total_shmem 12
+total_mapped_file 34
+total_dirty 56
+total_writeback 78
+total_workingset_refault_anon 89
+total_workingset_refault_file 1755220566
 total_swap 0
 total_pgpgin 878460
 total_pgpgout 872515
 total_pgfault 879450
 total_pgmajfault 0
-total_inactive_anon 0
+total_inactive_anon 101
 total_active_anon 18923520
 total_inactive_file 4595712
-total_active_file 0
-total_unevictable 0`
+total_active_file 131
+total_unevictable 151`
 	sampleMemoryFailCnt   = "0"
 	sampleMemoryKmemUsage = "4444160"
 	sampleMemorySoftLimit = "9223372036854771712" // No limit
@@ -96,24 +100,29 @@ func TestCgroupV1MemoryStats(t *testing.T) {
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Equal(t, "", cmp.Diff(MemoryStats{
-		UsageTotal:   pointer.Ptr(uint64(354488320)),
-		Cache:        pointer.Ptr(uint64(4866048)),
-		Swap:         pointer.Ptr(uint64(0)),
-		RSS:          pointer.Ptr(uint64(19058688)),
-		RSSHuge:      pointer.Ptr(uint64(0)),
-		MappedFile:   pointer.Ptr(uint64(0)),
-		Pgpgin:       pointer.Ptr(uint64(878460)),
-		Pgpgout:      pointer.Ptr(uint64(872515)),
-		Pgfault:      pointer.Ptr(uint64(879450)),
-		Pgmajfault:   pointer.Ptr(uint64(0)),
-		InactiveAnon: pointer.Ptr(uint64(0)),
-		ActiveAnon:   pointer.Ptr(uint64(18923520)),
-		InactiveFile: pointer.Ptr(uint64(4595712)),
-		ActiveFile:   pointer.Ptr(uint64(0)),
-		Unevictable:  pointer.Ptr(uint64(0)),
-		OOMEvents:    pointer.Ptr(uint64(0)),
-		Limit:        pointer.Ptr(uint64(67108864)),
-		KernelMemory: pointer.Ptr(uint64(4444160)),
-		Peak:         pointer.Ptr(uint64(400000000)),
+		UsageTotal:    pointer.Ptr(uint64(354488320)),
+		Cache:         pointer.Ptr(uint64(4866048)),
+		Swap:          pointer.Ptr(uint64(0)),
+		RSS:           pointer.Ptr(uint64(19058688)),
+		RSSHuge:       pointer.Ptr(uint64(0)),
+		Shmem:         pointer.Ptr(uint64(12)),
+		FileMapped:    pointer.Ptr(uint64(34)),
+		FileDirty:     pointer.Ptr(uint64(56)),
+		FileWriteback: pointer.Ptr(uint64(78)),
+		RefaultAnon:   pointer.Ptr(uint64(89)),
+		RefaultFile:   pointer.Ptr(uint64(1755220566)),
+		Pgpgin:        pointer.Ptr(uint64(878460)),
+		Pgpgout:       pointer.Ptr(uint64(872515)),
+		Pgfault:       pointer.Ptr(uint64(879450)),
+		Pgmajfault:    pointer.Ptr(uint64(0)),
+		InactiveAnon:  pointer.Ptr(uint64(101)),
+		ActiveAnon:    pointer.Ptr(uint64(18923520)),
+		InactiveFile:  pointer.Ptr(uint64(4595712)),
+		ActiveFile:    pointer.Ptr(uint64(131)),
+		Unevictable:   pointer.Ptr(uint64(151)),
+		OOMEvents:     pointer.Ptr(uint64(0)),
+		Limit:         pointer.Ptr(uint64(67108864)),
+		KernelMemory:  pointer.Ptr(uint64(4444160)),
+		Peak:          pointer.Ptr(uint64(400000000)),
 	}, *stats))
 }

@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Expose additional cgroup memory metrics: active_anon, inactive_anon, active_file, inactive_file, unevictable, shmem,
+    file_mapped, file_dirty, file_writeback, page_tables, refault_anon, refault_file.
+    Metrics are disbaled be default.
+    To enable them please modify conf.d/container.d/conf.yaml and flip extended_memory_metrics to true.
+

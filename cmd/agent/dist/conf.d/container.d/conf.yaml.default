@@ -3,3 +3,8 @@ ad_identifiers:
 init_config:
 instances:
   -
+    ## @param extended_memory_metrics - boolean - optional - default: false
+    ## Enabled collection of additional memory metrics from cgroups.
+    ## Example: active_anon, inactive_anon, active_file, inactive_file, unevictable, shmem,
+    ##          file_mapped, file_dirty, file_writeback, page_tables, refault_anon, refault_file
+    # extended_memory_metrics: false
