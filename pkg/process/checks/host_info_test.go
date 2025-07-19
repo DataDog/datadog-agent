@@ -100,7 +100,7 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestResolveHostname(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestResolveHostname is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	osHostname, err := os.Hostname()

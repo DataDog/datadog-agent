@@ -60,7 +60,7 @@ build do
   configure_args = []
   if mac_os_x?
     configure_cmd = "./Configure"
-    configure_args << "darwin64-x86_64-cc"
+    configure_args << "darwin64-#{arm_target? ? "arm64" : "x86_64"}-cc"
   elsif windows?
     configure_cmd = "perl.exe ./Configure"
     configure_args << (windows_arch_i386? ? "mingw" : "mingw64")
