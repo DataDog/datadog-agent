@@ -152,8 +152,10 @@ func TestDoesAgentUserHaveDesiredGroups(t *testing.T) {
 			t.Skip("Skipping test - requires administrator privileges")
 		}
 		// skip test on a system which does not have DDAgent installed
-		if strings.Contains(err.Error(), "cannot find the file specified") || strings.Contains(err.Error(), "could not open registry key") {
-			t.Skip("Skipping test - DDAgent not installed (registry key not found)")
+		if strings.Contains(err.Error(), "cannot find the file specified") ||
+			strings.Contains(err.Error(), "could not open registry key") ||
+			strings.Contains(err.Error(), "The specified service does not exist as an installed service") {
+			t.Skip("Skipping test - DDAgent not installed")
 		}
 		t.Fatalf("Failed to check groups: %v", err)
 	}
@@ -174,8 +176,10 @@ func TestDoesAgentUserHaveDesiredRights(t *testing.T) {
 			t.Skip("Skipping test - requires administrator privileges")
 		}
 		// skip test on a system which does not have DDAgent installed
-		if strings.Contains(err.Error(), "cannot find the file specified") || strings.Contains(err.Error(), "could not open registry key") {
-			t.Skip("Skipping test - DDAgent not installed (registry key not found)")
+		if strings.Contains(err.Error(), "cannot find the file specified") ||
+			strings.Contains(err.Error(), "could not open registry key") ||
+			strings.Contains(err.Error(), "The specified service does not exist as an installed service") {
+			t.Skip("Skipping test - DDAgent not installed")
 		}
 		t.Fatalf("Failed to check rights: %v", err)
 	}
