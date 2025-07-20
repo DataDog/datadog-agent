@@ -43,7 +43,7 @@ func NewDecoder(
 ) (*Decoder, error) {
 	decoder := &Decoder{
 		addressReferenceCount: make(map[typeAndAddr]output.DataItem),
-		decoderTypes:          make(map[ir.TypeID]decoderType),
+		decoderTypes:          make(map[ir.TypeID]decoderType, len(program.Types)),
 		program:               program,
 		stackFrames:           make(map[uint64][]symbol.StackFrame),
 		probeEvents:           make(map[ir.TypeID]probeEvent),
@@ -64,13 +64,12 @@ func NewDecoder(
 		}
 	}
 	for _, t := range program.Types {
-		decoderType, err := decoder.getDecoderType(t)
+		decoderType, err := newDecoderType(t, program.Types)
 		if err != nil {
 			return nil, fmt.Errorf("error getting decoder type for type %s: %w", t.GetName(), err)
 		}
 		decoder.decoderTypes[t.GetID()] = decoderType
 	}
-
 	return decoder, nil
 }
 
