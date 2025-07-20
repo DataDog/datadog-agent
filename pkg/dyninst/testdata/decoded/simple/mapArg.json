@@ -26,7 +26,18 @@
             "arguments": {
               "m": {
                 "type": "map[string]int",
-                "notCapturedReason": "unimplemented"
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ]
+                ]
               }
             }
           }
