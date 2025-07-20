@@ -10,7 +10,6 @@ package k8s
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -358,14 +357,11 @@ func (a *apmInstrumentationTagsAccumulator) buildTags() []string {
 	}
 
 	// add SDK info
-	if len(a.sdks) > 0 {
-		langs := make([]string, 0, len(a.sdks))
-		for lang, tag := range a.sdks {
-			langs = append(langs, lang)
-			pushTag(fmt.Sprintf("sdk.%s", lang), tag)
-		}
-		sort.Strings(langs)
-		pushTag("sdk", strings.Join(langs, ","))
+	// one tag `sdk.<language>` and one tag `sdk` per each one.
+	// so that they are easy to query for.
+	for sdk, tag := range a.sdks {
+		pushTag(fmt.Sprintf("sdk.%s", sdk), tag)
+		pushTag("sdk", sdk)
 	}
 
 	return tags
