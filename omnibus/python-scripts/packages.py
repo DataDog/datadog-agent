@@ -115,6 +115,8 @@ def create_python_installed_packages_file(filename):
         f.write(DO_NOT_REMOVE_WARNING_HEADER)
         installed_packages = importlib.metadata.distributions()
         for dist in installed_packages:
+            if dist.metadata['Name'] is None or dist.version is None:
+                continue
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
     if not os.name == 'nt':
         os.chmod(filename, 0o644)

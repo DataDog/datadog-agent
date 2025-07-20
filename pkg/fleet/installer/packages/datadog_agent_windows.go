@@ -132,13 +132,22 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 
 	// remove the Agent if it is installed
 	// if nothing is installed this will return without an error
-	err := removeAgentIfInstalledAndRestartOnFailure(ctx)
+	removeCtx, cancelRemoveCtx := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancelRemoveCtx()
+	err := removeAgentIfInstalledAndRestartOnFailure(removeCtx)
 	if err != nil {
 		return err
 	}
 
 	args := getStartExperimentMSIArgs()
-	err = installAgentPackage(ctx, env, "experiment", args, "start_agent_experiment.log")
+	// Note: Do not change this timeout without considering the timeout in the fleet backend.
+	//       If our retry exceeds the fleet backend timeout then the experiment will fail anyway.
+	//       At time of writing, the fleet backend timeouts are:
+	//       - 10 minutes for the update task to be marked as DONE
+	//       - 15 minutes for the installer to poll remote config
+	installCtx, cancelInstallCtx := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancelInstallCtx()
+	err = installAgentPackage(installCtx, env, "experiment", args, "start_agent_experiment.log")
 	if err != nil {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
@@ -198,6 +207,8 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	}
 
 	// reinstall the stable Agent
+	// The fleet backend does no more work after sending stop_experiment,
+	// so we do not need to limit the timeout here as we do when starting the experiment.
 	err = installAgentPackage(ctx, env, "stable", nil, "restore_stable_agent.log")
 	if err != nil {
 		// we failed to reinstall the stable Agent
@@ -352,7 +363,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	var output []byte
 	if err == nil {
-		output, err = cmd.Run()
+		output, err = cmd.Run(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to install Agent %s: %w\nLog file located at: %s\n%s", target, err, logFile, string(output))
@@ -371,7 +382,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 			}
 			span.Finish(err)
 		}()
-		err := msi.RemoveProduct(product,
+		err := msi.RemoveProduct(ctx, product,
 			msi.WithAdditionalArgs([]string{"FLEET_INSTALL=1"}),
 		)
 		if err != nil {
