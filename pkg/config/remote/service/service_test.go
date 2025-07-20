@@ -733,6 +733,14 @@ func TestService(t *testing.T) {
 	assert.Equal(t, 2, len(stateResponse.DirectorState))
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
+
+	_, err = service.ConfigResetState()
+	assert.NoError(t, err)
+
+	// The state should be reset, so we should not be able to get the state again
+	// because the state is empty.
+	_, err = service.ConfigGetState()
+	assert.Error(t, err)
 }
 
 // Test for client predicates

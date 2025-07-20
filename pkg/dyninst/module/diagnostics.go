@@ -47,27 +47,33 @@ func (e *diagnosticTracker) mark(runtimeID string, probeID string) (first bool) 
 }
 
 type diagnosticsManager struct {
-	uploader  *uploader.DiagnosticsUploader
+	uploader  DiagnosticsUploader
 	received  *diagnosticTracker
 	installed *diagnosticTracker
 	emitted   *diagnosticTracker
+	errors    *diagnosticTracker
 }
 
-func newDiagnosticsManager(uploader *uploader.DiagnosticsUploader) *diagnosticsManager {
+func newDiagnosticsManager(uploader DiagnosticsUploader) *diagnosticsManager {
 	return &diagnosticsManager{
 		uploader:  uploader,
 		received:  newDiagnosticTracker("received"),
 		installed: newDiagnosticTracker("installed"),
 		emitted:   newDiagnosticTracker("emitted"),
+		errors:    newDiagnosticTracker("errors"),
 	}
 }
 
 func (m *diagnosticsManager) enqueue(
+	tracker *diagnosticTracker,
 	runtimeID procRuntimeID,
 	probe ir.ProbeIDer,
 	status uploader.Status,
 	exception *uploader.DiagnosticException,
-) {
+) bool {
+	if !tracker.mark(runtimeID.runtimeID, probe.GetID()) {
+		return false
+	}
 	diag := uploader.Diagnostic{
 		RuntimeID:           runtimeID.runtimeID,
 		ProbeID:             probe.GetID(),
@@ -78,28 +84,25 @@ func (m *diagnosticsManager) enqueue(
 	if err := m.uploader.Enqueue(uploader.NewDiagnosticMessage(runtimeID.service, diag)); err != nil {
 		log.Warnf("error enqueuing %q diagnostic: %v", diag.Status, err)
 	}
+	return true
 }
 
 func (m *diagnosticsManager) reportReceived(runtimeID procRuntimeID, probe ir.ProbeIDer) {
-	if m.received.mark(runtimeID.runtimeID, probe.GetID()) {
-		m.enqueue(runtimeID, probe, uploader.StatusReceived, nil)
-	}
+	m.enqueue(m.received, runtimeID, probe, uploader.StatusReceived, nil)
 }
 
 func (m *diagnosticsManager) reportInstalled(runtimeID procRuntimeID, probe ir.ProbeIDer) {
-	if m.installed.mark(runtimeID.runtimeID, probe.GetID()) {
-		m.enqueue(runtimeID, probe, uploader.StatusInstalled, nil)
-	}
+	m.enqueue(m.installed, runtimeID, probe, uploader.StatusInstalled, nil)
 }
 
 func (m *diagnosticsManager) reportEmitting(runtimeID procRuntimeID, probe ir.ProbeIDer) {
-	if m.emitted.mark(runtimeID.runtimeID, probe.GetID()) {
-		m.enqueue(runtimeID, probe, uploader.StatusEmitting, nil)
-	}
+	m.enqueue(m.emitted, runtimeID, probe, uploader.StatusEmitting, nil)
 }
 
-func (m *diagnosticsManager) reportError(runtimeID procRuntimeID, probe ir.ProbeIDer, e error, errType string) {
-	m.enqueue(runtimeID, probe, uploader.StatusError, &uploader.DiagnosticException{
+func (m *diagnosticsManager) reportError(
+	runtimeID procRuntimeID, probe ir.ProbeIDer, e error, errType string,
+) (reported bool) {
+	return m.enqueue(m.errors, runtimeID, probe, uploader.StatusError, &uploader.DiagnosticException{
 		Type:    errType,
 		Message: e.Error(),
 	})

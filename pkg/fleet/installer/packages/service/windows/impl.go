@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 )
 
 // WinServiceManager implements ServiceManager using the SystemAPI interface
@@ -142,12 +143,13 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 	var failedServices []error
 	for _, serviceName := range serviceNames {
 
-		running, err := w.api.IsServiceRunning(serviceName)
+		state, err := w.api.GetServiceState(serviceName)
 		if err != nil {
-			if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-				continue
+			if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+				failedServices = append(failedServices, fmt.Errorf("could not get service state for %s: %w", serviceName, err))
 			}
-		} else if !running {
+			continue
+		} else if state == svc.Stopped {
 			continue
 		}
 
@@ -155,10 +157,10 @@ func (w *WinServiceManager) terminateServiceProcesses(ctx context.Context, servi
 		err = w.terminateServiceProcess(ctx, serviceName)
 		if err != nil {
 			// Check if service is actually stopped despite the termination error
-			running, runningErr := w.api.IsServiceRunning(serviceName)
-			if runningErr != nil {
-				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, runningErr))
-			} else if running {
+			state, stateErr := w.api.GetServiceState(serviceName)
+			if stateErr != nil {
+				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, stateErr))
+			} else if state != svc.Stopped {
 				failedServices = append(failedServices, fmt.Errorf("%s: termination failed and service still running: %w", serviceName, err))
 			}
 		}

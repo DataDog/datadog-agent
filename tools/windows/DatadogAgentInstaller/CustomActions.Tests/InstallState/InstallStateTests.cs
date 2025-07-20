@@ -83,5 +83,27 @@ namespace CustomActions.Tests.InstallState
                 .Contain("DDDRIVERROLLBACK_PROCMON", procmonExopectedRollback);
         }
 
+        // This test covers the scenario where we fail to read the version we are upgrading from.
+        // This shouldn't normally happen, we've seen the following cases:
+        // - WIX_UGPRADE_DETECTED contains multiple product codes
+        // - GetVersionString failes with "Unknown property"
+        [Theory]
+        [AutoData]
+        public void ReadDD_Driver_Rollback_Multiple_Product_Codes()
+        {
+            var productCode = "{123-456-789};{123-456-790}";
+            Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
+            Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Throws(new System.Exception("GetVersionString failed"));
+
+            Test.Create()
+                .ReadInstallState()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain("DDDRIVERROLLBACK_NPM", "1").And
+                .Contain("DDDRIVERROLLBACK_PROCMON", "1");
+        }
+
     }
 }

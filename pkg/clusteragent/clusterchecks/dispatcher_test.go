@@ -212,6 +212,22 @@ func TestDescheduleRescheduleSameNode(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestGetNodeTypeCounts(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	// Register 2 CLC runners and 3 node agents
+	dispatcher.processNodeStatus("runner1", "10.0.0.10", types.NodeStatus{LastChange: 1, NodeType: types.NodeTypeCLCRunner})
+	dispatcher.processNodeStatus("runner2", "10.0.0.11", types.NodeStatus{LastChange: 2, NodeType: types.NodeTypeCLCRunner})
+	dispatcher.processNodeStatus("agent1", "10.0.0.20", types.NodeStatus{LastChange: 3, NodeType: types.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("agent2", "10.0.0.21", types.NodeStatus{LastChange: 4, NodeType: types.NodeTypeNodeAgent})
+	dispatcher.processNodeStatus("agent3", "10.0.0.22", types.NodeStatus{LastChange: 5, NodeType: types.NodeTypeNodeAgent})
+
+	clcRunnerCount, nodeAgentCount := dispatcher.store.CountNodeTypes()
+	assert.Equal(t, 2, clcRunnerCount)
+	assert.Equal(t, 3, nodeAgentCount)
+}
+
 func TestProcessNodeStatus(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)

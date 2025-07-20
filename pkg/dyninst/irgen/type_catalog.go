@@ -253,7 +253,10 @@ func (c *typeCatalog) buildType(
 				Pointee:          pointee,
 			}, nil
 		}
-		return &ir.BaseType{
+		// unsafe.Pointer is a special case where the type is represented
+		// in DWARF as a PointerType, but without a pointee or specified Go kind.
+		goAttrs.GoKind = reflect.UnsafePointer
+		return &ir.VoidPointerType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
 		}, nil

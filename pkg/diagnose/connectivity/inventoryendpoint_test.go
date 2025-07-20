@@ -457,9 +457,10 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	client := getClient(cfg, 2, logmock.New(t))
+	clientNormal := getClient(cfg, 2, logmock.New(t))
+	clientRedirect := getClient(cfg, 2, logmock.New(t), withOneRedirect())
 
-	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
+	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, clientNormal, clientRedirect)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, len(testEndpoints))
 	successCount := 0

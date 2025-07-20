@@ -52,6 +52,6 @@ func (n *NoOpResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string
 }
 
 // ResolveMountAttributes resolves the mount attributes of the mountpoint of a file
-func (n *NoOpResolver) ResolveMountAttributes(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (bool, bool, error) {
-	return false, false, nil
+func (n *NoOpResolver) ResolveMountAttributes(_ *model.FileEvent, _ *model.PIDContext, _ *model.ContainerContext) error {
+	return nil
 }
