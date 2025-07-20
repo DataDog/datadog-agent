@@ -54,16 +54,19 @@ type goHMapHeaderType ir.GoHMapHeaderType
 type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
-	keyTypeID    uint8
-	valueTypeID  uint8
-	dirLenOffset uint8
-	dirLenSize   uint8
-	dirPtrOffset uint8
-	dirPtrSize   uint8
-	ctrlOffset   uint8
-	ctrlSize     uint8
-	slotsOffset  uint8
-	slotsSize    uint8
+	keyTypeID       uint8
+	valueTypeID     uint8
+	dirLenOffset    uint8
+	dirLenSize      uint8
+	dirPtrOffset    uint8
+	dirPtrSize      uint8
+	ctrlOffset      uint8
+	ctrlSize        uint8
+	slotsOffset     uint8
+	slotsSize       uint8
+	tableType       *ir.PointerType
+	tableStructType *ir.StructureType
+	groupType       *ir.GoSwissMapGroupsType
 }
 type goSwissMapGroupsType ir.GoSwissMapGroupsType
 type goChannelType ir.GoChannelType
@@ -146,6 +149,17 @@ func newDecoderType(
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
+
+		tableType := s.TablePtrSliceType.Element.(*ir.PointerType)
+		tableStructType := tableType.Pointee.(*ir.StructureType)
+		groupField, err := getFieldByName(tableStructType.Fields, "groups")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		groupType, ok := groupField.Type.(*ir.GoSwissMapGroupsType)
+		if !ok {
+			return nil, fmt.Errorf("group field type is not a swiss map groups type: %s", groupField.Type.GetName())
+		}
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
 			keyTypeID:            uint8(keyField.Type.GetID()),
@@ -158,6 +172,9 @@ func newDecoderType(
 			ctrlSize:             uint8(ctrlSize),
 			slotsOffset:          uint8(slotsField.Offset),
 			slotsSize:            uint8(slotsFieldType.GetByteSize()),
+			tableType:            tableType,
+			tableStructType:      tableStructType,
+			groupType:            groupType,
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
@@ -201,7 +218,7 @@ func newDecoderType(
 }
 
 func (b *baseType) irType() ir.Type { return (*ir.BaseType)(b) }
-func (t *baseType) encodeValueFields(
+func (b *baseType) encodeValueFields(
 	ctx *decoderContext,
 	data []byte,
 ) error {
@@ -210,9 +227,9 @@ func (t *baseType) encodeValueFields(
 	); err != nil {
 		return err
 	}
-	kind, ok := t.GetGoKind()
+	kind, ok := b.GetGoKind()
 	if !ok {
-		return fmt.Errorf("no go kind for type %s (ID: %d)", t.GetName(), t.GetID())
+		return fmt.Errorf("no go kind for type %s (ID: %d)", b.GetName(), b.GetID())
 	}
 	switch kind {
 	case reflect.Bool:
@@ -524,13 +541,17 @@ func (p *pointerType) encodeValueFields(
 	if _, alreadyEncoding := ctx.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
 		ctx.currentlyEncoding[pointeeKey] = struct{}{}
 		defer delete(ctx.currentlyEncoding, pointeeKey)
-		pointedDecoderType, ok := ctx.decoder.decoderTypes[ir.TypeID(p.Pointee.GetID())]
-		if !ok {
-			return fmt.Errorf("no decoder type found for type %s", p.Pointee.GetName())
+		if err := writeTokens(ctx.enc,
+			jsontext.String("value"),
+		); err != nil {
+			return err
 		}
-		if err := pointedDecoderType.encodeValueFields(
-			ctx,
+		if err := ctx.decoder.encodeValue(
+			ctx.enc,
+			ctx.currentlyEncoding,
+			ir.TypeID(p.Pointee.GetID()),
 			pointedValue.Data(),
+			p.Pointee.GetName(),
 		); err != nil {
 			return fmt.Errorf("could not encode referenced value: %w", err)
 		}

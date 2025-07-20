@@ -248,10 +248,7 @@ func (d *Decoder) encodeSwissMapTables(
 	// Go swiss maps may have multiple table pointers for the same group.
 	slices.Sort(addrs)
 	addrs = slices.Compact(addrs)
-	tableType, ok := s.TablePtrSliceType.Element.(*ir.PointerType)
-	if !ok {
-		return fmt.Errorf("table ptr slice type element is not a pointer type: %s", s.TablePtrSliceType.Element.GetName())
-	}
+	tableType := s.tableType
 	for _, addr := range addrs {
 		tableDataItem, ok := ctx.decoder.dataItemReferences[typeAndAddr{
 			irType: uint32(tableType.Pointee.GetID()),
@@ -260,40 +257,28 @@ func (d *Decoder) encodeSwissMapTables(
 		if !ok {
 			return fmt.Errorf("table data item not found for addr %x", addr)
 		}
-		tableStructType, ok := tableType.Pointee.(*ir.StructureType)
-		if !ok {
-			return fmt.Errorf("table type pointee is not a structure type: %s", tableType.Pointee.GetName())
+		tableStructType := s.tableStructType
+		groupField, err := getFieldByName(tableStructType.Fields, "groups")
+		if err != nil {
+			return err
 		}
-		var groupField ir.Field
-		for _, field := range tableStructType.Fields {
-			if field.Name == "groups" {
-				groupField = field
-			}
-		}
-
 		groupData := tableDataItem.Data()[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
-		groupType, ok := groupField.Type.(*ir.GoSwissMapGroupsType)
-		if !ok {
-			return fmt.Errorf("group field type is not a swiss map groups type: %s", groupField.Type.GetName())
-		}
-		var dataField ir.Field
-		for i := range groupType.Fields {
-			if groupType.Fields[i].Name == "data" {
-				dataField = groupType.Fields[i]
-			}
+		dataField, err := getFieldByName(s.groupType.Fields, "data")
+		if err != nil {
+			return err
 		}
 		groupAddress := groupData[dataField.Offset : dataField.Offset+dataField.Type.GetByteSize()]
 		groupDataItem, ok := ctx.decoder.dataItemReferences[typeAndAddr{
-			irType: uint32(groupType.GroupSliceType.GetID()),
+			irType: uint32(s.groupType.GroupSliceType.GetID()),
 			addr:   binary.NativeEndian.Uint64(groupAddress),
 		}]
 		if !ok {
 			return fmt.Errorf("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
 		}
-		elementType := groupType.GroupSliceType.Element
+		elementType := s.groupType.GroupSliceType.Element
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
-			singleGroupData := groupDataItem.Data()[groupType.GroupSliceType.Element.GetByteSize()*i : groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
+			singleGroupData := groupDataItem.Data()[s.groupType.GroupSliceType.Element.GetByteSize()*i : s.groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
 			err := d.encodeSwissMapGroup(ctx.enc, ctx.currentlyEncoding, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
 			if err != nil {
 				return err

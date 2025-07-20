@@ -27,14 +27,17 @@
               "a": {
                 "type": "*main.node",
                 "address": "[addr]",
-                "fields": {
-                  "val": {
-                    "type": "int",
-                    "value": "1"
-                  },
-                  "b": {
-                    "type": "*main.node",
-                    "address": "[addr]"
+                "value": {
+                  "type": "main.node",
+                  "fields": {
+                    "val": {
+                      "type": "int",
+                      "value": "1"
+                    },
+                    "b": {
+                      "type": "*main.node",
+                      "address": "[addr]"
+                    }
                   }
                 }
               }
