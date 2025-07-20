@@ -29,12 +29,12 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program               *ir.Program
-	stackFrames           map[uint64][]symbol.StackFrame
-	probeEvents           map[ir.TypeID]probeEvent
-	snapshotMessage       snapshotMessage
-	addressReferenceCount map[typeAndAddr]output.DataItem
-	decoderTypes          map[ir.TypeID]decoderType
+	program            *ir.Program
+	stackFrames        map[uint64][]symbol.StackFrame
+	probeEvents        map[ir.TypeID]probeEvent
+	snapshotMessage    snapshotMessage
+	dataItemReferences map[typeAndAddr]output.DataItem
+	decoderTypes       map[ir.TypeID]decoderType
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -42,11 +42,11 @@ func NewDecoder(
 	program *ir.Program,
 ) (*Decoder, error) {
 	decoder := &Decoder{
-		addressReferenceCount: make(map[typeAndAddr]output.DataItem),
-		decoderTypes:          make(map[ir.TypeID]decoderType, len(program.Types)),
-		program:               program,
-		stackFrames:           make(map[uint64][]symbol.StackFrame),
-		probeEvents:           make(map[ir.TypeID]probeEvent),
+		dataItemReferences: make(map[typeAndAddr]output.DataItem),
+		decoderTypes:       make(map[ir.TypeID]decoderType, len(program.Types)),
+		program:            program,
+		stackFrames:        make(map[uint64][]symbol.StackFrame),
+		probeEvents:        make(map[ir.TypeID]probeEvent),
 		snapshotMessage: snapshotMessage{
 			DDSource: "dd_debugger",
 			Logger: logger{
@@ -153,7 +153,7 @@ func (s *snapshotMessage) init(
 		// The value is a data item with a counter of how many times it has been referenced.
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
-		decoder.addressReferenceCount[typeAndAddr{
+		decoder.dataItemReferences[typeAndAddr{
 			irType: uint32(item.Header().Type),
 			addr:   item.Header().Address,
 		}] = item
