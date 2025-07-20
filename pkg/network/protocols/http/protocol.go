@@ -10,6 +10,8 @@ package http
 import (
 	"fmt"
 	"io"
+	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -27,6 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Simple global variables for path dumping
+var (
+	dumpTargetPath string
+	dumpIsActive   bool
+	dumpMutex      sync.RWMutex
 )
 
 type protocol struct {
@@ -192,6 +201,10 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 func (p *protocol) processHTTP(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
+
+		// Check if path dumping is active and if this transaction matches
+		p.checkAndDumpTraffic(tx)
+
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
@@ -270,4 +283,89 @@ func AddPIDToDebugger(pid uint32, path [24]byte, size uint8) {
 	if err := httpProtocol.debuggerMap.Update(unsafe.Pointer(&pid), unsafe.Pointer(value), ebpf.UpdateAny); err != nil {
 		log.Errorf("failed to add PID %d to http debugger map: %v", pid, err)
 	}
+}
+
+// DumpTraffic enables userspace-only HTTP traffic dumping for a specific path
+func DumpTraffic(path [24]byte, size uint8) {
+	dumpMutex.Lock()
+	defer dumpMutex.Unlock()
+
+	if size > 24 {
+		log.Warnf("provided path length %d exceeds maximum of 24 bytes, cannot enable traffic dumping", size)
+		return
+	}
+
+	// Convert byte array to string, stopping at null terminator
+	pathStr := string(path[:size])
+	if nullIndex := strings.IndexByte(pathStr, 0); nullIndex != -1 {
+		pathStr = pathStr[:nullIndex]
+	}
+
+	dumpTargetPath = pathStr
+	dumpIsActive = true
+
+	log.Infof("Enabled HTTP traffic dumping for path: '%s'", pathStr)
+}
+
+// StopTrafficDumping disables HTTP traffic dumping
+func StopTrafficDumping() {
+	dumpMutex.Lock()
+	defer dumpMutex.Unlock()
+
+	dumpTargetPath = ""
+	dumpIsActive = false
+
+	log.Infof("Disabled HTTP traffic dumping")
+}
+
+// checkAndDumpTraffic checks if the current transaction matches the target path and dumps it
+func (p *protocol) checkAndDumpTraffic(tx *EbpfEvent) {
+	dumpMutex.RLock()
+	isActive := dumpIsActive
+	targetPattern := dumpTargetPath
+	dumpMutex.RUnlock()
+
+	if !isActive || targetPattern == "" {
+		return
+	}
+
+	// Extract path from the transaction
+	var pathBuffer [256]byte
+	pathBytes, _ := tx.Path(pathBuffer[:])
+	if pathBytes == nil {
+		return
+	}
+
+	extractedPath := string(pathBytes)
+
+	// Construct the full pattern: "METHOD /path"
+	method := tx.Method().String()
+	fullPattern := method + " " + extractedPath
+
+	// Check if the full pattern matches the target
+	if strings.Contains(fullPattern, targetPattern) {
+		p.dumpHTTPTransaction(tx, extractedPath, fullPattern)
+	}
+}
+
+// dumpHTTPTransaction dumps detailed information about an HTTP transaction
+func (p *protocol) dumpHTTPTransaction(tx *EbpfEvent, extractedPath string, fullPattern string) {
+	connTuple := tx.ConnTuple()
+
+	log.Infof("=== HTTP TRAFFIC DUMP ===")
+	log.Infof("Path: %s", extractedPath)
+	log.Infof("Full Pattern: %s (matched target)", fullPattern)
+	log.Infof("Method: %s", tx.Method().String())
+	log.Infof("Status Code: %d", tx.StatusCode())
+	log.Infof("PID: %d", tx.Tuple.Pid)
+	log.Infof("Source: %d", connTuple.SrcPort)
+	log.Infof("Dest: %d", connTuple.DstPort)
+	log.Infof("Request Started: %d ns", tx.RequestStarted())
+	log.Infof("Response Last Seen: %d ns", tx.ResponseLastSeen())
+	log.Infof("Latency: %f ms", tx.RequestLatency())
+	log.Infof("Request Fragment: %s", string(tx.Http.Request_fragment[:]))
+	log.Infof("Static Tags: 0x%x", tx.StaticTags())
+	log.Infof("TCP Seq: %d", tx.Http.Tcp_seq)
+	log.Infof("Is Complete: %t", !tx.Incomplete())
+	log.Infof("========================")
 }

@@ -295,6 +295,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/usm/detach-pid", usm.GetDetachPIDEndpoint(usmconsts.USMModuleName))
 	httpMux.HandleFunc("/debug/usm/http/debug-pid", httpdebugger.GetHTTPDebugEndpoint(nt.tracer))
 	httpMux.HandleFunc("/debug/usm/http/dump-traffic", httpdebugger.GetHTTPDebugEndpointTraffic(nt.tracer))
+	httpMux.HandleFunc("/debug/usm/http/stop-traffic", httpdebugger.GetHTTPStopTrafficDumpEndpoint(nt.tracer))
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.

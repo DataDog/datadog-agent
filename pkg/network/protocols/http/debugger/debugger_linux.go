@@ -9,7 +9,6 @@
 package debugger
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,6 +45,8 @@ func GetHTTPDebugEndpoint(tracer *tracer.Tracer) func(http.ResponseWriter, *http
 			w.WriteHeader(500)
 			return
 		}
+
+		w.WriteHeader(200)
 	}
 }
 
@@ -58,10 +59,54 @@ func GetHTTPDebugEndpointTraffic(tracer *tracer.Tracer) func(http.ResponseWriter
 			return
 		}
 
-		path := r.URL.Query().Get("path")
-		if path == "" {
+		url := r.URL.Query().Get("url")
+		if url == "" {
+			log.Error("url parameter is required")
 			w.WriteHeader(400)
+			return
 		}
-		fmt.Print(path)
+
+		methodParam := r.URL.Query().Get("method")
+		log.Infof("Received parameters: url='%s', method='%s'", url, methodParam)
+
+		method := strings.ToUpper(methodParam)
+		if method == "" {
+			method = "GET" // Default to GET if not specified
+		}
+		method += " "
+		log.Infof("Final pattern will be: '%s%s'", method, url)
+
+		buf := [24]byte{}
+		copy(buf[:len(method)], method)
+		copy(buf[len(method):], url)
+
+		if err := mon.DumpHTTPSTraffic(buf, uint8(len(method)+len(url))); err != nil {
+			log.Errorf("unable to debug HTTP traffic for url %s: %s", url, err)
+			w.WriteHeader(500)
+			return
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("HTTP traffic debugging enabled"))
+	}
+}
+
+func GetHTTPStopTrafficDumpEndpoint(tracer *tracer.Tracer) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mon := tracer.USMMonitor()
+		if mon == nil {
+			log.Error("unable to retrieve USM monitor")
+			w.WriteHeader(500)
+			return
+		}
+
+		if err := mon.StopHTTPTrafficDebug(); err != nil {
+			log.Errorf("unable to stop HTTP traffic debugging: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		w.WriteHeader(200)
+		w.Write([]byte("HTTP traffic debugging stopped"))
 	}
 }

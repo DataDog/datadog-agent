@@ -264,3 +264,33 @@ func (m *Monitor) DebugHTTPPath(pid uint32, path [24]byte, size uint8) error {
 	}
 	return fmt.Errorf("no HTTP protocol found in the monitor")
 }
+
+// DumpHTTPSTraffic adds a PID to the HTTP debugger with the given path.
+func (m *Monitor) DumpHTTPSTraffic(path [24]byte, size uint8) error {
+	if m == nil {
+		return fmt.Errorf("monitor is nil")
+	}
+
+	for _, protocol := range m.ebpfProgram.enabledProtocols {
+		if protocol.Instance.Name() == "HTTP" {
+			http.DumpTraffic(path, size)
+			return nil
+		}
+	}
+	return fmt.Errorf("no HTTP protocol found in the monitor")
+}
+
+// StopHTTPTrafficDebug stops HTTP traffic debugging
+func (m *Monitor) StopHTTPTrafficDebug() error {
+	if m == nil {
+		return fmt.Errorf("monitor is nil")
+	}
+
+	for _, protocol := range m.ebpfProgram.enabledProtocols {
+		if protocol.Instance.Name() == "HTTP" {
+			http.StopTrafficDumping()
+			return nil
+		}
+	}
+	return fmt.Errorf("no HTTP protocol found in the monitor")
+}
