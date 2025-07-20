@@ -279,6 +279,28 @@ int uprobe__http_process(struct pt_regs *ctx) {
     bpf_memset(&event, 0, sizeof(http_event_t));
     bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
     read_into_user_buffer_http(event.http.request_fragment, args->buffer_ptr);
+    // Check pid in a map
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u32 pid = GET_USER_MODE_PID(pid_tgid);
+    debugger_t *debugger = bpf_map_lookup_elem(&https_debug_pid, &pid);
+    if (debugger != NULL) {
+        bpf_printk("http_process: pid=%u, pattern=%s", pid, debugger->pattern);
+        bool match = true;
+        #pragma unroll (24)
+        for (int i = 0; i < sizeof(debugger->pattern) && i < debugger->size; i++) {
+            if (debugger->pattern[i] != event.http.request_fragment[i]) {
+                match = false;
+                break;
+            }
+        }
+        if (match){
+            bpf_printk("http_process: saddr_h=%llu, saddr_l=%llu, sport=%lu", event.tuple.saddr_h, event.tuple.saddr_l, event.tuple.sport);
+            bpf_printk("http_process: daddr_h=%llu, daddr_l=%llu, dport=%lu", event.tuple.daddr_h, event.tuple.daddr_l, event.tuple.dport);
+            bpf_printk("http_process: pid=%u, endpoint=%s", pid, event.http.request_fragment);
+        }
+
+    }
+
     http_process(&event, NULL, args->tags);
     http_batch_flush(ctx);
 

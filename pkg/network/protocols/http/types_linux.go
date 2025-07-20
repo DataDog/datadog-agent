@@ -23,6 +23,10 @@ type SslReadArgs struct {
 	Ctx uint64
 	Buf uint64
 }
+type Debugger struct {
+	Pattern [24]int8
+	Size    uint8
+}
 
 type EbpfEvent struct {
 	Tuple ConnTuple

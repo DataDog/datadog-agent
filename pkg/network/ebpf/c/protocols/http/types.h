@@ -84,4 +84,9 @@ typedef struct {
     __u32 fd;
 } ssl_sock_t;
 
+typedef struct {
+    char pattern [24];
+    __u8 size;
+} debugger_t;
+
 #endif
