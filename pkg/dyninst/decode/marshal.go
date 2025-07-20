@@ -124,14 +124,10 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			}
 			continue
 		}
-		parameterDecoderType, err := ad.decoder.getDecoderType(parameterType)
-		if err != nil {
-			return err
-		}
 		err = ad.decoder.encodeValue(enc,
 			ad.decoder.addressReferenceCount,
 			currentlyEncoding,
-			parameterDecoderType,
+			parameterType.GetID(),
 			parameterData,
 			parameterType.GetName(),
 		)
@@ -194,7 +190,7 @@ func (d *Decoder) encodeValue(
 	enc *jsontext.Encoder,
 	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
-	decoderType decoderType,
+	typeID ir.TypeID,
 	data []byte,
 	valueType string,
 ) error {
@@ -204,6 +200,10 @@ func (d *Decoder) encodeValue(
 		jsontext.String(valueType),
 	); err != nil {
 		return err
+	}
+	decoderType, ok := d.decoderTypes[typeID]
+	if !ok {
+		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
 	}
 	if err := decoderType.encodeValueFields(
 		&decoderContext{
@@ -219,7 +219,6 @@ func (d *Decoder) encodeValue(
 	if err := writeTokens(enc, jsontext.EndObject); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -404,7 +403,7 @@ func (d *Decoder) encodeSwissMapTables(
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
 			singleGroupData := groupDataItem.Data()[groupType.GroupSliceType.Element.GetByteSize()*i : groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.encodeSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, s.keyTypeID, s.valueTypeID)
+			err := d.encodeSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
 			if err != nil {
 				return err
 			}
@@ -419,19 +418,17 @@ func (d *Decoder) encodeSwissMapGroup(
 	currentlyEncoding map[typeAndAddr]struct{},
 	s *goSwissMapHeaderType,
 	groupData []byte,
-	keyTypeID uint32,
-	valueTypeID uint32,
+	keyTypeID ir.TypeID,
+	valueTypeID ir.TypeID,
 ) error {
-	keyType, ok := d.program.Types[ir.TypeID(keyTypeID)]
+	keyType, ok := d.program.Types[keyTypeID]
 	if !ok {
-		return fmt.Errorf("key type %d not found in types", keyTypeID)
+		return fmt.Errorf("key type not found for key type ID %d", keyTypeID)
 	}
-	valueType, ok := d.program.Types[ir.TypeID(valueTypeID)]
+	valueType, ok := d.program.Types[valueTypeID]
 	if !ok {
-		return fmt.Errorf("value type %d not found in types", valueTypeID)
+		return fmt.Errorf("value type not found for value type ID %d", valueTypeID)
 	}
-	keySize := keyType.GetByteSize()
-	valueSize := valueType.GetByteSize()
 	var (
 		controlWord uint64
 		slotsData   []byte
@@ -448,7 +445,7 @@ func (d *Decoder) encodeSwissMapGroup(
 			controlWord = binary.LittleEndian.Uint64(groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()])
 		}
 	}
-	entrySize := keySize + valueSize
+	entrySize := keyType.GetByteSize() + valueType.GetByteSize()
 	for i := range 8 {
 		if controlWord&(1<<(7+(8*i))) != 0 {
 			// slot is empty or deleted
@@ -461,34 +458,27 @@ func (d *Decoder) encodeSwissMapGroup(
 		}
 
 		entryData := slotsData[offset:entryEnd]
-		if uint32(len(entryData)) < keySize+valueSize {
-			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, keySize+valueSize, len(entryData))
+		if uint32(len(entryData)) < keyType.GetByteSize()+valueType.GetByteSize() {
+			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, keyType.GetByteSize()+valueType.GetByteSize(), len(entryData))
 		}
 
-		keyData := entryData[0:keySize]
-		valueData := entryData[keySize : keySize+valueSize]
+		keyData := entryData[0:keyType.GetByteSize()]
+		valueData := entryData[keyType.GetByteSize() : keyType.GetByteSize()+valueType.GetByteSize()]
 		if err := writeTokens(enc,
 			jsontext.BeginArray,
 		); err != nil {
 			return err
 		}
-		keyDecoderType, err := d.getDecoderType(keyType)
-		if err != nil {
-			return err
-		}
-		valueDecoderType, err := d.getDecoderType(valueType)
-		if err != nil {
-			return err
-		}
-		err = d.encodeValue(enc, dataItems, currentlyEncoding,
-			keyDecoderType, keyData, keyType.GetName(),
+		err := d.encodeValue(enc, dataItems, currentlyEncoding,
+			keyTypeID, keyData, keyType.GetName(),
 		)
 		if err != nil {
 			return err
 		}
-		if err = d.encodeValue(enc, dataItems, currentlyEncoding,
-			valueDecoderType, valueData, valueType.GetName(),
-		); err != nil {
+		err = d.encodeValue(enc, dataItems, currentlyEncoding,
+			valueTypeID, valueData, valueType.GetName(),
+		)
+		if err != nil {
 			return err
 		}
 		if err := writeTokens(enc, jsontext.EndArray); err != nil {

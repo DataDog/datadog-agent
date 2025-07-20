@@ -46,10 +46,7 @@ type pointerType ir.PointerType
 type structureType ir.StructureType
 type arrayType ir.ArrayType
 type voidPointerType ir.VoidPointerType
-type goSliceHeaderType struct {
-	*ir.GoSliceHeaderType
-	elementTypeID uint32
-}
+type goSliceHeaderType ir.GoSliceHeaderType
 type goSliceDataType ir.GoSliceDataType
 type goStringHeaderType ir.GoStringHeaderType
 type goStringDataType ir.GoStringDataType
@@ -98,20 +95,30 @@ var (
 	_ decoderType = (*eventRootType)(nil)
 )
 
-func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
+func newDecoderType(
+	irType ir.Type,
+	types map[ir.TypeID]ir.Type,
+) (decoderType, error) {
 	switch s := irType.(type) {
-	case *ir.GoSliceHeaderType:
-		elementTypeID := s.Data.Element.GetID()
-		return &goSliceHeaderType{
-			GoSliceHeaderType: s,
-			elementTypeID:     uint32(elementTypeID),
-		}, nil
 	case *ir.GoSwissMapHeaderType:
-		if len(s.GroupType.RawFields) < 2 {
-			return nil, errors.New("type map group has less than 2 fields: " + s.GroupType.Name)
+		dirPtrField, err := getFieldByName(s.RawFields, "dirPtr")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
-		slotsField := s.GroupType.RawFields[1]
-		slotsFieldType, ok := d.program.Types[slotsField.Type.GetID()]
+		dirPtrOffset := dirPtrField.Offset
+		dirPtrSize := dirPtrField.Type.GetByteSize()
+		dirLenField, err := getFieldByName(s.RawFields, "dirLen")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		dirLenOffset := dirLenField.Offset
+		dirLenSize := dirLenField.Type.GetByteSize()
+
+		slotsField, err := getFieldByName(s.GroupType.RawFields, "slots")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		slotsFieldType, ok := types[slotsField.Type.GetID()]
 		if !ok {
 			return nil, errors.New("type map slot field not found in types: " + s.GroupType.Name)
 		}
@@ -129,46 +136,21 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		if !ok {
 			return nil, errors.New("type map entry array element is not a structure type: " + entryArray.Element.GetName())
 		}
-
-		if len(noalgstructType.RawFields) < 2 {
-			return nil, errors.New("type map entry array element has less than 2 fields: " + entryArray.Element.GetName())
-		}
-		keyField := noalgstructType.RawFields[0]
-		keyIrType, ok := d.program.Types[keyField.Type.GetID()]
-		if !ok {
-			return nil, fmt.Errorf("key type %s not found in types", keyField.Type.GetName())
-		}
-		keyType, err := d.getDecoderType(keyIrType)
-		if err != nil {
-			return nil, err
-		}
-
-		valueField := noalgstructType.RawFields[1]
-		valueIrType, ok := d.program.Types[valueField.Type.GetID()]
-		if !ok {
-			return nil, fmt.Errorf("value type %s not found in types", valueField.Type.GetName())
-		}
-		valueType, err := d.getDecoderType(valueIrType)
-		if err != nil {
-			return nil, err
-		}
-		dirLenField, err := getFieldByName(s.RawFields, "dirLen")
+		keyField, err := getFieldByName(noalgstructType.RawFields, "key")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
-		dirLenOffset := dirLenField.Offset
-		dirLenSize := dirLenField.Type.GetByteSize()
-		dirPtrField, err := getFieldByName(s.RawFields, "dirPtr")
+		if keyField == nil {
+			return nil, errors.New("type map entry array element has no key field: " + entryArray.Element.GetName())
+		}
+		elem, err := getFieldByName(noalgstructType.RawFields, "elem")
 		if err != nil {
 			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
 		}
-		dirPtrOffset := dirPtrField.Offset
-		dirPtrSize := dirPtrField.Type.GetByteSize()
-
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
-			keyTypeID:            uint32(keyType.irType().GetID()),
-			valueTypeID:          uint32(valueType.irType().GetID()),
+			keyTypeID:            uint32(keyField.Type.GetID()),
+			valueTypeID:          uint32(elem.Type.GetID()),
 			dirLenOffset:         dirLenOffset,
 			dirLenSize:           dirLenSize,
 			dirPtrOffset:         dirPtrOffset,
@@ -184,6 +166,8 @@ func (d *Decoder) getDecoderType(irType ir.Type) (decoderType, error) {
 		return (*structureType)(s), nil
 	case *ir.ArrayType:
 		return (*arrayType)(s), nil
+	case *ir.GoSliceHeaderType:
+		return (*goSliceHeaderType)(s), nil
 	case *ir.VoidPointerType:
 		return (*voidPointerType)(s), nil
 	case *ir.PointerType:
@@ -247,7 +231,6 @@ func (m *goMapType) encodeValueFields(
 	ctx *decoderContext,
 	data []byte,
 ) error {
-
 	if len(data) < int(m.GetByteSize()) {
 		return errors.New("passed data not long enough for map")
 	}
@@ -265,24 +248,31 @@ func (m *goMapType) encodeValueFields(
 		}
 		return nil
 	}
-	pointedValue, dataItemExists := ctx.dataItems[key]
+	keyValue, dataItemExists := ctx.dataItems[key]
 	if !dataItemExists {
 		return writeTokens(ctx.enc,
 			jsontext.String("notCapturedReason"),
 			jsontext.String("depth"),
 		)
 	}
-	headerType, ok := ctx.decoder.program.Types[ir.TypeID(pointedValue.Header().Type)]
-	if !ok {
-		return fmt.Errorf("no type for header type (ID: %d)", pointedValue.Header().Type)
+	keyValueHeader := keyValue.Header()
+	if keyValueHeader == nil {
+		return writeTokens(ctx.enc,
+			jsontext.String("notCapturedReason"),
+			jsontext.String("depth"),
+		)
 	}
-	headerDecoderType, err := ctx.decoder.getDecoderType(headerType)
-	if err != nil {
-		return err
+	headerType, ok := ctx.decoder.program.Types[ir.TypeID(keyValueHeader.Type)]
+	if !ok {
+		return fmt.Errorf("no type for header type (ID: %d)", keyValueHeader.Type)
+	}
+	headerDecoderType, ok := ctx.decoder.decoderTypes[headerType.GetID()]
+	if !ok {
+		return fmt.Errorf("no decoder type found for header type (ID: %d)", keyValue.Header().Type)
 	}
 	return headerDecoderType.encodeValueFields(
 		ctx,
-		pointedValue.Data(),
+		keyValue.Data(),
 	)
 }
 
@@ -338,8 +328,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			ctx.currentlyEncoding,
 			s,
 			groupDataItem.Data(),
-			s.keyTypeID,
-			s.valueTypeID,
+			ir.TypeID(s.keyTypeID),
+			ir.TypeID(s.valueTypeID),
 		)
 		if err != nil {
 			return err
@@ -458,9 +448,9 @@ func (p *pointerType) encodeValueFields(
 	if _, alreadyEncoding := ctx.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
 		ctx.currentlyEncoding[pointeeKey] = struct{}{}
 		defer delete(ctx.currentlyEncoding, pointeeKey)
-		pointedDecoderType, err := ctx.decoder.getDecoderType(p.Pointee)
-		if err != nil {
-			return err
+		pointedDecoderType, ok := ctx.decoder.decoderTypes[ir.TypeID(p.Pointee.GetID())]
+		if !ok {
+			return fmt.Errorf("no decoder type found for type %s", p.Pointee.GetName())
 		}
 		if err = pointedDecoderType.encodeValueFields(
 			ctx,
@@ -487,10 +477,6 @@ func (s *structureType) encodeValueFields(
 		if err = writeTokens(ctx.enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}
-		fieldType, err := ctx.decoder.getDecoderType(field.Type)
-		if err != nil {
-			return err
-		}
 		fieldEnd := field.Offset + field.Type.GetByteSize()
 		if fieldEnd > uint32(len(data)) {
 			return fmt.Errorf("field %s extends beyond data bounds: need %d bytes, have %d", field.Name, fieldEnd, len(data))
@@ -499,7 +485,7 @@ func (s *structureType) encodeValueFields(
 		if err = ctx.decoder.encodeValue(ctx.enc,
 			ctx.dataItems,
 			ctx.currentlyEncoding,
-			fieldType,
+			field.Type.GetID(),
 			data[field.Offset:field.Offset+field.Type.GetByteSize()],
 			field.Type.GetName(),
 		); err != nil {
@@ -518,10 +504,6 @@ func (a *arrayType) encodeValueFields(
 	data []byte,
 ) error {
 	var err error
-	elementDecoderType, err := ctx.decoder.getDecoderType(a.Element)
-	if err != nil {
-		return err
-	}
 	elementSize := int(a.Element.GetByteSize())
 	numElements := int(a.Count)
 	if err = writeTokens(ctx.enc,
@@ -542,9 +524,9 @@ func (a *arrayType) encodeValueFields(
 		if err := ctx.decoder.encodeValue(ctx.enc,
 			ctx.dataItems,
 			ctx.currentlyEncoding,
-			elementDecoderType,
+			a.Element.GetID(),
 			elementData,
-			elementDecoderType.irType().GetName(),
+			a.Element.GetName(),
 		); err != nil {
 			return err
 		}
@@ -555,7 +537,7 @@ func (a *arrayType) encodeValueFields(
 	return nil
 }
 
-func (s *goSliceHeaderType) irType() ir.Type { return s.GoSliceHeaderType }
+func (s *goSliceHeaderType) irType() ir.Type { return (*ir.GoSliceHeaderType)(s) }
 func (s *goSliceHeaderType) encodeValueFields(
 	ctx *decoderContext,
 	data []byte) error {
@@ -586,12 +568,6 @@ func (s *goSliceHeaderType) encodeValueFields(
 			jsontext.BeginArray,
 			jsontext.EndArray)
 	}
-	var elementDecoderType decoderType
-	var err error
-	elementDecoderType, err = ctx.decoder.getDecoderType(s.Data.Element)
-	if err != nil {
-		return err
-	}
 	elementSize := int(s.Data.Element.GetByteSize())
 	taa := typeAndAddr{
 		addr:   address,
@@ -604,7 +580,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 			jsontext.String("no buffer space"),
 		)
 	}
-	if err = writeTokens(ctx.enc,
+	if err := writeTokens(ctx.enc,
 		jsontext.String("elements"),
 		jsontext.BeginArray); err != nil {
 		return err
@@ -616,14 +592,14 @@ func (s *goSliceHeaderType) encodeValueFields(
 		if err := ctx.decoder.encodeValue(ctx.enc,
 			ctx.dataItems,
 			ctx.currentlyEncoding,
-			elementDecoderType,
+			s.Data.Element.GetID(),
 			elementData,
 			s.Data.Element.GetName(),
 		); err != nil {
 			return err
 		}
 	}
-	if err = writeTokens(ctx.enc, jsontext.EndArray); err != nil {
+	if err := writeTokens(ctx.enc, jsontext.EndArray); err != nil {
 		return err
 	}
 	if length > uint64(sliceLength) {
