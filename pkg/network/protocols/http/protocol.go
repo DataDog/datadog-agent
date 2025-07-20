@@ -10,8 +10,11 @@ package http
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -35,6 +38,8 @@ import (
 var (
 	dumpTargetPath string
 	dumpIsActive   bool
+	dumpFile       *os.File
+	dumpFileName   string
 	dumpMutex      sync.RWMutex
 )
 
@@ -301,16 +306,55 @@ func DumpTraffic(path [24]byte, size uint8) {
 		pathStr = pathStr[:nullIndex]
 	}
 
+	// Close previous file if exists
+	if dumpFile != nil {
+		dumpFile.Close()
+		dumpFile = nil
+	}
+
+	// Create new dump file in /tmp directory
+	timestamp := time.Now().Format("20060102_150405")
+	safePathStr := strings.ReplaceAll(strings.ReplaceAll(pathStr, "/", "_"), " ", "_")
+	dumpFileName = filepath.Join("/tmp", fmt.Sprintf("http_traffic_dump_%s_%s.log", safePathStr, timestamp))
+
+	var err error
+	dumpFile, err = os.Create(dumpFileName)
+	if err != nil {
+		log.Errorf("failed to create dump file: %v", err)
+		return
+	}
+
+	// Write header to file
+	fmt.Fprintf(dumpFile, "HTTP Traffic Dump\n")
+	fmt.Fprintf(dumpFile, "=================\n")
+	fmt.Fprintf(dumpFile, "Target Pattern: %s\n", pathStr)
+	fmt.Fprintf(dumpFile, "Started: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(dumpFile, "=================\n\n")
+	dumpFile.Sync()
+
 	dumpTargetPath = pathStr
 	dumpIsActive = true
 
-	log.Infof("Enabled HTTP traffic dumping for path: '%s'", pathStr)
+	log.Infof("Enabled HTTP traffic dumping for path: '%s' - writing to file: %s", pathStr, dumpFileName)
 }
 
 // StopTrafficDumping disables HTTP traffic dumping
 func StopTrafficDumping() {
 	dumpMutex.Lock()
 	defer dumpMutex.Unlock()
+
+	if dumpFile != nil {
+		// Write footer to file
+		fmt.Fprintf(dumpFile, "\n=================\n")
+		fmt.Fprintf(dumpFile, "Dump completed: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(dumpFile, "=================\n")
+		dumpFile.Sync()
+		dumpFile.Close()
+
+		log.Infof("HTTP traffic dump saved to: %s", dumpFileName)
+		dumpFile = nil
+		dumpFileName = ""
+	}
 
 	dumpTargetPath = ""
 	dumpIsActive = false
@@ -350,22 +394,37 @@ func (p *protocol) checkAndDumpTraffic(tx *EbpfEvent) {
 
 // dumpHTTPTransaction dumps detailed information about an HTTP transaction
 func (p *protocol) dumpHTTPTransaction(tx *EbpfEvent, extractedPath string, fullPattern string) {
-	connTuple := tx.ConnTuple()
+	dumpMutex.RLock()
+	file := dumpFile
+	dumpMutex.RUnlock()
 
-	log.Infof("=== HTTP TRAFFIC DUMP ===")
-	log.Infof("Path: %s", extractedPath)
-	log.Infof("Full Pattern: %s (matched target)", fullPattern)
-	log.Infof("Method: %s", tx.Method().String())
-	log.Infof("Status Code: %d", tx.StatusCode())
-	log.Infof("PID: %d", tx.Tuple.Pid)
-	log.Infof("Source: %d", connTuple.SrcPort)
-	log.Infof("Dest: %d", connTuple.DstPort)
-	log.Infof("Request Started: %d ns", tx.RequestStarted())
-	log.Infof("Response Last Seen: %d ns", tx.ResponseLastSeen())
-	log.Infof("Latency: %f ms", tx.RequestLatency())
-	log.Infof("Request Fragment: %s", string(tx.Http.Request_fragment[:]))
-	log.Infof("Static Tags: 0x%x", tx.StaticTags())
-	log.Infof("TCP Seq: %d", tx.Http.Tcp_seq)
-	log.Infof("Is Complete: %t", !tx.Incomplete())
-	log.Infof("========================")
+	if file == nil {
+		return
+	}
+
+	connTuple := tx.ConnTuple()
+	timestamp := time.Now().Format("2006-01-02 15:04:05.000")
+
+	// Write structured dump to file
+	fmt.Fprintf(file, "[%s] HTTP Transaction Captured\n", timestamp)
+	fmt.Fprintf(file, "─────────────────────────────────────\n")
+	fmt.Fprintf(file, "Path: %s\n", extractedPath)
+	fmt.Fprintf(file, "Full Pattern: %s (matched target)\n", fullPattern)
+	fmt.Fprintf(file, "Method: %s\n", tx.Method().String())
+	fmt.Fprintf(file, "Status Code: %d\n", tx.StatusCode())
+	fmt.Fprintf(file, "PID: %d\n", tx.Tuple.Pid)
+	fmt.Fprintf(file, "Source Port: %d\n", connTuple.SrcPort)
+	fmt.Fprintf(file, "Dest Port: %d\n", connTuple.DstPort)
+	fmt.Fprintf(file, "Request Started: %d ns\n", tx.RequestStarted())
+	fmt.Fprintf(file, "Response Last Seen: %d ns\n", tx.ResponseLastSeen())
+	fmt.Fprintf(file, "Latency: %f ms\n", tx.RequestLatency())
+	fmt.Fprintf(file, "Request Fragment: %s\n", string(tx.Http.Request_fragment[:]))
+	fmt.Fprintf(file, "Static Tags: 0x%x\n", tx.StaticTags())
+	fmt.Fprintf(file, "TCP Seq: %d\n", tx.Http.Tcp_seq)
+	fmt.Fprintf(file, "Is Complete: %t\n", !tx.Incomplete())
+	fmt.Fprintf(file, "─────────────────────────────────────\n\n")
+	file.Sync()
+
+	// Also log a simple message to indicate capture
+	log.Infof("HTTP traffic captured and dumped to file: %s %s", tx.Method().String(), extractedPath)
 }
