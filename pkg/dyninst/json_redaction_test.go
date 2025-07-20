@@ -407,6 +407,63 @@ func TestDefaultRedactors(t *testing.T) {
   }
 }`,
 		},
+		{
+			name: "pointer chain with duplicate address fields",
+			input: `{
+  "timestamp": "2023-01-01T00:00:00Z",
+  "debugger": {
+    "snapshot": {
+      "id": "snap-123",
+      "timestamp": "2023-01-01T01:00:00Z",
+      "stack": ["frame1", "frame2"],
+      "captures": {
+        "entry": {
+          "arguments": {
+            "ptr": {
+              "type": "*main.PointerChainArg",
+              "address": "0x7fff5fbff100",
+              "fields": {
+                "addr": {
+                  "type": "uintptr",
+                  "address": "0x7fff5fbff108",
+                  "value": "0x12345678"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`,
+			expected: `{
+    "timestamp": "[ts]",
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "stack": "[stack-unredact-me]",
+        "captures": {
+          "entry": {
+            "arguments": {
+              "ptr": {
+                "type": "*main.PointerChainArg",
+                "address": "[addr]",
+                "fields": {
+                  "addr": {
+                    "type": "uintptr",
+                    "address": "[addr]",
+                    "value": "0x12345678"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`,
+		},
 	}
 
 	for _, tt := range tests {
