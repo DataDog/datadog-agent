@@ -453,6 +453,13 @@ probes:
   where:
     methodName: main.testPointerLoop
   captureSnapshot: true
+- id: testCycle
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testCycle
+  captureSnapshot: true
 - id: testPointerToSimpleStruct
   type: LOG_PROBE
   tags:
