@@ -100,7 +100,38 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -128,11 +159,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -140,7 +171,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -220,7 +251,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
@@ -368,7 +399,38 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -396,11 +458,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -408,7 +470,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -488,7 +550,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
@@ -636,7 +698,38 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "entries": [
+                      [
+                        {
+                          "type": "string",
+                          "value": "Accept-Encoding"
+                        },
+                        {
+                          "type": "[]string",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "gzip"
+                            }
+                          ]
+                        }
+                      ],
+                      [
+                        {
+                          "type": "string",
+                          "value": "User-Agent"
+                        },
+                        {
+                          "type": "[]string",
+                          "elements": [
+                            {
+                              "type": "string",
+                              "value": "Go-http-client/1.1"
+                            }
+                          ]
+                        }
+                      ]
+                    ]
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -664,11 +757,11 @@
                   },
                   "Form": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "PostForm": {
                     "type": "net/url.Values",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "MultipartForm": {
                     "type": "*mime/multipart.Form",
@@ -676,7 +769,7 @@
                   },
                   "Trailer": {
                     "type": "net/http.Header",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   },
                   "RemoteAddr": {
                     "type": "string",
@@ -756,7 +849,7 @@
                   },
                   "otherValues": {
                     "type": "map[string]string",
-                    "notCapturedReason": "unimplemented"
+                    "isNull": true
                   }
                 }
               }
