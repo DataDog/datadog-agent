@@ -27,10 +27,13 @@
               "a": {
                 "type": "*main.oneStringStruct",
                 "address": "[addr]",
-                "fields": {
-                  "a": {
-                    "type": "string",
-                    "value": "omg"
+                "value": {
+                  "type": "main.oneStringStruct",
+                  "fields": {
+                    "a": {
+                      "type": "string",
+                      "value": "omg"
+                    }
                   }
                 }
               }

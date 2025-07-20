@@ -26,7 +26,19 @@
             "arguments": {
               "ptr": {
                 "type": "*****int",
-                "notCapturedReason": "depth"
+                "address": "[addr]",
+                "value": {
+                  "type": "****int",
+                  "address": "[addr]",
+                  "value": {
+                    "type": "***int",
+                    "address": "[addr]",
+                    "value": {
+                      "type": "**int",
+                      "notCapturedReason": "depth"
+                    }
+                  }
+                }
               }
             }
           }

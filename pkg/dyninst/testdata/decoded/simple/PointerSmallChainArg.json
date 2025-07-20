@@ -27,7 +27,14 @@
               "ptr": {
                 "type": "**int",
                 "address": "[addr]",
-                "value": "17"
+                "value": {
+                  "type": "*int",
+                  "address": "[addr]",
+                  "value": {
+                    "type": "int",
+                    "value": "17"
+                  }
+                }
               }
             }
           }

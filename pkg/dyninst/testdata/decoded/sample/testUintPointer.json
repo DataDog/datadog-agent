@@ -27,7 +27,10 @@
               "x": {
                 "type": "*uint",
                 "address": "[addr]",
-                "value": "1"
+                "value": {
+                  "type": "uint",
+                  "value": "1"
+                }
               }
             }
           }
