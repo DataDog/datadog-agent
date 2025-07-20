@@ -9,12 +9,8 @@ package decode
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
-	"math"
-	"reflect"
 	"slices"
-	"strconv"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -125,7 +121,6 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			continue
 		}
 		err = ad.decoder.encodeValue(enc,
-			ad.decoder.addressReferenceCount,
 			currentlyEncoding,
 			parameterType.GetID(),
 			parameterData,
@@ -188,7 +183,6 @@ func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
 
 func (d *Decoder) encodeValue(
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
 	typeID ir.TypeID,
 	data []byte,
@@ -209,7 +203,6 @@ func (d *Decoder) encodeValue(
 		&decoderContext{
 			decoder:           d,
 			enc:               enc,
-			dataItems:         dataItems,
 			currentlyEncoding: currentlyEncoding,
 		},
 		data,
@@ -220,101 +213,6 @@ func (d *Decoder) encodeValue(
 		return err
 	}
 	return nil
-}
-
-func encodeBaseTypeValue(enc *jsontext.Encoder, t *baseType, data []byte) error {
-	kind, ok := t.GetGoKind()
-	if !ok {
-		return fmt.Errorf("no go kind for type %s (ID: %d)", t.GetName(), t.GetID())
-	}
-	switch kind {
-	case reflect.Bool:
-		if len(data) < 1 {
-			return errors.New("passed data not long enough for bool")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatBool(data[0] == 1)))
-	case reflect.Int:
-		if len(data) < 8 {
-			return errors.New("passed data not long enough for int")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint64(data)), 10)))
-	case reflect.Int8:
-		if len(data) < 1 {
-			return errors.New("passed data not long enough for int8")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(int8(data[0])), 10)))
-	case reflect.Int16:
-		if len(data) < 2 {
-			return errors.New("passed data not long enough for int16")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint16(data)), 10)))
-	case reflect.Int32:
-		if len(data) != 4 {
-			return errors.New("passed data not long enough for int32")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint32(data)), 10)))
-	case reflect.Int64:
-		if len(data) != 8 {
-			return errors.New("passed data not long enough for int64")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatInt(int64(binary.NativeEndian.Uint64(data)), 10)))
-	case reflect.Uint:
-		if len(data) != 8 {
-			return errors.New("passed data not long enough for uint")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(binary.NativeEndian.Uint64(data), 10)))
-	case reflect.Uint8:
-		if len(data) != 1 {
-			return errors.New("passed data not long enough for uint8")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(data[0]), 10)))
-	case reflect.Uint16:
-		if len(data) != 2 {
-			return errors.New("passed data not long enough for uint16")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(binary.NativeEndian.Uint16(data)), 10)))
-	case reflect.Uint32:
-		if len(data) != 4 {
-			return errors.New("passed data not long enough for uint32")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(uint64(binary.NativeEndian.Uint32(data)), 10)))
-	case reflect.Uint64:
-		if len(data) != 8 {
-			return errors.New("passed data not long enough for uint64")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatUint(binary.NativeEndian.Uint64(data), 10)))
-	case reflect.Uintptr:
-		if len(data) != 8 {
-			return errors.New("passed data not long enough for uintptr")
-		}
-		return writeTokens(enc, jsontext.String("0x"+strconv.FormatUint(binary.NativeEndian.Uint64(data), 16)))
-	case reflect.Float32:
-		if len(data) != 4 {
-			return errors.New("passed data not long enough for float32")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatFloat(float64(math.Float32frombits(binary.NativeEndian.Uint32(data))), 'f', -1, 64)))
-	case reflect.Float64:
-		if len(data) != 8 {
-			return errors.New("passed data not long enough for float64")
-		}
-		return writeTokens(enc, jsontext.String(strconv.FormatFloat(math.Float64frombits(binary.NativeEndian.Uint64(data)), 'f', -1, 64)))
-	case reflect.Complex64:
-		if len(data) != 8 {
-			return errors.New("passed data not long enough for complex64")
-		}
-		realBits := math.Float32frombits(binary.NativeEndian.Uint32(data[0:4]))
-		imagBits := math.Float32frombits(binary.NativeEndian.Uint32(data[4:8]))
-		return writeTokens(enc, jsontext.String(strconv.FormatComplex(complex(float64(realBits), float64(imagBits)), 'f', -1, 64)))
-	case reflect.Complex128:
-		if len(data) != 16 {
-			return errors.New("passed data not long enough for complex128")
-		}
-		realBits := math.Float64frombits(binary.NativeEndian.Uint64(data[0:8]))
-		imagBits := math.Float64frombits(binary.NativeEndian.Uint64(data[8:16]))
-		return writeTokens(enc, jsontext.String(strconv.FormatComplex(complex(realBits, imagBits), 'f', -1, 64)))
-	default:
-		return fmt.Errorf("%s is not a base type", kind)
-	}
 }
 
 func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
@@ -331,9 +229,7 @@ func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
 // encodeSwissMapTables collects the data items for the swiss map tables.
 // It traverses the table pointer slice and collects the data items for each table.
 func (d *Decoder) encodeSwissMapTables(
-	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
-	currentlyEncoding map[typeAndAddr]struct{},
+	ctx *decoderContext,
 	s *goSwissMapHeaderType,
 	tablePtrSliceDataItem output.DataItem,
 ) error {
@@ -357,14 +253,13 @@ func (d *Decoder) encodeSwissMapTables(
 		return fmt.Errorf("table ptr slice type element is not a pointer type: %s", s.TablePtrSliceType.Element.GetName())
 	}
 	for _, addr := range addrs {
-		tableDataItem, ok := dataItems[typeAndAddr{
+		tableDataItem, ok := ctx.decoder.dataItemReferences[typeAndAddr{
 			irType: uint32(tableType.Pointee.GetID()),
 			addr:   addr,
 		}]
 		if !ok {
 			return fmt.Errorf("table data item not found for addr %x", addr)
 		}
-
 		tableStructType, ok := tableType.Pointee.(*ir.StructureType)
 		if !ok {
 			return fmt.Errorf("table type pointee is not a structure type: %s", tableType.Pointee.GetName())
@@ -391,19 +286,18 @@ func (d *Decoder) encodeSwissMapTables(
 			}
 		}
 		groupAddress := groupData[dataField.Offset : dataField.Offset+dataField.Type.GetByteSize()]
-		groupDataItem, ok := dataItems[typeAndAddr{
+		groupDataItem, ok := ctx.decoder.dataItemReferences[typeAndAddr{
 			irType: uint32(groupType.GroupSliceType.GetID()),
 			addr:   binary.NativeEndian.Uint64(groupAddress),
 		}]
 		if !ok {
 			return fmt.Errorf("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
 		}
-
 		elementType := groupType.GroupSliceType.Element
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
 			singleGroupData := groupDataItem.Data()[groupType.GroupSliceType.Element.GetByteSize()*i : groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.encodeSwissMapGroup(enc, dataItems, currentlyEncoding, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
+			err := d.encodeSwissMapGroup(ctx.enc, ctx.currentlyEncoding, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
 			if err != nil {
 				return err
 			}
@@ -414,7 +308,6 @@ func (d *Decoder) encodeSwissMapTables(
 
 func (d *Decoder) encodeSwissMapGroup(
 	enc *jsontext.Encoder,
-	dataItems map[typeAndAddr]output.DataItem,
 	currentlyEncoding map[typeAndAddr]struct{},
 	s *goSwissMapHeaderType,
 	groupData []byte,
@@ -456,12 +349,10 @@ func (d *Decoder) encodeSwissMapGroup(
 		if entryEnd > uint32(len(slotsData)) {
 			return fmt.Errorf("entry %d extends beyond slots data bounds: need %d bytes, have %d", i, entryEnd, len(slotsData))
 		}
-
 		entryData := slotsData[offset:entryEnd]
 		if uint32(len(entryData)) < keyType.GetByteSize()+valueType.GetByteSize() {
 			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, keyType.GetByteSize()+valueType.GetByteSize(), len(entryData))
 		}
-
 		keyData := entryData[0:keyType.GetByteSize()]
 		valueData := entryData[keyType.GetByteSize() : keyType.GetByteSize()+valueType.GetByteSize()]
 		if err := writeTokens(enc,
@@ -469,13 +360,13 @@ func (d *Decoder) encodeSwissMapGroup(
 		); err != nil {
 			return err
 		}
-		err := d.encodeValue(enc, dataItems, currentlyEncoding,
+		err := d.encodeValue(enc, currentlyEncoding,
 			keyTypeID, keyData, keyType.GetName(),
 		)
 		if err != nil {
 			return err
 		}
-		err = d.encodeValue(enc, dataItems, currentlyEncoding,
+		err = d.encodeValue(enc, currentlyEncoding,
 			valueTypeID, valueData, valueType.GetName(),
 		)
 		if err != nil {

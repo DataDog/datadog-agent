@@ -119,6 +119,13 @@ probes:
   where:
     methodName: main.testSingleString
   captureSnapshot: true
+- id: testMassiveString
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMassiveString
+  captureSnapshot: true
 - id: testThreeStrings
   type: LOG_PROBE
   tags:
