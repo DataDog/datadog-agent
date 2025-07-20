@@ -26,7 +26,7 @@
             "arguments": {
               "x": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "notCapturedReason": "pruned"
               }
             }
           }
