@@ -8,6 +8,7 @@
 package kafka
 
 import (
+	"github.com/twmb/franz-go/pkg/kversion"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -26,11 +27,20 @@ const (
 	KafkaOldPort = "9082"
 )
 
+func GetPort(version *kversion.Versions, tls bool) string {
+	if tls {
+		// TLS port for the new kafka instance (v4.0)
+		return "9093"
+	}
+	// Non-TLS port for the new kafka instance (v4.0)
+	return "9092"
+}
+
 // RunServer runs a kafka server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string) error {
+// Ports are hard coded in docker-compose.yml, 9092 (9093 for tls) is the new kafka instance (v4.0) and 9082 (9083 for tls) is the old kafka instance (v3.8).
+func RunServer(t testing.TB, serverAddr string) error {
 	env := []string{
 		"KAFKA_ADDR=" + serverAddr,
-		//"KAFKA_PORT=" + serverPort,
 	}
 
 	t.Helper()

@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
-func buildProduceVersionTest(name string, version *kversion.Versions, tContext testContext, dialFn func(context.Context, string, string) (net.Conn, error), expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+func buildProduceVersionTest(name string, version *kversion.Versions, tContext testContext, dialFn func(context.Context, string, string) (net.Conn, error), expectedStack *protocols.Stack) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
 		name:    name,
 		context: tContext,
@@ -48,11 +48,11 @@ func buildProduceVersionTest(name string, version *kversion.Versions, tContext t
 			defer cancel()
 			require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 		},
-		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
+		validation: validateProtocolConnection(expectedStack),
 	}
 }
 
-func buildFetchVersionTest(name string, version *kversion.Versions, tContext testContext, dialFn func(context.Context, string, string) (net.Conn, error), expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+func buildFetchVersionTest(name string, version *kversion.Versions, tContext testContext, dialFn func(context.Context, string, string) (net.Conn, error), expectedStack *protocols.Stack) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
 		name:    name,
 		context: tContext,
@@ -87,7 +87,7 @@ func buildFetchVersionTest(name string, version *kversion.Versions, tContext tes
 			require.Len(t, records, 1)
 			require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
 		},
-		validation: validateProtocolConnection(&protocols.Stack{Application: expectedProtocol}),
+		validation: validateProtocolConnection(expectedStack),
 	}
 }
 
@@ -101,22 +101,21 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		return fmt.Sprintf("%s-%d", topicName, testIndex)
 	}
 
+	// Configure plain/TLS
 	skippers := []func(*testing.T, testContext){
 		skipIfUsingNAT,
 	}
-	if withTLS {
-		skippers = append(skippers, skipIfGoTLSNotSupported)
-	}
-
+	expectedStack := &protocols.Stack{Application: protocols.Kafka}
 	port := kafkaPort
 	if withTLS {
+		skippers = append(skippers, skipIfGoTLSNotSupported)
 		port = kafkaTLSPort
+		expectedStack.Encryption = protocols.TLS
 	}
 
 	skipFunc := composeSkips(skippers...)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
-		serverPort:    port,
 		targetAddress: targetHost,
 	})
 
@@ -147,15 +146,14 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	serverAddress := net.JoinHostPort(serverHost, port)
 	targetAddress := net.JoinHostPort(targetHost, port)
-	require.NoError(t, kafka.RunServer(t, serverHost, port))
+	require.NoError(t, kafka.RunServer(t, serverHost))
 
 	tests := []protocolClassificationAttributes{
 		{
 			name: "connect",
 			context: testContext{
-				serverPort:    port,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
+				targetAddress: net.JoinHostPort(targetHost, "9083"),
+				serverAddress: net.JoinHostPort(serverHost, "9083"),
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -173,7 +171,6 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "create topic",
 			context: testContext{
-				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -199,7 +196,6 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "produce - empty string client id",
 			context: testContext{
-				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -229,7 +225,6 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "produce - multiple topics",
 			context: testContext{
-				serverPort:    port,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -265,8 +260,6 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	// Generate tests for all support Produce versions
 	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion; produceVersion++ {
-		expectedProtocol := protocols.Kafka
-
 		version := kversion.V4_0_0()
 		targetPort := port
 
@@ -282,14 +275,14 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			fmt.Sprintf("produce v%d", produceVersion),
 			version,
 			testContext{
-				targetAddress: net.JoinHostPort(targetHost, targetPort),
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(version, withTLS)),
 				serverAddress: net.JoinHostPort(serverHost, targetPort),
 				extras: map[string]interface{}{
 					"topic_name": getTopicName(),
 				},
 			},
 			dialFn,
-			expectedProtocol,
+			expectedStack,
 		)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
@@ -297,8 +290,6 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	// Generate tests for all support Fetch versions
 	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion; fetchVersion++ {
-		expectedProtocol := protocols.Kafka
-
 		// Default to kafka v4 and port 9092 (kafka server 4.0)
 		version := kversion.V4_0_0()
 		targetPort := port
@@ -316,7 +307,6 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			fmt.Sprintf("fetch v%d", fetchVersion),
 			version,
 			testContext{
-				serverPort:    port,
 				targetAddress: net.JoinHostPort(targetHost, targetPort),
 				serverAddress: net.JoinHostPort(serverHost, targetPort),
 				extras: map[string]interface{}{
@@ -324,7 +314,7 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				},
 			},
 			dialFn,
-			expectedProtocol,
+			expectedStack,
 		)
 		currentTest.teardown = kafkaTeardown
 		tests = append(tests, currentTest)
