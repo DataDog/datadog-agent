@@ -151,12 +151,8 @@ func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 		log.Debugf("Failed to generate SBOM for containerd image: %s", result.Error)
 		status = workloadmeta.Failed
 		reportedError = result.Error.Error()
-	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
-		log.Debugf("Failed to extract SBOM from report")
-		status = workloadmeta.Failed
-		reportedError = err.Error()
 	} else {
-		report = bom
+		report = result.Report.ToCycloneDX()
 	}
 
 	return &workloadmeta.SBOM{

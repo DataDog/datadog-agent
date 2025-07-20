@@ -121,13 +121,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					status = workloadmeta.Failed
 					reportedError = result.Error.Error()
 				} else {
-					bom, err := result.Report.ToCycloneDX()
-					if err != nil {
-						log.Errorf("Failed to extract SBOM from report")
-						status = workloadmeta.Failed
-						reportedError = result.Error.Error()
-					}
-					report = bom
+					report = result.Report.ToCycloneDX()
 				}
 
 				sbom := &workloadmeta.SBOM{

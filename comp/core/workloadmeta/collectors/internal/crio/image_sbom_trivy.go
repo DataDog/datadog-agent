@@ -142,12 +142,8 @@ func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 		log.Errorf("SBOM generation failed for image: %v", result.Error)
 		status = workloadmeta.Failed
 		reportedError = result.Error.Error()
-	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
-		log.Errorf("Failed to convert report to CycloneDX BOM.")
-		status = workloadmeta.Failed
-		reportedError = err.Error()
 	} else {
-		report = bom
+		report = result.Report.ToCycloneDX()
 	}
 
 	return &workloadmeta.SBOM{

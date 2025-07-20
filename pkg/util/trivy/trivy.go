@@ -345,7 +345,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	}
 
 	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	return c.buildReport(trivyReport, hash), nil
+	return c.buildReport(trivyReport, hash)
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
@@ -365,7 +365,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	return &trivyReport, nil
 }
 
-func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
+func (c *Collector) buildReport(trivyReport *types.Report, id string) (*Report, error) {
 	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
 	pkgCount := 0
 	for _, results := range trivyReport.Results {
@@ -373,11 +373,7 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string) *Report {
 	}
 	log.Debugf("Found %d packages", pkgCount)
 
-	return &Report{
-		Report:    trivyReport,
-		id:        id,
-		marshaler: c.marshaler,
-	}
+	return newReport(id, trivyReport, c.marshaler)
 }
 
 func looselyCompareAnalyzers(given []string, against []string) bool {
