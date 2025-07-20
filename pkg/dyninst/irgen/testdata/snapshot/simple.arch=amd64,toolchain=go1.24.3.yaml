@@ -279,7 +279,7 @@ Subprograms:
           Type: 15 GoMapType map[string]int
           Locations:
             - Range: 0x4a8480..0x4a84ad
-              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 12
@@ -291,9 +291,9 @@ Subprograms:
           Type: 29 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0x4a84e0..0x4a8513
-              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0x4a8513..0x4a859b
-              Pieces: [{Size: 0, Op: {CfaOffset: 0}}]
+              Pieces: [{Size: 8, Op: {CfaOffset: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 1
@@ -465,6 +465,7 @@ Types:
     - __kind: GoMapType
       ID: 15
       Name: map[string]int
+      ByteSize: 8
       GoRuntimeType: 67264
       GoKind: 21
       HeaderType: 17 GoSwissMapHeaderType map<string,int>
@@ -614,6 +615,7 @@ Types:
     - __kind: GoMapType
       ID: 29
       Name: map[string]main.bigStruct
+      ByteSize: 8
       GoRuntimeType: 67392
       GoKind: 21
       HeaderType: 31 GoSwissMapHeaderType map<string,main.bigStruct>
@@ -946,7 +948,7 @@ Types:
     - __kind: EventRootType
       ID: 60
       Name: Probe[main.mapArg]
-      ByteSize: 1
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: m
@@ -957,11 +959,11 @@ Types:
                 - __kind: LocationOp
                   Variable: {subprogram: 11, index: 0, name: m}
                   Offset: 0
-                  ByteSize: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 61
       Name: Probe[main.bigMapArg]
-      ByteSize: 1
+      ByteSize: 9
       PresenceBitsetSize: 1
       Expressions:
         - Name: m
@@ -972,7 +974,7 @@ Types:
                 - __kind: LocationOp
                   Variable: {subprogram: 12, index: 0, name: m}
                   Offset: 0
-                  ByteSize: 0
+                  ByteSize: 8
     - __kind: EventRootType
       ID: 62
       Name: Probe[main.inlined]
