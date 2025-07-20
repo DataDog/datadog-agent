@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -408,23 +409,91 @@ func (p *protocol) dumpHTTPTransaction(tx *EbpfEvent, extractedPath string, full
 	// Write structured dump to file
 	fmt.Fprintf(file, "[%s] HTTP Transaction Captured\n", timestamp)
 	fmt.Fprintf(file, "─────────────────────────────────────\n")
+
+	// Basic HTTP Information
 	fmt.Fprintf(file, "Path: %s\n", extractedPath)
 	fmt.Fprintf(file, "Full Pattern: %s (matched target)\n", fullPattern)
 	fmt.Fprintf(file, "Method: %s\n", tx.Method().String())
 	fmt.Fprintf(file, "Status Code: %d\n", tx.StatusCode())
-	fmt.Fprintf(file, "PID: %d\n", tx.Tuple.Pid)
+
+	// Connection Information
+	fmt.Fprintf(file, "Source IP: %s\n", util.FromLowHigh(connTuple.SrcIPLow, connTuple.SrcIPHigh))
 	fmt.Fprintf(file, "Source Port: %d\n", connTuple.SrcPort)
+	fmt.Fprintf(file, "Dest IP: %s\n", util.FromLowHigh(connTuple.DstIPLow, connTuple.DstIPHigh))
 	fmt.Fprintf(file, "Dest Port: %d\n", connTuple.DstPort)
+
+	// Process & System Information
+	fmt.Fprintf(file, "PID: %d\n", tx.Tuple.Pid)
+	fmt.Fprintf(file, "Network Namespace: %d\n", tx.Tuple.Netns)
+	fmt.Fprintf(file, "Connection Metadata: 0x%x\n", tx.Tuple.Metadata)
+
+	// Timing Information
 	fmt.Fprintf(file, "Request Started: %d ns\n", tx.RequestStarted())
 	fmt.Fprintf(file, "Response Last Seen: %d ns\n", tx.ResponseLastSeen())
-	fmt.Fprintf(file, "Latency: %f ms\n", tx.RequestLatency())
-	fmt.Fprintf(file, "Request Fragment: %s\n", string(tx.Http.Request_fragment[:]))
-	fmt.Fprintf(file, "Static Tags: 0x%x\n", tx.StaticTags())
-	fmt.Fprintf(file, "TCP Seq: %d\n", tx.Http.Tcp_seq)
-	fmt.Fprintf(file, "Is Complete: %t\n", !tx.Incomplete())
+	fmt.Fprintf(file, "Latency: %.3f ms\n", tx.RequestLatency())
+
+	// Protocol & Security Information
+	staticTags := tx.StaticTags()
+	fmt.Fprintf(file, "Static Tags: 0x%x\n", staticTags)
+
+	// Decode TLS information from static tags
+	tlsInfo := decodeTLSInfo(staticTags)
+	if tlsInfo != "" {
+		fmt.Fprintf(file, "TLS Info: %s\n", tlsInfo)
+	}
+
+	// TCP & Network Details
+	fmt.Fprintf(file, "TCP Sequence: %d\n", tx.Http.Tcp_seq)
+	fmt.Fprintf(file, "Transaction Complete: %t\n", !tx.Incomplete())
+
+	// Raw Request Data
+	requestFragment := string(tx.Http.Request_fragment[:])
+	if nullIndex := strings.IndexByte(requestFragment, 0); nullIndex != -1 {
+		requestFragment = requestFragment[:nullIndex]
+	}
+	fmt.Fprintf(file, "Request Fragment: %s\n", requestFragment)
+
+	// Raw Connection Tuple (for debugging)
+	fmt.Fprintf(file, "Raw Tuple: {SaddrH: 0x%x, SaddrL: 0x%x, DaddrH: 0x%x, DaddrL: 0x%x}\n",
+		tx.Tuple.Saddr_h, tx.Tuple.Saddr_l, tx.Tuple.Daddr_h, tx.Tuple.Daddr_l)
+
 	fmt.Fprintf(file, "─────────────────────────────────────\n\n")
 	file.Sync()
 
 	// Also log a simple message to indicate capture
 	log.Infof("HTTP traffic captured and dumped to file: %s %s", tx.Method().String(), extractedPath)
+}
+
+// decodeTLSInfo decodes TLS information from static tags
+func decodeTLSInfo(tags uint64) string {
+	var tlsLibraries []string
+
+	// Check for TLS libraries based on the static tags
+	if tags&uint64(GnuTLS) != 0 {
+		tlsLibraries = append(tlsLibraries, "GnuTLS")
+	}
+	if tags&uint64(OpenSSL) != 0 {
+		tlsLibraries = append(tlsLibraries, "OpenSSL")
+	}
+	if tags&uint64(Go) != 0 {
+		tlsLibraries = append(tlsLibraries, "Go TLS")
+	}
+	if tags&uint64(NodeJS) != 0 {
+		tlsLibraries = append(tlsLibraries, "Node.js")
+	}
+	if tags&uint64(Istio) != 0 {
+		tlsLibraries = append(tlsLibraries, "Istio")
+	}
+
+	var result string
+	if tags&uint64(TLS) != 0 {
+		result = "Encrypted connection"
+		if len(tlsLibraries) > 0 {
+			result += " (Library: " + strings.Join(tlsLibraries, ", ") + ")"
+		}
+	} else if len(tlsLibraries) > 0 {
+		result = "TLS Library: " + strings.Join(tlsLibraries, ", ")
+	}
+
+	return result
 }
