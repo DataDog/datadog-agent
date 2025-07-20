@@ -8,17 +8,14 @@
 package kafka
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
-	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -77,7 +74,6 @@ func RunServer(t testing.TB, serverAddr string) error {
 			"kafka",
 			scanner,
 			dockerutils.WithEnv(env),
-			dockerutils.WithTimeout(2*time.Minute),
 		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	return dockerutils.Run(t, dockerCfg)

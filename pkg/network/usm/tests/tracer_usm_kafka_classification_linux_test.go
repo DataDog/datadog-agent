@@ -142,7 +142,7 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		}
 	}
 
-	require.NoError(t, kafka.RunServer(t, net.JoinHostPort(serverHost, kafka.GetPort(4.0, withTLS))))
+	require.NoError(t, kafka.RunServer(t, serverHost))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -267,6 +267,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		}
 		require.LessOrEqual(t, int16(produceVersion), lo.Must(version.LookupMaxKeyVersion(produceAPIKey)), "produce version unsupported by kafka lib")
 		version.SetMaxKeyVersion(produceAPIKey, int16(produceVersion))
+
+		fmt.Println(fmt.Sprintf("produce v%d", produceVersion), net.JoinHostPort(targetHost, kafka.GetPort(versionNum, withTLS)))
 
 		currentTest := buildProduceVersionTest(
 			fmt.Sprintf("produce v%d", produceVersion),
