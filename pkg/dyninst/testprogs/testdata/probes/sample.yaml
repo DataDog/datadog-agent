@@ -502,3 +502,10 @@ probes:
   where:
     methodName: main.testMapArrayToArray
   captureSnapshot: true
+- id: testMapStringToStruct
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testMapStringToStruct
+  captureSnapshot: true
