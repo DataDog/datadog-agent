@@ -106,10 +106,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		skipIfUsingNAT,
 	}
 	expectedStack := &protocols.Stack{Application: protocols.Kafka}
-	port := kafkaPort
 	if withTLS {
 		skippers = append(skippers, skipIfGoTLSNotSupported)
-		port = kafkaTLSPort
 		expectedStack.Encryption = protocols.TLS
 	}
 
@@ -144,16 +142,14 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		}
 	}
 
-	serverAddress := net.JoinHostPort(serverHost, port)
-	targetAddress := net.JoinHostPort(targetHost, port)
-	require.NoError(t, kafka.RunServer(t, serverHost))
+	require.NoError(t, kafka.RunServer(t, net.JoinHostPort(serverHost, kafka.GetPort(4.0, withTLS))))
 
 	tests := []protocolClassificationAttributes{
 		{
 			name: "connect",
 			context: testContext{
-				targetAddress: net.JoinHostPort(targetHost, "9083"),
-				serverAddress: net.JoinHostPort(serverHost, "9083"),
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(1.0, withTLS)),
+				serverAddress: net.JoinHostPort(serverHost, kafka.GetPort(1.0, withTLS)),
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -171,8 +167,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "create topic",
 			context: testContext{
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(1.0, withTLS)),
+				serverAddress: net.JoinHostPort(serverHost, kafka.GetPort(1.0, withTLS)),
 				extras: map[string]interface{}{
 					"topic_name": getTopicName(),
 				},
@@ -196,8 +192,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "produce - empty string client id",
 			context: testContext{
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(1.0, withTLS)),
+				serverAddress: net.JoinHostPort(serverHost, kafka.GetPort(1.0, withTLS)),
 				extras: map[string]interface{}{
 					"topic_name": getTopicName(),
 				},
@@ -225,8 +221,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		{
 			name: "produce - multiple topics",
 			context: testContext{
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(1.0, withTLS)),
+				serverAddress: net.JoinHostPort(serverHost, kafka.GetPort(1.0, withTLS)),
 				extras: map[string]interface{}{
 					"topic_name1": getTopicName(),
 					"topic_name2": getTopicName(),
@@ -260,13 +256,14 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	// Generate tests for all support Produce versions
 	for produceVersion := kafka.ClassificationMinSupportedProduceRequestApiVersion; produceVersion <= kafka.ClassificationMaxSupportedProduceRequestApiVersion; produceVersion++ {
+		// Default to kafka v4
+		versionNum := float32(4.0)
 		version := kversion.V4_0_0()
-		targetPort := port
 
 		// on older versions of kafka, test against old kafka server
 		if produceVersion < 8 {
+			versionNum = 3.8
 			version = kversion.V3_8_0()
-			targetPort = kafka.KafkaOldPort
 		}
 		require.LessOrEqual(t, int16(produceVersion), lo.Must(version.LookupMaxKeyVersion(produceAPIKey)), "produce version unsupported by kafka lib")
 		version.SetMaxKeyVersion(produceAPIKey, int16(produceVersion))
@@ -275,8 +272,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			fmt.Sprintf("produce v%d", produceVersion),
 			version,
 			testContext{
-				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(version, withTLS)),
-				serverAddress: net.JoinHostPort(serverHost, targetPort),
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(versionNum, withTLS)),
+				serverAddress: net.JoinHostPort(serverHost, kafka.GetPort(versionNum, withTLS)),
 				extras: map[string]interface{}{
 					"topic_name": getTopicName(),
 				},
@@ -290,15 +287,15 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	// Generate tests for all support Fetch versions
 	for fetchVersion := kafka.ClassificationMinSupportedFetchRequestApiVersion; fetchVersion <= kafka.ClassificationMaxSupportedFetchRequestApiVersion; fetchVersion++ {
-		// Default to kafka v4 and port 9092 (kafka server 4.0)
+		// Default to kafka v4
+		versionNum := float32(4.0)
 		version := kversion.V4_0_0()
-		targetPort := port
 
 		// on older versions of kafka, test against old kafka server
 		if fetchVersion < 8 {
 			// The lib version has to be rolled-back from 4.0 because they dropped support for old versions of produce and fetch
+			versionNum = 3.8
 			version = kversion.V3_8_0()
-			targetPort = kafka.KafkaOldPort
 		}
 		require.LessOrEqual(t, int16(fetchVersion), lo.Must(version.LookupMaxKeyVersion(fetchAPIKey)), "fetch version unsupported by kafka lib")
 		version.SetMaxKeyVersion(fetchAPIKey, int16(fetchVersion))
@@ -307,8 +304,8 @@ func testKafkaProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 			fmt.Sprintf("fetch v%d", fetchVersion),
 			version,
 			testContext{
-				targetAddress: net.JoinHostPort(targetHost, targetPort),
-				serverAddress: net.JoinHostPort(serverHost, targetPort),
+				targetAddress: net.JoinHostPort(targetHost, kafka.GetPort(versionNum, withTLS)),
+				serverAddress: net.JoinHostPort(serverHost, kafka.GetPort(versionNum, withTLS)),
 				extras: map[string]interface{}{
 					"topic_name": getTopicName(),
 				},
