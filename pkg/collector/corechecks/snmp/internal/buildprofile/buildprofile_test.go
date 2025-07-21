@@ -490,6 +490,7 @@ profiles:
         - {OID: 1.3.6.1.2.1.88.1.1.1.0, name: IAmAnInteger}
 `)
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	require.NoError(t, err)
 
 	profile, err := BuildProfile("", nil, false, config)
 	require.NoError(t, err)
