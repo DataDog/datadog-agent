@@ -10,14 +10,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.2-rc.14
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.14
+	github.com/DataDog/datadog-agent/pkg/config/model v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.15
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/net v0.21.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.14 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.15 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

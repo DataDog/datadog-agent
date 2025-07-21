@@ -8,7 +8,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.14
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.15
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/stretchr/testify v1.10.0
@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.14 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.15 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
