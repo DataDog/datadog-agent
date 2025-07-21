@@ -26,8 +26,8 @@ class RequirementState:
 class Requirement:
     dependencies: list[type["Requirement"]] | None = None
 
-    def check(self, _: Context, __: bool) -> list[RequirementState] | RequirementState:
-        raise NotImplementedError
+    def check(self, ctx: Context, fix: bool) -> list[RequirementState] | RequirementState:  # noqa: F841
+        raise NotImplementedError()
 
 
 def summarize_requirement_states(states: list[RequirementState] | RequirementState) -> RequirementState:
