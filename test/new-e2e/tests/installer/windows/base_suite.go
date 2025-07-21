@@ -269,6 +269,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
+// AfterTest collects the event logs and agent logs after each test
 // NOTE: AfterTest is not called after subtests
 func (s *BaseSuite) AfterTest(suiteName, testName string) {
 	if afterTest, ok := any(&s.BaseSuite).(suite.AfterTest); ok {
