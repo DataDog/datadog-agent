@@ -249,7 +249,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		} else {
 			report := result.Report.ToCycloneDX()
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: bomconvert.ConvertBOM(report),
+				Cyclonedx: report,
 			}
 
 			sbom.Hash = result.Report.ID()
@@ -312,7 +312,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		} else {
 			report := result.Report.ToCycloneDX()
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: bomconvert.ConvertBOM(report),
+				Cyclonedx: report,
 			}
 		}
 	}
@@ -433,7 +433,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			sbom.GeneratedAt = timestamppb.New(img.SBOM.GenerationTime)
 			sbom.GenerationDuration = bomconvert.ConvertDuration(img.SBOM.GenerationDuration)
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-				Cyclonedx: bomconvert.ConvertBOM(img.SBOM.CycloneDXBOM),
+				Cyclonedx: img.SBOM.CycloneDXBOM,
 			}
 		}
 		p.queue <- sbom

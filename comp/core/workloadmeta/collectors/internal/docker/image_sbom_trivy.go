@@ -12,8 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -114,7 +113,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				}
 				status := workloadmeta.Success
 				reportedError := ""
-				var report *cyclonedx.BOM
+				var report *cyclonedx_v1_4.Bom
 				if result.Error != nil {
 					// TODO: add a retry mechanism for retryable errors
 					log.Errorf("Failed to generate SBOM for docker: %s", result.Error)

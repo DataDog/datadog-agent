@@ -12,7 +12,8 @@ package trivy
 import (
 	"context"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/types"
 )
@@ -20,7 +21,7 @@ import (
 // Report describes a trivy report along with its marshaler
 type Report struct {
 	id  string
-	bom *cyclonedxgo.BOM
+	bom *cyclonedx_v1_4.Bom
 }
 
 func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler) (*Report, error) {
@@ -29,14 +30,16 @@ func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler) (
 		return nil, err
 	}
 
+	bom14 := bomconvert.ConvertBOM(bom)
+
 	return &Report{
 		id:  id,
-		bom: bom,
+		bom: bom14,
 	}, nil
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
-func (r *Report) ToCycloneDX() *cyclonedxgo.BOM {
+func (r *Report) ToCycloneDX() *cyclonedx_v1_4.Bom {
 	return r.bom
 }
 

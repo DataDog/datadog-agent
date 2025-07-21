@@ -12,8 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/CycloneDX/cyclonedx-go"
-
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -136,7 +135,7 @@ func (c *collector) processScanResult(result sbom.ScanResult) {
 func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
 	status := workloadmeta.Success
 	reportedError := ""
-	var report *cyclonedx.BOM
+	var report *cyclonedx_v1_4.Bom
 
 	if result.Error != nil {
 		log.Errorf("SBOM generation failed for image: %v", result.Error)
