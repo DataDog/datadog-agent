@@ -58,6 +58,9 @@ func (l *LocalService) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", l.GetPrefix())
 }
 
+// GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer
+//
+//nolint:revive // TODO(SERV) Fix revive lin
 //nolint:revive // TODO(SERV) Fix revive linter
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
