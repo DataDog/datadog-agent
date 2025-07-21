@@ -174,23 +174,6 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 	return util, nil
 }
 
-// GetNodeInfo returns the IP address and the hostname of the first valid pod in the PodList
-func (ku *KubeUtil) GetNodeInfo(ctx context.Context) (string, string, error) {
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return "", "", fmt.Errorf("error getting pod list from kubelet: %s", err)
-	}
-
-	for _, pod := range pods {
-		if pod.Status.HostIP == "" || pod.Spec.NodeName == "" {
-			continue
-		}
-		return pod.Status.HostIP, pod.Spec.NodeName, nil
-	}
-
-	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
-}
-
 // StreamLogs connects to the kubelet and returns an open connection for the purposes of streaming container logs
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)

@@ -305,39 +305,6 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	require.True(suite.T(), errors.IsRetriable(err))
 }
 
-func (suite *KubeletTestSuite) TestGetNodeInfo() {
-	ctx := context.Background()
-	mockConfig := configmock.New(suite.T())
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.Nil(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
-	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	ip, name, err := kubeutil.GetNodeInfo(ctx)
-	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "192.168.128.141", ip)
-	require.Equal(suite.T(), "my-node-name", name)
-
-	select {
-	case r := <-kubelet.Requests:
-		require.Equal(suite.T(), r.Method, "GET")
-		require.Equal(suite.T(), r.URL.Path, "/pods")
-	case <-time.After(2 * time.Second):
-		require.FailNow(suite.T(), "Timeout on receive channel")
-	}
-}
-
 func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
