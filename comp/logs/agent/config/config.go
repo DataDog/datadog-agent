@@ -170,11 +170,6 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConf
 		return nil, err
 	}
 
-	// Check if fingerprinting is enabled
-	if coreConfig.GetString("logs_config.fingerprint_strategy") != "checksum" {
-		return nil, nil
-	}
-
 	err = ValidateFingerprintConfig(config)
 	if err != nil {
 		return nil, err

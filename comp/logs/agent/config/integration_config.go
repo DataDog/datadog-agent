@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -378,6 +379,27 @@ func (c *LogsConfig) validateTailingMode() error {
 }
 
 func (c *LogsConfig) validateFingerprintConfig() error {
+	// Check if local fingerprint config is empty (all fields are zero values)
+	localConfigEmpty := c.FingerprintConfig.MaxBytes == 0 &&
+		c.FingerprintConfig.MaxLines == 0 &&
+		c.FingerprintConfig.ToSkip == 0
+
+	// If local config is empty, try to get global config
+	if localConfigEmpty {
+		globalConfig, err := GlobalFingerprintConfig(pkgconfigsetup.Datadog())
+		if err != nil {
+			return fmt.Errorf("failed to load global fingerprint config: %w", err)
+		}
+
+		// If global config exists, merge it with local config
+		if globalConfig != nil {
+			// Only merge if the local config is truly empty (all zero values)
+			// This preserves any explicit local settings
+			c.FingerprintConfig = *globalConfig
+		}
+	}
+
+	// Validate the final fingerprint configuration (either local, global, or merged)
 	return ValidateFingerprintConfig(&c.FingerprintConfig)
 }
 
