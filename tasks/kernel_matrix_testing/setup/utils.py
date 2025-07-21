@@ -12,6 +12,7 @@ from typing import Any
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.setup.requirement import RequirementState
+from tasks.kernel_matrix_testing.tool import is_root
 from tasks.libs.common.status import Status
 
 
@@ -176,6 +177,7 @@ def check_directories(
     """
     states: list[RequirementState] = []
 
+    sudo = "sudo " if not is_root() else ""
     user_id = pwd.getpwnam(user).pw_uid
     group_id = grp.getgrnam(group).gr_gid
     mode_str = "0" + oct(mode)[2:]  # Remove the 0o prefix, keep "0" instead
@@ -187,7 +189,7 @@ def check_directories(
             if not fix:
                 states.append(RequirementState(Status.FAIL, f"Directory {d} does not exist.", fixable=True))
             else:
-                ctx.run(f"install -d -m 0{mode_str} -g {group} -o {user} {d}")
+                ctx.run(f"{sudo}install -d -m 0{mode_str} -g {group} -o {user} {d}")
                 states.append(RequirementState(Status.OK, f"Created missing KMT directory: {d}"))
 
         perms = d.stat().st_mode
@@ -201,7 +203,7 @@ def check_directories(
                     )
                 )
             else:
-                ctx.run(f"chmod {mode_str} {d}")
+                ctx.run(f"{sudo}chmod {mode_str} {d}")
                 states.append(RequirementState(Status.OK, f"Fixed permissions for KMT directory: {d}"))
 
         owner_id = d.stat().st_uid
@@ -216,7 +218,7 @@ def check_directories(
                     )
                 )
             else:
-                ctx.run(f"chown -R {user}:{group} {d}")
+                ctx.run(f"{sudo}chown -R {user}:{group} {d}")
                 states.append(RequirementState(Status.OK, f"Fixed owner and group for KMT directory: {d}"))
 
     return states
