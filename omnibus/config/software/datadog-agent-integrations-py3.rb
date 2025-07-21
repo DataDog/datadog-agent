@@ -18,7 +18,7 @@ python_version = "3.12"
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg2"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg_binary.libs"
 whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
@@ -235,12 +235,16 @@ build do
     'Cryptodome/SelfTest',
     'gssapi/tests',
     'keystoneauth1/tests',
+    'lazy_loader/tests',
     'openstack/tests',
     'os_service_types/tests',
     'pbr/tests',
     'pkg_resources/tests',
+    'pip/_vendor/colorama/tests',
     'psutil/tests',
+    'requests_unixsocket/tests',
     'securesystemslib/_vendor/ed25519/test_data',
+    'setuptools/_distutils/compilers/C/tests',
     'setuptools/_distutils/tests',
     'setuptools/tests',
     'simplejson/tests',

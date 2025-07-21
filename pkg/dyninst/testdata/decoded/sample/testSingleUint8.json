@@ -1,0 +1,38 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testSingleUint8",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testSingleUint8",
+          "location": {
+            "method": "main.testSingleUint8"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "uint8",
+                "value": "8"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

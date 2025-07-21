@@ -1,0 +1,38 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testSingleFloat64",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testSingleFloat64",
+          "location": {
+            "method": "main.testSingleFloat64"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "float64",
+                "notCapturedReason": "unavailable"
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

@@ -14,9 +14,14 @@ message KubeNamespacedName {
   string namespace = 2;
 }
 
+message KubeEndpointsIdentifier {
+  KubeNamespacedName kubeNamespacedName = 1;
+  string resolve = 2;
+}
+
 message AdvancedADIdentifier {
-	KubeNamespacedName kubeService   = 1;
-	KubeNamespacedName kubeEndpoints = 2;
+	KubeNamespacedName kubeService = 1;
+	KubeEndpointsIdentifier kubeEndpoints = 2;
 }
 
 message Config {

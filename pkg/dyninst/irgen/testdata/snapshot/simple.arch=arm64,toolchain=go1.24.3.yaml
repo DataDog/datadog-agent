@@ -842,7 +842,7 @@ Types:
       ID: 53
       Name: Probe[main.intArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -857,7 +857,7 @@ Types:
       ID: 54
       Name: Probe[main.stringArg]
       ByteSize: 17
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -872,7 +872,7 @@ Types:
       ID: 55
       Name: Probe[main.intSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -887,7 +887,7 @@ Types:
       ID: 56
       Name: Probe[main.intArrayArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -902,7 +902,7 @@ Types:
       ID: 57
       Name: Probe[main.stringSliceArg]
       ByteSize: 25
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -917,7 +917,7 @@ Types:
       ID: 58
       Name: Probe[main.stringArrayArg]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -932,7 +932,7 @@ Types:
       ID: 59
       Name: Probe[main.stringArrayArgFrameless]
       ByteSize: 49
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
@@ -947,7 +947,7 @@ Types:
       ID: 60
       Name: Probe[main.mapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -962,7 +962,7 @@ Types:
       ID: 61
       Name: Probe[main.bigMapArg]
       ByteSize: 1
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
@@ -977,7 +977,7 @@ Types:
       ID: 62
       Name: Probe[main.inlined]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: x
           Offset: 1
@@ -992,7 +992,7 @@ Types:
       ID: 63
       Name: Probe[main.PointerChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1
@@ -1007,7 +1007,7 @@ Types:
       ID: 64
       Name: Probe[main.PointerSmallChainArg]
       ByteSize: 9
-      PresenseBitsetSize: 1
+      PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1

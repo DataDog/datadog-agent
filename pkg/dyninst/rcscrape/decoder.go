@@ -228,6 +228,7 @@ func (d *decoder) HandleMessage(ev output.Event) (_ remoteConfigFile, err error)
 		i++
 	}
 
+	var configContentLen int
 	var output remoteConfigFile
 	stringLen := d.stringHeaderType.ByteSize
 	for _, field := range d.event.Type.Expressions {
@@ -245,29 +246,34 @@ func (d *decoder) HandleMessage(ev output.Event) (_ remoteConfigFile, err error)
 		fieldData := rootData[fieldOffset : fieldOffset+int(stringLen)]
 		strAddr := binary.NativeEndian.Uint64(fieldData[d.strField.Offset:])
 		strLen := binary.NativeEndian.Uint64(fieldData[d.lenField.Offset:])
+		if strLen == 0 {
+			continue
+		}
 		dataItem, ok := d.dataItems[dataItemKey{
 			typeID:  uint32(d.stringDataType.ID),
 			address: strAddr,
 		}]
 		if !ok {
-			return remoteConfigFile{}, fmt.Errorf(
-				"data for %s not found", field.Name,
-			)
+			continue
 		}
 		strData := string(dataItem.Data())
-		if len(strData) != int(strLen) {
-			return remoteConfigFile{}, fmt.Errorf(
-				"string data for %s is not the expected length", field.Name,
-			)
-		}
 		switch field.Name {
 		case "runtimeID":
 			output.RuntimeID = strData
 		case "configPath":
 			output.ConfigPath = strData
 		case "configContent":
+			configContentLen = int(strLen)
 			output.ConfigContent = strData
 		}
+	}
+	if configContentLen != len(output.ConfigContent) {
+		log.Warnf(
+			"runtimeID %q: configPath %q: configContent truncated: %d != %d",
+			output.RuntimeID, output.ConfigPath,
+			configContentLen, len(output.ConfigContent),
+		)
+		output.ConfigContent = ""
 	}
 
 	return output, nil

@@ -334,7 +334,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	rs := e.probe.NewRuleSet(e.getEventTypeEnabled())
 
-	loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
+	filteredRules, loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
@@ -364,7 +364,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 	seclog.Debugf("Filter Report: %s", filterReport)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	policies := monitor.NewPoliciesState(rs, filteredRules, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
 
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
@@ -520,17 +520,14 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
 
-	var extTagsCb func() []string
+	var extTagsCb func() ([]string, bool)
 
 	if ev.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
 		containerID := ev.ContainerContext.ContainerID
 
-		// the container tags might not be resolved yet
-		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
-			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
-			}
+		extTagsCb = func() ([]string, bool) {
+			return e.probe.GetEventTags(containerID), true
 		}
 	}
 
@@ -678,11 +675,7 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		for _, pInfo := range rule.UsedBy {
-			if rule.Policy.IsInternal && !includeInternalPolicies {
-				continue
-			}
-
+		for pInfo := range rule.Policies(includeInternalPolicies) {
 			version := pInfo.Version
 			if _, exists := cache[version]; !exists {
 				cache[version] = true

@@ -60,17 +60,13 @@ func (pk *processKey) String() string {
 	if pk.tenantID == 0 {
 		return pk.ProcessID.String()
 	}
-	if pk.Service == "" {
-		return fmt.Sprintf("{PID:%v,Ten:%v}", pk.PID, pk.tenantID)
-	}
-	return fmt.Sprintf("{PID:%v,Ten:%v,Svc:%v}", pk.PID, pk.tenantID, pk.Service)
+	return fmt.Sprintf("{PID:%v,Ten:%v}", pk.PID, pk.tenantID)
 }
 
 func (pk processKey) cmp(other processKey) int {
 	return cmp.Or(
 		cmp.Compare(pk.tenantID, other.tenantID),
 		cmp.Compare(pk.PID, other.PID),
-		cmp.Compare(pk.Service, other.Service),
 	)
 }
 
@@ -161,6 +157,9 @@ type effectHandler interface {
 
 	// Detach program from process.
 	detachFromProcess(*attachedProgram) // -> ProgramDetached
+
+	// Unload program resources asynchronously.
+	unloadProgram(*loadedProgram) // -> ProgramUnloaded
 }
 
 // handleEvent updates the state given the event, triggering the relevant
@@ -190,10 +189,13 @@ func handleEvent(
 		err = handleProgramAttached(sm, effects, ev)
 
 	case eventProgramAttachingFailed:
-		err = handleProgramAttachingFailed(sm, ev)
+		err = handleProgramAttachingFailed(sm, effects, ev)
 
 	case eventProgramDetached:
-		err = handleProgramDetached(sm, ev)
+		err = handleProgramDetached(sm, effects, ev)
+
+	case eventProgramUnloaded:
+		err = handleProgramUnloaded(sm, ev)
 
 	case eventShutdown:
 		err = handleShutdown(sm, effects)
@@ -288,10 +290,19 @@ func handleProcessesUpdated(
 		// we have no probes, or enqueue the new program with the new probes.
 		if len(p.probes) == 0 {
 			switch p.state {
-			case processStateInvalid, processStateLoadingFailed:
+			case processStateLoadingFailed:
+				if p.currentProgram != 0 {
+					// We're waiting for a program we failed to attach to
+					// be unloaded. When it is, we'll then go and enqueue
+					// a new program.
+					p.state = processStateWaitingForProgram
+				} else {
+					delete(sm.processes, p.processKey)
+				}
+			case processStateInvalid:
 				delete(sm.processes, p.processKey)
 			case processStateWaitingForProgram:
-				// We're waiting for an aborted compilation to finish.
+				// We're waiting for an aborted loading to finish.
 			case processStateAttached:
 			case processStateAttaching:
 			case processStateDetaching:
@@ -302,7 +313,18 @@ func handleProcessesUpdated(
 			}
 		} else {
 			switch p.state {
-			case processStateInvalid, processStateLoadingFailed:
+			case processStateLoadingFailed:
+				if p.currentProgram != 0 {
+					// We're waiting for a program we failed to attach to
+					// be unloaded. When it is, we'll then go and enqueue
+					// a new program.
+					p.state = processStateWaitingForProgram
+				} else {
+					if err := enqueueProgramForProcess(sm, p); err != nil {
+						return err
+					}
+				}
+			case processStateInvalid:
 				if err := enqueueProgramForProcess(sm, p); err != nil {
 					return err
 				}
@@ -436,6 +458,9 @@ func clearProcessProgram(
 	case programStateLoadingAborted:
 		return nil
 
+	case programStateUnloading:
+		return nil
+
 	default:
 		return fmt.Errorf(
 			"program %v in invalid state: %v", progID, prog.state,
@@ -511,20 +536,9 @@ func handleProgramLoaded(
 		sm.currentlyLoading = nil
 		return nil
 	case programStateLoadingAborted:
-		ev.loaded.program.Close()
+		prog.state = programStateUnloading
+		effects.unloadProgram(ev.loaded)
 		sm.currentlyLoading = nil
-		delete(sm.programs, progID)
-
-		proc, ok := sm.processes[prog.processKey]
-		if !ok {
-			return fmt.Errorf("process %v not found in processes", prog.processKey)
-		}
-		switch proc.state {
-		case processStateWaitingForProgram:
-			if err := enqueueProgramForProcess(sm, proc); err != nil {
-				return err
-			}
-		}
 		return nil
 
 	default:
@@ -536,7 +550,7 @@ func handleProgramLoaded(
 }
 
 func handleProgramAttachingFailed(
-	sm *state, ev eventProgramAttachingFailed,
+	sm *state, effects effectHandler, ev eventProgramAttachingFailed,
 ) error {
 	// When we have more than one process per program, we'll need to
 	// handle this differently.
@@ -544,26 +558,16 @@ func handleProgramAttachingFailed(
 	if !ok {
 		return fmt.Errorf("program %v not found in programs", ev.programID)
 	}
-	prog.state = programStateInvalid
 
-	key := processKey{
-		ProcessID: ev.processID,
-		tenantID:  prog.tenantID,
-	}
-
-	proc, ok := sm.processes[key]
+	proc, ok := sm.processes[prog.processKey]
 	if !ok {
-		return fmt.Errorf("process %v not found in processes", key)
+		return fmt.Errorf("process %v not found in processes", prog.processKey)
 	}
 
-	// TODO: Who unloads the program? This should also be done
-	// asynchronously -- right?
-	prog.loaded.program.Close()
-	if prog.loaded.sink != nil {
-		prog.loaded.sink.Close()
-	}
-	prog.loaded = nil
-	delete(sm.programs, ev.programID)
+	// Unload the program.
+	prog.state = programStateUnloading
+	effects.unloadProgram(prog.loaded)
+
 	switch proc.state {
 	case processStateDetaching:
 		// What should we do here? Does it depend on what the error is?
@@ -571,14 +575,13 @@ func handleProgramAttachingFailed(
 		// attaching and fail.
 		fallthrough
 	case processStateAttaching:
-		// This too is suspect, if we failed to attach, then we're
-		// going to say we're in a failed state, but maybe that's
-		// not the right thing to do.
 		if len(proc.probes) == 0 {
-			delete(sm.processes, proc.processKey)
+			proc.state = processStateDetaching
 		} else {
+			// This too is suspect, if we failed to attach, then we're
+			// going to say we're in a failed state, but maybe that's
+			// not the right thing to do.
 			proc.state = processStateLoadingFailed
-			proc.currentProgram = 0
 			proc.err = ev.err
 		}
 		return nil
@@ -624,7 +627,7 @@ func handleProgramAttached(
 }
 
 func handleProgramDetached(
-	sm *state, ev eventProgramDetached,
+	sm *state, effects effectHandler, ev eventProgramDetached,
 ) error {
 	prog, ok := sm.programs[ev.programID]
 	if !ok {
@@ -641,9 +644,6 @@ func handleProgramDetached(
 
 	switch proc.state {
 	case processStateDetaching:
-		if err := enqueueProgramForProcess(sm, proc); err != nil {
-			return err
-		}
 	case processStateWaitingForProgram:
 	default:
 		return fmt.Errorf(
@@ -653,18 +653,8 @@ func handleProgramDetached(
 	}
 	switch prog.state {
 	case programStateDraining:
-		prog.state = programStateInvalid
-		delete(sm.programs, ev.programID)
-
-		// TODO: Perform unloading asynchronously.
-		prog.loaded.program.Close()
-		if prog.loaded.sink != nil {
-			// TODO: We need to do something to make sure all messages that have
-			// already been produced are processed before the program is
-			// unregistered. This will involve coordinating some flushing with
-			// the dispatcher goroutine.
-			prog.loaded.sink.Close()
-		}
+		prog.state = programStateUnloading
+		effects.unloadProgram(prog.loaded)
 		return nil
 	default:
 		return fmt.Errorf(
@@ -672,6 +662,51 @@ func handleProgramDetached(
 			ev.programID, prog.state,
 		)
 	}
+}
+
+// handleProgramUnloaded finalises the removal of a program after its resources
+// have been released by the asynchronous effect.
+func handleProgramUnloaded(sm *state, ev eventProgramUnloaded) error {
+	prog, ok := sm.programs[ev.programID]
+	if !ok {
+		return fmt.Errorf("program %v not found in programs", ev.programID)
+	}
+	if prog.state != programStateUnloading {
+		return fmt.Errorf("program %v is in invalid state %v for unload", ev.programID, prog.state)
+	}
+
+	proc, ok := sm.processes[prog.processKey]
+	if !ok {
+		return fmt.Errorf("process %v not found in processes", prog.processKey)
+	}
+	if proc.currentProgram != prog.id {
+		return fmt.Errorf(
+			"process %v has program %v, expected %v",
+			proc.processKey, proc.currentProgram, prog.id,
+		)
+	}
+	proc.currentProgram = 0
+
+	switch proc.state {
+	case processStateLoadingFailed:
+		// Do nothing.
+	case processStateWaitingForProgram,
+		processStateDetaching:
+		if len(proc.probes) == 0 {
+			delete(sm.processes, proc.processKey)
+		} else {
+			proc.currentProgram = 0
+			if err := enqueueProgramForProcess(sm, proc); err != nil {
+				return fmt.Errorf("failed to enqueue program for process: %w", err)
+			}
+		}
+	default:
+		return fmt.Errorf("process %v is in an invalid state %v", proc.processKey, proc.state)
+	}
+
+	prog.state = programStateInvalid
+	delete(sm.programs, ev.programID)
+	return nil
 }
 
 func maybeDequeueProgram(sm *state, effects effectHandler) error {
@@ -717,7 +752,12 @@ func handleShutdown(sm *state, effects effectHandler) error {
 			prog.state = programStateDraining
 			proc.state = processStateDetaching
 		case processStateLoadingFailed:
-			delete(sm.processes, proc.processKey)
+			// Otherwise we're still waiting for the program to be unloaded.
+			if proc.currentProgram == 0 {
+				delete(sm.processes, proc.processKey)
+			} else {
+				proc.state = processStateDetaching
+			}
 		}
 	}
 

@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,9 +20,9 @@ import (
 func (client *Client) newRequest(method, uri string, body io.Reader, useSessionAuth bool) (*http.Request, error) {
 	// session auth requires token authentication
 	if useSessionAuth {
-		return http.NewRequest(method, client.directorEndpoint+uri, body)
+		return http.NewRequestWithContext(context.Background(), method, client.directorEndpoint+uri, body)
 	}
-	return http.NewRequest(method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
+	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -97,6 +98,7 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 		}
 	}
 
+	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
 }
 

@@ -105,9 +105,6 @@ func (s *batchStrategy) MakeCompressor() {
 	s.serializer.Reset()
 	var encodedPayload bytes.Buffer
 	compressor := s.compression.NewStreamCompressor(&encodedPayload)
-	if compressor == nil {
-		compressor = &compression.NoopStreamCompressor{Writer: &encodedPayload}
-	}
 
 	wc := newWriterWithCounter(compressor)
 	s.writeCounter = wc

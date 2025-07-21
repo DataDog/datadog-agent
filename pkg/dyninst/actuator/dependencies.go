@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
@@ -64,4 +65,14 @@ type Loader interface {
 	Load(program compiler.Program) (*loader.Program, error)
 	OutputReader() *ringbuf.Reader
 	Close() error
+}
+
+// IRGenerator is an interface that abstracts ir generation.
+type IRGenerator interface {
+	// GenerateIR generates the IR for the given executable and probes.
+	GenerateIR(
+		programID ir.ProgramID,
+		executable *object.ElfFile,
+		probes []ir.ProbeDefinition,
+	) (*ir.Program, error)
 }

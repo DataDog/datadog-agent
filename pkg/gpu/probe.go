@@ -88,6 +88,7 @@ const (
 	cudaEventDestroyProbe        probeFuncName = "uprobe__cudaEventDestroy"
 	cudaMemcpyProbe              probeFuncName = "uprobe__cudaMemcpy"
 	cudaMemcpyRetProbe           probeFuncName = "uretprobe__cudaMemcpy"
+	setenvProbe                  probeFuncName = "uprobe__setenv"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -391,10 +392,21 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 					},
 				},
 			},
+			{
+				LibraryNameRegex: regexp.MustCompile(`libc\.so`),
+				Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.AllOf{
+						Selectors: []manager.ProbesSelector{
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: setenvProbe}},
+						},
+					},
+				},
+			},
 		},
 		EbpfConfig:                     &cfg.Config,
 		PerformInitialScan:             cfg.InitialProcessSync,
-		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetGPU},
+		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetGPU, sharedlibraries.LibsetLibc},
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
 		EnableDetailedLogging:          false,

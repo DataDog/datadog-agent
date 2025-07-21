@@ -23,16 +23,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -71,27 +70,16 @@ func TestScrapeRemoteConfig(t *testing.T) {
 }
 
 func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Config) {
-	var cleanupFuncs []func()
-	cleanup := func() {
-		for _, f := range cleanupFuncs {
-			f()
-		}
-	}
-	defer func() {
-		if t.Failed() {
-			cleanup()
-		}
-	}()
 	tmpDir, cleanupTmpDir := dyninsttest.PrepTmpDir(
 		t, strings.ReplaceAll(t.Name(), "/", "_"),
 	)
-	cleanupFuncs = append(cleanupFuncs, cleanupTmpDir)
+	defer cleanupTmpDir()
 
 	prog := testprogs.MustGetBinary(t, program, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, program)
 	rcHandler := dyninsttest.NewMockAgentRCServer()
 	rcServer := httptest.NewServer(rcHandler)
-	cleanupFuncs = append(cleanupFuncs, rcServer.Close)
+	defer rcServer.Close()
 	serverURL, err := url.Parse(rcServer.URL)
 	require.NoError(t, err)
 	host, port, err := net.SplitHostPort(serverURL.Host)
@@ -115,10 +103,10 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 	child.Env = env
 	err = child.Start()
 	require.NoError(t, err)
-	cleanupFuncs = append(cleanupFuncs, func() {
+	defer func() {
 		_ = child.Process.Kill()
 		_ = child.Wait()
-	})
+	}()
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
@@ -133,7 +121,33 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
-	exp := append(probes[:0:0], probes...)
+
+	waitForExpected(t, rcScraper, append(probes[:0:0], probes...))
+
+	// Make sure that the scraper handles more updates correctly.
+	newUpdate := append(probes[:0:0], probes...)
+	for _, probe := range probes {
+		var toMarshal ir.ProbeDefinition
+		switch p := probe.(type) {
+		case *rcjson.SnapshotProbe:
+			copied := *p
+			copied.ID += "_updated"
+			toMarshal = &copied
+		default:
+			t.Fatalf("unexpected probe type %T", p)
+		}
+
+		newUpdate = append(newUpdate, toMarshal)
+		marshaled, err := json.Marshal(toMarshal)
+		require.NoError(t, err)
+		rcsFiles[mkPath(t, probe.GetID())] = marshaled
+	}
+	rcsFiles[mkPath(t, "empty")] = []byte{}
+	rcHandler.UpdateRemoteConfig(rcsFiles)
+	waitForExpected(t, rcScraper, newUpdate)
+}
+
+func waitForExpected(t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDefinition) {
 	slices.SortFunc(exp, ir.CompareProbeIDs)
 	require.Eventually(t, func() bool {
 		updates := rcScraper.GetUpdates()
@@ -142,8 +156,9 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		}
 		got := updates[0].Probes
 		slices.SortFunc(got, ir.CompareProbeIDs)
-		return assert.Equal(t, exp, got)
-	}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, exp, got)
+		return true
+	}, 10*time.Second, 100*time.Microsecond)
 }
 
 func formatConfigPath(
@@ -241,8 +256,15 @@ func testNoDdTraceGo(t *testing.T, cfg testprogs.Config) {
 		_ = child.Wait()
 	}()
 
-	procMon := procmon.NewProcessMonitor(rcScraper.AsProcMonHandler())
-	procMon.NotifyExec(uint32(child.Process.Pid))
+	rcScraper.AsProcMonHandler().HandleUpdate(procmon.ProcessesUpdate{
+		Processes: []procmon.ProcessUpdate{
+			{
+				ProcessID:  procmon.ProcessID{PID: int32(child.Process.Pid)},
+				Executable: procmon.Executable{Path: prog},
+				Service:    "simple",
+			},
+		},
+	})
 	require.Eventually(t, func() bool {
 		processes := rcScraper.GetTrackedProcesses()
 		return len(processes) > 0
@@ -277,12 +299,12 @@ type noDdTraceGoReporter struct {
 func (wa *wrappedActuator) NewTenant(
 	name string,
 	reporter actuator.Reporter,
-	opts ...irgen.Option,
+	irGenerator actuator.IRGenerator,
 ) *actuator.Tenant {
 	return wa.inner.NewTenant(name, &noDdTraceGoReporter{
 		Reporter:       reporter,
 		irGenFailureCh: wa.irGenFailureCh,
-	}, opts...)
+	}, irGenerator)
 }
 
 func (r *noDdTraceGoReporter) ReportIRGenFailed(

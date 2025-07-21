@@ -20,11 +20,49 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
+
+func TestIrGenFailed(t *testing.T) {
+	dyninsttest.SkipIfKernelNotSupported(t)
+
+	loader, err := loader.NewLoader()
+	require.NoError(t, err)
+	a := actuator.NewActuator(loader)
+
+	reporter := &irGenErrorReporter{
+		t:  t,
+		ch: make(chan irGenFailedMessage, 1),
+	}
+	pid := actuator.ProcessID{PID: 1234}
+	at := a.NewTenant("test", reporter, irgen.NewGenerator())
+	at.HandleUpdate(actuator.ProcessesUpdate{
+		Processes: []actuator.ProcessUpdate{{
+			ProcessID: pid,
+			Executable: actuator.Executable{
+				Path: "I am not a real path",
+			},
+			Probes: []ir.ProbeDefinition{
+				&rcjson.SnapshotProbe{
+					LogProbeCommon: rcjson.LogProbeCommon{
+						ProbeCommon: rcjson.ProbeCommon{
+							ID: "test",
+						},
+					},
+				},
+			},
+		}},
+	})
+	msg, ok := <-reporter.ch
+	require.True(t, ok)
+	require.Equal(t, pid, msg.processID)
+	require.Regexp(t, "failed to load elf file", msg.err.Error())
+	require.ErrorIs(t, msg.err, os.ErrNotExist)
+}
 
 func TestNoSuccessfulProbesError(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
@@ -76,9 +114,9 @@ func testNoSuccessfulProbesError(t *testing.T, cfg testprogs.Config) {
 		t:  t,
 		ch: make(chan irGenFailedMessage, 1),
 	}
-	at := a.NewTenant("test", reporter)
+	at := a.NewTenant("test", reporter, irgen.NewGenerator())
 
-	pid := actuator.ProcessID{PID: int32(cmd.Process.Pid), Service: "test"}
+	pid := actuator.ProcessID{PID: int32(cmd.Process.Pid)}
 	at.HandleUpdate(actuator.ProcessesUpdate{
 		Processes: []actuator.ProcessUpdate{{
 			ProcessID:  pid,

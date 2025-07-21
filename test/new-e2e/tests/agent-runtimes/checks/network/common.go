@@ -7,7 +7,7 @@
 package checknetwork
 
 import (
-	"math"
+	"slices"
 
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
@@ -24,9 +24,9 @@ import (
 
 type networkCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor            e2eos.Descriptor
-	metricCompareFraction float64
-	metricCompareDecimals int
+	descriptor                  e2eos.Descriptor
+	metricCompareDistance       int
+	excludedFromValueComparison []string
 }
 
 func (v *networkCheckSuite) getSuiteOptions() []e2e.SuiteOption {
@@ -45,19 +45,44 @@ func (v *networkCheckSuite) TestNetworkCheck() {
 		name        string
 		checkConfig string
 		agentConfig string
+		onlyLinux   bool
 	}{
 		{
 			"default",
 			`init_config:
 instances:
-  - use_mount: false
+  - collect_connection_state: false
 `,
 			``,
+			false,
 		},
+		{
+			"collect connection state",
+			`init_config:
+instances:
+  - collect_connection_state: true
+`,
+			``,
+			true, // this setting is not only for Linux but the windows python check is missing some metrics
+		},
+		// XXX: unfortunately the python version does not initialize all of the queue metrics so we cannot reliably compare them without them being "new"
+		//{
+		//	"collect connection queues",
+		//	`init_config:
+		//instances:
+		//  - collect_connection_state: true
+		//    collect_connection_queues: true
+		//`,
+		//	``,
+		//	true,
+		//},
 	}
 
-	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
+		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
+			continue
+		}
+
 		v.Run(testCase.name, func() {
 			v.T().Log("run the network check using old version")
 			pythonMetrics := v.runNetworkCheck(testCase.agentConfig, testCase.checkConfig, false)
@@ -70,9 +95,12 @@ instances:
 					if !checkUtils.EqualMetrics(a, b) {
 						return false
 					}
+					if slices.Contains(v.excludedFromValueComparison, a.Metric) {
+						return true
+					}
 					aValue := a.Points[0][1]
 					bValue := b.Points[0][1]
-					return checkUtils.CompareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
+					return checkUtils.CompareValuesWithDistance(aValue, bValue, v.metricCompareDistance)
 				}),
 				gocmpopts.SortSlices(checkUtils.MetricPayloadCompare), // sort metrics
 			)
