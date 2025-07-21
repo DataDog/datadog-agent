@@ -37,7 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
-from tasks.libs.types.arch import ALL_ARCHS, Arch
+from tasks.libs.types.arch import ALL_ARCHS, ARCH_ARM64, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
