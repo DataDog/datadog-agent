@@ -130,22 +130,6 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			},
 		},
 		{
-			name:         "install info get with POST method",
-			route:        "/install-info",
-			method:       "POST",
-			payload:      nil,
-			expectedCode: 400,
-			description:  "POST request to install-info should be rejected",
-		},
-		{
-			name:         "install info get with PUT method",
-			route:        "/install-info",
-			method:       "PUT",
-			payload:      nil,
-			expectedCode: 400,
-			description:  "PUT request to install-info should be rejected",
-		},
-		{
 			name:         "install info get with DELETE method",
 			route:        "/install-info",
 			method:       "DELETE",
@@ -171,6 +155,22 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 				assert.NoError(t, err)
 				assert.True(t, response["success"].(bool))
 				assert.NotEmpty(t, response["message"])
+
+				getURL, err := url.JoinPath(ts.URL, "/install-info")
+				require.NoError(t, err)
+				getReq, err := http.NewRequest("GET", getURL, nil)
+				require.NoError(t, err)
+
+				getResp, err := ts.Client().Do(getReq)
+				require.NoError(t, err)
+				defer getResp.Body.Close()
+
+				var info installinfo.InstallInfo
+				err = json.NewDecoder(getResp.Body).Decode(&info)
+				require.NoError(t, err)
+				assert.Equal(t, "ECS", info.Tool)
+				assert.Equal(t, "1.0", info.ToolVersion)
+				assert.Equal(t, "test-installer", info.InstallerVersion)
 			},
 		},
 		{
@@ -191,15 +191,23 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 				assert.NoError(t, err)
 				assert.True(t, response["success"].(bool))
 				assert.NotEmpty(t, response["message"])
+
+				getURL, err := url.JoinPath(ts.URL, "/install-info")
+				require.NoError(t, err)
+				getReq, err := http.NewRequest("GET", getURL, nil)
+				require.NoError(t, err)
+
+				getResp, err := ts.Client().Do(getReq)
+				require.NoError(t, err)
+				defer getResp.Body.Close()
+
+				var info installinfo.InstallInfo
+				err = json.NewDecoder(getResp.Body).Decode(&info)
+				require.NoError(t, err)
+				assert.Equal(t, "ECS", info.Tool)
+				assert.Equal(t, "1.0", info.ToolVersion)
+				assert.Equal(t, "test-installer", info.InstallerVersion)
 			},
-		},
-		{
-			name:         "install info set with DELETE method",
-			route:        "/install-info",
-			method:       "DELETE",
-			payload:      nil,
-			expectedCode: 405,
-			description:  "DELETE request to install-info should be rejected",
 		},
 		{
 			name:         "install info set with POST method and empty payload",
@@ -219,6 +227,50 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			expectedCode: 400,
 			description:  "POST request to install-info with invalid payload should return bad request",
 		},
+		{
+			name:   "install info set with POST method and missing tool field",
+			route:  "/install-info",
+			method: "POST",
+			payload: installinfo.SetInstallInfoRequest{
+				Tool:             "",
+				ToolVersion:      "1.0",
+				InstallerVersion: "ecs-task-def-v1",
+			},
+			expectedCode: 400,
+			description:  "POST request to install-info with missing tool field should return bad request",
+		},
+		{
+			name:   "install info set with POST method and missing tool version field",
+			route:  "/install-info",
+			method: "POST",
+			payload: installinfo.SetInstallInfoRequest{
+				Tool:             "ECS",
+				ToolVersion:      "",
+				InstallerVersion: "ecs-task-def-v1",
+			},
+			expectedCode: 400,
+			description:  "POST request to install-info with missing tool version field should return bad request",
+		},
+		{
+			name:   "install info set with POST method and missing installer version field",
+			route:  "/install-info",
+			method: "POST",
+			payload: installinfo.SetInstallInfoRequest{
+				Tool:             "ECS",
+				ToolVersion:      "1.0",
+				InstallerVersion: "",
+			},
+			expectedCode: 400,
+			description:  "POST request to install-info with missing installer version field should return bad request",
+		},
+		{
+			name:         "install info set with POST method and invalid JSON string",
+			route:        "/install-info",
+			method:       "POST",
+			payload:      "invalid json",
+			expectedCode: 400,
+			description:  "POST request to install-info with invalid JSON string should return bad request",
+		},
 	}
 
 	for _, tt := range tests {
@@ -227,8 +279,12 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 			var err error
 
 			if tt.payload != nil {
-				body, err = json.Marshal(tt.payload)
-				require.NoError(t, err)
+				if str, ok := tt.payload.(string); ok {
+					body = []byte(str)
+				} else {
+					body, err = json.Marshal(tt.payload)
+					require.NoError(t, err)
+				}
 			}
 
 			fullURL, err := url.JoinPath(ts.URL, tt.route)
@@ -253,263 +309,6 @@ func TestInstallInfoAPIRoutes(t *testing.T) {
 
 			if tt.assertFunc != nil {
 				tt.assertFunc(t, resp, responseBody)
-			}
-		})
-	}
-}
-
-func TestInstallInfoAPIRoutesWithRuntimeInfo(t *testing.T) {
-	router := setupRoutes()
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	setPayload := installinfo.SetInstallInfoRequest{
-		Tool:             "ECS",
-		ToolVersion:      "1.0",
-		InstallerVersion: "test-installer",
-	}
-
-	body, err := json.Marshal(setPayload)
-	require.NoError(t, err)
-
-	fullURL, err := url.JoinPath(ts.URL, "/install-info")
-	require.NoError(t, err)
-	req, err := http.NewRequest("POST", fullURL, bytes.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := ts.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, 200, resp.StatusCode, "Setting install info should succeed")
-
-	fullURL, err = url.JoinPath(ts.URL, "/install-info")
-	require.NoError(t, err)
-	req, err = http.NewRequest("GET", fullURL, nil)
-	require.NoError(t, err)
-
-	resp, err = ts.Client().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode, "Getting install info should succeed when runtime info is set")
-
-	var installInfo installinfo.InstallInfo
-	err = json.Unmarshal(responseBody, &installInfo)
-	assert.NoError(t, err, "Response should be valid InstallInfo JSON")
-
-	assert.Equal(t, "ECS", installInfo.Tool, "Tool should match what was set")
-	assert.Equal(t, "1.0", installInfo.ToolVersion, "ToolVersion should match what was set")
-	assert.Equal(t, "test-installer", installInfo.InstallerVersion, "InstallerVersion should match what was set")
-}
-
-func TestHandleSetInstallInfo(t *testing.T) {
-	tests := []struct {
-		name           string
-		method         string
-		payload        interface{}
-		expectedStatus int
-		expectedError  bool
-	}{
-		{
-			name:   "valid POST request",
-			method: "POST",
-			payload: installinfo.SetInstallInfoRequest{
-				Tool:             "ECS",
-				ToolVersion:      "1.0",
-				InstallerVersion: "ecs-task-def-v1",
-			},
-			expectedStatus: http.StatusOK,
-			expectedError:  false,
-		},
-		{
-			name:           "invalid JSON",
-			method:         "POST",
-			payload:        "invalid json",
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-		{
-			name:   "missing tool field",
-			method: "POST",
-			payload: installinfo.SetInstallInfoRequest{
-				Tool:             "",
-				ToolVersion:      "1.0",
-				InstallerVersion: "ecs-task-def-v1",
-			},
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-		{
-			name:   "missing tool version field",
-			method: "POST",
-			payload: installinfo.SetInstallInfoRequest{
-				Tool:             "ECS",
-				ToolVersion:      "",
-				InstallerVersion: "ecs-task-def-v1",
-			},
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-		{
-			name:   "missing installer version field",
-			method: "POST",
-			payload: installinfo.SetInstallInfoRequest{
-				Tool:             "ECS",
-				ToolVersion:      "1.0",
-				InstallerVersion: "",
-			},
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-	}
-
-	router := setupRoutes()
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var body []byte
-			var err error
-			if tt.payload != nil {
-				if str, ok := tt.payload.(string); ok {
-					body = []byte(str)
-				} else {
-					body, err = json.Marshal(tt.payload)
-					require.NoError(t, err)
-				}
-			}
-
-			fullURL, err := url.JoinPath(ts.URL, "/install-info")
-			require.NoError(t, err)
-
-			req, err := http.NewRequest(tt.method, fullURL, bytes.NewReader(body))
-			require.NoError(t, err)
-			req.Header.Set("Content-Type", "application/json")
-
-			resp, err := ts.Client().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-
-			bodyBytes, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			if tt.expectedError {
-				if tt.expectedStatus == http.StatusMethodNotAllowed {
-					// Router rejected the request; body likely empty or plain text
-					assert.Empty(t, bodyBytes)
-					return
-				}
-
-				var response installinfo.SetInstallInfoResponse
-				err = json.Unmarshal(bodyBytes, &response)
-				require.NoError(t, err)
-				assert.False(t, response.Success)
-				assert.NotEmpty(t, response.Message)
-			} else {
-				var response installinfo.SetInstallInfoResponse
-				err = json.Unmarshal(bodyBytes, &response)
-				require.NoError(t, err)
-				assert.True(t, response.Success)
-				assert.NotEmpty(t, response.Message)
-
-				getURL, err := url.JoinPath(ts.URL, "/install-info")
-				require.NoError(t, err)
-
-				getReq, err := http.NewRequest("GET", getURL, nil)
-				require.NoError(t, err)
-
-				getResp, err := ts.Client().Do(getReq)
-				require.NoError(t, err)
-				defer getResp.Body.Close()
-
-				var info installinfo.InstallInfo
-				err = json.NewDecoder(getResp.Body).Decode(&info)
-				require.NoError(t, err)
-				assert.Equal(t, "ECS", info.Tool)
-				assert.Equal(t, "1.0", info.ToolVersion)
-				assert.Equal(t, "ecs-task-def-v1", info.InstallerVersion)
-			}
-		})
-	}
-}
-
-func TestHandleGetInstallInfo(t *testing.T) {
-	tests := []struct {
-		name           string
-		method         string
-		setupRuntime   bool
-		expectedStatus int
-	}{
-		{
-			name:           "valid GET request with runtime info",
-			method:         "GET",
-			setupRuntime:   true,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "invalid method",
-			method:         "POST",
-			setupRuntime:   false,
-			expectedStatus: http.StatusBadRequest,
-		},
-	}
-
-	router := setupRoutes()
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupRuntime {
-				info := installinfo.SetInstallInfoRequest{
-					Tool:             "ECS",
-					ToolVersion:      "1.0",
-					InstallerVersion: "ecs-task-def-v1",
-				}
-				body, err := json.Marshal(info)
-				require.NoError(t, err)
-
-				setURL, err := url.JoinPath(ts.URL, "/install-info")
-				require.NoError(t, err)
-				req, err := http.NewRequest("POST", setURL, bytes.NewReader(body))
-				require.NoError(t, err)
-				req.Header.Set("Content-Type", "application/json")
-
-				resp, err := ts.Client().Do(req)
-				require.NoError(t, err)
-				defer resp.Body.Close()
-
-				require.Equal(t, http.StatusOK, resp.StatusCode)
-			}
-
-			getURL, err := url.JoinPath(ts.URL, "/install-info")
-			require.NoError(t, err)
-			req, err := http.NewRequest(tt.method, getURL, nil)
-			require.NoError(t, err)
-
-			resp, err := ts.Client().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-
-			if tt.expectedStatus == http.StatusOK {
-				var info installinfo.InstallInfo
-				err := json.NewDecoder(resp.Body).Decode(&info)
-				require.NoError(t, err)
-
-				if tt.setupRuntime {
-					assert.Equal(t, "ECS", info.Tool)
-					assert.Equal(t, "1.0", info.ToolVersion)
-					assert.Equal(t, "ecs-task-def-v1", info.InstallerVersion)
-				}
 			}
 		})
 	}
