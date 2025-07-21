@@ -18,6 +18,7 @@ import (
 	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -35,7 +36,11 @@ var TriggerProgram []byte
 // HasUretprobeSyscallSeccompBug returns true if the running kernel blocks the uretprobe syscall in seccomp
 // This can cause a probed application running within a seccomp context to segfault.
 // https://lore.kernel.org/lkml/CAHsH6Gs3Eh8DFU0wq58c_LF8A4_+o6z456J7BidmcVY2AqOnHQ@mail.gmail.com/
-func HasUretprobeSyscallSeccompBug() (bool, error) {
+var HasUretprobeSyscallSeccompBug = funcs.Memoize(func() (bool, error) {
+	return hasUretprobeSyscallSeccompBug()
+})
+
+func hasUretprobeSyscallSeccompBug() (bool, error) {
 	const uretprobeSyscallSymbol = "__x64_sys_uretprobe"
 	missingSymbols, err := ddebpf.VerifyKernelFuncs(uretprobeSyscallSymbol)
 	if err != nil {
