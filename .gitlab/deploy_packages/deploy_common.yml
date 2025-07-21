@@ -24,7 +24,7 @@
   variables:
     MAJOR_VERSION: 7
 
-.deploy_packages_dmg-7:
+.deploy_packages_dmg:
   stage: deploy_packages
   rules:
     !reference [.on_deploy]

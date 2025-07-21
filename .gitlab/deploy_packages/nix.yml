@@ -147,13 +147,13 @@ deploy_packages_dogstatsd_suse_rpm-x64-7:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_dmg-x64-a7:
-  extends: .deploy_packages_dmg-7
+  extends: .deploy_packages_dmg
   needs: ["agent_dmg-x64-a7"]
   variables:
     PACKAGE_ARCH: x86_64
 
 deploy_packages_dmg-arm64-a7:
-  extends: .deploy_packages_dmg-7
+  extends: .deploy_packages_dmg
   needs: ["agent_dmg-arm64-a7"]
   variables:
     PACKAGE_ARCH: arm64
