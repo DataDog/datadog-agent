@@ -18,12 +18,12 @@ func FuzzIntegrationsParser(f *testing.F) {
 	f.Add([]byte(`{"log":"message","ddtags":"foo:bar,env:prod"}`))
 	f.Add([]byte(`{"log":"message","ddtags":""}`))
 	f.Add([]byte(`{"log":"message","ddtags":"  foo:bar , env:prod  "}`))
-	
+
 	// Invalid ddtags type
 	f.Add([]byte(`{"log":"message","ddtags":12345}`))
 	f.Add([]byte(`{"log":"message","ddtags":null}`))
 	f.Add([]byte(`{"log":"message","ddtags":["tag1","tag2"]}`))
-	
+
 	// Invalid JSON
 	f.Add([]byte(`not valid json`))
 	f.Add([]byte(`{}`))
@@ -94,24 +94,24 @@ func FuzzNormalizeTags(f *testing.F) {
 	f.Add("\ttag1\t,\ntag2\n")
 	f.Add("tag:with:colons,tag=with=equals")
 	f.Add("unicode:值,emoji:😀")
-	
+
 	f.Fuzz(func(t *testing.T, tagsStr string) {
 		tags := strings.Split(tagsStr, ",")
 		normalized := normalizeTags(tags)
-		
+
 		// Verify invariants
 		for _, tag := range normalized {
 			// No empty tags
 			if tag == "" {
 				t.Error("normalizeTags returned empty tag")
 			}
-			
+
 			// All tags should be trimmed
 			if tag != strings.TrimSpace(tag) {
 				t.Errorf("normalizeTags returned untrimmed tag: %q", tag)
 			}
 		}
-		
+
 		// Result should not have more tags than input
 		if len(normalized) > len(tags) {
 			t.Errorf("normalizeTags increased tag count from %d to %d", len(tags), len(normalized))
