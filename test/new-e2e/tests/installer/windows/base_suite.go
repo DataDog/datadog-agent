@@ -239,8 +239,6 @@ func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
 func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
-	host := s.Env().RemoteHost
-
 	// Create a new subdir per test since these suites often have multiple tests
 	testPart := common.SanitizeDirectoryName(testName)
 	outputDir := filepath.Join(s.SessionOutputDir(), testPart)
@@ -249,17 +247,13 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
 	s.installScriptImpl = NewDatadogInstallScript(s.Env())
 
-	// Clear agent logs
-	s.T().Logf("Clearing agent logs")
-	logsFolder, err := host.GetLogsFolder()
-	s.Require().NoError(err, "should get logs folder")
-	entries, err := host.ReadDir(logsFolder)
-	if s.Assert().NoError(err, "should read log folder") {
-		for _, entry := range entries {
-			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
-			s.Assert().NoError(err, "should remove %s", entry.Name())
-		}
+	// clear the event logs before each test
+	for _, logName := range []string{"System", "Application"} {
+		s.T().Logf("Clearing %s event log", logName)
+		err := windowscommon.ClearEventLog(s.Env().RemoteHost, logName)
+		s.Require().NoError(err, "should clear %s event log", logName)
 	}
+
 }
 
 // AfterTest collects the event logs and agent logs after each test
