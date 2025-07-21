@@ -18,6 +18,8 @@ import (
 	"github.com/CycloneDX/cyclonedx-go"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/grpclog"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -127,6 +129,10 @@ func init() {
 func (s *streamHandler) Address() string {
 	return s.GetString("runtime_security_config.socket")
 
+}
+
+func (s *streamHandler) Credentials() credentials.TransportCredentials {
+	return insecure.NewCredentials()
 }
 
 func (s *streamHandler) IsEnabled() bool {

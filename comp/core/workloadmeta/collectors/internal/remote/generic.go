@@ -54,6 +54,8 @@ type StreamHandler interface {
 	Address() string
 	// IsEnabled returns if the feature is enabled
 	IsEnabled() bool
+	// Credentials
+	Credentials() credentials.TransportCredentials
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
@@ -96,8 +98,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	address := c.StreamHandler.Address()
 	var opts []grpc.DialOption
 
-	creds := credentials.NewTLS(c.IPC.GetTLSClientConfig())
-	opts = append(opts, grpc.WithTransportCredentials(creds))
+	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
 
 	opts = append(opts, grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 		if filepath.IsAbs(url) {
