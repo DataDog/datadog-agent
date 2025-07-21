@@ -13,6 +13,7 @@ from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 DEFAULT_FUZZING_SLACK_CHANNEL = "fuzzing-ops"
 
+
 def get_slack_channel_for_directory(directory_path: str) -> str:
     """
     Get the Slack channel associated with a directory based on CODEOWNERS.
