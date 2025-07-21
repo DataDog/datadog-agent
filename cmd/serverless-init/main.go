@@ -109,10 +109,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	prefix := cloudService.GetPrefix()
 	origin := cloudService.GetOrigin()
 
-	// Don't emit shutdown metric for Cloud Run Jobs
-	if _, ok := cloudService.(*cloudservice.CloudRunJobs); !ok {
-		metric.AddShutdownMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-	}
+	metric.AddShutdownMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 
 	return err
@@ -141,7 +138,6 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 		modeConf.TagVersionMode)
 
 	origin := cloudService.GetOrigin()
-	prefix := cloudService.GetPrefix()
 
 	agentLogConfig := serverlessInitLog.CreateConfig(origin)
 
@@ -158,10 +154,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 
 	metricAgent := setupMetricAgent(tags, tagger)
 
-	// Don't emit cold start metric for Cloud Run Jobs
-	if _, ok := cloudService.(*cloudservice.CloudRunJobs); !ok {
-		metric.AddColdStartMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-	}
+	metric.AddStartMetric(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 

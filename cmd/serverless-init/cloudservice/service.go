@@ -5,6 +5,8 @@
 
 package cloudservice
 
+import "fmt"
+
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
 	// GetTags returns a map of tags for a given cloud service. These tags are then attached to
@@ -23,6 +25,9 @@ type CloudService interface {
 
 	// Init bootstraps the CloudService.
 	Init() error
+
+	// GetStartMetricName returns the metric name for start events
+	GetStartMetricName() string
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -46,6 +51,11 @@ func (l *LocalService) GetPrefix() string {
 // Init is not necessary for LocalService
 func (l *LocalService) Init() error {
 	return nil
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (l *LocalService) GetStartMetricName() string {
+	return fmt.Sprintf("%s.enhanced.cold_start", l.GetPrefix())
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter

@@ -16,11 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// AddColdStartMetric adds the coldstart metric to the demultiplexer
+// AddStartMetric adds the start metric to the demultiplexer
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func AddColdStartMetric(metricPrefix string, origin string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), origin, tags, time.Now(), demux)
+func AddStartMetric(metricName string, origin string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
+	add(metricName, origin, tags, time.Now(), demux)
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
