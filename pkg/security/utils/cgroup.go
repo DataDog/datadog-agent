@@ -65,9 +65,16 @@ func parseCgroupLine(line string) (string, string, string, error) {
 	return id, ctrl, path, nil
 }
 
-func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bool) error {
+func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, string, string) (bool, error)) error {
 	data = bytes.TrimSpace(data)
 
+	var (
+		id      string
+		ctrl    string
+		path    string
+		isValid bool
+		err     error
+	)
 	for len(data) != 0 {
 		eol := bytes.IndexByte(data, '\n')
 		if eol < 0 {
@@ -75,12 +82,12 @@ func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bo
 		}
 		line := data[:eol]
 
-		id, ctrl, path, err := parseCgroupLine(string(line))
+		id, ctrl, path, err = parseCgroupLine(string(line))
 		if err != nil {
 			return err
 		}
 
-		if fnc(id, ctrl, path) {
+		if isValid, err = validateCgroupEntry(id, ctrl, path); isValid {
 			return nil
 		}
 
@@ -91,15 +98,16 @@ func parseProcControlGroupsData(data []byte, fnc func(string, string, string) bo
 		data = data[nextStart:]
 	}
 
-	return nil
+	// return the lastest error
+	return err
 }
 
-func parseProcControlGroups(tgid, pid uint32, fnc func(string, string, string) bool) error {
+func parseProcControlGroups(tgid, pid uint32, validateCgroupEntry func(string, string, string) (bool, error)) error {
 	data, err := os.ReadFile(CgroupTaskPath(tgid, pid))
 	if err != nil {
 		return err
 	}
-	return parseProcControlGroupsData(data, fnc)
+	return parseProcControlGroupsData(data, validateCgroupEntry)
 }
 
 func makeControlGroup(id, ctrl, path string) (ControlGroup, error) {
@@ -140,61 +148,12 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 	return cgroups, nil
 }
 
-// GetProcContainerID returns the container ID which the process belongs to. Returns "" if the process does not belong
-// to a container.
-func GetProcContainerID(tgid, pid uint32) (containerutils.ContainerID, error) {
-	id, _, err := GetProcContainerContext(tgid, pid)
-	return id, err
-}
-
 // CGroupContext holds the cgroup context of a process
 type CGroupContext struct {
 	CGroupID          containerutils.CGroupID
 	CGroupFlags       containerutils.CGroupFlags
 	CGroupFileMountID uint32
 	CGroupFileInode   uint64
-}
-
-// GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
-// to a container.
-func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, CGroupContext, error) {
-	var (
-		containerID   containerutils.ContainerID
-		runtime       containerutils.CGroupFlags
-		cgroupContext CGroupContext
-	)
-
-	if err := parseProcControlGroups(tgid, pid, func(id, ctrl, path string) bool {
-		if path == "/" {
-			return false
-		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
-			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
-			// On cgroup v2, it's only a single line with ID 0 and no ctrl
-			// (Cf unit tests for examples)
-			return false
-		}
-		cgroup, err := makeControlGroup(id, ctrl, path)
-		if err != nil {
-			return false
-		}
-
-		containerID, runtime = cgroup.GetContainerContext()
-		cgroupContext.CGroupID = containerutils.CGroupID(cgroup.Path)
-		cgroupContext.CGroupFlags = runtime
-
-		return true
-	}); err != nil {
-		return "", CGroupContext{}, err
-	}
-
-	var fileStats unix.Statx_t
-	taskPath := CgroupTaskPath(pid, pid)
-	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
-		cgroupContext.CGroupFileMountID = uint32(fileStats.Mnt_id)
-		cgroupContext.CGroupFileInode = fileStats.Ino
-	}
-
-	return containerID, cgroupContext, nil
 }
 
 var defaultCGroupMountpoints = []string{
@@ -211,17 +170,10 @@ type CGroupFS struct {
 }
 
 // NewCGroupFS creates a new CGroupFS instance
-func NewCGroupFS(cgroupMountPoints ...string) *CGroupFS {
+func NewCGroupFS() *CGroupFS {
 	cfs := &CGroupFS{}
 
-	var cgroupMnts []string
-	if len(cgroupMountPoints) == 0 {
-		cgroupMnts = defaultCGroupMountpoints
-	} else {
-		cgroupMnts = cgroupMountPoints
-	}
-
-	for _, mountpoint := range cgroupMnts {
+	for _, mountpoint := range defaultCGroupMountpoints {
 		hostMountpoint := filepath.Join(kernel.SysFSRoot(), strings.TrimPrefix(mountpoint, "/sys/"))
 		if mounted, _ := mountinfo.Mounted(hostMountpoint); mounted {
 			cfs.cGroupMountPoints = append(cfs.cGroupMountPoints, hostMountpoint)
@@ -239,50 +191,61 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 	}
 
 	var (
-		containerID     containerutils.ContainerID
-		cgroupContext   CGroupContext
-		sysFScGroupPath string
+		containerID   containerutils.ContainerID
+		cgroupContext CGroupContext
+		cgroupPath    string
 	)
 
-	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) bool {
+	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) (bool, error) {
 		if path == "/" {
-			return false
+			return false, nil
 		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
 			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
 			// On cgroup v2, it's only a single line with ID 0 and no ctrl
 			// (Cf unit tests for examples)
-			return false
+			return false, nil
 		}
+
+		var (
+			exists bool
+			err    error
+		)
 
 		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
 		for _, mountpoint := range cfs.cGroupMountPoints {
-			cgroupPath := filepath.Join(mountpoint, ctrlDirectory, path)
-			if exists, err := checkPidExists(cgroupPath, pid); err == nil && exists {
+			cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
+
+			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
 				cgroupID := containerutils.CGroupID(path)
 				ctrID, flags := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
 				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
 				containerID = ctrID
-				sysFScGroupPath = cgroupPath
 
-				var fileStatx unix.Statx_t
-				var fileStats unix.Stat_t
-				if err := unix.Statx(unix.AT_FDCWD, sysFScGroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
+				var (
+					fileStatx unix.Statx_t
+					fileStats unix.Stat_t
+				)
+
+				if err = unix.Statx(unix.AT_FDCWD, cgroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
 					cgroupContext.CGroupFileMountID = uint32(fileStatx.Mnt_id)
 					cgroupContext.CGroupFileInode = fileStatx.Ino
-				} else if err := unix.Stat(sysFScGroupPath, &fileStats); err == nil {
+				} else if err = unix.Stat(cgroupPath, &fileStats); err == nil {
 					cgroupContext.CGroupFileInode = fileStats.Ino
 				}
-				return true
+
+				return true, err
 			}
 		}
-		return false
+
+		// return the lastest error
+		return false, err
 	})
 	if err != nil {
 		return "", CGroupContext{}, "", err
 	}
 
-	return containerID, cgroupContext, sysFScGroupPath, nil
+	return containerID, cgroupContext, cgroupPath, nil
 }
 
 func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {

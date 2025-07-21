@@ -30,6 +30,22 @@ type GoFunction struct {
 	DeferReturn uint32
 	// The index of the function in the symbol table
 	idx uint32
+	// The internal function info
+	funcInfo *funcInfo
+}
+
+// PCIterator returns an iterator over the program counter-to-source line
+// mappings for this function's code.
+//
+// inlinedPcRanges is a list of program counter ranges that correspond to other
+// functions that were inlined within this function. These PC ranges will be
+// ignored by the iterator. The caller is expected to figure out these inlined
+// ranges from the DWARF debug information. If the correct ranges are not
+// provided, the iterator will return seemingly nonsensical results: source
+// lines that are outside of the function and might correspond to different
+// source files.
+func (f *GoFunction) PCIterator(inlinedPcRanges [][2]uint64) (PCIterator, error) {
+	return makeFuncPCIterator(f.funcInfo, inlinedPcRanges)
 }
 
 // GoLocation represents a resolved source code location.
@@ -502,6 +518,7 @@ func (lt *lineTable) getGoFunctionByIndex(idx uint32) *GoFunction {
 		End:         end,
 		DeferReturn: deferReturn,
 		idx:         idx,
+		funcInfo:    funcInfo,
 	}
 }
 
@@ -556,11 +573,6 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 		return nil
 	}
 
-	funcInfo, err := lt.funcInfo(function.idx)
-	if err != nil {
-		return nil
-	}
-
 	adjustedPC := pc
 	if pc+1 == function.End {
 		adjustedPC = pc - 1
@@ -585,7 +597,7 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 		}
 	}
 
-	inlinedCalls := unwindInlinedCalls(funcInfo, adjustedPC, goFuncData)
+	inlinedCalls := unwindInlinedCalls(function.funcInfo, adjustedPC, goFuncData)
 	if inlinedCalls == nil {
 		return []GoLocation{makeLocation(function.idx, adjustedPC, function.Name)}
 	}
@@ -594,7 +606,7 @@ func (lt *lineTable) locatePC(pc uint64, goFuncData []byte) []GoLocation {
 	for _, call := range inlinedCalls {
 		funcID := call.FuncID
 		if funcID == nil {
-			if fid, found := funcInfo.funcID(); found {
+			if fid, found := function.funcInfo.funcID(); found {
 				funcID = &fid
 			}
 		}
@@ -714,17 +726,11 @@ func (lt *lineTable) pcToLine(funcIdx uint32, pc uint64) (uint32, bool) {
 		return 0, false
 	}
 
-	pcLine, found := funcInfo.pcln()
-	if !found {
+	it, err := makeFuncPCIterator(funcInfo, nil /* inlinedPcRanges */)
+	if err != nil {
 		return 0, false
 	}
-
-	startPC, found := funcInfo.entryPC()
-	if !found {
-		return 0, false
-	}
-
-	return lt.pcValue(pcLine, startPC, pc)
+	return it.PCToLine(pc)
 }
 
 // pcValue reports the value associated with the target pc.
@@ -735,13 +741,13 @@ func (lt *lineTable) pcValue(off uint32, entry uint64, targetPC uint64) (uint32,
 	}
 
 	cursor := lt.data[offset:]
-	stepper := newStepper(cursor, entry, -1, lt.quantum)
+	stepper := makeStepper(cursor, entry, lt.quantum)
 
 	for {
 		if !stepper.step() {
 			return 0, false
 		}
-		if targetPC < stepper.pc {
+		if targetPC < stepper.pcEnd {
 			if stepper.val < 0 {
 				return 0, false
 			}
@@ -758,22 +764,49 @@ func (lt *lineTable) string(off uint32) *string {
 // Stepper for PC value iteration.
 type stepper struct {
 	quantum uint32
-	cursor  []byte
-	pc      uint64
-	val     int32
-	first   bool
+	// The initial state of the stepper, for reset purposes.
+	initCursor []byte
+	initPC     uint64
+
+	cursor []byte
+
+	// The start of the current PC range (inclusive).
+	pcStart uint64
+	// The end of the current PC range (exclusive).
+	pcEnd uint64
+	// The value associated with the current PC range (i.e. [pcStart, pcEnd)
+	// maps to this value).
+	val   int32
+	first bool
 }
 
-func newStepper(cursor []byte, pc uint64, val int32, quantum uint32) *stepper {
-	return &stepper{
-		cursor:  cursor,
-		pc:      pc,
-		val:     val,
-		first:   true,
-		quantum: quantum,
+func makeStepper(cursor []byte, pc uint64, quantum uint32) stepper {
+	return stepper{
+		quantum:    quantum,
+		initCursor: cursor,
+		initPC:     pc,
+		cursor:     cursor,
+		pcStart:    0,
+		pcEnd:      pc,
+		val:        -1,
+		first:      true,
 	}
 }
 
+// reset resets the stepper to its initial state.
+func (s *stepper) reset() {
+	s.pcStart = 0
+	s.pcEnd = s.initPC
+	s.cursor = s.initCursor
+	s.val = -1
+	s.first = true
+}
+
+// step advances to the next entry in the line table, updating s.pc and s.val.
+// Returns false if the table is exhausted.
+//
+// Calling step() again after it has returned false is a no-op that will keep
+// returning false.
 func (s *stepper) step() bool {
 	uvdelta, deltaBytes := decodeVarint(s.cursor)
 	if uvdelta == 0 && !s.first {
@@ -791,7 +824,8 @@ func (s *stepper) step() bool {
 	pcdelta, deltaBytes := decodeVarint(s.cursor)
 	s.cursor = s.cursor[deltaBytes:]
 
-	s.pc += uint64(pcdelta * s.quantum)
+	s.pcStart = s.pcEnd
+	s.pcEnd += uint64(pcdelta * s.quantum)
 	s.val += vdelta
 	s.first = false
 
@@ -963,7 +997,8 @@ func (ft *funcTab) funcOff(i uint32) (uint64, error) {
 
 // funcInfo represents single function data in the pclntab.
 type funcInfo struct {
-	lt   *lineTable
+	lt *lineTable
+	// data points into lt.data at the start of this function's data.
 	data []byte
 }
 

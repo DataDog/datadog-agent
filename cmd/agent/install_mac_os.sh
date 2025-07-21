@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.4.0
+install_script_version=1.5.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -63,19 +63,13 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
 fi
 
 arch=$(/usr/bin/arch)
-if [ "$arch" == "arm64" ]; then
-  if ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
-    printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
-    exit 1
-  fi
-fi
 
 # Cleanup tmp files used for installation
 rm -f /tmp/install-ddagent/system-wide
 
 function find_latest_patch_version_for() {
     major_minor="$1"
-    patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
+    patch_versions=$(curl "$dmg_base_url?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -Eo "datadog-agent-${major_minor}.[0-9]*-1(.$arch)?.dmg")
     if [ -z "$patch_versions" ]; then
         echo "-1"
     fi
@@ -218,12 +212,6 @@ if [ -z "$dmg_version" ]; then
     fi
 fi
 
-if [ -z "$agent_dist_channel" ]; then
-    dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
-else
-    dmg_url="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}.dmg"
-fi
-
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then
         printf "\033[31mDD_UPGRADE set but no config was found at $etc_dir/datadog.conf.\033[0m\n"
@@ -364,6 +352,22 @@ function plist_modify_user_group() {
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
     $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
 }
+
+# Determine agent flavor to install
+if [ -z "$agent_dist_channel" ]; then
+    dmg_url_prefix="$dmg_base_url/datadog-agent-${dmg_version}"
+else
+    dmg_url_prefix="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}"
+fi
+
+dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if available
+if [ "$(curl --head --location --output /dev/null --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
+    dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
+    if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
+        printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
+        exit 1
+    fi
+fi
 
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
