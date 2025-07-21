@@ -50,43 +50,43 @@ type Entry struct {
 	// as it appears to users (e.g., "Microsoft Office 365", "Adobe Photoshop").
 	// This field is used for display purposes and software identification.
 	DisplayName string `json:"name"`
-	
+
 	// Version is the version string of the software application
 	// (e.g., "16.0.1234.56789", "2023.1.2"). This field helps track
 	// software versions for security and compliance purposes.
 	Version string `json:"version"`
-	
+
 	// InstallDate is the date when the software was installed on the system.
 	// The format may vary by platform but is typically in ISO 8601 format
 	// or a platform-specific date format (e.g., "2023-01-15T10:30:00Z").
 	// This field is optional and may be empty if the installation date
 	// cannot be determined.
 	InstallDate string `json:"deployment_time,omitempty"`
-	
+
 	// Source indicates the type or source of the software installation
 	// (e.g., "desktop", "msstore", "msu"). This field helps categorize
 	// software by its installation method or distribution channel.
 	Source string `json:"software_type"`
-	
+
 	// UserSID is the Security Identifier of the user who installed the software,
 	// particularly relevant for user-specific installations on Windows.
 	// This field is optional and may be empty for system-wide installations.
 	UserSID string `json:"user,omitempty"`
-	
+
 	// Is64Bit indicates whether the software is a 64-bit application.
 	// This field is important for compatibility and system architecture tracking.
 	Is64Bit bool `json:"is_64_bit"`
-	
+
 	// Publisher is the name of the software publisher or vendor
 	// (e.g., "Microsoft Corporation", "Adobe Inc."). This field helps
 	// identify the software vendor for security and compliance purposes.
 	Publisher string `json:"publisher"`
-	
+
 	// Status indicates the current deployment status of the software
 	// (e.g., "installed", "uninstalling", "failed"). This field tracks
 	// the operational state of the software installation.
 	Status string `json:"deployment_status"`
-	
+
 	// ProductCode is a unique identifier for the software product,
 	// often used in package management systems or installation databases
 	// (e.g., Windows Product Code, package identifiers). This field
