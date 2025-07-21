@@ -5,7 +5,8 @@
 
 //go:build test
 
-package inventorysoftware
+// Package mock contains mock used to test the inventorysoftware component
+package mock
 
 import (
 	"context"
@@ -15,30 +16,30 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// mockSysProbeClient implements SysProbeClient for testing.
-type mockSysProbeClient struct {
+// SysProbeClient implements SysProbeClient for testing.
+type SysProbeClient struct {
 	mock.Mock
 }
 
-func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
+func (m *SysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	args := m.Called(module)
 	return args.Get(0).([]software.Entry), args.Error(1)
 }
 
-// mockHostname implements hostnameinterface.Component for testing
-type mockHostname struct{}
+// Hostname implements hostnameinterface.Component for testing
+type Hostname struct{}
 
-func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+func (m *Hostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
 	return hostnameinterface.Data{
 		Hostname: "test-hostname",
 		Provider: "test-provider",
 	}, nil
 }
 
-func (m *mockHostname) GetSafe(_ context.Context) string {
+func (m *Hostname) GetSafe(_ context.Context) string {
 	return "test-hostname"
 }
 
-func (m *mockHostname) Get(_ context.Context) (string, error) {
+func (m *Hostname) Get(_ context.Context) (string, error) {
 	return "test-hostname", nil
 }

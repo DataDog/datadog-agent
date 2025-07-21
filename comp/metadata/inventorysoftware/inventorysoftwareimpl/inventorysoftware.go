@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorysoftware implements the inventory software component, to collect installed software inventory.
-package inventorysoftware
+// Package inventorysoftwareimpl contains the implementation of the inventory software component
+package inventorysoftwareimpl
 
 import (
 	"context"
 	"net/http"
 	"time"
+
+	inventorysoftware "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"go.uber.org/fx"
 
@@ -35,12 +36,6 @@ import (
 )
 
 const flareFileName = "inventorysoftware.json"
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(New))
-}
 
 // SysProbeClient is an interface for the sysprobeclient used for dependency injection and testing.
 type SysProbeClient interface {
@@ -81,7 +76,7 @@ type Dependencies struct {
 type Provides struct {
 	fx.Out
 
-	Comp                 Component
+	Comp                 inventorysoftware.Component
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider

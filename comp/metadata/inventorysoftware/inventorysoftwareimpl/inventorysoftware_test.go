@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventorysoftware
+package inventorysoftwareimpl
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/mock"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -27,13 +28,13 @@ import (
 	"go.uber.org/fx"
 )
 
-func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mockSysProbeClient) {
-	sp := &mockSysProbeClient{}
+func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mock.SysProbeClient) {
+	sp := &mock.SysProbeClient{}
 	provides := NewWithClient(
 		fxutil.Test[Dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() hostnameinterface.Component { return &mockHostname{} }),
+			fx.Provide(func() hostnameinterface.Component { return &mock.Hostname{} }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -43,7 +44,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mockSys
 	return provides, sp
 }
 
-func newInventorySoftware(t *testing.T, confOverrides map[string]any) (*inventorySoftware, *mockSysProbeClient) {
+func newInventorySoftware(t *testing.T, confOverrides map[string]any) (*inventorySoftware, *mock.SysProbeClient) {
 	// Set default to enabled for tests
 	if confOverrides == nil {
 		confOverrides = map[string]any{}

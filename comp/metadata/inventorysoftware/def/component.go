@@ -6,6 +6,8 @@
 // Package inventorysoftware defines the interface for the inventory software component.
 package inventorysoftware
 
+// team: windows-agent
+
 // Component is the interface for the inventory software component.
 type Component interface {
 	// Refresh trigger a new payload to be sent while still respecting the minimal interval between two updates.
