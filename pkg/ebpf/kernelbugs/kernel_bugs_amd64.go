@@ -17,8 +17,8 @@ import (
 	"syscall"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
