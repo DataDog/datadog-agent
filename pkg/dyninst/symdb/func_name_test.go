@@ -17,46 +17,48 @@ func TestParseFuncName(t *testing.T) {
 	tests := []struct {
 		testName      string
 		qualifiedName string
-		expected      funcName
+		expected      parseFuncNameResult
 	}{
 		{"simple func", "github.com/cockroachdb/cockroach/pkg/kv.func1",
-			funcName{
+			parseFuncNameResult{funcName: funcName{
 				Package: "github.com/cockroachdb/cockroach/pkg/kv",
 				Type:    "",
 				Name:    "func1",
-			},
+			}},
 		},
 		{"method", "github.com/cockroachdb/cockroach/pkg/kv/kvserver.raftSchedulerShard.worker",
-			funcName{
+			parseFuncNameResult{funcName: funcName{
 				Package: "github.com/cockroachdb/cockroach/pkg/kv/kvserver",
 				Type:    "raftSchedulerShard",
 				Name:    "worker",
-			},
+			}},
 		},
 		{"method with ptr receiver", "github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker",
-			funcName{
+			parseFuncNameResult{funcName: funcName{
 				Package: "github.com/cockroachdb/cockroach/pkg/kv/kvserver",
 				Type:    "raftSchedulerShard",
 				Name:    "worker",
-			},
+			}},
 		},
 		{"generic function", "os.init.OnceValue[go.shape.interface { Error() string }].func3",
-			funcName{
-				GenericFunction: true,
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonGenericFunction,
 			},
 		},
 		{"anonymous function inside function", "github.com/getsentry/sentry-go.NewClient.func1",
-			funcName{
+			parseFuncNameResult{funcName: funcName{
 				Package: "github.com/getsentry/sentry-go",
 				Type:    "",
 				Name:    "NewClient.func1",
-			},
+			}},
 		},
 		{"anonymous function in ptr method", "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.(*ChoosePreferredReplica).func1",
 			// This function we would like to parse, but currently we confuse it with
 			// an anonymous function called by an inlined function, which we don't
 			// support parsing.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
 			// Ideally, we would parse it as:
 			//funcName{
 			//	Package: "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle",
@@ -68,7 +70,9 @@ func TestParseFuncName(t *testing.T) {
 			// This function we would like to parse, but currently we confuse it with
 			// an anonymous function called by an inlined function, which we don't
 			// support parsing.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
 			// Ideally, we would parse it as:
 			//funcName{
 			//	Package: "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle",
@@ -80,7 +84,9 @@ func TestParseFuncName(t *testing.T) {
 			// This function we would like to parse, but currently we confuse it with
 			// an anonymous function called by an inlined function, which we don't
 			// support parsing.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
 			// Ideally, we would parse it as:
 			//funcName{
 			//	Package: "github.com/cockroachdb/cockroach/pkg/server",
@@ -89,31 +95,41 @@ func TestParseFuncName(t *testing.T) {
 			//},
 		},
 		{"deeply nested deferwrap", "github.com/foo/logical.(*logicalReplicationWriterProcessor).flushBuffer.Group.GoCtx.func7.1.deferwrap1",
-			funcName{
+			parseFuncNameResult{funcName: funcName{
 				Package: "github.com/foo/logical",
 				Type:    "logicalReplicationWriterProcessor",
 				Name:    "flushBuffer.Group.GoCtx.func7.1.deferwrap1",
-			},
+			}},
 		},
 		{"funky function called by inlined function", "runtime.gcMarkDone.forEachP.func5",
 			// We don't support parsing such functions.
-			funcName{},
-		},
-		{"funky function called by inlined function", "time.map.init.0",
-			// We don't support parsing such functions.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
 		},
 		{"funky function called by inlined function inside inlined function", "runtime.chansend.send.goready.func2",
 			// We don't support parsing such functions.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
 		},
 		{"funky method called by inlined function", "github.com/cockroachdb/cockroach/pkg/server.(*topLevelServer).startPersistingHLCUpperBound.func1.(*Node).SetHLCUpperBound.1",
 			// We don't support parsing such functions.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
 		},
 		{"funky method called by inlined function 2", "github.com/cockroachdb/cockroach/pkg/crosscluster/producer.(*spanConfigEventStream).startStreamProcessor.(*spanConfigEventStream).startStreamProcessor.func1.func6",
 			// We don't support parsing such functions.
-			funcName{},
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+			},
+		},
+		{"static map initializer", "time.map.init.0",
+			// We don't support parsing such functions.
+			parseFuncNameResult{
+				failureReason: parseFuncNameFailureReasonMapInit,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -124,8 +140,8 @@ func TestParseFuncName(t *testing.T) {
 			}
 			// The test cases don't fill in the expected QualifiedName field;
 			// fix it up.
-			if !tt.expected.Empty() {
-				tt.expected.QualifiedName = tt.qualifiedName
+			if tt.expected.failureReason == parseFuncNameFailureReasonUndefined {
+				tt.expected.funcName.QualifiedName = tt.qualifiedName
 			}
 			require.Equal(t, tt.expected, result)
 		})
