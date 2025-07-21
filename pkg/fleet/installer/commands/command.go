@@ -371,10 +371,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config>",
+		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(3),
+		Args:    cobra.MinimumNArgs(3),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -383,7 +383,14 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			i.span.SetTag("params.version", args[1])
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], []byte(args[2]))
+
+			// Start with the main config
+			configs := make([][]byte, len(args)-2)
+			for i, config := range args[2:] {
+				configs[i] = []byte(config)
+			}
+
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs)
 		},
 	}
 	return cmd
