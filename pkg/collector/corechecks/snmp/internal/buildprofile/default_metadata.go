@@ -468,8 +468,6 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 		}
 
 		if _, exists := metadataConfig[resourceName]; !exists {
-			fmt.Println(metadataConfig[resourceName])
-			fmt.Println(resourceConfig)
 			metadataConfig[resourceName] = resourceConfig.ToMetadataResourceConfig()
 		}
 	}
