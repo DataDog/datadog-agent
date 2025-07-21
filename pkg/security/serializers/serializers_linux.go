@@ -36,6 +36,8 @@ type FileSerializer struct {
 	Path string `json:"path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
+	// File extension
+	Extension string `json:"extension,omitempty"`
 	// Error message from path resolution
 	PathResolutionError string `json:"path_resolution_error,omitempty"`
 	// File inode number
@@ -83,9 +85,9 @@ type FileSerializer struct {
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
 	// MountVisible origin of the mount
-	MountVisible bool `json:"mount_visible"`
+	MountVisible *bool `json:"mount_visible,omitempty"`
 	// MountDetached origin of the mount
-	MountDetached bool `json:"mount_detached"`
+	MountDetached *bool `json:"mount_detached,omitempty"`
 
 	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
 }
@@ -764,6 +766,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
+		Extension:           e.FieldHandlers.ResolveFileExtension(e, fe),
 		Inode:               createNumPointer(inode),
 		MountID:             createNumPointer(fe.MountID),
 		Filesystem:          e.FieldHandlers.ResolveFileFilesystem(e, fe),
@@ -781,8 +784,13 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 		MountPath:           fe.MountPath,
 		MountSource:         model.MountSourceToString(fe.MountSource),
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
-		MountVisible:        fe.MountVisible,
-		MountDetached:       fe.MountDetached,
+	}
+
+	if fe.MountVisibilityResolved {
+		visible := fe.MountVisible
+		detached := fe.MountDetached
+		fs.MountVisible = &visible
+		fs.MountDetached = &detached
 	}
 
 	if metadata != nil {

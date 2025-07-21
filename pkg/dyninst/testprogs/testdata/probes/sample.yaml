@@ -133,6 +133,13 @@ probes:
   where:
     methodName: main.testThreeStringsInStruct
   captureSnapshot: true
+- id: testUnsafePointer
+  type: LOG_PROBE
+  tags:
+    - "foo:bar"
+  where:
+    methodName: main.testUnsafePointer
+  captureSnapshot: true
 - id: testThreeStringsInStructPointer
   type: LOG_PROBE
   tags:

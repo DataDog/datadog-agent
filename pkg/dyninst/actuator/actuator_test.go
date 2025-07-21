@@ -60,7 +60,7 @@ func TestIrGenFailed(t *testing.T) {
 	msg, ok := <-reporter.ch
 	require.True(t, ok)
 	require.Equal(t, pid, msg.processID)
-	require.Regexp(t, "failed to open executable", msg.err.Error())
+	require.Regexp(t, "failed to load elf file", msg.err.Error())
 	require.ErrorIs(t, msg.err, os.ErrNotExist)
 }
 

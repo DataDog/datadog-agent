@@ -35,7 +35,9 @@ public:
     RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
+    // clang-format off
     virtual ~RtLoader(){};
+    // clang-format on
 
     // Public API
     //! Pure virtual init member.
