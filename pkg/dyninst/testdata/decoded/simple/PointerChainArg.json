@@ -26,19 +26,7 @@
             "arguments": {
               "ptr": {
                 "type": "*****int",
-                "address": "[addr]",
-                "value": {
-                  "type": "****int",
-                  "address": "[addr]",
-                  "value": {
-                    "type": "***int",
-                    "address": "[addr]",
-                    "value": {
-                      "type": "**int",
-                      "notCapturedReason": "depth"
-                    }
-                  }
-                }
+                "notCapturedReason": "depth"
               }
             }
           }

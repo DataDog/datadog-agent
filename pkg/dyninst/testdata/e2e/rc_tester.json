@@ -100,38 +100,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -399,38 +369,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -698,38 +638,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -839,7 +749,7 @@
                       },
                       "loc": {
                         "type": "string",
-                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70"
+                        "value": "[datadog-agent]/pkg/dyninst/testprogs/progs/rc_tester/main.go:70\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000(\u0000\u0000\u0000\u0000\u0000\u0000\u0000)\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000/\u0000\u0000\u0000\u0000\u0000\u0000\u00000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000(\u0000\u0000\u0000\u0000\u0000\u0000\u0000)\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000/\u0000\u0000\u0000\u0000\u0000\u0000\u00000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000\r\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u001c\u0000\u0000\u0000\u0000\u0000\u0000\u0000(\u0000\u0000\u0000\u0000\u0000\u0000\u0000)\u0000\u0000\u0000\u0000\u0000\u0000\u0000i\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000p\u0000\u0000\u0000\u0000\u0000\u0000\u0000\b\u0000\u0000\u0000\u0000\u0000\u0000\u0000\f\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
                       }
                     }
                   },

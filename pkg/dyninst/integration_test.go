@@ -295,7 +295,7 @@ func testDyninst(
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Output: %s", decodeOut.String())
 		}
-		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
+		redacted := redactJSON(t, "", decodeOut.Bytes(), defaultRedactors)
 		if os.Getenv("DEBUG") != "" {
 			t.Logf("Sorted and redacted: %s", redacted)
 		}
