@@ -3,10 +3,10 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsproces
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.68.2
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.68.2
-	github.com/DataDog/datadog-agent/pkg/proto v0.68.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.68.2
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.68.3-rc.1
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.68.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.68.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.68.3-rc.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.28.0
 	github.com/stretchr/testify v1.10.0
@@ -26,16 +26,16 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.68.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.68.3-rc.1 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
