@@ -25,6 +25,10 @@ type Filterable interface {
 	Serialize() any
 	// Type returns the resource type of the object.
 	Type() ResourceType
+	// GetAnnotations returns the annotations of the object.
+	GetAnnotations() map[string]string
+	// GetName returns the name of the object.
+	GetName() string
 }
 
 // ResourceType defines the type of resource.
@@ -59,6 +63,16 @@ func (c *Container) Serialize() any {
 // Type returns the resource type of the container.
 func (c *Container) Type() ResourceType {
 	return ContainerType
+}
+
+// GetAnnotations returns the annotations of the container.
+func (c *Container) GetAnnotations() map[string]string {
+	// The container object itself does not have annotations.
+	// Annotations are stored in the parent pod object.
+	if c.FilterContainer.GetPod() != nil {
+		return c.FilterContainer.GetPod().GetAnnotations()
+	}
+	return nil
 }
 
 // ContainerFilter defines the type of container filter.
@@ -223,6 +237,12 @@ func (i *Image) Serialize() any {
 // Type returns the resource type of the image.
 func (i *Image) Type() ResourceType {
 	return ImageType
+}
+
+// GetAnnotations returns the annotations of the image.
+func (i *Image) GetAnnotations() map[string]string {
+	// Images do not have annotations.
+	return nil
 }
 
 // ImageFilter defines the type of image filter.

@@ -7,8 +7,6 @@
 package catalog
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -155,47 +153,6 @@ func LegacyContainerSBOMProgram(config config.Component, logger log.Component) p
 		Exclude:              excludeProgram,
 		InitializationErrors: initErrors,
 	}
-}
-
-// createContainerADAnnotationsProgram creates a program for filtering
-// container annotations based on the annotation key.
-func createContainerADAnnotationsProgram(programName, annotationKey string, logger log.Component) program.CELProgram {
-	var initErrors []error
-
-	// Use 'in' operator to safely check if annotation exists before accessing it
-	excludeFilter := fmt.Sprintf(`
-		(("ad.datadoghq.com/" + container.name + ".%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/" + container.name + ".%s"] in ["1", "t", "T", "true", "TRUE", "True"]) ||
-		(("ad.datadoghq.com/%s") in container.pod.annotations && 
-		 container.pod.annotations["ad.datadoghq.com/%s"] in ["1", "t", "T", "true", "TRUE", "True"])
-	`, annotationKey, annotationKey, annotationKey, annotationKey)
-
-	excludeProgram, err := createCELProgram(excludeFilter, workloadfilter.ContainerType)
-	if err != nil {
-		initErrors = append(initErrors, err)
-		logger.Warnf("Error creating CEL filtering program for %s: %v", programName, err)
-	}
-
-	return program.CELProgram{
-		Name:                 programName,
-		Exclude:              excludeProgram,
-		InitializationErrors: initErrors,
-	}
-}
-
-// ContainerADAnnotationsProgram creates a program for filtering container annotations
-func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsProgram", "exclude", logger)
-}
-
-// ContainerADAnnotationsMetricsProgram creates a program for filtering container annotations for metrics
-func ContainerADAnnotationsMetricsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsMetricsProgram", "metrics_exclude", logger)
-}
-
-// ContainerADAnnotationsLogsProgram creates a program for filtering container annotations for logs
-func ContainerADAnnotationsLogsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	return createContainerADAnnotationsProgram("ContainerADAnnotationsLogsProgram", "logs_exclude", logger)
 }
 
 // ContainerPausedProgram creates a program for filtering paused containers

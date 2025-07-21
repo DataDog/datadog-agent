@@ -80,6 +80,10 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 		prgs:      make(map[workloadfilter.ResourceType]map[int]program.FilterProgram),
 	}
 
+	genericADProgram := catalog.AutodiscoveryAnnotations()
+	genericADMetricsProgram := catalog.AutodiscoveryMetricsAnnotations()
+	genericADLogsProgram := catalog.AutodiscoveryLogsAnnotations()
+
 	// Container Filters
 	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram(config, logger))
 	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), catalog.LegacyContainerLogsProgram(config, logger))
@@ -88,22 +92,22 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), catalog.LegacyContainerGlobalProgram(config, logger))
 	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram(config, logger))
 
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), catalog.ContainerADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsMetrics), catalog.ContainerADAnnotationsMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), catalog.ContainerADAnnotationsLogsProgram(config, logger))
+	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), genericADProgram)
+	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsMetrics), genericADMetricsProgram)
+	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgram)
 	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram(config, logger))
 
 	// Service Filters
 	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram(config, logger))
 	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), catalog.ServiceADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), catalog.ServiceADAnnotationsMetricsProgram(config, logger))
+	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), genericADProgram)
+	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgram)
 
 	// Endpoints Filters
 	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
 	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), catalog.EndpointsADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), catalog.EndpointsADAnnotationsMetricsProgram(config, logger))
+	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), genericADProgram)
+	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgram)
 
 	// Image Filters
 	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.LegacyImage), catalog.LegacyImageProgram(config, logger))
@@ -112,8 +116,8 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 
 	// Pod Filters
 	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.LegacyPod), catalog.LegacyPodProgram(config, logger))
-	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), catalog.PodADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), catalog.PodADAnnotationsMetricsProgram(config, logger))
+	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotations), genericADProgram)
+	filter.registerProgram(workloadfilter.PodType, int(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgram)
 
 	return filter, nil
 }
