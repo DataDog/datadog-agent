@@ -53,6 +53,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 		return nil, err
 	}
 	h, _ := hostname.Get(context.Background())
+
 	config := pkgconfigsetup.Datadog()
 	config.SetWithoutSource("serializer_compressor_kind", "none")
 	serializer := serializer.NewSerializer(forwarder, nil, selector.FromConfig(config), pkgconfigsetup.Datadog(), logger, h)
@@ -61,7 +62,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKey
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, false, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		log:                         logger,

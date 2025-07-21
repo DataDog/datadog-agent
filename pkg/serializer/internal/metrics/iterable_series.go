@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -106,77 +108,52 @@ func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (transaction.BytesPayloads, error) {
-	pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-	if err != nil {
-		return nil, err
-	}
-
-	err = pb.startPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
-	// the serie.NoIndex field.
-	for series.source.MoveNext() {
-		err = pb.writeSerie(series.source.Current())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// if the last payload has any data, flush it
-	err = pb.finishPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	return pb.payloads, nil
+// Pipeline represents a data processing pipeline that filters series and marks
+// them for a specific destination
+type Pipeline struct {
+	FilterFunc  func(s *metrics.Serie) bool
+	Destination transaction.Destination
 }
 
-// MarshalSplitCompressMultiple uses the stream compressor to marshal and compress one series into three sets of payloads.
-// One set of payloads contains all metrics,
-// The seond contains only those that pass the provided MRF filter function.
-// The third contains only those that pass the provided autoscaling local failover filter function.
-// This function exists because we need a way to build both payloads in a single pass over the input data, which cannot be iterated over twice.
-func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFuncForMRF func(s *metrics.Serie) bool, filterFuncForAutoscaling func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, transaction.BytesPayloads, error) {
-	pbs := make([]*PayloadsBuilder, 3) // 0: all, 1: MRF, 2: autoscaling
+// MarshalSplitCompressPipelines uses the stream compressor to marshal and
+// compress series payloads, allowing multiple variants to be generated in a
+// single pass over the input data. If a compressed payload is larger than the
+// max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled MetricPayload objects.
+func (series *IterableSeries) MarshalSplitCompressPipelines(
+	config config.Component,
+	strategy compression.Component,
+	forwarder forwarder.Forwarder,
+	headers http.Header,
+	pipelines []Pipeline,
+) error {
+	pbs := make([]*PayloadsBuilder, len(pipelines))
 	for i := range pbs {
 		bufferContext := marshaler.NewBufferContext()
-		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		pbs[i] = &pb
+		pbs[i] = series.NewPayloadsBuilder(
+			bufferContext,
+			config,
+			strategy,
+			forwarder,
+			pipelines[i].Destination,
+			headers,
+		)
 
-		err = pbs[i].startPayload()
+		err := pbs[i].startPayload()
 		if err != nil {
-			return nil, nil, nil, err
+			return err
 		}
 	}
+
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
-		err := pbs[0].writeSerie(series.source.Current())
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		if filterFuncForMRF(series.source.Current()) {
-			err = pbs[1].writeSerie(series.source.Current())
-			if err != nil {
-				return nil, nil, nil, err
-			}
-		}
-
-		if filterFuncForAutoscaling(series.source.Current()) {
-			err = pbs[2].writeSerie(series.source.Current())
-			if err != nil {
-				return nil, nil, nil, err
+		for i, pipeline := range pipelines {
+			if pipeline.FilterFunc(series.source.Current()) {
+				err := pbs[i].writeSerie(series.source.Current())
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -185,19 +162,26 @@ func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Compone
 	for i := range pbs {
 		err := pbs[i].finishPayload()
 		if err != nil {
-			return nil, nil, nil, err
+			return err
 		}
 	}
 
-	return pbs[0].payloads, pbs[1].payloads, pbs[2].payloads, nil
+	return nil
 }
 
 // NewPayloadsBuilder initializes a new PayloadsBuilder to be used for serializing series into a set of output payloads.
-func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (PayloadsBuilder, error) {
+func (series *IterableSeries) NewPayloadsBuilder(
+	bufferContext *marshaler.BufferContext,
+	config config.Component,
+	strategy compression.Component,
+	forwarder forwarder.Forwarder,
+	destination transaction.Destination,
+	headers http.Header,
+) *PayloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
 
-	return PayloadsBuilder{
+	return &PayloadsBuilder{
 		bufferContext: bufferContext,
 		config:        config,
 		strategy:      strategy,
@@ -205,7 +189,10 @@ func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.Buffer
 		compressor: nil,
 		buf:        buf,
 		ps:         ps,
-		payloads:   []*transaction.BytesPayload{},
+
+		forwarder: forwarder,
+		destination: destination,
+		headers:   headers,
 
 		pointsThisPayload: 0,
 		seriesThisPayload: 0,
@@ -213,7 +200,7 @@ func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.Buffer
 		maxPayloadSize:      config.GetInt("serializer_max_series_payload_size"),
 		maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
 		maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
-	}, nil
+	}
 }
 
 // PayloadsBuilder represents an in-progress serialization of a series into potentially multiple payloads.
@@ -225,7 +212,10 @@ type PayloadsBuilder struct {
 	compressor *stream.Compressor
 	buf        *bytes.Buffer
 	ps         *molecule.ProtoStream
-	payloads   []*transaction.BytesPayload
+
+	forwarder  forwarder.Forwarder
+	destination transaction.Destination
+	headers http.Header
 
 	pointsThisPayload int
 	seriesThisPayload int
@@ -490,7 +480,7 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	}
 
 	if pb.seriesThisPayload > 0 {
-		pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointsThisPayload))
+		pb.forwarder.SubmitSeries(transaction.BytesPayloads{transaction.NewBytesPayload(payload, pb.pointsThisPayload)}, pb.headers)
 	}
 
 	return nil
