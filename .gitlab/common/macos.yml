@@ -111,6 +111,7 @@
     - |
       export TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
       sudo mkdir -p "$TMPDIR"
+      sudo chmod 777 "$TMPDIR"
       echo "Temporary folder created at $TMPDIR"
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
