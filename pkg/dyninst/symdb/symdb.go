@@ -8,6 +8,7 @@
 package symdb
 
 import (
+	"debug/buildinfo"
 	"debug/dwarf"
 	"errors"
 	"fmt"
@@ -28,7 +29,9 @@ import (
 
 // Symbols models the symbols from a binary that get exported to SymDB.
 type Symbols struct {
-	Packages []Package
+	// MainModule is the path of the module containing the "main" function.
+	MainModule string
+	Packages   []Package
 }
 
 // Package describes a Go package for SymDB.
@@ -71,7 +74,9 @@ type Function struct {
 	// SymDB, the qualified name is how the function is identified to the
 	// prober.
 	QualifiedName string
-	File          string
+	// The source file containing the function. This is an absolute path local
+	// to the build machine, as recorded in DWARF.
+	File string
 	// The function itself represents a lexical block, with variables and
 	// sub-scopes.
 	Scope
@@ -79,6 +84,157 @@ type Function struct {
 
 func (f Function) empty() bool {
 	return f.Name == ""
+}
+
+// SerializationOptions defines options for serializing symbols.
+type SerializationOptions struct {
+	// OnlyMainModule indicates that only the main module should be serialized.
+	OnlyMainModule bool
+
+	PackageSerializationOptions
+}
+
+// PackageSerializationOptions defines options for serializing package data.
+type PackageSerializationOptions struct {
+	// /home/andrei/go/src/github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
+	// becomes
+	// github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go
+	StripLocalFilePrefix bool
+}
+
+// Serialize serializes the symbols as a human-readable string.
+//
+// If packageFilter is non-empty, only packages that start with this prefix are
+// included in the output. The "main" package is always present, and is placed
+// first in the output.
+func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
+	// Serialize the "main" package before all the others.
+	mainPkgIdx := 0
+	for i, pkg := range s.Packages {
+		if pkg.Name == "main" {
+			mainPkgIdx = i
+			pkg.Serialize(w, opt.PackageSerializationOptions)
+		}
+	}
+	for i, pkg := range s.Packages {
+		if i == mainPkgIdx {
+			continue
+		}
+		if opt.OnlyMainModule && !strings.HasPrefix(pkg.Name, s.MainModule) {
+			continue
+		}
+		pkg.Serialize(w, opt.PackageSerializationOptions)
+	}
+}
+
+// Serialize serializes the symbols in the package as a human-readable string.
+func (p Package) Serialize(w StringWriter, opt PackageSerializationOptions) {
+	w.WriteString("Package: ")
+	w.WriteString(p.Name)
+	w.WriteString("\n")
+	for _, fn := range p.Functions {
+		fn.Serialize(w, "\t", opt)
+	}
+	for _, t := range p.Types {
+		t.Serialize(w, "\t", opt)
+	}
+}
+
+// Serialize serializes the function as a human-readable string.
+func (f Function) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+	w.WriteString(indent)
+	w.WriteString("Function: ")
+	w.WriteString(f.Name)
+	w.WriteString(" (")
+	w.WriteString(f.QualifiedName)
+	w.WriteString(")")
+	w.WriteString(" in ")
+	file := f.File
+	if opt.StripLocalFilePrefix {
+		// Strip everything that comes before github.com.
+		if idx := strings.Index(file, "github.com/"); idx != -1 {
+			file = file[idx:]
+		}
+	}
+	w.WriteString(file)
+	w.WriteString(fmt.Sprintf(" [%d:%d]", f.StartLine, f.EndLine))
+	w.WriteString("\n")
+
+	childIndent := indent + "\t"
+	for _, v := range f.Variables {
+		v.Serialize(w, childIndent)
+	}
+	for _, s := range f.Scopes {
+		s.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the scope as a human-readable string. It looks like:
+// Scope: <startLine>-<endLine>
+func (s Scope) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	w.WriteString("Scope: ")
+	w.WriteString(fmt.Sprintf("%d-%d", s.StartLine, s.EndLine))
+	w.WriteString("\n")
+	childIndent := indent + "\t"
+	for _, v := range s.Variables {
+		v.Serialize(w, childIndent)
+	}
+}
+
+// Serialize serializes the type as a human-readable string. It looks like:
+//
+//	Type: <name>
+//		Field: <fieldName>: <fieldType>
+//		Field: <fieldName>: <fieldType>
+//	 	Method: <methodName> ...
+func (t Type) Serialize(w StringWriter, indent string, opt PackageSerializationOptions) {
+	w.WriteString(indent)
+	w.WriteString("Type: ")
+	w.WriteString(t.Name)
+	w.WriteString("\n")
+	childIndent := indent + "\t"
+	for _, f := range t.Fields {
+		w.WriteString(childIndent)
+		w.WriteString("Field: ")
+		w.WriteString(f.Name)
+		w.WriteString(": ")
+		w.WriteString(f.Type)
+		w.WriteString("\n")
+	}
+	for _, m := range t.Methods {
+		m.Serialize(w, childIndent, opt)
+	}
+}
+
+// Serialize serializes the variable as a human-readable string. It looks like:
+// Var: <name>: <type> (declared at line <declLine>, available: [<startLine>-<endLine>], [<startLine>-<endLine>], ...)
+func (v Variable) Serialize(w StringWriter, indent string) {
+	w.WriteString(indent)
+	if v.FunctionArgument {
+		w.WriteString("Arg: ")
+	} else {
+		w.WriteString("Var: ")
+	}
+	w.WriteString(v.Name)
+	w.WriteString(": ")
+	w.WriteString(v.TypeName)
+	w.WriteString(" (declared at line ")
+	w.WriteString(fmt.Sprintf("%d", v.DeclLine))
+	w.WriteString(", available: ")
+	for i, r := range v.AvailableLineRanges {
+		if i > 0 {
+			w.WriteString(", ")
+		}
+		w.WriteString(fmt.Sprintf("[%d-%d]", r[0], r[1]))
+	}
+	w.WriteString(")\n")
+}
+
+// StringWriter is like io.StringWriter, but writes panic on errors instead of
+// returning errors. See symdbutil.PanickingWriter for an implementation.
+type StringWriter interface {
+	WriteString(s string)
 }
 
 // Scope represents a function or another lexical block.
@@ -121,6 +277,9 @@ type SymDBBuilder struct {
 	loclistReader *loclist.Reader
 	// The size of pointers for the binary's architecture, in bytes.
 	pointerSize int
+	// The module path of the Go module containing the main function. Empty if
+	// unknown.
+	mainModule string
 
 	// The compile unit currently being processed by explore* functions.
 	currentCompileUnit        *dwarf.Entry
@@ -340,7 +499,17 @@ func (s subprogBlock) resolvePCRanges(*dwarf.Data) ([]dwarfutil.PCRange, error) 
 // NewSymDBBuilder creates a new SymDBBuilder for the given ELF file. The
 // SymDBBuilder takes ownership of the ELF file.
 // Close() needs to be called .
-func NewSymDBBuilder(obj *object.ElfFile) (*SymDBBuilder, error) {
+func NewSymDBBuilder(binaryPath string) (*SymDBBuilder, error) {
+	obj, err := object.OpenElfFile(binaryPath)
+	if err != nil {
+		return nil, err
+	}
+	binfo, err := buildinfo.ReadFile(binaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read build info: %w", err)
+	}
+	mainModule := binfo.Main.Path
+
 	moduledata, err := object.ParseModuleData(obj.Underlying)
 	if err != nil {
 		return nil, err
@@ -376,6 +545,7 @@ func NewSymDBBuilder(obj *object.ElfFile) (*SymDBBuilder, error) {
 		sym:           symTable,
 		loclistReader: obj.LoclistReader(),
 		pointerSize:   int(obj.PointerSize()),
+		mainModule:    mainModule,
 		cleanupFuncs:  []func(){func() { _ = goDebugSections.Close() }, func() { _ = obj.Close() }},
 	}
 	b.types.typesCache = dwarfutils.NewTypeFinder(obj.DwarfData())
@@ -394,7 +564,10 @@ func (b *SymDBBuilder) Close() {
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
 func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
-	var res Symbols
+	res := Symbols{
+		MainModule: b.mainModule,
+		Packages:   nil,
+	}
 	entryReader := b.dwarfData.Reader()
 
 	// Recognize compile units, which are the top-level entries in the DWARF
