@@ -90,7 +90,7 @@ func Test_ShouldMergeMetadata(t *testing.T) {
 				DefaultMetadataConfigs[4]["tunnel_config_deprecated"],
 				DefaultMetadataConfigs[4]["tunnel_config"],
 			},
-			sessionFactory: func(config *checkconfig.CheckConfig) (session.Session, error) {
+			sessionFactory: func(*checkconfig.CheckConfig) (session.Session, error) {
 				sess := session.CreateFakeSession()
 				return sess, nil
 			},
@@ -108,7 +108,7 @@ func Test_ShouldMergeMetadata(t *testing.T) {
 				DefaultMetadataConfigs[4]["tunnel_config_deprecated"],
 				DefaultMetadataConfigs[4]["tunnel_config"],
 			},
-			sessionFactory: func(config *checkconfig.CheckConfig) (session.Session, error) {
+			sessionFactory: func(*checkconfig.CheckConfig) (session.Session, error) {
 				sess := session.CreateFakeSession()
 				sess.
 					SetByte("1.3.6.1.4.1.9.9.171.1.3.2.1.4.2", []byte{0x0A, 0x00, 0x00, 0x01}).
