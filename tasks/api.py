@@ -49,14 +49,13 @@ def run(
     Args:
         endpoint: The endpoint name (see `prefix` for full endpoint).
         method: The HTTP method to use (default is 'get' if payload is empty, otherwise 'post').
-        jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
         ty: The RAPID type.
         attrs: The RAPID attributes.
         payload: Raw payload to send. Prefer using `ty` and `attrs` if possible.
         env: One of 'prod', 'staging' or 'local'.
         localport: The port to use for the local endpoint.
         prefix: The prefix to use for the endpoint.
-        jq: Will use jq to pretty print the JSON response if set to 'yes' or 'auto'.
+        jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
         query: JQ query for the output.
         silent_curl: If True, will silence curl verbose output.
 
