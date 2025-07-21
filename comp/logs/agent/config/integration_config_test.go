@@ -18,11 +18,11 @@ import (
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
 	validConfigs := []*LogsConfig{
-		{Type: FileType, Path: "/var/log/foo.log"},
-		{Type: TCPType, Port: 1234},
-		{Type: UDPType, Port: 5678},
-		{Type: DockerType},
-		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}},
+		{Type: FileType, Path: "/var/log/foo.log", FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
+		{Type: TCPType, Port: 1234, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
+		{Type: UDPType, Port: 5678, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
+		{Type: DockerType, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
+		{Type: JournaldType, ProcessingRules: []*ProcessingRule{{Name: "foo", Type: ExcludeAtMatch, Pattern: ".*"}}, FingerprintConfig: FingerprintConfig{MaxBytes: 256, MaxLines: 1, ToSkip: 0}},
 	}
 
 	for _, config := range validConfigs {
@@ -153,7 +153,7 @@ func TestPublicJSON(t *testing.T) {
 	ret, err := config.PublicJSON()
 	assert.NoError(t, err)
 
-	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"]}`
+	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"],"fingerprint_config":{}}`
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
