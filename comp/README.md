@@ -376,7 +376,7 @@ Package inventoryotel implements a component to generate the 'datadog_agent' met
 
 *Datadog Team*: windows-agent
 
-Package inventorysoftware implements a component that will list the software catalog present on a system.
+Package inventorysoftware defines the interface for the inventory software component.
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
