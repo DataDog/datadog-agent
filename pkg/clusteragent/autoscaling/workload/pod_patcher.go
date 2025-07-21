@@ -100,6 +100,8 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
+	// K8s guarantees that the name for an init container or normal container are unique among all containers.
+	// It means that dispatching recommendations just by container names is sufficient
 	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
 		for i := range pod.Spec.Containers {
 			cont := &pod.Spec.Containers[i]

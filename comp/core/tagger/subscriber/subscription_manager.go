@@ -77,8 +77,7 @@ func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events
 	return subscriber, nil
 }
 
-// unsubscribe ends a subscription to entity events and closes its channel. It
-// is not thread-safe, and callers should take care of synchronization.
+// Unsubscribe ends a subscription to entity events and closes its channel.
 func (sm *subscriptionManager) Unsubscribe(subscriptionID string) {
 	sm.Lock()
 	defer sm.Unlock()
