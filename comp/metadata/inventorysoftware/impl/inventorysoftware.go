@@ -29,10 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 const flareFileName = "inventorysoftware.json"
@@ -64,8 +62,6 @@ type inventorySoftware struct {
 
 // Dependencies is the dependencies for the inventory software component.
 type Dependencies struct {
-	fx.In
-
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -74,8 +70,6 @@ type Dependencies struct {
 
 // Provides defines the output of the inventory software component
 type Provides struct {
-	fx.Out
-
 	Comp                 inventorysoftware.Component
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider

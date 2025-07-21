@@ -69,7 +69,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware"
+	inventorysoftware "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/def"
+	inventorysoftwarefx "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -248,7 +249,7 @@ func getPlatformModules() fx.Option {
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
-		inventorysoftware.Module(),
+		inventorysoftwarefx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
