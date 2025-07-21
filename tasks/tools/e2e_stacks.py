@@ -3,7 +3,6 @@ import os
 from tasks.api import run
 
 
-# This function cannot be defined in a file that imports invoke.tasks. Otherwise it fails when called with multiprocessing.
 def destroy_remote_stack(ctx, stack: str):
     return run(
         ctx,

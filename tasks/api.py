@@ -56,7 +56,7 @@ def run(
         localport: The port to use for the local endpoint.
         prefix: The prefix to use for the endpoint.
         jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
-        query: JQ query for the output.
+        query: jq query for the output.
         silent_curl: If True, will silence curl verbose output.
 
     Examples:
