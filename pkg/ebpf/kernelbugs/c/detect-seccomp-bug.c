@@ -6,6 +6,7 @@
 #include <seccomp.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 char *syscalls[] = {
     "write",
@@ -61,6 +62,8 @@ int main(int argc, char *argv[])
     if (apply_seccomp_filter(syscalls, num_syscalls) < 0) {
         exit(1);
     }
+
+    sleep(3);
 
     trigger_uretprobe_syscall();
 

@@ -15,7 +15,6 @@ import (
 	"log"
 	"os/exec"
 	"syscall"
-	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -81,9 +80,6 @@ func hasUretprobeSyscallSeccompBug() (bool, error) {
 	if err := m.Start(); err != nil {
 		return false, err
 	}
-
-	// wait for uprobe to be attached
-	time.Sleep(3 * time.Second)
 
 	cmd := exec.Command(pfile.Name())
 	if err := cmd.Run(); err != nil {
