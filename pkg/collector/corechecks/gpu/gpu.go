@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -25,12 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -42,6 +43,9 @@ const (
 	metricNameMemoryUsage = gpuMetricsNs + "memory.usage"
 	metricNameMemoryLimit = gpuMetricsNs + "memory.limit"
 )
+
+// logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
@@ -330,17 +334,21 @@ func (c *Check) getContainerTags(containerID string) []string {
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
-	containers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
+	wmetaContainers := c.wmeta.ListContainersWithFilter(func(cont *workloadmeta.Container) bool {
 		return len(cont.ResolvedAllocatedResources) > 0
 	})
 
 	gpuToContainers := make(map[string][]*workloadmeta.Container)
 
-	for _, container := range containers {
-		for _, resource := range container.ResolvedAllocatedResources {
-			if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
-				gpuToContainers[resource.ID] = append(gpuToContainers[resource.ID], container)
-			}
+	for _, container := range wmetaContainers {
+		containerDevices, err := containers.MatchContainerDevices(container, c.deviceCache.All())
+		if err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error matching container devices: %s. Will continue with the available devices", err)
+		}
+
+		// despite an error, we still might have some devices assigned to the container
+		for _, device := range containerDevices {
+			gpuToContainers[device.GetDeviceInfo().UUID] = append(gpuToContainers[device.GetDeviceInfo().UUID], container)
 		}
 	}
 
