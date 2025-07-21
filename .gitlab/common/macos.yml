@@ -110,7 +110,7 @@
     # Create custom temporary folder to isolate jobs from each other
     - |
       export TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
-      mkdir -p "$TMPDIR"
+      sudo mkdir -p "$TMPDIR"
       echo "Temporary folder created at $TMPDIR"
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
