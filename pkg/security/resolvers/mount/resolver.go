@@ -67,7 +67,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		}
 	}
 
-	if strings.HasPrefix(root, "/..") {
+	if mnt.FSType == "cgroup2" && strings.HasPrefix(root, "/..") {
 		cfs := utils.DefaultCGroupFS()
 		root = filepath.Join(cfs.GetRootCGroupPath(), root)
 	}
