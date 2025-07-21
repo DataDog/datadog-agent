@@ -909,7 +909,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
-	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os", "languages"})
+	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
@@ -1379,6 +1379,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
