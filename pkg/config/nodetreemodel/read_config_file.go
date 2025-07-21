@@ -31,7 +31,7 @@ func (c *ntmConfig) findConfigFile() {
 	}
 }
 
-// ReadInConfig reads the configuration from the file system, without resetting the file tree.
+// ReadInConfig resets the file tree and reads the configuration from the file system.
 func (c *ntmConfig) ReadInConfig() error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		return log.Errorf("attempt to ReadInConfig before config is constructed")
@@ -39,6 +39,9 @@ func (c *ntmConfig) ReadInConfig() error {
 
 	c.Lock()
 	defer c.Unlock()
+
+	// Reset the file tree like Viper does, so previous config is cleared
+	c.file = newInnerNode(nil)
 
 	c.findConfigFile()
 	err := c.readInConfig(c.configFile)
@@ -133,15 +136,20 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 
 		// check if the key is defined in the schema
 		schemaChild, err := schema.GetChild(key)
-		// schemaChild might be nil if not found or error
 		if err != nil {
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
 			if !allowDynamicSchema {
+				continue
+			}
+
+			// if the key is not defined in the schema, we can still add it to the destination
+			if value == nil || isScalar(value) || isSlice(value) {
 				dest.InsertChildNode(key, newLeafNode(value, source))
 				continue
 			}
-			// fallback to assume it's an inner node
-			schemaChild = newInnerNode(nil)
+
+			// fallback to inner node if it's not a scalar or nil
+			schemaChild = newInnerNode(make(map[string]Node))
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest

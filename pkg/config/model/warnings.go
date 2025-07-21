@@ -10,3 +10,16 @@ type Warnings struct {
 	TraceMallocEnabledWithPy2 bool
 	Errors                    []error
 }
+
+// NewWarnings creates a new Warnings instance
+func (w *Warnings) NewWarnings(errors []error) *Warnings {
+	return &Warnings{
+		TraceMallocEnabledWithPy2: w.TraceMallocEnabledWithPy2,
+		Errors:                    append(w.Errors, errors...),
+	}
+}
+
+// Count returns the number of errors in the Warnings
+func (w *Warnings) Count() int {
+	return len(w.Errors)
+}

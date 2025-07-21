@@ -70,11 +70,13 @@ func TestReadConfig(t *testing.T) {
 	err = cfg.ReadConfig(strings.NewReader(confYaml2))
 	require.NoError(t, err)
 
-	assert.Equal(t, false, cfg.GetBool("network_devices.snmp_traps.enabled")) // no longer set
+	// by reading confYaml2, we override the values set by confYaml, causing snmp_traps.enabled,
+	// snmp_traps.stop_timeout, and snmp_traps.namespace to be set to their default values.
+	assert.Equal(t, false, cfg.GetBool("network_devices.snmp_traps.enabled"))
 	assert.Equal(t, 9876, cfg.GetInt("network_devices.snmp_traps.port"))
 	assert.Equal(t, "ko", cfg.GetString("network_devices.snmp_traps.bind_host"))
-	assert.Equal(t, 0, cfg.GetInt("network_devices.snmp_traps.stop_timeout"))  // no longer set
-	assert.Equal(t, "", cfg.GetString("network_devices.snmp_traps.namespace")) // no longer set
+	assert.Equal(t, 0, cfg.GetInt("network_devices.snmp_traps.stop_timeout"))
+	assert.Equal(t, "", cfg.GetString("network_devices.snmp_traps.namespace"))
 }
 
 func TestReadSingleFile(t *testing.T) {
@@ -212,8 +214,7 @@ c:
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				children: map[string]Node{
-					"d":       &leafNodeImpl{val: 1234, source: model.SourceFile},
-					"unknown": &leafNodeImpl{val: "key", source: model.SourceFile},
+					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
 				},
 			},
 		},

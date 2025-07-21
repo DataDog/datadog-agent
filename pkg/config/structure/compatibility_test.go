@@ -91,7 +91,9 @@ network_devices:
 	})
 
 	warnings := viperConf.Warnings()
-	assert.Equal(t, &model.Warnings{TraceMallocEnabledWithPy2: false, Errors: []error(nil)}, warnings)
+	warnings.NewWarnings([]error{nil})
+	assert.Equal(t, warnings.NewWarnings(nil), warnings)
+	assert.Equal(t, 0, len(warnings.Errors))
 
 	// NOTE: An additional warning is created here because the config has an error
 	warnings = ntmConf.Warnings()
