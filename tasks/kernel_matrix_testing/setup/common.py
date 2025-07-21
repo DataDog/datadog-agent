@@ -60,14 +60,22 @@ class Pulumi(Requirement):
 
 
 class TestInfraDefinitionsRepo(Requirement):
-    _candidate_paths = [
-        get_repo_root().parent / "test-infra-definitions",
-        Path("~/go/src/github.com/DataDog/test-infra-definitions").expanduser(),
-    ]
+    @staticmethod
+    def get_candidate_paths() -> list[Path]:
+        # Allow callers to force a specific path
+        env_path = os.environ.get("KMT_TEST_INFRA_DEFINITIONS_PATH")
+        if env_path is not None:
+            return [Path(env_path)]
+
+        # Default to common paths if a specific setting has not been forced
+        return [
+            get_repo_root().parent / "test-infra-definitions",
+            Path("~/go/src/github.com/DataDog/test-infra-definitions").expanduser(),
+        ]
 
     @staticmethod
     def get_repo_path() -> Path | None:
-        for path in TestInfraDefinitionsRepo._candidate_paths:
+        for path in TestInfraDefinitionsRepo.get_candidate_paths():
             if path.is_dir():
                 return path
 
@@ -78,19 +86,19 @@ class TestInfraDefinitionsRepo(Requirement):
         if repo_path is not None:
             return RequirementState(Status.OK, "test-infra-definitions repository found.")
 
+        candidate_paths = TestInfraDefinitionsRepo.get_candidate_paths()
         if not fix:
             return RequirementState(
                 Status.FAIL,
-                f"test-infra-definitions repository not found in any of the expected locations {self._candidate_paths}.",
+                f"test-infra-definitions repository not found in any of the expected locations {candidate_paths}.",
                 fixable=True,
             )
 
         clone_opts = "--depth 1 --single-branch --branch=main" if os.environ.get("CI") else ""
+        repo_access = "https://github.com/" if os.environ.get("CI") else "git@github.com:"
 
         try:
-            ctx.run(
-                f"git clone git@github.com:DataDog/test-infra-definitions.git {self._candidate_paths[0]} {clone_opts}"
-            )
+            ctx.run(f"git clone {repo_access}DataDog/test-infra-definitions.git {candidate_paths[0]} {clone_opts}")
         except Exception as e:
             return RequirementState(Status.FAIL, f"test-infra-definitions could not be cloned: {e}", fixable=True)
 
