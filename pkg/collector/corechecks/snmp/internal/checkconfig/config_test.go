@@ -6,10 +6,7 @@
 package checkconfig
 
 import (
-	"encoding/json"
-	"fmt"
 	"path/filepath"
-	"regexp"
 	"testing"
 	"time"
 
@@ -20,10 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
@@ -164,107 +159,6 @@ bulk_max_repetitions: 20
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
 	assert.Equal(t, "f5-big-ip", config.ProfileName)
-
-	t.Run("BuildProfile", func(t *testing.T) {
-		expectedMetrics := []profiledefinition.MetricsConfig{
-			{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
-			{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2", Name: "ifNumber2"}, MetricTags: profiledefinition.MetricTagConfigList{
-				{SymbolTag: "mytag1"},
-				{SymbolTag: "mytag2"},
-			}},
-			{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState", ScaleFactor: 10}, MetricType: profiledefinition.ProfileMetricTypeFlagStream, Options: profiledefinition.MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
-			{
-				Table: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.2.2",
-					Name: "ifTable",
-				},
-				Symbols: []profiledefinition.SymbolConfig{
-					// ifInErrors defined in instance config with a different set of metric tags from the one defined
-					// in the imported profile
-					{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors"},
-					{OID: "1.3.6.1.2.1.2.2.1.20", Name: "ifOutErrors", ScaleFactor: 3},
-				},
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "if_index", Index: 1},
-					{Tag: "if_desc", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.2", Name: "ifDescr"},
-						IndexTransform: []profiledefinition.MetricIndexTransform{
-							{
-								Start: 1,
-								End:   3,
-							},
-							{
-								Start: 4,
-								End:   6,
-							},
-						},
-					},
-					{Tag: "ipversion", Index: 1, Mapping: map[string]string{
-						"0":  "unknown",
-						"1":  "ipv4",
-						"2":  "ipv6",
-						"3":  "ipv4z",
-						"4":  "ipv6z",
-						"16": "dns",
-					}},
-					{Tag: "if_type",
-						Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.3", Name: "ifType"},
-						Mapping: map[string]string{
-							"1":  "other",
-							"2":  "regular1822",
-							"3":  "hdh1822",
-							"4":  "ddn-x25",
-							"29": "ultra",
-						}},
-					{
-						Symbol: profiledefinition.SymbolConfigCompat{
-							Name: "cpiPduName",
-							OID:  "1.2.3.4.8.1.2",
-						},
-						Match:   "(\\w)(\\w+)",
-						Pattern: regexp.MustCompile(`(\w)(\w+)`),
-						Tags: map[string]string{
-							"prefix": "\\1",
-							"suffix": "\\2",
-						}},
-				},
-			},
-			{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
-		}
-		expectedMetrics = append(expectedMetrics, profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
-		expectedMetrics = append(expectedMetrics, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics...)
-
-		expectedMetricTags := []profiledefinition.MetricTagConfig{
-			{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}},
-			{Tag: "my_symbol_mapped", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}, Mapping: map[string]string{"1": "one", "2": "two"}},
-			{
-				Symbol:  profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"},
-				Match:   "(\\w)(\\w+)",
-				Pattern: regexp.MustCompile(`(\w)(\w+)`),
-				Tags: map[string]string{
-					"prefix": "\\1",
-					"suffix": "\\2",
-				},
-			},
-			{
-				Symbol:  profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-				Match:   "(\\w)(\\w+)",
-				Pattern: regexp.MustCompile(`(\w)(\w+)`),
-				Tags: map[string]string{
-					"some_tag": "some_tag_value",
-					"prefix":   "\\1",
-					"suffix":   "\\2",
-				},
-			},
-			{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
-		}
-
-		profile, err := config.BuildProfile("")
-		require.NoError(t, err)
-
-		assert.Equal(t, expectedMetrics, profile.Metrics)
-		assert.Equal(t, expectedMetricTags, profile.MetricTags)
-		assert.Equal(t, []string{"snmp_profile:f5-big-ip", "device_vendor:f5", "static_tag:from_profile_root", "static_tag:from_base_profile"}, profile.StaticTags)
-	})
 }
 
 func TestDiscoveryConfigurations(t *testing.T) {
@@ -320,20 +214,6 @@ profiles:
 
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2"}, config.GetStaticTags())
-
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
-
-	metrics := []profiledefinition.MetricsConfig{
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.4.31.1.1.6.1", Name: "IAmACounter64"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.4.24.6.0", Name: "IAmAGauge32"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.88.1.1.1.0", Name: "IAmAnInteger"}},
-	}
-
-	assert.Equal(t, metrics, profile.Metrics)
-	assert.Empty(t, profile.MetricTags)
 }
 
 func TestInlineProfileConfiguration(t *testing.T) {
@@ -381,19 +261,6 @@ profiles:
 	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
 	assert.Equal(t, 5, config.DiscoveryWorkers)
 	assert.Equal(t, 5, config.Workers)
-
-	metrics := []profiledefinition.MetricsConfig{
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{MIB: "MY-PROFILE-MIB", Symbol: profiledefinition.SymbolConfig{OID: "1.4.5", Name: "myMetric"}, MetricType: profiledefinition.ProfileMetricTypeGauge},
-	}
-
-	metricsTags := []profiledefinition.MetricTagConfig{
-		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
-	}
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
-	assert.Equal(t, metrics, profile.Metrics)
-	assert.Equal(t, metricsTags, profile.MetricTags)
 }
 
 func TestDefaultConfigurations(t *testing.T) {
@@ -418,13 +285,6 @@ community_string: abc
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.True(t, config.ProfileProvider.HasProfile("another_profile"))
 	assert.Equal(t, profile.FixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.ProfileProvider.GetProfile("f5-big-ip").Definition.Metrics)
-
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
-
-	metrics := []profiledefinition.MetricsConfig{{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}}
-	assert.Equal(t, metrics, profile.Metrics)
-	assert.Empty(t, profile.MetricTags)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -588,18 +448,8 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	_, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
-
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
-
-	metrics := []profiledefinition.MetricsConfig{
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "ifNumber"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-	}
-	assert.Equal(t, metrics, profile.Metrics)
 }
 
 func TestUseGlobalMetricsFalse(t *testing.T) {
@@ -622,17 +472,8 @@ global_metrics:
     OID: 1.2.3.4
     name: aGlobalMetric
 `)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	_, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
-
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
-
-	metrics := []profiledefinition.MetricsConfig{
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.1", Name: "aInstanceMetric"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-	}
-	assert.Equal(t, metrics, profile.Metrics)
 }
 
 func Test_NewCheckConfig_errors(t *testing.T) {
@@ -2091,150 +1932,4 @@ metrics:
 			}
 		})
 	}
-}
-
-// This type mocks rcclient.Component
-type mockRCClient struct {
-	subscribed bool
-	err        error
-	profiles   map[string]state.RawConfig
-}
-
-func makeMockClient(profiles []profiledefinition.ProfileDefinition) (*mockRCClient, error) {
-	update := make(map[string]state.RawConfig)
-	for _, profile := range profiles {
-		bytes, err := json.Marshal(profiledefinition.DeviceProfileRcConfig{Profile: profile})
-		if err != nil {
-			return nil, err
-		}
-		update[profile.Name] = state.RawConfig{
-			Config: bytes,
-		}
-	}
-	return &mockRCClient{
-		subscribed: false,
-		err:        nil,
-		profiles:   update,
-	}, nil
-}
-
-func (m *mockRCClient) SubscribeAgentTask() {}
-
-// noop
-func (m *mockRCClient) applyStateCallback(string, state.ApplyStatus) {}
-
-func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig,
-	applyStateCallback func(string, state.ApplyStatus))) {
-	if product != state.ProductNDMDeviceProfilesCustom {
-		m.err = fmt.Errorf("unexpected subscription to %v", product)
-		return
-	}
-	if m.subscribed {
-		m.err = fmt.Errorf("double subscription to ProductNDMDeviceProfilesCustom")
-		return
-	}
-	m.subscribed = true
-	fn(m.profiles, m.applyStateCallback)
-}
-
-func TestExplicitRCConfig(t *testing.T) {
-	// language=yaml
-	rawInstanceConfig := []byte(`
-ip_address: 1.2.3.4
-profile: profile1`)
-	// language=yaml
-	rawInitConfig := []byte(`use_remote_config_profiles: true`)
-	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
-		{
-			Name: "profile1",
-			Metrics: []profiledefinition.MetricsConfig{
-				{Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.7.1.0",
-					Name: "IAmACounter32",
-				}},
-			},
-		},
-	})
-	defer profile.ResetRCProvider()
-	require.NoError(t, err)
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
-	require.NoError(t, err)
-	assert.True(t, client.subscribed)
-	profile, err := config.BuildProfile("")
-	require.NoError(t, err)
-	assert.Equal(t, profile.Name, "profile1")
-	metrics := []profiledefinition.MetricsConfig{
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
-	}
-	assert.Equal(t, profile.Metrics, metrics)
-}
-
-func TestDynamicRCConfig(t *testing.T) {
-	// language=yaml
-	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
-	// language=yaml
-	rawInitConfig := []byte(`use_remote_config_profiles: true`)
-	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
-		{
-			Name:         "profile1",
-			SysObjectIDs: []string{"1.2.3.4.*"},
-			Metrics: []profiledefinition.MetricsConfig{
-				{Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.7.1.0",
-					Name: "IAmACounter32",
-				}},
-			},
-		},
-	})
-	defer profile.ResetRCProvider()
-	require.NoError(t, err)
-
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
-	require.NoError(t, err)
-	assert.True(t, client.subscribed)
-	profile, err := config.BuildProfile("1.2.3.4.5.6")
-	require.NoError(t, err)
-	assert.Equal(t, profile.Name, "profile1")
-	metrics := []profiledefinition.MetricsConfig{
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.7.1.0", Name: "IAmACounter32"}},
-	}
-	assert.Equal(t, profile.Metrics, metrics)
-}
-
-func TestRCConflict(t *testing.T) {
-	// language=yaml
-	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
-	// language=yaml
-	rawInitConfig := []byte(`use_remote_config_profiles: true`)
-	client, err := makeMockClient([]profiledefinition.ProfileDefinition{
-		{
-			Name:         "profile1",
-			SysObjectIDs: []string{"1.2.3.4.*"},
-			Metrics: []profiledefinition.MetricsConfig{
-				{Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.7.1.0",
-					Name: "IAmACounter32",
-				}},
-			},
-		}, {
-			Name:         "profile2",
-			SysObjectIDs: []string{"1.2.3.4.*"},
-			Metrics: []profiledefinition.MetricsConfig{
-				{Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.7.1.0",
-					Name: "IAmACounter32",
-				}},
-			},
-		},
-	})
-	defer profile.ResetRCProvider()
-	require.NoError(t, err)
-
-	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, client)
-	require.NoError(t, err)
-	assert.True(t, client.subscribed)
-	_, err = config.BuildProfile("1.2.3.4.5.6")
-	require.ErrorContains(t, err, "has the same sysObjectID (1.2.3.4.*)")
 }
