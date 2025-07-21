@@ -39,10 +39,10 @@ func TestAdd(t *testing.T) {
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
-func TestAddColdStartMetric(t *testing.T) {
+func TestAddStartMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	AddColdStartMetric("gcp.run", cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	AddStartMetric("gcp.run", cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
