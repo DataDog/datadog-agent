@@ -5,7 +5,7 @@
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
-'@datadog/agent-onboarding': AGENTON
+'@datadog/agent-onboarding': AGENTONB
 '@datadog/container-autoscaling': CASCL
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
