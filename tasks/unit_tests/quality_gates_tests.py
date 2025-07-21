@@ -3,8 +3,10 @@ import unittest
 from unittest.mock import ANY, MagicMock, patch
 
 from invoke import Context, MockContext, Result
+from invoke.exceptions import Exit
 
-from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config
+from tasks.libs.package.size import InfraError
+from tasks.quality_gates import display_pr_comment, generate_new_quality_gate_config, parse_and_trigger_gates
 from tasks.static_quality_gates.lib.docker_agent_lib import calculate_image_on_disk_size
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler
 
@@ -16,6 +18,30 @@ class MockMetricHandler:
 
 
 class TestQualityGatesConfigUpdate(unittest.TestCase):
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'sequoia',
+            'CI_COMMIT_REF_SLUG': 'pikachu',
+            'BUCKET_BRANCH': 'main',
+        },
+    )
+    @patch("builtins.__import__")
+    def test_parse_and_trigger_gates_infra_error(self, mock_import):
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+        mock_quality_gates_module = MagicMock()
+        mock_quality_gates_module.some_gate_high.entrypoint.side_effect = InfraError("Test infra error message")
+        mock_import.return_value = mock_quality_gates_module
+        with self.assertRaises(Exit) as cm:
+            parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
+            assert "Test infra error message" in str(cm.exception)
+
     def test_one_gate_update(self):
         with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
             new_config, saved_amount = generate_new_quality_gate_config(

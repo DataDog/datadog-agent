@@ -247,7 +247,7 @@ func testDyninst(
 	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(obj.Underlying)
+	goVersion, err := object.ReadGoVersion(obj.Underlying)
 	require.NoError(t, err)
 
 	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)

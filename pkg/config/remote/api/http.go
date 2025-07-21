@@ -9,11 +9,14 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +26,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -254,6 +258,60 @@ func (c *HTTPClient) UpdateAPIKey(apiKey string) {
 	c.headerLock.Lock()
 	c.header["DD-Api-Key"] = []string{apiKey}
 	c.headerLock.Unlock()
+}
+
+// NewWebSocket connects to the RC WebSocket backend and returns a new WebSocket
+// connection or a connection / handshake error.
+//
+// The "endpointPath" specifies the resource path to connect to, which is
+// appended to the client baseURL.
+func (c *HTTPClient) NewWebSocket(ctx context.Context, endpointPath string) (*websocket.Conn, error) {
+	// Extract the TLS & Proxy configuration from the HTTP client.
+	transport, ok := c.client.Transport.(*http.Transport)
+	if !ok {
+		return nil, errors.New("failed to extract transport config from HTTP client")
+	}
+
+	dialer := &websocket.Dialer{
+		HandshakeTimeout: 30 * time.Second,
+		TLSClientConfig:  transport.TLSClientConfig,
+		Proxy:            transport.Proxy,
+	}
+
+	// The WebSocket request MUST include the same auth credentials as the plain
+	// HTTP requests.
+	c.headerLock.RLock()
+	headers := maps.Clone(c.header)
+	c.headerLock.RUnlock()
+
+	// Parse the "base URL" the client uses to connect to RC.
+	url, err := url.Parse(c.baseURL)
+	if err != nil {
+		return nil, err
+	}
+	// Append the specific path to the WebSocket resource.
+	url.Path = path.Join(url.Path, endpointPath)
+	// Change the protocol to use websockets.
+	switch strings.ToLower(url.Scheme) {
+	case "http":
+		url.Scheme = "ws"
+	case "https":
+		url.Scheme = "wss"
+	}
+
+	log.Debugf("connecting to websocket endpoint %s", url.String())
+
+	// Send the HTTP request, wait for the upgrade response and then perform the
+	// WebSocket handshake.
+	conn, resp, err := dialer.DialContext(ctx, url.String(), headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open websocket connection: %s", err)
+	}
+	_ = resp.Body.Close()
+
+	log.Debug("websocket connected")
+
+	return conn, nil
 }
 
 func (c *HTTPClient) addHeaders(req *http.Request) {

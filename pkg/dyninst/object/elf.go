@@ -77,22 +77,14 @@ func (e *ElfFile) DwarfSections() *DebugSections {
 }
 
 // LoclistReader implements File.
-func (e *ElfFile) LoclistReader() (*loclist.Reader, error) {
-	// Loclists replace Loc in DWARF 5. Here we do not need to recognize the version,
-	// just pick the section that exists.
-	var data []byte
-	if e.dwarfSections.LocLists != nil {
-		data = e.dwarfSections.LocLists
-	} else if e.dwarfSections.Loc != nil {
-		data = e.dwarfSections.Loc
-	} else {
-		return nil, fmt.Errorf("no loc/loclist section found")
-	}
-
-	return loclist.NewReader(data, e.dwarfSections.Addr, uint8(e.architecture.PointerSize()), func(unit *dwarf.Entry) (uint8, bool) {
-		unitVersion, ok := e.unitVersions[unit.Offset]
-		return unitVersion, ok
-	}), nil
+func (e *ElfFile) LoclistReader() *loclist.Reader {
+	return loclist.NewReader(
+		e.dwarfSections.Loc,
+		e.dwarfSections.LocLists,
+		e.dwarfSections.Addr,
+		uint8(e.architecture.PointerSize()),
+		e.unitVersions,
+	)
 }
 
 // Close implements File.

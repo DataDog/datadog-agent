@@ -116,18 +116,25 @@ func (s *snapshotMessage) init(
 	}
 
 	var rootType *ir.EventRootType
+	var probe ir.ProbeDefinition
 
 	for item, err := range event.Event.DataItems() {
 		if err != nil {
-			return nil, fmt.Errorf("error getting data items: %w", err)
+			return probe, fmt.Errorf("error getting data items: %w", err)
 		}
 		if rootType == nil {
 			s.rootData = item.Data()
+			rootTypeID := ir.TypeID(item.Header().Type)
 			var ok bool
-			rootType, ok = decoder.program.Types[ir.TypeID(item.Header().Type)].(*ir.EventRootType)
+			rootType, ok = decoder.program.Types[rootTypeID].(*ir.EventRootType)
 			if !ok {
 				return nil, errors.New("expected event of type root first")
 			}
+			irProbe, ok := decoder.probeEvents[rootTypeID]
+			if !ok {
+				return probe, fmt.Errorf("no probe found for root type %v", rootTypeID)
+			}
+			probe = irProbe.probe
 			continue
 		}
 		// We need to keep track of the address reference count for each data item.
@@ -144,7 +151,7 @@ func (s *snapshotMessage) init(
 	}
 
 	if rootType == nil {
-		return nil, errors.New("no root type found")
+		return probe, errors.New("no root type found")
 	}
 	var (
 		pcs []uint64
@@ -152,7 +159,7 @@ func (s *snapshotMessage) init(
 	)
 	header, err := event.Event.Header()
 	if err != nil {
-		return nil, fmt.Errorf("error getting header %w", err)
+		return probe, fmt.Errorf("error getting header %w", err)
 	}
 	// TODO: resolve value from header.Ktime_ns to wall time
 	s.Debugger.Snapshot.Timestamp = int(time.Now().UTC().UnixMilli())
@@ -162,38 +169,36 @@ func (s *snapshotMessage) init(
 	if !ok {
 		pcs, err = event.StackPCs()
 		if err != nil {
-			return nil, fmt.Errorf("error getting stack pcs %w", err)
+			return probe, fmt.Errorf("error getting stack pcs %w", err)
 		}
 		stackFrames, err = symbolicator.Symbolicate(pcs, header.Stack_hash)
 		if err != nil {
-			return nil, fmt.Errorf("error symbolicating stack %w", err)
+			return probe, fmt.Errorf("error symbolicating stack %w", err)
 		}
 		decoder.stackFrames[header.Stack_hash] = stackFrames
 	}
 
-	probe, ok := decoder.probeEvents[rootType.ID]
-	if !ok {
-		return nil, fmt.Errorf("error getting probe %w", err)
-	}
-	switch where := probe.probe.GetWhere().(type) {
+	switch where := probe.GetWhere().(type) {
 	case ir.FunctionWhere:
 		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
 		s.Logger.Method = where.Location()
 	default:
-		return nil, errors.New("probe is not on a supported location")
+		return probe, fmt.Errorf(
+			"probe %s is not on a supported location: %T",
+			probe.GetID(), where,
+		)
 	}
 
-	s.Logger.Version = probe.probe.GetVersion()
-	s.Debugger.Snapshot.Probe.ID = probe.probe.GetID()
+	s.Logger.Version = probe.GetVersion()
+	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
-	s.Debugger.Snapshot.Probe.ID = probe.probe.GetID()
 	s.Debugger.Snapshot.Captures.Entry.Arguments = argumentsData{
 		event:    event,
 		rootType: rootType,
 		rootData: s.rootData,
 		decoder:  decoder,
 	}
-	return probe.probe, nil
+	return probe, nil
 }
 
 func (s *snapshotMessage) clear() {

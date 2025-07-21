@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -135,6 +136,48 @@ func TestAnalyzeProcess(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, res.interesting)
 		require.NotEmpty(t, res.exe.Path)
+		require.Equal(t, "foo", res.service)
+	})
+
+	// Test that when the exe symlink target is an absolute path that does not
+	// exist on the host filesystem, analyzeProcess will fall back to looking for
+	// the binary under /proc/<pid>/root/.... This covers the code path added in
+	// analyze.go where the original error is cleared if opening under the proc
+	// root succeeds.
+	t.Run("exe only in root fs", func(t *testing.T) {
+		const (
+			pid           = 105
+			exeLinkTarget = "/does/not/exist/sample"
+		)
+
+		cfgs := testprogs.MustGetCommonConfigs(t)
+		bin := testprogs.MustGetBinary(t, "sample", cfgs[0])
+
+		_, procRoot, cleanup := makeProcFS(t, pid, envTrue, false)
+		defer cleanup()
+
+		procDir := filepath.Join(procRoot, strconv.Itoa(pid))
+		// Create the exe symlink pointing to the bogus path.
+		require.NoError(t, os.Symlink(exeLinkTarget, filepath.Join(procDir, "exe")))
+
+		// Now place the real binary under /proc/<pid>/root/<trimmed exeLinkTarget>.
+		rootTargetPath := filepath.Join(procDir, "root", strings.TrimPrefix(exeLinkTarget, "/"))
+		require.NoError(t, os.MkdirAll(filepath.Dir(rootTargetPath), 0o755))
+		{
+			f, err := os.Create(rootTargetPath)
+			require.NoError(t, err)
+			binReader, err := os.Open(bin)
+			require.NoError(t, err)
+			_, err = io.Copy(f, binReader)
+			require.NoError(t, err)
+			require.NoError(t, f.Close())
+			require.NoError(t, binReader.Close())
+		}
+
+		res, err := analyzeProcess(pid, procRoot, noopContainerResolver{}, analyzer)
+		require.NoError(t, err)
+		require.True(t, res.interesting)
+		require.Equal(t, rootTargetPath, res.exe.Path)
 		require.Equal(t, "foo", res.service)
 	})
 }

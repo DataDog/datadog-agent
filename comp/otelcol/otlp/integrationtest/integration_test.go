@@ -15,6 +15,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,8 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
@@ -82,7 +85,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
+func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pidfilePath string) error {
 	return fxutil.Run(
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
@@ -143,7 +146,9 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		orchestratorimpl.MockModule(),
-		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component]) {
+		pidimpl.Module(),
+		fx.Supply(pidimpl.NewParams(pidfilePath)),
+		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ option.Option[logsagentpipeline.Component], _ pid.Component) {
 		}),
 		taggerfx.Module(),
 		noopsimpl.Module(),
@@ -179,12 +184,17 @@ func TestIntegration(t *testing.T) {
 		ConfigName: "datadog-otel",
 		LoggerName: "OTELCOL",
 	}
+	pidfilePath := "test_pid"
 	go func() {
-		if err := runTestOTelAgent(context.Background(), params); err != nil {
+		if err := runTestOTelAgent(context.Background(), params, pidfilePath); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
 	waitForReadiness()
+
+	// 3. Validate that pid file was created
+	_, err := os.Stat(pidfilePath)
+	require.NoError(t, err)
 
 	// 3. Generate and send traces
 	sendTraces(t)

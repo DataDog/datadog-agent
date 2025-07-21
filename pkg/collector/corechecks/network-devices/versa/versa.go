@@ -30,6 +30,7 @@ const (
 	// CheckName is the name of the check
 	CheckName            = "versa"
 	defaultCheckInterval = 1 * time.Minute
+	defaultDirectorPort  = 9182
 )
 
 // Configuration for the Versa check
@@ -37,14 +38,22 @@ type checkCfg struct {
 	// add versa specific fields
 	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
 	DirectorEndpoint                string   `yaml:"director_endpoint"`
+	DirectorPort                    int      `yaml:"director_port"`
 	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
 	Username                        string   `yaml:"username"`
 	Password                        string   `yaml:"password"`
+	MaxAttempts                     int      `yaml:"max_attempts"`
+	MaxPages                        int      `yaml:"max_pages"`
+	MaxCount                        int      `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int      `yaml:"lookback_time_window_minutes"`
 	UseHTTP                         bool     `yaml:"use_http"`
+	Insecure                        bool     `yaml:"insecure"`
+	CAFile                          string   `yaml:"ca_file"`
 	Namespace                       string   `yaml:"namespace"`
 	IncludedTenants                 []string `yaml:"included_tenants"`
 	ExcludedTenants                 []string `yaml:"excluded_tenants"`
-	SendNDMMetadata                 *bool    `yaml:"send_ndm_metadata"`
+	SendDeviceMetadata              *bool    `yaml:"send_device_metadata"`
+	SendInterfaceMetadata           *bool    `yaml:"send_interface_metadata"`
 	MinCollectionInterval           int      `yaml:"min_collection_interval"`
 	CollectHardwareMetrics          *bool    `yaml:"collect_hardware_metrics"`
 	CollectInterfaceMetrics         *bool    `yaml:"collect_interface_metrics"`
@@ -57,6 +66,7 @@ type checkCfg struct {
 	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
 	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
 	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
+	CollectLinkMetrics              *bool    `yaml:"collect_link_metrics"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -69,10 +79,14 @@ type VersaCheck struct {
 
 // Run executes the check
 func (v *VersaCheck) Run() error {
-
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	clientOptions, err := v.buildClientOptions()
+	if err != nil {
+		return err
+	}
+
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, clientOptions...)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -89,35 +103,61 @@ func (v *VersaCheck) Run() error {
 	organizations = filterOrganizations(organizations, v.config.IncludedTenants, v.config.ExcludedTenants)
 	log.Tracef("Filtered organizations: %v", organizations)
 
-	// Gather appliances for each organization
-	var appliances []client.Appliance
-	for _, org := range organizations {
-		orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
-		if err != nil {
-			return fmt.Errorf("error getting appliances from Versa client: %w", err)
-		}
-
-		for _, appliance := range orgAppliances {
-			log.Tracef("Processing appliance: %+v", appliance)
-		}
-		appliances = append(appliances, orgAppliances...)
-	}
-
-	// Get director status
+	// Get director status (independent of organizations)
 	directorStatus, err := c.GetDirectorStatus()
 	if err != nil {
 		return fmt.Errorf("error getting director status from Versa client: %w", err)
 	}
 
-	// Convert Versa objects to device metadata
-	deviceMetadata := make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
-	deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
+	// Process each organization and collect all required data
+	var appliances []client.Appliance
+	var interfaces []client.Interface
 
-	directorDeviceMetadata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
-	if err != nil {
-		log.Errorf("error getting director device metadata: %v", err)
-	} else {
-		deviceMetadata = append(deviceMetadata, directorDeviceMetadata)
+	// Determine if we need appliances for device mapping
+	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics
+
+	for _, org := range organizations {
+		log.Tracef("Processing organization: %s", org.Name)
+
+		// Gather appliances if we need device metadata, hardware metrics, or device mapping
+		if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
+			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
+			if err != nil {
+				log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
+			} else {
+				for _, appliance := range orgAppliances {
+					log.Tracef("Processing appliance: %+v", appliance)
+				}
+				appliances = append(appliances, orgAppliances...)
+			}
+		}
+
+		// Grab interfaces if we need interface metadata or interface metrics
+		if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
+			orgInterfaces, err := c.GetInterfaces(org.Name)
+			if err != nil {
+				// not getting interfaces shouldn't stop the rest of the check
+				log.Errorf("error getting interfaces from organization %s: %v", org.Name, err)
+			} else {
+				interfaces = append(interfaces, orgInterfaces...)
+			}
+		}
+	}
+
+	// Convert Versa objects to device metadata
+	// If we collected appliances for any reason, always send device metadata since we already have it
+	var deviceMetadata []devicemetadata.DeviceMetadata
+	if len(appliances) > 0 {
+		deviceMetadata = make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
+		deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
+
+		directorDeviceMetadata, err := payload.GetDeviceMetadataFromDirector(v.config.Namespace, directorStatus)
+		if err != nil {
+			log.Errorf("error getting director device metadata: %v", err)
+		} else {
+			deviceMetadata = append(deviceMetadata, directorDeviceMetadata)
+		}
 	}
 
 	// Send the tags to the metrics sender
@@ -132,9 +172,31 @@ func (v *VersaCheck) Run() error {
 	}
 	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
+	deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
+
+	var interfaceMetadata []devicemetadata.InterfaceMetadata
+	if *v.config.SendInterfaceMetadata {
+		var err error
+		interfaceMetadata, err = payload.GetInterfaceMetadata(v.config.Namespace, deviceNameToIDMap, interfaces)
+		if err != nil {
+			if len(interfaceMetadata) == 0 {
+				log.Errorf("failed to parse all interface metadata: %v", err)
+			} else {
+				log.Errorf("partial failure in parsing interface metadata: %v", err)
+			}
+		}
+
+		log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
+	}
+
 	// Send the metadata to the metrics sender
-	if *v.config.SendNDMMetadata {
-		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
+	if len(deviceMetadata) > 0 || len(interfaceMetadata) > 0 {
+		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil)
+	}
+
+	// Send interface status metrics
+	if *v.config.SendInterfaceMetadata {
+		v.metricsSender.SendInterfaceStatus(interfaces, deviceNameToIDMap)
 	}
 
 	// Send hardware metrics to the metrics sender
@@ -152,13 +214,69 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
-	if *v.config.CollectSLAMetrics {
-		deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
-		slaMetrics, err := c.GetSLAMetrics()
-		if err != nil {
-			log.Warnf("error getting SLA metrics from Versa client: %v", err)
+	if *v.config.CollectInterfaceMetrics {
+		type deviceID struct {
+			ApplianceName string
+			TenantName    string
 		}
-		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+		deviceWithInterfaceMap := make(map[string]deviceID)
+		for _, iface := range interfaces {
+			deviceWithInterfaceMap[iface.TenantName+":"+iface.DeviceName] = deviceID{
+				ApplianceName: iface.DeviceName,
+				TenantName:    iface.TenantName,
+			}
+		}
+
+		// Collect interface metrics for each device
+		interfaceMetricsByDevice := make(map[string][]client.InterfaceMetrics)
+
+		for _, id := range deviceWithInterfaceMap {
+			interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
+			if err != nil {
+				log.Errorf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
+				continue
+			}
+
+			// Get device IP from the deviceNameToIDMap
+			if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
+				interfaceMetricsByDevice[deviceIP] = interfaceMetrics
+			} else {
+				log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
+			}
+		}
+
+		// Send interface metrics
+		v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
+	}
+
+	// Now collect organization-specific metrics that need deviceNameToIDMap
+	for _, org := range organizations {
+		// Collect SLA metrics if enabled
+		if *v.config.CollectSLAMetrics {
+			slaMetrics, err := c.GetSLAMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting SLA metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect link metrics if enabled
+		if *v.config.CollectLinkMetrics {
+			linkStatusMetrics, err := c.GetLinkStatusMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting link status metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendLinkStatusMetrics(linkStatusMetrics, deviceNameToIDMap)
+			}
+
+			linkUsageMetrics, err := c.GetLinkUsageMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting link usage metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendLinkUsageMetrics(linkUsageMetrics, deviceNameToIDMap)
+			}
+		}
 	}
 
 	// Commit
@@ -192,13 +310,15 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectControlConnectionMetrics = boolPointer(true)
 	instanceConfig.CollectOMPPeerMetrics = boolPointer(true)
 	instanceConfig.CollectDeviceCountersMetrics = boolPointer(true)
-	instanceConfig.SendNDMMetadata = boolPointer(true)
+	instanceConfig.SendDeviceMetadata = boolPointer(true)
+	instanceConfig.SendInterfaceMetadata = boolPointer(true)
 
 	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
+	instanceConfig.CollectLinkMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -220,9 +340,44 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
 	}
 
+	if v.config.DirectorPort == 0 {
+		v.config.DirectorPort = defaultDirectorPort
+	}
+
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)
 
 	return nil
+}
+
+func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
+	var clientOptions []client.ClientOptions
+
+	if v.config.Insecure || v.config.CAFile != "" {
+		options, err := client.WithTLSConfig(v.config.Insecure, v.config.CAFile)
+		if err != nil {
+			return nil, err
+		}
+
+		clientOptions = append(clientOptions, options)
+	}
+
+	if v.config.MaxAttempts > 0 {
+		clientOptions = append(clientOptions, client.WithMaxAttempts(v.config.MaxAttempts))
+	}
+
+	if v.config.MaxPages > 0 {
+		clientOptions = append(clientOptions, client.WithMaxPages(v.config.MaxPages))
+	}
+
+	if v.config.MaxCount > 0 {
+		clientOptions = append(clientOptions, client.WithMaxCount(v.config.MaxCount))
+	}
+
+	if v.config.LookbackTimeWindowMinutes > 0 {
+		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
+	}
+
+	return clientOptions, nil
 }
 
 // Interval returns the scheduling time for the check

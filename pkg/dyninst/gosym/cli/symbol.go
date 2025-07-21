@@ -33,7 +33,7 @@ func run(binary string, pc uint64) error {
 		return err
 	}
 	defer func() { err = errors.Join(err, goDebugSections.Close()) }()
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(mef)
 	if err != nil {
 		return err
 	}

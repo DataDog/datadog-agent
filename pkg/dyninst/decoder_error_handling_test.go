@@ -55,7 +55,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 	cfg := cfgs[idx]
 
 	sampleServicePath := testprogs.MustGetBinary(t, "rc_tester", cfg)
-	sampleServiceCmd, serverPort, err := startSampleService(t, sampleServiceConfig{
+	_, sampleServicePID, serverPort, err := startSampleService(t, sampleServiceConfig{
 		binaryPath: sampleServicePath,
 		tmpDir:     tmpDir,
 	})
@@ -86,7 +86,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.Run(ctx)
+		c.Run(ctx, 10*time.Millisecond)
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -100,7 +100,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 	scraper.setUpdates([]rcscrape.ProcessUpdate{
 		{
 			ProcessUpdate: procmon.ProcessUpdate{
-				ProcessID: procmon.ProcessID{PID: int32(sampleServiceCmd.Process.Pid)},
+				ProcessID: procmon.ProcessID{PID: int32(sampleServicePID)},
 				Executable: procmon.Executable{
 					Path: sampleServicePath,
 				},
@@ -114,9 +114,25 @@ func TestDecoderErrorHandling(t *testing.T) {
 	// This will result in one decoding failure and then the probes will
 	// continue to emit and so we'll eventually go to the expected number
 	// of logs.
-	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
-	waitForProbeStatus(t, diagCh, uploader.StatusInstalled, expectedProbeIDs)
-	t.Log("Sending requests to trigger probes...")
+	const (
+		httpHandlerProbeID      = "http_handler"
+		lookAtTheRequestProbeID = "look_at_the_request"
+	)
+	waitForProbeStatus(
+		t, diagCh,
+		makeTargetStatus(
+			uploader.StatusInstalled,
+			lookAtTheRequestProbeID,
+			httpHandlerProbeID,
+		),
+	)
+	sendTestRequests(t, serverPort, 1)
+	// The http_handler comes first because it's called first so it'll fail
+	// and then the look_at_the_request probe will emit.
+	waitForProbeStatus(t, diagCh, map[string]uploader.Status{
+		httpHandlerProbeID:      uploader.StatusError,
+		lookAtTheRequestProbeID: uploader.StatusEmitting,
+	})
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -131,7 +147,8 @@ func TestDecoderErrorHandling(t *testing.T) {
 			}
 		}
 	}()
-	waitForLogMessages(t, backend, 10, "")
+	// They'll both still emit.
+	waitForLogMessages(t, backend, 10, "", false /* rewrite */)
 }
 
 type mockScraper struct {
@@ -181,8 +198,9 @@ type failOnceDecoder struct {
 func (d *failOnceDecoder) Decode(
 	event decode.Event, symbolicator symbol.Symbolicator, out io.Writer,
 ) (ir.ProbeDefinition, error) {
-	if !d.failed.CompareAndSwap(false, true) {
-		return d.underlying.Decode(event, symbolicator, out)
+	probe, err := d.underlying.Decode(event, symbolicator, out)
+	if err == nil && d.failed.CompareAndSwap(false, true) {
+		err = errors.New("boom")
 	}
-	return nil, errors.New("boom")
+	return probe, err
 }

@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// this file contains utilities to work with GPU assignment to containers
+//go:build linux && nvml
 
-//go:build linux_bpf && nvml
-
-package gpu
+// Package containers has utilities to work with GPU assignment to containers
+package containers
 
 import (
 	"errors"
@@ -20,10 +19,13 @@ import (
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
-var errCannotMatchDevice = errors.New("cannot find matching device")
+// ErrCannotMatchDevice is returned when a device cannot be matched to a container
+var ErrCannotMatchDevice = errors.New("cannot find matching device")
 var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
 
-func matchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
+// MatchContainerDevices matches the devices assigned to a container to the list of available devices
+// It returns a list of devices that are assigned to the container, and an error if any of the devices cannot be matched
+func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
 	var filteredDevices []ddnvml.Device
 
 	var multiErr error
@@ -88,7 +90,7 @@ func findDeviceByUUID(devices []ddnvml.Device, uuid string) (ddnvml.Device, erro
 		}
 	}
 
-	return nil, fmt.Errorf("%w with uuid %s", errCannotMatchDevice, uuid)
+	return nil, fmt.Errorf("%w with uuid %s", ErrCannotMatchDevice, uuid)
 }
 
 func findDeviceByIndex(devices []ddnvml.Device, index int) (ddnvml.Device, error) {
@@ -98,5 +100,5 @@ func findDeviceByIndex(devices []ddnvml.Device, index int) (ddnvml.Device, error
 		}
 	}
 
-	return nil, fmt.Errorf("%w with index %d", errCannotMatchDevice, index)
+	return nil, fmt.Errorf("%w with index %d", ErrCannotMatchDevice, index)
 }

@@ -19,11 +19,11 @@ source sha256: jmxfetch_hash
 if jmxfetch_snapshot_version = Regexp.new('(?<current_version>\d+\.\d+\.\d+)[-]').freeze.match(jmxfetch_version)
     license_file_version = 'master'
     jmxfetch_snapshot_version = jmxfetch_snapshot_version['current_version']
-    source url: "https://oss.sonatype.org/content/repositories/snapshots/com/datadoghq/jmxfetch/#{jmxfetch_snapshot_version}-SNAPSHOT/jmxfetch-#{version}-jar-with-dependencies.jar",
+    source url: "https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/#{jmxfetch_snapshot_version}/jmxfetch-#{jmxfetch_snapshot_version}-jar-with-dependencies.jar",
            target_filename: "jmxfetch.jar"
 else
     license_file_version = jmxfetch_version
-    source url: "https://oss.sonatype.org/service/local/repositories/releases/content/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
+    source url: "https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/#{version}/jmxfetch-#{version}-jar-with-dependencies.jar",
            target_filename: "jmxfetch.jar"
 end
 

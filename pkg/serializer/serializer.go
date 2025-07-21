@@ -242,6 +242,17 @@ func (s *Serializer) SendEvents(events event.Events) error {
 		return nil
 	}
 
+	if s.config.GetBool("serializer_use_events_marshaler_v2") {
+		payloads, err := metricsserializer.MarshalEvents(events, s.hostname, s.config, s.logger, s.Strategy)
+		if err != nil {
+			return fmt.Errorf("dropping event payloads: %v", err)
+		}
+		if len(payloads) == 0 {
+			return nil
+		}
+		return s.Forwarder.SubmitV1Intake(payloads, transaction.Events, s.jsonExtraHeadersWithCompression)
+	}
+
 	eventsSerializer := metricsserializer.Events{
 		EventsArr: events,
 		Hostname:  s.hostname,
