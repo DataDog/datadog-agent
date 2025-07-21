@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix https://github.com/DataDog/datadog-agent/issues/5921. Disk integration system.disk.total value is incorrect
