@@ -9,6 +9,7 @@ package decode
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type logger struct {
@@ -219,8 +221,7 @@ func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
 	return nil
 }
 
-// encodeSwissMapTables collects the data items for the swiss map tables.
-// It traverses the table pointer slice and collects the data items for each table.
+// encodeSwissMapTables traverses the table pointer slice and encodes the data items for each table.
 func (d *Decoder) encodeSwissMapTables(
 	enc *jsontext.Encoder,
 	s *goSwissMapHeaderType,
@@ -228,7 +229,6 @@ func (d *Decoder) encodeSwissMapTables(
 ) error {
 	tablePointers := tablePtrSliceDataItem.Data()
 	addrs := []uint64{}
-
 	for i := range tablePtrSliceDataItem.Header().Length / 8 {
 		startIdx := i * 8
 		endIdx := startIdx + 8
@@ -242,41 +242,42 @@ func (d *Decoder) encodeSwissMapTables(
 	slices.Sort(addrs)
 	addrs = slices.Compact(addrs)
 	tableType := s.tableType
+	someDataNotCapture := false
 	for _, addr := range addrs {
-		tableDataItem, ok := d.dataItemReferences[typeAndAddr{
+		tableDataItem, ok := d.dataItems[typeAndAddr{
 			irType: uint32(tableType.Pointee.GetID()),
 			addr:   addr,
 		}]
 		if !ok {
-			return fmt.Errorf("table data item not found for addr %x", addr)
+			someDataNotCapture = true
+			log.Tracef("table data item not found for addr %x", addr)
+			continue
 		}
-		tableStructType := s.tableStructType
-		groupField, err := getFieldByName(tableStructType.Fields, "groups")
-		if err != nil {
-			return err
-		}
-		groupData := tableDataItem.Data()[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
-		dataField, err := getFieldByName(s.groupType.RawFields, "data")
-		if err != nil {
-			return err
-		}
-		groupAddress := groupData[dataField.Offset : dataField.Offset+dataField.Type.GetByteSize()]
-		groupDataItem, ok := d.dataItemReferences[typeAndAddr{
+		groupData := tableDataItem.Data()[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
+		groupAddress := groupData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
+		groupDataItem, ok := d.dataItems[typeAndAddr{
 			irType: uint32(s.groupType.GroupSliceType.GetID()),
 			addr:   binary.NativeEndian.Uint64(groupAddress),
 		}]
 		if !ok {
-			return fmt.Errorf("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
+			someDataNotCapture = true
+			log.Tracef("group data item not found for addr %x", binary.NativeEndian.Uint64(groupAddress))
+			continue
 		}
 		elementType := s.groupType.GroupSliceType.Element
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
 			singleGroupData := groupDataItem.Data()[s.groupType.GroupSliceType.Element.GetByteSize()*i : s.groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.encodeSwissMapGroup(enc, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
+			err := d.encodeSwissMapGroup(enc, s, singleGroupData)
 			if err != nil {
-				return err
+				someDataNotCapture = true
+				log.Tracef("error encoding swiss map group: %v", err)
+				continue
 			}
 		}
+	}
+	if someDataNotCapture {
+		return errors.New("some data not captured")
 	}
 	return nil
 }
@@ -285,34 +286,10 @@ func (d *Decoder) encodeSwissMapGroup(
 	enc *jsontext.Encoder,
 	s *goSwissMapHeaderType,
 	groupData []byte,
-	keyTypeID ir.TypeID,
-	valueTypeID ir.TypeID,
 ) error {
-	keyType, ok := d.program.Types[keyTypeID]
-	if !ok {
-		return fmt.Errorf("key type not found for key type ID %d", keyTypeID)
-	}
-	valueType, ok := d.program.Types[valueTypeID]
-	if !ok {
-		return fmt.Errorf("value type not found for value type ID %d", valueTypeID)
-	}
-	var (
-		controlWord uint64
-		slotsData   []byte
-	)
-	for groupField := range s.GroupType.Fields() {
-		fieldEnd := groupField.Offset + groupField.Type.GetByteSize()
-		if fieldEnd > uint32(len(groupData)) {
-			return fmt.Errorf("group field %s extends beyond data bounds: need %d bytes, have %d", groupField.Name, fieldEnd, len(groupData))
-		}
-		switch groupField.Name {
-		case "slots":
-			slotsData = groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()]
-		case "ctrl":
-			controlWord = binary.LittleEndian.Uint64(groupData[groupField.Offset : groupField.Offset+groupField.Type.GetByteSize()])
-		}
-	}
-	entrySize := keyType.GetByteSize() + valueType.GetByteSize()
+	slotsData := groupData[s.slotsOffset : s.slotsOffset+uint32(s.slotsSize)]
+	controlWord := binary.LittleEndian.Uint64(groupData[s.ctrlOffset : s.ctrlOffset+uint32(s.ctrlSize)])
+	entrySize := s.keyTypeSize + s.valueTypeSize
 	for i := range 8 {
 		if controlWord&(1<<(7+(8*i))) != 0 {
 			// slot is empty or deleted
@@ -324,24 +301,24 @@ func (d *Decoder) encodeSwissMapGroup(
 			return fmt.Errorf("entry %d extends beyond slots data bounds: need %d bytes, have %d", i, entryEnd, len(slotsData))
 		}
 		entryData := slotsData[offset:entryEnd]
-		if uint32(len(entryData)) < keyType.GetByteSize()+valueType.GetByteSize() {
-			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, keyType.GetByteSize()+valueType.GetByteSize(), len(entryData))
+		if uint32(len(entryData)) < s.keyTypeSize+s.valueTypeSize {
+			return fmt.Errorf("entry %d data insufficient for key+value: need %d bytes, have %d", i, s.keyTypeSize+s.valueTypeSize, len(entryData))
 		}
-		keyData := entryData[0:keyType.GetByteSize()]
-		valueData := entryData[keyType.GetByteSize() : keyType.GetByteSize()+valueType.GetByteSize()]
+		keyData := entryData[0:s.keyTypeSize]
+		valueData := entryData[s.keyTypeSize : s.keyTypeSize+s.valueTypeSize]
 		if err := writeTokens(enc,
 			jsontext.BeginArray,
 		); err != nil {
 			return err
 		}
 		err := d.encodeValue(enc,
-			keyTypeID, keyData, keyType.GetName(),
+			s.keyTypeID, keyData, s.keyTypeName,
 		)
 		if err != nil {
 			return err
 		}
 		err = d.encodeValue(enc,
-			valueTypeID, valueData, valueType.GetName(),
+			s.valueTypeID, valueData, s.valueTypeName,
 		)
 		if err != nil {
 			return err

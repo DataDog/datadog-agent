@@ -27,21 +27,18 @@
               "a": {
                 "type": "*main.threeStringStruct",
                 "address": "[addr]",
-                "value": {
-                  "type": "main.threeStringStruct",
-                  "fields": {
-                    "a": {
-                      "type": "string",
-                      "value": "abc"
-                    },
-                    "b": {
-                      "type": "string",
-                      "value": "def"
-                    },
-                    "c": {
-                      "type": "string",
-                      "value": "ghi"
-                    }
+                "fields": {
+                  "a": {
+                    "type": "string",
+                    "value": "abc"
+                  },
+                  "b": {
+                    "type": "string",
+                    "value": "def"
+                  },
+                  "c": {
+                    "type": "string",
+                    "value": "ghi"
                   }
                 }
               }

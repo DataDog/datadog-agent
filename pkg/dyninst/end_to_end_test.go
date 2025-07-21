@@ -587,7 +587,7 @@ func waitForLogMessages(
 		))
 		var allRedacted []json.RawMessage
 		for _, log := range processedLogs {
-			allRedacted = append(allRedacted, redactJSON(t, log, redactors))
+			allRedacted = append(allRedacted, redactJSON(t, "", log, redactors))
 		}
 		var err error
 		content, err = json.MarshalIndent(allRedacted, "", "  ")

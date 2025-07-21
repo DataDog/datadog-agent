@@ -27,10 +27,7 @@
               "z": {
                 "type": "*string",
                 "address": "[addr]",
-                "value": {
-                  "type": "string",
-                  "value": "abc"
-                }
+                "value": "abc"
               }
             }
           }

@@ -93,51 +93,45 @@ var defaultRedactors = []jsonRedactor{
 	),
 }
 
-func redactJSON(t *testing.T, input []byte, redactors []jsonRedactor) (redacted []byte) {
-	data := input
-
-	// Apply each redactor in a separate pass
-	for _, redactor := range redactors {
-		d := jsontext.NewDecoder(bytes.NewReader(data))
-		var buf bytes.Buffer
-		e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
-
-		for {
-			tok, err := d.ReadToken()
-			if errors.Is(err, io.EOF) {
+func redactJSON(t *testing.T, ptrPrefix jsontext.Pointer, input []byte, redactors []jsonRedactor) []byte {
+	d := jsontext.NewDecoder(bytes.NewReader(input))
+	var buf bytes.Buffer
+	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
+	stackPtr := func() jsontext.Pointer {
+		if ptrPrefix != "" {
+			return jsontext.Pointer(ptrPrefix + "/" + d.StackPointer())
+		}
+		return d.StackPointer()
+	}
+	for {
+		tok, err := d.ReadToken()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		kind, idx := d.StackIndex(d.StackDepth())
+		err = e.WriteToken(tok)
+		require.NoError(t, err)
+		if kind != '{' || idx%2 == 0 {
+			continue
+		}
+		ptr := stackPtr()
+		var redacted []byte
+		for _, redactor := range redactors {
+			if redactor.matcher.matches(ptr) {
+				v, err := d.ReadValue()
+				require.NoError(t, err)
+				redacted = redactor.replacer.replace(v)
 				break
 			}
-			require.NoError(t, err)
-			kind, idx := d.StackIndex(d.StackDepth())
-
-			// Check if we're at a key position in an object
-			if kind == '{' && idx%2 == 0 {
-				// Write the key token
-				err = e.WriteToken(tok)
-				require.NoError(t, err)
-
-				// Get the pointer that will be created when we're at the value
-				ptr := d.StackPointer()
-
-				if redactor.matcher.matches(ptr) {
-					// This key matches our redaction pattern
-					// Read and replace the value
-					v, err := d.ReadValue()
-					require.NoError(t, err)
-					err = e.WriteValue(redactor.replacer.replace(v))
-					require.NoError(t, err)
-					continue
-				}
-			} else {
-				// Default case: just write the token as-is
-				err = e.WriteToken(tok)
-				require.NoError(t, err)
-			}
 		}
-		data = bytes.TrimSpace(buf.Bytes())
-	}
 
-	return data
+		if redacted != nil {
+			redacted = redactJSON(t, ptr, redacted, redactors)
+			require.NoError(t, e.WriteValue(redacted))
+		}
+	}
+	return bytes.TrimSpace(buf.Bytes())
 }
 
 type entriesSorter struct{}
@@ -468,7 +462,7 @@ func TestDefaultRedactors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := redactJSON(t, []byte(tt.input), defaultRedactors)
+			result := redactJSON(t, "", []byte(tt.input), defaultRedactors)
 			require.JSONEq(t, tt.expected, string(result), "redacted JSON should match expected output")
 		})
 	}

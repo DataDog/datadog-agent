@@ -44,26 +44,40 @@ type arrayType ir.ArrayType
 type voidPointerType ir.VoidPointerType
 type goSliceHeaderType ir.GoSliceHeaderType
 type goSliceDataType ir.GoSliceDataType
-type goStringHeaderType ir.GoStringHeaderType
+type goStringHeaderType struct {
+	*ir.GoStringHeaderType
+	strFieldOffset uint32
+	strFieldSize   uint8
+	lenFieldOffset uint32
+	lenFieldSize   uint8
+}
 type goStringDataType ir.GoStringDataType
 type goMapType ir.GoMapType
 type goHMapHeaderType ir.GoHMapHeaderType
 type goHMapBucketType ir.GoHMapBucketType
 type goSwissMapHeaderType struct {
 	*ir.GoSwissMapHeaderType
-	keyTypeID       uint8
-	valueTypeID     uint8
-	dirLenOffset    uint8
-	dirLenSize      uint8
-	dirPtrOffset    uint8
-	dirPtrSize      uint8
-	ctrlOffset      uint8
-	ctrlSize        uint8
-	slotsOffset     uint8
-	slotsSize       uint8
-	tableType       *ir.PointerType
-	tableStructType *ir.StructureType
-	groupType       *ir.GoSwissMapGroupsType
+	keyTypeID        ir.TypeID
+	valueTypeID      ir.TypeID
+	keyTypeSize      uint32
+	valueTypeSize    uint32
+	keyTypeName      string
+	valueTypeName    string
+	dirLenOffset     uint32
+	dirLenSize       uint8
+	dirPtrOffset     uint32
+	dirPtrSize       uint8
+	ctrlOffset       uint32
+	ctrlSize         uint8
+	slotsOffset      uint32
+	slotsSize        uint8
+	groupFieldOffset uint32
+	groupFieldSize   uint8
+	dataFieldOffset  uint32
+	dataFieldSize    uint8
+	tableType        *ir.PointerType
+	tableStructType  *ir.StructureType
+	groupType        *ir.GoSwissMapGroupsType
 }
 type goSwissMapGroupsType ir.GoSwissMapGroupsType
 type goChannelType ir.GoChannelType
@@ -157,21 +171,37 @@ func newDecoderType(
 		if !ok {
 			return nil, fmt.Errorf("group field type is not a swiss map groups type: %s", groupField.Type.GetName())
 		}
+		groupFieldOffset := groupField.Offset
+		groupFieldSize := groupField.Type.GetByteSize()
+		dataField, err := getFieldByName(groupType.RawFields, "data")
+		if err != nil {
+			return nil, fmt.Errorf("malformed swiss map header type: %w", err)
+		}
+		dataFieldOffset := dataField.Offset
+		dataFieldSize := dataField.Type.GetByteSize()
 		return &goSwissMapHeaderType{
 			GoSwissMapHeaderType: s,
-			keyTypeID:            uint8(keyField.Type.GetID()),
-			valueTypeID:          uint8(elem.Type.GetID()),
-			dirLenOffset:         uint8(dirLenOffset),
+			keyTypeID:            keyField.Type.GetID(),
+			valueTypeID:          elem.Type.GetID(),
+			keyTypeSize:          uint32(keyField.Type.GetByteSize()),
+			valueTypeSize:        uint32(elem.Type.GetByteSize()),
+			keyTypeName:          keyField.Type.GetName(),
+			valueTypeName:        elem.Type.GetName(),
+			dirLenOffset:         dirLenOffset,
 			dirLenSize:           uint8(dirLenSize),
-			dirPtrOffset:         uint8(dirPtrOffset),
+			dirPtrOffset:         dirPtrOffset,
 			dirPtrSize:           uint8(dirPtrSize),
-			ctrlOffset:           uint8(ctrlOffset),
+			ctrlOffset:           ctrlOffset,
 			ctrlSize:             uint8(ctrlSize),
-			slotsOffset:          uint8(slotsField.Offset),
+			slotsOffset:          slotsField.Offset,
 			slotsSize:            uint8(slotsFieldType.GetByteSize()),
 			tableType:            tableType,
 			tableStructType:      tableStructType,
 			groupType:            groupType,
+			groupFieldOffset:     groupFieldOffset,
+			groupFieldSize:       uint8(groupFieldSize),
+			dataFieldOffset:      dataFieldOffset,
+			dataFieldSize:        uint8(dataFieldSize),
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
@@ -188,7 +218,21 @@ func newDecoderType(
 	case *ir.GoSliceDataType:
 		return (*goSliceDataType)(s), nil
 	case *ir.GoStringHeaderType:
-		return (*goStringHeaderType)(s), nil
+		strField, err := getFieldByName(s.RawFields, "str")
+		if err != nil {
+			return nil, fmt.Errorf("malformed string header type: %w", err)
+		}
+		lenField, err := getFieldByName(s.RawFields, "len")
+		if err != nil {
+			return nil, fmt.Errorf("malformed string header type: %w", err)
+		}
+		return &goStringHeaderType{
+			GoStringHeaderType: s,
+			strFieldOffset:     strField.Offset,
+			strFieldSize:       uint8(strField.Type.GetByteSize()),
+			lenFieldOffset:     lenField.Offset,
+			lenFieldSize:       uint8(lenField.Type.GetByteSize()),
+		}, nil
 	case *ir.GoStringDataType:
 		return (*goStringDataType)(s), nil
 	case *ir.GoMapType:
@@ -354,7 +398,7 @@ func (m *goMapType) encodeValueFields(
 		}
 		return nil
 	}
-	keyValue, dataItemExists := d.dataItemReferences[key]
+	keyValue, dataItemExists := d.dataItems[key]
 	if !dataItemExists {
 		return writeTokens(enc,
 			notCapturedReason,
@@ -414,12 +458,11 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	data []byte,
 ) error {
 	var (
-		dirLen      int64
-		dirPtr      uint64
-		notCaptured bool
+		dirLen int64
+		dirPtr uint64
 	)
-	dirLen = int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+s.dirLenSize]))
-	dirPtr = binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+s.dirPtrSize])
+	dirLen = int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
+	dirPtr = binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
 	if err := writeTokens(
 		enc, jsontext.String("entries"), jsontext.BeginArray,
 	); err != nil {
@@ -428,41 +471,54 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	if dirLen == 0 {
 		// This is a 'small' swiss map where there's only one group.
 		// We can collect the data item for the group directly.
-		groupDataItem, ok := d.dataItemReferences[typeAndAddr{
+		groupDataItem, ok := d.dataItems[typeAndAddr{
 			irType: uint32(s.GroupType.GetID()),
 			addr:   dirPtr,
 		}]
 		if !ok {
-			return fmt.Errorf("group data item not found for addr %x", dirPtr)
+			return writeTokens(enc,
+				jsontext.EndArray,
+				notCapturedReason,
+				notCapturedReasonDepth,
+			)
 		}
 		err := d.encodeSwissMapGroup(
 			enc,
 			s,
 			groupDataItem.Data(),
-			ir.TypeID(s.keyTypeID),
-			ir.TypeID(s.valueTypeID),
 		)
 		if err != nil {
-			return err
+			log.Tracef("error encoding swiss map group: %v", err)
+			return writeTokens(enc,
+				jsontext.EndArray,
+				notCapturedReason,
+				notCapturedReasonDepth,
+			)
 		}
 	} else {
 		// This is a 'large' swiss map where there are multiple groups of data/control words
 		// We need to collect the data items for the table pointers first.
-		tablePtrSliceDataItemPtr, ok := d.dataItemReferences[typeAndAddr{
+		tablePtrSliceDataItemPtr, ok := d.dataItems[typeAndAddr{
 			irType: uint32(s.TablePtrSliceType.GetID()),
 			addr:   dirPtr,
 		}]
 		if !ok {
-			log.Tracef("table ptr slice data item pointer not found for addr %x", dirPtr)
-			notCaptured = true
+			return writeTokens(enc,
+				jsontext.EndArray,
+				notCapturedReason,
+				notCapturedReasonDepth,
+			)
 		}
-		tablePtrSliceDataItem, ok := d.dataItemReferences[typeAndAddr{
+		tablePtrSliceDataItem, ok := d.dataItems[typeAndAddr{
 			irType: tablePtrSliceDataItemPtr.Header().Type,
 			addr:   tablePtrSliceDataItemPtr.Header().Address,
 		}]
 		if !ok {
-			log.Tracef("table ptr slice data item not found for addr %x", tablePtrSliceDataItemPtr.Header().Address)
-			notCaptured = true
+			return writeTokens(enc,
+				jsontext.EndArray,
+				notCapturedReason,
+				notCapturedReasonDepth,
+			)
 		}
 		err := d.encodeSwissMapTables(
 			enc,
@@ -470,19 +526,15 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 			tablePtrSliceDataItem,
 		)
 		if err != nil {
-			return err
+			log.Tracef("error encoding swiss map tables: %v", err)
+			return writeTokens(enc,
+				jsontext.EndArray,
+				notCapturedReason,
+				notCapturedReasonDepth,
+			)
 		}
 	}
-	if err := writeTokens(enc, jsontext.EndArray); err != nil {
-		return err
-	}
-	if notCaptured {
-		return writeTokens(enc,
-			notCapturedReason,
-			notCapturedReasonPruned,
-		)
-	}
-	return nil
+	return writeTokens(enc, jsontext.EndArray)
 }
 
 func (s *goSwissMapGroupsType) irType() ir.Type { return (*ir.GoSwissMapGroupsType)(s) }
@@ -537,7 +589,7 @@ func (p *pointerType) encodeValueFields(
 	}
 
 	var address uint64
-	pointedValue, dataItemExists := d.dataItemReferences[pointeeKey]
+	pointedValue, dataItemExists := d.dataItems[pointeeKey]
 	if !dataItemExists {
 		return writeTokens(enc,
 			notCapturedReason,
@@ -545,25 +597,30 @@ func (p *pointerType) encodeValueFields(
 		)
 	}
 	address = pointedValue.Header().Address
-	if err := writeTokens(enc,
-		jsontext.String("address"),
-		jsontext.String("0x"+strconv.FormatInt(int64(address), 16)),
-	); err != nil {
-		return err
+	goKind, ok := p.Pointee.GetGoKind()
+	if !ok {
+		return fmt.Errorf("no go kind for type %s (ID: %d)", p.Pointee.GetName(), p.Pointee.GetID())
 	}
-	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
-		d.currentlyEncoding[pointeeKey] = struct{}{}
-		defer delete(d.currentlyEncoding, pointeeKey)
+	if goKind != reflect.Pointer {
 		if err := writeTokens(enc,
-			jsontext.String("value"),
+			jsontext.String("address"),
+			jsontext.String("0x"+strconv.FormatInt(int64(address), 16)),
 		); err != nil {
 			return err
 		}
-		if err := d.encodeValue(
+	}
+
+	if _, alreadyEncoding := d.currentlyEncoding[pointeeKey]; !alreadyEncoding && dataItemExists {
+		d.currentlyEncoding[pointeeKey] = struct{}{}
+		defer delete(d.currentlyEncoding, pointeeKey)
+		pointeeDecoderType, ok := d.decoderTypes[p.Pointee.GetID()]
+		if !ok {
+			return fmt.Errorf("no decoder type found for pointee type (ID: %d)", p.Pointee.GetID())
+		}
+		if err := pointeeDecoderType.encodeValueFields(
+			d,
 			enc,
-			ir.TypeID(p.Pointee.GetID()),
 			pointedValue.Data(),
-			p.Pointee.GetName(),
 		); err != nil {
 			return fmt.Errorf("could not encode referenced value: %w", err)
 		}
@@ -686,7 +743,7 @@ func (s *goSliceHeaderType) encodeValueFields(
 		addr:   address,
 		irType: uint32(s.Data.GetID()),
 	}
-	sliceDataItem, ok := d.dataItemReferences[taa]
+	sliceDataItem, ok := d.dataItems[taa]
 	if !ok {
 		return writeTokens(enc,
 			notCapturedReason,
@@ -736,49 +793,34 @@ func (s *goSliceDataType) encodeValueFields(
 	enc *jsontext.Encoder,
 	_ []byte,
 ) error {
-
 	return writeTokens(enc,
 		notCapturedReason,
 		notCapturedReasonUnimplemented,
 	)
 }
 
-func (s *goStringHeaderType) irType() ir.Type { return (*ir.GoStringHeaderType)(s) }
+func (s *goStringHeaderType) irType() ir.Type { return s.GoStringHeaderType }
 func (s *goStringHeaderType) encodeValueFields(
 	d *Decoder,
 	enc *jsontext.Encoder,
-	data []byte) error {
-
-	var (
-		address       uint64
-		fieldByteSize uint32
-	)
-	field, err := getFieldByName(s.RawFields, "str")
-	if err != nil {
-		return fmt.Errorf("malformed string field 'str': %w", err)
-	}
-	lenField, err := getFieldByName(s.RawFields, "len")
-	if err != nil {
-		return fmt.Errorf("malformed string field 'str': %w", err)
-	}
-	realLength := binary.NativeEndian.Uint64(data[lenField.Offset : lenField.Offset+lenField.Type.GetByteSize()])
-
-	fieldByteSize = field.Type.GetByteSize()
-	fieldEnd := field.Offset + fieldByteSize
+	data []byte,
+) error {
+	realLength := binary.NativeEndian.Uint64(data[s.lenFieldOffset : s.lenFieldOffset+uint32(s.lenFieldSize)])
+	fieldEnd := s.strFieldOffset + uint32(s.strFieldSize)
 	if fieldEnd >= uint32(len(data)) {
 		return writeTokens(enc,
 			notCapturedReason,
 			notCapturedReasonLength,
 		)
 	}
-	address = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+fieldByteSize])
+	address := binary.NativeEndian.Uint64(data[s.strFieldOffset : s.strFieldOffset+uint32(s.strFieldSize)])
 	if address == 0 {
 		return writeTokens(enc,
 			jsontext.String("isNull"),
 			jsontext.Bool(true),
 		)
 	}
-	stringValue, ok := d.dataItemReferences[typeAndAddr{
+	stringValue, ok := d.dataItems[typeAndAddr{
 		irType: uint32(s.Data.GetID()),
 		addr:   address,
 	}]
