@@ -44,6 +44,13 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mockSys
 }
 
 func newInventorySoftware(t *testing.T, confOverrides map[string]any) (*inventorySoftware, *mockSysProbeClient) {
+	// Set default to enabled for tests
+	if confOverrides == nil {
+		confOverrides = map[string]any{}
+	}
+	if _, exists := confOverrides["software_inventory.enabled"]; !exists {
+		confOverrides["software_inventory.enabled"] = true
+	}
 	p, c := getProvides(t, confOverrides)
 	return p.Comp.(*inventorySoftware), c
 }
