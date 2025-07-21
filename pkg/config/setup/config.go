@@ -1369,10 +1369,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 func serializer(config pkgconfigmodel.Setup) {
 	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -1383,6 +1379,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent

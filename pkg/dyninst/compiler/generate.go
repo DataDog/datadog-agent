@@ -290,6 +290,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 
 	// Pointer or fat pointer types.
 
+	case *ir.VoidPointerType:
+		// Nothing to process. We don't know what the pointee is.
+
 	case *ir.PointerType:
 		g.typeQueue = append(g.typeQueue, t.Pointee)
 		needed = true
@@ -405,7 +408,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
 			})
-		case *ir.PointerType:
+		case *ir.PointerType, *ir.VoidPointerType:
 			pieces = append(pieces, memoryLayoutPiece{
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
