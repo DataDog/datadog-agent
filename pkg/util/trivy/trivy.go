@@ -315,7 +315,7 @@ func (fa *artifactWithType) Clean(ref artifact.Reference) error {
 }
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
@@ -333,7 +333,12 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		wrapper.forceType = artifact.TypeFilesystem
 	}
 
-	trivyReport, err := c.scan(ctx, wrapper, applier.NewApplier(cache))
+	return c.scan(ctx, wrapper, applier.NewApplier(cache))
+}
+
+// ScanFilesystem scans the specified directory and logs detailed scan steps.
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
