@@ -153,6 +153,56 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
+// GlobalFingerprintConfig returns the global fingerprint configuration to apply to all logs.
+func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*FingerprintConfig, error) {
+	var config *FingerprintConfig
+	var err error
+	raw := coreConfig.Get("logs_config.fingerprint_config")
+	if raw == nil {
+		return nil, nil
+	}
+	if s, ok := raw.(string); ok && s != "" {
+		err = json.Unmarshal([]byte(s), &config)
+	} else {
+		err = structure.UnmarshalKey(coreConfig, "logs_config.fingerprint_config", &config, structure.ConvertEmptyStringToNil)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if fingerprinting is enabled
+	if coreConfig.GetString("logs_config.fingerprint_strategy") != "checksum" {
+		return nil, nil
+	}
+
+	err = ValidateFingerprintConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+// ValidateFingerprintConfig validates the fingerprint config and returns an error if the config is invalid
+func ValidateFingerprintConfig(config *FingerprintConfig) error {
+	if config == nil {
+		return fmt.Errorf("fingerprint config cannot be nil")
+	}
+	// Validate non-negative fields
+	if config.MaxLines < 0 {
+		return fmt.Errorf("maxLines cannot be negative, got: %d", config.MaxLines)
+	}
+	if config.ToSkip < 0 {
+		return fmt.Errorf("toSkip cannot be negative, got: %d", config.ToSkip)
+	}
+	// Validate MaxBytes (must be positive)
+	if config.MaxBytes <= 0 {
+		return fmt.Errorf("maxBytes must be positive, got: %d", config.MaxBytes)
+	}
+
+	return nil
+}
+
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
 	main := newTCPEndpoint(logsConfig)
