@@ -208,6 +208,8 @@ class KMTDirectoriesRequirement(Requirement):
 
 
 class KMTSSHKey(Requirement):
+    dependencies: list[type[Requirement]] = [KMTDirectoriesRequirement]
+
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         kmt_os = get_kmt_os()
         if not kmt_os.ddvm_rsa.exists():
