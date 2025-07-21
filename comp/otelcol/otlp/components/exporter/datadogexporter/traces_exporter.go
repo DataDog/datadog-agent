@@ -85,9 +85,9 @@ func (exp *traceExporter) exportUsageMetrics(hosts map[string]struct{}, ecsFarga
 	}
 	buildInfo := exp.params.BuildInfo
 	for host := range hosts {
-		exp.usageMetric.Inc(buildInfo.Version, buildInfo.Command, host, "")
+		exp.usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 	}
 	for taskArn := range ecsFargateArns {
-		exp.usageMetric.Inc(buildInfo.Version, buildInfo.Command, "", taskArn)
+		exp.usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 	}
 }

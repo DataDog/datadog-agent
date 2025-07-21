@@ -185,14 +185,14 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 	switch c.ipath {
 	case ddot:
 		for host := range c.hosts {
-			usageMetric.Inc(buildInfo.Version, buildInfo.Command, host, "")
+			usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
 		for ecsFargateTag := range c.ecsFargateTags {
 			taskArn := strings.Split(ecsFargateTag, ":")[1]
-			usageMetric.Inc(buildInfo.Version, buildInfo.Command, "", taskArn)
+			usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
-		usageMetric.Inc(buildInfo.Version, buildInfo.Command, agentHostname)
+		usageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, agentHostname)
 	case ossCollector:
 		params.Logger.Fatal("wrong consumer implementation used in OSS datadog exporter, should use collectorConsumer")
 	default:
