@@ -39,8 +39,6 @@ __attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, 
 
     send_event_with_size_ptr(skb, event_type, evt, len);
 
-    bpf_printk("raw_packet_drop_action_shot: %d", action);
-
     return action;
 }
 

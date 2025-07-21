@@ -74,7 +74,7 @@ const (
 )
 
 const (
-	// RawPacketFilterMaxTailCall defines the maximum of tail calls, see constants/custom.h
+	// RawPacketMaxTailCall defines the maximum of tail calls, see constants/custom.h
 	RawPacketMaxTailCall = 5
 )
 
@@ -93,13 +93,13 @@ const (
 	// TCRawPacketFilterKey  is the key to the raw packet filter program
 	// reserve 5 tail calls for the filtering
 	TCRawPacketFilterKey uint32 = 0
-	// TCRawPacketParserSenderKey is the key to the raw packet sender program
+	// TCRawPacketSenderKey is the key to the raw packet sender program
 	TCRawPacketSenderKey = TCRawPacketFilterKey + RawPacketMaxTailCall
 
 	// TCRawPacketDropActionKey is the key to the raw packet drop action program
-	TCRawPacketDropActionKey     = TCRawPacketSenderKey + 1
+	TCRawPacketDropActionKey = TCRawPacketSenderKey + 1
+	// TCRawPacketDropActionShotKey is the key to the raw packet drop action program
 	TCRawPacketDropActionShotKey = TCRawPacketDropActionKey + RawPacketMaxTailCall
-	// reserved key for filter tail calls
 )
 
 const (

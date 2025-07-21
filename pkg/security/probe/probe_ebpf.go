@@ -622,7 +622,9 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 	}
 
 	if len(progSpecs) > 0 {
-		p.enableRawPacket(true)
+		if err := p.enableRawPacket(true); err != nil {
+			return err
+		}
 	} else {
 		return nil
 	}
@@ -2267,7 +2269,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 
 	if p.probe.IsNetworkRawPacketEnabled() {
 		// disable first, and let the following code enable it if needed
-		p.enableRawPacket(false)
+		if err := p.enableRawPacket(false); err != nil {
+			seclog.Errorf("unable to disable raw packet filter programs: %v", err)
+		}
 
 		if err := p.setupRawPacketFilters(rs); err != nil {
 			seclog.Errorf("unable to load raw packet filter programs: %v", err)

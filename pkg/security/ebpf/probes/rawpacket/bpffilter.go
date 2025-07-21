@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// TCAct is the type of the tc action
 type TCAct int
 
 const (
-	// state of tc action
 	// TCActOk will terminate the packet processing pipeline and allows the packet to proceed
 	TCActOk TCAct = 0
 	// TCActShot will terminate the packet processing pipeline and drop the packet
