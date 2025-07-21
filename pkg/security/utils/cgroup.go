@@ -178,13 +178,13 @@ var once sync.Once
 // DefaultCGroupFS returns a singleton instance of CGroupFS
 func DefaultCGroupFS() *CGroupFS {
 	once.Do(func() {
-		defaultCGroupFS = NewCGroupFS()
+		defaultCGroupFS = newCGroupFS()
 	})
 	return defaultCGroupFS
 }
 
-// NewCGroupFS creates a new CGroupFS instance
-func NewCGroupFS() *CGroupFS {
+// newCGroupFS creates a new CGroupFS instance
+func newCGroupFS() *CGroupFS {
 	cfs := &CGroupFS{}
 
 	for _, mountpoint := range defaultCGroupMountpoints {
