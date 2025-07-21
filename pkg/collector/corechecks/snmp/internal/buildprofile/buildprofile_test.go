@@ -97,7 +97,6 @@ func TestBuildProfile(t *testing.T) {
 	}
 
 	legacyMetadataConfig := DefaultMetadataConfigs[0].ToMetadataConfig()
-
 	profile1MergedMetadata := maps.Clone(profile1.Metadata)
 	profile1MergedMetadata["ip_addresses"] = legacyMetadataConfig["ip_addresses"]
 
@@ -108,12 +107,12 @@ func TestBuildProfile(t *testing.T) {
 	})
 
 	type testCase struct {
-		name           string
-		sessionFactory session.Factory
-		config         *checkconfig.CheckConfig
-		sysObjectID    string
-		expected       profiledefinition.ProfileDefinition
-		expectedError  string
+		name                   string
+		sessionFactory         session.Factory
+		config                 *checkconfig.CheckConfig
+		sysObjectID            string
+		expectedProfileBuilder func() profiledefinition.ProfileDefinition
+		expectedError          string
 	}
 	for _, tc := range []testCase{
 		{
@@ -126,12 +125,14 @@ func TestBuildProfile(t *testing.T) {
 				},
 				ProfileName: checkconfig.ProfileNameInline,
 			},
-			expected: profiledefinition.ProfileDefinition{
-				Metrics: metrics,
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
-				},
-				Metadata: legacyMetadataConfig,
+			expectedProfileBuilder: func() profiledefinition.ProfileDefinition {
+				return profiledefinition.ProfileDefinition{
+					Metrics: metrics,
+					MetricTags: []profiledefinition.MetricTagConfig{
+						{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+					},
+					Metadata: legacyMetadataConfig,
+				}
 			},
 		},
 		{
@@ -141,15 +142,17 @@ func TestBuildProfile(t *testing.T) {
 				ProfileProvider: mockProfiles,
 				ProfileName:     "profile1",
 			},
-			expected: profiledefinition.ProfileDefinition{
-				Name:    "profile1",
-				Version: 12,
-				Metrics: metrics,
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
-				},
-				StaticTags: []string{"snmp_profile:profile1"},
-				Metadata:   profile1MergedMetadata,
+			expectedProfileBuilder: func() profiledefinition.ProfileDefinition {
+				return profiledefinition.ProfileDefinition{
+					Name:    "profile1",
+					Version: 12,
+					Metrics: metrics,
+					MetricTags: []profiledefinition.MetricTagConfig{
+						{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+					},
+					StaticTags: []string{"snmp_profile:profile1"},
+					Metadata:   profile1MergedMetadata,
+				}
 			},
 		},
 		{
@@ -160,15 +163,17 @@ func TestBuildProfile(t *testing.T) {
 				ProfileName:     checkconfig.ProfileNameAuto,
 			},
 			sysObjectID: "1.1.1.1",
-			expected: profiledefinition.ProfileDefinition{
-				Name:    "profile1",
-				Version: 12,
-				Metrics: metrics,
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
-				},
-				StaticTags: []string{"snmp_profile:profile1"},
-				Metadata:   profile1MergedMetadata,
+			expectedProfileBuilder: func() profiledefinition.ProfileDefinition {
+				return profiledefinition.ProfileDefinition{
+					Name:    "profile1",
+					Version: 12,
+					Metrics: metrics,
+					MetricTags: []profiledefinition.MetricTagConfig{
+						{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+					},
+					StaticTags: []string{"snmp_profile:profile1"},
+					Metadata:   profile1MergedMetadata,
+				}
 			},
 		},
 		{
@@ -185,18 +190,20 @@ func TestBuildProfile(t *testing.T) {
 					{Tag: "global-tag", Symbol: profiledefinition.SymbolConfigCompat{OID: "3.2", Name: "globalSymbol"}},
 				},
 			},
-			expected: profiledefinition.ProfileDefinition{
-				Name:    "profile1",
-				Version: 12,
-				Metrics: append([]profiledefinition.MetricsConfig{
-					{Symbol: profiledefinition.SymbolConfig{OID: "3.1", Name: "global-metric"}}},
-					metrics...),
-				MetricTags: []profiledefinition.MetricTagConfig{
-					{Tag: "global-tag", Symbol: profiledefinition.SymbolConfigCompat{OID: "3.2", Name: "globalSymbol"}},
-					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
-				},
-				Metadata:   profile1MergedMetadata,
-				StaticTags: []string{"snmp_profile:profile1"},
+			expectedProfileBuilder: func() profiledefinition.ProfileDefinition {
+				return profiledefinition.ProfileDefinition{
+					Name:    "profile1",
+					Version: 12,
+					Metrics: append([]profiledefinition.MetricsConfig{
+						{Symbol: profiledefinition.SymbolConfig{OID: "3.1", Name: "global-metric"}}},
+						metrics...),
+					MetricTags: []profiledefinition.MetricTagConfig{
+						{Tag: "global-tag", Symbol: profiledefinition.SymbolConfigCompat{OID: "3.2", Name: "globalSymbol"}},
+						{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+					},
+					StaticTags: []string{"snmp_profile:profile1"},
+					Metadata:   profile1MergedMetadata,
+				}
 			},
 		},
 		{
@@ -219,6 +226,69 @@ func TestBuildProfile(t *testing.T) {
 			expectedError: "failed to get profile for sysObjectID \"3.3.3.3\": no profiles found for sysObjectID \"3." +
 				"3.3.3\"",
 		},
+		{
+			name: "VPN tunnels metadata with invalid session",
+			config: &checkconfig.CheckConfig{
+				IPAddress:       "1.2.3.4",
+				ProfileProvider: mockProfiles,
+				ProfileName:     "profile1",
+				CollectVPN:      true,
+			},
+			expectedProfileBuilder: func() profiledefinition.ProfileDefinition {
+				vpnTunnelsMergedMetadata := maps.Clone(profile1MergedMetadata)
+				vpnTunnelsMergedMetadata["cisco_ipsec_tunnel"] = DefaultMetadataConfigs[2].ToMetadataConfig()["cisco_ipsec_tunnel"]
+				vpnTunnelsMergedMetadata["ipforward_deprecated"] = DefaultMetadataConfigs[3].ToMetadataConfig()["ipforward_deprecated"]
+				vpnTunnelsMergedMetadata["ipforward"] = DefaultMetadataConfigs[3].ToMetadataConfig()["ipforward"]
+				vpnTunnelsMergedMetadata["tunnel_config_deprecated"] = DefaultMetadataConfigs[4].ToMetadataConfig()["tunnel_config_deprecated"]
+				vpnTunnelsMergedMetadata["tunnel_config"] = DefaultMetadataConfigs[4].ToMetadataConfig()["tunnel_config"]
+
+				return profiledefinition.ProfileDefinition{
+					Name:    "profile1",
+					Version: 12,
+					Metrics: metrics,
+					MetricTags: []profiledefinition.MetricTagConfig{
+						{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+					},
+					StaticTags: []string{"snmp_profile:profile1"},
+					Metadata:   vpnTunnelsMergedMetadata,
+				}
+			},
+		},
+		{
+			name: "VPN tunnels metadata with valid session",
+			sessionFactory: func(*checkconfig.CheckConfig) (session.Session, error) {
+				sess := session.CreateFakeSession()
+				sess.
+					SetByte("1.3.6.1.4.1.9.9.171.1.3.2.1.4.2", []byte{0x0A, 0x00, 0x00, 0x01}).
+					SetInt("1.3.6.1.2.1.4.24.7.1.7.2.16.255.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.2.0.0.0.0", 2).
+					SetInt("1.3.6.1.2.1.10.131.1.1.3.1.6.1.4.10.0.2.91.4.34.230.217.35.1.1", 6)
+
+				return sess, nil
+			},
+			config: &checkconfig.CheckConfig{
+				IPAddress:       "1.2.3.4",
+				ProfileProvider: mockProfiles,
+				ProfileName:     "profile1",
+				CollectVPN:      true,
+			},
+			expectedProfileBuilder: func() profiledefinition.ProfileDefinition {
+				vpnTunnelsMergedMetadata := maps.Clone(profile1MergedMetadata)
+				vpnTunnelsMergedMetadata["cisco_ipsec_tunnel"] = DefaultMetadataConfigs[2].ToMetadataConfig()["cisco_ipsec_tunnel"]
+				vpnTunnelsMergedMetadata["ipforward"] = DefaultMetadataConfigs[3].ToMetadataConfig()["ipforward"]
+				vpnTunnelsMergedMetadata["tunnel_config"] = DefaultMetadataConfigs[4].ToMetadataConfig()["tunnel_config"]
+
+				return profiledefinition.ProfileDefinition{
+					Name:    "profile1",
+					Version: 12,
+					Metrics: metrics,
+					MetricTags: []profiledefinition.MetricTagConfig{
+						{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+					},
+					StaticTags: []string{"snmp_profile:profile1"},
+					Metadata:   vpnTunnelsMergedMetadata,
+				}
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var validConnection bool
@@ -236,8 +306,10 @@ func TestBuildProfile(t *testing.T) {
 				assert.EqualError(t, err, tc.expectedError)
 			} else {
 				require.NoError(t, err)
-				if !assert.Equal(t, tc.expected, profile) {
-					for k, v := range tc.expected.Metadata["device"].Fields {
+
+				expectedProfile := tc.expectedProfileBuilder()
+				if !assert.Equal(t, expectedProfile, profile) {
+					for k, v := range expectedProfile.Metadata["device"].Fields {
 						t.Log(k, v)
 					}
 					t.Log("===")
