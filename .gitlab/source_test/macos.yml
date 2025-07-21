@@ -13,7 +13,7 @@ include:
     - changes:
         paths:
           - .gitlab/common/macos.yml
-      compare_to: $COMPARE_TO_BRANCH
+        compare_to: $COMPARE_TO_BRANCH
       when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
