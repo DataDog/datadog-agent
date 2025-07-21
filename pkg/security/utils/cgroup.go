@@ -17,7 +17,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -196,7 +195,7 @@ func NewCGroupFS() *CGroupFS {
 	}
 
 	// detect the current cgroup path in the pid namespace
-	cfs.detectCurrentCgroupPath(Getpid())
+	cfs.detectCurrentCgroupPath(Getpid(), uint32(os.Getpid()))
 
 	return cfs
 }
@@ -323,20 +322,16 @@ func isInCGroupNamespace(pid uint32) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	for _, cgroup := range cgroups {
-		if len(cgroup.Controllers) == 0 && cgroup.Path != "/" { // cgroup v2
-			return false, nil
-		} else if slices.ContainsFunc(cgroup.Controllers, func(ctrl string) bool { // cgroup v1
-			return strings.HasPrefix(ctrl, "name=")
-		}) && cgroup.Path != "/" {
-			return false, nil
-		}
+
+	if len(cgroups) > 0 {
+		return cgroups[0].Path == "/", nil
 	}
-	return true, nil
+
+	return false, nil
 }
 
 // DetectCurrentCgroupPath returns the cgroup path of the current process
-func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid uint32) {
+func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 	// check if in a namespace
 	if inNamespace, err := isInCGroupNamespace(currentPid); err != nil || !inNamespace {
 		return
@@ -351,7 +346,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid uint32) {
 				if err == nil {
 					scanner := bufio.NewScanner(bytes.NewReader(data))
 					for scanner.Scan() {
-						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentPid {
+						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentNSPid {
 							cgroupPath = filepath.Dir(path)
 							return fs.SkipAll
 						}

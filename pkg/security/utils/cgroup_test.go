@@ -332,21 +332,23 @@ func untar(t *testing.T, tarxzArchive string, destinationDir string) {
 }
 
 func TestCGroupFS(t *testing.T) {
+	tempDir := t.TempDir()
+
+	hostProc := filepath.Join(tempDir, "proc")
+
+	os.Setenv("HOST_PROC", hostProc)
+	os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+
 	t.Run("cgroupv2", func(t *testing.T) {
-		tempDir := t.TempDir()
+		defer os.RemoveAll(tempDir)
 
 		untar(t, "testdata/cgroupv2.tar.xz", tempDir)
-
-		hostProc := filepath.Join(tempDir, "proc")
-
-		os.Setenv("HOST_PROC", hostProc)
-		os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
 
 		cfs := NewCGroupFS()
 		cfs.cGroupMountPoints = []string{
 			filepath.Join(tempDir, "sys/fs/cgroup"),
 		}
-		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc))
+		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc), GetpidFrom(hostProc))
 
 		t.Run("find-cgroup-context-ko", func(t *testing.T) {
 			_, _, _, err := cfs.FindCGroupContext(567, 567)
@@ -369,20 +371,16 @@ func TestCGroupFS(t *testing.T) {
 	})
 
 	t.Run("cgroupv1", func(t *testing.T) {
-		tempDir := t.TempDir()
+		defer os.RemoveAll(tempDir)
 
 		untar(t, "testdata/cgroupv1.tar.xz", tempDir)
-
-		hostProc := filepath.Join(tempDir, "proc")
-
-		os.Setenv("HOST_PROC", hostProc)
-		os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
 
 		cfs := NewCGroupFS()
 		cfs.cGroupMountPoints = []string{
 			filepath.Join(tempDir, "sys/fs/cgroup"),
 		}
-		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc))
+
+		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc), GetpidFrom(hostProc))
 
 		t.Run("find-cgroup-context-ko", func(t *testing.T) {
 			_, _, _, err := cfs.FindCGroupContext(567, 567)
