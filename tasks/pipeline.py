@@ -457,8 +457,8 @@ def changelog(ctx, new_commit_sha):
     empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
     no_commits_msg = "No new commits in this release :cricket:"
     slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+        f"The nightly deployment is rolling out to Staging :siren: \n"
+        f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
     )
 
     if old_commit_sha == new_commit_sha:
@@ -694,9 +694,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
-    assert match is not None, (
-        f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
-    )
+    assert (
+        match is not None
+    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
     assert "'" not in owner_branch_name
 
     owner, branch = match.group('owner'), match.group('branch_name')
@@ -706,9 +706,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     status_res = ctx.run('git status --porcelain')
     assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
     branch_res = ctx.run('git branch', hide='stdout')
-    assert re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == [], (
-        f'{owner_branch_name} branch already exists'
-    )
+    assert (
+        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
+    ), f'{owner_branch_name} branch already exists'
     remote_res = ctx.run('git remote', hide='stdout')
     assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
 
@@ -747,7 +747,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
             print('You might want to run these commands to restore the current state:')
             print('\n'.join(restore_commands))
 
-            exit(1)
+            raise Exit(code=1)
 
     # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
