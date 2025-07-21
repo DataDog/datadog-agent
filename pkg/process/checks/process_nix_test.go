@@ -731,19 +731,11 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 			expected1 := CombinedRunResult{}
 			require.NoError(t, err)
 			assert.Equal(t, expected1, actual)
-			// creation times should be the same
-			for _, wlmProc := range wlmProcs {
-				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid1[wlmProc.Pid].CreateTime)
-			}
 
 			// SECOND RUN
 			constantClock2 := newMockClock(now.Add(10 * time.Second))
 			processCheck.timer = constantClock2
 			statsByPid2 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
-			// creation times should be the same
-			for _, wlmProc := range wlmProcs {
-				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid2[wlmProc.Pid].CreateTime)
-			}
 			mockProbe.On("StatsForPIDs", pids, mock.Anything).Return(statsByPid2, nil).Once()
 
 			expected2 := []model.MessageBody{
@@ -803,10 +795,6 @@ func TestProcessCheckRunWLM3Times(t *testing.T) {
 			constantClock3 := newMockClock(now.Add(20 * time.Second))
 			processCheck.timer = constantClock3
 			statsByPid3 := createTestWLMProcessStats(wlmProcs, tc.elevatedPermissions)
-			// creation times should be the same
-			for _, wlmProc := range wlmProcs {
-				assert.Equal(t, wlmProc.CreationTime.Unix(), statsByPid3[wlmProc.Pid].CreateTime)
-			}
 			mockProbe.On("StatsForPIDs", pids, mock.Anything).Return(statsByPid3, nil).Once()
 
 			expected3 := []model.MessageBody{

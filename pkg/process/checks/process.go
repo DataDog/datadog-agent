@@ -274,8 +274,7 @@ func (p *ProcessCheck) runWLM(groupID int32, collectRealTime bool) (RunResult, e
 		return nil, err
 	}
 
-	// maintaining pre-existing variable types for ease of testing (don't have to change much following code)
-	//procs, err := p.probe.ProcessesByPID(time.Now(), true)
+	// map to common process type used by other versions of the check
 	procs := make(map[int32]*procutil.Process, len(wlmProcList))
 	for _, wlmProc := range wlmProcList {
 		procs[wlmProc.Pid] = mapWLMProcToProc(wlmProc, statsForProcess[wlmProc.Pid])
