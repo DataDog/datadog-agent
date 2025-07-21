@@ -54,8 +54,8 @@ const (
 	pingPacketLoss          = "networkdevice.ping.packet_loss"
 	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
 	deviceHostnamePrefix    = "device:"
-	checkDurationThreshold  = 30 // Thirty seconds
-	profileRefreshDelay     = 60 // Number of seconds after which a profile needs to be refreshed
+	checkDurationThreshold  = 30  // Thirty seconds
+	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
 )
 
 type profileCache struct {
