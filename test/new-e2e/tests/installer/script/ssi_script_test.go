@@ -26,7 +26,7 @@ func testSSIScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScript
 }
 
 func (s *installScriptSSISuite) RunInstallScript(url string, params ...string) {
-	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
+	params = append(params, "DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com")
 	s.installerScriptBaseSuite.RunInstallScript(url, params...)
 }
 

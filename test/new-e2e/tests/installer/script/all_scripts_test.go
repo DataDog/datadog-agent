@@ -189,7 +189,7 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 		time.Sleep(1 * time.Second)
 	}
 
-	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", s.getAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
+	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", s.getAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
 	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%s bash install_script", strings.Join(scriptParams, " ")))
 	return err
 }
