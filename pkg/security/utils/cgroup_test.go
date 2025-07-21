@@ -320,7 +320,7 @@ func untar(t *testing.T, tarxzArchive string, destinationDir string) {
 	assert.NoError(t, err)
 
 	// untar symlink
-	archive.WalkTarXZArchive(tarxzArchive, func(tr *tar.Reader, hdr *tar.Header) error {
+	archive.WalkTarXZArchive(tarxzArchive, func(_ *tar.Reader, hdr *tar.Header) error {
 		if hdr.Typeflag == tar.TypeSymlink {
 			name := filepath.Join(destinationDir, hdr.Name)
 

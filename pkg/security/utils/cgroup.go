@@ -346,7 +346,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath() {
 	grepPid := func(dir string) string {
 		var cgroupPath string
 
-		_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		_ = filepath.WalkDir(dir, func(path string, _ fs.DirEntry, _ error) error {
 			if filepath.Base(path) == "cgroup.procs" || filepath.Base(path) == "cgroup.threads" {
 				data, err := os.ReadFile(path)
 				if err == nil {
