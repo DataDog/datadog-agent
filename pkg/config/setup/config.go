@@ -50,6 +50,13 @@ const (
 	// used in cases where the line to hash is too large or if the fingerprinting maxLines=0
 	DefaultFingerprintingMaxBytes = 256
 
+	// DefaultLinesOrBytesToSkip is the default number of lines (or bytes) to skip when reading a file.
+	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
+	DefaultLinesOrBytesToSkip = 0
+
+	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
+	DefaultFingerprintingMaxLines = 0
+
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
 
@@ -1570,14 +1577,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// determines fingerprinting strategy to detect rotation and truncation
 	config.BindEnvAndSetDefault("logs_config.fingerprint_strategy", DefaultFingerprintingStrategy)
-	// determines maxLines before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_lines", 1)
-	// determines maxBytes before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
-	// determines lines to skip before we create fingerprint
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.lines_to_skip", 0)
-	//determine bytes to skip before we create a fingerprint
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.bytes_to_skip", 0)
+	// consolidated fingerprint configuration with defaults
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config", map[string]interface{}{
+		"max_lines": DefaultFingerprintingMaxLines,
+		"max_bytes": DefaultFingerprintingMaxBytes,
+		"to_skip":   DefaultLinesOrBytesToSkip,
+	})
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 

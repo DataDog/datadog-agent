@@ -156,3 +156,29 @@ func TestPublicJSON(t *testing.T) {
 	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"]}`
 	assert.Equal(t, expectedJSON, string(ret))
 }
+
+func TestFingerprintConfig(t *testing.T) {
+	validConfigs := []*FingerprintConfig{
+		{MaxBytes: 256, MaxLines: 0, ToSkip: 0},
+		{MaxBytes: 1024, MaxLines: 10, ToSkip: 2},
+		{MaxBytes: 1, MaxLines: 0, ToSkip: 0},
+	}
+
+	for _, config := range validConfigs {
+		err := ValidateFingerprintConfig(config)
+		assert.Nil(t, err)
+	}
+
+	invalidConfigs := []*FingerprintConfig{
+		nil,
+		{MaxBytes: 0, MaxLines: 0, ToSkip: 0},
+		{MaxBytes: -1, MaxLines: 0, ToSkip: 0},
+		{MaxBytes: 256, MaxLines: -1, ToSkip: 0},
+		{MaxBytes: 256, MaxLines: 0, ToSkip: -1},
+	}
+
+	for _, config := range invalidConfigs {
+		err := ValidateFingerprintConfig(config)
+		assert.NotNil(t, err)
+	}
+}
