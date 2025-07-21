@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 enhancements:
   - |
-    Created a new configuration option `orchestrator_explorer.custom_resource.max_count` that will allow customers to increase the number of custom resources they can collect in the Cluster Agent.
+    Created a new configuration option `orchestrator_explorer.custom_resources.max_count` that will allow customers to increase the number of custom resources they can collect in the Cluster Agent.

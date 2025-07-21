@@ -66,7 +66,7 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 
 		// Allow users to set max number of custom resources to collect
 		// but do not allow that to exceeded our definied maximum
-		maximumCRDQuota: min(pkgconfigsetup.Datadog().GetInt("orchestrator_explorer.custom_resource.max_count"), defaultMaximumCRDQuota),
+		maximumCRDQuota: min(pkgconfigsetup.Datadog().GetInt("orchestrator_explorer.custom_resources.max_count"), defaultMaximumCRDQuota),
 	}, nil
 }
 
