@@ -1,6 +1,6 @@
 ---
 .build_otel_agent_binary_common:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   stage: binary_build
   rules:
     - !reference [.except_mergequeue]
@@ -20,9 +20,9 @@
 build_otel_agent_binary_x64:
   extends: .build_otel_agent_binary_common
   tags: ["arch:amd64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
 
 build_otel_agent_binary_arm64:
   extends: .build_otel_agent_binary_common
   tags: ["arch:arm64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64

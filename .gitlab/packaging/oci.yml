@@ -3,7 +3,7 @@
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
@@ -78,12 +78,26 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps", "installer-arm64-oci", "installer-amd64-oci"]
+  needs:
+    [
+      "datadog-agent-oci-x64-a7",
+      "datadog-agent-oci-arm64-a7",
+      "windows_msi_and_bosh_zip_x64-a7",
+      "go_tools_deps",
+      "installer-arm64-oci",
+      "installer-amd64-oci",
+    ]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
 installer_oci:
   extends: .package_oci
-  needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64", "go_tools_deps"]
+  needs:
+    [
+      "installer-arm64-oci",
+      "installer-amd64-oci",
+      "windows-installer-amd64",
+      "go_tools_deps",
+    ]
   variables:
     OCI_PRODUCT: "datadog-installer"

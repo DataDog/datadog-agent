@@ -1,30 +1,30 @@
 do-not-merge:
   stage: check_merge
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   rules:
-  - !reference [.on_dev_branches]
-  - when: always
+    - !reference [.on_dev_branches]
+    - when: always
   needs: []
   script:
-      - |
-          if [ -n "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_DEB_ARMHF_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
-             [ -n "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ] ||
-             [ -n "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
-            echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"
-            echo "This workflow fails so that the pull request cannot be merged"
-            exit 1
-          fi
-      - dda inv -- -e release.check-omnibus-branches --no-worktree || exit 1
-      - exit 0
+    - |
+      if [ -n "$CI_IMAGE_BTF_GEN_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DEB_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DEB_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DEB_ARMHF_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ] ||
+         [ -n "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
+        echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"
+        echo "This workflow fails so that the pull request cannot be merged"
+        exit 1
+      fi
+    - dda inv -- -e release.check-omnibus-branches --no-worktree || exit 1
+    - exit 0
