@@ -1,7 +1,7 @@
 ---
 test_install_script:
   stage: install_script_testing
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
   tags: ["arch:amd64"]
   script:
     - set +x
@@ -13,6 +13,11 @@ test_install_script:
       --variable TESTING_APT_URL
       --variable TESTING_YUM_URL
       --variable TEST_PIPELINE_ID"
-  needs: ["deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64", "deploy_suse_rpm_testing_x64-a7"]
+  needs:
+    [
+      "deploy_deb_testing-a7_x64",
+      "deploy_rpm_testing-a7_x64",
+      "deploy_suse_rpm_testing_x64-a7",
+    ]
   rules:
     - !reference [.on_deploy]
