@@ -694,9 +694,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
-    assert (
-        match is not None
-    ), f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
+    assert match is not None, (
+        f'owner_branch_name should be "<owner-name>:<prefix>/<branch-name>" or "<owner-name>:<branch-name>" but is {owner_branch_name}'
+    )
     assert "'" not in owner_branch_name
 
     owner, branch = match.group('owner'), match.group('branch_name')
@@ -706,9 +706,9 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     status_res = ctx.run('git status --porcelain')
     assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
     branch_res = ctx.run('git branch', hide='stdout')
-    assert (
-        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
-    ), f'{owner_branch_name} branch already exists'
+    assert re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == [], (
+        f'{owner_branch_name} branch already exists'
+    )
     remote_res = ctx.run('git remote', hide='stdout')
     assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
 
@@ -856,24 +856,26 @@ def compare_to_itself(ctx):
     for attempt in range(max_attempts):
         print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created {attempt + 1}/{max_attempts}")
         time.sleep(30)
-        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
-        for pipeline in pipelines:
+        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             commit = agent.commits.get(pipeline.sha)
             if commit.author_name == BOT_NAME and commit.title == "Commit to compare to itself":
                 if pipeline.status == "skipped":
                     # DDCI: we need to trigger the pipeline
                     print(f"Triggering the CI execution for {new_branch}")
                     trigger_agent_pipeline(repo=agent, ref=new_branch)
-                    continue
                 else:
                     compare_to_pipeline = pipeline
                     print(f"Test pipeline found: {pipeline.web_url}")
+                # Either we found the pipeline or we need to wait for it to be created
+                # In both cases we can skip the loop
+                break
         if compare_to_pipeline:
             break
         if attempt == max_attempts - 1:
-            # Clean up the branch and possible pipelines
-            for pipeline in pipelines:
+            print("Cleaning up the pipelines")
+            for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
                 cancel_pipeline(pipeline)
+            print("Cleaning up git")
             ctx.run(f"git checkout {current_branch}", hide=True)
             ctx.run(f"git branch -D {new_branch}", hide=True)
             ctx.run(f"git push origin :{new_branch}", hide=True)
@@ -887,9 +889,8 @@ def compare_to_itself(ctx):
         else:
             print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
     finally:
-        # Clean up
         print("Cleaning up the pipelines")
-        for pipeline in pipelines:
+        for pipeline in agent.pipelines.list(ref=new_branch, get_all=True):
             cancel_pipeline(pipeline)
         print("Cleaning up git")
         ctx.run(f"git checkout {current_branch}", hide=True)
