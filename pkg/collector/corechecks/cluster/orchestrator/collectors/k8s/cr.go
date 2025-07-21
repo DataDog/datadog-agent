@@ -28,7 +28,6 @@ const (
 
 // NewCRCollectorVersion builds the group of collector versions.
 func NewCRCollectorVersion(resource string, groupVersion string) (*CRCollector, error) {
-
 	return NewCRCollector(resource, groupVersion)
 }
 
@@ -97,7 +96,6 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
-
 	if len(list) > c.maximumCRDQuota {
 		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, c.maximumCRDQuota))
 	}
