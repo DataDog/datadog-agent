@@ -332,35 +332,75 @@ func untar(t *testing.T, tarxzArchive string, destinationDir string) {
 }
 
 func TestCGroupFS(t *testing.T) {
-	tempDir := t.TempDir()
+	t.Run("cgroupv2", func(t *testing.T) {
+		tempDir := t.TempDir()
 
-	untar(t, "testdata/cgroupv2.tar.xz", tempDir)
+		untar(t, "testdata/cgroupv2.tar.xz", tempDir)
 
-	os.Setenv("HOST_PROC", filepath.Join(tempDir, "proc"))
-	os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+		hostProc := filepath.Join(tempDir, "proc")
 
-	cfs := NewCGroupFS()
-	cfs.cGroupMountPoints = []string{
-		filepath.Join(tempDir, "sys/fs/cgroup"),
-	}
-	cfs.detectCurrentCgroupPath()
+		os.Setenv("HOST_PROC", hostProc)
+		os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
 
-	t.Run("find-cgroup-context-ko", func(t *testing.T) {
-		_, _, _, err := cfs.FindCGroupContext(567, 567)
-		assert.Error(t, err)
+		cfs := NewCGroupFS()
+		cfs.cGroupMountPoints = []string{
+			filepath.Join(tempDir, "sys/fs/cgroup"),
+		}
+		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc))
+
+		t.Run("find-cgroup-context-ko", func(t *testing.T) {
+			_, _, _, err := cfs.FindCGroupContext(567, 567)
+			assert.Error(t, err)
+		})
+
+		t.Run("detect-current-cgroup-path", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf444bc33_254d_3cba_c5e8_ce94f864b774.slice/cri-containerd-6c70abd66a591fe3d997d8b1a0a4df08d35f6b2cd4a551b514533d27d7086e37.scope")
+			assert.Equal(t, expectedCgroupPath, cfs.GetRootCGroupPath())
+		})
+
+		t.Run("find-cgroup-context-ok", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf099a5b1_192b_4df6_b6d2_aa0b366fc2f1.slice/cri-containerd-b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17.scope")
+
+			containerID, _, cgroupPath, err := cfs.FindCGroupContext(600894, 600894)
+			assert.Equal(t, containerutils.ContainerID("b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17"), containerID)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedCgroupPath, cgroupPath)
+		})
 	})
 
-	t.Run("find-cgroup-context-ok", func(t *testing.T) {
-		expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf099a5b1_192b_4df6_b6d2_aa0b366fc2f1.slice/cri-containerd-b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17.scope")
+	t.Run("cgroupv1", func(t *testing.T) {
+		tempDir := t.TempDir()
 
-		containerID, _, cgroupPath, err := cfs.FindCGroupContext(600894, 600894)
-		assert.Equal(t, containerutils.ContainerID("b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17"), containerID)
-		assert.NoError(t, err)
-		assert.Equal(t, expectedCgroupPath, cgroupPath)
-	})
+		untar(t, "testdata/cgroupv1.tar.xz", tempDir)
 
-	t.Run("detect-current-cgroup-path", func(t *testing.T) {
-		expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf444bc33_254d_3cba_c5e8_ce94f864b774.slice/cri-containerd-6c70abd66a591fe3d997d8b1a0a4df08d35f6b2cd4a551b514533d27d7086e37.scope")
-		assert.Equal(t, expectedCgroupPath, cfs.GetRootCGroupPath())
+		hostProc := filepath.Join(tempDir, "proc")
+
+		os.Setenv("HOST_PROC", hostProc)
+		os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+
+		cfs := NewCGroupFS()
+		cfs.cGroupMountPoints = []string{
+			filepath.Join(tempDir, "sys/fs/cgroup"),
+		}
+		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc))
+
+		t.Run("find-cgroup-context-ko", func(t *testing.T) {
+			_, _, _, err := cfs.FindCGroupContext(567, 567)
+			assert.Error(t, err)
+		})
+
+		t.Run("detect-current-cgroup-path", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/pids/docker/027b54806f2263be225a934f5f083fd6ab718ddae9aedf441195c835ebf7f17d")
+			assert.Equal(t, expectedCgroupPath, cfs.GetRootCGroupPath())
+		})
+
+		t.Run("find-cgroup-context-ok", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/pids/docker/d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f")
+
+			containerID, _, cgroupPath, err := cfs.FindCGroupContext(18865, 18865)
+			assert.Equal(t, containerutils.ContainerID("d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f"), containerID)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedCgroupPath, cgroupPath)
+		})
 	})
 }

@@ -195,7 +195,8 @@ func NewCGroupFS() *CGroupFS {
 		}
 	}
 
-	cfs.detectCurrentCgroupPath()
+	// detect the current cgroup path in the pid namespace
+	cfs.detectCurrentCgroupPath(Getpid())
 
 	return cfs
 }
@@ -335,9 +336,7 @@ func isInCGroupNamespace(pid uint32) (bool, error) {
 }
 
 // DetectCurrentCgroupPath returns the cgroup path of the current process
-func (cfs *CGroupFS) detectCurrentCgroupPath() {
-	currentPid := Getpid()
-
+func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid uint32) {
 	// check if in a namespace
 	if inNamespace, err := isInCGroupNamespace(currentPid); err != nil || !inNamespace {
 		return
