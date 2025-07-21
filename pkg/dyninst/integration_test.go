@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -94,9 +95,11 @@ func TestDyninst(t *testing.T) {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, cfgs, rewrite, sem)
-		})
+		for _, cfg := range cfgs {
+			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
+				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
+			})
+		}
 	}
 }
 
@@ -140,7 +143,7 @@ func testDyninst(
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter)
+	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
@@ -237,20 +240,17 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	mef, err := object.NewMMappingElfFile(servicePath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, mef.Close()) }()
-	obj, err := object.NewElfObject(mef.Elf)
+	obj, err := object.OpenElfFile(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(mef)
+	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(obj.Underlying)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(mef)
+	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
@@ -290,6 +290,9 @@ func testDyninst(
 		var decodeOut bytes.Buffer
 		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Output: %s", decodeOut.String())
+		}
 		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
@@ -318,10 +321,14 @@ type probeOutputs map[string][]json.RawMessage
 func runIntegrationTestSuite(
 	t *testing.T,
 	service string,
-	configs []testprogs.Config,
+	cfg testprogs.Config,
 	rewrite bool,
 	sem semaphore,
 ) {
+	if cfg.GOARCH != runtime.GOARCH {
+		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
+		return
+	}
 	var outputs = struct {
 		sync.Mutex
 		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
@@ -343,43 +350,30 @@ func runIntegrationTestSuite(
 		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
 		require.NoError(t, err)
 	}
-	for _, cfg := range configs {
-		if cfg.GOARCH != runtime.GOARCH {
-			t.Skipf(
-				"cross-execution is not supported, running on %s, skipping %s",
-				runtime.GOARCH, cfg.GOARCH,
+	bin := testprogs.MustGetBinary(t, service, cfg)
+	for _, debug := range []bool{false, true} {
+		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+			t.Parallel()
+			actual := testDyninst(
+				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
 			)
-			continue
-		}
-		bin := testprogs.MustGetBinary(t, service, cfg)
-		for _, debug := range []bool{false, true} {
-			if testing.Short() && debug {
-				t.Skip("skipping debug mode in short mode")
+			if t.Failed() {
+				return
 			}
-			runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
-				t.Parallel()
-				actual := testDyninst(
-					t, service, bin, probeSlice, rewrite, expectedOutput, debug,
-					sem,
-				)
-				if t.Failed() {
-					return
-				}
-				outputs.Lock()
-				defer outputs.Unlock()
-				outputs.byTest[t.Name()] = actual
-			}
-			t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
-				t.Parallel()
-				t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
-				for i := range probes {
-					probeID := probes[i].GetID()
-					t.Run(probeID, func(t *testing.T) {
-						runTest(t, probes[i:i+1])
-					})
-				}
-			})
+			outputs.Lock()
+			defer outputs.Unlock()
+			outputs.byTest[t.Name()] = actual
 		}
+		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+			t.Parallel()
+			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+			for i := range probes {
+				probeID := probes[i].GetID()
+				t.Run(probeID, func(t *testing.T) {
+					runTest(t, probes[i:i+1])
+				})
+			}
+		})
 	}
 }
 

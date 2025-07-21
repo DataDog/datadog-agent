@@ -399,6 +399,7 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		Ports:                    modelService.Ports,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
+		LogFiles:                 modelService.LogFiles,
 	}
 }
 

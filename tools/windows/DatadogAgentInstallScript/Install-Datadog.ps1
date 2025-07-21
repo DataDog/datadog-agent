@@ -167,25 +167,87 @@ function Test-DatadogAgentPresence() {
 }
 
 function Update-DatadogAgentConfig() {
-   if ($env:DD_API_KEY) {
-      Write-Host "Writing DD_API_KEY"
-      Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
-   }
+    if ($env:DD_API_KEY) {
+        Write-Host "Writing DD_API_KEY"
+        Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
+    }
 
-   if ($env:DD_SITE) {
-      Write-Host "Writing DD_SITE"
-      Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
-   }
+    if ($env:DD_SITE) {
+        Write-Host "Writing DD_SITE"
+        Update-DatadogConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
+    }
 
-   if ($env:DD_URL) {
-      Write-Host "Writing DD_URL"
-      Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
-   }
+    if ($env:DD_URL) {
+        Write-Host "Writing DD_URL"
+        Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
+    }
 
-   if ($env:DD_REMOTE_UPDATES) {
-      Write-Host "Writing DD_REMOTE_UPDATES"
-      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
-   }
+    if ($env:DD_REMOTE_UPDATES) {
+        Write-Host "Writing DD_REMOTE_UPDATES"
+        Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
+    }
+
+    if ($env:DD_LOGS_ENABLED) {
+        Write-Host "Writing DD_LOGS_ENABLED"
+        Update-DatadogConfigFile "^[ #]*logs_enabled:.*" "logs_enabled: $($env:DD_LOGS_ENABLED.ToLower())"
+    }
+
+    if ($env:DD_TAGS) {
+        Write-Host "Writing DD_TAGS"
+
+        $tags = $env:DD_TAGS -split ","
+        $yamlTags = @("tags:") + ($tags | ForEach-Object { "  - $_" })
+
+        $configFile = Get-DatadogConfigPath
+        $lines = Get-Content $configFile
+        $output = @()
+
+        $inTagsBlock = $false
+        $didReplace = $false
+
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+
+            # Skip commented tag blocks
+            if ($line -match '^\s*#\s*tags:') {
+                $output += $line
+                continue
+            }
+
+            # Handle inline array: tags: ['env:staging', 'team:infra']
+            if (-not $didReplace -and $line -match '^\s*tags:\s*\[.*\]') {
+                $output += $yamlTags
+                $didReplace = $true
+                continue
+            }
+
+            # Only replace top-level tags:
+            if (-not $didReplace -and $line -match '^tags:\s*$') {
+                $output += $yamlTags
+                $didReplace = $true
+                $inTagsBlock = $true
+                continue
+            }
+
+            # If inside a tags block, skip original tag lines
+            if ($inTagsBlock) {
+                if ($line -match '^\s*-\s*\S+:') {
+                    continue
+                } else {
+                    $inTagsBlock = $false
+                }
+            }
+
+            $output += $line
+        }
+
+        # If no tags block found, append it
+        if (-not $didReplace) {
+            $output += $yamlTags
+        }
+
+        Set-Content -Path $configFile -Value $output
+    }
 }
 
 if ($env:SCRIPT_IMPORT_ONLY) {

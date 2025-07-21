@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
@@ -29,9 +31,9 @@ import (
 type Module struct {
 	procMon       *procmon.ProcessMonitor
 	actuator      *actuator.Actuator
-	controller    *controller
+	controller    *Controller
 	cancel        context.CancelFunc
-	logUploader   *uploader.LogsUploader
+	logUploader   *uploader.LogsUploaderFactory
 	diagsUploader *uploader.DiagnosticsUploader
 
 	close struct {
@@ -42,7 +44,10 @@ type Module struct {
 }
 
 // NewModule creates a new dynamic instrumentation module
-func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr error) {
+func NewModule(
+	config *Config,
+	subscriber process.Subscriber,
+) (_ *Module, retErr error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		if retErr != nil {
@@ -50,10 +55,16 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 		}
 	}()
 
-	logUploaderURL := config.LogUploaderURL
-	logUploader := uploader.NewLogsUploader(uploader.WithURL(logUploaderURL))
+	logUploaderURL, err := url.Parse(config.LogUploaderURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing log uploader URL: %w", err)
+	}
+	logUploader := uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
 
-	diagsUploaderURL := config.DiagsUploaderURL
+	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing diagnostics uploader URL: %w", err)
+	}
 	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
 
 	loader, err := loader.NewLoader()
@@ -63,9 +74,10 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 
 	actuator := actuator.NewActuator(loader)
 	rcScraper := rcscrape.NewScraper(actuator)
-	controller := newController(actuator, logUploader, diagsUploader, rcScraper)
+	controller := NewController(
+		actuator, logUploader, diagsUploader, rcScraper, DefaultDecoderFactory{},
+	)
 	procMon := procmon.NewProcessMonitor(&processHandler{
-		actuator:       controller.actuator,
 		scraperHandler: rcScraper.AsProcMonHandler(),
 		controller:     controller,
 	})
@@ -85,7 +97,10 @@ func NewModule(config *Config, subscriber process.Subscriber) (_ *Module, retErr
 			log.Errorf("error syncing process monitor: %v", err)
 		}
 	}()
-	go controller.Run(ctx)
+	// This is arbitrary. It's fast enough to not be a major source of
+	// latency and slow enough to not be a problem.
+	const defaultInterval = 200 * time.Millisecond
+	go controller.Run(ctx, defaultInterval)
 	return m, nil
 }
 

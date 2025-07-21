@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
+	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -71,7 +72,7 @@ func TestPytorchBatchedKernels(t *testing.T) {
 
 	telemetryMetrics, err := telemetryMock.GetCountMetric("gpu__consumer", "events")
 	require.NoError(t, err)
-	require.Equal(t, 4, len(telemetryMetrics)) // one for each event type
+	require.Equal(t, int(ebpf.CudaEventTypeCount), len(telemetryMetrics)) // one for each event type
 	expectedEventsByType := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].EventByType
 	for _, metric := range telemetryMetrics {
 		eventTypeTag := metric.Tags()["event_type"]

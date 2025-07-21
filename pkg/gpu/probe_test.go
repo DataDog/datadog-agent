@@ -111,10 +111,11 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	}
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String(): 1,
-		ebpf.CudaEventTypeSetDevice.String():    1,
-		ebpf.CudaEventTypeMemory.String():       2,
-		ebpf.CudaEventTypeSync.String():         4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeSetDevice.String():         1,
+		ebpf.CudaEventTypeMemory.String():            2,
+		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
 	}
 
 	for evName, value := range expectedEvents {
@@ -160,10 +161,7 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.NotNil(t, stats)
 	require.NotEmpty(t, stats.Metrics)
 
-	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
-	metrics := getMetricsEntry(metricKey, stats)
-	require.NotNil(t, metrics)
-
+	// Check expected events are received, using the telemetry counts
 	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
 	require.True(t, ok)
 
@@ -171,10 +169,11 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	require.NoError(t, err)
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String(): 1,
-		ebpf.CudaEventTypeSetDevice.String():    1,
-		ebpf.CudaEventTypeMemory.String():       2,
-		ebpf.CudaEventTypeSync.String():         4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeKernelLaunch.String():      1,
+		ebpf.CudaEventTypeSetDevice.String():         1,
+		ebpf.CudaEventTypeMemory.String():            2,
+		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
 	}
 
 	actualEvents := make(map[string]int)
@@ -189,8 +188,15 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 		require.Equal(t, value, actualEvents[evName], "event %s count mismatch", evName)
 	}
 
+	// Ensure the metrics we get are correct
+	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
+	metrics := getMetricsEntry(metricKey, stats)
+	require.NotNil(t, metrics)
 	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, metrics.Memory.MaxBytes, uint64(110))
+
+	// Check that the context was updated with the events
+	require.Equal(t, probe.sysCtx.cudaVisibleDevicesPerProcess[cmd.Process.Pid], "42")
 }
 
 func (s *probeTestSuite) TestMultiGPUSupport() {

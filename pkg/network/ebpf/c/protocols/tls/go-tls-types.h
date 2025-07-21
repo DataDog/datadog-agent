@@ -81,8 +81,8 @@ typedef struct {
 } tls_offsets_data_t;
 
 typedef struct {
-    __u32 pid;
     __s64 goroutine_id;
+    __u32 pid;
 } go_tls_function_args_key_t;
 
 typedef struct {

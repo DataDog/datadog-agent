@@ -6,7 +6,7 @@
   - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/version-manifest.json $S3_SBOM_STORAGE_URI/$CI_JOB_NAME/version-manifest.json
 
 .upload_sbom_artifacts_windows:
-  - Invoke-Expression "$S3_CP_CMD omnibus\pkg\version-manifest.json $S3_SBOM_STORAGE_URI/$CI_JOB_NAME/version-manifest.json"
+  - Invoke-Expression "$S3_CP_CMD omnibus\pkg\pipeline-$CI_PIPELINE_ID\version-manifest.json $S3_SBOM_STORAGE_URI/$CI_JOB_NAME/version-manifest.json"
   - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 include:
