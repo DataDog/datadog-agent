@@ -33,13 +33,6 @@ import (
 // sysObjectID. In this case the returned profile will still be non-nil, and
 // will be the same as what you'd get for an inline profile.
 func BuildProfile(sysObjectID string, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
-	fmt.Println("===========================")
-	fmt.Println("===========================")
-	fmt.Println("===========================")
-	fmt.Println("BUILD PROFILE CALLED")
-	fmt.Println("===========================")
-	fmt.Println("===========================")
-	fmt.Println("===========================")
 	var rootProfile *profiledefinition.ProfileDefinition
 	var profileErr error
 
@@ -81,14 +74,6 @@ func BuildProfile(sysObjectID string, sess session.Session, validConnection bool
 		profile.MetricTags = append(profile.MetricTags, rootProfile.MetricTags...)
 		profile.Device.Vendor = rootProfile.Device.Vendor
 	}
-	fmt.Println("==============================")
-	fmt.Println("==============================")
-	fmt.Println("==============================")
-	fmt.Println("MERGING DEFAULT METADATA")
-	fmt.Println("==============================")
-	fmt.Println("==============================")
-	fmt.Println("==============================")
-
 	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, sess, validConnection, config)
 
 	return profile, profileErr

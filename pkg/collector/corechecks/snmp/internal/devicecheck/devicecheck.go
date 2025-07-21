@@ -422,13 +422,6 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) (profiledefin
 	if err != nil {
 		return d.profileCache.GetProfile(), err
 	}
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("CALLING UPDATE FROM DETECTMETRICSTOMONITOR")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
-	fmt.Println("==========================")
 	profile, err := d.profileCache.Update(sysObjectID, time.Now(), sess, true, d.config)
 	if err != nil {
 		return profile, fmt.Errorf("failed to refresh profile cache: %w", err)

@@ -425,19 +425,6 @@ func checkOid(sess session.Session, oid string) bool {
 		return false
 	}
 
-	fmt.Println("========================")
-	fmt.Println("========================")
-	fmt.Println("========================")
-	fmt.Println("RESULT")
-	fmt.Println(result)
-	fmt.Println("VARIABLES")
-	fmt.Println(result.Variables)
-	fmt.Println("LEN VARIABLES")
-	fmt.Println(len(result.Variables))
-	fmt.Println("========================")
-	fmt.Println("========================")
-	fmt.Println("========================")
-
 	snmpPDU := result.Variables[0]
 	if snmpPDU.Type == gosnmp.NoSuchObject ||
 		snmpPDU.Type == gosnmp.NoSuchInstance ||
