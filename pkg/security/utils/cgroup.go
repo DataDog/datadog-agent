@@ -214,9 +214,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 	)
 
 	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) (bool, error) {
-		if path == "/" {
-			return false, nil
-		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
+		if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
 			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
 			// On cgroup v2, it's only a single line with ID 0 and no ctrl
 			// (Cf unit tests for examples)
@@ -231,7 +229,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
 		for _, mountpoint := range cfs.cGroupMountPoints {
 			// in case of relative path use rootCgroupPath
-			if strings.HasPrefix(path, "/..") {
+			if strings.HasPrefix(path, "/..") || path == "/" {
 				cgroupPath = filepath.Join(cfs.rootCGroupPath, path)
 			} else {
 				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
