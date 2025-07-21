@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorysoftwareimpl contains the implementation of the inventory software component
-package inventorysoftwareimpl
+// Package impl contains the implementation of the inventory software component
+package impl
 
 import (
 	"context"
