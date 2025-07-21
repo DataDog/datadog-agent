@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Correctly respect the `ecs_collect_resource_tags_ec2` variable when calling
+    the ECS Agent.  Start caching tags to reduce burden on the ECS Agent.
+    Start logging error responses from the ECS agent.

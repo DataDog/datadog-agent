@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func TestMissingProbeIssue(t *testing.T) {
@@ -26,10 +25,7 @@ func TestMissingProbeIssue(t *testing.T) {
 	bin := testprogs.MustGetBinary(t, testProg, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, testProg)
 
-	f, err := safeelf.Open(bin)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, f.Close()) }()
-	obj, err := object.NewElfObject(f)
+	obj, err := object.OpenElfFile(bin)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	probes = probes[:len(probes):len(probes)] // so appends realloc

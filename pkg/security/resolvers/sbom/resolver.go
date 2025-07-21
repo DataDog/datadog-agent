@@ -294,11 +294,13 @@ func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
 		report  *trivy.Report
 	)
 
+	cfs := utils.NewCGroupFS()
+
 	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for
 		// the flush to remove a pid, there might be a significant delay before a PID is removed from this list. Checking
 		// the container ID reduces drastically the likelihood of this race)
-		computedID, err := utils.GetProcContainerID(rootCandidatePID, rootCandidatePID)
+		computedID, _, _, err := cfs.FindCGroupContext(rootCandidatePID, rootCandidatePID)
 		if err != nil {
 			continue
 		}

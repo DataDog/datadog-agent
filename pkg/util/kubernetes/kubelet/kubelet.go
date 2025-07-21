@@ -271,9 +271,10 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
 				continue
 			}
-			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
+			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers)+len(pod.Status.EphemeralContainers))
 			allContainers = append(allContainers, pod.Status.InitContainers...)
 			allContainers = append(allContainers, pod.Status.Containers...)
+			allContainers = append(allContainers, pod.Status.EphemeralContainers...)
 			pod.Status.AllContainers = allContainers
 			tmpSlice = append(tmpSlice, pod)
 		}

@@ -130,3 +130,9 @@ func createDatadogClient(cfg configComponent.Component, logger logComp.Component
 	}
 	return newDatadogSingleClient(cfg, logger)
 }
+
+func (d *datadogClientWrapper) getNumberOfRefreshes() int {
+	d.mux.RLock()
+	defer d.mux.RUnlock()
+	return d.numberOfRefreshes
+}

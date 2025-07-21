@@ -75,6 +75,23 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		ResolvedAllocatedResources: nil,
 	}
 
+	containerIDGke := "gke-1234567890"
+	containerGke := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDGke,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDGke,
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: string(gpuutil.GpuNvidiaGeneric),
+				ID:   "nvidia0",
+			},
+		},
+	}
+
 	wmetaMock.Set(container)
 	storeContainer, err := wmetaMock.GetContainer(containerID)
 	require.NoError(t, err, "container should be found in the store")
@@ -82,6 +99,11 @@ func TestFilterDevicesForContainer(t *testing.T) {
 
 	wmetaMock.Set(containerNoGpu)
 	storeContainer, err = wmetaMock.GetContainer(containerIDNoGpu)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
+	wmetaMock.Set(containerGke)
+	storeContainer, err = wmetaMock.GetContainer(containerIDGke)
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
@@ -115,6 +137,13 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
 		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysDevices)
+	})
+
+	t.Run("ContainerWithGKEPlugin", func(t *testing.T) {
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerIDGke)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()[0:1])
 	})
 }
 
@@ -176,6 +205,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		containerID         string
 		configuredDeviceIdx []int32
 		expectedDeviceIdx   []int32
+		updatedEnvVar       string
 	}{
 		{
 			name:                "NoContainer",
@@ -205,10 +235,29 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			configuredDeviceIdx: []int32{1, 2},
 			expectedDeviceIdx:   []int32{containerDeviceIndexes[envVisibleDevices[1]], containerDeviceIndexes[envVisibleDevices[2]]},
 		},
+		{
+			name:                "NoContainerAndRuntimeEnvVar",
+			pid:                 pidNoContainer,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceIdx:   []int32{1},
+			updatedEnvVar:       "1",
+		},
+		{
+			name:                "NoContainerAndRuntimeUpdatedEnvVar",
+			pid:                 pidNoContainerButEnv,
+			configuredDeviceIdx: []int32{0},
+			expectedDeviceIdx:   []int32{1},
+			updatedEnvVar:       "1",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			if c.updatedEnvVar != "" {
+				sysCtx.setUpdatedVisibleDevicesEnvVar(c.pid, c.updatedEnvVar)
+				require.NotContains(t, sysCtx.visibleDevicesCache, c.pid, "cache not invalidated for process %d", c.pid)
+			}
+
 			for i, idx := range c.configuredDeviceIdx {
 				sysCtx.setDeviceSelection(c.pid, c.pid+i, idx)
 			}
@@ -218,6 +267,10 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 				require.NoError(t, err)
 				nvmltestutil.RequireDevicesEqual(t, sysCtx.deviceCache.All()[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}
+
+			// Note: we're explicitly not resetting the caches, as we want to test
+			// whether the functions correctly invalidate the caches when the
+			// environment variable is updated.
 		})
 	}
 }

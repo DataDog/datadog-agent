@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -16,9 +18,7 @@ import (
 type NetworkDeviceNode struct {
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-
-	Context model.NetworkDeviceContext
-
+	Context        model.NetworkDeviceContext
 	// FlowNodes are indexed by source IPPortContexts
 	FlowNodes map[model.FiveTuple]*FlowNode
 }
@@ -33,15 +33,15 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 	return node
 }
 
-func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string) {
+func (netdevice *NetworkDeviceNode) appendImageTag(imageTag string, timestamp time.Time) {
 	for _, flow := range netdevice.FlowNodes {
-		flow.appendImageTag(imageTag)
+		flow.AppendImageTag(imageTag, timestamp)
 	}
 }
 
 func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
 	for key, flow := range netdevice.FlowNodes {
-		if flow.evictImageTag(imageTag) {
+		if flow.EvictImageTag(imageTag) {
 			delete(netdevice.FlowNodes, key)
 		}
 	}
@@ -49,7 +49,7 @@ func (netdevice *NetworkDeviceNode) evictImageTag(imageTag string) bool {
 	return len(netdevice.FlowNodes) == 0
 }
 
-func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string, stats *Stats) bool {
+func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.NetworkFlowMonitorEvent, evt *model.Event, dryRun bool, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string, stats *Stats) bool {
 	if len(rules) > 0 {
 		netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
 	}
@@ -59,7 +59,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 		existingNode, ok := netdevice.FlowNodes[flow.GetFiveTuple()]
 		if ok {
 			if !dryRun {
-				existingNode.addFlow(flow, imageTag)
+				existingNode.addFlow(flow, evt, imageTag)
 			}
 		} else {
 			newFlow = true
@@ -68,7 +68,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 				return newFlow
 			}
 			// create new entry
-			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, generationType, imageTag)
+			netdevice.FlowNodes[flow.GetFiveTuple()] = NewFlowNode(flow, evt, generationType, imageTag)
 			stats.FlowNodes++
 		}
 	}

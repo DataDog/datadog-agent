@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
 // effect represents a side effect that can be recorded and serialized to YAML
@@ -84,45 +83,15 @@ func (e effectDetachFromProcess) yamlData() map[string]any {
 	}
 }
 
-type effectRegisterProgramWithDispatcher struct {
+type effectUnloadProgram struct {
 	programID ir.ProgramID
 }
 
-func (e effectRegisterProgramWithDispatcher) yamlTag() string {
-	return "!register-program-with-dispatcher"
+func (e effectUnloadProgram) yamlTag() string {
+	return "!unload-program"
 }
 
-func (e effectRegisterProgramWithDispatcher) yamlData() map[string]any {
-	return map[string]any{
-		"program_id": int(e.programID),
-	}
-}
-
-type effectUnregisterProgramWithDispatcher struct {
-	programID ir.ProgramID
-}
-
-func (e effectUnregisterProgramWithDispatcher) yamlTag() string {
-	return "!unregister-program-with-dispatcher"
-}
-
-func (e effectUnregisterProgramWithDispatcher) yamlData() map[string]any {
-	return map[string]any{
-		"program_id": int(e.programID),
-	}
-}
-
-// effectCloseSink is a special effect that marks when a program sink is
-// closed.
-type effectCloseSink struct {
-	programID ir.ProgramID
-}
-
-func (e effectCloseSink) yamlTag() string {
-	return "!close-sink"
-}
-
-func (e effectCloseSink) yamlData() map[string]any {
+func (e effectUnloadProgram) yamlData() map[string]any {
 	return map[string]any{
 		"program_id": int(e.programID),
 	}
@@ -189,17 +158,9 @@ func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
 	})
 }
 
-type closeEffectRecorderSink struct {
-	r         *effectRecorder
-	programID ir.ProgramID
-}
-
-func (s *closeEffectRecorderSink) HandleEvent(output.Event) error {
-	return nil
-}
-
-func (s *closeEffectRecorderSink) Close() {
-	s.r.effects = append(s.r.effects, effectCloseSink{
-		programID: s.programID,
+func (er *effectRecorder) unloadProgram(lp *loadedProgram) {
+	// For tests we just record that the sink and program are being closed.
+	er.recordEffect(effectUnloadProgram{
+		programID: lp.ir.ID,
 	})
 }
