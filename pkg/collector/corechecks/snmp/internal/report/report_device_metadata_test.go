@@ -12,11 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/buildprofile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -133,7 +133,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	require.NoError(t, err)
-	profile, err := config.BuildProfile("")
+	profile, err := buildprofile.BuildProfile("", nil, false, config)
 	require.NoError(t, err)
 
 	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, nil, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
@@ -218,7 +218,7 @@ profiles:
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	require.NoError(t, err)
-	profile, err := config.BuildProfile("")
+	profile, err := buildprofile.BuildProfile("", nil, false, config)
 	require.NoError(t, err)
 
 	ms.ReportNetworkDeviceMetadata(config, profile, storeWithoutIfName, []string{"tag1", "tag2"}, nil, collectTime,
