@@ -236,7 +236,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 			}
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
-				cgroupID := containerutils.CGroupID(path)
+				cgroupID := containerutils.CGroupID(cgroupPath)
 				ctrID, flags := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
 				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
