@@ -28,17 +28,19 @@ const (
 
 // NewCRCollectorVersion builds the group of collector versions.
 func NewCRCollectorVersion(resource string, groupVersion string) (*CRCollector, error) {
+
 	return NewCRCollector(resource, groupVersion)
 }
 
 // CRCollector is a collector for Kubernetes Custom Resources.
 // See https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/ for more detail.
 type CRCollector struct {
-	gvr       schema.GroupVersionResource
-	informer  informers.GenericInformer
-	lister    cache.GenericLister
-	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	gvr             schema.GroupVersionResource
+	informer        informers.GenericInformer
+	lister          cache.GenericLister
+	maximumCRDQuota int
+	metadata        *collectors.CollectorMetadata
+	processor       *processors.Processor
 }
 
 // NewCRCollector creates a new collector for Kubernetes CRs.
@@ -61,6 +63,10 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 		},
 		gvr:       gv.WithResource(name),
 		processor: processors.NewProcessor(new(k8sProcessors.CRHandlers)),
+
+		// Allow users to set max number of custom resources to collect
+		// but do not allow that to exceeded our definied maximum
+		maximumCRDQuota: min(pkgconfigsetup.Datadog().GetInt("orchestrator_explorer.custom_resource.max_count"), defaultMaximumCRDQuota),
 	}, nil
 }
 
@@ -92,12 +98,8 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 		return nil, collectors.NewListingError(err)
 	}
 
-	// Allow users to set max number of custom resources to collect
-	// but do not allow that to exceeded our definied maximum
-	maximumCRDQuota := min(pkgconfigsetup.Datadog().GetInt("orchestrator_explorer.custom_resource.max_count"), defaultMaximumCRDQuota)
-
-	if len(list) > maximumCRDQuota {
-		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, defaultMaximumCRDQuota))
+	if len(list) > c.maximumCRDQuota {
+		return nil, collectors.NewListingError(fmt.Errorf("crd collector %s/%s has reached to the limit %d, skipping it", c.metadata.Version, c.metadata.Name, c.maximumCRDQuota))
 	}
 
 	return c.Process(rcfg, list)
