@@ -93,7 +93,6 @@ func (n networkDeviceConfigImpl) retrieveConfiguration(ipAddress string, command
 			session.Close()
 			return "", n.log.Errorf("Command %s on device %s failed: %s\n", cmd, ipAddress, err)
 		}
-		n.log.Debugf("Output: %s\n", output)
 		result = append(result, string(output))
 		session.Close()
 	}
