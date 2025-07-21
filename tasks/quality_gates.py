@@ -173,12 +173,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     final_state = "success"
     gate_states = []
 
-    nightly_run = False
+    nightly_run = True if os.environ.get("BUCKET_BRANCH") == "nightly" else False
     branch = os.environ["CI_COMMIT_BRANCH"]
-
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
-        nightly_run = True
 
     for gate in gate_list:
         gate_inputs = config[gate]
