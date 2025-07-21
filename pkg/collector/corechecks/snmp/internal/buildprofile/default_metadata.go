@@ -6,6 +6,7 @@
 package buildprofile
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
@@ -421,6 +422,19 @@ func checkOid(sess session.Session, oid string) bool {
 		return false
 	}
 
+	fmt.Println("========================")
+	fmt.Println("========================")
+	fmt.Println("========================")
+	fmt.Println("RESULT")
+	fmt.Println(result)
+	fmt.Println("VARIABLES")
+	fmt.Println(result.Variables)
+	fmt.Println("LEN VARIABLES")
+	fmt.Println(len(result.Variables))
+	fmt.Println("========================")
+	fmt.Println("========================")
+	fmt.Println("========================")
+
 	// We check that the returned full OID starts with the parameter OID because
 	// SNMP GETNEXT command returns the next OID whether it's from the same OID or not
 	return strings.HasPrefix(strings.TrimPrefix(result.Variables[0].Name, "."), oid)
@@ -429,9 +443,14 @@ func checkOid(sess session.Session, oid string) bool {
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) profiledefinition.MetadataConfig {
 	newMetadataConfig := maps.Clone(metadataConfig)
+	if newMetadataConfig == nil {
+		newMetadataConfig = make(profiledefinition.MetadataConfig)
+	}
+
 	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
 		mergeMetadata(newMetadataConfig, defaultMetadataConfig, sess, validConnection, config)
 	}
+
 	return newMetadataConfig
 }
 
@@ -447,6 +466,8 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 		}
 
 		if _, exists := metadataConfig[resourceName]; !exists {
+			fmt.Println(metadataConfig[resourceName])
+			fmt.Println(resourceConfig)
 			metadataConfig[resourceName] = resourceConfig.ToMetadataResourceConfig()
 		}
 	}
