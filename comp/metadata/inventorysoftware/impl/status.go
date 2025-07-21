@@ -16,34 +16,46 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Name renders the name
+// Name returns the display name for the software inventory status section.
+// This name appears in the agent status output to identify the software inventory
+// metadata section.
 func (is *inventorySoftware) Name() string {
 	return "Software Inventory Metadata"
 }
 
-// Index renders the index
+// Index returns the display order for the software inventory status section.
+// Lower numbers appear earlier in the status output. The value 4 places this
+// section after core components but before other metadata sections.
 func (is *inventorySoftware) Index() int {
 	return 4
 }
 
-// JSON populates the status map
+// JSON populates the status map with software inventory data in JSON format.
+// This method is called when generating JSON status output and adds the
+// software inventory information to the provided stats map.
 func (is *inventorySoftware) JSON(_ bool, stats map[string]interface{}) error {
 	is.populateStatus(stats)
 
 	return nil
 }
 
-// Text renders the text output
+// Text renders the text output for the software inventory status section.
+// This method uses the embedded template to generate human-readable text
+// output showing the software inventory information.
 func (is *inventorySoftware) Text(_ bool, buffer io.Writer) error {
 	return status.RenderText(templatesFS, "inventory.tmpl", buffer, is.getStatusInfo())
 }
 
-// HTML renders the html output
+// HTML renders the html output for the software inventory status section.
+// This method uses the embedded template to generate HTML output showing
+// the software inventory information in a web-friendly format.
 func (is *inventorySoftware) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "inventoryHTML.tmpl", buffer, is.getStatusInfo())
 }
 
-// For display in status we format the date as YYYYMMDD
+// formatYYYYMMDD converts a timestamp string to YYYY/MM/DD format for display.
+// This function is used to format installation dates in a human-readable format
+// for the status output. It expects the input to be in RFC3339 format.
 func formatYYYYMMDD(ts string) (string, error) {
 	t, err := time.Parse(time.RFC3339, ts)
 	if err != nil {
@@ -52,6 +64,10 @@ func formatYYYYMMDD(ts string) (string, error) {
 	return t.Format("2006/01/02"), nil
 }
 
+// populateStatus populates the status map with software inventory data.
+// This method processes the cached inventory data and formats it for display
+// in the status output. It handles date formatting and organizes the data
+// by software ID for easy lookup.
 func (is *inventorySoftware) populateStatus(status map[string]interface{}) {
 	data := map[string]interface{}{}
 	if is.cachedInventory == nil {
@@ -64,6 +80,9 @@ func (is *inventorySoftware) populateStatus(status map[string]interface{}) {
 	status["software_inventory_metadata"] = data
 }
 
+// getStatusInfo returns the status information map for the software inventory.
+// This method prepares all the data needed for status rendering, including
+// the processed software inventory information.
 func (is *inventorySoftware) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
