@@ -55,8 +55,8 @@ message SpanLink {
    map<uint32, AnyValue> attributes = 3;
    // tracestateRef specifies the string table ref of the W3C tracestate.
    uint32 tracestateRef = 4;
-   // flagsRef specifies the string table ref of the W3C trace flags. Optional. If set, the high bit (bit 31) must be set.
-   uint32 flagsRef = 5;
+   // flags specifies the W3C trace flags. Optional. If set, the high bit (bit 31) must be set.
+   uint32 flags = 5;
 }
 
 message SpanEvent {
@@ -90,9 +90,9 @@ message Span {
     // typeRef is the string table ref of the type of the service with which this span is associated.  Example values: web, db, lambda.
     uint32 typeRef = 10;
     // span_links represents a collection of links, where each link defines a causal relationship between two spans.
-    repeated SpanLink spanLinks = 11;
+    repeated SpanLink links = 11;
     // spanEvents represent an event at an instant in time related to this span, but not necessarily during the span.
-    repeated SpanEvent spanEvents = 12;
+    repeated SpanEvent events = 12;
     // envRef is the string table ref of the optional string environment of this span.
     uint32 envRef = 13;
     // versionRef is the string table ref of the optional string version of this span.

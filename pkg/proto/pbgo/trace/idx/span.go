@@ -557,6 +557,33 @@ func MarshalAttributesMap(bts []byte, attributes map[uint32]*AnyValue, strings *
 	return
 }
 
+func (val *AnyValue) Msgsize() int {
+	size := msgp.Uint32Size // For the type
+	switch v := val.Value.(type) {
+	case *AnyValue_StringValueRef:
+		size += msgp.Uint32Size
+	case *AnyValue_BoolValue:
+		size += msgp.BoolSize
+	case *AnyValue_DoubleValue:
+		size += msgp.Float64Size
+	case *AnyValue_IntValue:
+		size += msgp.Int64Size
+	case *AnyValue_BytesValue:
+		size += msgp.BytesPrefixSize + len(v.BytesValue)
+	case *AnyValue_ArrayValue:
+		size += msgp.ArrayHeaderSize
+		for _, value := range v.ArrayValue.Values {
+			size += value.Msgsize()
+		}
+	case *AnyValue_KeyValueList:
+		for _, value := range v.KeyValueList.KeyValues {
+			size += msgp.ArrayHeaderSize                    // Each KV is an array of 3 elements: (key, type of value, value)
+			size += msgp.Uint32Size + value.Value.Msgsize() // Key size + Value size (includes type)
+		}
+	}
+	return size
+}
+
 // MarshalMsg marshals an AnyValue into a byte stream
 func (val *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
 	var err error

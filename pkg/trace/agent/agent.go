@@ -66,6 +66,9 @@ type TraceWriter interface {
 	// WriteChunks to be written
 	WriteChunks(pkg *writer.SampledChunks)
 
+	// WriteChunksV1 to be written
+	WriteChunksV1(pkg *writer.SampledChunksV1)
+
 	// FlushSync blocks and sends pending payloads when syncMode is true
 	FlushSync() error
 
@@ -492,7 +495,7 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 }
 
-// Process is the default work unit that receives a trace, transforms it and
+// ProcessV1 is the default work unit for a V1 payload that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	if len(p.TracerPayload.Chunks) == 0 {
@@ -605,23 +608,25 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
 		}
 		sampledChunks.EventCount += int64(numEvents)
-		// sampledChunks.Size += pt.TraceChunk.Msgsize()
-		// 	i++
+		// Yes this is the msgpack size of the trace chunk not the protobuf size.
+		// This is still a good approximation of the size of the trace chunk and copies the existing logic.
+		sampledChunks.Size += pt.TraceChunk.Msgsize()
+		i++
 
-		// 	if sampledChunks.Size > writer.MaxPayloadSize {
-		// 		// payload size is getting big; split and flush what we have so far
-		// 		sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
-		// 		i = 0
-		// 		sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-		// 		a.TraceWriter.WriteChunks(sampledChunks)
-		// 		sampledChunks = new(writer.SampledChunks)
-		// 	}
+		if sampledChunks.Size > writer.MaxPayloadSize {
+			// payload size is getting big; split and flush what we have so far
+			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
+			i = 0
+			sampledChunks.TracerPayload.Chunks = newChunksArrayV1(sampledChunks.TracerPayload.Chunks)
+			a.TraceWriter.WriteChunksV1(sampledChunks)
+			sampledChunks = new(writer.SampledChunksV1)
+		}
 	}
-	// sampledChunks.TracerPayload = p.TracerPayload
-	// sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
-	// if sampledChunks.Size > 0 {
-	// 	a.TraceWriter.WriteChunks(sampledChunks)
-	// }
+	sampledChunks.TracerPayload = p.TracerPayload
+	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
+	if sampledChunks.Size > 0 {
+		a.TraceWriter.WriteChunksV1(sampledChunks)
+	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.AddV1(statsInput)
 	}
@@ -683,6 +688,12 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 	newChunks := make([]*pb.TraceChunk, len(chunks))
+	copy(newChunks, chunks)
+	return newChunks
+}
+
+func newChunksArrayV1(chunks []*idx.InternalTraceChunk) []*idx.InternalTraceChunk {
+	newChunks := make([]*idx.InternalTraceChunk, len(chunks))
 	copy(newChunks, chunks)
 	return newChunks
 }

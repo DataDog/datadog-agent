@@ -440,10 +440,9 @@ func (z AttributeArrayValue_AttributeArrayValueType) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Span) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// check for omitted fields
+	// omitempty: check for empty values
 	zb0001Len := uint32(15)
 	var zb0001Mask uint16 /* 15 bits */
-	_ = zb0001Mask
 	if z.Meta == nil {
 		zb0001Len--
 		zb0001Mask |= 0x200
@@ -466,95 +465,94 @@ func (z *Span) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
-
-	// skip if no fields are to be emitted
-	if zb0001Len != 0 {
-		// string "service"
-		o = append(o, 0xa7, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
-		o = msgp.AppendString(o, z.Service)
-		// string "name"
-		o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
-		o = msgp.AppendString(o, z.Name)
-		// string "resource"
-		o = append(o, 0xa8, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65)
-		o = msgp.AppendString(o, z.Resource)
-		// string "trace_id"
-		o = append(o, 0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
-		o = msgp.AppendUint64(o, z.TraceID)
-		// string "span_id"
-		o = append(o, 0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
-		o = msgp.AppendUint64(o, z.SpanID)
-		// string "parent_id"
-		o = append(o, 0xa9, 0x70, 0x61, 0x72, 0x65, 0x6e, 0x74, 0x5f, 0x69, 0x64)
-		o = msgp.AppendUint64(o, z.ParentID)
-		// string "start"
-		o = append(o, 0xa5, 0x73, 0x74, 0x61, 0x72, 0x74)
-		o = msgp.AppendInt64(o, z.Start)
-		// string "duration"
-		o = append(o, 0xa8, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e)
-		o = msgp.AppendInt64(o, z.Duration)
-		// string "error"
-		o = append(o, 0xa5, 0x65, 0x72, 0x72, 0x6f, 0x72)
-		o = msgp.AppendInt32(o, z.Error)
-		if (zb0001Mask & 0x200) == 0 { // if not omitted
-			// string "meta"
-			o = append(o, 0xa4, 0x6d, 0x65, 0x74, 0x61)
-			o = msgp.AppendMapHeader(o, uint32(len(z.Meta)))
-			for za0001, za0002 := range z.Meta {
-				o = msgp.AppendString(o, za0001)
-				o = msgp.AppendString(o, za0002)
-			}
+	if zb0001Len == 0 {
+		return
+	}
+	// string "service"
+	o = append(o, 0xa7, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
+	o = msgp.AppendString(o, z.Service)
+	// string "name"
+	o = append(o, 0xa4, 0x6e, 0x61, 0x6d, 0x65)
+	o = msgp.AppendString(o, z.Name)
+	// string "resource"
+	o = append(o, 0xa8, 0x72, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65)
+	o = msgp.AppendString(o, z.Resource)
+	// string "trace_id"
+	o = append(o, 0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.TraceID)
+	// string "span_id"
+	o = append(o, 0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.SpanID)
+	// string "parent_id"
+	o = append(o, 0xa9, 0x70, 0x61, 0x72, 0x65, 0x6e, 0x74, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.ParentID)
+	// string "start"
+	o = append(o, 0xa5, 0x73, 0x74, 0x61, 0x72, 0x74)
+	o = msgp.AppendInt64(o, z.Start)
+	// string "duration"
+	o = append(o, 0xa8, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendInt64(o, z.Duration)
+	// string "error"
+	o = append(o, 0xa5, 0x65, 0x72, 0x72, 0x6f, 0x72)
+	o = msgp.AppendInt32(o, z.Error)
+	if (zb0001Mask & 0x200) == 0 { // if not empty
+		// string "meta"
+		o = append(o, 0xa4, 0x6d, 0x65, 0x74, 0x61)
+		o = msgp.AppendMapHeader(o, uint32(len(z.Meta)))
+		for za0001, za0002 := range z.Meta {
+			o = msgp.AppendString(o, za0001)
+			o = msgp.AppendString(o, za0002)
 		}
-		if (zb0001Mask & 0x400) == 0 { // if not omitted
-			// string "metrics"
-			o = append(o, 0xa7, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73)
-			o = msgp.AppendMapHeader(o, uint32(len(z.Metrics)))
-			for za0003, za0004 := range z.Metrics {
-				o = msgp.AppendString(o, za0003)
-				o = msgp.AppendFloat64(o, za0004)
-			}
+	}
+	if (zb0001Mask & 0x400) == 0 { // if not empty
+		// string "metrics"
+		o = append(o, 0xa7, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73)
+		o = msgp.AppendMapHeader(o, uint32(len(z.Metrics)))
+		for za0003, za0004 := range z.Metrics {
+			o = msgp.AppendString(o, za0003)
+			o = msgp.AppendFloat64(o, za0004)
 		}
-		// string "type"
-		o = append(o, 0xa4, 0x74, 0x79, 0x70, 0x65)
-		o = msgp.AppendString(o, z.Type)
-		if (zb0001Mask & 0x1000) == 0 { // if not omitted
-			// string "meta_struct"
-			o = append(o, 0xab, 0x6d, 0x65, 0x74, 0x61, 0x5f, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74)
-			o = msgp.AppendMapHeader(o, uint32(len(z.MetaStruct)))
-			for za0005, za0006 := range z.MetaStruct {
-				o = msgp.AppendString(o, za0005)
-				o = msgp.AppendBytes(o, za0006)
-			}
+	}
+	// string "type"
+	o = append(o, 0xa4, 0x74, 0x79, 0x70, 0x65)
+	o = msgp.AppendString(o, z.Type)
+	if (zb0001Mask & 0x1000) == 0 { // if not empty
+		// string "meta_struct"
+		o = append(o, 0xab, 0x6d, 0x65, 0x74, 0x61, 0x5f, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74)
+		o = msgp.AppendMapHeader(o, uint32(len(z.MetaStruct)))
+		for za0005, za0006 := range z.MetaStruct {
+			o = msgp.AppendString(o, za0005)
+			o = msgp.AppendBytes(o, za0006)
 		}
-		if (zb0001Mask & 0x2000) == 0 { // if not omitted
-			// string "span_links"
-			o = append(o, 0xaa, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x6c, 0x69, 0x6e, 0x6b, 0x73)
-			o = msgp.AppendArrayHeader(o, uint32(len(z.SpanLinks)))
-			for za0007 := range z.SpanLinks {
-				if z.SpanLinks[za0007] == nil {
-					o = msgp.AppendNil(o)
-				} else {
-					o, err = z.SpanLinks[za0007].MarshalMsg(o)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanLinks", za0007)
-						return
-					}
+	}
+	if (zb0001Mask & 0x2000) == 0 { // if not empty
+		// string "span_links"
+		o = append(o, 0xaa, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x6c, 0x69, 0x6e, 0x6b, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.SpanLinks)))
+		for za0007 := range z.SpanLinks {
+			if z.SpanLinks[za0007] == nil {
+				o = msgp.AppendNil(o)
+			} else {
+				o, err = z.SpanLinks[za0007].MarshalMsg(o)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanLinks", za0007)
+					return
 				}
 			}
 		}
-		if (zb0001Mask & 0x4000) == 0 { // if not omitted
-			// string "span_events"
-			o = append(o, 0xab, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x73)
-			o = msgp.AppendArrayHeader(o, uint32(len(z.SpanEvents)))
-			for za0008 := range z.SpanEvents {
-				if z.SpanEvents[za0008] == nil {
-					o = msgp.AppendNil(o)
-				} else {
-					o, err = z.SpanEvents[za0008].MarshalMsg(o)
-					if err != nil {
-						err = msgp.WrapError(err, "SpanEvents", za0008)
-						return
-					}
+	}
+	if (zb0001Mask & 0x4000) == 0 { // if not empty
+		// string "span_events"
+		o = append(o, 0xab, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x65, 0x76, 0x65, 0x6e, 0x74, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.SpanEvents)))
+		for za0008 := range z.SpanEvents {
+			if z.SpanEvents[za0008] == nil {
+				o = msgp.AppendNil(o)
+			} else {
+				o, err = z.SpanEvents[za0008].MarshalMsg(o)
+				if err != nil {
+					err = msgp.WrapError(err, "SpanEvents", za0008)
+					return
 				}
 			}
 		}
@@ -1035,10 +1033,9 @@ func (z *SpanEvent) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *SpanLink) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// check for omitted fields
+	// omitempty: check for empty values
 	zb0001Len := uint32(6)
 	var zb0001Mask uint8 /* 6 bits */
-	_ = zb0001Mask
 	if z.TraceIDHigh == 0 {
 		zb0001Len--
 		zb0001Mask |= 0x2
@@ -1057,39 +1054,38 @@ func (z *SpanLink) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
-
-	// skip if no fields are to be emitted
-	if zb0001Len != 0 {
-		// string "trace_id"
-		o = append(o, 0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
-		o = msgp.AppendUint64(o, z.TraceID)
-		if (zb0001Mask & 0x2) == 0 { // if not omitted
-			// string "trace_id_high"
-			o = append(o, 0xad, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x5f, 0x68, 0x69, 0x67, 0x68)
-			o = msgp.AppendUint64(o, z.TraceIDHigh)
+	if zb0001Len == 0 {
+		return
+	}
+	// string "trace_id"
+	o = append(o, 0xa8, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.TraceID)
+	if (zb0001Mask & 0x2) == 0 { // if not empty
+		// string "trace_id_high"
+		o = append(o, 0xad, 0x74, 0x72, 0x61, 0x63, 0x65, 0x5f, 0x69, 0x64, 0x5f, 0x68, 0x69, 0x67, 0x68)
+		o = msgp.AppendUint64(o, z.TraceIDHigh)
+	}
+	// string "span_id"
+	o = append(o, 0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
+	o = msgp.AppendUint64(o, z.SpanID)
+	if (zb0001Mask & 0x8) == 0 { // if not empty
+		// string "attributes"
+		o = append(o, 0xaa, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73)
+		o = msgp.AppendMapHeader(o, uint32(len(z.Attributes)))
+		for za0001, za0002 := range z.Attributes {
+			o = msgp.AppendString(o, za0001)
+			o = msgp.AppendString(o, za0002)
 		}
-		// string "span_id"
-		o = append(o, 0xa7, 0x73, 0x70, 0x61, 0x6e, 0x5f, 0x69, 0x64)
-		o = msgp.AppendUint64(o, z.SpanID)
-		if (zb0001Mask & 0x8) == 0 { // if not omitted
-			// string "attributes"
-			o = append(o, 0xaa, 0x61, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x73)
-			o = msgp.AppendMapHeader(o, uint32(len(z.Attributes)))
-			for za0001, za0002 := range z.Attributes {
-				o = msgp.AppendString(o, za0001)
-				o = msgp.AppendString(o, za0002)
-			}
-		}
-		if (zb0001Mask & 0x10) == 0 { // if not omitted
-			// string "tracestate"
-			o = append(o, 0xaa, 0x74, 0x72, 0x61, 0x63, 0x65, 0x73, 0x74, 0x61, 0x74, 0x65)
-			o = msgp.AppendString(o, z.Tracestate)
-		}
-		if (zb0001Mask & 0x20) == 0 { // if not omitted
-			// string "flags"
-			o = append(o, 0xa5, 0x66, 0x6c, 0x61, 0x67, 0x73)
-			o = msgp.AppendUint32(o, z.Flags)
-		}
+	}
+	if (zb0001Mask & 0x10) == 0 { // if not empty
+		// string "tracestate"
+		o = append(o, 0xaa, 0x74, 0x72, 0x61, 0x63, 0x65, 0x73, 0x74, 0x61, 0x74, 0x65)
+		o = msgp.AppendString(o, z.Tracestate)
+	}
+	if (zb0001Mask & 0x20) == 0 { // if not empty
+		// string "flags"
+		o = append(o, 0xa5, 0x66, 0x6c, 0x61, 0x67, 0x73)
+		o = msgp.AppendUint32(o, z.Flags)
 	}
 	return
 }

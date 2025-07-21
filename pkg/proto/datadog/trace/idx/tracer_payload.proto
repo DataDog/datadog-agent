@@ -42,8 +42,8 @@ message TracerPayload {
 	uint32 envRef = 7;
 	// hostnameRef specifies the string table ref of the hostname of where the tracer is running.
 	uint32 hostnameRef = 8;
-	// versionRef specifies the string table ref of the `version` tag that set with the tracer.
-	uint32 versionRef = 9;
+	// appVersionRef specifies the string table ref of the `version` tag set in the tracer.
+	uint32 appVersionRef = 9;
 	// a collection of key to value pairs common in all `chunks`
 	map<uint32, AnyValue> attributes = 10;
 	// chunks specifies list of containing trace chunks.

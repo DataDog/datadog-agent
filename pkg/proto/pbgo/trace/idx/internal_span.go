@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
@@ -24,6 +26,16 @@ func NewStringTable() *StringTable {
 		strings: []string{""},
 		lookup:  map[string]uint32{"": 0},
 	}
+}
+
+func (s *StringTable) Msgsize() int {
+	size := 0
+	size += msgp.ArrayHeaderSize
+	size += msgp.StringPrefixSize * len(s.strings)
+	for _, str := range s.strings {
+		size += len(str)
+	}
+	return size
 }
 
 // addUnchecked adds a string to the string table without checking for duplicates
@@ -84,6 +96,26 @@ type InternalTracerPayload struct {
 	Attributes map[uint32]*AnyValue
 	// chunks specifies list of containing trace chunks.
 	Chunks []*InternalTraceChunk
+}
+
+func (tp *InternalTracerPayload) ToProto() *TracerPayload {
+	chunks := make([]*TraceChunk, len(tp.Chunks))
+	for i, chunk := range tp.Chunks {
+		chunks[i] = chunk.ToProto()
+	}
+	return &TracerPayload{
+		Strings:            tp.Strings.strings, // TODO: How do we make this work? This will include strings that are not in the payload.
+		ContainerIDRef:     tp.ContainerIDRef,
+		LanguageNameRef:    tp.LanguageNameRef,
+		LanguageVersionRef: tp.LanguageVersionRef,
+		TracerVersionRef:   tp.TracerVersionRef,
+		RuntimeIDRef:       tp.RuntimeIDRef,
+		EnvRef:             tp.EnvRef,
+		HostnameRef:        tp.HostnameRef,
+		AppVersionRef:      tp.AppVersionRef,
+		Attributes:         tp.Attributes,
+		Chunks:             chunks,
+	}
 }
 
 func (tp *InternalTracerPayload) Hostname() string {
@@ -161,6 +193,32 @@ func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
 	}
 }
 
+// Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
+// and keeps [i, n-1] chunks in the original payload `p`.
+func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
+	if i < 0 {
+		i = 0
+	}
+	if i > len(tp.Chunks) {
+		i = len(tp.Chunks)
+	}
+	newPayload := InternalTracerPayload{
+		Strings:            tp.Strings,
+		ContainerIDRef:     tp.ContainerIDRef,
+		LanguageNameRef:    tp.LanguageNameRef,
+		LanguageVersionRef: tp.LanguageVersionRef,
+		TracerVersionRef:   tp.TracerVersionRef,
+		RuntimeIDRef:       tp.RuntimeIDRef,
+		EnvRef:             tp.EnvRef,
+		HostnameRef:        tp.HostnameRef,
+		AppVersionRef:      tp.AppVersionRef,
+		Attributes:         tp.Attributes,
+	}
+	newPayload.Chunks = tp.Chunks[:i]
+	tp.Chunks = tp.Chunks[i:]
+	return &newPayload
+}
+
 // InternalTraceChunk is a trace chunk structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a trace chunk holds all local context necessary to understand all fields
@@ -187,6 +245,25 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 		TraceID:          c.TraceID,
 		DecisionMakerRef: c.DecisionMakerRef,
 	}
+}
+
+func (c *InternalTraceChunk) Msgsize() int {
+	size := 0
+	size += c.Strings.Msgsize()
+	size += msgp.Int32Size     // Priority
+	size += msgp.Uint32Size    // OriginRef
+	size += msgp.MapHeaderSize // Attributes
+	for _, attr := range c.Attributes {
+		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
+	}
+	size += msgp.ArrayHeaderSize // Spans
+	for _, span := range c.Spans {
+		size += span.Msgsize()
+	}
+	size += msgp.BoolSize             // DroppedTrace
+	size += msgp.BytesPrefixSize + 16 // TraceID (128 bits)
+	size += msgp.Uint32Size           // DecisionMakerRef
+	return size
 }
 
 // LegacyTraceID returns the trace ID of the trace chunk as a uint64, the lowest order 8 bytes of the trace ID are the legacy trace ID
@@ -224,6 +301,23 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 		Value: &AnyValue_StringValueRef{
 			StringValueRef: c.Strings.Add(value),
 		},
+	}
+}
+
+// ToProto converts an InternalTraceChunk to a proto TraceChunk
+func (c *InternalTraceChunk) ToProto() *TraceChunk {
+	spans := make([]*Span, len(c.Spans))
+	for i, span := range c.Spans {
+		spans[i] = span.ToProto()
+	}
+	return &TraceChunk{
+		Priority:         c.Priority,
+		OriginRef:        c.OriginRef,
+		Attributes:       c.Attributes,
+		Spans:            spans,
+		DroppedTrace:     c.DroppedTrace,
+		TraceID:          c.TraceID,
+		DecisionMakerRef: c.DecisionMakerRef,
 	}
 }
 
@@ -267,6 +361,37 @@ type InternalSpan struct {
 	Kind SpanKind
 }
 
+// TODO: this causes an extra allocation, how can we directly serialize exactly what we need?
+// ToProto converts an InternalSpan to a proto Span
+func (s *InternalSpan) ToProto() *Span {
+	spanLinks := make([]*SpanLink, len(s.SpanLinks))
+	for i, link := range s.SpanLinks {
+		spanLinks[i] = link.ToProto()
+	}
+	spanEvents := make([]*SpanEvent, len(s.SpanEvents))
+	for i, event := range s.SpanEvents {
+		spanEvents[i] = event.ToProto()
+	}
+	return &Span{
+		ServiceRef:   s.ServiceRef,
+		NameRef:      s.NameRef,
+		ResourceRef:  s.ResourceRef,
+		SpanID:       s.SpanID,
+		ParentID:     s.ParentID,
+		Start:        s.Start,
+		Duration:     s.Duration,
+		Error:        s.Error,
+		Attributes:   s.Attributes,
+		TypeRef:      s.TypeRef,
+		Links:        spanLinks,
+		Events:       spanEvents,
+		EnvRef:       s.EnvRef,
+		VersionRef:   s.VersionRef,
+		ComponentRef: s.ComponentRef,
+		Kind:         s.Kind,
+	}
+}
+
 // TODO: add a test to verify we have all fields
 func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	return &InternalSpan{
@@ -288,6 +413,38 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 		ComponentRef: s.ComponentRef,
 		Kind:         s.Kind,
 	}
+}
+
+// TODO: how can we maintain this as we add more fields?
+func (s *InternalSpan) Msgsize() int {
+	size := 0
+	size += msgp.MapHeaderSize                   // Header (All fields are key-value pairs, uint32 for keys)
+	size += msgp.Uint32Size + msgp.Uint32Size    // ServiceRef
+	size += msgp.Uint32Size + msgp.Uint32Size    // NameRef
+	size += msgp.Uint32Size + msgp.Uint32Size    // ResourceRef
+	size += msgp.Uint32Size + msgp.Uint64Size    // SpanID
+	size += msgp.Uint32Size + msgp.Uint64Size    // ParentID
+	size += msgp.Uint32Size + msgp.Uint64Size    // Start
+	size += msgp.Uint32Size + msgp.Uint64Size    // Duration
+	size += msgp.Uint32Size + msgp.BoolSize      // Error
+	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
+	for _, attr := range s.Attributes {
+		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
+	}
+	size += msgp.Uint32Size + msgp.Uint32Size      // TypeRef
+	size += msgp.Uint32Size + msgp.ArrayHeaderSize // SpanLinks
+	for _, link := range s.SpanLinks {
+		size += link.Msgsize()
+	}
+	size += msgp.Uint32Size + msgp.ArrayHeaderSize // SpanEvents
+	for _, event := range s.SpanEvents {
+		size += event.Msgsize()
+	}
+	size += msgp.Uint32Size + msgp.Uint32Size // EnvRef
+	size += msgp.Uint32Size + msgp.Uint32Size // VersionRef
+	size += msgp.Uint32Size + msgp.Uint32Size // ComponentRef
+	size += msgp.Uint32Size + msgp.Uint32Size // Kind
+	return size
 }
 
 // SpanKind returns the string representation of the span kind
@@ -434,6 +591,30 @@ type InternalSpanLink struct {
 	Flags         uint32
 }
 
+func (sl *InternalSpanLink) ToProto() *SpanLink {
+	return &SpanLink{
+		TraceID:       sl.TraceID,
+		SpanID:        sl.SpanID,
+		Attributes:    sl.Attributes,
+		TracestateRef: sl.TracestateRef,
+		Flags:         sl.Flags,
+	}
+}
+
+func (sl *InternalSpanLink) Msgsize() int {
+	size := 0
+	size += msgp.MapHeaderSize                          // Map
+	size += msgp.Uint32Size + msgp.BytesPrefixSize + 16 // TraceID (128 bits)
+	size += msgp.Uint32Size + msgp.Uint64Size           // SpanID
+	size += msgp.Uint32Size + msgp.MapHeaderSize        // Attributes
+	for _, attr := range sl.Attributes {
+		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
+	}
+	size += msgp.Uint32Size + msgp.Uint32Size // TracestateRef
+	size += msgp.Uint32Size + msgp.Uint32Size // Flags
+	return size
+}
+
 func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
 	if attr, ok := sl.Attributes[sl.Strings.Lookup(key)]; ok {
 		return attr.AsString(sl.Strings), true
@@ -462,6 +643,26 @@ type InternalSpanEvent struct {
 	Time       uint64
 	NameRef    uint32
 	Attributes map[uint32]*AnyValue
+}
+
+func (se *InternalSpanEvent) ToProto() *SpanEvent {
+	return &SpanEvent{
+		Time:       se.Time,
+		NameRef:    se.NameRef,
+		Attributes: se.Attributes,
+	}
+}
+
+func (se *InternalSpanEvent) Msgsize() int {
+	size := 0
+	size += msgp.MapHeaderSize                   // Map
+	size += msgp.Uint32Size + msgp.Uint64Size    // Time
+	size += msgp.Uint32Size + msgp.Uint32Size    // NameRef
+	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
+	for _, attr := range se.Attributes {
+		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
+	}
+	return size
 }
 
 func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {

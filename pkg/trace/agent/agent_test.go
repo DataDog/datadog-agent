@@ -61,10 +61,10 @@ func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollec
 }
 
 type mockTraceWriter struct {
-	mu       sync.Mutex
-	payloads []*writer.SampledChunks
-
-	apiKey string
+	mu         sync.Mutex
+	payloads   []*writer.SampledChunks
+	payloadsV1 []*writer.SampledChunksV1
+	apiKey     string
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -73,6 +73,12 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.payloads = append(m.payloads, pkg)
+}
+
+func (m *mockTraceWriter) WriteChunksV1(pkg *writer.SampledChunksV1) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.payloadsV1 = append(m.payloadsV1, pkg)
 }
 
 func (m *mockTraceWriter) FlushSync() error {
@@ -2323,6 +2329,10 @@ func (n *noopTraceWriter) Run() {}
 func (n *noopTraceWriter) Stop() {}
 
 func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
+	n.count++
+}
+
+func (n *noopTraceWriter) WriteChunksV1(_ *writer.SampledChunksV1) {
 	n.count++
 }
 

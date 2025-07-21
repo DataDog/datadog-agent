@@ -77,8 +77,10 @@ type TraceWriter struct {
 	tick            time.Duration         // flush frequency
 	agentVersion    string
 
-	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
-	bufferedSize   int                 // estimated buffer size
+	tracerPayloads   []*pb.TracerPayload          // tracer payloads buffered
+	tracerPayloadsV1 []*idx.InternalTracerPayload // V1 tracer payloads buffered
+	bufferedSize     int                          // estimated buffer size
+	bufferedSizeV1   int                          // estimated buffer size for V1
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -234,6 +236,27 @@ func (w *TraceWriter) appendChunks(pkg *SampledChunks) []*pb.TracerPayload {
 	return toflush
 }
 
+// appendChunks adds sampled chunks to the current payload, and in the case the payload
+// is full, returns a finished payload which needs to be written out.
+func (w *TraceWriter) appendChunksV1(pkg *SampledChunksV1) []*idx.InternalTracerPayload {
+	var toflush []*idx.InternalTracerPayload
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	size := pkg.Size
+	if size+w.bufferedSizeV1 > MaxPayloadSize {
+		// reached maximum allowed buffered size
+		// reset the buffer so we can add our payload and defer a flush.
+		toflush = w.tracerPayloadsV1
+		w.resetBufferV1()
+	}
+	if len(pkg.TracerPayload.Chunks) > 0 {
+		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
+		w.tracerPayloadsV1 = append(w.tracerPayloadsV1, pkg.TracerPayload)
+	}
+	w.bufferedSizeV1 += size
+	return toflush
+}
+
 // WriteChunks serializes the provided chunks, enqueueing them to be sent
 func (w *TraceWriter) WriteChunks(pkg *SampledChunks) {
 	w.stats.Spans.Add(pkg.SpanCount)
@@ -245,9 +268,27 @@ func (w *TraceWriter) WriteChunks(pkg *SampledChunks) {
 		w.flushPayloads(toflush)
 	}
 }
+
+// WriteChunksV1 serializes the provided chunks, enqueueing them to be sent
+func (w *TraceWriter) WriteChunksV1(pkg *SampledChunksV1) {
+	w.stats.Spans.Add(pkg.SpanCount)
+	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
+	w.stats.Events.Add(pkg.EventCount)
+
+	toflush := w.appendChunksV1(pkg)
+	if toflush != nil {
+		w.flushPayloadsV1(toflush)
+	}
+}
+
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
 	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
+}
+
+func (w *TraceWriter) resetBufferV1() {
+	w.bufferedSizeV1 = 0
+	w.tracerPayloadsV1 = make([]*idx.InternalTracerPayload, 0, len(w.tracerPayloadsV1))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
@@ -257,7 +298,9 @@ func (w *TraceWriter) flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	defer w.resetBuffer()
+	defer w.resetBufferV1()
 	w.flushPayloads(w.tracerPayloads)
+	w.flushPayloadsV1(w.tracerPayloadsV1)
 }
 
 // w does not need to be locked during flushPayloads.
@@ -279,6 +322,36 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     payloads,
+	}
+	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
+
+	w.serialize(&p)
+}
+
+// w does not need to be locked during flushPayloads.
+func (w *TraceWriter) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
+	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
+	if len(payloads) == 0 {
+		// nothing to do
+		return
+	}
+
+	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
+
+	protoPayloads := make([]*idx.TracerPayload, len(payloads))
+	for i, payload := range payloads {
+		protoPayloads[i] = payload.ToProto()
+	}
+
+	log.Debugf("Serializing %d tracer payloads.", len(payloads))
+	p := pb.AgentPayload{
+		AgentVersion:       w.agentVersion,
+		HostName:           w.hostname,
+		Env:                w.env,
+		TargetTPS:          w.prioritySampler.GetTargetTPS(),
+		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
+		RareSamplerEnabled: w.rareSampler.IsEnabled(),
+		IdxTracerPayloads:  protoPayloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
