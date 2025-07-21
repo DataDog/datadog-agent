@@ -1,14 +1,15 @@
+import getpass
 import json
 import os
 from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.kmt_os import get_homebrew_prefix
-from tasks.kernel_matrix_testing.setup.utils import check_launchctl_service, ensure_options_in_config
+from tasks.kernel_matrix_testing.kmt_os import get_homebrew_prefix, get_kmt_os
 from tasks.libs.common.status import Status
 
 from .requirement import Requirement, RequirementState
+from .utils import check_directories, check_launchctl_service, ensure_options_in_config
 
 
 class MacPackages(Requirement):
@@ -238,3 +239,19 @@ class MacIPForwarding(Requirement):
             return RequirementState(Status.FAIL, f"Failed to enable IP forwarding: {e}")
 
         return RequirementState(Status.OK, "IP forwarding enabled.")
+
+
+class MacLocalVMDirectories(Requirement):
+    dependencies: list[type[Requirement]] = [MacPackages]
+
+    def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
+        kmt_os = get_kmt_os()
+        dirs = [
+            kmt_os.libvirt_dir,
+            kmt_os.rootfs_dir,
+        ]
+
+        user = getpass.getuser()
+        group = kmt_os.libvirt_group
+
+        return check_directories(ctx, dirs, fix, user, group, 0o755)

@@ -1,6 +1,5 @@
-import grp
+import getpass
 import os
-import pwd
 import re
 import shutil
 from pathlib import Path
@@ -8,10 +7,12 @@ from pathlib import Path
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.compiler import get_compiler
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 
 from .requirement import Requirement, RequirementState
+from .utils import check_directories
 
 
 class Pulumi(Requirement):
@@ -191,72 +192,23 @@ class PythonDependenciesRequirement(Requirement):
 
 class KMTDirectoriesRequirement(Requirement):
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
-        import getpass
-
-        from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-        from tasks.kernel_matrix_testing.tool import is_root
-
-        states = []
         kmt_os = get_kmt_os()
-        sudo = "sudo" if not is_root() else ""
         dirs = [
             kmt_os.shared_dir,
             kmt_os.kmt_dir,
             kmt_os.packages_dir,
             kmt_os.stacks_dir,
-            kmt_os.libvirt_dir,
-            kmt_os.rootfs_dir,
             kmt_os.shared_dir,
         ]
 
         user = getpass.getuser()
-        user_id = pwd.getpwnam(user).pw_uid
-        group_id = grp.getgrnam(kmt_os.libvirt_group).gr_gid
+        group = kmt_os.user_group
 
-        for d in dirs:
-            exists = d.exists()
-
-            if not exists:
-                if not fix:
-                    states.append(RequirementState(Status.FAIL, f"Directory {d} does not exist.", fixable=True))
-                else:
-                    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {d}")
-                    states.append(RequirementState(Status.OK, f"Created missing KMT directory: {d}"))
-
-            perms = d.stat().st_mode
-            if perms & 0o777 != 0o755:  # Check only the permission bits
-                if not fix:
-                    states.append(
-                        RequirementState(
-                            Status.FAIL, f"Directory {d} has incorrect permissions {oct(perms)}.", fixable=True
-                        )
-                    )
-                else:
-                    ctx.run(f"{sudo} chmod 0755 {d}")
-                    states.append(RequirementState(Status.OK, f"Fixed permissions for KMT directory: {d}"))
-
-            owner_id = d.stat().st_uid
-            group_id = d.stat().st_gid
-            if owner_id != user_id or group_id != group_id:
-                if not fix:
-                    states.append(
-                        RequirementState(
-                            Status.FAIL,
-                            f"Directory {d} has incorrect owner or group (owner ID={owner_id}, group ID={group_id}).",
-                            fixable=True,
-                        )
-                    )
-                else:
-                    ctx.run(f"{sudo} chown -R {user}:{kmt_os.libvirt_group} {d}")
-                    states.append(RequirementState(Status.OK, f"Fixed owner and group for KMT directory: {d}"))
-
-        return states
+        return check_directories(ctx, dirs, fix, user, group, 0o755)
 
 
 class KMTSSHKey(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-
         kmt_os = get_kmt_os()
         if not kmt_os.ddvm_rsa.exists():
             if not fix:

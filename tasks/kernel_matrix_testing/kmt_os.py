@@ -1,3 +1,4 @@
+import getpass
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +35,7 @@ def get_kmt_os():
 class Linux:
     kmt_dir = get_home_linux()
     name = "linux"
+    user_group = getpass.getuser()
     libvirt_group = "libvirt"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"
@@ -58,6 +60,7 @@ class Linux:
 class MacOS:
     kmt_dir = get_home_macos()
     name = "macos"
+    user_group = "staff"
     libvirt_group = "staff"
     rootfs_dir = kmt_dir / "rootfs"
     stacks_dir = kmt_dir / "stacks"

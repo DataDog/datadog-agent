@@ -2,6 +2,8 @@
 Utility functions for the setup requirements
 """
 
+import grp
+import pwd
 import re
 import tempfile
 from pathlib import Path
@@ -153,3 +155,68 @@ def check_launchctl_service(
             return RequirementState(Status.FAIL, f"Failed to start launchctl service: {e}")
 
     return RequirementState(Status.OK, f"launchctl service {service_name} is loaded, started and enabled")
+
+
+def check_directories(
+    ctx: Context, dirs: list[Path], fix: bool, user: str, group: str, mode: int
+) -> list[RequirementState]:
+    """
+    Check that the given directories exist and have the correct permissions.
+
+    Args:
+        ctx: invoke context
+        dirs: list of paths to ensure
+        fix: if True, inexistent directories will be created, directories with incorrect permissions or ownership will be fixed
+        user: user name
+        group: group name
+        mode: mode to set
+
+    Returns:
+        list[RequirementState]: list of requirement states
+    """
+    states: list[RequirementState] = []
+
+    user_id = pwd.getpwnam(user).pw_uid
+    group_id = grp.getgrnam(group).gr_gid
+    mode_str = "0" + oct(mode)[2:]  # Remove the 0o prefix, keep "0" instead
+
+    for d in dirs:
+        exists = d.exists()
+
+        if not exists:
+            if not fix:
+                states.append(RequirementState(Status.FAIL, f"Directory {d} does not exist.", fixable=True))
+            else:
+                ctx.run(f"install -d -m 0{mode_str} -g {group} -o {user} {d}")
+                states.append(RequirementState(Status.OK, f"Created missing KMT directory: {d}"))
+
+        perms = d.stat().st_mode
+        if perms & 0o777 != (mode & 0o777):  # Check only the permission bits
+            if not fix:
+                states.append(
+                    RequirementState(
+                        Status.FAIL,
+                        f"Directory {d} has incorrect permissions {oct(perms)}, want {mode_str}.",
+                        fixable=True,
+                    )
+                )
+            else:
+                ctx.run(f"chmod {mode_str} {d}")
+                states.append(RequirementState(Status.OK, f"Fixed permissions for KMT directory: {d}"))
+
+        owner_id = d.stat().st_uid
+        group_id = d.stat().st_gid
+        if owner_id != user_id or group_id != group_id:
+            if not fix:
+                states.append(
+                    RequirementState(
+                        Status.FAIL,
+                        f"Directory {d} has incorrect owner or group (uid={owner_id}, gid={group_id}; wanted uid={user_id}, gid={group_id}).",
+                        fixable=True,
+                    )
+                )
+            else:
+                ctx.run(f"chown -R {user}:{group} {d}")
+                states.append(RequirementState(Status.OK, f"Fixed owner and group for KMT directory: {d}"))
+
+    return states
