@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -116,4 +117,28 @@ network_devices:
 	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "can't GetChild(workers) of a leaf node")
+}
+
+type MetadataProviders struct {
+	Name     string        `mapstructure:"name"`
+	Interval time.Duration `mapstructure:"interval"`
+}
+
+func TestCompareTimeDuration(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("provider.interval", 5*time.Second)
+	})
+	assert.Equal(t, 5*time.Second, viperConf.GetDuration("provider.interval"))
+	assert.Equal(t, 5*time.Second, ntmConf.GetDuration("provider.interval"))
+
+	var mp1 MetadataProviders
+	var mp2 MetadataProviders
+
+	err := UnmarshalKey(viperConf, "provider", &mp1)
+	assert.NoError(t, err)
+	err = unmarshalKeyReflection(ntmConf, "provider", &mp2)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 5*time.Second, mp1.Interval)
+	assert.Equal(t, 5*time.Second, mp2.Interval)
 }

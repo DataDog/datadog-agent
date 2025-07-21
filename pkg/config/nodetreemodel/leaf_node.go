@@ -41,10 +41,6 @@ func isSlice(v interface{}) bool {
 }
 
 func newLeafNode(v interface{}, source model.Source) Node {
-	if timeObject, ok := v.(time.Duration); ok {
-		// The time.Duration type represents the elapsed time between two instants as an int64 nanosecond count
-		return &leafNodeImpl{val: timeObject.Nanoseconds(), source: source}
-	}
 	return &leafNodeImpl{val: v, source: source}
 }
 
