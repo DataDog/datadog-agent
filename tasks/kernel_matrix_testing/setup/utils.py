@@ -17,7 +17,7 @@ from tasks.libs.common.status import Status
 
 
 def ensure_options_in_config(
-    ctx: Context, config_file: Path, options: dict[str, Any], change: bool, write_with_sudo: bool = False
+    ctx: Context, config_file: Path, options: dict[str, str | int], change: bool, write_with_sudo: bool = False
 ) -> list[str]:
     """
     Ensure that the given options are present in the config file.
@@ -48,7 +48,7 @@ def ensure_options_in_config(
     return incorrect_options
 
 
-def _patch_config_lines(lines: list[str], options: dict[str, Any], change: bool) -> tuple[list[str], list[str]]:
+def _patch_config_lines(lines: list[str], options: dict[str, str | int], change: bool) -> tuple[list[str], list[str]]:
     """
     Patch the config lines to ensure the given options are present. Split from ensure_options_in_config to make it easier to test.
 
@@ -92,7 +92,7 @@ def _patch_config_lines(lines: list[str], options: dict[str, Any], change: bool)
     return incorrect_options, updated_lines
 
 
-def _get_formatted_value(value: Any) -> str:
+def _get_formatted_value(value: str | int) -> str:
     if isinstance(value, str):
         return f"\"{value}\""
 

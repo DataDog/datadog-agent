@@ -77,7 +77,7 @@ class LinuxQemuConfig(Requirement):
 
         user = getpass.getuser()
 
-        expected_options = {
+        expected_options: dict[str, str | int] = {
             "security_driver": "none",
             "user": user,
             "group": "kvm",

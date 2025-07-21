@@ -40,11 +40,11 @@ class MacLibvirtConfig(Requirement):
     def check(self, ctx: Context, fix: bool):
         from tasks.kernel_matrix_testing.kmt_os import MacOS
 
-        options = {
-            "unix_sock_dir": MacOS.libvirt_system_dir,
+        options: dict[str, str | int] = {
+            "unix_sock_dir": os.fspath(MacOS.libvirt_system_dir),
             "unix_sock_ro_perms": "0777",
             "unix_sock_rw_perms": "0777",
-            "uri_default": MacOS.libvirt_socket,
+            "uri_default": os.fspath(MacOS.libvirt_socket),
             "log_outputs": f"2:file:{MacOS.libvirt_system_dir}/libvirtd.log",
         }
 
@@ -72,7 +72,7 @@ class MacVirtlogdConfig(Requirement):
     def check(self, ctx: Context, fix: bool):
         from tasks.kernel_matrix_testing.kmt_os import MacOS
 
-        options = {
+        options: dict[str, str | int] = {
             "log_outputs": f"2:file:{MacOS.libvirt_system_dir}/virtlogd.log",
         }
 
