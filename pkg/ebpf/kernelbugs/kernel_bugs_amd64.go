@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && amd64
+//go:build linux_bpf && amd64
 
 package kernelbugs
 
@@ -24,13 +24,13 @@ import (
 
 // SimpleUretprobe holds the bpf bytecode for a uretprobe for detecting a bug in the kernel
 //
-//nolint:typecheck
+//nolint
 //go:embed c/uprobe-trigger.o
 var SimpleUretprobe []byte
 
 // TriggerProgram holds the bytecode for a userspace program used for detecting a bug in the kernel
 //
-//nolint:typecheck
+//nolint
 //go:embed c/detect-seccomp-bug
 var TriggerProgram []byte
 
