@@ -22,6 +22,8 @@ import (
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"os"
+
+	"github.com/stretchr/testify/suite"
 )
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
@@ -237,6 +239,8 @@ func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
 func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
+	host := s.Env().RemoteHost
+
 	// Create a new subdir per test since these suites often have multiple tests
 	testPart := common.SanitizeDirectoryName(testName)
 	outputDir := filepath.Join(s.SessionOutputDir(), testPart)
@@ -244,6 +248,73 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
 	s.installScriptImpl = NewDatadogInstallScript(s.Env())
+
+	// clear the event logs before each test
+	for _, logName := range []string{"System", "Application"} {
+		s.T().Logf("Clearing %s event log", logName)
+		err := windowscommon.ClearEventLog(s.Env().RemoteHost, logName)
+		s.Require().NoError(err, "should clear %s event log", logName)
+	}
+
+	// Clear agent logs
+	s.T().Logf("Clearing agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err, "should get logs folder")
+	entries, err := host.ReadDir(logsFolder)
+	if s.Assert().NoError(err, "should read log folder") {
+		for _, entry := range entries {
+			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+			s.Assert().NoError(err, "should remove %s", entry.Name())
+		}
+	}
+}
+
+// NOTE: AfterTest is not called after subtests
+func (s *BaseSuite) AfterTest(suiteName, testName string) {
+	if afterTest, ok := any(&s.BaseSuite).(suite.AfterTest); ok {
+		afterTest.AfterTest(suiteName, testName)
+	}
+
+	if s.T().Failed() {
+		// If the test failed, export the event logs for debugging
+		vm := s.Env().RemoteHost
+		for _, logName := range []string{"System", "Application"} {
+			// collect the full event log as an evtx file
+			s.T().Logf("Exporting %s event log", logName)
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			err := windowscommon.ExportEventLog(vm, logName, outputPath)
+			s.Assert().NoError(err, "should export %s event log", logName)
+			// Log errors and warnings to the screen for easy access
+			out, err := windowscommon.GetEventLogErrorsAndWarnings(vm, logName)
+			if s.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
+				s.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
+			}
+		}
+		// collect agent logs
+		s.collectAgentLogs()
+	}
+}
+
+func (s *BaseSuite) collectAgentLogs() {
+	host := s.Env().RemoteHost
+
+	s.T().Logf("Collecting agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	if !s.Assert().NoError(err, "should get logs folder") {
+		return
+	}
+	entries, err := host.ReadDir(logsFolder)
+	if !s.Assert().NoError(err, "should read log folder") {
+		return
+	}
+	for _, entry := range entries {
+		s.T().Logf("Found log file: %s", entry.Name())
+		err = host.GetFile(
+			filepath.Join(logsFolder, entry.Name()),
+			filepath.Join(s.SessionOutputDir(), entry.Name()),
+		)
+		s.Assert().NoError(err, "should download %s", entry.Name())
+	}
 }
 
 // SetCatalogWithCustomPackage sets the catalog with a custom package

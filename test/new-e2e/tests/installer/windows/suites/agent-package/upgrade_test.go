@@ -7,10 +7,11 @@ package agenttests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -55,9 +56,12 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
 // through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
-	flake.Mark(s.T())
+
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -496,6 +500,16 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\WatchdogTimeout to timeout
 	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "WatchdogTimeout", timeout)
+	s.Require().NoError(err)
+}
+
+func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
+	termValue := 0
+	if terminatePolicy {
+		termValue = 1
+	}
+	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\TerminatePolicy to terminatePolicy
+	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "TerminatePolicy", termValue)
 	s.Require().NoError(err)
 }
 
