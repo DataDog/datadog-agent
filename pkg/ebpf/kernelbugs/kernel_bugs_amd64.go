@@ -24,13 +24,11 @@ import (
 
 // SimpleUretprobe holds the bpf bytecode for a uretprobe for detecting a bug in the kernel
 //
-//nolint
 //go:embed c/uprobe-trigger.o
 var SimpleUretprobe []byte
 
 // TriggerProgram holds the bytecode for a userspace program used for detecting a bug in the kernel
 //
-//nolint
 //go:embed c/detect-seccomp-bug
 var TriggerProgram []byte
 
