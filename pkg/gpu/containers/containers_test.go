@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && nvml
 
-package gpu
+package containers
 
 import (
 	"testing"
@@ -41,7 +41,7 @@ func TestMatchContainerDevices(t *testing.T) {
 			},
 		}
 
-		filteredDevices, err := matchContainerDevices(container, devices)
+		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
 		assert.Equal(t, devices[1], filteredDevices[0])
@@ -65,7 +65,7 @@ func TestMatchContainerDevices(t *testing.T) {
 			},
 		}
 
-		filteredDevices, err := matchContainerDevices(container, devices)
+		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 2)
 		assert.Equal(t, devices[0], filteredDevices[0])
@@ -86,7 +86,7 @@ func TestMatchContainerDevices(t *testing.T) {
 			},
 		}
 
-		filteredDevices, err := matchContainerDevices(container, devices)
+		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 0)
 	})
@@ -100,7 +100,7 @@ func TestMatchContainerDevices(t *testing.T) {
 			ResolvedAllocatedResources: nil,
 		}
 
-		filteredDevices, err := matchContainerDevices(container, devices)
+		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 0)
 	})
@@ -119,10 +119,10 @@ func TestMatchContainerDevices(t *testing.T) {
 			},
 		}
 
-		filteredDevices, err := matchContainerDevices(container, devices)
+		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.Error(t, err)
 		require.Len(t, filteredDevices, 0)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 }
 
@@ -151,14 +151,14 @@ func TestFindDeviceForResourceName(t *testing.T) {
 		// Test with invalid UUID
 		_, err := findDeviceForResourceName(devices, "invalid-uuid")
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 
 	t.Run("EmptyResourceID", func(t *testing.T) {
 		// Test with empty resource ID
 		_, err := findDeviceForResourceName(devices, "")
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 
 	t.Run("UUIDBasedMIGDevice", func(t *testing.T) {
@@ -205,21 +205,21 @@ func TestFindDeviceByUUID(t *testing.T) {
 	t.Run("InvalidUUID", func(t *testing.T) {
 		_, err := findDeviceByUUID(devices, "invalid-uuid")
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 		assert.Contains(t, err.Error(), "invalid-uuid")
 	})
 
 	t.Run("EmptyUUID", func(t *testing.T) {
 		_, err := findDeviceByUUID(devices, "")
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 		assert.Contains(t, err.Error(), "")
 	})
 
 	t.Run("EmptyDeviceList", func(t *testing.T) {
 		_, err := findDeviceByUUID([]ddnvml.Device{}, testutil.GPUUUIDs[0])
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 }
 
@@ -288,21 +288,21 @@ func TestFindDeviceByIndex(t *testing.T) {
 	t.Run("InvalidIndex", func(t *testing.T) {
 		_, err := findDeviceByIndex(devices, 999)
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 		assert.Contains(t, err.Error(), "999")
 	})
 
 	t.Run("NegativeIndex", func(t *testing.T) {
 		_, err := findDeviceByIndex(devices, -1)
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 		assert.Contains(t, err.Error(), "-1")
 	})
 
 	t.Run("EmptyDeviceList", func(t *testing.T) {
 		_, err := findDeviceByIndex([]ddnvml.Device{}, 0)
 		require.Error(t, err)
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 }
 
@@ -335,11 +335,11 @@ func TestMatchContainerDevicesWithErrors(t *testing.T) {
 			},
 		}
 
-		filteredDevices, err := matchContainerDevices(container, devices)
+		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.Error(t, err)              // Should have error due to invalid UUID
 		require.Len(t, filteredDevices, 2) // Should still return valid devices
 		assert.Equal(t, devices[1], filteredDevices[0])
 		assert.Equal(t, devices[2], filteredDevices[1])
-		require.ErrorIs(t, err, errCannotMatchDevice)
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
 }
