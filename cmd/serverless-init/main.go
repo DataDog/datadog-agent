@@ -154,7 +154,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 
 	metricAgent := setupMetricAgent(tags, tagger)
 
-	metric.AddStartMetric(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.Add(cloudService.GetStartMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 
