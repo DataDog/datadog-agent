@@ -3,8 +3,13 @@ use utils::base::{CheckID, AgentCheck, ServiceCheckStatus};
 
 use std::error::Error;
 use std::time::Instant;
+use std::sync::Arc;
+use std::net::{TcpStream, ToSocketAddrs};
+use std::io::{ErrorKind, Read, Write};
+use std::time::Duration;
 
-use reqwest::blocking::Client;
+use rustls::{KeyLogFile, ClientConnection, RootCertStore, Stream};
+use webpki_roots::TLS_SERVER_ROOTS;
 
 // function executed by RTLoader
 // instead of passing CheckID, it will be more flexible to pass a struct that contains
@@ -25,7 +30,7 @@ pub extern "C" fn Run(check_id: CheckID) {
             println!("[SharedLibraryCheck] Check completed successfully.");
         }
         Err(e) => {
-            eprintln!("[SharedLibraryCheck] Error when running check: {}", e);
+            eprintln!("[SharedLibraryCheck] Error when running check: {e}");
         }
     }
 }
@@ -38,11 +43,11 @@ impl AgentCheck {
         // TODO:
         // - tags list
         // - service checks tags 
-        // - ssl metrics
+        // - ssl certificates
 
         // hardcoded variables (should be passed as parameters inside a struct)
-        let url = "https://datadoghq.com";
-        let reponse_time = true;
+        let url = "datadog.com";
+        let response_time = true;
         let ssl_expire = true;
         let uri_scheme = "https";
 
@@ -52,73 +57,189 @@ impl AgentCheck {
         let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
         let service_checks_tags = Vec::<String>::new(); // need to be set equal to the tags list at the beginning
 
-        // build the request with the desired configuration
-        let request = Client::builder()
-            .build()?
-            .get(url);
+        // connection configuration
+        let root_store = RootCertStore { roots: TLS_SERVER_ROOTS.into() };
 
-        // fetch the URL and measure the response time
+        let mut config = rustls::ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
+        // Allow using SSLKEYLOGFILE.
+        config.key_log = Arc::new(KeyLogFile::new());
+
+        let server_name = url.try_into().unwrap();
+
+        let mut conn = ClientConnection::new(Arc::new(config), server_name).unwrap();
+
+        // establish communication
         let start_time = Instant::now();
-        let response_content = request.send();
-        let response_time = start_time.elapsed();
 
-        // check fetch result
-        match response_content {
-            Ok(resp) => {
-                // add url in tags list if not already present
-                let url_tag = format!("url:{}", url);
+        let addr = format!("{url}:443")
+            .to_socket_addrs().unwrap()
+            .next().unwrap();
 
-                if !tags.contains(&url_tag) {
-                    tags.push(url_tag);
-                }
-
-                // submit response time metric if enabled
-                if reponse_time {
-                    self.gauge("network.http.response_time", response_time.as_secs_f64(), &tags, "", false);
-                }
-
-                // check if http response status code corresponds to an error
-                if resp.status().is_client_error() || resp.status().is_server_error() {
-                    service_checks.push((
-                        "http.can_connect".to_string(),
-                        ServiceCheckStatus::CRITICAL,
-                        format!("Incorrect HTTP return code for url {}. Expected 1xx or 2xx or 3xx, got {}", url, resp.status()),
-                    ));
-            
-                // host is UP
-                } else {
-                    // TODO: content matching
-                    service_checks.push((
-                        "http.can_connect".to_string(),
-                        ServiceCheckStatus::OK,
-                        "UP".to_string(),
-                    ));
-                }
-            }
-            // submit the error as a service check if one occurs
-            Err(e) => {
-                if e.is_timeout() {
-                    service_checks.push((
-                        "http.can_connect".to_string(),
-                        ServiceCheckStatus::CRITICAL,
-                        format!("Timeout error: {}. Connection failed after {} ms", e.to_string(), response_time.as_millis()),
-                    ));
-
-                } else if e.is_connect() {
-                    service_checks.push((
-                        "http.can_connect".to_string(),
-                        ServiceCheckStatus::CRITICAL,
-                        format!("Connection error: {}. Connection failed after {} ms", e.to_string(), response_time.as_millis()),
-                    ));
+        match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
+            Ok(mut sock) => {
+                // Set timeouts
+                // TODO: handle timeout errors later in the code
+                sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
                 
-                } else {
+                // Create the TLS stream
+                let mut tls = Stream::new(&mut conn, &mut sock);
+
+                // http request header
+                let request_header = format!(
+                    "GET / HTTP/1.1\r\n\
+                    Host: {url}\r\n\
+                    Connection: close\r\n\
+                    Accept-Encoding: identity\r\n\
+                    \r\n"
+                );
+
+                // Send the HTTP request with the TLS stream
+                let response_result = tls.write_all(request_header.as_bytes());
+                let elapsed_time = start_time.elapsed();
+
+                match response_result {
+                    Ok(()) => {
+                        // add URL in tags list if not already present
+                        let url_tag = format!("url:{}", url);
+
+                        if !tags.contains(&url_tag) {
+                            tags.push(url_tag);
+                        }
+
+                        // submit response time metric if enabled
+                        if response_time {
+                            self.gauge("network.http.response_time", elapsed_time.as_secs_f64(), &tags, "", false);
+                        }
+
+                        // read response from the TLS stream
+                        let mut response_raw = Vec::new();
+
+                        match tls.read_to_end(&mut response_raw) {
+                            Ok(_) => {
+                                let response = String::from_utf8(response_raw[..].to_vec()).unwrap();
+
+                                // status code
+                                let first_line = response.lines().nth(0).unwrap();
+                                let status_code: u32 = first_line
+                                    .split_whitespace()
+                                    .nth(1).unwrap()
+                                    .parse().unwrap();
+
+                                // check for client or server http error
+                                if status_code >= 400 {
+                                    service_checks.push((
+                                        "http.can_connect".to_string(),
+                                        ServiceCheckStatus::CRITICAL,
+                                        format!("Incorrect HTTP return code for url {url}. Expected 1xx or 2xx or 3xx, got {status_code}"),
+                                    ));
+                                } else {
+                                    // TODO: content matching
+                                    service_checks.push((
+                                        "http.can_connect".to_string(),
+                                        ServiceCheckStatus::OK,
+                                        "UP".to_string(),
+                                    ));
+                                }
+                            },
+                            Err(e) => {
+                                // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+                                // but not sure if it needs to belong to this if statement
+                                if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
+                                    // timeout error
+                                    service_checks.push((
+                                        "http.can_connect".to_string(),
+                                        ServiceCheckStatus::CRITICAL,
+                                        format!("Timeout error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                                    ));
+                                } else {
+                                    // connection error
+                                    service_checks.push((
+                                        "http.can_connect".to_string(),
+                                        ServiceCheckStatus::CRITICAL,
+                                        format!("Connection error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                                    ));
+                                }
+                            },
+                        }
+
+                        // handle ssl certificate expiration
+                        if ssl_expire && uri_scheme == "https" {
+                            // TODO: handle SSL certificates here
+                            match tls.conn.peer_certificates() {
+                                Some(certs) => {
+                                    for _cert in certs {
+                                        //println!("Certificate: {:?}", _cert);
+                                    }
+                                }
+                                None => {
+                                    println!("No peer certificates found.");
+                                }
+                            }
+
+                            let status: ServiceCheckStatus = ServiceCheckStatus::OK;
+                            let msg: String = String::new();
+
+                            let days_left: f64 = 0.0;
+                            let seconds_left: f64 = 0.0;
+
+                            // submit ssl metrics
+                            self.gauge("http.ssl.days_left", days_left, &tags, "", false);
+                            self.gauge("http.ssl.seconds_left", seconds_left, &tags, "", true);
+
+                            // ssl service check
+                            service_checks.push((
+                                "http.ssl_cert".to_string(),
+                                status,
+                                msg,
+                            ));
+                        }
+                    },
+                    Err(e) => {
+                        // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+                        // but not sure if it needs to belong to this if statement
+                        if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
+                            // timeout error
+                            service_checks.push((
+                                "http.can_connect".to_string(),
+                                ServiceCheckStatus::CRITICAL,
+                                format!("Timeout error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                            ));
+                        } else {
+                            // connection error
+                            service_checks.push((
+                                "http.can_connect".to_string(),
+                                ServiceCheckStatus::CRITICAL,
+                                format!("Connection error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                            ));
+                        }
+                    },
+                }
+            },
+            Err(e) => {
+                let elapsed_time = start_time.elapsed();
+
+                // NOTE: ErrorKind::WouldBlock is often linked to a timeout
+                // but not sure if it needs to belong to this if statement
+                if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock {
+                    // timeout error
                     service_checks.push((
                         "http.can_connect".to_string(),
                         ServiceCheckStatus::CRITICAL,
-                        format!("Unhandled error: {}.", e.to_string()),
+                        format!("Timeout error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
+                    ));
+                } else {
+                    // connection error
+                    service_checks.push((
+                        "http.can_connect".to_string(),
+                        ServiceCheckStatus::CRITICAL,
+                        format!("Connection error: {e}. Connection failed after {} ms", elapsed_time.as_millis()),
                     ));
                 }
-            }
+            },
         }
 
         // submit can connect metrics
@@ -132,27 +253,6 @@ impl AgentCheck {
 
             self.gauge("network.http.can_connect", can_connect, &tags, "", false);
             self.gauge("network.http.cant_connect", cant_connect, &tags, "", true);
-        }
-
-        // handle ssl certificate expiration
-        if ssl_expire && uri_scheme == "https" {
-            // TODO: retrieve ssl info
-            let status: ServiceCheckStatus = ServiceCheckStatus::OK;
-            let msg: String = String::new();
-
-            let days_left: f64 = 0.0;
-            let seconds_left: f64 = 0.0;
-
-            // submit ssl metrics
-            self.gauge("http.ssl.days_left", days_left, &tags, "", false);
-            self.gauge("http.ssl.seconds_left", seconds_left, &tags, "", true);
-
-            // ssl service check
-            service_checks.push((
-                "http.ssl_cert".to_string(),
-                status,
-                msg,
-            ));
         }
 
         // submit every service check collected throughout the check
