@@ -35,6 +35,7 @@ type Decoder struct {
 	snapshotMessage    snapshotMessage
 	dataItemReferences map[typeAndAddr]output.DataItem
 	decoderTypes       map[ir.TypeID]decoderType
+	currentlyEncoding  map[typeAndAddr]struct{}
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -44,6 +45,7 @@ func NewDecoder(
 	decoder := &Decoder{
 		dataItemReferences: make(map[typeAndAddr]output.DataItem),
 		decoderTypes:       make(map[ir.TypeID]decoderType, len(program.Types)),
+		currentlyEncoding:  make(map[typeAndAddr]struct{}),
 		program:            program,
 		stackFrames:        make(map[uint64][]symbol.StackFrame),
 		probeEvents:        make(map[ir.TypeID]probeEvent),

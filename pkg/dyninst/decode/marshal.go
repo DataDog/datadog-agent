@@ -87,8 +87,6 @@ func expressionIsPresent(bitset []byte, expressionIndex int) bool {
 
 func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 	var err error
-	currentlyEncoding := map[typeAndAddr]struct{}{}
-
 	if err = writeTokens(enc,
 		jsontext.BeginObject,
 	); err != nil {
@@ -121,7 +119,6 @@ func (ad *argumentsData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			continue
 		}
 		err = ad.decoder.encodeValue(enc,
-			currentlyEncoding,
 			parameterType.GetID(),
 			parameterData,
 			parameterType.GetName(),
@@ -183,7 +180,6 @@ func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
 
 func (d *Decoder) encodeValue(
 	enc *jsontext.Encoder,
-	currentlyEncoding map[typeAndAddr]struct{},
 	typeID ir.TypeID,
 	data []byte,
 	valueType string,
@@ -200,11 +196,8 @@ func (d *Decoder) encodeValue(
 		return fmt.Errorf("no decoder type found for type %s", decoderType.irType().GetName())
 	}
 	if err := decoderType.encodeValueFields(
-		&decoderContext{
-			decoder:           d,
-			enc:               enc,
-			currentlyEncoding: currentlyEncoding,
-		},
+		d,
+		enc,
 		data,
 	); err != nil {
 		return err
@@ -229,7 +222,7 @@ func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
 // encodeSwissMapTables collects the data items for the swiss map tables.
 // It traverses the table pointer slice and collects the data items for each table.
 func (d *Decoder) encodeSwissMapTables(
-	ctx *decoderContext,
+	enc *jsontext.Encoder,
 	s *goSwissMapHeaderType,
 	tablePtrSliceDataItem output.DataItem,
 ) error {
@@ -250,7 +243,7 @@ func (d *Decoder) encodeSwissMapTables(
 	addrs = slices.Compact(addrs)
 	tableType := s.tableType
 	for _, addr := range addrs {
-		tableDataItem, ok := ctx.decoder.dataItemReferences[typeAndAddr{
+		tableDataItem, ok := d.dataItemReferences[typeAndAddr{
 			irType: uint32(tableType.Pointee.GetID()),
 			addr:   addr,
 		}]
@@ -268,7 +261,7 @@ func (d *Decoder) encodeSwissMapTables(
 			return err
 		}
 		groupAddress := groupData[dataField.Offset : dataField.Offset+dataField.Type.GetByteSize()]
-		groupDataItem, ok := ctx.decoder.dataItemReferences[typeAndAddr{
+		groupDataItem, ok := d.dataItemReferences[typeAndAddr{
 			irType: uint32(s.groupType.GroupSliceType.GetID()),
 			addr:   binary.NativeEndian.Uint64(groupAddress),
 		}]
@@ -279,7 +272,7 @@ func (d *Decoder) encodeSwissMapTables(
 		numberOfGroups := groupDataItem.Header().Length / elementType.GetByteSize()
 		for i := range numberOfGroups {
 			singleGroupData := groupDataItem.Data()[s.groupType.GroupSliceType.Element.GetByteSize()*i : s.groupType.GroupSliceType.Element.GetByteSize()*(i+1)]
-			err := d.encodeSwissMapGroup(ctx.enc, ctx.currentlyEncoding, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
+			err := d.encodeSwissMapGroup(enc, s, singleGroupData, ir.TypeID(s.keyTypeID), ir.TypeID(s.valueTypeID))
 			if err != nil {
 				return err
 			}
@@ -290,7 +283,6 @@ func (d *Decoder) encodeSwissMapTables(
 
 func (d *Decoder) encodeSwissMapGroup(
 	enc *jsontext.Encoder,
-	currentlyEncoding map[typeAndAddr]struct{},
 	s *goSwissMapHeaderType,
 	groupData []byte,
 	keyTypeID ir.TypeID,
@@ -342,13 +334,13 @@ func (d *Decoder) encodeSwissMapGroup(
 		); err != nil {
 			return err
 		}
-		err := d.encodeValue(enc, currentlyEncoding,
+		err := d.encodeValue(enc,
 			keyTypeID, keyData, keyType.GetName(),
 		)
 		if err != nil {
 			return err
 		}
-		err = d.encodeValue(enc, currentlyEncoding,
+		err = d.encodeValue(enc,
 			valueTypeID, valueData, valueType.GetName(),
 		)
 		if err != nil {
