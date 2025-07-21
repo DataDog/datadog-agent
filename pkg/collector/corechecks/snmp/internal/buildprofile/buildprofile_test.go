@@ -106,15 +106,14 @@ func TestBuildProfile(t *testing.T) {
 		},
 	})
 
-	type testCase struct {
+	tests := []struct {
 		name                   string
 		sessionFactory         session.Factory
 		config                 *checkconfig.CheckConfig
 		sysObjectID            string
 		expectedProfileBuilder func() profiledefinition.ProfileDefinition
 		expectedError          string
-	}
-	for _, tc := range []testCase{
+	}{
 		{
 			name: "inline",
 			config: &checkconfig.CheckConfig{
@@ -262,7 +261,6 @@ func TestBuildProfile(t *testing.T) {
 					SetByte("1.3.6.1.4.1.9.9.171.1.3.2.1.4.2", []byte{0x0A, 0x00, 0x00, 0x01}).
 					SetInt("1.3.6.1.2.1.4.24.7.1.7.2.16.255.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.2.0.0.0.0", 2).
 					SetInt("1.3.6.1.2.1.10.131.1.1.3.1.6.1.4.10.0.2.91.4.34.230.217.35.1.1", 6)
-
 				return sess, nil
 			},
 			config: &checkconfig.CheckConfig{
@@ -289,25 +287,27 @@ func TestBuildProfile(t *testing.T) {
 				}
 			},
 		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			var validConnection bool
 			var sess session.Session
 			var err error
 
-			if tc.sessionFactory != nil {
+			if tt.sessionFactory != nil {
 				validConnection = true
-				sess, err = tc.sessionFactory(tc.config)
+				sess, err = tt.sessionFactory(tt.config)
 				assert.NoError(t, err)
 			}
 
-			profileDef, err := BuildProfile(tc.sysObjectID, sess, validConnection, tc.config)
-			if tc.expectedError != "" {
-				assert.EqualError(t, err, tc.expectedError)
+			profileDef, err := BuildProfile(tt.sysObjectID, sess, validConnection, tt.config)
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
 			} else {
 				require.NoError(t, err)
 
-				expectedProfile := tc.expectedProfileBuilder()
+				expectedProfile := tt.expectedProfileBuilder()
 				if !assert.Equal(t, expectedProfile, profileDef) {
 					for k, v := range expectedProfile.Metadata["device"].Fields {
 						t.Log(k, v)

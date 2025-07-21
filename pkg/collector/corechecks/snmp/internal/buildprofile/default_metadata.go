@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/gosnmp/gosnmp"
 )
 
 // DefaultMetadataConfig holds default configs per resource type
@@ -437,9 +438,17 @@ func checkOid(sess session.Session, oid string) bool {
 	fmt.Println("========================")
 	fmt.Println("========================")
 
-	// We check that the returned full OID starts with the parameter OID because
+	snmpPDU := result.Variables[0]
+	if snmpPDU.Type == gosnmp.NoSuchObject ||
+		snmpPDU.Type == gosnmp.NoSuchInstance ||
+		snmpPDU.Type == gosnmp.EndOfMibView {
+		return false
+	}
+
+	// We check that the returned full OID is equal or starts with the parameter OID because
 	// SNMP GETNEXT command returns the next OID whether it's from the same OID or not
-	return strings.HasPrefix(strings.TrimPrefix(result.Variables[0].Name, "."), oid)
+	nextOID := strings.TrimPrefix(snmpPDU.Name, ".")
+	return nextOID == oid || strings.HasPrefix(nextOID, oid+".")
 }
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
@@ -460,7 +469,8 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 	for resourceName, resourceConfig := range extraMetadata {
 		if resourceConfig.ShouldMergeMetadata == nil {
 			// This is to force always having to specify the ShouldMergeMetadata function, else the Agent will panic
-			panic("function ShouldMergeMetadata not specified in default metadata config")
+			panic(fmt.Sprintf("function ShouldMergeMetadata needs to be specified in default metadata config for resource: %s",
+				resourceName))
 		}
 
 		if !resourceConfig.ShouldMergeMetadata(sess, validConnection, config) {
