@@ -9,6 +9,7 @@ package kernelbugs
 
 import (
 	"bytes"
+	// embed is used below to ship the detection programs
 	_ "embed"
 	"fmt"
 	"log"
@@ -23,10 +24,12 @@ import (
 
 //nolint:typecheck
 //go:embed c/uprobe-trigger.o
+// SimpleUretprobe holds the bpf bytecode for a uretprobe for detecting a bug in the kernel
 var SimpleUretprobe []byte
 
 //nolint:typecheck
 //go:embed c/detect-seccomp-bug
+// TriggerProgram holds the bytecode for a userspace program used for detecting a bug in the kernel
 var TriggerProgram []byte
 
 // HasUretprobeSyscallSeccompBug returns true if the running kernel blocks the uretprobe syscall in seccomp
@@ -86,9 +89,9 @@ func HasUretprobeSyscallSeccompBug() (bool, error) {
 			} else {
 				return false, fmt.Errorf("unexpected error code %d when probing for uretprobe seccomp bug: %w", exitcode, err)
 			}
-		} else {
-			return false, fmt.Errorf("failed to probe for uretprobe seccomp bug: %w", err)
 		}
+
+		return false, fmt.Errorf("failed to probe for uretprobe seccomp bug: %w", err)
 	}
 
 	return false, nil
