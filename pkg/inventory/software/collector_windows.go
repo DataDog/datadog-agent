@@ -75,11 +75,6 @@ func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
 	return regEntries, append(regWarnings, msiWarnings...), nil
 }
 
-// GetSoftwareInventory returns a list of software entries found on the system
-func GetSoftwareInventory() ([]*Entry, []*Warning, error) {
-	return GetSoftwareInventoryWithCollectors(defaultCollectors())
-}
-
 // trimVersion trims leading zeros from each part of a version string.
 // For example, "4.08.09032" becomes "4.8.9032".
 // That makes it easier to compare versions as strings, as Windows will sometimes trim leading zeros.

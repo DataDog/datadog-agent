@@ -69,3 +69,8 @@ func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Wa
 
 	return allEntries, allWarnings, allErrors
 }
+
+// GetSoftwareInventory returns a list of software entries found on the system
+func GetSoftwareInventory() ([]*Entry, []*Warning, error) {
+	return GetSoftwareInventoryWithCollectors(defaultCollectors())
+}
