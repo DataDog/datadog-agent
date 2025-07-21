@@ -43,6 +43,7 @@ def run(
     jq='auto',
     query='.errors // .data',
     silent_curl=True,
+    dry_run=False,
 ):
     """Triggers the agent-ci-api service.
 
@@ -58,6 +59,7 @@ def run(
         jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
         query: jq query for the output.
         silent_curl: If True, will silence curl verbose output.
+        dry_run: If True, will not execute the command but print it instead.
 
     Examples:
         $ dda inv -- api hello --env staging
@@ -113,6 +115,10 @@ def run(
         payload = f'-d \'{payload}\''
 
     cmd = f'curl {silent} -X {method.upper()} {url} {token} -H {extra_header} {payload}'
+
+    if dry_run:
+        print(f'Would run: {cmd}')
+        return
 
     result = ctx.run(cmd, hide=use_jq)
     if not result.ok:
