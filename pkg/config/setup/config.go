@@ -909,7 +909,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
-	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os", "languages"})
+	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
