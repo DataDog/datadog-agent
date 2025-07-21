@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
+	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -101,6 +102,17 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	// this will terminate other running instances of the watchdog
 	// this allows for running multiple experiments in sequence
 	_ = setWatchdogStopEvent()
+
+	// check prerequisites before starting the experiment
+	// These checks are intended to prevent entering a state where we are unable to reinstall stable
+	// and the host is left without the Agent installed.
+	// Performing the checks before launching the background work allows us to
+	// return an error to the fleet backend and to the user.
+	env := getenv()
+	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
+	if err != nil {
+		return fmt.Errorf("cannot start remote update: %w", err)
+	}
 
 	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartExperimentBackground")
 }
@@ -491,31 +503,6 @@ func getWatchdogTimeout() time.Duration {
 	return time.Duration(val) * time.Minute
 }
 
-// getAgentUserNameFromRegistry returns the user name for the Agent, stored in the registry by the Agent MSI
-func getAgentUserNameFromRegistry() (string, error) {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Agent", registry.QUERY_VALUE)
-	if err != nil {
-		return "", err
-	}
-	defer k.Close()
-
-	user, _, err := k.GetStringValue("installedUser")
-	if err != nil {
-		return "", fmt.Errorf("could not read installedUser in registry: %w", err)
-	}
-
-	domain, _, err := k.GetStringValue("installedDomain")
-	if err != nil {
-		return "", fmt.Errorf("could not read installedDomain in registry: %w", err)
-	}
-
-	if domain != "" {
-		user = domain + `\` + user
-	}
-
-	return user, nil
-}
-
 // getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
@@ -533,7 +520,7 @@ func getenv() *env.Env {
 
 	// fallback to registry for agent user
 	if env.MsiParams.AgentUserName == "" {
-		user, err := getAgentUserNameFromRegistry()
+		user, err := windowsuser.GetAgentUserNameFromRegistry()
 		if err != nil {
 			log.Warnf("Could not read Agent user from registry: %v", err)
 		} else {
