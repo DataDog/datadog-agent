@@ -8,6 +8,41 @@ import requests
 from invoke import task
 
 from tasks.libs.common.git import get_commit_sha
+from tasks.libs.owners.parsing import search_owners
+from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP, DEFAULT_SLACK_CHANNEL
+
+
+def get_slack_channel_for_directory(directory_path: str) -> str:
+    """
+    Get the Slack channel associated with a directory based on CODEOWNERS.
+    If multiple teams are possible, take the first one.
+
+    Args:
+        directory_path: The directory path to find owners for
+
+    Returns:
+        The Slack channel for the first owner, or default channel if no owner found
+    """
+    try:
+        # Remove the leading datadog-agent prefix if it exists
+        rel_path = directory_path.removeprefix("/go/src/github.com/DataDog/datadog-agent/")
+
+        # Search for owners of this path
+        owners = search_owners(rel_path, ".github/CODEOWNERS")
+
+        if not owners:
+            return DEFAULT_SLACK_CHANNEL
+
+        # Take the first owner, we assume the first one is enough.
+        # The api currently only supports one slack channel per fuzz target. If need be we could change this.
+        first_owner = owners[0].lower()
+
+        # Map the owner to a slack channel
+        return GITHUB_SLACK_MAP.get(first_owner, DEFAULT_SLACK_CHANNEL)
+
+    except Exception as e:
+        print(f"Warning: Could not determine slack channel for {directory_path}: {e}")
+        return DEFAULT_SLACK_CHANNEL
 
 
 @task
@@ -73,6 +108,7 @@ def build_and_upload_fuzz(ctx, team="chaos-platform", core_count=2, duration=360
                 "team": team,
                 "process_count": proc_count,
                 "memory": fuzz_memory,
+                "slack_channel": get_slack_channel_for_directory(directory),
             }
 
             headers = {"Authorization": f"Bearer {auth_header}", "Content-Type": "application/json"}
