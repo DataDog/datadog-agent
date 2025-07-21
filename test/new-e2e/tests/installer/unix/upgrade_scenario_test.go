@@ -128,6 +128,43 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	s.executeAgentGoldenPath()
 }
 
+func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
+	s.RunInstallScript()
+	defer s.Purge()
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable
+	// Assert stable symlink exists properly
+	state := s.host.State()
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "root", "root")
+	state.AssertSymlinkExists(fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "/opt/datadog-agent", "root", "root")
+
+	// Set remote_updates to true in datadog.yaml
+	s.Env().RemoteHost.MustExecute(`printf "\nremote_updates: true\n" | sudo tee -a /etc/datadog-agent/datadog.yaml`)
+	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent`)
+
+	s.host.WaitForUnitActive(s.T(),
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.startExperiment(datadogAgent, latestAgentImageVersion)
+	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Assert stable symlink still exists properly
+	state = s.host.State()
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "root", "root")
+	state.AssertSymlinkExists(fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "/opt/datadog-agent", "root", "root")
+
+	timestamp = s.host.LastJournaldTimestamp()
+	s.promoteExperiment(datadogAgent)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+}
+
 func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()

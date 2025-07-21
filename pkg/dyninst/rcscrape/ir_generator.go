@@ -46,7 +46,7 @@ func (irGenerator) GenerateIR(
 		ID: programID,
 	}
 	// TODO: We could use less memory if we had a better symbol table parser.
-	symbols, err := executable.Symbols()
+	symbols, err := executable.Underlying.Elf.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get symbols: %w", err)
 	}

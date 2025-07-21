@@ -10,14 +10,14 @@ deploy_packages_windows-x64-7:
   tags: ["arch:amd64"]
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     - $S3_CP_CMD
       --recursive
       --exclude "*"
       --include "datadog-agent-7*.msi"
       --include "datadog-agent-7*.debug.zip"
-      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
   artifacts:
     paths:
       - $OMNIBUS_PACKAGE_DIR
@@ -30,14 +30,14 @@ deploy_staging_windows_tags-7:
   tags: ["arch:amd64"]
   needs: ["windows_zip_agent_binaries_x64-a7"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     # used for azure-app-services
     - $S3_CP_CMD
       --recursive
       --exclude "*"
       --include "agent-binaries-7.*.zip"
-      $OMNIBUS_PACKAGE_DIR $S3_DSD6_URI/windows/agent7/buildpack/
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_DSD6_URI/windows/agent7/buildpack/
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
@@ -51,7 +51,7 @@ deploy_installer_packages_windows-x64:
   tags: ["arch:amd64"]
   needs: ["windows-installer-amd64", "powershell_script_signing"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
     - ls $WINDOWS_POWERSHELL_DIR
   script:
     - $S3_CP_CMD
@@ -61,7 +61,7 @@ deploy_installer_packages_windows-x64:
       --include "datadog-installer-*-1-x86_64.debug.zip"
       --include "datadog-installer-*-1-x86_64.zip"
       --include "datadog-installer-*-1-x86_64.exe"
-      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_INSTALLER_ARTIFACTS_URI/msi/x86_64/
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_INSTALLER_ARTIFACTS_URI/msi/x86_64/
     - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 $S3_RELEASE_INSTALLER_ARTIFACTS_URI/scripts/Install-Datadog.ps1
 
 deploy_packages_windows-x64-7-fips:
@@ -72,14 +72,14 @@ deploy_packages_windows-x64-7-fips:
   tags: ["arch:amd64"]
   needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID
   script:
     - $S3_CP_CMD
       --recursive
       --exclude "*"
       --include "datadog-fips-agent-7*.msi"
       --include "datadog-fips-agent-7*.debug.zip"
-      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
+      $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/
   artifacts:
     paths:
       - $OMNIBUS_PACKAGE_DIR

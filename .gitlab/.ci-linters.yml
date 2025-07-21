@@ -8,8 +8,11 @@ needs-rules:
     - lint
     - notify
     - deploy_dca
+    - deploy_dca_mutable_tags
     - deploy_containers
     - deploy_mutable_image_tags
+    - deploy_cws_instrumentation
+    - deploy_cws_instrumentation_mutable_tags
 
   allowed-jobs:
     - build_clang_arm64
@@ -18,10 +21,6 @@ needs-rules:
     - build_processed_btfhub_archive
     - check_already_deployed_version_7
     - compute_gitlab_ci_config
-    - deploy_containers-cws-instrumentation-final-versioned
-    - deploy_containers-cws-instrumentation-latest
-    - deploy_containers-cws-instrumentation-rc-mutable
-    - deploy_containers-cws-instrumentation-rc-versioned
     - dogstatsd_x64_size_test
     - go_mod_tidy_check
     - golang_deps_send_count_metrics
