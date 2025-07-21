@@ -61,7 +61,7 @@ const (
 
 type certChainValidation struct {
 	EnableCertChainValidation      bool     `yaml:"enabled" json:"enabled" default:"false"`
-	CertChainPolicyValidationFlags []string `yaml:"policy_validation_flags" json:"policy_validation_flags" nullable:"false"`
+	CertChainPolicyValidationFlags []string `yaml:"policy_validation_flags" json:"policy_validation_flags" nullable:"true"`
 }
 
 // Config is the configuration options for this check

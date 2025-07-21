@@ -251,9 +251,9 @@ func TestWindowsCertificateCertChainVerification(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_store: CA
+certificate_store: ROOT
 certificate_subjects:
-  - dd-radius
+  - Microsoft
 cert_chain_validation:
   enabled: true
 `)
@@ -280,7 +280,7 @@ func TestWindowsCertificateCertChainVerificationWithFlags(t *testing.T) {
 	certCheck := new(WinCertChk)
 
 	instanceConfig := []byte(`
-certificate_store: CA
+certificate_store: ROOT
 cert_chain_validation:
   enabled: true
   policy_validation_flags:
@@ -311,5 +311,59 @@ cert_chain_validation:
 	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
 	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
 	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_validation", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestWindowsCertificateCertChainVerificationWithEmptyPolicyValidationFlags(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store: ROOT
+certificate_subjects:
+  - Microsoft
+cert_chain_validation:
+  enabled: true
+  policy_validation_flags:
+`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+
+	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	m.On("ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("ServiceCheck", "windows_certificate.cert_chain_validation", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.On("Commit").Return()
+
+	certCheck.Run()
+
+	m.AssertExpectations(t)
+	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_chain_validation", servicecheck.ServiceCheckOK, "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestWindowsCertificateCertChainVerificationWithNoCertificates(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store: ROOT
+certificate_subjects:
+  - INVALID
+cert_chain_validation:
+  enabled: true
+`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+	m.On("Commit").Return()
+
+	certCheck.Run()
+
+	m.AssertExpectations(t)
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
 	m.AssertNumberOfCalls(t, "Commit", 1)
 }
