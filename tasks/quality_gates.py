@@ -196,6 +196,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
             gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
         except InfraError as e:
             print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
+            traceback.print_exception(e)
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
