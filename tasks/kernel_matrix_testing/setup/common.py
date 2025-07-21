@@ -96,7 +96,7 @@ class TestInfraDefinitionsRepo(Requirement):
             )
 
         clone_opts = "--depth 1 --single-branch --branch=main" if os.environ.get("CI") else ""
-        repo_access = "git+https://github.com/" if os.environ.get("CI") else "git@github.com:"
+        repo_access = "https://github.com/" if os.environ.get("CI") else "git@github.com:"
 
         try:
             ctx.run(f"git clone {repo_access}DataDog/test-infra-definitions.git {candidate_paths[0]} {clone_opts}")
