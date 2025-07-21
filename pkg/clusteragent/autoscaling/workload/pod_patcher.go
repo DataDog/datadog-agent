@@ -116,7 +116,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		for i := range pod.Spec.InitContainers {
 			cont := &pod.Spec.InitContainers[i]
 			// sidecar container by definition is an init container with `restartPolicy: Always`
-			isInitSidecarContainer := cont.RestartPolicy == nil || *cont.RestartPolicy != corev1.ContainerRestartPolicyAlways
+			isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
 			if cont.Name == reco.Name && isInitSidecarContainer {
 				patched = patchContainerResources(reco, cont) || patched
 				break
