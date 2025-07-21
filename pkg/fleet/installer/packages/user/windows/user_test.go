@@ -75,6 +75,10 @@ func runningInCI() bool {
 	return os.Getenv("CI") != ""
 }
 
+// getTestAgentUser returns the agent user name used for the unit tests.
+//
+// In CI unit tests, returns hostname\ddagentuser, as created by Invoke-UnitTests.ps1.
+// For manual tests, returns the agent user name from the registry, and can be overridden by setting the DD_AGENT_USER_NAME environment variable.
 func getTestAgentUser(t *testing.T) string {
 	var err error
 	user := os.Getenv("DD_AGENT_USER_NAME")
@@ -83,7 +87,7 @@ func getTestAgentUser(t *testing.T) string {
 	}
 
 	if runningInCI() {
-		return fmt.Sprintf("%s\\%s", os.Getenv("COMPUTERNAME"), os.Getenv("DD_AGENT_USER_NAME"))
+		return fmt.Sprintf("%s\\%s", os.Getenv("COMPUTERNAME"), "ddagentuser")
 	}
 
 	user, err = GetAgentUserNameFromRegistry()
@@ -92,7 +96,7 @@ func getTestAgentUser(t *testing.T) string {
 	return user
 }
 
-// disableProcessContextValidation is a helper function to disable the process context validation in unit tests.
+// disableProcessContextValidation disables validateProcessContext for the duration of the test.
 func disableProcessContextValidation(t *testing.T) {
 	oldValidateProcessContext := validateProcessContext
 	validateProcessContext = func() error {

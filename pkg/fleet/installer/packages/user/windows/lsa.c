@@ -8,6 +8,8 @@
 #include <ntsecapi.h>
 
 // Retrieve private data from LSA
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/ntsecapi/nf-ntsecapi-lsaretrieveprivatedata
 NTSTATUS retrieve_private_data(const void* key, void** result, size_t* result_size) {
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     WCHAR* key_copy = NULL;
@@ -29,17 +31,17 @@ NTSTATUS retrieve_private_data(const void* key, void** result, size_t* result_si
         status = STATUS_INVALID_PARAMETER_3;
         goto done;
     }
-    
+
     *result = NULL;
     *result_size = 0;
-    
+
     // Duplicate the key to ensure we have a non-const copy
     key_copy = _wcsdup((const WCHAR*)key);
     if (!key_copy) {
         status = STATUS_NO_MEMORY;
         goto done;
     }
-    
+
     LSA_OBJECT_ATTRIBUTES object_attributes;
     memset(&object_attributes, 0, sizeof(LSA_OBJECT_ATTRIBUTES));
 
@@ -48,26 +50,30 @@ NTSTATUS retrieve_private_data(const void* key, void** result, size_t* result_si
     if (status != STATUS_SUCCESS) {
         goto done;
     }
-    
+
     // Create LSA unicode string for the key
     lsa_key_name.Buffer = key_copy;
     lsa_key_name.Length = wcslen(key_copy) * sizeof(WCHAR);
     lsa_key_name.MaximumLength = lsa_key_name.Length + sizeof(WCHAR);
-    
+
     // Retrieve private data
     status = LsaRetrievePrivateData(lsa_handle, &lsa_key_name, &lsa_secret_ptr);
-    if (status != STATUS_SUCCESS || !lsa_secret_ptr) {
+    if (status != STATUS_SUCCESS) {
         goto done;
     }
-    
-    // Extract string from LSA unicode string
-    if (!lsa_secret_ptr->Buffer || lsa_secret_ptr->Length == 0) {
+
+    if (!lsa_secret_ptr || !lsa_secret_ptr->Buffer || lsa_secret_ptr->Length == 0) {
+        // We expect STATUS_OBJECT_NAME_NOT_FOUND if the key is not found,
+        // but we'll treat this unexpected case same as if it was an empty string.
         *result = NULL;
         *result_size = 0;
         status = STATUS_SUCCESS;
         goto done;
     }
-    
+
+    // Create a copy of the string because it may not be null-terminated and
+    // UTF16PtrToString expects a null-terminated string.
+
     // Allocate memory for null-terminated string (lengths in bytes)
     USHORT lengthWithNullTerminator = lsa_secret_ptr->Length + sizeof(WCHAR);
     unsigned char* output = (unsigned char*)calloc(lengthWithNullTerminator, sizeof(unsigned char));
@@ -75,7 +81,7 @@ NTSTATUS retrieve_private_data(const void* key, void** result, size_t* result_si
         status = STATUS_NO_MEMORY;
         goto done;
     }
-    
+
     // Copy the string
     memcpy(output, lsa_secret_ptr->Buffer, lsa_secret_ptr->Length);
     *result = output;
@@ -109,4 +115,4 @@ void free_private_data(void* result, size_t result_size) {
         memset(result, 0, result_size);
         free(result);
     }
-} 
+}

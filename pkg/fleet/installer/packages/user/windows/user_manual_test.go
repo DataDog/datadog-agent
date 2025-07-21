@@ -17,12 +17,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestAgentUserPassword gets the password for the agent user from the LSA.
+//
+// Test will fail for service accounts that have no password.
 func TestAgentUserPassword(t *testing.T) {
 	password, err := getAgentUserPasswordFromLSA()
 	assert.NoError(t, err)
 	fmt.Println("password: ", password)
 }
 
+// TestValidate runs ValidateAgentUserRemoteUpdatePrerequisites, expect it to succeed on any host with 7.66 or later installed.
 func TestValidate(t *testing.T) {
 	disableProcessContextValidation(t)
 
@@ -31,6 +35,9 @@ func TestValidate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestAgentUser prints information about the agent user, mimicing ValidateAgentUserRemoteUpdatePrerequisites.
+//
+// isServiceAccount will return an error on non-domain joined hosts.
 func TestAgentUser(t *testing.T) {
 	disableProcessContextValidation(t)
 
@@ -41,6 +48,10 @@ func TestAgentUser(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Println("domain: ", domain)
 	fmt.Println("sid: ", sid.String())
+
+	hasPassword, err := AgentUserPasswordPresent()
+	assert.NoError(t, err)
+	fmt.Println("password in LSA:", hasPassword)
 
 	isLocalAccount, err := IsLocalAccount(sid)
 	assert.NoError(t, err)

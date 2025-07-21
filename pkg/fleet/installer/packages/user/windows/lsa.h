@@ -16,4 +16,4 @@ NTSTATUS retrieve_private_data(const void* key, void** result, size_t* result_si
 // Free result returned by retrieve_private_data
 void free_private_data(void* result, size_t result_size);
 
-#endif // LSA_H 
+#endif // LSA_H

@@ -33,6 +33,7 @@ var ErrPrivateDataNotFound = errors.New("private data not found")
 // Validation of initial installation is left to the MSI. We forward any MSI errors to the user.
 //
 // NOTE: This function is intended to be run only by the daemon service and its subprocesses running as LocalSystem.
+// This assumption is checked in validateProcessContext.
 // If this assumption changes, we must change how we validate gMSA accounts. See NetIsServiceAccount docs for details.
 //
 // Keep loosely in sync with the MSI ProcessUserCustomActions conditions. Noting the difference between
@@ -44,57 +45,80 @@ func ValidateAgentUserRemoteUpdatePrerequisites(userName string) error {
 
 	// Sanity check expected username format.
 	// We always store both parts in the registry so we should always have both here.
-	if !strings.Contains(userName, `\`) {
-		return fmt.Errorf("the provided account '%s' is not in the expected format domain\\username", userName)
+	if err := usernameHasExpectedFormat(userName); err != nil {
+		return err
 	}
 
 	// Check if the account exists
 	// The account must already exist during remote updates.
 	sid, _, err := lookupSID(userName)
 	if err != nil {
-		return fmt.Errorf("failed to lookup SID for account %s: %w. Please ensure the account exists", userName, err)
+		// The account should exist already, since the Agent is running as /something/.
+		// It is possible a user manually changed the service account configuration instead of using the MSI,
+		// but this is not a supported or intended scenario.
+		// I think we'll hit this error case in the "golden image" scenario, where the hostname changes, too.
+		// Do not add punctuation after %w, the error message already contains it.
+		return fmt.Errorf("failed to lookup SID for account %s: %w Please ensure the account exists and reinstall the Agent with the username provided", userName, err)
 	}
 
 	if IsSupportedWellKnownAccount(sid) {
-		// no password is required for well known service accounts
+		// no password is required for well known service accounts.
+		// This is an easy check so we do it first.
 		return nil
 	}
 
-	// Check if the account is a local account
+	passwordPresent, err := AgentUserPasswordPresent()
+	if err != nil {
+		return fmt.Errorf("failed to check if account has password: %w", err)
+	}
+	if passwordPresent {
+		// Agent user password is present, we assume it is valid.
+		return nil
+	}
+
+	// Password is not present, we need to check if it is required.
+
 	isLocalAccount, err := IsLocalAccount(sid)
 	if err != nil {
 		return fmt.Errorf("failed to check if account is a local account: %w", err)
 	}
 	if isLocalAccount {
-		// no need to check if password exists.
-		// The MSI will create a new password if needed.
+		// Password is not needed for local accounts, the MSI will create a new password if needed.
 		return nil
-	}
-
-	isServiceAccount, err := IsServiceAccount(sid)
-	if err != nil {
-		// We expect this function
-		return fmt.Errorf("failed to check if account is a service account: %w. Please ensure the netlogon service is running and the domain controller is available", err)
-	}
-	if isServiceAccount {
-		// no need to check if password exists.
-		// gMSA accounts do not have passwords
-		return nil
-	} else if strings.HasSuffix(userName, "$") {
-		return fmt.Errorf("The provided account '%s' ends with '$' but is not recognized as a valid gMSA account. Please ensure the username is correct and this host is a member of PrincipalsAllowedToRetrieveManagedPassword. If the account is a normal account, please reinstall the Agent with the password provided", userName)
 	}
 
 	// At this point, we assume the account is a domain account.
-	// We need to check if the account has a password.
-	passwordPresent, err := AgentUserPasswordPresent()
+	// If it's a gMSA account, we don't need a password.
+
+	isServiceAccount, err := IsServiceAccount(sid)
 	if err != nil {
-		return fmt.Errorf("failed to check if account has password: %w", err)
+		return err
+	}
+	if isServiceAccount {
+		// gMSA accounts do not have passwords
+		return nil
+	} else if strings.HasSuffix(userName, "$") {
+		return fmt.Errorf("the provided account '%s' ends with '$' but is not recognized as a valid gMSA account. Please ensure the username is correct and this host is a member of PrincipalsAllowedToRetrieveManagedPassword. If the account is a normal account, please reinstall the Agent with the password provided", userName)
 	}
 
-	if !passwordPresent {
-		return fmt.Errorf("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided")
-	}
+	// This is likely from manually upgrading from 7.65 or earlier to 7.66 or later
+	// WITHOUT providing the password option to the MSI. The MSI has historically
+	// allowed this for convenience during MSI major upgrades, but it can cause issues
+	// when the upgrade must create a new service but doesn't have the password.
+	// Remote updates fully uninstall the previous version, so we need the password.
+	return fmt.Errorf("the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided")
+}
 
+// usernameHasExpectedFormat returns an error if the username is not in the expected format domain\\username
+func usernameHasExpectedFormat(userName string) error {
+	parts := strings.Split(userName, `\`)
+	if len(parts) != 2 {
+		return fmt.Errorf("the provided account '%s' is not in the expected format domain\\username", userName)
+	}
+	domain, user := parts[0], parts[1]
+	if domain == "" || user == "" {
+		return fmt.Errorf("the provided account '%s' is not in the expected format domain\\username", userName)
+	}
 	return nil
 }
 
@@ -178,21 +202,27 @@ func IsServiceAccount(sid *windows.SID) (bool, error) {
 		return true, nil
 	}
 
-	userName, domain, _, err := sid.LookupAccount("")
+	user, domain, _, err := sid.LookupAccount("")
 	if err != nil {
 		return false, fmt.Errorf("failed to lookup account name for SID %s: %w", sid.String(), err)
 	}
 
-	r, err := NetIsServiceAccount(domain + `\` + userName)
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	r, err := NetIsServiceAccount(user)
 	if err != nil {
-		if errors.Is(err, RPC_NT_SERVER_UNAVAILABLE) {
-			// Do not add punctuation after %w, the error message already contains it.
-			err = fmt.Errorf("%w Please ensure the netlogon service is running and the domain controller is available", err)
-		} else if errors.Is(err, windows.STATUS_OPEN_FAILED) {
+		if errors.Is(err, windows.STATUS_OPEN_FAILED) {
 			// Do not wrap the error message in the error string, it is too verbose and is unrelated to the actual issue
+			// See NetIsServiceAccount docs for more details on the double hop problem.
 			err = fmt.Errorf("error 0x%X. Please ensure the netlogon service is running, the domain controller is available, and the current process has network credentials that will be accepted by the domain controller", windows.STATUS_OPEN_FAILED)
 		}
-		return false, fmt.Errorf("failed to check if account is a service account: %w", err)
+		// TODO(WINA-1662): In our QA env (dcchild-u) when querying ddog\ddogagent (not a gMSA account) this returns windows.STATUS_INVALID_ACCOUNT_NAME
+		// In other test envs, and on `dcforest`, the functions succeeds and returns false, what is different?
+
+		// Do not add punctuation after %w, the error message already contains it.
+		return false, fmt.Errorf("failed to check if account '%s' is a service account: %w Please ensure the netlogon service is running and the domain controller is available", user, err)
 	}
 	return r, nil
 }
@@ -236,6 +266,8 @@ func IsLocalAccount(sid *windows.SID) (bool, error) {
 }
 
 // AgentUserPasswordPresent returns true if the Agent user password is present in LSA.
+//
+// Returns false if the password is not present or is empty.
 func AgentUserPasswordPresent() (bool, error) {
 	password, err := getAgentUserPasswordFromLSA()
 	if err != nil {

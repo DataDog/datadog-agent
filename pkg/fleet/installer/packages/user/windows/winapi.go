@@ -17,6 +17,9 @@ import (
 var (
 	logonclidll             = windows.NewLazySystemDLL("logoncli.dll")
 	procNetIsServiceAccount = logonclidll.NewProc("NetIsServiceAccount")
+
+	advapi32dll                    = windows.NewLazySystemDLL("ADVAPI32.dll")
+	procGetWindowsAccountDomainSid = advapi32dll.NewProc("GetWindowsAccountDomainSid")
 )
 
 // Windows status codes
@@ -24,7 +27,6 @@ var (
 //revive:disable:var-naming match Windows status code names
 const (
 	STATUS_OBJECT_NAME_NOT_FOUND = windows.NTStatus(0xC0000034)
-	RPC_NT_SERVER_UNAVAILABLE    = windows.NTStatus(0xC0020017)
 )
 
 //revive:enable:var-naming
@@ -75,14 +77,8 @@ func NetIsServiceAccount(username string) (bool, error) {
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-getwindowsaccountdomainsid
 func GetWindowsAccountDomainSid(sid *windows.SID) (*windows.SID, error) {
-	// import GetWindowsAccountDomainSid from secur32.dll
-	// https://docs.microsoft.com/en-us/windows/win32/api/secur32/nf-secur32-getwindowsaccountdomainsid
-	//
-	// GetWindowsAccountDomainSid returns the domain SID for a given SID.
-	lazyDLL := windows.NewLazySystemDLL("ADVAPI32.dll")
-	proc := lazyDLL.NewProc("GetWindowsAccountDomainSid")
 	var domainSidSize uint32
-	r1, _, err := proc.Call(
+	r1, _, err := procGetWindowsAccountDomainSid.Call(
 		uintptr(unsafe.Pointer(sid)),
 		0, // NULL to request size
 		uintptr(unsafe.Pointer(&domainSidSize)),
@@ -94,7 +90,7 @@ func GetWindowsAccountDomainSid(sid *windows.SID) (*windows.SID, error) {
 		}
 	}
 	b := make([]byte, domainSidSize)
-	r1, _, err = proc.Call(
+	r1, _, err = procGetWindowsAccountDomainSid.Call(
 		uintptr(unsafe.Pointer(sid)),
 		uintptr(unsafe.Pointer(unsafe.SliceData(b))),
 		uintptr(unsafe.Pointer(&domainSidSize)),
