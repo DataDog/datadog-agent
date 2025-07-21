@@ -27,17 +27,14 @@
               "a": {
                 "type": "*main.structWithTwoValues",
                 "address": "[addr]",
-                "value": {
-                  "type": "main.structWithTwoValues",
-                  "fields": {
-                    "a": {
-                      "type": "uint",
-                      "value": "9"
-                    },
-                    "b": {
-                      "type": "bool",
-                      "value": "true"
-                    }
+                "fields": {
+                  "a": {
+                    "type": "uint",
+                    "value": "9"
+                  },
+                  "b": {
+                    "type": "bool",
+                    "value": "true"
                   }
                 }
               }

@@ -34,28 +34,22 @@
                   "b": {
                     "type": "*main.node",
                     "address": "[addr]",
-                    "value": {
-                      "type": "main.node",
-                      "fields": {
-                        "val": {
-                          "type": "int",
-                          "value": "2"
-                        },
-                        "b": {
-                          "type": "*main.node",
-                          "address": "[addr]",
-                          "value": {
-                            "type": "main.node",
-                            "fields": {
-                              "val": {
-                                "type": "int",
-                                "value": "3"
-                              },
-                              "b": {
-                                "type": "*main.node",
-                                "isNull": true
-                              }
-                            }
+                    "fields": {
+                      "val": {
+                        "type": "int",
+                        "value": "2"
+                      },
+                      "b": {
+                        "type": "*main.node",
+                        "address": "[addr]",
+                        "fields": {
+                          "val": {
+                            "type": "int",
+                            "value": "3"
+                          },
+                          "b": {
+                            "type": "*main.node",
+                            "isNull": true
                           }
                         }
                       }

@@ -29,13 +29,14 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program            *ir.Program
-	stackFrames        map[uint64][]symbol.StackFrame
-	probeEvents        map[ir.TypeID]probeEvent
-	snapshotMessage    snapshotMessage
-	dataItemReferences map[typeAndAddr]output.DataItem
-	decoderTypes       map[ir.TypeID]decoderType
-	currentlyEncoding  map[typeAndAddr]struct{}
+	program         *ir.Program
+	snapshotMessage snapshotMessage
+
+	decoderTypes      map[ir.TypeID]decoderType
+	probeEvents       map[ir.TypeID]probeEvent
+	stackFrames       map[uint64][]symbol.StackFrame
+	dataItems         map[typeAndAddr]output.DataItem
+	currentlyEncoding map[typeAndAddr]struct{}
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -43,12 +44,12 @@ func NewDecoder(
 	program *ir.Program,
 ) (*Decoder, error) {
 	decoder := &Decoder{
-		dataItemReferences: make(map[typeAndAddr]output.DataItem),
-		decoderTypes:       make(map[ir.TypeID]decoderType, len(program.Types)),
-		currentlyEncoding:  make(map[typeAndAddr]struct{}),
-		program:            program,
-		stackFrames:        make(map[uint64][]symbol.StackFrame),
-		probeEvents:        make(map[ir.TypeID]probeEvent),
+		dataItems:         make(map[typeAndAddr]output.DataItem),
+		decoderTypes:      make(map[ir.TypeID]decoderType, len(program.Types)),
+		currentlyEncoding: make(map[typeAndAddr]struct{}),
+		program:           program,
+		stackFrames:       make(map[uint64][]symbol.StackFrame),
+		probeEvents:       make(map[ir.TypeID]probeEvent),
 		snapshotMessage: snapshotMessage{
 			DDSource: "dd_debugger",
 			Logger: logger{
@@ -155,7 +156,7 @@ func (s *snapshotMessage) init(
 		// The value is a data item with a counter of how many times it has been referenced.
 		// If the counter is greater than 1, we know that the data item is a pointer to another data item.
 		// We can then encode the pointer as a string and not as an object.
-		decoder.dataItemReferences[typeAndAddr{
+		decoder.dataItems[typeAndAddr{
 			irType: uint32(item.Header().Type),
 			addr:   item.Header().Address,
 		}] = item

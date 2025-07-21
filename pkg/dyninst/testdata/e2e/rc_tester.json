@@ -100,38 +100,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -399,38 +369,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",
@@ -698,38 +638,8 @@
                   },
                   "Header": {
                     "type": "net/http.Header",
-                    "entries": [
-                      [
-                        {
-                          "type": "string",
-                          "value": "Accept-Encoding"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "gzip"
-                            }
-                          ]
-                        }
-                      ],
-                      [
-                        {
-                          "type": "string",
-                          "value": "User-Agent"
-                        },
-                        {
-                          "type": "[]string",
-                          "elements": [
-                            {
-                              "type": "string",
-                              "value": "Go-http-client/1.1"
-                            }
-                          ]
-                        }
-                      ]
-                    ]
+                    "entries": [],
+                    "notCapturedReason": "depth"
                   },
                   "Body": {
                     "type": "io.ReadCloser",

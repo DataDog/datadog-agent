@@ -18,5 +18,4 @@ var (
 	notCapturedReasonPruned         jsontext.Token = jsontext.String("pruned")
 	notCapturedReasonUnimplemented  jsontext.Token = jsontext.String("unimplemented")
 	// notCapturedReasonFieldCount     jsontext.Token = jsontext.String("fieldCount")
-
 )
