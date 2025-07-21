@@ -354,7 +354,7 @@ def ninja_kernel_bug_binaries(nw: NinjaWriter, arch: str | Arch):
     arch = Arch.from_str(arch)
 
     # do not build for arm64
-    if arch.ci_arch == "arm64":
+    if arch == ARCH_ARM64:
         return
 
     ebpf_c_dir = os.path.join("pkg", "ebpf", "kernelbugs", "c")
