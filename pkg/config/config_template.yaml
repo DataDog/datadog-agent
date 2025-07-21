@@ -881,7 +881,8 @@ api_key:
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
 ## This feature is in preview.
 ##
-## The section contains information required to resolved secrets.
+## The section contains configuration required by `secret_backend_type` to resolve secrets.
+## The necessary configuration depends upon which type is used.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_config:
@@ -894,7 +895,7 @@ api_key:
 ##
 ## This option take precedence over `secret_backend_type`.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_command: <COMMAND_PATH>
 

@@ -8,13 +8,19 @@
 package irgen_test
 
 import (
+	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -26,14 +32,17 @@ import (
 func TestIRGenAllProbes(t *testing.T) {
 	programs := testprogs.MustGetPrograms(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
+	var objcopy string
+	{
+		if objcopyPath, err := exec.LookPath("objcopy"); err == nil {
+			objcopy = objcopyPath
+		}
+	}
+
 	for _, pkg := range programs {
 		switch pkg {
 		case "simple", "sample":
 		default:
-			// TODO: The generation for programs that link dd-trace-go is
-			// very slow due to accidentally quadratic behavior when processing
-			// the line programs. We should fix this, but for now we skip these
-			// programs.
 			t.Logf("skipping %s", pkg)
 			continue
 		}
@@ -42,10 +51,45 @@ func TestIRGenAllProbes(t *testing.T) {
 				t.Run(cfg.String(), func(t *testing.T) {
 					bin := testprogs.MustGetBinary(t, pkg, cfg)
 					testAllProbes(t, bin)
+					version, ok := object.ParseGoVersion(cfg.GOTOOLCHAIN)
+					require.True(t, ok)
+					if version.Minor >= 25 {
+						return // already uses loclists
+					}
+					t.Run("bogus loclist", func(t *testing.T) {
+						tempDir, cleanup := dyninsttest.PrepTmpDir(t, "irgen_all_symbols_test")
+						defer cleanup()
+						modified, err := addLoclistSection(bin, objcopy, tempDir)
+						if err != nil {
+							t.Skipf("failed to objcopy a loclist section for %s: %v", cfg.String(), err)
+						}
+						testAllProbes(t, modified)
+					})
 				})
 			}
 		})
 	}
+}
+
+func addLoclistSection(binPath, objcopy, tmpDir string) (modifiedBinPath string, err error) {
+	junkDataFile := path.Join(tmpDir, "junk.data")
+	junkData := make([]byte, 1024)
+	if _, err := io.ReadFull(rand.Reader, junkData); err != nil {
+		return "", fmt.Errorf("failed to generate junk data: %w", err)
+	}
+	if err := os.WriteFile(junkDataFile, junkData, 0644); err != nil {
+		return "", fmt.Errorf("failed to write junk data: %w", err)
+	}
+	modifiedBinPath = filepath.Join(tmpDir, "modified.bin")
+	if output, err := exec.Command(objcopy,
+		"--add-section", ".debug_loclists="+junkDataFile,
+		"--set-section-flags", ".debug_loclists=alloc,readonly,debug",
+		binPath,
+		modifiedBinPath,
+	).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to objcopy: %w\n%s", err, string(output))
+	}
+	return modifiedBinPath, nil
 }
 
 func testAllProbes(t *testing.T, binPath string) {

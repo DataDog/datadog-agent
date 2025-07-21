@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 const (
@@ -191,6 +192,10 @@ type CoreAgentService struct {
 	site         string
 	configRoot   string
 	directorRoot string
+
+	// A background task used to perform connectivity tests using a WebSocket -
+	// data gathering for future development.
+	websocketTest startstop.StartStoppable
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -475,6 +480,14 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
+	// WebSocket test actor - must call Start() to spawn the background task.
+	var websocketTest startstop.StartStoppable
+	if cfg.GetBool("remote_configuration.no_websocket_echo") {
+		websocketTest = &noOpRunnable{}
+	} else {
+		websocketTest = NewWebSocketTestActor(http)
+	}
+
 	now := clock.Now().UTC()
 	cas := &CoreAgentService{
 		Service: Service{
@@ -516,6 +529,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		site:                     options.site,
 		configRoot:               configRoot,
 		directorRoot:             directorRoot,
+		websocketTest:            websocketTest,
 	}
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -556,6 +570,8 @@ func (s *CoreAgentService) Start() {
 		}
 
 	}()
+
+	s.websocketTest.Start()
 }
 
 // UpdatePARJWT updates the stored JWT for Private Action Runners
@@ -628,6 +644,10 @@ func logRefreshError(s *CoreAgentService, err error) {
 
 // Stop stops the refresh loop and closes the on-disk DB cache
 func (s *CoreAgentService) Stop() error {
+	// NOTE: Stop() MAY be called more than once - cleanup SHOULD be idempotent.
+
+	s.websocketTest.Stop()
+
 	if s.stopConfigPoller != nil {
 		close(s.stopConfigPoller)
 	}
