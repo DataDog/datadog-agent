@@ -411,7 +411,7 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 }
 
 func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	s.RunInstallScript("DD_INSTALLER=true", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")
