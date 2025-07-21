@@ -9,7 +9,7 @@ from invoke import task
 
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
-from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP, DEFAULT_SLACK_CHANNEL
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 
 
 def get_slack_channel_for_directory(directory_path: str) -> str:
