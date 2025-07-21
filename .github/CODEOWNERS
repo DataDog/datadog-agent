@@ -440,7 +440,6 @@
 /pkg/collector/corechecks/system/windowscertificate/ @DataDog/windows-agent
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
-/pkg/collector/corechecks/system/winsoftware/   @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-runtimes
 /pkg/config/                            @DataDog/agent-configuration
@@ -473,6 +472,7 @@
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent @DataDog/agent-configuration
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
+/pkg/collector/pkg/inventory/software/  @DataDog/windows-agent
 /pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
