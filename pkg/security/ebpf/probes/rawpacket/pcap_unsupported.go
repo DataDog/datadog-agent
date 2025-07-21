@@ -30,7 +30,7 @@ func DefaultProgOpts() ProgOpts {
 	return ProgOpts{}
 }
 
-// WithAction sets the action to take when a filter matches
+// WithProgPrefix sets the prefix for the program name
 func (opts *ProgOpts) WithProgPrefix(_ string) *ProgOpts {
 	return opts
 }

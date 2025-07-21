@@ -104,8 +104,7 @@ type RawPacketActionReport struct {
 	Policy string `json:"policy"`
 
 	// internal
-	resolved bool
-	rule     *rules.Rule
+	rule *rules.Rule
 }
 
 // IsResolved return if the action is resolved

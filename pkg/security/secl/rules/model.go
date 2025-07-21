@@ -313,7 +313,7 @@ type NetworkFilterDefinition struct {
 }
 
 // Check returns an error if the network filter action is invalid
-func (n *NetworkFilterDefinition) Check(opts PolicyLoaderOpts) error {
+func (n *NetworkFilterDefinition) Check(_ PolicyLoaderOpts) error {
 	if n.BPFFilter == "" {
 		return errors.New("a valid BPF filter must be specified to the 'network_filter' action")
 	}
