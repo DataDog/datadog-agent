@@ -67,7 +67,7 @@ type networkInstanceConfig struct {
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern  *regexp.Regexp
-	CollectEthtoolStats       bool     `yaml:"collect_ethtool_stats"`
+	CollectEthtoolStats       bool
 	CollectEthtoolMetrics     bool     `yaml:"collect_ethtool_metrics"`
 	CollectEnaMetrics         bool     `yaml:"collect_aws_ena_metrics"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
@@ -876,6 +876,10 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		} else {
 			c.config.instance.ExcludedInterfacePattern = pattern
 		}
+	}
+
+	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
+		c.config.instanceCollectEthtoolStats = true
 	}
 
 	return nil
