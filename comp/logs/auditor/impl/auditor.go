@@ -257,7 +257,7 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint, msg.Origin.LogSource.Config.FingerprintConfig)
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint, &msg.Origin.LogSource.Config.FingerprintConfig)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
