@@ -133,7 +133,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 	for _, event := range imageEvents {
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			if p.filterStore.IsImageExcluded(workloadfilter.CreateImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name), [][]workloadfilter.ImageFilter{{workloadfilter.ImageFilter(workloadfilter.LegacyImageSBOM)}}) {
+			if p.filterStore.IsContainerExcluded(workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name), [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.LegacyContainerSBOM)}}) {
 				continue
 			}
 

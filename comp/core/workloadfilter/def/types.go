@@ -75,6 +75,16 @@ func (c *Container) GetAnnotations() map[string]string {
 	return nil
 }
 
+// CreateContainerImage creates a Filterable Container Image object.
+// This is used only for container image filtering
+func CreateContainerImage(name string) *Container {
+	return &Container{
+		FilterContainer: &typedef.FilterContainer{
+			Image: name,
+		},
+	}
+}
+
 // ContainerFilter defines the type of container filter.
 type ContainerFilter int
 
@@ -207,50 +217,4 @@ const (
 	LegacyEndpointGlobal
 	EndpointADAnnotationsMetrics
 	EndpointADAnnotations
-)
-
-//
-// Image Definition
-//
-
-// Image represents a filterable image object.
-type Image struct {
-	*typedef.FilterImage
-}
-
-// CreateImage creates a Filterable Image object.
-func CreateImage(name string) *Image {
-	return &Image{
-		FilterImage: &typedef.FilterImage{
-			Name: name,
-		},
-	}
-}
-
-var _ Filterable = &Image{}
-
-// Serialize converts the Image object to a filterable object.
-func (i *Image) Serialize() any {
-	return i.FilterImage
-}
-
-// Type returns the resource type of the image.
-func (i *Image) Type() ResourceType {
-	return ImageType
-}
-
-// GetAnnotations returns the annotations of the image.
-func (i *Image) GetAnnotations() map[string]string {
-	// Images do not have annotations.
-	return nil
-}
-
-// ImageFilter defines the type of image filter.
-type ImageFilter int
-
-// Defined Image filter kinds
-const (
-	LegacyImage ImageFilter = iota
-	LegacyImageSBOM
-	ImagePaused
 )

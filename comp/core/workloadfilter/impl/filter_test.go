@@ -745,39 +745,12 @@ func TestImageFiltering(t *testing.T) {
 
 			f := newFilterObject(t, mockConfig)
 
-			image := workloadfilter.CreateImage(tt.imageName)
+			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
 
-			res := evaluateResource(f, image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImage}})
+			res := evaluateResource(f, containerImage, workloadfilter.GetContainerSharedMetricFilters())
 			assert.Equal(t, tt.expected, res)
 		})
 	}
-}
-
-func TestImageSBOMFilter(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("sbom.container_image.container_include", []string{"image:dd-agent"})
-	mockConfig.SetWithoutSource("sbom.container_image.container_exclude", []string{"image:nginx"})
-	mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", true)
-
-	f := newFilterObject(t, mockConfig)
-
-	t.Run("Include image", func(t *testing.T) {
-		image := workloadfilter.CreateImage("dd-agent")
-		res := f.IsImageExcluded(image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImageSBOM}})
-		assert.Equal(t, false, res)
-	})
-
-	t.Run("Exclude image", func(t *testing.T) {
-		image := workloadfilter.CreateImage("nginx-123")
-		res := f.IsImageExcluded(image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImageSBOM}})
-		assert.Equal(t, true, res)
-	})
-
-	t.Run("Exclude pause image", func(t *testing.T) {
-		image := workloadfilter.CreateImage("kubernetes/pause")
-		res := f.IsImageExcluded(image, [][]workloadfilter.ImageFilter{{workloadfilter.LegacyImageSBOM}})
-		assert.Equal(t, true, res)
-	})
 }
 
 // containsErrorWithMessage checks if any error in the slice contains the specified message

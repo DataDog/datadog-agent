@@ -85,7 +85,6 @@ func GetContainerSharedMetricFilters() [][]ContainerFilter {
 	}
 	if len(excludeList) == 0 {
 		low = append(low, LegacyContainerACExclude)
-
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("exclude_pause_container") {
@@ -99,12 +98,4 @@ func GetContainerSharedMetricFilters() [][]ContainerFilter {
 // GetPodSharedMetricFilters identifies the filtering component's individual Pod Filters for pod metrics.
 func GetPodSharedMetricFilters() [][]PodFilter {
 	return [][]PodFilter{{PodADAnnotations, PodADAnnotationsMetrics}, {LegacyPod}}
-}
-
-// GetImageSharedMetricFilters identifies the filtering component's individual Image Filters for image metrics.
-func GetImageSharedMetricFilters() [][]ImageFilter {
-	// No AD annotation filtering for images because not tied to a k8s resource
-	return [][]ImageFilter{
-		{LegacyImage, ImagePaused},
-	}
 }
