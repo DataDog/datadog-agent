@@ -104,7 +104,7 @@ def _is_pattern_in_fs(path, pattern):
                 # file_path is the relative path from the root of the repo, without "./" at the begining
                 file_path = os.path.join(root, name)[2:]
                 normalized_file_path = file_path.replace('\\', '/')
-                
+
                 # Check if the file path matches any of the regex patterns
                 if pattern.match(normalized_file_path):
                     return True
