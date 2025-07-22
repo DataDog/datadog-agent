@@ -45,6 +45,9 @@ func TestAgentUpgrades(t *testing.T) {
 // The expectation is that the MSI becomes the new stable package
 func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 
 	s.installPreviousAgentVersion()
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
@@ -56,7 +59,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
 // through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
-
 	// Arrange
 	s.setAgentConfig()
 	// set terminate policy to false to prevent the service from being forcefully terminated
@@ -86,6 +88,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
 		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
@@ -114,6 +119,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -146,6 +154,9 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 	s.MustStartExperimentPreviousVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
@@ -165,6 +176,9 @@ func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -182,6 +196,9 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 func (s *testAgentUpgradeSuite) TestStopExperiment() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -206,6 +223,9 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -230,6 +250,9 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -252,6 +275,9 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -274,6 +300,9 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -303,6 +332,9 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 	// lower timeout to 2 minute
 	s.setWatchdogTimeout(2)
@@ -340,6 +372,9 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	altConfigRoot := `C:\ddconfig`
 	altInstallPath := `C:\ddinstall`
 	agentUser := "customuser"
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
@@ -415,6 +450,9 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 	altConfigRoot := `C:\ddconfig`
 	altInstallPath := `C:\ddinstall`
 	agentUser := "customuser"
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
@@ -466,6 +504,9 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	// Arrange
 	s.setAgentConfig()
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 	agentUser := "customuser"
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
@@ -573,6 +614,7 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 api_key: `+apiKey+`
 site: datadoghq.com
 remote_updates: true
+log_level: DEBUG
 `))
 }
 
@@ -648,8 +690,8 @@ func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 
 // createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
 func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
-	previousVersion := "7.65.0-rc.10"
-	previousVersionPackage := "7.65.0-rc.10-1"
+	previousVersion := "7.65.2"
+	previousVersionPackage := "7.65.2-1"
 
 	// Get previous version OCI package
 	previousOCI, err := installerwindows.NewPackageConfig(
@@ -661,7 +703,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
-	url, err := windowsagent.GetChannelURL("beta")
+	url, err := windowsagent.GetChannelURL("stable")
 	s.Require().NoError(err)
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(previousVersionPackage),
