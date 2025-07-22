@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // ShutdownDelay is the amount of time we wait before shutting down the HTTP server
@@ -205,7 +206,7 @@ func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfi
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
 func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 	d.MetricAgent = metricAgent
-	d.MetricAgent.SetExtraTags(d.ExtraTags.Tags)
+	d.MetricAgent.SetExtraTags(utilstrings.FromUnique(d.ExtraTags.Tags))
 }
 
 // SetLogsAgent sets the logs agent instance running when it is ready.
@@ -424,7 +425,7 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 		}
 		d.setTraceTags(tagMap)
 
-		d.ExtraTags.Tags = tagArray
+		d.ExtraTags.Tags = utilstrings.ToUnique(tagArray)
 		serverlessLog.SetLogsTags(tagArray)
 	}
 }
