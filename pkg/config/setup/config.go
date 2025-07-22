@@ -139,8 +139,8 @@ const (
 	DefaultNetworkPathMaxTTL = 30
 )
 
-// datadog is the global configuration object
 var (
+	// datadog is the global configuration object
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
 
