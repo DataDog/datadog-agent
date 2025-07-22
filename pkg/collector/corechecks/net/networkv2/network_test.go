@@ -895,7 +895,7 @@ procfs_path: "/mocked/procfs"
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, log.TemplateFormatter("[{{.LEVEL}}] {{.msg}}"))
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -930,7 +930,7 @@ procfs_path: "/mocked/procfs"
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, log.TemplateFormatter("[{{.LEVEL}}] {{.msg}}"))
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -964,7 +964,7 @@ procfs_path: "/mocked/procfs"
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, log.TemplateFormatter("[{{.LEVEL}}] {{.msg}}"))
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 	mockSender := mocksender.NewMockSender(networkCheck.ID())

@@ -198,6 +198,8 @@ func (sc *signalClock) After(d time.Duration) <-chan time.Time {
 	return ch
 }
 
+var templateFormatter = log.TemplateFormatter("[{{.LEVEL}}] {{.msg}}")
+
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	diskCheck := createDiskCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
@@ -248,7 +250,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -298,7 +300,7 @@ file_system_global_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -319,7 +321,7 @@ device_global_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -340,7 +342,7 @@ mount_point_global_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -361,7 +363,7 @@ file_system_whitelist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -382,7 +384,7 @@ file_system_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -403,7 +405,7 @@ device_whitelist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -424,7 +426,7 @@ device_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -445,7 +447,7 @@ mount_point_whitelist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -466,7 +468,7 @@ mount_point_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -487,7 +489,7 @@ excluded_mountpoint_re:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -508,7 +510,7 @@ excluded_filesystems:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -529,7 +531,7 @@ excluded_disks:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -550,7 +552,7 @@ excluded_disk_re:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -1088,7 +1090,7 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUs
 	config := integration.Data([]byte(`min_disk_size: 1`))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, templateFormatter)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "info")
 

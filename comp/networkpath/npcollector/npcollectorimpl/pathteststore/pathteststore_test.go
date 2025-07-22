@@ -90,7 +90,7 @@ func Test_pathtestStore_add(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, utillog.BasicTestFormatter())
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 

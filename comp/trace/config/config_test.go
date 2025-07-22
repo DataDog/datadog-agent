@@ -145,7 +145,7 @@ func TestSplitTagRegex(t *testing.T) {
 		var b bytes.Buffer
 		w := bufio.NewWriter(&b)
 
-		logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+		logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, log.TemplateFormatter("[{{.LEVEL}}] {{.msg}}"))
 		assert.Nil(t, err)
 		log.SetupLogger(logger, "debug")
 		assert.Nil(t, splitTagRegex(bad.tag))

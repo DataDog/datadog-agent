@@ -6,11 +6,11 @@
 package ebpftest
 
 import (
+	"context"
+	"log/slog"
+	"runtime"
 	"strings"
 	"testing"
-
-	//nolint:depguard // creating a custom logger for testing
-	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,29 +20,41 @@ func LogLevel(t testing.TB, level string) {
 	t.Cleanup(func() {
 		log.SetupLogger(log.Default(), "off")
 	})
-	logger, err := seelog.LoggerFromCustomReceiver(testLogger{t})
-	if err != nil {
-		return
-	}
+
+	logLevel, _ := log.LogLevelFromString(level)
+	var lvl slog.LevelVar
+	lvl.Set(slog.Level(logLevel))
+
+	handler := testLogger{t, &lvl}
+	logger := log.NewSlogWrapper(slog.New(handler), 0, &lvl, nil, nil)
 	log.SetupLogger(logger, level)
 }
 
 type testLogger struct {
-	testing.TB
+	t     testing.TB
+	level slog.Leveler
 }
 
-func (t testLogger) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
-	t.Logf("%s:%d: %s | %s | %s", context.FileName(), context.Line(), context.CallTime().Format("2006-01-02 15:04:05.000 MST"), strings.ToUpper(level.String()), message)
+// Handle logs the message
+func (t testLogger) Handle(_ context.Context, r slog.Record) error {
+	frames := runtime.CallersFrames([]uintptr{r.PC})
+	frame, _ := frames.Next()
+
+	t.t.Logf("%s:%d: %s | %s | %s", frame.File, frame.Line, r.Time.Format("2006-01-02 15:04:05.000 MST"), strings.ToUpper(log.LogLevel(r.Level).String()), r.Message)
 	return nil
 }
 
-func (t testLogger) AfterParse(_ seelog.CustomReceiverInitArgs) error {
-	return nil
+// Enabled returns true if the logger is enabled for the given level
+func (t testLogger) Enabled(_ context.Context, lvl slog.Level) bool {
+	return lvl >= t.level.Level()
 }
 
-func (t testLogger) Flush() {
+// WithAttrs is a no-op
+func (t testLogger) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return t
 }
 
-func (t testLogger) Close() error {
-	return nil
+// WithGroup is a no-op
+func (t testLogger) WithGroup(name string) slog.Handler {
+	return t
 }

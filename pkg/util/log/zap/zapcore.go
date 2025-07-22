@@ -86,7 +86,6 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 }
 
 func (c *core) Sync() error {
-	log.Flush()
 	return nil
 }
 

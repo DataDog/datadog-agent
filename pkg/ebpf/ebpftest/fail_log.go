@@ -6,12 +6,13 @@
 package ebpftest
 
 import (
+	"context"
 	"fmt"
-	"strings"
+	"log/slog"
+	"runtime"
 	"testing"
 
 	//nolint:depguard // creating a custom logger for testing
-	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,31 +26,29 @@ func FailLogLevel(t testing.TB, level string) {
 		log.SetupLogger(log.Default(), "off")
 		inner.outputIfFailed()
 	})
-	logger, err := seelog.LoggerFromCustomReceiver(inner)
-	if err != nil {
-		return
-	}
+
+	logLevel, _ := log.LogLevelFromString(level)
+	var lvl slog.LevelVar
+	lvl.Set(slog.Level(logLevel))
+
+	handler := &failureTestLogger{t, nil, &lvl}
+	logger := log.NewSlogWrapper(slog.New(handler), 0, &lvl, nil, nil)
 	log.SetupLogger(logger, level)
 }
 
 type failureTestLogger struct {
 	testing.TB
 	logData []byte
+	level   slog.Leveler
 }
 
-// ReceiveMessage implements logger.CustomReceiver
-func (l *failureTestLogger) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
-	l.logData = append(l.logData, fmt.Sprintf("%s:%d: %s | %s | %s\n", context.FileName(), context.Line(), context.CallTime().Format("2006-01-02 15:04:05.000 MST"), strings.ToUpper(level.String()), message)...)
+// Handle implements logger.CustomReceiver
+func (l *failureTestLogger) Handle(_ context.Context, r slog.Record) error {
+	frames := runtime.CallersFrames([]uintptr{r.PC})
+	frame, _ := frames.Next()
+
+	l.logData = append(l.logData, fmt.Sprintf("%s:%d: %s | %s | %s\n", frame.File, frame.Line, r.Time.Format("2006-01-02 15:04:05.000 MST"), log.LogLevel(r.Level).Uppercase(), r.Message)...)
 	return nil
-}
-
-// AfterParse implements logger.CustomReceiver
-func (l *failureTestLogger) AfterParse(_ seelog.CustomReceiverInitArgs) error {
-	return nil
-}
-
-// Flush implements logger.CustomReceiver
-func (l *failureTestLogger) Flush() {
 }
 
 func (l *failureTestLogger) outputIfFailed() {
@@ -60,7 +59,17 @@ func (l *failureTestLogger) outputIfFailed() {
 	l.logData = nil
 }
 
-// Close implements logger.CustomReceiver
-func (l *failureTestLogger) Close() error {
-	return nil
+// Enabled returns true if the logger is enabled for the given level
+func (l *failureTestLogger) Enabled(_ context.Context, lvl slog.Level) bool {
+	return lvl >= l.level.Level()
+}
+
+// WithAttrs is a no-op
+func (l *failureTestLogger) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return l
+}
+
+// WithGroup is a no-op
+func (l *failureTestLogger) WithGroup(name string) slog.Handler {
+	return l
 }
