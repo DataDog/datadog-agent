@@ -95,13 +95,6 @@ func (l language) libConfigV1AnnotationKey() string {
 	return fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l)
 }
 
-// func (l language) libConfigAnnotationExtractor() annotationExtractor[common.LibConfig] {
-// 	return annotationExtractor[common.LibConfig]{
-// 		key: fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l),
-// 		do:  parseConfigJSON,
-// 	}
-// }
-
 // supportedLanguages defines a list of the languages that we will attempt
 // to do injection on.
 var supportedLanguages = []language{
