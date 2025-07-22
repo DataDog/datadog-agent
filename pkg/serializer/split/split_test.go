@@ -75,7 +75,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, compressor, logger)
+			payloads, err := Payloads(testEvent, compress, compressor, logger)
 			require.Nil(t, err)
 
 			originalLength := len(testEvent.EventsArr)
