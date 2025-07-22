@@ -28,22 +28,22 @@ import (
 
 func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mock.SysProbeClient) {
 	sp := &mock.SysProbeClient{}
-	
+
 	// Create dependencies manually for the test
 	logComp := logmock.New(t)
 	hostnameComp := &mock.Hostname{}
-	
+
 	// Get config using fxutil.Test
 	configComp := fxutil.Test[config.Component](t,
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: confOverrides}),
 	)
-	
+
 	// Get serializer using fxutil.Test
 	serializerComp := fxutil.Test[serializer.MetricSerializer](t,
 		fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 	)
-	
+
 	// Create the Requires struct manually
 	reqs := Requires{
 		Log:        logComp,
@@ -51,7 +51,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mock.Sy
 		Serializer: serializerComp,
 		Hostname:   hostnameComp,
 	}
-	
+
 	// Call the constructor directly with the mock client
 	provides, err := NewWithClient(reqs, sp)
 	assert.NoError(t, err)
