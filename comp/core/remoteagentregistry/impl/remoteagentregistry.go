@@ -134,12 +134,8 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		//
 		// This won't try and connect to the given gRPC endpoint immediately, but will instead surface any errors with
 		// connecting when we try to query the remote agent for status or flare data.
-		newEntry, err := newRemoteAgentDetails(registration)
+		newEntry, err := newRemoteAgentDetails(registration, ra.conf)
 		if err != nil {
-			return 0, err
-		}
-
-		if err := newEntry.startConfigStream(ra.conf); err != nil {
 			return 0, err
 		}
 
@@ -153,21 +149,21 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	// We already have an entry for this remote agent, so check if we need to update the gRPC client, and then update
 	// the other bits.
 	if entry.apiEndpoint != registration.APIEndpoint {
-		entry.apiEndpoint = registration.APIEndpoint
+		// The API endpoint has changed, so we need to create a new client and restart the config stream.
+		// To do that, we'll just remove the old entry and create a new one.
+		entry.configStream.Cancel()
+		delete(ra.agentMap, agentID)
 
-		client, err := newRemoteAgentClient(registration)
+		newEntry, err := newRemoteAgentDetails(registration, ra.conf)
 		if err != nil {
 			return 0, err
 		}
-		entry.client = client
 
-		if err := entry.restartConfigStream(ra.conf); err != nil {
-			return 0, err
-		}
+		ra.agentMap[agentID] = newEntry
+	} else {
+		entry.displayName = registration.DisplayName
+		entry.lastSeen = time.Now()
 	}
-
-	entry.displayName = registration.DisplayName
-	entry.lastSeen = time.Now()
 
 	return recommendedRefreshInterval, nil
 }
@@ -214,10 +210,7 @@ func (ra *remoteAgentRegistry) start() {
 				for _, id := range agentsToRemove {
 					details, ok := ra.agentMap[id]
 					if ok {
-						configStream := details.configStream
-						if configStream != nil {
-							configStream.Cancel()
-						}
+						details.configStream.Cancel()
 
 						delete(ra.agentMap, id)
 						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
@@ -531,13 +524,7 @@ func (ra *remoteAgentRegistry) handleConfigUpdate(update *settingsUpdates) {
 	}
 
 	for agentID, details := range ra.agentMap {
-		configStream := details.configStream
-		if configStream == nil {
-			log.Warnf("Remote agent '%s' has no active configuration stream.", agentID)
-			continue
-		}
-
-		if !configStream.TrySendUpdate(configUpdate) {
+		if !details.configStream.TrySendUpdate(configUpdate) {
 			log.Warnf("Remote agent '%s' not processing configuration updates in a timely manner. Dropping update.", agentID)
 		}
 	}

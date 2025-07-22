@@ -23,19 +23,24 @@ type remoteAgentDetails struct {
 	configStream *configStream
 }
 
-func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
+func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData, config config.Component) (*remoteAgentDetails, error) {
 	client, err := newRemoteAgentClient(registration)
 	if err != nil {
 		return nil, err
 	}
 
-	return &remoteAgentDetails{
-		displayName:  registration.DisplayName,
-		apiEndpoint:  registration.APIEndpoint,
-		client:       client,
-		configStream: nil,
-		lastSeen:     time.Now(),
-	}, nil
+	rad := &remoteAgentDetails{
+		displayName: registration.DisplayName,
+		apiEndpoint: registration.APIEndpoint,
+		client:      client,
+		lastSeen:    time.Now(),
+	}
+
+	if err := rad.startConfigStream(config); err != nil {
+		return nil, err
+	}
+
+	return rad, nil
 }
 
 func (rad *remoteAgentDetails) startConfigStream(config config.Component) error {
@@ -54,6 +59,7 @@ func (rad *remoteAgentDetails) startConfigStream(config config.Component) error 
 	// Create a new config updates stream over gRPC.
 	stream, err := rad.client.StreamConfigEvents(ctx)
 	if err != nil {
+		rad.configStream = nil // We failed to start the stream, so reset the config stream state.
 		return err
 	}
 
@@ -61,12 +67,4 @@ func (rad *remoteAgentDetails) startConfigStream(config config.Component) error 
 	go runConfigStream(ctx, config, stream, configUpdates)
 
 	return nil
-}
-
-func (rad *remoteAgentDetails) restartConfigStream(config config.Component) error {
-	// Cancel the old config stream and reset our config stream state before starting a new one.
-	rad.configStream.Cancel()
-	rad.configStream = nil
-
-	return rad.startConfigStream(config)
 }
