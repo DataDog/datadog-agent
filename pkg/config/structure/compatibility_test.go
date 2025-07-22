@@ -168,12 +168,12 @@ func TestUnmarshalIntPermutations(t *testing.T) {
 
 	err := viperConf.UnmarshalKey("ints", &viper1)
 	assert.NoError(t, err)
-	err = UnmarshalKey(ntmConf, "ints", &ntm1)
+	err = unmarshalKeyReflection(ntmConf, "ints", &ntm1)
 	assert.NoError(t, err)
 
 	err = viperConf.UnmarshalKey("ints2", &viper2)
 	assert.NoError(t, err)
-	err = UnmarshalKey(ntmConf, "ints2", &ntm2)
+	err = unmarshalKeyReflection(ntmConf, "ints2", &ntm2)
 	assert.NoError(t, err)
 
 	assert.Equal(t, int(10), viper1.ToInt)
