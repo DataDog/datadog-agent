@@ -7,9 +7,7 @@ package containers
 
 import (
 	"context"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/local/kubernetes"
 	"testing"
 	"time"
 
@@ -41,15 +39,29 @@ type kindAutoscalingSuite struct {
 }
 
 func TestEKSAutoscalingSuite(t *testing.T) {
-	e2e.Run(t, &kindAutoscalingSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
-		awskubernetes.WithEC2VMOptions(
-			ec2.WithInstanceType("t3.xlarge"),
-		),
-		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
-		awskubernetes.WithAgentOptions(
+	helmValues := `
+clusterAgent:
+    envDict:
+        DD_AUTOSCALING_WORKLOAD_ENABLED: "true"
+        DD_REMOTE_CONFIGURATION_ENABLED: "true"
+`
+	e2e.Run(t, &kindAutoscalingSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(
+		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(helmValues),
 		),
 	)))
+
+	//e2e.Run(t, &kindAutoscalingSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
+	//	awskubernetes.WithEC2VMOptions(
+	//		ec2.WithInstanceType("t3.xlarge"),
+	//	),
+	//	awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
+	//	awskubernetes.WithAgentOptions(
+	//		kubernetesagentparams.WithDualShipping(),
+	//		kubernetesagentparams.WithHelmValues(helmValues),
+	//	),
+	//)))
 }
 
 func (suite *kindAutoscalingSuite) SetupSuite() {
