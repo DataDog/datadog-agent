@@ -88,7 +88,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ./pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/option => ./pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ./pkg/util/sort/
@@ -650,7 +650,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/util/http v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/util/json v0.53.2-rc.15
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.2-rc.15
 	github.com/DataDog/datadog-agent/pkg/util/system v0.53.2-rc.15
