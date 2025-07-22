@@ -158,6 +158,10 @@ func TestRawPacket(t *testing.T) {
 }
 
 func TestRawPacketAction(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
 	SkipIfNotAvailable(t)
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
