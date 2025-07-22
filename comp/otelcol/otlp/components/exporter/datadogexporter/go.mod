@@ -121,7 +121,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.68.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3 // indirect

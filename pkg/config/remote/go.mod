@@ -24,7 +24,7 @@ require (
 	google.golang.org/protobuf v1.36.6
 )
 
-require github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+require github.com/DataDog/datadog-agent/pkg/template v0.68.2 // indirect
 
 require (
 	cloud.google.com/go/auth v0.16.0 // indirect

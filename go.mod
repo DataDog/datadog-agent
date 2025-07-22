@@ -628,7 +628,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.67.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.67.0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.67.0
-	github.com/DataDog/datadog-agent/pkg/template v0.67.0
+	github.com/DataDog/datadog-agent/pkg/template v0.68.2
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.67.0
