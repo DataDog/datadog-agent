@@ -125,6 +125,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameMountMntID:                  getMountIDOffset,
 		OffsetNameDeviceStructNdNet:           getDeviceStructNdNet,
 		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
+		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
+		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
 	}
 }
 
@@ -1002,5 +1004,15 @@ func getSockStructSKProtocolOffset(kv *kernel.Version) uint64 {
 		return 505
 	default:
 		return ErrorSentinel
+	}
+}
+
+func getFlowiProtoOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
+		return 14
+
+	default:
+		return 18
 	}
 }
