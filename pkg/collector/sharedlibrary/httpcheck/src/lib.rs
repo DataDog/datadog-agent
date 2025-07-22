@@ -6,10 +6,12 @@ use std::time::Instant;
 use std::sync::Arc;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::io::{ErrorKind, Read, Write};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rustls::{KeyLogFile, ClientConnection, RootCertStore, Stream};
+use rustls::pki_types::CertificateDer;
 use webpki_roots::TLS_SERVER_ROOTS;
+use x509_parser::parse_x509_certificate;
 
 // function executed by RTLoader
 // instead of passing CheckID, it will be more flexible to pass a struct that contains
@@ -45,13 +47,30 @@ impl AgentCheck {
         // - service checks tags 
         // - ssl certificates
 
+        // consts
+        const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
+        const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;
+        const DEFAULT_EXPIRE_WARNING: i32 = DEFAULT_EXPIRE_DAYS_WARNING * 24 * 3600;
+        const DEFAULT_EXPIRE_CRITICAL: i32 = DEFAULT_EXPIRE_DAYS_CRITICAL * 24 * 3600;
+                
         // hardcoded variables (should be passed as parameters inside a struct)
+        // option variables that are Some is initialized and None otherwise?
         let url = "datadog.com";
         let response_time = true;
         let ssl_expire = true;
         let uri_scheme = "https";
+        let use_cert_from_response = true;
+        
+        // useful when there will be an instance that will gather all custom variables
+        // let seconds_warning = None;
+        // let seconds_critical = None;
+        // let days_warning = None;
+        // let days_critical = None;
 
         let mut tags = Vec::<String>::new();
+
+        // ssl certs
+        let mut peer_cert: Option<CertificateDer> = None;
 
         // list service checks and their custom tags
         let mut service_checks = Vec::<(String, ServiceCheckStatus, String)>::new();
@@ -103,6 +122,14 @@ impl AgentCheck {
 
                 match response_result {
                     Ok(()) => {
+                        // retrieve the first ssl certificate from the response if the option is enabled
+                        if use_cert_from_response {
+                            match tls.conn.peer_certificates() {
+                                Some(certs) => peer_cert = Some(certs[0].clone()),
+                                None => println!("No peer certificates found in the reponse."),
+                            }
+                        }
+
                         // add URL in tags list if not already present
                         let url_tag = format!("url:{}", url);
 
@@ -111,7 +138,7 @@ impl AgentCheck {
                         }
 
                         // submit response time metric if enabled
-                        if response_time {
+                        if response_time  && service_checks.is_empty() {
                             self.gauge("network.http.response_time", elapsed_time.as_secs_f64(), &tags, "", false);
                         }
 
@@ -120,7 +147,7 @@ impl AgentCheck {
 
                         match tls.read_to_end(&mut response_raw) {
                             Ok(_) => {
-                                let response = String::from_utf8(response_raw[..].to_vec()).unwrap();
+                                let response = String::from_utf8(response_raw).unwrap();
 
                                 // status code
                                 let first_line = response.lines().nth(0).unwrap();
@@ -164,38 +191,6 @@ impl AgentCheck {
                                     ));
                                 }
                             },
-                        }
-
-                        // handle ssl certificate expiration
-                        if ssl_expire && uri_scheme == "https" {
-                            // TODO: handle SSL certificates here
-                            match tls.conn.peer_certificates() {
-                                Some(certs) => {
-                                    for _cert in certs {
-                                        //println!("Certificate: {:?}", _cert);
-                                    }
-                                }
-                                None => {
-                                    println!("No peer certificates found.");
-                                }
-                            }
-
-                            let status: ServiceCheckStatus = ServiceCheckStatus::OK;
-                            let msg: String = String::new();
-
-                            let days_left: f64 = 0.0;
-                            let seconds_left: f64 = 0.0;
-
-                            // submit ssl metrics
-                            self.gauge("http.ssl.days_left", days_left, &tags, "", false);
-                            self.gauge("http.ssl.seconds_left", seconds_left, &tags, "", true);
-
-                            // ssl service check
-                            service_checks.push((
-                                "http.ssl_cert".to_string(),
-                                status,
-                                msg,
-                            ));
                         }
                     },
                     Err(e) => {
@@ -255,11 +250,94 @@ impl AgentCheck {
             self.gauge("network.http.cant_connect", cant_connect, &tags, "", true);
         }
 
+        // handle ssl certificate expiration
+        if ssl_expire && uri_scheme == "https" {
+            // certificate expiration info check result
+            let (status, days_left, seconds_left, msg) = match peer_cert {
+                Some(cert) => inspect_cert(&cert),
+                None => (
+                    ServiceCheckStatus::UNKNOWN,
+                    None,
+                    None,
+                    "Empty or no certificate found.".to_string(),
+                ),
+            };
+
+            // submit ssl metrics if there's a value
+            if let Some(days_left) = days_left {
+                self.gauge("http.ssl.days_left", days_left as f64, &tags, "", false);
+            }
+
+            if let Some(seconds_left) = seconds_left {
+                self.gauge("http.ssl.seconds_left", seconds_left as f64, &tags, "", true);
+            }
+
+            // ssl service check
+            service_checks.push((
+                "http.ssl_cert".to_string(),
+                status,
+                msg,
+            ));
+        }
+
         // submit every service check collected throughout the check
         for (sc_name, status, message) in service_checks {
             self.service_check(&sc_name, status, &service_checks_tags, "", &message);
         }
 
-        Ok(())
+        return Ok(());
+
+        // retrieve certificate expiration information and returns info for metric and service check
+        fn inspect_cert(cert: &CertificateDer) -> (ServiceCheckStatus, Option<u64>, Option<u64>, String) {
+            match parse_x509_certificate(cert) {
+                Ok((_, x509)) => {
+                    // get certificate remaining time before expiration
+                    let expiration_timestamp = x509.validity().not_after.timestamp() as u64;
+                    let current_timestamp = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs();
+
+                    let seconds_left = expiration_timestamp - current_timestamp;
+                    let days_left = seconds_left / (24 * 3600);
+
+                    // compare the time left before expiration to thresholds and return the corresponding service check
+                    // TODO: check for several variables setup before taking the constants (need to pass an instance like in python to retrieve custom variables)
+                    let seconds_warning = DEFAULT_EXPIRE_WARNING as u64;
+                    let seconds_critical = DEFAULT_EXPIRE_CRITICAL as u64;
+
+                    if seconds_left < seconds_critical {
+                        (
+                            ServiceCheckStatus::CRITICAL,
+                            Some(days_left),
+                            Some(seconds_left),
+                            format!("This cert TTL is critical: only {days_left} days before it expires"),
+                        )
+                    } else if seconds_left < seconds_warning {
+                        (
+                            ServiceCheckStatus::WARNING,
+                            Some(days_left),
+                            Some(seconds_left),
+                            format!("This cert is almost expired, only {days_left} days left"),
+                        )
+                    } else {
+                        (
+                            ServiceCheckStatus::OK,
+                            Some(days_left),
+                            Some(seconds_left),
+                            format!("Days left: {days_left}"),
+                        )
+                    }
+                }
+                Err(e) => {
+                    (
+                        ServiceCheckStatus::UNKNOWN,
+                        None,
+                        None,
+                        e.to_string(),
+                    )
+                },
+            }
+        }
     }
 }
