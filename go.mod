@@ -404,7 +404,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
-	golang.org/x/crypto v0.39.0 // indirect
+	golang.org/x/crypto v0.39.0
 	golang.org/x/mod v0.25.0
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
@@ -820,7 +820,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/gorilla/websocket v1.5.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/hashicorp/cronexpr v1.1.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
@@ -999,7 +999,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Pull in replacements needed by upstream Trivy
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250328083658-40561b7842af
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250722083937-c6ac58f23994
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 

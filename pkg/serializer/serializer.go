@@ -175,11 +175,11 @@ func (s Serializer) serializePayloadJSON(payload marshaler.JSONMarshaler, compre
 		extraHeaders = s.jsonExtraHeaders
 	}
 
-	return s.serializePayloadInternal(payload, compress, extraHeaders, split.JSONMarshalFct)
+	return s.serializePayloadInternal(payload, compress, extraHeaders)
 }
 
-func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (transaction.BytesPayloads, http.Header, error) {
-	payloads, err := split.Payloads(payload, compress, marshalFct, s.Strategy, s.logger)
+func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header) (transaction.BytesPayloads, http.Header, error) {
+	payloads, err := split.Payloads(payload, compress, s.Strategy, s.logger)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
 	}
@@ -240,6 +240,17 @@ func (s *Serializer) SendEvents(events event.Events) error {
 	if !s.enableEvents {
 		s.logger.Debug("events payloads are disabled: dropping it")
 		return nil
+	}
+
+	if s.config.GetBool("serializer_use_events_marshaler_v2") {
+		payloads, err := metricsserializer.MarshalEvents(events, s.hostname, s.config, s.logger, s.Strategy)
+		if err != nil {
+			return fmt.Errorf("dropping event payloads: %v", err)
+		}
+		if len(payloads) == 0 {
+			return nil
+		}
+		return s.Forwarder.SubmitV1Intake(payloads, transaction.Events, s.jsonExtraHeadersWithCompression)
 	}
 
 	eventsSerializer := metricsserializer.Events{
@@ -431,7 +442,7 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
-	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.JSONMarshalFct, s.Strategy)
+	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, s.Strategy)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
