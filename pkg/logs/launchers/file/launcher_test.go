@@ -153,10 +153,13 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.to_skip", 0)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
@@ -179,9 +182,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
 
-	// Create fingerprint config
+	// Create fingerprint config - use the same values as the mock config
 	maxLines := 1
-	maxBytes := 2048
+	maxBytes := 256 // Match the mock config value
 	toSkip := 0
 	fingerprintConfig := &config.FingerprintConfig{
 		MaxLines: maxLines,
@@ -191,6 +194,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	filePath := tailer.Identifier()[5:]
 	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
+	s.registry.(*auditorMock.Registry).SetFingerprintConfig(fingerprintConfig)
 
 	// Rotate file
 	os.Rename(suite.testPath, suite.testRotatedPath)
@@ -224,7 +228,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
@@ -248,9 +252,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
 
-	// Create fingerprint config
+	// Create fingerprint config - use the same values as the mock config
 	maxLines := 1
-	maxBytes := 2048
+	maxBytes := 256 // Match the mock config value
 	toSkip := 0
 	fingerprintConfig := &config.FingerprintConfig{
 		MaxBytes: maxBytes,
@@ -260,6 +264,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	filePath := tailer.Identifier()[5:]
 	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
+	s.registry.(*auditorMock.Registry).SetFingerprintConfig(fingerprintConfig)
 
 	// Rotate file
 	os.Rename(suite.testPath, suite.testRotatedPath)

@@ -174,13 +174,11 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprintConfig()
 	maxBytes := 1024
 	maxLines := 10
 	linesToSkip := 5
-	bytesToSkip := 20
 
 	expectedConfig := &config.FingerprintConfig{
-		MaxBytes:    &maxBytes,
-		MaxLines:    &maxLines,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxBytes: maxBytes,
+		MaxLines: maxLines,
+		ToSkip:   linesToSkip,
 	}
 
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{

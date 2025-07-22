@@ -360,7 +360,11 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
+
+	// Resolve the fingerprint strategy for this file (source-specific -> global -> default)
+	fingerprintStrategy := s.resolveFingerprintStrategy(file)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, fingerprintStrategy)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -409,6 +413,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		Info:            tailerInfo,
 		TagAdder:        s.tagger,
 		CapacityMonitor: monitor,
+		Registry:        s.registry,
 	}
 
 	tailer := tailer.NewTailer(tailerOptions)
@@ -416,7 +421,11 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
+
+	// Resolve the fingerprint strategy for this file (source-specific -> global -> default)
+	fingerprintStrategy := s.resolveFingerprintStrategy(file)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, fingerprintStrategy)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
