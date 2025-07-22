@@ -918,10 +918,12 @@ func TestOnUpdate(t *testing.T) {
 
 	gotSetting := ""
 	var gotOldValue, gotNewValue interface{}
-	cfg.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+	var gotSource model.Source
+	cfg.OnUpdate(func(setting string, source model.Source, oldValue, newValue any, _ uint64) {
 		gotSetting = setting
 		gotOldValue = oldValue
 		gotNewValue = newValue
+		gotSource = source
 		wg.Done()
 	})
 
@@ -932,7 +934,7 @@ func TestOnUpdate(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 2, cfg.Get("a"))
-	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("a"))
+	assert.Equal(t, model.SourceAgentRuntime, gotSource)
 	assert.Equal(t, "a", gotSetting)
 	assert.Equal(t, 1, gotOldValue)
 	assert.Equal(t, 2, gotNewValue)
