@@ -108,7 +108,6 @@ func TestClusterAgentGlobalTags(t *testing.T) {
 	// Custom cluster name tag
 	clusterName := "custom-name"
 	mockConfig.SetWithoutSource("hostname", "hostname-from-configuration")
-	mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", "kube_test_tag")
 	mockConfig.SetWithoutSource("cluster_name", clusterName)
 
 	// Orch cluster ID tag
@@ -135,7 +134,6 @@ func TestClusterAgentGlobalTags(t *testing.T) {
 			"cluster":           {"tag"},
 			"orch":              {"tag"},
 			"orch_cluster_id":   {clusterID},
-			"kube_test_tag":     {clusterName},
 			"kube_cluster_name": {clusterName},
 		}, globalTags)
 	})

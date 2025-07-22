@@ -525,7 +525,11 @@ func TestPatchConfiguration(t *testing.T) {
 	initialDigest := checkConfig.Digest()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"cluster_name:testing", "kube_cluster_name:testing"}, []string{}, []string{}, []string{})
+	fakeTagger.SetGlobalTags([]string{"kube_cluster_name:testing"}, []string{}, []string{}, []string{})
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cluster_name", "testing")
+	clustername.ResetClusterName()
 
 	dispatcher := newDispatcher(fakeTagger)
 	out, err := dispatcher.patchConfiguration(checkConfig)
@@ -561,7 +565,11 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	}
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeTagger.SetGlobalTags([]string{"cluster_name:testing", "kube_cluster_name:testing"}, []string{}, []string{}, []string{})
+	fakeTagger.SetGlobalTags([]string{"kube_cluster_name:testing"}, []string{}, []string{}, []string{})
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("cluster_name", "testing")
+	clustername.ResetClusterName()
 
 	dispatcher := newDispatcher(fakeTagger)
 	out, err := dispatcher.patchEndpointsConfiguration(checkConfig)
@@ -584,15 +592,24 @@ func TestExtraTags(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
 	for _, tc := range []struct {
-		extraTagsConfig []string
-		expected        []string
+		extraTagsConfig   []string
+		clusterNameConfig string
+		tagNameConfig     string
+		expected          []string
 	}{
-		{nil, []string{}},
-		{[]string{"one", "two"}, []string{"one", "two"}},
+		{nil, "testing", "cluster_name", []string{"cluster_name:testing"}},
+		{nil, "mycluster", "custom_name", []string{"custom_name:mycluster"}},
+		{nil, "", "cluster_name", []string{}},
+		{nil, "testing", "", []string{}},
+		{[]string{"one", "two"}, "", "", []string{"one", "two"}},
+		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster"}},
 	} {
 		t.Run("", func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			mockConfig := configmock.New(t)
 			fakeTagger.SetGlobalTags(tc.extraTagsConfig, []string{}, []string{}, []string{})
+			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
+			mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
 			clustername.ResetClusterName()
 			dispatcher := newDispatcher(fakeTagger)

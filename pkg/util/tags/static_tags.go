@@ -8,7 +8,6 @@ package tags
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -110,15 +109,10 @@ func GetClusterAgentStaticTags(config config.Reader) map[string][]string {
 		tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
 	}
 
-	// CLUSTER_NAME and KUBE_CLUSTER_NAME
+	// KUBE_CLUSTER_NAME
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := config.GetString("cluster_checks.cluster_tag_name")
 	if clusterTagValue != "" {
-		if clusterTagName != "" && !config.GetBool("disable_cluster_name_tag_key") {
-			tags = append(tags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
-		}
 		tags = append(tags, taggertags.KubeClusterName+":"+clusterTagValue)
 	}
 
