@@ -30,11 +30,11 @@ import (
 )
 
 const (
-	// securityStartLog is the log corresponding to a successful start of the security-agent
-	securityStartLog = "Successfully connected to the runtime security module"
-
 	// systemProbeStartLog is the log corresponding to a successful start of the system-probe
 	systemProbeStartLog = "runtime security started"
+
+	// systemProbeGrpcLog is the log corresponding to a successful connection to the security agent event grpc server
+	systemProbeGrpcLog = "connected to security agent event grpc server"
 
 	// systemProbePath is the path of the system-probe binary
 	systemProbePath = "/opt/datadog-agent/embedded/bin/system-probe"
@@ -141,11 +141,11 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Check if security-agent has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/security-agent.log")
+		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(c, output, securityStartLog, "security-agent could not start")
+		assert.Contains(c, output, systemProbeGrpcLog, "system-probe could not connect to GRPC server")
 	}, 30*time.Second, 1*time.Second)
 
 	// Download policies
