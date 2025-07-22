@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"sort"
+	"unique"
 
 	"github.com/twmb/murmur3"
 )
@@ -27,16 +28,15 @@ func NewHashingTagsAccumulator() *HashingTagsAccumulator {
 }
 
 // NewHashingTagsAccumulatorWithTags return a new HashingTagsAccumulator, initialized with tags.
-func NewHashingTagsAccumulatorWithTags(tags []string) *HashingTagsAccumulator {
+func NewHashingTagsAccumulatorWithTags(tags []unique.Handle[string]) *HashingTagsAccumulator {
 	tb := NewHashingTagsAccumulator()
-	tb.Append(tags...)
+	tb.AppendUnique(tags)
 	return tb
 }
 
-// Append appends tags to the builder
 func (h *HashingTagsAccumulator) Append(tags ...string) {
 	for _, t := range tags {
-		h.data = append(h.data, t)
+		h.data = append(h.data, unique.Make(t))
 		h.hash = append(h.hash, murmur3.StringSum64(t))
 	}
 }
@@ -45,6 +45,13 @@ func (h *HashingTagsAccumulator) Append(tags ...string) {
 func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
 	h.data = append(h.data, src.data...)
 	h.hash = append(h.hash, src.hash...)
+}
+
+func (h *HashingTagsAccumulator) AppendUnique(tags []unique.Handle[string]) {
+	for _, t := range tags {
+		h.data = append(h.data, t)
+		h.hash = append(h.hash, murmur3.StringSum64(t.Value()))
+	}
 }
 
 // SortUniq sorts and remove duplicate in place
@@ -68,8 +75,20 @@ func (h *HashingTagsAccumulator) SortUniq() {
 	h.Truncate(j + 1)
 }
 
-// Get returns the internal slice
+// Get returns a new slice.
 func (h *HashingTagsAccumulator) Get() []string {
+	if h.data == nil {
+		return nil
+	}
+	s := make([]string, 0, len(h.data))
+	for _, t := range h.data {
+		s = append(s, t.Value())
+	}
+	return s
+}
+
+// GetUnique returns the inner slice.
+func (h *HashingTagsAccumulator) GetUnique() []unique.Handle[string] {
 	return h.data
 }
 
@@ -95,7 +114,7 @@ func (h *HashingTagsAccumulator) Truncate(len int) {
 // Less implements sort.Interface.Less
 func (h *HashingTagsAccumulator) Less(i, j int) bool {
 	if h.hash[i] == h.hash[j] {
-		return h.data[i] < h.data[j]
+		return h.data[i].Value() < h.data[j].Value()
 	}
 	return h.hash[i] < h.hash[j]
 }
@@ -123,14 +142,15 @@ func (h *HashingTagsAccumulator) Hash() uint64 {
 	return hash
 }
 
+// A sentinel string and NOT matching hash (an impossible combination outside removeSorted)
+var holeData = unique.Make("")
+
+const holeHash = 42
+
 // removeSorted removes tags contained in l from r. Both accumulators must be SortUniq first.
 //
 // h is not sorted after this function. Does not modify o.
 func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
-	// A sentinel string and NOT matching hash (an impossible combination outside this function)
-	const holeData = ""
-	const holeHash = 42
-
 	hlen, olen := len(h.data), len(o.data)
 
 	for i, j := 0, 0; i < hlen && j < olen; {

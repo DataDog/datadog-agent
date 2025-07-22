@@ -5,22 +5,35 @@
 
 package tagset
 
+import (
+	"unique"
+)
+
 // HashedTags is an immutable slice of pre-hashed tags.
 type HashedTags struct {
 	hashedTags
 }
 
 // NewHashedTagsFromSlice creates a new instance, re-using tags as the internal slice.
-func NewHashedTagsFromSlice(tags []string) HashedTags {
+func NewHashedTagsFromSlice(tags []unique.Handle[string]) HashedTags {
 	return HashedTags{newHashedTagsFromSlice(tags)}
 }
 
-// Get returns the internal slice.
-//
-// NOTE: this returns a mutable reference to data in this immutable data structure.
-// It is still used by comp/core/tagger/tagstore, but new uses should not be added.
+// NewHashedTagsFromStringSlice creates a new instance, re-using tags as the internal slice.
+func NewHashedTagsFromStringSlice(tags []string) HashedTags {
+	return HashedTags{newHashedTagsFromStringSlice(tags)}
+}
+
+// Get returns a list of tags as a string slice.
 func (h HashedTags) Get() []string {
-	return h.data
+	if h.data == nil {
+		return nil
+	}
+	s := make([]string, 0, len(h.data))
+	for _, t := range h.data {
+		s = append(s, t.Value())
+	}
+	return s
 }
 
 // Slice returns a shared sub-slice of tags from t.

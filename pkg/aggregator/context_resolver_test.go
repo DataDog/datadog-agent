@@ -9,6 +9,7 @@ package aggregator
 
 import (
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // Helper functions to run tests and benchmarks for context resolver, time and check samplers.
@@ -31,10 +33,10 @@ func benchWithTagsStore(t *testing.B, test func(*testing.B, *tags.Store)) {
 	t.Run("useStore=false", func(t *testing.B) { test(t, tags.NewStore(false, "test")) })
 }
 
-func assertContext(t *testing.T, cx *Context, name string, tags []string, host string) {
+func assertContext(t *testing.T, cx *Context, name string, tags []unique.Handle[string], host string) {
 	assert.Equal(t, cx.Name, name)
 	assert.Equal(t, cx.Host, host)
-	metrics.AssertCompositeTagsEqual(t, cx.Tags(), tagset.CompositeTagsFromSlice(tags))
+	metrics.AssertCompositeTagsEqual(t, cx.Tags(), tagset.NewCompositeTags(tags, nil))
 }
 
 func TestGenerateContextKey(t *testing.T) {
@@ -42,7 +44,7 @@ func TestGenerateContextKey(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
@@ -56,21 +58,21 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar", "baz"}),
 		SampleRate: 1,
 	}
 	mSample3 := metrics.MetricSample{ // same as mSample2, with different Host
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.CountType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar", "baz"}),
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
@@ -122,21 +124,21 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar"}),
 		SampleRate: 1,
 	}
 	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
+		Tags:       utilstrings.ToUnique([]string{"foo", "bar", "baz"}),
 		SampleRate: 1,
 	}
 	mSample3 := metrics.MetricSample{
 		Name:       "my.counter.name",
 		Value:      1,
 		Mtype:      metrics.CounterType,
-		Tags:       []string{"foo"},
+		Tags:       utilstrings.ToUnique([]string{"foo"}),
 		SampleRate: 1,
 	}
 	contextResolver := newTimestampContextResolver(nooptagger.NewComponent(), store, "test", 2, 4)
@@ -220,7 +222,7 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 
 	ckey := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
-		Tags: []string{"bar", "bar"},
+		Tags: utilstrings.ToUnique([]string{"bar", "bar"}),
 	}, 0)
 
 	assert.Equal(t, resolver.contextsByKey[ckey].context.Tags().Len(), 1)
@@ -262,24 +264,24 @@ func TestOriginTelemetry(t *testing.T) {
 	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}}, 0)
 	sink := mockSink{}
 	ts := 1672835152.0
-	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
+	r.sendOriginTelemetry(ts, &sink, "test", utilstrings.ToUnique([]string{"test"}))
 
 	assert.ElementsMatch(t, sink, []*metrics.Serie{{
 		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
 		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"foo"}),
+		Tags:   tagset.NewCompositeTags(utilstrings.ToUnique([]string{"test"}), utilstrings.ToUnique([]string{"foo"})),
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
 	}, {
 		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
 		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"bar"}),
+		Tags:   tagset.NewCompositeTags(utilstrings.ToUnique([]string{"test"}), utilstrings.ToUnique([]string{"bar"})),
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
 	}, {
 		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
 		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"baz"}),
+		Tags:   tagset.NewCompositeTags(utilstrings.ToUnique([]string{"test"}), utilstrings.ToUnique([]string{"baz"})),
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})

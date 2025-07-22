@@ -8,6 +8,7 @@ package server
 import (
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
@@ -43,7 +44,7 @@ type enrichConfig struct {
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
-func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
+func extractTagsMetadata(tags []unique.Handle[string], originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]unique.Handle[string], string, taggertypes.OriginInfo, metrics.MetricSource) {
 	host := conf.defaultHostname
 	metricSource := GetDefaultMetricSource()
 
@@ -58,7 +59,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 	origin.LocalData.ProcessID = processID
 
 	n := 0
-	for _, tag := range tags {
+	for _, utag := range tags {
+		tag := utag.Value()
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
 			continue
@@ -73,7 +75,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
 			continue
 		}
-		tags[n] = tag
+		tags[n] = utag
 		n++
 	}
 
@@ -225,7 +227,7 @@ func enrichEvent(event dogstatsdEvent, origin string, processID uint32, conf enr
 		Text:           event.text,
 		Ts:             event.timestamp,
 		Priority:       enrichEventPriority(event.priority),
-		Tags:           tags,
+		Tags:           utilstrings.FromUnique(tags),
 		AlertType:      enrichEventAlertType(event.alertType),
 		AggregationKey: event.aggregationKey,
 		SourceTypeName: event.sourceType,
@@ -262,7 +264,7 @@ func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, proce
 		Ts:         serviceCheck.timestamp,
 		Status:     enrichServiceCheckStatus(serviceCheck.status),
 		Message:    serviceCheck.message,
-		Tags:       tags,
+		Tags:       utilstrings.FromUnique(tags),
 		OriginInfo: extractedOrigin,
 	}
 

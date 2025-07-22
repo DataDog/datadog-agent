@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // NewStatsdDirect creates a direct interface to the dogstatsd demultiplexer, but exposing the statsd.ClientInterface
@@ -56,7 +57,7 @@ func (s statsdDirect) Gauge(name string, value float64, tags []string, rate floa
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.GaugeType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
@@ -70,7 +71,7 @@ func (s statsdDirect) GaugeWithTimestamp(name string, value float64, tags []stri
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.GaugeType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
@@ -84,7 +85,7 @@ func (s statsdDirect) Count(name string, value int64, tags []string, rate float6
 		Name:       name,
 		Value:      float64(value),
 		Mtype:      metrics.CountType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
@@ -98,7 +99,7 @@ func (s statsdDirect) CountWithTimestamp(name string, value int64, tags []string
 		Name:       name,
 		Value:      float64(value),
 		Mtype:      metrics.CountType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(timestamp.Unix()),
@@ -112,7 +113,7 @@ func (s statsdDirect) Histogram(name string, value float64, tags []string, rate 
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.HistogramType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
@@ -126,7 +127,7 @@ func (s statsdDirect) Distribution(name string, value float64, tags []string, ra
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
@@ -148,7 +149,7 @@ func (s statsdDirect) Set(name string, value string, tags []string, rate float64
 		Name:       name,
 		RawValue:   value,
 		Mtype:      metrics.SetType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),
@@ -166,7 +167,7 @@ func (s statsdDirect) TimeInMilliseconds(name string, value float64, tags []stri
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		Host:       s.hostname,
 		SampleRate: rate,
 		Timestamp:  float64(time.Now().Unix()),

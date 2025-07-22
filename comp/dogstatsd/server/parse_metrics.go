@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"time"
+	"unique"
 )
 
 type metricType int
@@ -46,7 +47,7 @@ type dogstatsdMetricSample struct {
 	setValue   string
 	metricType metricType
 	sampleRate float64
-	tags       []string
+	tags       []unique.Handle[string]
 	// localData is used for Origin Detection
 	localData origindetection.LocalData
 	// externalData is used for Origin Detection

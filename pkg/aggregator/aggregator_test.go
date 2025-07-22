@@ -15,6 +15,7 @@ import (
 	"sort"
 	"testing"
 	"time"
+	"unique"
 
 	// 3p
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -449,7 +451,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 				Name:      "test.sample",
 				Value:     13.0,
 				Mtype:     metrics.DistributionType,
-				Tags:      tags,
+				Tags:      utilstrings.ToUnique(tags),
 				Host:      "",
 				Timestamp: timeNowNano() - 10000000,
 			}
@@ -484,6 +486,10 @@ func TestDistributionsTooManyTags(t *testing.T) {
 	t.Run("huge", test(110))
 }
 
+func makeCompositeTags(tags1 []string) tagset.CompositeTags {
+	return tagset.NewCompositeTags(utilstrings.ToUnique(tags1), []unique.Handle[string]{})
+}
+
 func TestRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
@@ -515,17 +521,17 @@ func TestRecurrentSeries(t *testing.T) {
 
 	start := time.Now()
 
-	expectedSeries := metrics.Series{&metrics.Serie{
+	expectedSeries := []*metrics.Serie{&metrics.Serie{
 		Name:           "some.metric.1",
 		Points:         []metrics.Point{{Value: 21, Ts: float64(start.Unix())}},
-		Tags:           tagset.NewCompositeTags([]string{"tag:1", "tag:2"}, []string{}),
+		Tags:           tagset.CompositeTagsFromSlice([]string{"tag:1", "tag:2"}),
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	}, &metrics.Serie{
 		Name:           "some.metric.2",
 		Points:         []metrics.Point{{Value: 22, Ts: float64(start.Unix())}},
-		Tags:           tagset.NewCompositeTags([]string{}, []string{}),
+		Tags:           tagset.CompositeTagsFromSlice([]string(nil)),
 		Host:           "non default host",
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "non default SourceTypeName",
@@ -783,7 +789,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 					Name:     name,
 					MType:    metrics.APICountType,
 					Interval: int64(10),
-					Tags:     tagset.NewCompositeTags([]string{}, []string{}),
+					Tags:     makeCompositeTags([]string{}),
 				}
 			}
 			expectedSeries[name].Points = append(expectedSeries[name].Points, metrics.Point{Ts: timestamp, Value: value})

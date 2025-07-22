@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"unique"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -288,7 +289,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 				Value:      0.0,
 				RawValue:   "0.0",
 				Mtype:      metrics.CounterType,
-				Tags:       []string{},
+				Tags:       []unique.Handle[string]{},
 				Host:       "",
 				SampleRate: 1,
 				Timestamp:  float64(timestamp),
@@ -308,8 +309,8 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 	// If multiple samplers are used, this avoids the need to
 	// aggregate the stats agent-side, and allows us to see amount of
 	// tags duplication between shards.
-	tags := []string{
-		fmt.Sprintf("sampler_id:%d", s.id),
+	tags := []unique.Handle[string]{
+		unique.Make(fmt.Sprintf("sampler_id:%d", s.id)),
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") {

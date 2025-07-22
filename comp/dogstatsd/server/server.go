@@ -855,7 +855,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		if mapResult != nil {
 			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
 			sample.name = mapResult.Name
-			sample.tags = append(sample.tags, mapResult.Tags...)
+			sample.tags = append(sample.tags, utilstrings.ToUnique(mapResult.Tags)...)
 		}
 	}
 
@@ -869,7 +869,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		// All metricSamples already share the same Tags slice. We can
 		// extends the first one and reuse it for the rest.
 		if idx == 0 {
-			metricSamples[idx].Tags = append(metricSamples[idx].Tags, s.extraTags...)
+			metricSamples[idx].Tags = append(metricSamples[idx].Tags, utilstrings.ToUnique(s.extraTags)...)
 		} else {
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}

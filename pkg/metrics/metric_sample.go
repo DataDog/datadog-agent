@@ -6,6 +6,9 @@
 package metrics
 
 import (
+	"slices"
+	"unique"
+
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -99,7 +102,7 @@ type MetricSample struct {
 	Value           float64
 	RawValue        string
 	Mtype           MetricType
-	Tags            []string
+	Tags            []unique.Handle[string]
 	Host            string
 	SampleRate      float64
 	Timestamp       float64 // Seconds since epoch (accepts fractional seconds)
@@ -124,7 +127,7 @@ func (m *MetricSample) GetHost() string {
 
 // GetTags returns the metric sample tags
 func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn) {
-	metricBuffer.Append(m.Tags...)
+	metricBuffer.AppendUnique(m.Tags)
 	fn(taggerBuffer, m.OriginInfo)
 }
 
@@ -137,8 +140,7 @@ func (m *MetricSample) GetMetricType() MetricType {
 func (m *MetricSample) Copy() *MetricSample {
 	dst := &MetricSample{}
 	*dst = *m
-	dst.Tags = make([]string, len(m.Tags))
-	copy(dst.Tags, m.Tags)
+	dst.Tags = slices.Clone(m.Tags)
 	return dst
 }
 
