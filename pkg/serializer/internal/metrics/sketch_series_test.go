@@ -116,6 +116,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			decompressed, _ := compressor.Decompress(firstPayload.GetContent())
 			// Check that we encoded the protobuf correctly
 			assert.Equal(t, decompressed, payload)
+			// 0b00010 010 - field 2 (metadata) type 2 (bytes), 0 length
+			assert.Equal(t, []byte{0x12, 0x00}, decompressed)
 		})
 	}
 }
