@@ -366,3 +366,121 @@ func (suite *ProviderTestSuite) TestAddLabelsToTags() {
 		suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", k, append(commontesting.InstanceTags, tag))
 	}
 }
+
+func (suite *ProviderTestSuite) TestContainerFiltering() {
+	// Use test data with containers that should all be filtered out
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/cadvisor_metrics_filtered_containers.txt", 200, nil)
+
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	// Populate the workloadmeta store with pods containing only filtered containers
+	storeMock := suite.store.(workloadmetamock.Mock)
+	err = commontesting.StorePopulatedFromFile(storeMock, "../../testdata/pods_filtered_containers.json", suite.provider.podUtils)
+	if err != nil {
+		suite.T().Fatalf("error populating store: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Errorf("Unexpected error from provider.Provide: %v", err)
+		return
+	}
+
+	// Verify that NO metrics are collected for any of the filtered containers
+
+	// Test pause containers are filtered out - both by name and by image patterns
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:agent"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:agent"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:pause-container"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:pause-container"})
+
+	// Test sidecar containers are filtered out
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:istio-proxy"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:istio-proxy"})
+
+	// Test init containers are filtered out
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:init-container"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:init-container"})
+
+	// Test workload-filtered containers (fluentd) are filtered out
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:fluentd-gcp"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:fluentd-gcp"})
+}
+
+func (suite *ProviderTestSuite) TestAutodiscoveryAnnotationFiltering() {
+	// Use test data with containers that should be filtered by annotations
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/cadvisor_metrics_filtered_containers.txt", 200, nil)
+
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	// Populate the workloadmeta store with pods that include annotation-based filtering
+	storeMock := suite.store.(workloadmetamock.Mock)
+	err = commontesting.StorePopulatedFromFile(storeMock, "../../testdata/pods_filtered_containers.json", suite.provider.podUtils)
+	if err != nil {
+		suite.T().Fatalf("error populating store: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Errorf("Unexpected error from provider.Provide: %v", err)
+		return
+	}
+
+	// Verify that containers with exclude annotations are filtered out
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:excluded-by-annotation"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:excluded-by-annotation"})
+
+	// Also test by pod name to be thorough
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"pod_name:excluded-pod"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"pod_name:excluded-pod"})
+}
+
+func (suite *ProviderTestSuite) TestPauseContainerFiltering() {
+	// Use test data with pause containers that should be filtered
+	response := commontesting.NewEndpointResponse(
+		"../../testdata/cadvisor_metrics_filtered_containers.txt", 200, nil)
+
+	kubeletMock, err := commontesting.CreateKubeletMock(response, endpoint)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	// Populate the workloadmeta store with pods that include pause containers
+	storeMock := suite.store.(workloadmetamock.Mock)
+	err = commontesting.StorePopulatedFromFile(storeMock, "../../testdata/pods_filtered_containers.json", suite.provider.podUtils)
+	if err != nil {
+		suite.T().Fatalf("error populating store: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Errorf("Unexpected error from provider.Provide: %v", err)
+		return
+	}
+
+	// Verify that pause containers are filtered out - test various pause container patterns
+
+	// Test by pod name for different pause container types
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"pod_name:pause-pod"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"pod_name:pause-pod2"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"pod_name:pause-pod3"})
+
+	// Test memory metrics for pause containers are also filtered
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"pod_name:pause-pod"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"pod_name:pause-pod2"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"pod_name:pause-pod3"})
+
+	// Test by container name patterns
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:agent"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:agent"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.usage.total", []string{"kube_container_name:pause-container"})
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"memory.usage", []string{"kube_container_name:pause-container"})
+}
