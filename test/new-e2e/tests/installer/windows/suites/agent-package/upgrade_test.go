@@ -45,9 +45,6 @@ func TestAgentUpgrades(t *testing.T) {
 // The expectation is that the MSI becomes the new stable package
 func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 
 	s.installPreviousAgentVersion()
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
@@ -61,9 +58,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -88,9 +82,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
 		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
 	)
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 
 	// Act
 	s.MustStartExperimentCurrentVersion()
@@ -119,9 +110,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -154,9 +142,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 	s.MustStartExperimentPreviousVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
@@ -176,9 +161,6 @@ func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -196,9 +178,6 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 func (s *testAgentUpgradeSuite) TestStopExperiment() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -223,9 +202,6 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -250,9 +226,6 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -275,9 +248,6 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installCurrentAgentVersion()
 
 	// Act
@@ -300,9 +270,6 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 
 	// Act
@@ -332,9 +299,6 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.installPreviousAgentVersion()
 	// lower timeout to 2 minute
 	s.setWatchdogTimeout(2)
@@ -372,9 +336,6 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	altConfigRoot := `C:\ddconfig`
 	altInstallPath := `C:\ddinstall`
 	agentUser := "customuser"
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
@@ -450,9 +411,6 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 	altConfigRoot := `C:\ddconfig`
 	altInstallPath := `C:\ddinstall`
 	agentUser := "customuser"
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
@@ -504,9 +462,6 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	// Arrange
 	s.setAgentConfig()
-	// set terminate policy to false to prevent the service from being forcefully terminated
-	// this is to alert us to issues with agent termination that might be hidden by the default policy
-	s.setTerminatePolicy(false)
 	agentUser := "customuser"
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	s.installPreviousAgentVersion(
@@ -680,6 +635,10 @@ func TestAgentUpgradesFromGA(t *testing.T) {
 // BeforeTest wraps the installer in the DatadogInstallerGA type to handle the special cases for 7.65.x
 func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
+
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
 
 	// Wrap the installer in the InstallerGA type to handle the special cases for 7.65.x
 	s.SetInstaller(&installerwindows.DatadogInstallerGA{
