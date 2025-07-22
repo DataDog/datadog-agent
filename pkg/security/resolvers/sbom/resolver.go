@@ -294,7 +294,7 @@ func (r *Resolver) doScan(sbom *SBOM) (*trivy.Report, error) {
 		report  *trivy.Report
 	)
 
-	cfs := utils.NewCGroupFS()
+	cfs := utils.DefaultCGroupFS()
 
 	for _, rootCandidatePID := range sbom.cgroup.GetPIDs() {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for

@@ -246,7 +246,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 	SkipIfNotAvailable(t)
 
-	cfs := utils.NewCGroupFS()
+	cfs := utils.DefaultCGroupFS()
 
 	_, cgroupContext, _, err := cfs.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 	if err != nil {
@@ -343,7 +343,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		assert.Equal(t, testsuiteEntry.CGroup.CGroupFile, syscallTesterEntry.CGroup.CGroupFile)
 
 		// Check that we have the right cgroup inode
-		cgroupFS := utils.NewCGroupFS()
+		cgroupFS := utils.DefaultCGroupFS()
 		_, _, cgroupSysFSPath, err := cgroupFS.FindCGroupContext(uint32(os.Getpid()), uint32(os.Getpid()))
 		if err != nil {
 			t.Error(err)

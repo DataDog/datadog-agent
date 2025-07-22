@@ -29,7 +29,9 @@ const (
 )
 
 // ContainerConfig holds the check configuration
-type ContainerConfig struct{}
+type ContainerConfig struct {
+	ExtendedMemoryMetrics bool `yaml:"extended_memory_metrics,omitempty"`
+}
 
 // Parse parses the container check config and set default values
 func (c *ContainerConfig) Parse(data []byte) error {
@@ -66,7 +68,7 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, _ uint64,
 		return err
 	}
 
-	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{FilterStore: c.filterStore, Store: c.store}, c.tagger)
+	c.processor = NewProcessor(metrics.GetProvider(option.New(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{FilterStore: c.filterStore, Store: c.store}, c.tagger, c.instance.ExtendedMemoryMetrics)
 	return c.instance.Parse(config)
 }
 
