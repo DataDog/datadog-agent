@@ -11,11 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-const (
-	// ScopeCGroup is the scope for cgroup variables
-	ScopeCGroup = "cgroup"
-)
-
 // VariableScopes is the list of scopes for variables
 var VariableScopes = []string{
 	ScopeCGroup,
