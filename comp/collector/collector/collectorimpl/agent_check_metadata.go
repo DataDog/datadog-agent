@@ -75,7 +75,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck)
 		ExternalhostTags: *externalhost.GetPayload(),
 	}
 
-	agentChecks := make([]agentCheck, 0)
+	agentChecks := []agentCheck{}
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
@@ -142,6 +142,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck)
 			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError,
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
+		agentChecks = append(agentChecks, agentCheck{
+			instanceType: "jmx",
+			instanceName: "initialization",
+			status:       "ERROR",
+		})
 	}
 
 	stats := map[string]interface{}{}
@@ -189,29 +194,44 @@ func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck)
 	return payload, agentChecks
 }
 
-// sendAgentCheckMetrics creates and sends metrics series for monitored agent checks
-func (c *collectorImpl) sendAgentCheckMetrics(ctx context.Context, timestamp time.Time, agentChecks []agentCheck) error {
+// sendAgentCheckMetrics creates and sends metrics series for agent checks
+func (c *collectorImpl) sendAgentCheckMetricsFromPayload(ctx context.Context, timestamp time.Time, agentChecks []interface{}) error {
 	// Get hostname for the metrics
 	hostname, _ := c.hostname.Get(ctx)
 
 	// Create metrics series for each monitored check
 	ts := float64(timestamp.Unix())
 
-	for _, check := range agentChecks {
+	if len(agentChecks) == 0 {
+		log.Debugf("No agent checks found in payload")
+		return nil
+	}
 
-		status := ""
-		switch check.status {
-		case "OK":
-			status = "healthy"
-		case "WARNING":
-			status = "warning"
-		case "ERROR":
-			status = "broken"
+	for _, check := range agentChecks {
+		check, ok := check.([]interface{})
+		if !ok || len(check) < 4 {
+			log.Warnf("Invalid check format in agent checks payload")
+			continue
 		}
+
+		status := "unknown"
+		if checkStatus, ok := check[3].(string); ok {
+			switch checkStatus {
+			case "OK":
+				status = "healthy"
+			case "WARNING":
+				status = "warning"
+			case "ERROR":
+				status = "broken"
+			}
+		} else {
+			log.Warnf("Invalid check status in agent checks payload")
+		}
+
 		// Create tags for the check
 		tags := []string{
-			fmt.Sprintf("integration_type:%s", check.instanceType),
-			fmt.Sprintf("integration_name:%s", check.instanceName),
+			fmt.Sprintf("integration_type:%v", check[1]),
+			fmt.Sprintf("integration_name:%v", check[2]),
 			fmt.Sprintf("status:%s", status),
 		}
 
@@ -241,13 +261,13 @@ func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
 		return firstPayloadDelay - time.Since(c.createdAt)
 	}
 
-	payload, agentChecks := c.GetPayload(ctx)
+	payload, _ := c.GetPayload(ctx)
 	if err := metricSerializer.SendAgentchecksMetadata(payload); err != nil {
 		c.log.Errorf("unable to submit agentchecks metadata payload, %s", err)
 	}
 
 	// Send agent check metrics for monitored checks
-	if err := c.sendAgentCheckMetrics(ctx, time.Now(), agentChecks); err != nil {
+	if err := c.sendAgentCheckMetricsFromPayload(ctx, time.Now(), payload.AgentChecks); err != nil {
 		c.log.Errorf("unable to send agent check metrics: %s", err)
 	}
 
