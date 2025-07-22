@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -80,6 +81,7 @@ type Requires struct {
 	Hostname            hostnameinterface.Component
 	Ipc                 ipc.Component
 	Telemetry           telemetry.Component
+	AgentTelemetry      agenttelemetry.Component
 	Params              Params
 }
 
