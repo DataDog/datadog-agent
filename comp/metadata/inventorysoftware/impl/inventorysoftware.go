@@ -10,6 +10,7 @@ package inventorysoftwareimpl
 
 import (
 	"context"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"net/http"
 	"time"
 
@@ -18,10 +19,9 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hos
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sta
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
