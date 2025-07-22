@@ -656,7 +656,7 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 
 // IsWithinCI returns true if the test suite is running in a CI environment.
 func (bs *BaseSuite[Env]) IsWithinCI() bool {
-	return os.Getenv("CI_JOB_ID") != ""
+	return os.Getenv("GITLAB_CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
 }
 
 // TearDownSuite run after all the tests in the suite have been run.
