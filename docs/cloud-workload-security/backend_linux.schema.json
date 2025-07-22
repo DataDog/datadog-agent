@@ -440,6 +440,10 @@
           "type": "string",
           "description": "File basename"
         },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
+        },
         "path_resolution_error": {
           "type": "string",
           "description": "Error message from path resolution"
@@ -557,9 +561,7 @@
       "type": "object",
       "required": [
         "uid",
-        "gid",
-        "mount_visible",
-        "mount_detached"
+        "gid"
       ],
       "description": "FileSerializer serializes a file to JSON"
     },
@@ -572,6 +574,10 @@
         "name": {
           "type": "string",
           "description": "File basename"
+        },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
         },
         "path_resolution_error": {
           "type": "string",
@@ -706,9 +712,7 @@
       "type": "object",
       "required": [
         "uid",
-        "gid",
-        "mount_visible",
-        "mount_detached"
+        "gid"
       ],
       "description": "FileEventSerializer serializes a file event to JSON"
     },

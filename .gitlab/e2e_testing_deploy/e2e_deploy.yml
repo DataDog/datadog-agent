@@ -184,6 +184,7 @@ deploy_windows_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
+  retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
   before_script:
@@ -208,6 +209,7 @@ deploy_windows_testing-a7-fips:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
+  retry: 2
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7-fips"]
   before_script:
