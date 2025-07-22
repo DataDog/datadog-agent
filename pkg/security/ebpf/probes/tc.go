@@ -93,8 +93,9 @@ func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 // GetRawPacketTCProgramFunctions returns the raw packet functions
 func GetRawPacketTCProgramFunctions() []string {
 	return []string{
-		tailCallClassifierFnc("raw_packet"),
+		//tailCallClassifierFnc("raw_packet"),
 		tailCallClassifierFnc("raw_packet_sender"),
+		tailCallClassifierFnc("raw_packet_drop_action_cb"),
 	}
 }
 
