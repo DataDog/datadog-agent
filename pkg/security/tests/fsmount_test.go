@@ -56,7 +56,7 @@ func TestFsmount(t *testing.T) {
 	defer test.Close()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
-		var fsfd int
+
 		err = test.GetProbeEvent(func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
@@ -66,7 +66,7 @@ func TestFsmount(t *testing.T) {
 			defer unix.Close(fsfd)
 
 			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, unix.MOUNT_ATTR_RDONLY)
@@ -77,12 +77,16 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
-			assert.NotEqual(t, event.Fsmount.MountID, uint32(0), "Mount id is zero")
-			assert.NotEqual(t, event.Fsmount.Flags, unix.FSOPEN_CLOEXEC, "Mount flags")
-			assert.NotEqual(t, event.Fsmount.Fd, fsfd, "Wrong file descriptor")
-			assert.NotEqual(t, event.Fsmount.MountAttrs, unix.FSMOUNT_CLOEXEC, "Wrong mount attributes")
+			assert.NotEqual(t, uint32(0), event.Mount.MountID, "Mount id should not be zero")
+			assert.Equal(t, model.MountOriginFsmount, event.Mount.Origin, "Incorrect mount source")
+			assert.Equal(t, true, event.Mount.Detached, "Mount should be detached")
+			assert.Equal(t, false, event.Mount.Visible, "Mount shouldn't be visible")
 			return true
-		}, 3*time.Second, model.FileFsmountEventType)
+		}, 3*time.Second, model.FileMountEventType)
+
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 
 	t.Run("fsmount-resolve-open-file", func(t *testing.T) {
@@ -95,7 +99,7 @@ func TestFsmount(t *testing.T) {
 			defer unix.Close(fsfd)
 
 			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
@@ -128,7 +132,7 @@ func TestFsmount(t *testing.T) {
 			defer unix.Close(fsfd)
 
 			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
@@ -150,5 +154,4 @@ func TestFsmount(t *testing.T) {
 			assert.Equal(t, "/test-mkdir", event.Mkdir.File.PathnameStr, "Wrong path")
 		})
 	})
-
 }

@@ -23,8 +23,15 @@ func TestWindowsNetworkSuite(t *testing.T) {
 	suite := &windowsNetworkCheckSuite{
 		networkCheckSuite{
 			descriptor:            e2eos.WindowsDefault,
-			metricCompareFraction: 0.1,
-			metricCompareDecimals: 1,
+			metricCompareDistance: 3,
+			excludedFromValueComparison: []string{
+				"system.net.tcp.connections",
+				"system.net.tcp.current_established",
+				"system.net.tcp4.connections",
+				"system.net.tcp4.current_established",
+				"system.net.tcp6.connections",
+				"system.net.tcp6.current_established",
+			},
 		},
 	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)

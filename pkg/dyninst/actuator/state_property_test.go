@@ -57,7 +57,7 @@ func TestStateMachineProperties(t *testing.T) {
 
 	for i := 0; i < numRuns; i++ {
 		seed := baseSeed + int64(i)
-		t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
+		if !t.Run(fmt.Sprintf("seed=%d", seed), func(t *testing.T) {
 			t.Logf("using seed: %d", seed)
 			// Run the test twice to ensure the output is deterministic.
 			firstRun := runStateMachinePropertyTest(t, seed)
@@ -68,9 +68,12 @@ func TestStateMachineProperties(t *testing.T) {
 			if !bytes.Equal(firstRun, secondRun) {
 				require.Equal(
 					t, string(firstRun), string(secondRun),
-					"property test output should be deterministic")
+					"property test output should be deterministic",
+				)
 			}
-		})
+		}) {
+			t.FailNow()
+		}
 	}
 }
 
@@ -138,7 +141,7 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 		// Generate and log event output using shared infrastructure.
 		yamlEv := wrapEventForYAML(ev)
 		eventNode := &yaml.Node{}
-		eventNode.Encode(yamlEv)
+		require.NoError(t, eventNode.Encode(yamlEv))
 		output := generateEventOutput(t, eventNode, *effects, before, pts.sm)
 		if eventCount > 0 {
 			outputBuf.WriteString("---\n")
@@ -227,7 +230,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 						},
 						Template: "test log message",
 						Segments: []json.RawMessage{
-							json.RawMessage("test log message"),
+							json.RawMessage(`"test log message"`),
 						},
 					},
 				}
@@ -303,7 +306,6 @@ func (pts *propertyTestState) existingProcesses() []processKey {
 		return cmp.Or(
 			cmp.Compare(a.tenantID, b.tenantID),
 			cmp.Compare(a.PID, b.PID),
-			cmp.Compare(a.Service, b.Service),
 		)
 	})
 	return existingProcesses
@@ -362,13 +364,11 @@ func (pts *propertyTestState) completeRandomEffect() event {
 			programID: eff.programID,
 			processID: eff.processID,
 		}
+	case effectUnloadProgram:
+		return eventProgramUnloaded{
+			programID: eff.programID,
+		}
 
-	// Register/unregister effects are fire-and-forget, they don't generate
-	// events.
-	case effectRegisterProgramWithDispatcher,
-		effectUnregisterProgramWithDispatcher:
-		// These don't generate completion events, so generate a different event.
-		return nil
 	default:
 		panic(fmt.Sprintf("unknown effect: %T", eff))
 	}

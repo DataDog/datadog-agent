@@ -54,6 +54,10 @@ const (
 	// for removal.
 	programStateDraining
 
+	// The program has been detached from all processes and is now
+	// being unloaded asynchronously (closing BPF objects, sinks, etc.).
+	programStateUnloading
+
 	// The program loading was aborted.
 	programStateLoadingAborted
 )

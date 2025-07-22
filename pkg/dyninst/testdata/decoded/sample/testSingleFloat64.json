@@ -26,7 +26,7 @@
             "arguments": {
               "x": {
                 "type": "float64",
-                "value": "0"
+                "notCapturedReason": "unavailable"
               }
             }
           }

@@ -26,17 +26,18 @@
             "arguments": {
               "s": {
                 "type": "[3]int",
+                "size": "3",
                 "elements": [
                   {
-                    "type": "",
+                    "type": "int",
                     "value": "1"
                   },
                   {
-                    "type": "",
+                    "type": "int",
                     "value": "2"
                   },
                   {
-                    "type": "",
+                    "type": "int",
                     "value": "3"
                   }
                 ]

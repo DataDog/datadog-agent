@@ -107,6 +107,7 @@ func makeModelService(pid int32, name string) model.Service {
 		Type:               "database",
 		CommandLine:        []string{"python", "-m", "myservice"},
 		StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
+		LogFiles:           []string{"/var/log/" + name + ".log"},
 	}
 }
 
@@ -133,6 +134,7 @@ func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 			Ports:              []uint16{3000, 4000},
 			APMInstrumentation: "manual",
 			Type:               "database",
+			LogFiles:           []string{"/var/log/" + name + ".log"},
 		},
 	}
 }
@@ -167,6 +169,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			assert.Equal(collectT, expectedProcess.Service.Ports, entity.Service.Ports)
 			assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
 			assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
+			assert.Equal(collectT, expectedProcess.Service.LogFiles, entity.Service.LogFiles)
 		}, 2*time.Second, 100*time.Millisecond)
 	}
 }

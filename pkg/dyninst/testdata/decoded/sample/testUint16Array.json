@@ -26,13 +26,14 @@
             "arguments": {
               "x": {
                 "type": "[2]uint16",
+                "size": "2",
                 "elements": [
                   {
-                    "type": "",
+                    "type": "uint16",
                     "value": "1"
                   },
                   {
-                    "type": "",
+                    "type": "uint16",
                     "value": "2"
                   }
                 ]

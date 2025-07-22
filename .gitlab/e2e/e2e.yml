@@ -321,6 +321,12 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller
 
 new-e2e-windows-certificate:
   extends: .new_e2e_template
@@ -480,7 +486,7 @@ new-e2e-cws:
     # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestAgentSuite(EC2|GCP)
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite

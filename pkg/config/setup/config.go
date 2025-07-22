@@ -902,13 +902,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
+	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
-	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os", "languages"})
+	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
@@ -1368,10 +1369,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 func serializer(config pkgconfigmodel.Setup) {
 	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -1382,6 +1379,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_use_events_marshaler_v2", true)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1783,9 +1781,8 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
-	config.BindEnvAndSetDefault("kubelet_wait_on_missing_container", 0)
-	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)       // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
-	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5) // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5)      // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)

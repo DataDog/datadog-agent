@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/serializer
 go 1.23.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.157
+	github.com/DataDog/agent-payload/v5 v5.0.158
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
@@ -22,7 +22,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0
-	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3
@@ -85,6 +84,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

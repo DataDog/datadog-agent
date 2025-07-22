@@ -12,14 +12,12 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strconv"
@@ -29,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -52,6 +50,13 @@ import (
 //go:embed testdata/decoded
 var testdataFS embed.FS
 
+type semaphore chan struct{}
+
+func (s semaphore) acquire() (release func()) {
+	s <- struct{}{}
+	return func() { <-s }
+}
+
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
@@ -60,6 +65,9 @@ func TestDyninst(t *testing.T) {
 		"simple": {},
 		"sample": {},
 	}
+
+	concurrency := max(1, runtime.GOMAXPROCS(0))
+	sem := make(semaphore, concurrency)
 
 	// The debug variants of the tests spew logs to the trace_pipe, so we need
 	// to clear it after the tests to avoid interfering with other tests.
@@ -87,9 +95,11 @@ func TestDyninst(t *testing.T) {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-		t.Run(svc, func(t *testing.T) {
-			runIntegrationTestSuite(t, svc, cfgs, rewrite)
-		})
+		for _, cfg := range cfgs {
+			t.Run(fmt.Sprintf("%s-%s", svc, cfg), func(t *testing.T) {
+				runIntegrationTestSuite(t, svc, cfg, rewrite, sem)
+			})
+		}
 	}
 }
 
@@ -101,7 +111,9 @@ func testDyninst(
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
+	sem semaphore,
 ) map[string][]json.RawMessage {
+	defer sem.acquire()()
 	start := time.Now()
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
@@ -131,7 +143,7 @@ func testDyninst(
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
-	at := a.NewTenant("integration-test", reporter)
+	at := a.NewTenant("integration-test", reporter, irgen.NewGenerator())
 
 	// Launch the sample service.
 	t.Logf("launching %s", service)
@@ -195,10 +207,10 @@ func testDyninst(
 
 	timeout := time.Second
 	if !rewriteEnabled {
-		// Use some multiple of the time it took to start the test and get
-		// everything setup to try to add more margin in the case that we're
-		// running in an overloaded system.
-		timeout = time.Second + 2*time.Since(start)
+		// In CI the machines seem to get very overloaded and this takes a
+		// shocking amount of time. Given we don't wait for this timeout in
+		// the happy path, it's fine to let this be quite long.
+		timeout = 5*time.Second + 5*time.Since(start)
 	}
 	timeoutCh := time.After(timeout)
 	var read []output.Event
@@ -213,8 +225,8 @@ func testDyninst(
 	}
 	if !rewriteEnabled && timedOut {
 		t.Errorf(
-			"timed out waiting for %d events, got %d",
-			totalExpectedEvents, len(read),
+			"timed out after %v waiting for %d events, got %d",
+			timeout, totalExpectedEvents, len(read),
 		)
 	}
 	require.NoError(t, sampleProc.Wait())
@@ -228,20 +240,17 @@ func testDyninst(
 
 	t.Logf("processing output")
 	// TODO: we should intercept raw ringbuf bytes and dump them into tmp dir.
-	mef, err := object.NewMMappingElfFile(servicePath)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, mef.Close()) }()
-	obj, err := object.NewElfObject(mef.Elf)
+	obj, err := object.OpenElfFile(servicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 
-	moduledata, err := object.ParseModuleData(mef)
+	moduledata, err := object.ParseModuleData(obj.Underlying)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(mef)
+	goVersion, err := object.ReadGoVersion(obj.Underlying)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(mef)
+	goDebugSections, err := moduledata.GoDebugSections(obj.Underlying)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
@@ -281,7 +290,10 @@ func testDyninst(
 		var decodeOut bytes.Buffer
 		probe, err := decoder.Decode(event, cachingSymbolicator, &decodeOut)
 		require.NoError(t, err)
-		redacted := redactJSON(t, decodeOut.Bytes())
+		if os.Getenv("DEBUG") != "" {
+			t.Logf("Output: %s", decodeOut.String())
+		}
+		redacted := redactJSON(t, decodeOut.Bytes(), defaultRedactors)
 		probeID := probe.GetID()
 		probeRet := retMap[probeID]
 		expIdx := len(probeRet)
@@ -304,89 +316,19 @@ func testDyninst(
 	return retMap
 }
 
-type jsonRedactor struct {
-	matches     func(ptr jsontext.Pointer) bool
-	replacement jsontext.Value
-}
-
-func redactPtr(toMatch string, replacement jsontext.Value) jsonRedactor {
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return string(ptr) == toMatch
-		},
-		replacement: replacement,
-	}
-}
-
-func redactPtrPrefixSuffix(prefix, suffix string, replacement jsontext.Value) jsonRedactor {
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return strings.HasPrefix(string(ptr), prefix) && strings.HasSuffix(string(ptr), suffix)
-		},
-		replacement: replacement,
-	}
-}
-
-func redactPtrRegexp(pat string, replacement jsontext.Value) jsonRedactor {
-	re := regexp.MustCompile(pat)
-	return jsonRedactor{
-		matches: func(ptr jsontext.Pointer) bool {
-			return re.MatchString(string(ptr))
-		},
-		replacement: replacement,
-	}
-}
-
-var redactors = []jsonRedactor{
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/fileName$`, []byte(`"[fileName]"`)),
-	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/lineNumber$`, []byte(`"[lineNumber]"`)),
-
-	// TODO: stack is only redacted in full because of bug with stack walking on arm64.
-	// Unredact this once the issue is fixed.
-	redactPtr(`/debugger/snapshot/stack`, []byte(`"[stack-unredact-me]"`)),
-
-	redactPtr("/debugger/snapshot/id", []byte(`"[id]"`)),
-	redactPtr("/debugger/snapshot/timestamp", []byte(`"[ts]"`)),
-	redactPtr("/timestamp", []byte(`"[ts]"`)),
-	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"[addr]"`)),
-}
-
-func redactJSON(t *testing.T, input []byte) (redacted []byte) {
-	d := jsontext.NewDecoder(bytes.NewReader(input))
-	var buf bytes.Buffer
-	e := jsontext.NewEncoder(&buf, jsontext.WithIndent("  "), jsontext.WithIndentPrefix("  "))
-	for {
-		tok, err := d.ReadToken()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		kind, idx := d.StackIndex(d.StackDepth())
-		require.NoError(t, e.WriteToken(tok))
-		if kind != '{' || idx%2 == 0 {
-			continue
-		}
-		ptr := d.StackPointer()
-		for _, redactor := range redactors {
-			if redactor.matches(ptr) {
-				_, err := d.ReadValue()
-				require.NoError(t, err)
-				require.NoError(t, e.WriteValue(redactor.replacement))
-				break
-			}
-		}
-	}
-	return bytes.TrimSpace(buf.Bytes())
-}
-
 type probeOutputs map[string][]json.RawMessage
 
 func runIntegrationTestSuite(
 	t *testing.T,
 	service string,
-	configs []testprogs.Config,
+	cfg testprogs.Config,
 	rewrite bool,
+	sem semaphore,
 ) {
+	if cfg.GOARCH != runtime.GOARCH {
+		t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
+		return
+	}
 	var outputs = struct {
 		sync.Mutex
 		byTest map[string]probeOutputs // testName -> probeID -> [redacted JSON]
@@ -408,42 +350,30 @@ func runIntegrationTestSuite(
 		expectedOutput, err = getExpectedDecodedOutputOfProbes(service)
 		require.NoError(t, err)
 	}
-	for _, cfg := range configs {
-		if cfg.GOARCH != runtime.GOARCH {
-			t.Skipf(
-				"cross-execution is not supported, running on %s, skipping %s",
-				runtime.GOARCH, cfg.GOARCH,
+	bin := testprogs.MustGetBinary(t, service, cfg)
+	for _, debug := range []bool{false, true} {
+		runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
+			t.Parallel()
+			actual := testDyninst(
+				t, service, bin, probeSlice, rewrite, expectedOutput, debug, sem,
 			)
-			continue
-		}
-		bin := testprogs.MustGetBinary(t, service, cfg)
-		for _, debug := range []bool{false, true} {
-			if testing.Short() && debug {
-				t.Skip("skipping debug mode in short mode")
+			if t.Failed() {
+				return
 			}
-			runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) {
-				t.Parallel()
-				actual := testDyninst(
-					t, service, bin, probeSlice, rewrite, expectedOutput, debug,
-				)
-				if t.Failed() {
-					return
-				}
-				outputs.Lock()
-				defer outputs.Unlock()
-				outputs.byTest[t.Name()] = actual
-			}
-			t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
-				t.Parallel()
-				t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
-				for i := range probes {
-					probeID := probes[i].GetID()
-					t.Run(probeID, func(t *testing.T) {
-						runTest(t, probes[i:i+1])
-					})
-				}
-			})
+			outputs.Lock()
+			defer outputs.Unlock()
+			outputs.byTest[t.Name()] = actual
 		}
+		t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
+			t.Parallel()
+			t.Run("all-probes", func(t *testing.T) { runTest(t, probes) })
+			for i := range probes {
+				probeID := probes[i].GetID()
+				t.Run(probeID, func(t *testing.T) {
+					runTest(t, probes[i:i+1])
+				})
+			}
+		})
 	}
 }
 

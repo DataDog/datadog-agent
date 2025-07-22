@@ -9,6 +9,7 @@
 package process
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -303,11 +303,25 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet, procs map[int32]*
 func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
 	var responseData model.ServicesEndpointResponse
 
-	url := getDiscoveryURL("services", pids)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	// Create params with PIDs and convert to JSON
+	params := core.DefaultParams()
+	for _, pid := range pids {
+		params.Pids = append(params.Pids, int(pid))
+	}
+
+	jsonBody, err := params.ToJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JSON request body: %w", err)
+	}
+
+	url := getDiscoveryURL("services")
+	req, err := http.NewRequest(http.MethodGet, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, err
 	}
+
+	// Set content type for JSON
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.sysProbeClient.Do(req)
 	if err != nil {
@@ -385,6 +399,7 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		Ports:                    modelService.Ports,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
+		LogFiles:                 modelService.LogFiles,
 	}
 }
 
@@ -516,22 +531,11 @@ func (c *collector) cleanDiscoveryMaps(alivePids core.PidSet) {
 }
 
 // getDiscoveryURL builds the URL for the discovery endpoint
-func getDiscoveryURL(endpoint string, pids []int32) string {
+func getDiscoveryURL(endpoint string) string {
 	URL := &url.URL{
 		Scheme: "http",
 		Host:   "sysprobe",
 		Path:   "/discovery/" + endpoint,
-	}
-
-	if len(pids) > 0 {
-		pidsStr := make([]string, len(pids))
-		for i, pid := range pids {
-			pidsStr[i] = strconv.Itoa(int(pid))
-		}
-
-		query := url.Values{}
-		query.Add("pids", strings.Join(pidsStr, ","))
-		URL.RawQuery = query.Encode()
 	}
 
 	return URL.String()
