@@ -918,7 +918,7 @@ func TestOnUpdate(t *testing.T) {
 
 	gotSetting := ""
 	var gotOldValue, gotNewValue interface{}
-	cfg.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
+	cfg.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
 		gotSetting = setting
 		gotOldValue = oldValue
 		gotNewValue = newValue
