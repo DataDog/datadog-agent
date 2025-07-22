@@ -22,10 +22,6 @@ type NoSuccessfulProbesError struct {
 
 // Error implements the error interface.
 func (e *NoSuccessfulProbesError) Error() string {
-
-	for i := range e.Issues {
-		fmt.Println(e.Issues[i].Message)
-	}
 	return fmt.Sprintf(
 		"has no successful probes, contains %d issue(s)", len(e.Issues),
 	)

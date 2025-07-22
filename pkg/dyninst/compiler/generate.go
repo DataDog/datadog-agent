@@ -348,11 +348,11 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	case *ir.GoHMapHeaderType:
 	case *ir.GoHMapBucketType:
 	case *ir.GoSwissMapGroupsType:
-		dataOffset, err := offsetOf(t.Fields, "data")
+		dataOffset, err := offsetOf(t.RawFields, "data")
 		if err != nil {
 			return nil, false, err
 		}
-		lengthMaskOffset, err := offsetOf(t.Fields, "lengthMask")
+		lengthMaskOffset, err := offsetOf(t.RawFields, "lengthMask")
 		if err != nil {
 			return nil, false, err
 		}
@@ -369,11 +369,11 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		}
 		g.typeQueue = append(g.typeQueue, t.GroupSliceType, t.GroupType)
 	case *ir.GoSwissMapHeaderType:
-		directoryPtrOffset, err := offsetOf(t.Fields, "dirPtr")
+		directoryPtrOffset, err := offsetOf(t.RawFields, "dirPtr")
 		if err != nil {
 			return nil, false, err
 		}
-		directoryLenOffset, err := offsetOf(t.Fields, "dirLen")
+		directoryLenOffset, err := offsetOf(t.RawFields, "dirLen")
 		if err != nil {
 			return nil, false, err
 		}

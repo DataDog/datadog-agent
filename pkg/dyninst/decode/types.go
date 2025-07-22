@@ -260,7 +260,7 @@ func newDecoderType(
 
 func (b *baseType) irType() ir.Type { return (*ir.BaseType)(b) }
 func (b *baseType) encodeValueFields(
-	d *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -457,12 +457,8 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
-	var (
-		dirLen int64
-		dirPtr uint64
-	)
-	dirLen = int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
-	dirPtr = binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
+	dirLen := int64(binary.NativeEndian.Uint64(data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)]))
+	dirPtr := binary.NativeEndian.Uint64(data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)])
 	if err := writeTokens(
 		enc, jsontext.String("entries"), jsontext.BeginArray,
 	); err != nil {
@@ -551,7 +547,7 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 
 func (v *voidPointerType) irType() ir.Type { return (*ir.VoidPointerType)(v) }
 func (v *voidPointerType) encodeValueFields(
-	d *Decoder,
+	_ *Decoder,
 	enc *jsontext.Encoder,
 	data []byte,
 ) error {
@@ -640,7 +636,7 @@ func (s *structureType) encodeValueFields(
 		jsontext.BeginObject); err != nil {
 		return err
 	}
-	for _, field := range s.RawFields {
+	for field := range s.irType().(*ir.StructureType).Fields() {
 		if err = writeTokens(enc, jsontext.String(field.Name)); err != nil {
 			return err
 		}
