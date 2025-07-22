@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 
 	"github.com/docker/docker/client"
@@ -54,7 +54,7 @@ type Collector struct {
 	resChan        chan sbom.ScanResult
 	opts           sbom.ScanOptions
 	cl             client.ImageAPIClient
-	wmeta          optional.Option[workloadmeta.Component]
+	wmeta          option.Option[workloadmeta.Component]
 
 	closed bool
 }
@@ -65,7 +65,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Config, wmeta option.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err

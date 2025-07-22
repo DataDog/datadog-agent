@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -436,7 +436,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -538,7 +538,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1241,7 +1241,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := LoadCustom(config, "unit_test", option.None[secrets.Component](), nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1298,7 +1298,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := LoadCustom(config, "unit_test", option.None[secrets.Component](), nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1356,7 +1356,7 @@ use_proxy_for_cloud_metadata: true
 		}, nil
 	})
 
-	_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+	_, err := LoadCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
 	assert.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
@@ -1402,7 +1402,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := LoadCustom(config, "unit_test", option.None[secrets.Component](), nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")

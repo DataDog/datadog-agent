@@ -22,14 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // OOMKillProbe Factory
 var OOMKillProbe = module.Factory{
 	Name:             config.OOMKillProbeModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ option.Option[workloadmeta.Component]) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := oomkill.NewProbe(ebpf.NewConfig())
 		if err != nil {

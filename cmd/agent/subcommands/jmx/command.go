@@ -58,7 +58,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -147,11 +147,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() demultiplexer.Component { return nil }),
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
-			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-			fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+			fx.Provide(func() option.Option[rcservice.Component] { return option.None[rcservice.Component]() }),
+			fx.Provide(func() option.Option[rcserviceha.Component] { return option.None[rcserviceha.Component]() }),
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
-			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
+			fx.Provide(func() option.Option[collector.Component] { return option.None[collector.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 			autodiscoveryimpl.Module(),
@@ -291,7 +291,7 @@ func runJmxCommandConsole(config config.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
-	collector optional.Option[collector.Component]) error {
+	collector option.Option[collector.Component]) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam

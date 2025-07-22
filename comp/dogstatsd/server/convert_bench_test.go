@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func buildRawSample(tagCount int, multipleValues bool) []byte {
@@ -74,7 +75,7 @@ func BenchmarkParseMultipleMetric(b *testing.B) {
 type ServerDeps struct {
 	fx.In
 	Config config.Component
-	WMeta  optional.Option[workloadmeta.Component]
+	WMeta  option.Option[workloadmeta.Component]
 }
 
 func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {

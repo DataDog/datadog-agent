@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -184,7 +184,7 @@ func start(log log.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	rcService optional.Option[rccomp.Component]) error {
+	rcService option.Option[rccomp.Component]) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -263,7 +263,7 @@ func start(log log.Component,
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
+	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, option.New(collector), statusComponent, secretResolver); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -344,7 +344,7 @@ func start(log log.Component,
 
 	// Set up check collector
 	registerChecks()
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)

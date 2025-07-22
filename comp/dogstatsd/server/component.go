@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-metric-pipelines
+// team: agent-metrics-logs
 
 // Component is the component type.
 type Component interface {

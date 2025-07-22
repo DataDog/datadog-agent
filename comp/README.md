@@ -6,7 +6,7 @@ Click the links for more documentation.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-metrics-logs
 
 Package aggregator implements the "aggregator" bundle,
 
@@ -40,7 +40,7 @@ auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-metrics-logs
 
 Package checks implements the "checks" bundle, for all of the component based agent checks
 
@@ -58,7 +58,7 @@ Package winregistry implements the Windows Registry check
 
 ## [comp/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/collector) (Component Bundle)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-metrics-logs
 
 Package collector defines the collector bundle.
 
@@ -147,7 +147,7 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd) (Component Bundle)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-metrics-logs
 
 
 
@@ -173,7 +173,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-processing-and-routing
 
 Package forwarder implements the "forwarder" bundle
 
@@ -183,19 +183,13 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/eventplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatform)
 
-*Datadog Team*: agent-log-pipelines
-
 Package eventplatform contains the logic for forwarding events to the event platform
 
 ### [comp/forwarder/eventplatformreceiver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver)
 
-*Datadog Team*: agent-log-pipelines
-
 Package eventplatformreceiver implements the receiver for the event platform package
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
-
-*Datadog Team*: agent-log-pipelines
 
 Package orchestrator implements the orchestrator forwarder component.
 
@@ -215,7 +209,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
-*Datadog Team*: agent-log-pipelines
+*Datadog Team*: agent-metrics-logs
 
 
 
@@ -292,7 +286,7 @@ It does not expose any public methods.
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
-*Datadog Team*: opentelemetry-agent
+*Datadog Team*: opentelemetry
 
 Package otelcol contains the OTLP ingest bundle pipeline to be included
 into the agent components.

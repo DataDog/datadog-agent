@@ -23,13 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // ExecJMXCommandConsole runs the provided JMX command name on the selected checks, and
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
+func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector option.Option[collector.Component]) error {
 	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector)
 }
 
@@ -37,7 +37,7 @@ func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel str
 // the data as a JSON on the console. It is used by the `check jmx` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
+func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector option.Option[collector.Component]) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
@@ -49,7 +49,7 @@ func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, config
 // the data as a JSON on the console. It is used by the `check jmx --rate` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
+func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector option.Option[collector.Component]) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
@@ -70,9 +70,9 @@ func execJmxCommand(command string,
 	ac autodiscovery.Component,
 	senderManager sender.DiagnoseSenderManager,
 	agentAPI internalAPI.Component,
-	collector optional.Option[collector.Component]) error {
+	collector option.Option[collector.Component]) error {
 	// start the cmd HTTP server
-	if err := agentAPI.StartServer(wmeta, taggerComp, ac, optional.NewNoneOption[logsAgent.Component](), senderManager, collector); err != nil {
+	if err := agentAPI.StartServer(wmeta, taggerComp, ac, option.None[logsAgent.Component](), senderManager, collector); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

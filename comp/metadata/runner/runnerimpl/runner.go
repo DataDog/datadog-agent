@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -43,20 +44,20 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []optional.Option[MetadataProvider] `group:"metadata_provider"`
+	Providers []option.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
 // Provider represents the callback from a metada provider. This is returned by 'NewProvider' helper.
 type Provider struct {
 	fx.Out
 
-	Callback optional.Option[MetadataProvider] `group:"metadata_provider"`
+	Callback option.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
 // NewProvider registers a new metadata provider by adding a callback to the runner.
 func NewProvider(callback MetadataProvider) Provider {
 	return Provider{
-		Callback: optional.NewOption[MetadataProvider](callback),
+		Callback: option.New[MetadataProvider](callback),
 	}
 }
 
@@ -64,7 +65,7 @@ func NewProvider(callback MetadataProvider) Provider {
 // can be enabled/disabled through configuration.
 func NewEmptyProvider() Provider {
 	return Provider{
-		Callback: optional.NewNoneOption[MetadataProvider](),
+		Callback: option.None[MetadataProvider](),
 	}
 }
 

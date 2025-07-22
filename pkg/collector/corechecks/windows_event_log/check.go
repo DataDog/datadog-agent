@@ -19,7 +19,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
@@ -291,8 +291,8 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory() option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &Check{
 			CheckBase: core.NewCheckBase(CheckName),
 			evtapi:    winevtapi.New(),

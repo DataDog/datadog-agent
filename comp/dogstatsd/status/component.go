@@ -6,7 +6,7 @@
 // Package status implements the core status component information provider interface
 package status
 
-// team: agent-metric-pipelines
+// team: agent-metrics-logs
 
 // Component is the status interface.
 type Component interface {

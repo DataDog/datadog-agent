@@ -1,11 +1,12 @@
 # This file contains a mapping of DataDog Github teams to JIRA projects.
 # The DEFAULT_JIRA_PROJECT value is interpreted as "AGNTR".
 # Note that keys must be quoted because the '@' symbol is reserved in YAML.
-'@datadog/agent-platform': ACIX
+'@datadog/agent-platform': APL
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
 '@datadog/container-ecosystems': CECO
+'@datadog/platform-integrations': PLINT
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring': NDMII
@@ -13,8 +14,7 @@
 '@datadog/ndm-integrations': NDINT
 '@datadog/container-intake': CTK
 '@datadog/agent-metrics-logs': AMLII
-'@datadog/agent-metric-pipelines': AGTMETRICS
-'@datadog/agent-log-pipelines': AGNTLOG
+'@datadog/agent-shared-components': ASCII
 '@datadog/agent-runtimes': AGENTRUN
 '@datadog/agent-configuration': AGENTCFG
 '@datadog/container-app': CAP
@@ -28,10 +28,9 @@
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-agent': WINA
 '@datadog/windows-kernel-integrations': WKINT
-'@datadog/opentelemetry': OTAGENT
-'@datadog/opentelemetry-agent': OTAGENT
-'@datadog/agent-e2e-testing': ADXT
-'@datadog/sdlc-security': SINT
+'@datadog/opentelemetry': OTEL
+'@datadog/agent-e2e-testing': APL
+'@datadog/software-integrity-and-trust': SINT
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI
 '@datadog/debugger': DEBUG
@@ -46,4 +45,3 @@
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
 '@DataDog/container-ecosystems': CECO
-'@datadog/agent-discovery': DSCVR

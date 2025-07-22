@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var (
@@ -76,7 +76,7 @@ type dependencies struct {
 	Debug  serverdebug.Component
 	Replay replay.Component
 	Params Params
-	WMeta  optional.Option[workloadmeta.Component]
+	WMeta  option.Option[workloadmeta.Component]
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -149,7 +149,7 @@ type server struct {
 
 	enrichConfig enrichConfig
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 }
 
 func initTelemetry(cfg config.Reader, logger logComponent.Component) {
@@ -209,7 +209,7 @@ func newServer(deps dependencies) Component {
 
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component]) *server {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component]) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 

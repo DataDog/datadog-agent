@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName is the name of the check
@@ -52,8 +52,8 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check { return newCheck(store) })
+func Factory(store workloadmeta.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(store) })
 }
 
 func newCheck(store workloadmeta.Component) check.Check {

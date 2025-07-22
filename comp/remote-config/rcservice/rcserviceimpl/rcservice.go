@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -46,8 +46,8 @@ type dependencies struct {
 }
 
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
-func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice.Component] {
-	none := optional.NewNoneOption[rcservice.Component]()
+func newRemoteConfigServiceOptional(deps dependencies) option.Option[rcservice.Component] {
+	none := option.None[rcservice.Component]()
 	if !config.IsRemoteConfigEnabled(deps.Cfg) {
 		return none
 	}
@@ -58,7 +58,7 @@ func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice
 		return none
 	}
 
-	return optional.NewOption[rcservice.Component](configService)
+	return option.New[rcservice.Component](configService)
 }
 
 // newRemoteConfigServiceOptional creates and configures a new remote config service

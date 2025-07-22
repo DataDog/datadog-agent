@@ -22,10 +22,10 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector option.Option[collector.Component], secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], acOpt option.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
 	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
 		return diagnoseChecksInAgentProcess(coll)
 	}
@@ -90,7 +90,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -126,7 +126,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(optional.NewNoneOption[collector.Component](), senderManagerInstance)
+	pkgcollector.InitCheckScheduler(option.None[collector.Component](), senderManagerInstance)
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

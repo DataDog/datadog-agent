@@ -28,7 +28,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -168,7 +168,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	suite.deps = createDeps(suite.T())
 }
 
-func getAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
+func getAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component]) *AutoConfig {
 	ac := createNewAutoConfig(scheduler, secretResolver, wmeta)
 	go ac.serviceListening()
 	return ac
@@ -517,7 +517,7 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 
 type Deps struct {
 	fx.In
-	WMeta optional.Option[workloadmeta.Component]
+	WMeta option.Option[workloadmeta.Component]
 }
 
 func createDeps(t *testing.T) Deps {

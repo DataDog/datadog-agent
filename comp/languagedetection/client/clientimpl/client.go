@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"go.uber.org/fx"
 )
@@ -104,7 +104,7 @@ func newClient(
 	deps dependencies,
 ) clientComp.Component {
 	if !deps.Config.GetBool("language_detection.reporting.enabled") || !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
-		return optional.NewNoneOption[clientComp.Component]()
+		return option.None[clientComp.Component]()
 	}
 
 	ctx := context.Background()
@@ -130,7 +130,7 @@ func newClient(
 		OnStop:  cl.stop,
 	})
 
-	return optional.NewOption[clientComp.Component](cl)
+	return option.New[clientComp.Component](cl)
 }
 
 // start starts streaming languages to the Cluster-Agent

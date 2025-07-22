@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -79,9 +79,9 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {
-		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component]())
+		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, option.None[workloadmeta.Component]())
 	} else if network == "unix" {
-		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component]())
+		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, option.None[workloadmeta.Component]())
 	}
 	require.NotNil(t, s)
 	require.Nil(t, err)

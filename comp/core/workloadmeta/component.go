@@ -10,7 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: container-platform
@@ -134,8 +134,8 @@ func Module() fxutil.Module {
 		fx.Provide(
 			newWorkloadMeta,
 		),
-		fx.Provide(func(wmeta Component) optional.Option[Component] {
-			return optional.NewOption(wmeta)
+		fx.Provide(func(wmeta Component) option.Option[Component] {
+			return option.New(wmeta)
 		}),
 	)
 }

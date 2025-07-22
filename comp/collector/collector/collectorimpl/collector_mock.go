@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -23,8 +23,8 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Supply(MockParams{}),
 		fx.Provide(newMock),
-		fx.Provide(func(collector collector.Component) optional.Option[collector.Component] {
-			return optional.NewOption(collector)
+		fx.Provide(func(collector collector.Component) option.Option[collector.Component] {
+			return option.New(collector)
 		}),
 	)
 }

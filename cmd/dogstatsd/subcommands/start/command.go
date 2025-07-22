@@ -57,7 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -177,8 +177,8 @@ func start(
 	params *Params,
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
-	wmeta optional.Option[workloadmeta.Component],
-	_ optional.Option[tagger.Component],
+	wmeta option.Option[workloadmeta.Component],
+	_ option.Option[tagger.Component],
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // store is a central storage of metadata about workloads. A workload is any
@@ -70,7 +70,7 @@ type provider struct {
 type optionalProvider struct {
 	fx.Out
 
-	Comp          optional.Option[Component]
+	Comp          option.Option[Component]
 	FlareProvider flaretypes.Provider
 }
 
@@ -125,13 +125,13 @@ func newWorkloadMeta(deps dependencies) provider {
 func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	if deps.Params.NoInstance {
 		return optionalProvider{
-			Comp: optional.NewNoneOption[Component](),
+			Comp: option.None[Component](),
 		}
 	}
 	c := newWorkloadMeta(deps)
 
 	return optionalProvider{
-		Comp:          optional.NewOption(c.Comp),
+		Comp:          option.New(c.Comp),
 		FlareProvider: c.FlareProvider,
 	}
 }
