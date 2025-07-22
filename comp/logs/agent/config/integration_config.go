@@ -391,10 +391,9 @@ func (c *LogsConfig) validateFingerprintConfig() error {
 			return fmt.Errorf("failed to load global fingerprint config: %w", err)
 		}
 
-		// If global config exists, merge it with local config
+		// If global config exists, populate fingerprint config with those values.
+		// If not, populate with fingerprint with default global values (256 bytes, 1 line, 0 to skip)
 		if globalConfig != nil {
-			// Only merge if the local config is truly empty (all zero values)
-			// This preserves any explicit local settings
 			c.FingerprintConfig = *globalConfig
 		}
 	}

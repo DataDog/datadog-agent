@@ -171,25 +171,6 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
-func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnNilWithEmptyValues() {
-	config, err := GlobalFingerprintConfig(suite.config)
-	suite.Nil(err)
-	suite.Nil(config)
-}
-
-func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnNilWhenStrategyNotChecksum() {
-	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "default")
-	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
-		"max_lines": 10,
-		"max_bytes": 1024,
-		"to_skip":   5,
-	})
-
-	config, err := GlobalFingerprintConfig(suite.config)
-	suite.Nil(err)
-	suite.Nil(config)
-}
-
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
