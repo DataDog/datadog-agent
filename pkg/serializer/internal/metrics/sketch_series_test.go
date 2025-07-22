@@ -42,7 +42,6 @@ func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_D
 	require.Equal(t, b.Sum, pb.Sum)
 }
 
-
 func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
