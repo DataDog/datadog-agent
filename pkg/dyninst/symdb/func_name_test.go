@@ -45,28 +45,21 @@ func TestParseFuncName(t *testing.T) {
 				failureReason: parseFuncNameFailureReasonGenericFunction,
 			},
 		},
-		{"anonymous function inside function", "github.com/getsentry/sentry-go.NewClient.func1",
+		{"anonymous function defined inside free-standing function", "github.com/getsentry/sentry-go.NewClient.func1",
 			parseFuncNameResult{funcName: funcName{
 				Package: "github.com/getsentry/sentry-go",
 				Type:    "",
 				Name:    "NewClient.func1",
 			}},
 		},
-		{"anonymous function in ptr method", "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.(*ChoosePreferredReplica).func1",
-			// This function we would like to parse, but currently we confuse it with
-			// an anonymous function called by an inlined function, which we don't
-			// support parsing.
-			parseFuncNameResult{
-				failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
-			},
-			// Ideally, we would parse it as:
-			//funcName{
-			//	Package: "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle",
-			//	Type:    "preferFollowerOracle",
-			//	Name:    "ChoosePreferredReplica.func1",
-			//},
+		{"anonymous function defined inside method with pointer receiver", "github.com/cockroachdb/pebble/wal.(*FailoverOptions).EnsureDefaults.func1",
+			parseFuncNameResult{funcName: funcName{
+				Package: "github.com/cockroachdb/pebble/wal",
+				Type:    "FailoverOptions",
+				Name:    "EnsureDefaults.func1",
+			}},
 		},
-		{"anonymous function in val method", "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.ChoosePreferredReplica.func1",
+		{"anonymous function defined inside method with value receiver", "github.com/cockroachdb/pebble/wal.FailoverOptions.EnsureDefaults.func1",
 			// This function we would like to parse, but currently we confuse it with
 			// an anonymous function called by an inlined function, which we don't
 			// support parsing.
@@ -75,9 +68,9 @@ func TestParseFuncName(t *testing.T) {
 			},
 			// Ideally, we would parse it as:
 			//funcName{
-			//	Package: "github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle",
-			//	Type:    "preferFollowerOracle",
-			//	Name:    "ChoosePreferredReplica.func1",
+			//	Package: "github.com/cockroachdb/pebble/wal",
+			//	Type:    "FailoverOptions",
+			//	Name:    "EnsureDefaults.func1",
 			//},
 		},
 		{"deeply nested function", "github.com/cockroachdb/cockroach/pkg/server.(*apiV2Server).execSQL.func8.1.3.2",

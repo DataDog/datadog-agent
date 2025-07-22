@@ -116,10 +116,14 @@ type parseFuncNameResult struct {
 // internal/bytealg.init.0
 //
 // Cases we don't currently support, but we should:
-// - Anonymous functions defined inside methods:
-// github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.(*ChoosePreferredReplica).func1
-// github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.ChoosePreferredReplica.func1
-// (we don't support these because we confuse them with anonymous functions called from inlined functions)
+// - Anonymous functions defined inside methods with value receivers, e.g.:
+// github.com/cockroachdb/pebble/wal.FailoverOptions.EnsureDefaults.func1
+// (we don't support these because we confuse them with anonymous functions
+// called from inlined functions)
+// - Nested anonymous functions, e.g.:
+// github.com/cockroachdb/cockroach/pkg/server.(*apiV2Server).execSQL.func8.1.3.2
+// (we don't support these because we also confuse them with anonymous functions
+// called from inlined functions)
 func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
 	// Filter out generic functions, e.g.
 	// os.init.OnceValue[go.shape.interface { Error() string }].func3
