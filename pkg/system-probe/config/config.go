@@ -120,7 +120,6 @@ func load() (*types.Config, error) {
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
-	swEnabled := cfg.GetBool(swNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -177,9 +176,8 @@ func load() (*types.Config, error) {
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
-		if swEnabled {
-			c.EnabledModules[InventorySoftwareModule] = struct{}{}
-		}
+		// Always enabled on Windows
+		c.EnabledModules[InventorySoftwareModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

@@ -56,6 +56,7 @@ var subservices = []Servicedef{
 			"system_probe_config.enabled":     pkgconfigsetup.SystemProbe(),
 			"windows_crash_detection.enabled": pkgconfigsetup.SystemProbe(),
 			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
+			"software_inventory.enabled":      pkgconfigsetup.SystemProbe(),
 		},
 		serviceName:    "datadog-system-probe",
 		serviceInit:    sysprobeInit,

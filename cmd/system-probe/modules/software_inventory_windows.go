@@ -6,9 +6,9 @@
 package modules
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -36,14 +36,14 @@ type softwareInventoryModule struct {
 func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in software inventory")
-		inventory, warn, err := winsoftware.GetSoftwareInventory()
+		inventory, warn, err := software.GetSoftwareInventory()
 		if err != nil {
 			log.Errorf("Error getting software inventory: %v", err)
 			w.WriteHeader(500)
 			return
 		}
-		if warn != nil {
-			log.Warnf("warning: %v", warn)
+		for _, warning := range warn {
+			_ = log.Warnf("warning: %s", warning)
 		}
 		utils.WriteAsJSON(w, inventory, utils.CompactOutput)
 	}))

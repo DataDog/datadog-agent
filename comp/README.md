@@ -372,6 +372,15 @@ Package inventoryhost exposes the interface for the component to generate the 'h
 
 Package inventoryotel implements a component to generate the 'datadog_agent' metadata payload for inventory.
 
+### [comp/metadata/inventorysoftware](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware)
+
+*Datadog Team*: windows-agent
+
+Package inventorysoftware defines the interface for the inventory software component.
+This component collects and reports software inventory information from the host system.
+It provides metadata about installed software applications, including their names,
+versions, installation dates, and other relevant details for inventory tracking.
+
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
 *Datadog Team*: agent-delivery
