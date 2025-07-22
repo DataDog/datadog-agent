@@ -42,7 +42,7 @@
         # Doing this first build separately lets us avoid uploading heavy artifacts (such as Agent packages),
         # that can't be usefully cached, to the remote cache.
         echo "Building ${CACHE_TARGET} for cache"
-        docker buildx build --pull --platform linux/$ARCH \
+        docker buildx build --output type=image,compression=zstd --pull --platform linux/$ARCH \
           ${CACHE_SOURCE} \
           ${CACHE_TO} \
           ${DOCKER_NO_CACHE} \
