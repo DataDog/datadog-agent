@@ -357,11 +357,8 @@ func (a *apmInstrumentationTagsAccumulator) buildTags() []string {
 	}
 
 	// add SDK info
-	// one tag `sdk.<language>` and one tag `sdk` per each one.
-	// so that they are easy to query for.
 	for sdk, tag := range a.sdks {
-		pushTag(fmt.Sprintf("sdk.%s", sdk), tag)
-		pushTag("sdk", sdk)
+		pushTag("sdk", fmt.Sprintf("%s-%s", sdk, tag))
 	}
 
 	return tags
