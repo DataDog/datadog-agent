@@ -614,7 +614,6 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 api_key: `+apiKey+`
 site: datadoghq.com
 remote_updates: true
-log_level: DEBUG
 `))
 }
 
