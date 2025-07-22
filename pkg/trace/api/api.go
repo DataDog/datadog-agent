@@ -541,9 +541,9 @@ func decodeTracerPayloadV1(req *http.Request, cIDProvider IDProvider) (tp *idx.I
 	if err != nil {
 		return nil, err
 	}
-	if tracerPayload.ContainerIDRef == 0 {
+	if tracerPayload.ContainerID() == "" {
 		cid := cIDProvider.GetContainerID(req.Context(), req.Header)
-		tracerPayload.ContainerIDRef = tracerPayload.AddString(cid)
+		tracerPayload.SetContainerID(cid)
 	}
 	return &tracerPayload, err
 }

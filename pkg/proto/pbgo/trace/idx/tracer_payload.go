@@ -45,49 +45,49 @@ func (tp *InternalTracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) 
 				return
 			}
 		case 2:
-			tp.ContainerIDRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.containerIDRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload containerID")
 				return
 			}
 		case 3:
-			tp.LanguageNameRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.languageNameRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload languageName")
 				return
 			}
 		case 4:
-			tp.LanguageVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.languageVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload languageVersion")
 				return
 			}
 		case 5:
-			tp.TracerVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.tracerVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload tracerVersion")
 				return
 			}
 		case 6:
-			tp.RuntimeIDRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.runtimeIDRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload runtimeID")
 				return
 			}
 		case 7:
-			tp.EnvRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.envRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload env")
 				return
 			}
 		case 8:
-			tp.HostnameRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.hostnameRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload hostname")
 				return
 			}
 		case 9:
-			tp.AppVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
+			tp.appVersionRef, o, err = UnmarshalStreamingString(o, tp.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracer payload appVersion")
 				return
@@ -162,28 +162,28 @@ func (tp *InternalTracerPayload) MarshalMsg(bts []byte) (o []byte, err error) {
 	serStrings := NewSerializedStrings(uint32(tp.Strings.Len()))
 	// Count non-default fields to determine map header size
 	numFields := 0
-	if tp.ContainerIDRef != 0 {
+	if tp.containerIDRef != 0 {
 		numFields++
 	}
-	if tp.LanguageNameRef != 0 {
+	if tp.languageNameRef != 0 {
 		numFields++
 	}
-	if tp.LanguageVersionRef != 0 {
+	if tp.languageVersionRef != 0 {
 		numFields++
 	}
-	if tp.TracerVersionRef != 0 {
+	if tp.tracerVersionRef != 0 {
 		numFields++
 	}
-	if tp.RuntimeIDRef != 0 {
+	if tp.runtimeIDRef != 0 {
 		numFields++
 	}
-	if tp.EnvRef != 0 {
+	if tp.envRef != 0 {
 		numFields++
 	}
-	if tp.HostnameRef != 0 {
+	if tp.hostnameRef != 0 {
 		numFields++
 	}
-	if tp.AppVersionRef != 0 {
+	if tp.appVersionRef != 0 {
 		numFields++
 	}
 	if len(tp.Attributes) > 0 {
@@ -193,37 +193,37 @@ func (tp *InternalTracerPayload) MarshalMsg(bts []byte) (o []byte, err error) {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
-	if tp.ContainerIDRef != 0 {
+	if tp.containerIDRef != 0 {
 		o = msgp.AppendUint32(o, 2) // containerID
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.ContainerIDRef), tp.ContainerIDRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.containerIDRef), tp.containerIDRef, o)
 	}
-	if tp.LanguageNameRef != 0 {
+	if tp.languageNameRef != 0 {
 		o = msgp.AppendUint32(o, 3) // languageName
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.LanguageNameRef), tp.LanguageNameRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.languageNameRef), tp.languageNameRef, o)
 	}
-	if tp.LanguageVersionRef != 0 {
+	if tp.languageVersionRef != 0 {
 		o = msgp.AppendUint32(o, 4) // languageVersion
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.LanguageVersionRef), tp.LanguageVersionRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.languageVersionRef), tp.languageVersionRef, o)
 	}
-	if tp.TracerVersionRef != 0 {
+	if tp.tracerVersionRef != 0 {
 		o = msgp.AppendUint32(o, 5) // tracerVersion
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.TracerVersionRef), tp.TracerVersionRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.tracerVersionRef), tp.tracerVersionRef, o)
 	}
-	if tp.RuntimeIDRef != 0 {
+	if tp.runtimeIDRef != 0 {
 		o = msgp.AppendUint32(o, 6) // runtimeID
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.RuntimeIDRef), tp.RuntimeIDRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.runtimeIDRef), tp.runtimeIDRef, o)
 	}
-	if tp.EnvRef != 0 {
+	if tp.envRef != 0 {
 		o = msgp.AppendUint32(o, 7) // env
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.EnvRef), tp.EnvRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.envRef), tp.envRef, o)
 	}
-	if tp.HostnameRef != 0 {
+	if tp.hostnameRef != 0 {
 		o = msgp.AppendUint32(o, 8) // hostname
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.HostnameRef), tp.HostnameRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.hostnameRef), tp.hostnameRef, o)
 	}
-	if tp.AppVersionRef != 0 {
+	if tp.appVersionRef != 0 {
 		o = msgp.AppendUint32(o, 9) // appVersion
-		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.AppVersionRef), tp.AppVersionRef, o)
+		o = serStrings.AppendStreamingString(tp.Strings.Get(tp.appVersionRef), tp.appVersionRef, o)
 	}
 	if len(tp.Attributes) > 0 {
 		o = msgp.AppendUint32(o, 10) // attributes
@@ -291,7 +291,7 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 2:
-			tc.OriginRef, o, err = UnmarshalStreamingString(o, tc.Strings)
+			tc.originRef, o, err = UnmarshalStreamingString(o, tc.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read trace chunk origin")
 				return
@@ -321,7 +321,7 @@ func (tc *InternalTraceChunk) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 7:
-			tc.DecisionMakerRef, o, err = UnmarshalStreamingString(o, tc.Strings)
+			tc.decisionMakerRef, o, err = UnmarshalStreamingString(o, tc.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read trace chunk decisionMaker")
 				return
@@ -341,7 +341,7 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 	if tc.Priority != 0 {
 		numFields++
 	}
-	if tc.OriginRef != 0 {
+	if tc.originRef != 0 {
 		numFields++
 	}
 	if len(tc.Attributes) > 0 {
@@ -356,7 +356,7 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 	if len(tc.TraceID) > 0 {
 		numFields++
 	}
-	if tc.DecisionMakerRef != 0 {
+	if tc.decisionMakerRef != 0 {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
@@ -364,9 +364,9 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 		o = msgp.AppendUint32(o, 1) // priority
 		o = msgp.AppendInt32(o, tc.Priority)
 	}
-	if tc.OriginRef != 0 {
+	if tc.originRef != 0 {
 		o = msgp.AppendUint32(o, 2) // origin
-		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.OriginRef), tc.OriginRef, o)
+		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.originRef), tc.originRef, o)
 	}
 	if len(tc.Attributes) > 0 {
 		o = msgp.AppendUint32(o, 3) // attributes
@@ -395,9 +395,9 @@ func (tc *InternalTraceChunk) MarshalMsg(bts []byte, serStrings *SerializedStrin
 		o = msgp.AppendUint32(o, 6) // traceID
 		o = msgp.AppendBytes(o, tc.TraceID)
 	}
-	if tc.DecisionMakerRef != 0 {
+	if tc.decisionMakerRef != 0 {
 		o = msgp.AppendUint32(o, 7) // decisionMaker
-		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.DecisionMakerRef), tc.DecisionMakerRef, o)
+		o = serStrings.AppendStreamingString(tc.Strings.Get(tc.decisionMakerRef), tc.decisionMakerRef, o)
 	}
 	return
 }

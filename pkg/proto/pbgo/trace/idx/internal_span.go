@@ -93,27 +93,44 @@ type InternalTracerPayload struct {
 	// array of strings referenced in this tracer payload, its chunks and spans
 	Strings *StringTable
 	// containerID specifies the ref in the strings table of the ID of the container where the tracer is running on.
-	ContainerIDRef uint32
+	containerIDRef uint32
 	// languageName specifies the ref in the strings table of the language of the tracer.
-	LanguageNameRef uint32
+	languageNameRef uint32
 	// languageVersion specifies the ref in the strings table of the language version of the tracer.
-	LanguageVersionRef uint32
+	languageVersionRef uint32
 	// tracerVersion specifies the ref in the strings table of the version of the tracer.
-	TracerVersionRef uint32
+	tracerVersionRef uint32
 	// runtimeID specifies the ref in the strings table of the V4 UUID representation of a tracer session.
-	RuntimeIDRef uint32
+	runtimeIDRef uint32
 	// env specifies the ref in the strings table of the `env` tag that set with the tracer.
-	EnvRef uint32
+	envRef uint32
 	// hostname specifies the ref in the strings table of the hostname of where the tracer is running.
-	HostnameRef uint32
+	hostnameRef uint32
 	// version specifies the ref in the strings table of the `version` tag that set with the tracer.
-	AppVersionRef uint32
+	appVersionRef uint32
 	// a collection of key to value pairs common in all `chunks`
 	Attributes map[uint32]*AnyValue
 	// chunks specifies list of containing trace chunks.
 	Chunks []*InternalTraceChunk
 }
 
+func (tp *InternalTracerPayload) ContainerID() string {
+	return tp.Strings.Get(tp.containerIDRef)
+}
+
+func (tp *InternalTracerPayload) SetContainerID(containerID string) {
+	tp.Strings.DecrementReference(tp.containerIDRef)
+	tp.containerIDRef = tp.Strings.Add(containerID)
+}
+
+func (tp *InternalTracerPayload) LanguageName() string {
+	return tp.Strings.Get(tp.languageNameRef)
+}
+
+func (tp *InternalTracerPayload) SetLanguageName(languageName string) {
+	tp.Strings.DecrementReference(tp.languageNameRef)
+	tp.languageNameRef = tp.Strings.Add(languageName)
+}
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
@@ -121,68 +138,68 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	}
 	return &TracerPayload{
 		Strings:            tp.Strings.strings,
-		ContainerIDRef:     tp.ContainerIDRef,
-		LanguageNameRef:    tp.LanguageNameRef,
-		LanguageVersionRef: tp.LanguageVersionRef,
-		TracerVersionRef:   tp.TracerVersionRef,
-		RuntimeIDRef:       tp.RuntimeIDRef,
-		EnvRef:             tp.EnvRef,
-		HostnameRef:        tp.HostnameRef,
-		AppVersionRef:      tp.AppVersionRef,
+		ContainerIDRef:     tp.containerIDRef,
+		LanguageNameRef:    tp.languageNameRef,
+		LanguageVersionRef: tp.languageVersionRef,
+		TracerVersionRef:   tp.tracerVersionRef,
+		RuntimeIDRef:       tp.runtimeIDRef,
+		EnvRef:             tp.envRef,
+		HostnameRef:        tp.hostnameRef,
+		AppVersionRef:      tp.appVersionRef,
 		Attributes:         tp.Attributes,
 		Chunks:             chunks,
 	}
 }
 
 func (tp *InternalTracerPayload) Hostname() string {
-	return tp.Strings.Get(tp.HostnameRef)
+	return tp.Strings.Get(tp.hostnameRef)
 }
 
 func (tp *InternalTracerPayload) AppVersion() string {
-	return tp.Strings.Get(tp.AppVersionRef)
+	return tp.Strings.Get(tp.appVersionRef)
 }
 
 func (tp *InternalTracerPayload) LanguageName() string {
-	return tp.Strings.Get(tp.LanguageNameRef)
+	return tp.Strings.Get(tp.languageNameRef)
 }
 
 // SetLanguageName sets the language name in the string table
 func (tp *InternalTracerPayload) SetLanguageName(name string) {
-	tp.Strings.DecrementReference(tp.LanguageNameRef)
-	tp.LanguageNameRef = tp.Strings.Add(name)
+	tp.Strings.DecrementReference(tp.languageNameRef)
+	tp.languageNameRef = tp.Strings.Add(name)
 }
 
 func (tp *InternalTracerPayload) LanguageVersion() string {
-	return tp.Strings.Get(tp.LanguageVersionRef)
+	return tp.Strings.Get(tp.languageVersionRef)
 }
 
 // SetLanguageVersion sets the language version in the string table
 func (tp *InternalTracerPayload) SetLanguageVersion(version string) {
-	tp.Strings.DecrementReference(tp.LanguageVersionRef)
-	tp.LanguageVersionRef = tp.Strings.Add(version)
+	tp.Strings.DecrementReference(tp.languageVersionRef)
+	tp.languageVersionRef = tp.Strings.Add(version)
 }
 
 func (tp *InternalTracerPayload) TracerVersion() string {
-	return tp.Strings.Get(tp.TracerVersionRef)
+	return tp.Strings.Get(tp.tracerVersionRef)
 }
 
 // SetTracerVersion sets the tracer version in the string table
 func (tp *InternalTracerPayload) SetTracerVersion(version string) {
-	tp.Strings.DecrementReference(tp.TracerVersionRef)
-	tp.TracerVersionRef = tp.Strings.Add(version)
+	tp.Strings.DecrementReference(tp.tracerVersionRef)
+	tp.tracerVersionRef = tp.Strings.Add(version)
 }
 
 func (tp *InternalTracerPayload) ContainerID() string {
-	return tp.Strings.Get(tp.ContainerIDRef)
+	return tp.Strings.Get(tp.containerIDRef)
 }
 
 func (tp *InternalTracerPayload) Env() string {
-	return tp.Strings.Get(tp.EnvRef)
+	return tp.Strings.Get(tp.envRef)
 }
 
 func (tp *InternalTracerPayload) SetEnv(env string) {
-	tp.Strings.DecrementReference(tp.EnvRef)
-	tp.EnvRef = tp.Strings.Add(env)
+	tp.Strings.DecrementReference(tp.envRef)
+	tp.envRef = tp.Strings.Add(env)
 }
 
 // RemoveChunk removes a chunk by its index.
@@ -219,14 +236,14 @@ func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 	}
 	newPayload := InternalTracerPayload{
 		Strings:            tp.Strings,
-		ContainerIDRef:     tp.ContainerIDRef,
-		LanguageNameRef:    tp.LanguageNameRef,
-		LanguageVersionRef: tp.LanguageVersionRef,
-		TracerVersionRef:   tp.TracerVersionRef,
-		RuntimeIDRef:       tp.RuntimeIDRef,
-		EnvRef:             tp.EnvRef,
-		HostnameRef:        tp.HostnameRef,
-		AppVersionRef:      tp.AppVersionRef,
+		containerIDRef:     tp.containerIDRef,
+		languageNameRef:    tp.languageNameRef,
+		languageVersionRef: tp.languageVersionRef,
+		tracerVersionRef:   tp.tracerVersionRef,
+		runtimeIDRef:       tp.runtimeIDRef,
+		envRef:             tp.envRef,
+		hostnameRef:        tp.hostnameRef,
+		appVersionRef:      tp.appVersionRef,
 		Attributes:         tp.Attributes,
 	}
 	newPayload.Chunks = tp.Chunks[:i]
@@ -240,12 +257,12 @@ func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
 type InternalTraceChunk struct {
 	Strings          *StringTable
 	Priority         int32
-	OriginRef        uint32
+	originRef        uint32
 	Attributes       map[uint32]*AnyValue
 	Spans            []*InternalSpan
 	DroppedTrace     bool
 	TraceID          []byte
-	DecisionMakerRef uint32
+	decisionMakerRef uint32
 }
 
 // TODO: add a test to verify we have all fields
@@ -253,12 +270,12 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 	return &InternalTraceChunk{
 		Strings:          c.Strings,
 		Priority:         c.Priority,
-		OriginRef:        c.OriginRef,
+		originRef:        c.originRef,
 		Attributes:       c.Attributes,
 		Spans:            c.Spans,
 		DroppedTrace:     c.DroppedTrace,
 		TraceID:          c.TraceID,
-		DecisionMakerRef: c.DecisionMakerRef,
+		decisionMakerRef: c.decisionMakerRef,
 	}
 }
 
@@ -287,21 +304,21 @@ func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 }
 
 func (c *InternalTraceChunk) Origin() string {
-	return c.Strings.Get(c.OriginRef)
+	return c.Strings.Get(c.originRef)
 }
 
 func (c *InternalTraceChunk) SetOrigin(origin string) {
-	c.Strings.DecrementReference(c.OriginRef)
-	c.OriginRef = c.Strings.Add(origin)
+	c.Strings.DecrementReference(c.originRef)
+	c.originRef = c.Strings.Add(origin)
 }
 
 func (c *InternalTraceChunk) DecisionMaker() string {
-	return c.Strings.Get(c.DecisionMakerRef)
+	return c.Strings.Get(c.decisionMakerRef)
 }
 
 func (c *InternalTraceChunk) SetDecisionMaker(decisionMaker string) {
-	c.Strings.DecrementReference(c.DecisionMakerRef)
-	c.DecisionMakerRef = c.Strings.Add(decisionMaker)
+	c.Strings.DecrementReference(c.decisionMakerRef)
+	c.decisionMakerRef = c.Strings.Add(decisionMaker)
 }
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
@@ -321,12 +338,12 @@ func (c *InternalTraceChunk) ToProto() *TraceChunk {
 	}
 	return &TraceChunk{
 		Priority:         c.Priority,
-		OriginRef:        c.OriginRef,
+		OriginRef:        c.originRef,
 		Attributes:       c.Attributes,
 		Spans:            spans,
 		DroppedTrace:     c.DroppedTrace,
 		TraceID:          c.TraceID,
-		DecisionMakerRef: c.DecisionMakerRef,
+		DecisionMakerRef: c.decisionMakerRef,
 	}
 }
 

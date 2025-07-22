@@ -48,14 +48,14 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 
 		expectedTP := &InternalTracerPayload{
 			Strings:            tp.Strings, // We will assert on this separately for improved readability here
-			ContainerIDRef:     1,
-			LanguageNameRef:    2,
-			LanguageVersionRef: 3,
-			TracerVersionRef:   4,
-			RuntimeIDRef:       5,
-			EnvRef:             6,
-			HostnameRef:        7,
-			AppVersionRef:      8,
+			containerIDRef:     1,
+			languageNameRef:    2,
+			languageVersionRef: 3,
+			tracerVersionRef:   4,
+			runtimeIDRef:       5,
+			envRef:             6,
+			hostnameRef:        7,
+			appVersionRef:      8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -87,14 +87,14 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 
 		expectedTP := &InternalTracerPayload{
 			Strings:            tp.Strings, // We will assert on this separately for improved readability here
-			ContainerIDRef:     1,
-			LanguageNameRef:    2,
-			LanguageVersionRef: 3,
-			TracerVersionRef:   4,
-			RuntimeIDRef:       5,
-			EnvRef:             6,
-			HostnameRef:        7,
-			AppVersionRef:      8,
+			containerIDRef:     1,
+			languageNameRef:    2,
+			languageVersionRef: 3,
+			tracerVersionRef:   4,
+			runtimeIDRef:       5,
+			envRef:             6,
+			hostnameRef:        7,
+			appVersionRef:      8,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
@@ -123,13 +123,13 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 		expectedChunk := &InternalTraceChunk{
 			Strings:   strings, // We will assert on this separately for improved readability here
 			Priority:  2,
-			OriginRef: 1,
+			originRef: 1,
 			Attributes: map[uint32]*AnyValue{
 				1: {Value: &AnyValue_IntValue{IntValue: 2}},
 			},
 			DroppedTrace:     true,
 			TraceID:          []byte{0xAF},
-			DecisionMakerRef: 2,
+			decisionMakerRef: 2,
 		}
 		assert.Equal(t, expectedChunk, chunks[0])
 		strings.assertEqual(t, []string{"", "lambda", "-9"})

@@ -970,9 +970,9 @@ func TestHandleTracesV1(t *testing.T) {
 
 	strings := idx.NewStringTable()
 	tp := idx.InternalTracerPayload{
-		Strings:         strings,
-		LanguageNameRef: strings.Add("python"),
+		Strings: strings,
 	}
+	tp.SetLanguageName("python")
 	bts, err := tp.MarshalMsg(nil)
 	assert.NoError(t, err)
 
