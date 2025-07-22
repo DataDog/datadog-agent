@@ -42,6 +42,18 @@ func nextMultipleOf8(v int) int {
 // Event represents a single event from the BPF program.
 type Event []byte
 
+var errNoDataItems = errors.New("no data items found")
+
+func (e Event) FirstDataItemHeader() (*DataItemHeader, error) {
+	for item, err := range e.DataItems() {
+		if err != nil {
+			return nil, err
+		}
+		return item.Header(), nil
+	}
+	return nil, errNoDataItems
+}
+
 // Header decodes and returns the header of the event.
 //
 // It verifies that the event data is well-formed, i.e. that the header is

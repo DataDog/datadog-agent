@@ -9,6 +9,7 @@ package rcscrape
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -94,8 +95,9 @@ func (h *procMonHandler) HandleUpdate(update procmon.ProcessesUpdate) {
 			ProcessID:  process.ProcessID,
 			Executable: process.Executable,
 			Probes: []ir.ProbeDefinition{
-				remoteConfigProbeDefinitionV1,
-				remoteConfigProbeDefinitionV2,
+				probeDefinitionV1{},
+				probeDefinitionV2{},
+				symdbProbeDefinition{},
 			},
 		})
 	}
@@ -117,14 +119,34 @@ type scraperSink struct {
 
 func (s *scraperSink) HandleEvent(ev output.Event) error {
 	now := time.Now()
-	rcFile, err := s.decoder.HandleMessage(ev)
+	d, err := s.decoder.getEventDecoder(ev)
 	if err != nil {
 		return err
 	}
-	s.scraper.mu.Lock()
-	defer s.scraper.mu.Unlock()
-	s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
-	return nil
+	switch d := d.(type) {
+	case *remoteConfigEventDecoder:
+		rcFile, err := d.decodeRemoteConfigFile(ev)
+		if err != nil {
+			return err
+		}
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
+		return nil
+	case *symdbEventDecoder:
+		runtimeID, symdbEnabled, err := d.decodeSymdbEnabled(ev)
+		if err != nil {
+			return err
+		}
+		s.scraper.mu.Lock()
+		defer s.scraper.mu.Unlock()
+		s.scraper.mu.debouncer.addSymdbEnabled(
+			now, s.processID, runtimeID, symdbEnabled,
+		)
+		return nil
+	default:
+		return fmt.Errorf("unknown event decoder: %T", d)
+	}
 }
 
 func (s *scraperSink) Close() {
