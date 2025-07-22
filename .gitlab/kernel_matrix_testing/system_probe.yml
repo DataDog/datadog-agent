@@ -54,7 +54,7 @@ pull_test_dockers_arm64:
 # -- BTF
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   script:
     # Build dependencies directory
@@ -172,7 +172,7 @@ upload_sysprobe_tests_x64:
     - .upload_sysprobe_tests
   needs:
     ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   variables:
     ARCH: x86_64
@@ -187,7 +187,7 @@ upload_sysprobe_tests_arm64:
       "prepare_sysprobe_ebpf_functional_tests_arm64",
       "tests_ebpf_arm64",
     ]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   variables:
     ARCH: arm64
@@ -204,7 +204,7 @@ upload_sysprobe_tests_arm64:
 kmt_run_sysprobe_tests_x64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   needs:
     - kmt_setup_env_sysprobe_x64
@@ -244,7 +244,7 @@ kmt_run_sysprobe_tests_x64:
 kmt_run_sysprobe_tests_arm64:
   extends:
     - .kmt_run_sysprobe_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64$CI_IMAGE_LINUX_ARM64_SUFFIX:$CI_IMAGE_LINUX_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64"]
   needs:
     - kmt_setup_env_sysprobe_arm64

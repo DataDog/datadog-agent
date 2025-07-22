@@ -1,6 +1,6 @@
 do-not-merge:
   stage: check_merge
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   rules:
     - !reference [.on_dev_branches]
@@ -15,8 +15,8 @@ do-not-merge:
          [ -n "$CI_IMAGE_DOCKER_X64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_DOCKER_ARM64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_GITLAB_AGENT_DEPLOY_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_LINUX_X64_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_LINUX_ARM64_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_SUFFIX" ] ||
+         [ -n "$CI_IMAGE_LINUX_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
