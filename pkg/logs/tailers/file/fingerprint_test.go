@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -121,13 +120,11 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 1
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	text := "first data line\nsecond data line\n"
@@ -160,13 +157,11 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	maxLines := 5
 	maxBytes := 2048
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	// Expected: line should be cut off and hashed up to maxBytes (2048)
@@ -210,13 +205,11 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 	maxLines := 10
 	maxBytes := 1500
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	//Should hash up to maxBytes (1500) which includes the 807 bytes of line1 and the first 693 bytes of line2 (which accounts for the text "line1: ", "line2: ", and the line break)
@@ -254,13 +247,11 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 2
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 	// Expected: skip "skip1\n" and "skip2\n", then fingerprint "keep1\n" and "keep2\n"
 	expectedText := "keep1\nkeep2\n"
@@ -284,13 +275,11 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	maxLines := 5
 	maxBytes := 1024
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	// Expected: empty file should return 0 since we don't have any data to hash
@@ -321,13 +310,11 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
 	maxLines := 5
 	maxBytes := 1024
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	// Expected: should return 0 because we have fewer lines than maxLines and less than 1024 bytes
@@ -354,14 +341,12 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 	defer osFile.Close()
 	maxLines := 0
 	maxBytes := 50
-	linesToSkip := 0
 	bytesToSkip := 34
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 
 	// Expected: skip first 34 bytes, then fingerprint next 50 bytes
@@ -389,14 +374,12 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	defer osFile.Close()
 	maxLines := 0
 	maxBytes := 1000
-	linesToSkip := 0
 	bytesToSkip := 34
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 
 	// Expected: skip first 34 bytes, but unable to fingerprint since less than 1000 we configured
@@ -423,14 +406,12 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 
 	maxLines := 0
 	maxBytes := 30
-	linesToSkip := 0
 	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 
 	// Expected: fingerprint first 30 bytes
@@ -460,14 +441,12 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 
 	maxLines := 0
 	maxBytes := 100
-	linesToSkip := 0
 	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 
 	// Expected: should return 0 because we have less data than maxBytes
@@ -497,13 +476,11 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 1
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	// Expected: skip first line, then fingerprint remaining lines
@@ -531,16 +508,14 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	suite.Nil(err)
 	defer osFile.Close()
 
-	maxLines := 5
+	maxLines := 0
 	maxBytes := 21
-	linesToSkip := 0
 	bytesToSkip := 10
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 	expectedText := "st data for byte mode"
 	table := crc64.MakeTable(crc64.ISO)
@@ -569,13 +544,11 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	maxLines := 3
 	maxBytes := 1024
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	// Expected: should fingerprint all lines
@@ -612,13 +585,11 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 1
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	tailer := suite.createTailer()
@@ -649,14 +620,12 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 
 	maxLines := 0
 	maxBytes := 20
-	linesToSkip := 0
 	bytesToSkip := 14
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 
 	tailer := suite.createTailer()
@@ -674,13 +643,11 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	// Test 1: Empty file
 	maxLines := 5
 	maxBytes := 1024
-	linesToSkip := 0
 	bytesToSkip := 0
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   bytesToSkip,
 	}
 
 	osFile, err := os.Open(suite.testPath)
@@ -698,7 +665,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	suite.testFile.Sync()
 
 	bytesToSkip = 10 // More than file size
-	config.BytesToSkip = &bytesToSkip
+	config.ToSkip = bytesToSkip
 
 	osFile, err = os.Open(suite.testPath)
 	suite.Nil(err)
@@ -726,13 +693,11 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 	maxLines := 1
 	maxBytes := 80
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	tailer := suite.createTailer()
@@ -764,13 +729,11 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	maxLines := 4
 	maxBytes := 80
 	linesToSkip := 0
-	bytesToSkip := 0
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	osFile, err := os.Open(suite.testPath)
@@ -799,13 +762,11 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	maxLines := 2
 	maxBytes := 1024
 	linesToSkip := 1
-	bytesToSkip := 0
 
 	fpConfig := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	osFile, err := os.Open(suite.testPath)
@@ -831,13 +792,11 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	maxLines = 2
 	maxBytes = 10
 	linesToSkip = 0
-	bytesToSkip = 5
 
 	fpConfig = &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	osFile, err = os.Open(suite.testPath)
@@ -847,17 +806,15 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
 	fingerprint2 := ComputeFingerprint(tailer.file.Path, fpConfig)
-	textToHash2 := "\nline2\nlin"
+	textToHash2 := "line1\nline"
 	table = crc64.MakeTable(crc64.ISO)
 	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
 	suite.Equal(expectedHash2, fingerprint2)
 }
 
-func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
-	// This test handles when bytesToSkip and linesToSkip are non-zero,
-	// the content to hash is a single line, and this line is longer than maxBytes.
-	// Because linesToSkip > 0, we operate in line-mode. The tailer should skip the
-	// specified number of lines, read the next line, truncate it to maxBytes, and hash that.
+func (suite *FingerprintTestSuite) TestLineBased_SkipAndMaxMidLine() {
+	// The content to hash is a single line, and this line is longer than maxBytes.
+	// The tailer should skip the specified number of lines, read the next line, truncate it to maxBytes, and hash that.
 
 	lines := []string{
 		"this line should be skipped\n",
@@ -876,13 +833,11 @@ func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
 	maxLines := 1
 	maxBytes := 4
 	linesToSkip := 1
-	bytesToSkip := 1
 
 	config := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   linesToSkip,
 	}
 
 	// Expected: skip the first line. Read the second line, but only up to maxBytes.
@@ -904,27 +859,10 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	// Set the global configuration values
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_bytes", 2048)
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.bytes_to_skip", 0)
-	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.lines_to_skip", 0)
-
-	// Ensure cleanup of configuration values
-	defer func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_strategy", nil)
-		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_lines", nil)
-		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_bytes", nil)
-		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.bytes_to_skip", nil)
-		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.lines_to_skip", nil)
-	}()
-
-	config := ReturnFingerprintConfig()
-	suite.Equal(1, *config.MaxLines)
-	suite.Equal(2048, *config.MaxBytes)
-	suite.Equal(0, *config.BytesToSkip)
-	suite.Equal(0, *config.LinesToSkip)
+	config := ReturnFingerprintConfig(nil, "checksum")
+	suite.Equal(1, config.MaxLines)
+	suite.Equal(256, config.MaxBytes)
+	suite.Equal(0, config.ToSkip)
 	tailer := suite.createTailer()
 	tailer.fingerprintingEnabled = true
 	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)

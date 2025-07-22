@@ -172,7 +172,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
-	fingerprintConfig := ReturnFingerprintConfig()
+	fingerprintConfig := ReturnFingerprintConfig(opts.FingerprintConfig, opts.File.Source.Config().FingerprintStrategy)
 	fingerprintingEnabled := false
 	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") == "checksum" {
 		fingerprintingEnabled = true
@@ -471,4 +471,9 @@ func (t *Tailer) GetType() string {
 //nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
+}
+
+// ReturnFingerprintConfig returns the fingerprint configuration for this tailer
+func (t *Tailer) ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
+	return ReturnFingerprintConfig(t.fingerprintConfig, t.file.Source.Config().FingerprintStrategy)
 }
