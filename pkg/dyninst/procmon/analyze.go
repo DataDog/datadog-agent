@@ -52,7 +52,7 @@ func analyzeProcess(
 	executableAnalyzer executableAnalyzer,
 ) (processAnalysis, error) {
 	maybeWrapErr := func(msg string, err error) error {
-		if err == nil || errors.Is(err, os.ErrNotExist) {
+		if err == nil || os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
 			return nil
 		}
 		pid, msg, err := pid, msg, err
@@ -68,7 +68,7 @@ func analyzeProcess(
 	}
 
 	exeFile, err := os.Open(exePath)
-	if errors.Is(err, os.ErrNotExist) {
+	if os.IsNotExist(err) || os.IsPermission(err) {
 		// Try to open the exe under the proc root which can work when the
 		// file exists inside a container.
 		exePath = path.Join(
@@ -82,7 +82,11 @@ func analyzeProcess(
 				pid, exePath,
 			)
 		}
-		exeFile, err = os.Open(exePath)
+		var rootErr error
+		exeFile, rootErr = os.Open(exePath)
+		if rootErr != nil {
+			err = errors.Join(err, rootErr)
+		}
 	}
 	if err != nil {
 		return processAnalysis{}, maybeWrapErr("failed to open exe", err)
@@ -174,7 +178,7 @@ func analyzeEnviron(pid int32, procfsRoot string) (ddEnvVars, error) {
 
 	f, err := os.Open(procEnv)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if os.IsNotExist(err) || errors.Is(err, syscall.ESRCH) {
 			return ddEnvVars{}, nil
 		}
 		return ddEnvVars{}, fmt.Errorf(

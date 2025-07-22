@@ -410,10 +410,15 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// force mount from procfs/snapshot
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
+	entry.FileEvent.MountVisibilityResolved = true
 
 	if entry.FileEvent.IsFileless() {
+		entry.FileEvent.MountVisible = false
+		entry.FileEvent.MountDetached = true
 		entry.FileEvent.Filesystem = model.TmpFS
 	} else {
+		entry.FileEvent.MountVisible = true
+		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
 		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.FileEvent.Device, entry.Process.Pid, containerID)
 		if err != nil {
@@ -772,10 +777,11 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
-	fileEvent.MountVisible, fileEvent.MountDetached, err = p.pathResolver.ResolveMountAttributes(&fileEvent.FileFields, &pce.PIDContext, ctrCtx)
+	err = p.pathResolver.ResolveMountAttributes(fileEvent, &pce.PIDContext, ctrCtx)
 	if err != nil {
-		seclog.Errorf("Failed to resolve mount attributes: %s", err)
+		seclog.Warnf("Failed to resolve mount attributes for mount id %d: %s", fileEvent.MountID, err)
 	}
+
 	return fileEvent.PathnameStr, nil
 }
 

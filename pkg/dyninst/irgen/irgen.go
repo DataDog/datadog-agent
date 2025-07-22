@@ -30,6 +30,7 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"runtime/debug"
 	"slices"
 	"strings"
 
@@ -119,7 +120,7 @@ func generateIR(
 		case error:
 			retErr = pkgerrors.Wrap(r, "GenerateIR: panic")
 		default:
-			retErr = pkgerrors.Errorf("GenerateIR: panic: %v", r)
+			retErr = pkgerrors.Errorf("GenerateIR: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 
@@ -128,10 +129,7 @@ func generateIR(
 	ptrSize := objFile.PointerSize()
 
 	d := objFile.DwarfData()
-	loclistReader, err := objFile.LoclistReader()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get loclist reader: %w", err)
-	}
+	loclistReader := objFile.LoclistReader()
 	v := &rootVisitor{
 		interests:           interests,
 		dwarf:               d,

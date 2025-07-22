@@ -36,6 +36,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	di_module "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
@@ -94,25 +95,40 @@ func TestEndToEnd(t *testing.T) {
 	ts.subscriber.NotifyExec(uint32(ts.serviceCmd.Process.Pid))
 
 	expectedProbeIDs := []string{"look_at_the_request", "http_handler"}
-	waitForProbeStatus(t, ts.backend.diagPayloadCh, uploader.StatusInstalled, expectedProbeIDs)
-	sendTestRequests(t, serverPort)
-	waitForLogMessages(t, ts.backend, len(expectedProbeIDs))
-	waitForProbeStatus(t, ts.backend.diagPayloadCh, uploader.StatusEmitting, expectedProbeIDs)
+	waitForProbeStatus(
+		t, ts.backend.diagPayloadCh,
+		makeTargetStatus(uploader.StatusInstalled, expectedProbeIDs...),
+	)
+
+	const numRequests = 3
+	sendTestRequests(t, serverPort, numRequests)
+	waitForLogMessages(t, ts.backend, numRequests*len(expectedProbeIDs), expectationsPath)
+	waitForProbeStatus(
+		t, ts.backend.diagPayloadCh,
+		makeTargetStatus(uploader.StatusEmitting, expectedProbeIDs...),
+	)
 }
 
 func (ts *testState) setupRemoteConfig(t *testing.T) {
 	probes := testprogs.MustGetProbeDefinitions(t, "rc_tester")
 	rcs := make(map[string][]byte)
 	for _, probe := range probes {
-		rcProbe, ok := probe.(*rcjson.SnapshotProbe)
-		require.True(t, ok)
-		rcProbe.Sampling = &rcjson.Sampling{
-			SnapshotsPerSecond: 100,
-		}
+		rcProbe := setSnapshotsPerSecond(t, probe, 100)
 		path, content := createProbeEntry(t, rcProbe)
 		rcs[path] = content
 	}
 	ts.rc.UpdateRemoteConfig(rcs)
+}
+
+func setSnapshotsPerSecond(
+	t *testing.T, probe ir.ProbeDefinition, snapshotsPerSecond float64,
+) *rcjson.SnapshotProbe {
+	rcProbe, ok := probe.(*rcjson.SnapshotProbe)
+	require.True(t, ok)
+	rcProbe.Sampling = &rcjson.Sampling{
+		SnapshotsPerSecond: snapshotsPerSecond,
+	}
+	return rcProbe
 }
 
 func createProbeEntry(t *testing.T, probe rcjson.Probe) (string, []byte) {
@@ -142,21 +158,49 @@ func getRcTesterEnv(rcHost string, rcPort int) []string {
 	}
 }
 
-const numRequests = 3
-
 func (ts *testState) startSampleService(t *testing.T, sampleServicePath string) int {
-	rcURL, err := url.Parse(ts.rcServer.URL)
+	rcHost, rcPort, err := hostPortFromURL(ts.rcServer.URL)
 	require.NoError(t, err)
-	rcHost, portStr, err := net.SplitHostPort(rcURL.Host)
+	cfg := sampleServiceConfig{
+		rcHost:     rcHost,
+		rcPort:     rcPort,
+		binaryPath: sampleServicePath,
+		tmpDir:     ts.tmpDir,
+	}
+	cmd, serverPort, err := startSampleService(t, cfg)
 	require.NoError(t, err)
-	port, err := strconv.Atoi(portStr)
-	require.NoError(t, err)
-
-	cmd := exec.Command(sampleServicePath)
-	cmd.Env = getRcTesterEnv(rcHost, port)
 	ts.serviceCmd = cmd
+	return serverPort
+}
 
-	stderrFile, err := os.Create(filepath.Join(ts.tmpDir, "rc_tester.stderr"))
+type sampleServiceConfig struct {
+	rcHost     string
+	rcPort     int
+	binaryPath string
+	tmpDir     string
+}
+
+func hostPortFromURL(urlStr string) (host string, port int, err error) {
+	rcURL, err := url.Parse(urlStr)
+	if err != nil {
+		return "", 0, err
+	}
+	host, portStr, err := net.SplitHostPort(rcURL.Host)
+	if err != nil {
+		return "", 0, err
+	}
+	port, err = strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, err
+	}
+	return host, port, nil
+}
+
+func startSampleService(t *testing.T, cfg sampleServiceConfig) (sampleServiceCmd *exec.Cmd, serverPort int, err error) {
+	cmd := exec.Command(cfg.binaryPath)
+	cmd.Env = getRcTesterEnv(cfg.rcHost, cfg.rcPort)
+
+	stderrFile, err := os.Create(filepath.Join(cfg.tmpDir, "rc_tester.stderr"))
 	require.NoError(t, err)
 	cmd.Stderr = stderrFile
 	t.Cleanup(func() {
@@ -170,7 +214,7 @@ func (ts *testState) startSampleService(t *testing.T, sampleServicePath string) 
 		stderrFile.Close()
 	})
 
-	stdoutPath := filepath.Join(ts.tmpDir, "rc_tester.stdout")
+	stdoutPath := filepath.Join(cfg.tmpDir, "rc_tester.stdout")
 	stdoutFile, err := os.Create(stdoutPath)
 	require.NoError(t, err)
 	defer stdoutFile.Close()
@@ -183,10 +227,10 @@ func (ts *testState) startSampleService(t *testing.T, sampleServicePath string) 
 		_ = cmd.Wait()
 	})
 
-	serverPort := waitForServicePort(t, stdoutPath)
+	serverPort = waitForServicePort(t, stdoutPath)
 	t.Logf("rc_tester listening on port %d", serverPort)
 
-	return serverPort
+	return cmd, serverPort, nil
 }
 
 func waitForServicePort(t *testing.T, stdoutPath string) int {
@@ -233,7 +277,7 @@ func (ts *testState) initializeModule(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func sendTestRequests(t *testing.T, serverPort int) {
+func sendTestRequests(t *testing.T, serverPort int, numRequests int) {
 	testPaths := make([]string, numRequests)
 	for i := range numRequests {
 		testPaths[i] = fmt.Sprintf("/%d", i)
@@ -251,23 +295,30 @@ func sendTestRequests(t *testing.T, serverPort int) {
 	}
 }
 
+func makeTargetStatus(status uploader.Status, probeIDs ...string) map[string]uploader.Status {
+	m := make(map[string]uploader.Status, len(probeIDs))
+	for _, probeID := range probeIDs {
+		m[probeID] = status
+	}
+	return m
+}
+
 func waitForProbeStatus(
 	t *testing.T,
 	diagPayloadCh <-chan []byte,
-	targetStatus uploader.Status,
-	expectedProbeIDs []string,
+	targetStatus map[string]uploader.Status,
 ) {
 	t.Logf("Waiting for probes to be %s...", targetStatus)
 	const timeout = 10 * time.Second
 
 	probeStatus := make(map[string]uploader.Status)
 	allInStatus := func() bool {
-		for _, probeID := range expectedProbeIDs {
+		for probeID, expectedStatus := range targetStatus {
 			status, ok := probeStatus[probeID]
 			if !ok {
 				return false
 			}
-			if status != targetStatus {
+			if status != expectedStatus {
 				return false
 			}
 		}
@@ -308,10 +359,14 @@ func processDiagnosticPayload(
 	}
 }
 
-func waitForLogMessages(t *testing.T, backend *mockBackend, numProbes int) {
+func waitForLogMessages(
+	t *testing.T,
+	backend *mockBackend,
+	expectedLogs int,
+	expectationsPath string,
+) {
 	t.Log("Waiting for log messages...")
 
-	expectedLogs := numRequests * numProbes
 	var processedLogs []json.RawMessage
 
 	logProcessingTimeout := time.After(5 * time.Second)
@@ -384,10 +439,13 @@ func waitForLogMessages(t *testing.T, backend *mockBackend, numProbes int) {
 		content, err = json.MarshalIndent(allRedacted, "", "  ")
 		require.NoError(t, err)
 	}
+	if expectationsPath == "" {
+		return
+	}
 
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 	if rewrite {
-		saveExpectations(t, content)
+		saveExpectations(t, content, expectationsPath)
 		return
 	}
 
@@ -396,7 +454,7 @@ func waitForLogMessages(t *testing.T, backend *mockBackend, numProbes int) {
 	require.Equal(t, string(golden), string(content))
 }
 
-func saveExpectations(t *testing.T, content []byte) {
+func saveExpectations(t *testing.T, content []byte, expectationsPath string) {
 	err := os.MkdirAll(filepath.Dir(expectationsPath), 0755)
 	require.NoError(t, err)
 	tmpFile, err := os.CreateTemp(filepath.Dir(expectationsPath), ".tmp.rc_tester.*.json")
