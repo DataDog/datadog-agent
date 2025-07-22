@@ -89,6 +89,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
+	pkg/dyninst/testprogs/progs
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
