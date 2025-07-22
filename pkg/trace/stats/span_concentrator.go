@@ -132,7 +132,7 @@ func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (st
 
 // NewStatSpanFromV1 is a helper version of NewStatSpan that builds a StatSpan from an idx.InternalSpan.
 func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string) (statSpan *StatSpan, ok bool) {
-	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind)
+	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
 	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
 	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
 		return nil, false
@@ -141,7 +141,7 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 		return nil, false
 	}
 	spanError := 0
-	if s.Error {
+	if s.Error() {
 		spanError = 1
 	}
 	return &StatSpan{
@@ -150,9 +150,9 @@ func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []st
 		name:             s.Name(),
 		typ:              s.Type(),
 		error:            int32(spanError),
-		parentID:         s.ParentID,
-		start:            int64(s.Start),
-		duration:         int64(s.Duration),
+		parentID:         s.ParentID(),
+		start:            int64(s.Start()),
+		duration:         int64(s.Duration()),
 		spanKind:         s.SpanKind(),
 		statusCode:       getStatusCodeV1(s),
 		isTopLevel:       isTopLevel,

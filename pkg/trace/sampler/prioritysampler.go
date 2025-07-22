@@ -177,7 +177,7 @@ func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 
 	return rate
 }
 func (s *PrioritySampler) applyRateV1(root *idx.InternalSpan, signature Signature) float64 {
-	if root.ParentID != 0 {
+	if root.ParentID() != 0 {
 		return 1.0
 	}
 	// recent tracers annotate roots with applied priority rate

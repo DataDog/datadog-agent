@@ -71,7 +71,7 @@ func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 		s.SetResource(r)
 	}
 
-	for k, v := range s.Attributes {
+	for k, v := range s.Attributes() {
 		modified := false
 		kString := s.Strings.Get(k)
 		if len(kString) > MaxMetaKeyLen {
@@ -95,7 +95,7 @@ func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 			}
 		}
 		if modified {
-			s.Attributes[s.Strings.Add(kString)] = newV
+			s.Attributes()[s.Strings.Add(kString)] = newV
 		}
 	}
 }

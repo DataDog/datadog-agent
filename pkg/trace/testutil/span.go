@@ -398,45 +398,46 @@ func GetTestSpan() *pb.Span {
 // GetTestSpan returns a Span with different fields set
 func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 	span := &idx.InternalSpan{
-		Strings:     strings,
-		SpanID:      52,
-		ParentID:    42,
-		ServiceRef:  strings.Add("fennel_IS amazing!"),
-		NameRef:     strings.Add("something &&<@# that should be a metric!"),
-		ResourceRef: strings.Add("NOT touched because it is going to be hashed"),
-		Start:       9223372036854775807,
-		Duration:    9223372036854775807,
-		Attributes: map[uint32]*idx.AnyValue{
-			strings.Add("http.host"): &idx.AnyValue{
-				Value: &idx.AnyValue_StringValueRef{
-					StringValueRef: strings.Add("192.168.0.1"),
-				},
-			},
-			strings.Add("http.monitor"): &idx.AnyValue{
-				Value: &idx.AnyValue_DoubleValue{
-					DoubleValue: 41.99,
-				},
-			},
-		},
-		SpanLinks: []*idx.InternalSpanLink{
-			{
-				Strings: strings,
-				TraceID: []byte{42},
-				SpanID:  52,
-				Attributes: map[uint32]*idx.AnyValue{
-					strings.Add("a1"): &idx.AnyValue{
-						Value: &idx.AnyValue_StringValueRef{
-							StringValueRef: strings.Add("v1"),
-						},
-					},
-					strings.Add("a2"): &idx.AnyValue{
-						Value: &idx.AnyValue_StringValueRef{
-							StringValueRef: strings.Add("v2"),
-						},
+		Strings: strings,
+		Span: &idx.Span{
+			SpanID:      52,
+			ParentID:    42,
+			ServiceRef:  strings.Add("fennel_IS amazing!"),
+			NameRef:     strings.Add("something &&<@# that should be a metric!"),
+			ResourceRef: strings.Add("NOT touched because it is going to be hashed"),
+			Start:       9223372036854775807,
+			Duration:    9223372036854775807,
+			Attributes: map[uint32]*idx.AnyValue{
+				strings.Add("http.host"): &idx.AnyValue{
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: strings.Add("192.168.0.1"),
 					},
 				},
-				TracestateRef: strings.Add("dd=s:2;o:rum,congo=baz123"),
-				Flags:         1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
+				strings.Add("http.monitor"): &idx.AnyValue{
+					Value: &idx.AnyValue_DoubleValue{
+						DoubleValue: 41.99,
+					},
+				},
+			},
+			Links: []*idx.SpanLink{
+				{
+					TraceID: []byte{42},
+					SpanID:  52,
+					Attributes: map[uint32]*idx.AnyValue{
+						strings.Add("a1"): &idx.AnyValue{
+							Value: &idx.AnyValue_StringValueRef{
+								StringValueRef: strings.Add("v1"),
+							},
+						},
+						strings.Add("a2"): &idx.AnyValue{
+							Value: &idx.AnyValue_StringValueRef{
+								StringValueRef: strings.Add("v2"),
+							},
+						},
+					},
+					TracestateRef: strings.Add("dd=s:2;o:rum,congo=baz123"),
+					Flags:         1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
+				},
 			},
 		},
 	}

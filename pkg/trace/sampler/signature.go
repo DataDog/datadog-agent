@@ -118,7 +118,7 @@ func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
 
 func computeSpanHashV1(span *idx.InternalSpan, env string, withResource bool) spanHash {
 	error := 0
-	if span.Error {
+	if span.Error() {
 		error = 1
 	}
 	h := new32a()

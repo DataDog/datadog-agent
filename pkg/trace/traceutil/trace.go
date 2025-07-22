@@ -83,14 +83,14 @@ func GetRootV1(t *idx.InternalTraceChunk) *idx.InternalSpan {
 		// Common case optimization: check for span with ParentID == 0, starting from the end,
 		// since some clients report the root last
 		j := len(t.Spans) - 1 - i
-		if t.Spans[j].ParentID == 0 {
+		if t.Spans[j].ParentID() == 0 {
 			return t.Spans[j]
 		}
-		parentIDToChild[t.Spans[j].ParentID] = t.Spans[j]
+		parentIDToChild[t.Spans[j].ParentID()] = t.Spans[j]
 	}
 
 	for i := range t.Spans {
-		delete(parentIDToChild, t.Spans[i].SpanID)
+		delete(parentIDToChild, t.Spans[i].SpanID())
 	}
 
 	// Here, if the trace is valid, we should have len(parentIDToChild) == 1

@@ -59,45 +59,46 @@ func newTestSpan() *pb.Span {
 // GetTestSpan returns a Span with different fields set
 func newTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 	span := &idx.InternalSpan{
-		Strings:     strings,
-		SpanID:      rand.Uint64(),
-		ParentID:    1111,
-		ServiceRef:  strings.Add("django"),
-		NameRef:     strings.Add("django.controller"),
-		ResourceRef: strings.Add("GET /some/raclette"),
-		Start:       1448466874000000000,
-		Duration:    10000000,
-		Attributes: map[uint32]*idx.AnyValue{
-			strings.Add("user"): &idx.AnyValue{
-				Value: &idx.AnyValue_StringValueRef{
-					StringValueRef: strings.Add("leo"),
-				},
-			},
-			strings.Add("pool"): &idx.AnyValue{
-				Value: &idx.AnyValue_StringValueRef{
-					StringValueRef: strings.Add("fondue"),
-				},
-			},
-			strings.Add("cheese_weight"): &idx.AnyValue{
-				Value: &idx.AnyValue_DoubleValue{
-					DoubleValue: 100000.0,
-				},
-			},
-		},
-		SpanLinks: []*idx.InternalSpanLink{
-			{
-				Strings: strings,
-				TraceID: []byte{42},
-				SpanID:  1,
-				Attributes: map[uint32]*idx.AnyValue{
-					strings.Add("link.name"): &idx.AnyValue{
-						Value: &idx.AnyValue_StringValueRef{
-							StringValueRef: strings.Add("name"),
-						},
+		Strings: strings,
+		Span: &idx.Span{
+			SpanID:      rand.Uint64(),
+			ParentID:    1111,
+			ServiceRef:  strings.Add("django"),
+			NameRef:     strings.Add("django.controller"),
+			ResourceRef: strings.Add("GET /some/raclette"),
+			Start:       1448466874000000000,
+			Duration:    10000000,
+			Attributes: map[uint32]*idx.AnyValue{
+				strings.Add("user"): &idx.AnyValue{
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: strings.Add("leo"),
 					},
 				},
-				TracestateRef: 0,
-				Flags:         0,
+				strings.Add("pool"): &idx.AnyValue{
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: strings.Add("fondue"),
+					},
+				},
+				strings.Add("cheese_weight"): &idx.AnyValue{
+					Value: &idx.AnyValue_DoubleValue{
+						DoubleValue: 100000.0,
+					},
+				},
+			},
+			Links: []*idx.SpanLink{
+				{
+					TraceID: []byte{42},
+					SpanID:  1,
+					Attributes: map[uint32]*idx.AnyValue{
+						strings.Add("link.name"): &idx.AnyValue{
+							Value: &idx.AnyValue_StringValueRef{
+								StringValueRef: strings.Add("name"),
+							},
+						},
+					},
+					TracestateRef: 0,
+					Flags:         0,
+				},
 			},
 		},
 	}
@@ -831,7 +832,7 @@ func TestNormalizeNoSpanIDV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
-	s.SpanID = 0
+	s.SetSpanID(0)
 	assert.Error(t, a.normalizeV1(ts, s))
 	assert.Equal(t, tsDropped(&info.TracesDropped{SpanIDZero: *atomic.NewInt64(1)}), ts)
 }
@@ -841,33 +842,33 @@ func TestNormalizeStartV1(t *testing.T) {
 	t.Run("pass-through", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpanV1(idx.NewStringTable())
-		before := s.Start
+		before := s.Start()
 		assert.NoError(t, a.normalizeV1(ts, s))
-		assert.Equal(t, before, s.Start)
+		assert.Equal(t, before, s.Start())
 		assert.Equal(t, newTagStats(), ts)
 	})
 
 	t.Run("too-small", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpanV1(idx.NewStringTable())
-		s.Start = 42
-		minStart := time.Now().UnixNano() - int64(s.Duration)
+		s.SetStart(42)
+		minStart := time.Now().UnixNano() - int64(s.Duration())
 		assert.NoError(t, a.normalizeV1(ts, s))
-		assert.True(t, s.Start >= uint64(minStart))
-		assert.True(t, s.Start <= uint64(time.Now().UnixNano())-s.Duration)
+		assert.True(t, s.Start() >= uint64(minStart))
+		assert.True(t, s.Start() <= uint64(time.Now().UnixNano())-s.Duration())
 		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: *atomic.NewInt64(1)}), ts)
 	})
 
 	t.Run("too-small-with-large-duration", func(t *testing.T) {
 		ts := newTagStats()
 		s := newTestSpanV1(idx.NewStringTable())
-		s.Start = 42
-		s.Duration = uint64(time.Now().UnixNano() * 2)
+		s.SetStart(42)
+		s.SetDuration(uint64(time.Now().UnixNano() * 2))
 		minStart := time.Now().UnixNano()
 		assert.NoError(t, a.normalizeV1(ts, s))
 		assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidStartDate: *atomic.NewInt64(1)}), ts)
-		assert.True(t, s.Start >= uint64(minStart), "start should have been reset to current time")
-		assert.True(t, s.Start <= uint64(time.Now().UnixNano()), "start should have been reset to current time")
+		assert.True(t, s.Start() >= uint64(minStart), "start should have been reset to current time")
+		assert.True(t, s.Start() <= uint64(time.Now().UnixNano()), "start should have been reset to current time")
 	})
 }
 
@@ -875,9 +876,9 @@ func TestNormalizeDurationPassThruV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
-	before := s.Duration
+	before := s.Duration()
 	assert.NoError(t, a.normalizeV1(ts, s))
-	assert.Equal(t, before, s.Duration)
+	assert.Equal(t, before, s.Duration())
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -885,9 +886,9 @@ func TestNormalizeEmptyDurationV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
-	s.Duration = 0
+	s.SetDuration(0)
 	assert.NoError(t, a.normalizeV1(ts, s))
-	assert.EqualValues(t, s.Duration, 0)
+	assert.EqualValues(t, s.Duration(), 0)
 	assert.Equal(t, newTagStats(), ts)
 }
 
@@ -895,9 +896,9 @@ func TestNormalizeLargeDurationV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
 	s := newTestSpanV1(idx.NewStringTable())
-	s.Duration = uint64(math.MaxInt64)
+	s.SetDuration(uint64(math.MaxInt64))
 	assert.NoError(t, a.normalizeV1(ts, s))
-	assert.EqualValues(t, s.Duration, 0)
+	assert.EqualValues(t, s.Duration(), 0)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{InvalidDuration: *atomic.NewInt64(1)}), ts)
 }
 
@@ -952,22 +953,22 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 
 	// Normalize a span that contains an empty link name
 	emptyLinkNameSpan := newTestSpanV1(idx.NewStringTable())
-	emptyLinkNameSpan.SpanLinks[0].SetStringAttribute("link.name", "")
+	emptyLinkNameSpan.Links()[0].SetStringAttribute("link.name", "")
 	assert.NoError(t, a.normalizeV1(ts, emptyLinkNameSpan))
-	linkName, _ := emptyLinkNameSpan.SpanLinks[0].GetAttributeAsString("link.name")
+	linkName, _ := emptyLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
 	assert.Equal(t, linkName, normalize.DefaultSpanName)
 
 	// Normalize a span that contains an invalid link name
 	invalidLinkNameSpan := newTestSpanV1(idx.NewStringTable())
-	invalidLinkNameSpan.SpanLinks[0].SetStringAttribute("link.name", "!@#$%^&*()_+")
+	invalidLinkNameSpan.Links()[0].SetStringAttribute("link.name", "!@#$%^&*()_+")
 	assert.NoError(t, a.normalizeV1(ts, invalidLinkNameSpan))
-	linkName, _ = invalidLinkNameSpan.SpanLinks[0].GetAttributeAsString("link.name")
+	linkName, _ = invalidLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
 	assert.Equal(t, linkName, normalize.DefaultSpanName)
 
 	// Normalize a span that contains a valid link name
 	validLinkNameSpan := newTestSpanV1(idx.NewStringTable())
-	validLinkNameSpan.SpanLinks[0].SetStringAttribute("link.name", "valid_name")
+	validLinkNameSpan.Links()[0].SetStringAttribute("link.name", "valid_name")
 	assert.NoError(t, a.normalizeV1(ts, validLinkNameSpan))
-	linkName, _ = validLinkNameSpan.SpanLinks[0].GetAttributeAsString("link.name")
+	linkName, _ = validLinkNameSpan.Links()[0].GetAttributeAsString("link.name")
 	assert.Equal(t, linkName, "valid_name")
 }

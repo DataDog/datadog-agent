@@ -151,7 +151,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 70,
 		}
 		sampler := NewProbabilisticSampler(conf)
-		sampled := sampler.SampleV1(tid, &idx.InternalSpan{Strings: idx.NewStringTable(), Attributes: map[uint32]*idx.AnyValue{}})
+		sampled := sampler.SampleV1(tid, &idx.InternalSpan{Strings: idx.NewStringTable(), Span: &idx.Span{}})
 		assert.True(t, sampled)
 	})
 	t.Run("drop-dd-128-v1", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 68,
 		}
 		sampler := NewProbabilisticSampler(conf)
-		sampled := sampler.SampleV1(tid, &idx.InternalSpan{Strings: idx.NewStringTable(), Attributes: map[uint32]*idx.AnyValue{}})
+		sampled := sampler.SampleV1(tid, &idx.InternalSpan{Strings: idx.NewStringTable(), Span: &idx.Span{}})
 		assert.False(t, sampled)
 	})
 }

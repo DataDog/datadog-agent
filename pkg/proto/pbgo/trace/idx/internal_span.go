@@ -476,6 +476,50 @@ func (s *InternalSpan) SetEnv(e string) {
 	s.Span.EnvRef = s.Strings.Add(e)
 }
 
+func (s *InternalSpan) ParentID() uint64 {
+	return s.Span.ParentID
+}
+
+func (s *InternalSpan) SetParentID(parentID uint64) {
+	s.Span.ParentID = parentID
+}
+
+func (s *InternalSpan) SpanID() uint64 {
+	return s.Span.SpanID
+}
+
+func (s *InternalSpan) SetSpanID(spanID uint64) {
+	s.Span.SpanID = spanID
+}
+
+func (s *InternalSpan) Start() uint64 {
+	return s.Span.Start
+}
+
+func (s *InternalSpan) SetStart(start uint64) {
+	s.Span.Start = start
+}
+
+func (s *InternalSpan) Error() bool {
+	return s.Span.Error
+}
+
+func (s *InternalSpan) Attributes() map[uint32]*AnyValue {
+	return s.Span.Attributes
+}
+
+func (s *InternalSpan) Duration() uint64 {
+	return s.Span.Duration
+}
+
+func (s *InternalSpan) SetDuration(duration uint64) {
+	s.Span.Duration = duration
+}
+
+func (s *InternalSpan) Kind() SpanKind {
+	return s.Span.Kind
+}
+
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
 	if attr, ok := s.Span.Attributes[s.Strings.Lookup(key)]; ok {
@@ -498,6 +542,9 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 
 func (s *InternalSpan) SetStringAttribute(key, value string) {
 	// TODO: removing a string
+	if s.Span.Attributes == nil {
+		s.Span.Attributes = make(map[uint32]*AnyValue)
+	}
 	s.Span.Attributes[s.Strings.Add(key)] = &AnyValue{
 		Value: &AnyValue_StringValueRef{
 			StringValueRef: s.Strings.Add(value),
@@ -507,6 +554,9 @@ func (s *InternalSpan) SetStringAttribute(key, value string) {
 
 func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 	// TODO: removing a string
+	if s.Span.Attributes == nil {
+		s.Span.Attributes = make(map[uint32]*AnyValue)
+	}
 	s.Span.Attributes[s.Strings.Add(key)] = &AnyValue{
 		Value: &AnyValue_DoubleValue{
 			DoubleValue: value,

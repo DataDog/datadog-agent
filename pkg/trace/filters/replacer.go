@@ -88,7 +88,7 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 		for _, s := range trace.Spans {
 			switch key {
 			case "*":
-				for k, v := range s.Span.Attributes {
+				for k, v := range s.Attributes() {
 					kString := trace.Strings.Get(k)
 					if strings.HasPrefix(kString, hiddenTagPrefix) {
 						continue

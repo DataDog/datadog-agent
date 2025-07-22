@@ -154,7 +154,7 @@ func GetTestTracesV1(traceN, size int, realisticIDs bool) *idx.InternalTracerPay
 				// Need to have different span IDs else traces are rejected
 				// because they are not correct (indeed, a trace with several
 				// spans boasting the same span ID is not valid)
-				span.SpanID += uint64(j)
+				span.SetSpanID(span.SpanID() + uint64(j))
 			}
 			spans = append(spans, span)
 		}

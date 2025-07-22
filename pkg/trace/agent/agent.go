@@ -1122,7 +1122,7 @@ func traceContainsError(trace pb.Trace, considerExceptionEvents bool) bool {
 
 func traceContainsErrorV1(trace []*idx.InternalSpan, considerExceptionEvents bool) bool {
 	for _, span := range trace {
-		if span.Span.Error || (considerExceptionEvents && spanContainsExceptionSpanEventV1(span)) {
+		if span.Error() || (considerExceptionEvents && spanContainsExceptionSpanEventV1(span)) {
 			return true
 		}
 	}

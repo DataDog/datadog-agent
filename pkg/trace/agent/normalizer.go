@@ -277,7 +277,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 // normalizeV1 makes sure an InternalSpan is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
 func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
-	if s.SpanID == 0 {
+	if s.SpanID() == 0 {
 		ts.TracesDropped.SpanIDZero.Inc()
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %v", s)
 	}
@@ -308,13 +308,13 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 		s.SetResource(s.Name())
 	}
 
-	if s.ParentID == s.SpanID {
-		s.ParentID = 0
-		log.Debugf("span.normalize: `ParentID` and `SpanID` are the same; `ParentID` set to 0: %d", s.SpanID)
+	if s.ParentID() == s.SpanID() {
+		s.SetParentID(0)
+		log.Debugf("span.normalize: `ParentID` and `SpanID` are the same; `ParentID` set to 0: %d", s.SpanID())
 	}
 
-	s.Duration = a.validateAndFixDurationV1(ts, s.Start, s.Duration)
-	s.Start = a.validateAndFixStartTimeV1(ts, s.Start, s.Duration)
+	s.SetDuration(a.validateAndFixDurationV1(ts, s.Start(), s.Duration()))
+	s.SetStart(a.validateAndFixStartTimeV1(ts, s.Start(), s.Duration()))
 
 	s.SetType(a.validateAndFixType(ts, s.Type()))
 
@@ -328,8 +328,9 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 		}
 	}
 
-	if len(s.SpanLinks) > 0 {
-		a.normalizeSpanLinksV1(ts, s.SpanLinks)
+	// We directly refer to span.Links to avoid the overhead of calling Links() twice
+	if len(s.Span.Links) > 0 {
+		a.normalizeSpanLinksV1(ts, s.Links())
 	}
 	return nil
 }
@@ -439,11 +440,11 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		if err := a.normalizeV1(ts, span); err != nil {
 			return err
 		}
-		if _, ok := spanIDs[span.SpanID]; ok {
+		if _, ok := spanIDs[span.SpanID()]; ok {
 			ts.SpansMalformed.DuplicateSpanID.Inc()
 			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
-		spanIDs[span.SpanID] = struct{}{}
+		spanIDs[span.SpanID()] = struct{}{}
 	}
 
 	return nil

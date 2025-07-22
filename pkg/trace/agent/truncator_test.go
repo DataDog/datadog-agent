@@ -168,14 +168,14 @@ func TestTruncateAttributesPassThruV1(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	s := newTestSpanV1(idx.NewStringTable())
 	before := make(map[string]string)
-	for k, v := range s.Attributes {
+	for k, v := range s.Attributes() {
 		if strVal, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
 			before[s.Strings.Get(k)] = s.Strings.Get(strVal.StringValueRef)
 		}
 	}
 	a.TruncateV1(s)
 	after := make(map[string]string)
-	for k, v := range s.Attributes {
+	for k, v := range s.Attributes() {
 		if strVal, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
 			after[s.Strings.Get(k)] = s.Strings.Get(strVal.StringValueRef)
 		}
@@ -189,7 +189,7 @@ func TestTruncateAttributeKeyTooLongV1(t *testing.T) {
 	key := strings.Repeat("TOOLONG", 1000)
 	s.SetStringAttribute(key, "foo")
 	a.TruncateV1(s)
-	for k := range s.Attributes {
+	for k := range s.Attributes() {
 		assert.True(t, len(s.Strings.Get(k)) < MaxMetaKeyLen+4, "key %s is too long, len is %d", s.Strings.Get(k), len(s.Strings.Get(k)))
 	}
 }
@@ -200,7 +200,7 @@ func TestTruncateAttributeValueTooLongV1(t *testing.T) {
 	val := strings.Repeat("TOOLONG", 25000)
 	s.SetStringAttribute("foo", val)
 	a.TruncateV1(s)
-	for _, v := range s.Attributes {
+	for _, v := range s.Attributes() {
 		if strVal, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
 			assert.True(t, len(s.Strings.Get(strVal.StringValueRef)) < MaxMetaValLen+4)
 		}

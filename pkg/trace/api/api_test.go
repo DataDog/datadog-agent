@@ -95,7 +95,8 @@ func TestServerShutdown(t *testing.T) {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rawTraceChanV1 := make(chan *PayloadV1)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	receiver.Start()
 
@@ -559,7 +560,7 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 		rt := p.TracerPayload.Chunks[0].Spans
 		assert.Len(rt, 1)
 		span := rt[0]
-		assert.Equal(uint64(52), span.SpanID)
+		assert.Equal(uint64(52), span.SpanID())
 		assert.Equal("fennel_IS amazing!", span.Service())
 		assert.Equal("something &&<@# that should be a metric!", span.Name())
 		assert.Equal("NOT touched because it is going to be hashed", span.Resource())
@@ -567,15 +568,16 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 		assert.Equal("192.168.0.1", httpHost)
 		httpMonitor, _ := span.GetAttributeAsString("http.monitor")
 		assert.Equal("41.99", httpMonitor)
-		assert.Equal(1, len(span.SpanLinks))
-		assert.Equal([]byte{0x2a}, span.SpanLinks[0].TraceID)
-		assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
-		a1, _ := span.SpanLinks[0].GetAttributeAsString("a1")
+		links := span.Links()
+		assert.Equal(1, len(links))
+		assert.Equal([]byte{0x2a}, links[0].Link.TraceID)
+		assert.Equal(uint64(52), links[0].Link.SpanID)
+		a1, _ := links[0].GetAttributeAsString("a1")
 		assert.Equal("v1", a1)
-		a2, _ := span.SpanLinks[0].GetAttributeAsString("a2")
+		a2, _ := links[0].GetAttributeAsString("a2")
 		assert.Equal("v2", a2)
-		assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate())
-		assert.Equal(uint32(2147483649), span.SpanLinks[0].Flags)
+		assert.Equal("dd=s:2;o:rum,congo=baz123", links[0].Tracestate())
+		assert.Equal(uint32(2147483649), links[0].Link.Flags)
 	case <-time.After(time.Second):
 		t.Fatalf("no data received")
 	}
