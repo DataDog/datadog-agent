@@ -22,14 +22,14 @@
       -e BUCKET_BRANCH="$BUCKET_BRANCH"
       -e AWS_NETWORKING=true
       ${WINBUILDIMAGE}
-      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\omnibus\pkg -Flavor $FLAVOR -InstallDeps 1"
+      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\omnibus\pkg\pipeline-${CI_PIPELINE_ID} -Flavor $FLAVOR -InstallDeps 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - $CopyNupkgToS3 = "$S3_CP_CMD --recursive --exclude '*' --include '*.nupkg' build-out $S3_RELEASE_ARTIFACTS_URI/choco/nupkg"
     - Invoke-Expression $CopyNupkgToS3
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
   # Sometimes Chocolatey is flakey
   retry: 2
 

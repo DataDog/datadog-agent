@@ -196,6 +196,16 @@ func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*p
 	return rcServiceMRF.ConfigGetState()
 }
 
+func (s *serverSecure) ResetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.ResetStateConfigResponse, error) {
+	rcService, isSet := s.configService.Get()
+
+	if !isSet || rcService == nil {
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
+	}
+	return rcService.ConfigResetState()
+}
+
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
