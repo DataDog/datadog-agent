@@ -14,6 +14,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,8 +148,18 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 			assert.NoError(t, err)
 
 			payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), mockConfig)
+			bytePayloads2, err := MarshalEvents(
+				events.EventsArr,
+				events.Hostname,
+				mockConfig,
+				logmock.New(t),
+				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+			)
+			assert.NoError(t, err)
+			payloads2 := decodePayload(t, mockConfig, bytePayloads2)
 			assert.Equal(t, 3, len(payloadsBySourceType))
 			assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
+			assertEqualEventsPayloads(t, expectedPayloads, payloads2)
 		})
 	}
 }
@@ -254,7 +265,7 @@ func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []pay
 
 	assert.Truef(t,
 		reflect.DeepEqual(expectedBySourceTypes, actualBySourceTypes),
-		"\n%+p\nVS\n%+v", expectedBySourceTypes, actualBySourceTypes)
+		"\n%+#v\nVS\n%+#v", expectedBySourceTypes, actualBySourceTypes)
 }
 
 func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
@@ -264,7 +275,7 @@ func buildEventsJSON(payloads []payloadsType) (*eventsJSON, error) {
 		events := eventsJSON{}
 		err := json.Unmarshal(p, &events)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decode %q: %v", string(p), err)
 		}
 
 		if allEventsJSON == nil {
@@ -386,6 +397,126 @@ func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 			for _, m := range events.CreateMarshalersBySourceType() {
 				stream.BuildJSONPayload(payloadBuilder, m)
 			}
+		}
+	})
+}
+
+func TestEventsMarshaler2(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compression.ZlibKind},
+		"zstd": {kind: compression.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			events := createEvents("3", "3", "2", "2", "1", "1")
+
+			bytePayloads, err := MarshalEvents(
+				events.EventsArr,
+				events.Hostname,
+				mockConfig,
+				logmock.New(t),
+				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+			)
+			assert.NoError(t, err)
+			payloads := decodePayload(t, mockConfig, bytePayloads)
+			assert.Equal(t, 1, len(payloads))
+
+			expectedPayloads := payloadsType(`{"apiKey":"","events":{"1":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"1","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"1","event_type":"10"}],"2":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"2","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"2","event_type":"10"}],"3":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"3","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"3","event_type":"10"}]},"internalHostname":""}`)
+			assertEqualEventsPayloads(t, expectedPayloads, payloads)
+		})
+	}
+}
+
+func TestEventsMarshaler2Split(t *testing.T) {
+	tests := map[string]struct {
+		kind      string
+		npayloads int
+	}{
+		"zlib": {kind: compression.ZlibKind, npayloads: 2},
+		"zstd": {kind: compression.ZstdKind, npayloads: 6},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			events := createEvents("3", "3", "2", "2", "1", "1")
+
+			bytePayloads, err := MarshalEvents(
+				events.EventsArr,
+				events.Hostname,
+				mockConfig,
+				logmock.New(t),
+				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+			)
+			assert.NoError(t, err)
+			payloads := decodePayload(t, mockConfig, bytePayloads)
+			assert.Equal(t, tc.npayloads, len(payloads))
+
+			expectedPayloads := payloadsType(`{"apiKey":"","events":{"1":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"1","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"1","event_type":"10"}],"2":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"2","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"2","event_type":"10"}],"3":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"3","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"3","event_type":"10"}]},"internalHostname":""}`)
+			assertEqualEventsPayloads(t, expectedPayloads, payloads)
+		})
+	}
+}
+
+func TestEventsMarshaler2Drop(t *testing.T) {
+	tests := map[string]struct {
+		kind      string
+		npayloads int
+	}{
+		"zlib": {kind: compression.ZlibKind, npayloads: 2},
+		"zstd": {kind: compression.ZstdKind, npayloads: 6},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+
+			largeText := strings.Repeat("1", 500)
+
+			mockConfig.SetWithoutSource("serializer_max_payload_size", 400)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			events := createEvents("3", "3", "2", "2", "2", "1", "1", largeText)
+			events.EventsArr[3].Text = largeText
+
+			marshaler := createMarshaler2(
+				events.EventsArr,
+				events.Hostname,
+				mockConfig,
+				logmock.New(t),
+				metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp,
+			)
+
+			// assert positions of big events in the sorted array to make sure we're testing the expected states
+			assert.Equal(t, marshaler.events[2].SourceTypeName, largeText)
+			assert.Equal(t, marshaler.events[4].Text, largeText)
+
+			bytePayloads, err := marshaler.marshal()
+			assert.NoError(t, err)
+
+			payloads := decodePayload(t, mockConfig, bytePayloads)
+			assert.Equal(t, tc.npayloads, len(payloads))
+
+			expectedPayloads := payloadsType(`{"apiKey":"","events":{"1":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"1","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"1","event_type":"10"}],"2":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"2","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"2","event_type":"10"}],"3":[{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"3","event_type":"10"},{"msg_title":"1","msg_text":"2","timestamp":3,"priority":"normal","host":"5","tags":["6","7"],"alert_type":"error","aggregation_key":"9","source_type_name":"3","event_type":"10"}]},"internalHostname":""}`)
+			assertEqualEventsPayloads(t, expectedPayloads, payloads)
+		})
+	}
+}
+
+func BenchmarkMarshaler2(b *testing.B) {
+	runBenchmark(b, func(b *testing.B, numberOfItem int) {
+		cfg := configmock.New(b)
+		logger := logmock.New(b)
+		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
+		events := createBenchmarkEvents(numberOfItem)
+
+		b.ResetTimer()
+		for n := 0; n < b.N; n++ {
+			_, _ = MarshalEvents(events.EventsArr, events.Hostname, cfg, logger, compressor)
 		}
 	})
 }

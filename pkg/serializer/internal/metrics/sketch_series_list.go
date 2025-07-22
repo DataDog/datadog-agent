@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"expvar"
 
-	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -416,93 +415,4 @@ func (pb *payloadsBuilder) finishPayload() error {
 	pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointCount))
 
 	return nil
-}
-
-// Marshal encodes this series list.
-func (sl SketchSeriesList) Marshal() ([]byte, error) {
-	pb := &gogen.SketchPayload{
-		Sketches: make([]gogen.SketchPayload_Sketch, 0),
-	}
-
-	for sl.MoveNext() {
-		ss := sl.Current()
-		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
-
-		for _, p := range ss.Points {
-			b := p.Sketch.Basic
-			k, n := p.Sketch.Cols()
-			dsl = append(dsl, gogen.SketchPayload_Sketch_Dogsketch{
-				Ts:  p.Ts,
-				Cnt: b.Cnt,
-				Min: b.Min,
-				Max: b.Max,
-				Avg: b.Avg,
-				Sum: b.Sum,
-				K:   k,
-				N:   n,
-			})
-		}
-
-		sketch := gogen.SketchPayload_Sketch{
-			Metric:      ss.Name,
-			Host:        ss.Host,
-			Tags:        ss.Tags.UnsafeToReadOnlySliceString(),
-			Dogsketches: dsl,
-		}
-
-		// Add origin mapping to metadata
-		if ss.Source != 0 {
-			sketch.Metadata = &gogen.Metadata{
-				Origin: &gogen.Origin{
-					OriginProduct:  uint32(metricSourceToOriginProduct(ss.Source)),
-					OriginCategory: uint32(metricSourceToOriginCategory(ss.Source)),
-					OriginService:  uint32(metricSourceToOriginService(ss.Source)),
-				},
-			}
-		}
-
-		pb.Sketches = append(pb.Sketches, sketch)
-	}
-	return pb.Marshal()
-}
-
-// SplitPayload breaks the payload into times number of pieces
-func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	var sketches SketchSeriesSlice
-	for sl.MoveNext() {
-		ss := sl.Current()
-		sketches = append(sketches, ss)
-	}
-	if len(sketches) == 0 {
-		return []marshaler.AbstractMarshaler{}, nil
-	}
-	return sketches.SplitPayload(times)
-}
-
-//nolint:revive // TODO(AML) Fix revive linter
-type SketchSeriesSlice []*metrics.SketchSeries
-
-// SplitPayload breaks the payload into times number of pieces
-func (sl SketchSeriesSlice) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	// Only break it down as much as possible
-	if len(sl) < times {
-		times = len(sl)
-	}
-	splitPayloads := make([]marshaler.AbstractMarshaler, times)
-	batchSize := len(sl) / times
-	n := 0
-	for i := 0; i < times; i++ {
-		var end int
-		// In many cases the batchSize is not perfect
-		// so the last one will be a bit bigger or smaller than the others
-		if i < times-1 {
-			end = n + batchSize
-		} else {
-			end = len(sl)
-		}
-		newSL := sl[n:end]
-		splitPayloads[i] = newSL
-		n += batchSize
-	}
-	return splitPayloads, nil
 }
