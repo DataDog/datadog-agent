@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 
 from invoke import task
@@ -91,7 +92,8 @@ def run(
         payload = json.dumps(body)
 
     method = method or ('get' if payload == '' else 'post')
-    has_jq = ctx.run('which jq', hide=True, warn=True).ok
+    has_jq = shutil.which('jq') is not None
+
     is_local = env == 'local'
     from_ci = 'CI_JOB_ID' in os.environ
     dc = None if is_local else get_datacenter(env)
