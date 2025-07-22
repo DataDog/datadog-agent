@@ -43,6 +43,18 @@ func ReturnFingerprintConfig(sourceConfig *logsconfig.FingerprintConfig, sourceS
 	return globalConfig
 }
 
+// ResolveFingerprintStrategy returns the fingerprint strategy for a given file.
+// It checks the source-specific strategy first, then falls back to the global strategy.
+func ResolveFingerprintStrategy(file *File) string {
+	// Check if source has a specific fingerprint strategy set
+	if file.Source.Config().FingerprintStrategy != "" {
+		return file.Source.Config().FingerprintStrategy
+	}
+
+	// Fall back to global fingerprint strategy
+	return pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+}
+
 // ComputeFingerprint computes the fingerprint for the given file path
 func ComputeFingerprint(filePath string, fingerprintConfig *logsconfig.FingerprintConfig) uint64 {
 	fpFile, err := os.Open(filePath)

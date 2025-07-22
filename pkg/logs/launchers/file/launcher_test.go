@@ -182,13 +182,11 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	// Create fingerprint config
 	maxLines := 1
 	maxBytes := 2048
-	linesToSkip := 0
-	bytesToSkip := 0
+	toSkip := 0
 	fingerprintConfig := &config.FingerprintConfig{
-		MaxLines:    &maxLines,
-		MaxBytes:    &maxBytes,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxLines: maxLines,
+		MaxBytes: maxBytes,
+		ToSkip:   toSkip,
 	}
 	filePath := tailer.Identifier()[5:]
 	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
@@ -253,13 +251,11 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	// Create fingerprint config
 	maxLines := 1
 	maxBytes := 2048
-	linesToSkip := 0
-	bytesToSkip := 0
+	toSkip := 0
 	fingerprintConfig := &config.FingerprintConfig{
-		MaxBytes:    &maxBytes,
-		MaxLines:    &maxLines,
-		LinesToSkip: &linesToSkip,
-		BytesToSkip: &bytesToSkip,
+		MaxBytes: maxBytes,
+		MaxLines: maxLines,
+		ToSkip:   toSkip,
 	}
 	filePath := tailer.Identifier()[5:]
 	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)

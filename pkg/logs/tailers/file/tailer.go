@@ -174,7 +174,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 
 	fingerprintConfig := ReturnFingerprintConfig(opts.FingerprintConfig, opts.File.Source.Config().FingerprintStrategy)
 	fingerprintingEnabled := false
-	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") == "checksum" {
+	if ResolveFingerprintStrategy(opts.File) == "checksum" {
 		fingerprintingEnabled = true
 	}
 	t := &Tailer{

@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -189,7 +188,7 @@ func (s *Launcher) scan() {
 		if isTailed {
 			var didRotate bool
 			var err error
-			fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+			fingerprintStrategy := s.resolveFingerprintStrategy(file)
 			if fingerprintStrategy == "checksum" {
 				didRotate, err = tailered.DidRotateViaFingerprint()
 				if err != nil {
@@ -212,9 +211,9 @@ func (s *Launcher) scan() {
 
 				// For checksum mode, if new file is undersized, don't mark as "should tail"
 				// so the new tailer gets cleaned up, but old tailer continues with 60s grace period
-				checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
-				if checkSumEnabled == "checksum" {
-					if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig()) == 0 {
+				fingerprintStrategy := s.resolveFingerprintStrategy(file)
+				if fingerprintStrategy == "checksum" {
+					if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig(&file.Source.Config().FingerprintConfig, fingerprintStrategy)) == 0 {
 						continue
 					}
 				}
@@ -244,10 +243,10 @@ func (s *Launcher) scan() {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
-			checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
-			if checkSumEnabled == "checksum" {
+			fingerprintStrategy := s.resolveFingerprintStrategy(file)
+			if fingerprintStrategy == "checksum" {
 
-				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig()) == 0 {
+				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig(&file.Source.Config().FingerprintConfig, fingerprintStrategy)) == 0 {
 					continue
 				}
 
@@ -481,8 +480,8 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	oldInfoRegistry := oldTailer.GetInfo()
 
 	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
-	checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
-	if checkSumEnabled == "checksum" && (oldRegexPattern != nil || oldInfoRegistry != nil) {
+	fingerprintStrategy := s.resolveFingerprintStrategy(file)
+	if fingerprintStrategy == "checksum" && (oldRegexPattern != nil || oldInfoRegistry != nil) {
 		regexAndRegistry := &oldTailerInfo{
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
@@ -527,6 +526,12 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, s.registry)
+}
+
+// resolveFingerprintStrategy returns the fingerprint strategy for a given file source.
+// It checks the source-specific strategy first, then falls back to the global strategy.
+func (s *Launcher) resolveFingerprintStrategy(file *tailer.File) string {
+	return tailer.ResolveFingerprintStrategy(file)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
