@@ -148,9 +148,8 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	}
 
 	var (
-		lastError error
-		startTime = time.Now()
-		//configInjector = &libConfigInjector{}
+		lastError     error
+		startTime     = time.Now()
 		injectionType = config.source.injectionType()
 		autoDetected  = config.source.isFromLanguageDetection()
 
