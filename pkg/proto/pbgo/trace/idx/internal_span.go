@@ -382,7 +382,7 @@ func (s *InternalSpan) Events() []*InternalSpanEvent {
 	for i, event := range s.span.Events {
 		events[i] = &InternalSpanEvent{
 			Strings: s.Strings,
-			Event:   event,
+			event:   event,
 		}
 	}
 	return events
@@ -394,7 +394,7 @@ func (s *InternalSpan) Links() []*InternalSpanLink {
 	for i, link := range s.span.Links {
 		links[i] = &InternalSpanLink{
 			Strings: s.Strings,
-			Link:    link,
+			link:    link,
 		}
 	}
 	return links
@@ -604,7 +604,7 @@ func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
 type InternalSpanLink struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
-	Link    *SpanLink
+	link    *SpanLink
 }
 
 func (sl *SpanLink) Msgsize() int {
@@ -621,16 +621,28 @@ func (sl *SpanLink) Msgsize() int {
 	return size
 }
 
+func (sl *InternalSpanLink) TraceID() []byte {
+	return sl.link.TraceID
+}
+
+func (sl *InternalSpanLink) SpanID() uint64 {
+	return sl.link.SpanID
+}
+
+func (sl *InternalSpanLink) Flags() uint32 {
+	return sl.link.Flags
+}
+
 func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
-	return GetAttributeAsString(key, sl.Strings, sl.Link.Attributes)
+	return GetAttributeAsString(key, sl.Strings, sl.link.Attributes)
 }
 
 func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
-	SetStringAttribute(key, value, sl.Strings, sl.Link.Attributes)
+	SetStringAttribute(key, value, sl.Strings, sl.link.Attributes)
 }
 
 func (sl *InternalSpanLink) Tracestate() string {
-	return sl.Strings.Get(sl.Link.TracestateRef)
+	return sl.Strings.Get(sl.link.TracestateRef)
 }
 
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
@@ -638,7 +650,11 @@ func (sl *InternalSpanLink) Tracestate() string {
 type InternalSpanEvent struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
-	Event   *SpanEvent
+	event   *SpanEvent
+}
+
+func (se *InternalSpanEvent) Attributes() map[uint32]*AnyValue {
+	return se.event.Attributes
 }
 
 func (se *SpanEvent) Msgsize() int {
@@ -654,13 +670,13 @@ func (se *SpanEvent) Msgsize() int {
 }
 
 func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
-	return GetAttributeAsString(key, se.Strings, se.Event.Attributes)
+	return GetAttributeAsString(key, se.Strings, se.event.Attributes)
 }
 
 // SetAttributeFromString sets the attribute on an InternalSpanEvent from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (se *InternalSpanEvent) SetAttributeFromString(key, value string) {
-	se.Event.Attributes[se.Strings.Add(key)] = FromString(se.Strings, value)
+	se.event.Attributes[se.Strings.Add(key)] = FromString(se.Strings, value)
 }
 
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior

@@ -570,14 +570,14 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 		assert.Equal("41.99", httpMonitor)
 		links := span.Links()
 		assert.Equal(1, len(links))
-		assert.Equal([]byte{0x2a}, links[0].Link.TraceID)
-		assert.Equal(uint64(52), links[0].Link.SpanID)
+		assert.Equal([]byte{0x2a}, links[0].TraceID())
+		assert.Equal(uint64(52), links[0].SpanID())
 		a1, _ := links[0].GetAttributeAsString("a1")
 		assert.Equal("v1", a1)
 		a2, _ := links[0].GetAttributeAsString("a2")
 		assert.Equal("v2", a2)
 		assert.Equal("dd=s:2;o:rum,congo=baz123", links[0].Tracestate())
-		assert.Equal(uint32(2147483649), links[0].Link.Flags)
+		assert.Equal(uint32(2147483649), links[0].Flags())
 	case <-time.After(time.Second):
 		t.Fatalf("no data received")
 	}
