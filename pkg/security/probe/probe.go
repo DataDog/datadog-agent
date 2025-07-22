@@ -60,20 +60,11 @@ type PlatformProbe interface {
 	EnableEnforcement(bool)
 }
 
-const (
-	// subsystem is the subsystem name for the provided telemetry for variables
-	subsystem = "secl"
-)
-
-var (
-	// totalVariables tracks the total number of SECL variables
-	totalVariables = telemetry.NewGauge(
-		subsystem,
-		"total_variables",
-		[]string{"type", "scope"},
-		"Number of instantiated variables",
-	)
-)
+var probeTelemetry = struct {
+	totalVariables telemetry.Gauge
+}{
+	totalVariables: metrics.NewITGauge(metrics.MetricSECLTotalVariables, []string{"type", "scope"}, "Number of instantiated variables"),
+}
 
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
@@ -412,7 +403,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
-	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: totalVariables})
+	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {
 		return p.PlatformProbe.NewEvent()
