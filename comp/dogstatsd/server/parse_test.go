@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"testing"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,7 +43,7 @@ func TestParseTags(t *testing.T) {
 	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
-	expectedTags := []string{"tag:test", "mytag", "good:boy"}
+	expectedTags := utilstrings.ToUnique([]string{"tag:test", "mytag", "good:boy"})
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 

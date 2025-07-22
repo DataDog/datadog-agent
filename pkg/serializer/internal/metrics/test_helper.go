@@ -10,7 +10,6 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
@@ -36,9 +35,6 @@ func Makeseries(i int) *metrics.SketchSeries {
 			Sketch: makesketch(j),
 		})
 	}
-
-	gen := ckey.NewKeyGenerator()
-	ss.ContextKey = gen.Generate(ss.Name, ss.Host, tagset.NewHashingTagsAccumulatorWithTags(ss.Tags.UnsafeToReadOnlySliceString()))
 
 	return ss
 }

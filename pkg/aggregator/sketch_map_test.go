@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestInsert(t *testing.T) {
@@ -24,7 +25,7 @@ func TestInsert(t *testing.T) {
 		Name:       "test.metric.name1",
 		Value:      1,
 		Mtype:      metrics.DistributionType,
-		Tags:       []string{"a", "b"},
+		Tags:       utilstrings.ToUnique([]string{"a", "b"}),
 		SampleRate: 1,
 	}
 

@@ -7,6 +7,8 @@ package sort
 
 import (
 	"sort"
+
+	"unique"
 )
 
 // UniqInPlace sorts and remove duplicates from elements in place
@@ -28,7 +30,7 @@ func UniqInPlace(elements []string) []string {
 
 // uniqSorted remove duplicate elements from the given slice
 // the given slice needs to be sorted
-func uniqSorted(elements []string) []string {
+func uniqSorted[T comparable](elements []T) []T {
 	j := 0
 	for i := 1; i < len(elements); i++ {
 		if elements[j] == elements[i] {
@@ -38,4 +40,9 @@ func uniqSorted(elements []string) []string {
 		elements[j] = elements[i]
 	}
 	return elements[:j+1]
+}
+
+func UniqInPlace2(elements []unique.Handle[string]) []unique.Handle[string] {
+	sort.Slice(elements, func(i, j int) bool { return elements[i].Value() < elements[j].Value() })
+	return uniqSorted(elements)
 }

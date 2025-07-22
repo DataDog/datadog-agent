@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"io"
+	"unique"
 	"unsafe"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -183,7 +184,7 @@ func (cr *contextResolver) release() {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
+func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []unique.Handle[string]) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}
 	for _, cx := range cr.contextsByKey {
@@ -261,7 +262,7 @@ func (cr *timestampContextResolver) expireContexts(timestamp int64) {
 	}
 }
 
-func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
+func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []unique.Handle[string]) {
 	cr.resolver.sendOriginTelemetry(timestamp, series, hostname, tags)
 }
 

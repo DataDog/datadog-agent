@@ -6,6 +6,8 @@
 package tagset
 
 import (
+	"unique"
+
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
@@ -39,6 +41,12 @@ func (h *HashlessTagsAccumulator) Append(tags ...string) {
 	h.data = append(h.data, tags...)
 }
 
+func (h *HashlessTagsAccumulator) AppendUnique(tags []unique.Handle[string]) {
+	for _, t := range tags {
+		h.data = append(h.data, t.Value())
+	}
+}
+
 // AppendHashlessAccumulator appends tags from the given accumulator
 func (h *HashlessTagsAccumulator) AppendHashlessAccumulator(src *HashlessTagsAccumulator) {
 	h.data = append(h.data, src.data...)
@@ -46,7 +54,9 @@ func (h *HashlessTagsAccumulator) AppendHashlessAccumulator(src *HashlessTagsAcc
 
 // AppendHashed appends tags and corresponding hashes to the builder
 func (h *HashlessTagsAccumulator) AppendHashed(src HashedTags) {
-	h.data = append(h.data, src.data...)
+	for _, t := range src.data {
+		h.data = append(h.data, t.Value())
+	}
 }
 
 // Get returns the internal slice

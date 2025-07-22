@@ -30,6 +30,7 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -40,21 +41,21 @@ func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 			Value:     1,
 			Mtype:     metrics.GaugeType,
 			Timestamp: 1657099120.0,
-			Tags:      []string{"tag:1", "tag:2"},
+			Tags:      utilstrings.ToUnique([]string{"tag:1", "tag:2"}),
 		},
 		metrics.MetricSample{
 			Name:      "second",
 			Value:     20,
 			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
-			Tags:      []string{"tag:3", "tag:4"},
+			Tags:      utilstrings.ToUnique([]string{"tag:3", "tag:4"}),
 		},
 		metrics.MetricSample{
 			Name:      "third",
 			Value:     60,
 			Mtype:     metrics.CounterType,
 			Timestamp: 1657099125.0,
-			Tags:      []string{"tag:5"},
+			Tags:      utilstrings.ToUnique([]string{"tag:5"}),
 		},
 	}
 	return batch
@@ -109,7 +110,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 		require.Equal(batch[i].Name, mockSerializer.series[i].Name)
 		require.Len(mockSerializer.series[i].Points, 1)
 		require.Equal(batch[i].Timestamp, mockSerializer.series[i].Points[0].Ts)
-		require.ElementsMatch(batch[i].Tags, mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString())
+		require.ElementsMatch(utilstrings.FromUnique(batch[i].Tags), mockSerializer.series[i].Tags.ToSlice())
 	}
 }
 
