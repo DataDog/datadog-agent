@@ -16,10 +16,7 @@ import (
 	inventorysoftware "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/pkg/inventory/software"
-
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -27,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -79,10 +77,10 @@ type inventorySoftware struct {
 	enabled bool
 }
 
-// Dependencies is the dependencies for the inventory software component.
+// Requires defines the dependencies required by the inventory software component.
 // This struct defines all the required dependencies that must be provided
 // when creating a new inventory software component instance.
-type Dependencies struct {
+type Requires struct {
 	// Log provides logging capabilities for the component
 	Log log.Component
 	// Config provides access to the agent configuration
@@ -109,21 +107,24 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-// NewWithClient creates a new inventory software component with a custom sysprobeclient.
-// This constructor allows for dependency injection of a custom System Probe client,
-// which is useful for testing and specialized use cases.
-func NewWithClient(deps Dependencies, client SysProbeClient) Provides {
+// New creates a new inventory software component with the default sysprobeclient
+func New(reqs Requires) (Provides, error) {
+	return NewWithClient(reqs, nil)
+}
+
+// NewWithClient creates a new inventory software component with a custom sysprobeclient
+func NewWithClient(reqs Requires, client SysProbeClient) (Provides, error) {
 	if client == nil {
 		client = &sysProbeClientWrapper{
 			client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 		}
 	}
-	hname, _ := deps.Hostname.Get(context.Background())
+	hname, _ := reqs.Hostname.Get(context.Background())
 	is := &inventorySoftware{
-		log:            deps.Log,
+		log:            reqs.Log,
 		sysProbeClient: client,
 		hostname:       hname,
-		enabled:        deps.Config.GetBool("software_inventory.enabled"),
+		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
 	}
 	// Always provide the component because FX dependency injection expects
 	// status providers, metadata providers, etc. to be available, not wrapped
@@ -132,21 +133,14 @@ func NewWithClient(deps Dependencies, client SysProbeClient) Provides {
 	// Note that there is a second way to disable this feature, through InventoryPayload.Enabled.
 	// 'enable_metadata_collection' and 'inventories_enabled' both need to be set to true.
 	is.log.Infof("Starting the inventory software component")
-	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, flareFileName)
+	is.InventoryPayload = util.CreateInventoryPayload(reqs.Config, reqs.Log, reqs.Serializer, is.getPayload, flareFileName)
 	return Provides{
 		Comp:                 is,
 		Provider:             is.InventoryPayload.MetadataProvider(),
 		FlareProvider:        is.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(is),
 		Endpoint:             api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/software", "GET"),
-	}
-}
-
-// New creates a new inventory software component with the default sysprobeclient.
-// This is the standard constructor that uses the default System Probe client
-// configured through the agent's configuration.
-func New(deps Dependencies) Provides {
-	return NewWithClient(deps, nil)
+	}, nil
 }
 
 // refreshCachedValues updates the cached software inventory data by collecting

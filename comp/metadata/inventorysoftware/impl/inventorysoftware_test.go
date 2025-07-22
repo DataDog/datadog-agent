@@ -16,8 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -30,17 +28,33 @@ import (
 
 func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mock.SysProbeClient) {
 	sp := &mock.SysProbeClient{}
-	provides := NewWithClient(
-		fxutil.Test[Dependencies](
-			t,
-			fx.Provide(func() log.Component { return logmock.New(t) }),
-			fx.Provide(func() hostnameinterface.Component { return &mock.Hostname{} }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: confOverrides}),
-			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-		),
-		sp,
+	
+	// Create dependencies manually for the test
+	logComp := logmock.New(t)
+	hostnameComp := &mock.Hostname{}
+	
+	// Get config using fxutil.Test
+	configComp := fxutil.Test[config.Component](t,
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: confOverrides}),
 	)
+	
+	// Get serializer using fxutil.Test
+	serializerComp := fxutil.Test[serializer.MetricSerializer](t,
+		fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+	)
+	
+	// Create the Requires struct manually
+	reqs := Requires{
+		Log:        logComp,
+		Config:     configComp,
+		Serializer: serializerComp,
+		Hostname:   hostnameComp,
+	}
+	
+	// Call the constructor directly with the mock client
+	provides, err := NewWithClient(reqs, sp)
+	assert.NoError(t, err)
 	return provides, sp
 }
 

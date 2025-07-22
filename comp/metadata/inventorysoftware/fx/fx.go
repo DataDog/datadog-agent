@@ -3,19 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fx contains fx module for this component.
+// Package fx provides the fx module for the inventorysoftware component
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/impl"
+	inventorysoftware "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/def"
+	inventorysoftwareimpl "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component.
+// Module defines the fx options for this component
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			inventorysoftwareimpl.New,
 		),
+		fxutil.ProvideOptional[inventorysoftware.Component](),
 	)
 }
