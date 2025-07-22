@@ -114,23 +114,6 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 }
 
-func (tp *InternalTracerPayload) ContainerID() string {
-	return tp.Strings.Get(tp.containerIDRef)
-}
-
-func (tp *InternalTracerPayload) SetContainerID(containerID string) {
-	tp.Strings.DecrementReference(tp.containerIDRef)
-	tp.containerIDRef = tp.Strings.Add(containerID)
-}
-
-func (tp *InternalTracerPayload) LanguageName() string {
-	return tp.Strings.Get(tp.languageNameRef)
-}
-
-func (tp *InternalTracerPayload) SetLanguageName(languageName string) {
-	tp.Strings.DecrementReference(tp.languageNameRef)
-	tp.languageNameRef = tp.Strings.Add(languageName)
-}
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
@@ -191,6 +174,11 @@ func (tp *InternalTracerPayload) SetTracerVersion(version string) {
 
 func (tp *InternalTracerPayload) ContainerID() string {
 	return tp.Strings.Get(tp.containerIDRef)
+}
+
+func (tp *InternalTracerPayload) SetContainerID(containerID string) {
+	tp.Strings.DecrementReference(tp.containerIDRef)
+	tp.containerIDRef = tp.Strings.Add(containerID)
 }
 
 func (tp *InternalTracerPayload) Env() string {
