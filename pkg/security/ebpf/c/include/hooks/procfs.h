@@ -147,6 +147,7 @@ int hook_path_get(ctx_t *ctx) {
         return 0;
     }
     route.l4_protocol = get_protocol_from_sock(sk);
+    bpf_printk("procfs: l4_protocol: %u", route.l4_protocol);
     u16 family = get_family_from_sock_common((void *)sk);
     if (family == AF_INET6) {
         bpf_probe_read(&route.addr, sizeof(u64) * 2, &sk->__sk_common.skc_v6_rcv_saddr);
