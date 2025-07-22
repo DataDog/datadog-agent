@@ -135,9 +135,9 @@ type SourceAutoMultiLineOptions struct {
 
 // FingerprintConfig defines the options for the fingerprint configuration.
 type FingerprintConfig struct {
-	MaxBytes int `json:"max_bytes,omitempty" mapstructure:"max_bytes" yaml:"max_bytes"`
-	MaxLines int `json:"max_lines,omitempty" mapstructure:"max_lines" yaml:"max_lines"`
-	ToSkip   int `json:"to_skip,omitempty" mapstructure:"to_skip" yaml:"to_skip"`
+	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
+	MaxLines int `json:"max_lines" mapstructure:"max_lines" yaml:"max_lines"`
+	ToSkip   int `json:"to_skip" mapstructure:"to_skip" yaml:"to_skip"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
