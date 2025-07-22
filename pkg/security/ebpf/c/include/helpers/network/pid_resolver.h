@@ -40,7 +40,9 @@ __attribute__((always_inline)) void resolve_pid(struct packet_t *pkt) {
     }
 
     pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
-
+    if (pid_route.l4_protocol == 0) {
+        pid_route.l4_protocol = 2;
+    }
     pkt->pid = get_flow_pid(&pid_route);
 }
 
