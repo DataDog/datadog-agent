@@ -651,6 +651,7 @@ linters-settings:
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirToWithoutScrubbing
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFile
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFileTo
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Critical
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Criticalf
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Error
@@ -660,6 +661,7 @@ linters-settings:
       - (net/http.ResponseWriter).Write
       - fmt.Sscanf
       - github.com/cihub/seelog.Warnf
+      - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
       - github.com/DataDog/datadog-agent/pkg/util/log.Critical
       - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
       - github.com/DataDog/datadog-agent/pkg/util/log.Criticalf
