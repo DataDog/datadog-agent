@@ -7,6 +7,7 @@ godebug tlsmlkem=0
 
 use (
 	.
+	./test/new-e2e
 	comp/api/api/def
 	comp/core/config
 	comp/core/configsync
@@ -166,7 +167,6 @@ use (
 	pkg/util/winutil
 	pkg/version
 	test/fakeintake
-	test/new-e2e
 	test/otel
 	tools/retry_file_dump
 )

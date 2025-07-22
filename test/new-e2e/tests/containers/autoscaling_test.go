@@ -7,16 +7,15 @@ package containers
 
 import (
 	"context"
-	"encoding/json"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
-
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -24,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -36,23 +35,24 @@ type autoscalingSuite struct {
 	baseSuite[environments.Kubernetes]
 }
 
-// EKS test runner for autoscaling suite
-type eksAutoscalingSuite struct {
+// Local Kind test runner for autoscaling suite
+type kindAutoscalingSuite struct {
 	autoscalingSuite
 }
 
 func TestEKSAutoscalingSuite(t *testing.T) {
-	e2e.Run(t, &eksAutoscalingSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(
-		awskubernetes.WithEKSOptions(
-			tifeks.WithLinuxNodeGroup(),
+	e2e.Run(t, &kindAutoscalingSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
+		awskubernetes.WithEC2VMOptions(
+			ec2.WithInstanceType("t3.xlarge"),
 		),
-		awskubernetes.WithDeployDogstatsd(),
-		awskubernetes.WithDeployTestWorkload(),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
+		awskubernetes.WithAgentOptions(
+			kubernetesagentparams.WithDualShipping(),
+		),
 	)))
 }
 
-func (suite *eksAutoscalingSuite) SetupSuite() {
+func (suite *kindAutoscalingSuite) SetupSuite() {
 	suite.autoscalingSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
@@ -68,11 +68,7 @@ func (suite *autoscalingSuite) TestAutoscalingRecommendations() {
 	suite.Require().NoError(err)
 
 	defer func() {
-		_ = dynamicClient.Resource(schema.GroupVersionResource{
-			Group:    "datadoghq.com",
-			Version:  "v1alpha2",
-			Resource: "datadogpodautoscalers",
-		}).Namespace(namespace).Delete(ctx, autoscalerName, metav1.DeleteOptions{})
+		_ = dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Delete(ctx, autoscalerName, metav1.DeleteOptions{})
 		_ = suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Delete(ctx, deploymentName, metav1.DeleteOptions{})
 		_ = suite.Env().KubernetesCluster.Client().CoreV1().Namespaces().Delete(ctx, namespace, metav1.DeleteOptions{})
 	}()
@@ -186,29 +182,14 @@ func (suite *autoscalingSuite) TestAutoscalingRecommendations() {
 		},
 	}
 
-	autoscalerJSON, err := json.Marshal(autoscaler)
+	unstructuredAutoscaler, err := convertDatadogPodAutoscalerToUnstructured(autoscaler)
 	suite.Require().NoError(err)
 
-	var autoscalerMap map[string]interface{}
-	err = json.Unmarshal(autoscalerJSON, &autoscalerMap)
-	suite.Require().NoError(err)
-
-	unstructuredAutoscaler := &unstructured.Unstructured{}
-	unstructuredAutoscaler.SetUnstructuredContent(autoscalerMap)
-
-	_, err = dynamicClient.Resource(schema.GroupVersionResource{
-		Group:    "datadoghq.com",
-		Version:  "v1alpha2",
-		Resource: "datadogpodautoscalers",
-	}).Namespace(namespace).Create(ctx, unstructuredAutoscaler, metav1.CreateOptions{})
+	_, err = dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Create(ctx, unstructuredAutoscaler, metav1.CreateOptions{})
 	suite.Require().NoError(err)
 
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
-		autoscaler, err := dynamicClient.Resource(schema.GroupVersionResource{
-			Group:    "datadoghq.com",
-			Version:  "v1alpha2",
-			Resource: "datadogpodautoscalers",
-		}).Namespace(namespace).Get(ctx, autoscalerName, metav1.GetOptions{})
+		autoscaler, err := dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Get(ctx, autoscalerName, metav1.GetOptions{})
 		if !assert.NoError(c, err) {
 			return
 		}
@@ -244,4 +225,60 @@ func (suite *autoscalingSuite) TestAutoscalingRecommendations() {
 
 		assert.Equal(c, corev1.PodRunning, pod.Status.Phase, "Pod should be running")
 	}, 3*time.Minute, 10*time.Second, "Pod should be running with correct initial resources")
+
+	// Update autoscaler status with new replica count
+	currentAutoscaler, err := dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Get(ctx, autoscalerName, metav1.GetOptions{})
+	suite.Require().NoError(err)
+
+	var typedAutoscaler datadoghq.DatadogPodAutoscaler
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(currentAutoscaler.Object, &typedAutoscaler)
+	suite.Require().NoError(err)
+
+	typedAutoscaler.Status.CurrentReplicas = pointer.Ptr(int32(2))
+
+	unstructuredAutoscaler, err = convertDatadogPodAutoscalerToUnstructured(&typedAutoscaler)
+	suite.Require().NoError(err)
+
+	_, err = dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).UpdateStatus(ctx, unstructuredAutoscaler, metav1.UpdateOptions{})
+	suite.Require().NoError(err)
+
+	// Wait for status to be properly applied to autoscaler object in cluster
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		updatedAutoscaler, err := dynamicClient.Resource(DatadogPodAutoscalerGVR).Namespace(namespace).Get(ctx, autoscalerName, metav1.GetOptions{})
+		if !assert.NoError(c, err) {
+			return
+		}
+
+		status, found, err := unstructured.NestedFieldNoCopy(updatedAutoscaler.Object, "status")
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.True(c, found, "Status field should exist") {
+			return
+		}
+
+		statusMap, ok := status.(map[string]interface{})
+		if !assert.True(c, ok, "Status should be a map") {
+			return
+		}
+
+		currentReplicas, found, err := unstructured.NestedInt64(statusMap, "currentReplicas")
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.True(c, found, "currentReplicas field should exist") {
+			return
+		}
+
+		assert.Equal(c, int64(2), currentReplicas, "Current replicas should be 2")
+	}, 1*time.Minute, 5*time.Second, "Autoscaler status should be updated with 2 replicas")
+
+	// Wait and check that number of pods in test-autoscaling-deployment became 2
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Equal(c, int32(2), deployment.Status.ReadyReplicas, "Deployment should have 2 ready replicas")
+	}, 5*time.Minute, 15*time.Second, "Deployment should scale to 2 replicas")
 }
