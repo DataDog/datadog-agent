@@ -312,21 +312,17 @@ func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts li
 		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag),
 	}
 
-	for _, e := range []annotationExtractor[injectorOption]{
-		injectorVersionAnnotationExtractor,
-		injectorImageAnnotationExtractor,
-		injectorDebugAnnotationExtractor,
-	} {
-		opt, err := e.extract(pod)
-		if err != nil {
-			if !isErrAnnotationNotFound(err) {
-				log.Warnf("error extracting injector annotation %s in single step", e.key)
-			}
-			continue
-		}
-		opts = append(opts, opt)
+	if version, ok := pod.GetAnnotations()["admission.datadoghq.com/apm-inject.version"]; ok {
+		opts = append(opts, injectorWithImageTag(version))
 	}
 
+	if image, ok := pod.GetAnnotations()["admission.datadoghq.com/apm-inject.custom-image"]; ok {
+		opts = append(opts, injectorWithImageName(image))
+	}
+
+	if debug, ok := pod.GetAnnotations()["admission.datadoghq.com/apm-inject.debug"]; ok {
+		opts = append(opts, injectorDebug(debug))
+	}
 	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
