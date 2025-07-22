@@ -50,5 +50,5 @@ build do
     command "dda inv -- -e otel-agent.build", :env => env
     copy 'bin/otel-agent/otel-agent', embedded_bin_dir
 
-    move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
+    move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml"
 end
