@@ -66,7 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	// runtime init routines
 )
 
@@ -97,7 +97,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ac autodiscovery.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent optional.Option[logsAgent.Component],
+			logsAgent option.Option[logsAgent.Component],
 			processAgent processAgent.Component,
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,

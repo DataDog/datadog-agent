@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -45,12 +45,12 @@ type Scanner struct {
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
 
-	wmeta optional.Option[workloadmeta.Component]
+	wmeta option.Option[workloadmeta.Component]
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) *Scanner {
+func NewScanner(cfg config.Config, wmeta option.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
 		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
@@ -70,7 +70,7 @@ func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Config, wmeta option.Option[workloadmeta.Component]) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}

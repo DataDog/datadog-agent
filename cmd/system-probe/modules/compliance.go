@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"go.uber.org/atomic"
 )
@@ -36,7 +36,7 @@ import (
 var ComplianceModule = module.Factory{
 	Name:             config.ComplianceModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ option.Option[workloadmeta.Component]) (module.Module, error) {
 		return &complianceModule{}, nil
 	},
 	NeedsEBPF: func() bool {

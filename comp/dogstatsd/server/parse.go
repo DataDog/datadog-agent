@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type messageType int
@@ -61,7 +61,7 @@ type parser struct {
 	provider provider.Provider
 }
 
-func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component]) *parser {
+func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component]) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 

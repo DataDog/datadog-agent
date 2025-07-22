@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -485,9 +485,9 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver)
 	}
 	if forwarder == nil {
-		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
+		return option.NonePtr[eventplatform.Forwarder]()
 	}
-	return optional.NewOptionPtr[eventplatform.Forwarder](forwarder)
+	return option.NewPtr[eventplatform.Forwarder](forwarder)
 }
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events

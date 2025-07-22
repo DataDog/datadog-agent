@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -107,7 +107,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component]) {}),
+		fx.Invoke(func(_ agent.Component, _ option.Option[configsync.Component]) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
 		return nil

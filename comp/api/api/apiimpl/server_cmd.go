@@ -49,7 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const cmdServerName string = "CMD API Server"
@@ -60,15 +60,15 @@ func startCMDServer(
 	cmdAddr string,
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
-	configService optional.Option[rcservice.Component],
-	configServiceHA optional.Option[rcserviceha.Component],
+	configService option.Option[rcservice.Component],
+	configServiceHA option.Option[rcserviceha.Component],
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
-	logsAgent optional.Option[logsAgent.Component],
+	logsAgent option.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
@@ -78,7 +78,7 @@ func startCMDServer(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 ) (err error) {

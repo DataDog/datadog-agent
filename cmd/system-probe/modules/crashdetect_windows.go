@@ -18,14 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // WinCrashProbe Factory
 var WinCrashProbe = module.Factory{
 	Name:             config.WindowsCrashDetectModule,
 	ConfigNamespaces: []string{"windows_crash_detection"},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ option.Option[workloadmeta.Component]) (module.Module, error) {
 		log.Infof("Starting the WinCrashProbe probe")
 		cp, err := probe.NewWinCrashProbe(cfg)
 		if err != nil {

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type dependencies struct {
@@ -51,17 +51,17 @@ type configSync struct {
 	ctx    context.Context
 }
 
-// newOptionalConfigSync checks if the component was enabled as per the config, and returns an optional.Option
-func newOptionalConfigSync(deps dependencies) optional.Option[configsync.Component] {
+// newOptionalConfigSync checks if the component was enabled as per the config, and returns an option.Option
+func newOptionalConfigSync(deps dependencies) option.Option[configsync.Component] {
 	agentIPCPort := deps.Config.GetInt("agent_ipc.port")
 	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
 
 	if agentIPCPort <= 0 || configRefreshIntervalSec <= 0 {
-		return optional.NewNoneOption[configsync.Component]()
+		return option.None[configsync.Component]()
 	}
 
 	configSync := newConfigSync(deps, agentIPCPort, configRefreshIntervalSec)
-	return optional.NewOption(configSync)
+	return option.New(configSync)
 }
 
 // newConfigSync creates a new configSync component.

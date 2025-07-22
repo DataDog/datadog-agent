@@ -18,12 +18,12 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (module.Module, error) {
+func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta option.Option[workloadmeta.Component]) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()

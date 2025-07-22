@@ -8,7 +8,7 @@ package orchestratorinterface
 
 import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
-// team: agent-metric-pipelines
+// team: agent-processing-and-routing
 
 // Component is the component type.
 // The main method of this component is `Get` which returns the forwarder instance only if it enabled.

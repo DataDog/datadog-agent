@@ -58,7 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -74,7 +74,7 @@ func SetupHandlers(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
-	logsAgent optional.Option[logsAgent.Component],
+	logsAgent option.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
@@ -84,7 +84,7 @@ func SetupHandlers(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 ) *mux.Router {
@@ -120,7 +120,7 @@ func SetupHandlers(
 	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
 	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
-		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
+		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, option.New(wmeta), option.New[autodiscovery.Component](ac))
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
 

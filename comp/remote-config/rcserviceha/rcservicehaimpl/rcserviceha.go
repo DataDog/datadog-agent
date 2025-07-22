@@ -20,7 +20,7 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
@@ -45,8 +45,8 @@ type dependencies struct {
 }
 
 // newHaRemoteConfigServiceOptional conditionally creates and configures a new HA remote config service, based on whether RC is enabled.
-func newHaRemoteConfigServiceOptional(deps dependencies) optional.Option[rcserviceha.Component] {
-	none := optional.NewNoneOption[rcserviceha.Component]()
+func newHaRemoteConfigServiceOptional(deps dependencies) option.Option[rcserviceha.Component] {
+	none := option.None[rcserviceha.Component]()
 	if !config.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("ha.enabled") {
 		return none
 	}
@@ -57,7 +57,7 @@ func newHaRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservi
 		return none
 	}
 
-	return optional.NewOption[rcserviceha.Component](haConfigService)
+	return option.New[rcserviceha.Component](haConfigService)
 }
 
 // newHaRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC

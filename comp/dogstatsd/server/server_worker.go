@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var (
@@ -34,7 +34,7 @@ type worker struct {
 	samples metrics.MetricSampleBatch
 }
 
-func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component]) *worker {
+func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component]) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer)

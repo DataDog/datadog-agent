@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // UDSStreamListener implements the StatsdListener interface for Unix Domain (streams)
@@ -27,7 +27,7 @@ type UDSStreamListener struct {
 }
 
 // NewUDSStreamListener returns an idle UDS datagram Statsd listener
-func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, wmeta optional.Option[workloadmeta.Component]) (*UDSStreamListener, error) {
+func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component]) (*UDSStreamListener, error) {
 	socketPath := cfg.GetString("dogstatsd_stream_socket")
 	transport := "unix"
 

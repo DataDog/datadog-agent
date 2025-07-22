@@ -54,7 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -182,7 +182,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the component
-		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+		fx.Invoke(func(_ option.Option[configsync.Component]) {}),
 	)
 
 	return err

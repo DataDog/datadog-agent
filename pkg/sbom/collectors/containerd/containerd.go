@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -57,7 +57,7 @@ type Collector struct {
 	resChan          chan sbom.ScanResult
 	opts             sbom.ScanOptions
 	containerdClient cutil.ContainerdItf
-	wmeta            optional.Option[workloadmeta.Component]
+	wmeta            option.Option[workloadmeta.Component]
 
 	fromFileSystem bool
 	closed         bool
@@ -69,7 +69,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Config, wmeta option.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err

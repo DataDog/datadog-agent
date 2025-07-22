@@ -35,12 +35,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector option.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +133,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta workloadmeta.Component, statusComponent status.Component, ac autodiscovery.Component) {
+func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector option.Option[collector.Component], secretResolver secrets.Component, wmeta workloadmeta.Component, statusComponent status.Component, ac autodiscovery.Component) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -156,7 +156,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, option.New(wmeta), option.New[autodiscovery.Component](ac))
 	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, diagnoseDeps, statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {

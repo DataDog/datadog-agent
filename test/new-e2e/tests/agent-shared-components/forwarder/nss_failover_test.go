@@ -160,7 +160,7 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(agentConfig),
 		agentparams.WithLogs(),
-		agentparams.WithIntakeHostname(intakeName),
+		agentparams.WithIntakeHostname(v.Env().Fakeintake1.Scheme, intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
 	v.UpdateEnv(multiFakeIntakeAWS(agentOptions...))
