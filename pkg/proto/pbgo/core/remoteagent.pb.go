@@ -553,9 +553,8 @@ func (x *ConfigSetting) GetValue() *_struct.Value {
 type ConfigSnapshot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Origin        string                 `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
-	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
-	SequenceId    int32                  `protobuf:"varint,3,opt,name=sequence_id,json=sequenceId,proto3" json:"sequence_id,omitempty"`
-	Settings      []*ConfigSetting       `protobuf:"bytes,4,rep,name=settings,proto3" json:"settings,omitempty"`
+	SequenceId    int32                  `protobuf:"varint,2,opt,name=sequence_id,json=sequenceId,proto3" json:"sequence_id,omitempty"`
+	Settings      []*ConfigSetting       `protobuf:"bytes,3,rep,name=settings,proto3" json:"settings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -593,13 +592,6 @@ func (*ConfigSnapshot) Descriptor() ([]byte, []int) {
 func (x *ConfigSnapshot) GetOrigin() string {
 	if x != nil {
 		return x.Origin
-	}
-	return ""
-}
-
-func (x *ConfigSnapshot) GetSource() string {
-	if x != nil {
-		return x.Source
 	}
 	return ""
 }
@@ -799,13 +791,12 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\rConfigSetting\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12,\n" +
-	"\x05value\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\x05value\"\xa1\x01\n" +
+	"\x05value\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\x05value\"\x89\x01\n" +
 	"\x0eConfigSnapshot\x12\x16\n" +
-	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x16\n" +
-	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1f\n" +
-	"\vsequence_id\x18\x03 \x01(\x05R\n" +
+	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x1f\n" +
+	"\vsequence_id\x18\x02 \x01(\x05R\n" +
 	"sequenceId\x12>\n" +
-	"\bsettings\x18\x04 \x03(\v2\".datadog.remoteagent.ConfigSettingR\bsettings\"\x85\x01\n" +
+	"\bsettings\x18\x03 \x03(\v2\".datadog.remoteagent.ConfigSettingR\bsettings\"\x85\x01\n" +
 	"\fConfigUpdate\x12\x16\n" +
 	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x1f\n" +
 	"\vsequence_id\x18\x02 \x01(\x05R\n" +

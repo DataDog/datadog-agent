@@ -96,9 +96,8 @@ message ConfigSetting {
 
 message ConfigSnapshot {
   string origin = 1;
-  string source = 2;
-  int32 sequence_id = 3;
-  repeated ConfigSetting settings = 4;
+  int32 sequence_id = 2;
+  repeated ConfigSetting settings = 3;
  }
 
 message ConfigUpdate {
