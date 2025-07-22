@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    Fixed an issue where the Windows Event Log tailer could lose historical events (the 'amnesia bug') when it started with no prior bookmark and no events were processed immediately. The agent now correctly seeds an initial bookmark from the most recent event upon startup, ensuring no events are missed on subsequent runs.
-
+    Fixed an issue where the Windows Event Log tailer could lose historical events (the 'amnesia bug') when it started with no prior bookmark and no events were processed immediately. The Agent now correctly seeds an initial bookmark from the most recent event upon startup, ensuring no events are missed on subsequent runs.
