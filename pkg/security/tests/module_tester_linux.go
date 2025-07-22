@@ -586,7 +586,14 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 	}
 }
 
-func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
+	defer func() {
+		if err != nil {
+			testMod.cleanup()
+			testMod = nil
+		}
+	}()
+
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
@@ -966,7 +973,9 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) cleanup() {
-	tm.eventMonitor.Close()
+	if tm.eventMonitor != nil {
+		tm.eventMonitor.Close()
+	}
 }
 
 func (tm *testModule) validateAbnormalPaths() {

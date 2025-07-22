@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.68.1:
+
+7.68.1
+======
+
+.. _Release Notes_7.68.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-07-17
+
+- Please refer to the `7.68.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7681>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.68.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump the secret-generic-connector side binary to 0.2.5
+
+
 .. _Release Notes_7.68.0:
 
 7.68.0
