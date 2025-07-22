@@ -7,15 +7,20 @@
 package ipcimpl
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 // Requires defines the dependencies for the ipc component
@@ -31,26 +36,46 @@ type Provides struct {
 }
 
 type ipcComp struct {
-	logger log.Component
-	conf   config.Component
-	client ipc.HTTPClient
+	logger          log.Component
+	conf            config.Component
+	client          ipc.HTTPClient
+	token           string
+	tlsClientConfig *tls.Config
+	tlsServerConfig *tls.Config
 }
 
 // NewReadOnlyComponent creates a new ipc component by trying to read the auth artifacts on filesystem.
 // If the auth artifacts are not found, it will return an error.
 func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Debug("Loading IPC artifacts")
-	if err := util.SetAuthToken(reqs.Conf); err != nil {
-		return Provides{}, err
+	var err error
+	token, err := pkgtoken.FetchAuthToken(reqs.Conf)
+	if err != nil {
+		return Provides{}, fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
+	}
+	ipccert, ipckey, err := cert.FetchIPCCert(reqs.Conf)
+	if err != nil {
+		return Provides{}, fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 
-	httpClient := ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), reqs.Conf)
+	tlsClientConfig, tlsServerConfig, err := cert.GetTLSConfigFromCert(ipccert, ipckey)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
+	}
+
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(reqs.Log, token, ipccert, ipckey)
+
+	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
 
 	return Provides{
 		Comp: &ipcComp{
-			logger: reqs.Log,
-			conf:   reqs.Conf,
-			client: httpClient,
+			logger:          reqs.Log,
+			conf:            reqs.Conf,
+			client:          httpClient,
+			token:           token,
+			tlsClientConfig: tlsClientConfig,
+			tlsServerConfig: tlsServerConfig,
 		},
 		HTTPClient: httpClient,
 	}, nil
@@ -60,17 +85,39 @@ func NewReadOnlyComponent(reqs Requires) (Provides, error) {
 // and if they are not found, it will create them.
 func NewReadWriteComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Debug("Loading or creating IPC artifacts")
-	if err := util.CreateAndSetAuthToken(reqs.Conf); err != nil {
-		return Provides{}, err
+	authTimeout := reqs.Conf.GetDuration("auth_init_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), authTimeout)
+	defer cancel()
+	reqs.Log.Infof("starting to load the IPC auth primitives (timeout: %v)", authTimeout)
+
+	var err error
+	token, err := pkgtoken.FetchOrCreateAuthToken(ctx, reqs.Conf)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while creating or fetching auth token: %w", err)
+	}
+	ipccert, ipckey, err := cert.FetchOrCreateIPCCert(ctx, reqs.Conf)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while creating or fetching IPC cert: %w", err)
 	}
 
-	httpClient := ipchttp.NewClient(util.GetAuthToken(), util.GetTLSClientConfig(), reqs.Conf)
+	tlsClientConfig, tlsServerConfig, err := cert.GetTLSConfigFromCert(ipccert, ipckey)
+	if err != nil {
+		return Provides{}, fmt.Errorf("error while setting TLS configs: %w", err)
+	}
+
+	// printing the fingerprint of the loaded auth stack is useful to troubleshoot IPC issues
+	printAuthSignature(reqs.Log, token, ipccert, ipckey)
+
+	httpClient := ipchttp.NewClient(token, tlsClientConfig, reqs.Conf)
 
 	return Provides{
 		Comp: &ipcComp{
-			logger: reqs.Log,
-			conf:   reqs.Conf,
-			client: httpClient,
+			logger:          reqs.Log,
+			conf:            reqs.Conf,
+			client:          httpClient,
+			token:           token,
+			tlsClientConfig: tlsClientConfig,
+			tlsServerConfig: tlsServerConfig,
 		},
 		HTTPClient: httpClient,
 	}, nil
@@ -105,6 +152,11 @@ func NewInsecureComponent(reqs Requires) Provides {
 			logger: reqs.Log,
 			conf:   reqs.Conf,
 			client: httpClient,
+			// Insecure component does not have a valid token or TLS configs
+			// This is expected, as it is used for diagnostics and flare generation
+			token:           "",
+			tlsClientConfig: &tls.Config{},
+			tlsServerConfig: &tls.Config{},
 		},
 		HTTPClient: httpClient,
 	}
@@ -112,17 +164,17 @@ func NewInsecureComponent(reqs Requires) Provides {
 
 // GetAuthToken returns the session token
 func (ipc *ipcComp) GetAuthToken() string {
-	return util.GetAuthToken()
+	return ipc.token
 }
 
 // GetTLSClientConfig return a TLS configuration with the IPC certificate for http.Client
 func (ipc *ipcComp) GetTLSClientConfig() *tls.Config {
-	return util.GetTLSClientConfig()
+	return ipc.tlsClientConfig.Clone()
 }
 
 // GetTLSServerConfig return a TLS configuration with the IPC certificate for http.Server
 func (ipc *ipcComp) GetTLSServerConfig() *tls.Config {
-	return util.GetTLSServerConfig()
+	return ipc.tlsServerConfig.Clone()
 }
 
 func (ipc *ipcComp) HTTPMiddleware(next http.Handler) http.Handler {
@@ -133,4 +185,18 @@ func (ipc *ipcComp) HTTPMiddleware(next http.Handler) http.Handler {
 
 func (ipc *ipcComp) GetClient() ipc.HTTPClient {
 	return ipc.client
+}
+
+// printAuthSignature computes and logs the authentication signature for the given token and IPC certificate/key.
+// It uses SHA-256 to hash the concatenation of the token, IPC certificate, and IPC key.
+func printAuthSignature(logger log.Component, token string, ipccert, ipckey []byte) {
+	h := sha256.New()
+
+	_, err := h.Write(bytes.Join([][]byte{[]byte(token), ipccert, ipckey}, []byte{}))
+	if err != nil {
+		logger.Warnf("error while computing auth signature: %v", err)
+	}
+
+	sign := h.Sum(nil)
+	logger.Infof("successfully loaded the IPC auth primitives (fingerprint: %.8x)", sign)
 }

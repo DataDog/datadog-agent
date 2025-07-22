@@ -17,18 +17,19 @@ type CGroupManager uint64
 
 // CGroup managers
 const (
-	CGroupManagerDocker  CGroupManager = iota + 1 // docker
-	CGroupManagerCRIO                             // cri-o
-	CGroupManagerPodman                           // podman
-	CGroupManagerCRI                              // containerd
-	CGroupManagerSystemd                          // systemd
-	CGroupManagerECS                              // ecs
+	CgroupManagerUndefined CGroupManager = iota // unknown
+	CGroupManagerDocker                         // docker
+	CGroupManagerCRIO                           // cri-o
+	CGroupManagerPodman                         // podman
+	CGroupManagerCRI                            // containerd
+	CGroupManagerSystemd                        // systemd
+	CGroupManagerECS                            // ecs
 )
 
 // CGroup flags
 const (
-	SystemdService CGroupFlags = (0 << 8)
-	SystemdScope   CGroupFlags = (1 << 8)
+	SystemdService CGroupFlags = iota + (1 << 8)
+	SystemdScope
 )
 
 // RuntimeToken holds the cgroup token used by the different runtimes
@@ -42,13 +43,16 @@ var RuntimeToken = []struct {
 	{"crio-", CGroupManagerCRIO},
 	{"libpod-", CGroupManagerPodman},
 	{"ecs/", CGroupManagerECS},
+
+	// fallback to containerd in case of kubepods a
+	{"kubepods", CGroupManagerCRI},
 }
 
-func getContainerRuntime(cgroupID CGroupID) CGroupFlags {
+func getCGroupManager(cgroupID CGroupID) CGroupManager {
 	for _, rt := range RuntimeToken {
 		if strings.Contains(string(cgroupID), rt.token) {
-			return CGroupFlags(rt.flags)
+			return rt.flags
 		}
 	}
-	return 0
+	return CgroupManagerUndefined
 }

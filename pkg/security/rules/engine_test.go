@@ -9,9 +9,11 @@ package rules
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 // This test is less important now that remoteConfigProvidersFirst() exists, which enforces that the RC providers are first
@@ -43,6 +45,7 @@ func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			e := &RuleEngine{
 				config: tt.fields.config,
+				ipc:    ipcmock.New(t),
 			}
 
 			got := e.gatherDefaultPolicyProviders()

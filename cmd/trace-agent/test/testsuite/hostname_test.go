@@ -112,6 +112,7 @@ func waitForTraceTimeout(t *testing.T, runner *test.Runner, wait time.Duration, 
 				fn(v)
 				return
 			}
+			log.Printf("Got non AgentPayload: %v", p)
 		case <-timeout:
 			t.Fatalf("timed out, log was:\n%s", runner.AgentLog())
 		}

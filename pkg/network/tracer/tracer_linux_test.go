@@ -41,6 +41,7 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -707,65 +708,101 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 
 func (s *TracerSuite) TestGatewayLookupEnabled() {
 	t := s.T()
-	ctrl := gomock.NewController(t)
-	m := NewMockcloudProvider(ctrl)
-	oldCloud := network.Cloud
-	defer func() {
-		network.Cloud = oldCloud
-	}()
-
-	m.EXPECT().IsAWS().Return(true)
-	network.Cloud = m
-
 	dnsAddr := net.ParseIP("8.8.8.8")
-	ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
-	ifs, err := net.Interfaces()
-	require.NoError(t, err)
 
-	cfg := testConfig()
-	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg, nil, nil)
-	require.NoError(t, err)
-	require.NotNil(t, tr)
-	t.Cleanup(tr.Stop)
-	require.NotNil(t, tr.gwLookup)
+	getConn := func(t *testing.T) *network.ConnectionStats {
+		t.Helper()
 
-	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
-		t.Logf("subnet lookup: %s", hwAddr)
-		for _, i := range ifs {
-			if hwAddr.String() == i.HardwareAddr.String() {
-				return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
-			}
-		}
+		cfg := testConfig()
+		cfg.EnableGatewayLookup = true
+		tr, err := newTracer(cfg, nil, nil)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		t.Cleanup(tr.Stop)
+		require.NotNil(t, tr.gwLookup)
 
-		return network.Subnet{Alias: "subnet"}, nil
+		require.NoError(t, tr.start(), "could not start tracer")
+
+		initTracerState(t, tr)
+
+		var clientIP string
+		var clientPort int
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
+			assert.NoError(c, err)
+		}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
+
+		dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+		dnsServerAddr := &net.UDPAddr{IP: dnsAddr, Port: 53}
+
+		var conn *network.ConnectionStats
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			var ok bool
+			connections, cleanup := getConnections(ct, tr)
+			defer cleanup()
+			conn, ok = findConnection(dnsClientAddr, dnsServerAddr, connections)
+			require.True(ct, ok, "connection not found")
+		}, 3*time.Second, 100*time.Millisecond)
+
+		return conn
 	}
 
-	require.NoError(t, tr.start(), "could not start tracer")
+	t.Run("aws ec2", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		oldCloud := network.Cloud
+		defer func() {
+			network.Cloud = oldCloud
+		}()
 
-	initTracerState(t, tr)
+		m.EXPECT().IsAWS().Return(true)
+		network.Cloud = m
 
-	var clientIP string
-	var clientPort int
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries([]string{"google.com"}, dnsAddr, "udp")
-		assert.NoError(c, err)
-	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
+		ifs, err := net.Interfaces()
+		require.NoError(t, err)
+		f := network.SubnetForHwAddrFunc
+		t.Cleanup(func() {
+			network.SubnetForHwAddrFunc = f
+		})
 
-	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
-	dnsServerAddr := &net.UDPAddr{IP: dnsAddr, Port: 53}
+		network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+			t.Logf("subnet lookup: %s", hwAddr)
+			for _, i := range ifs {
+				if hwAddr.String() == i.HardwareAddr.String() {
+					return network.Subnet{Alias: fmt.Sprintf("subnet-%d", i.Index)}, nil
+				}
+			}
 
-	var conn *network.ConnectionStats
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		var ok bool
-		connections, cleanup := getConnections(ct, tr)
-		defer cleanup()
-		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, connections)
-		require.True(ct, ok, "connection not found")
-	}, 3*time.Second, 100*time.Millisecond)
+			return network.Subnet{Alias: "subnet"}, nil
+		}
 
-	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
-	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
+		ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
+		conn := getConn(t)
+
+		require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
+		require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
+	})
+
+	t.Run("aws fargate", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		m := NewMockcloudProvider(ctrl)
+		oldCloud := network.Cloud
+		defer func() {
+			network.Cloud = oldCloud
+		}()
+
+		env.SetFeatures(t, env.ECSFargate)
+
+		m.EXPECT().IsAWS().Return(true)
+		network.Cloud = m
+
+		ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
+
+		conn := getConn(t)
+		require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
+		assert.Equal(t, ifi.HardwareAddr.String(), conn.Via.Interface.HardwareAddr)
+	})
+
 }
 
 func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
@@ -1799,7 +1836,7 @@ func httpSupported() bool {
 }
 
 func isPrebuilt(cfg *config.Config) bool {
-	if cfg.EnableRuntimeCompiler || cfg.EnableCORE {
+	if cfg.EnableRuntimeCompiler || cfg.EnableCORE || cfg.EnableEbpfless {
 		return false
 	}
 	return true
@@ -3003,4 +3040,70 @@ func (s *TracerSuite) TestTLSRawClient() {
 			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
 		}, time.Second*5, time.Millisecond*200)
 	})
+}
+
+func (s *TracerSuite) TestTCPSynRst() {
+	// test for dialing a server that is closed - so we first send a SYN packet, and immediately get a RST back
+	t := s.T()
+	cfg := testConfig()
+
+	if isPrebuilt(cfg) {
+		t.Skip("failed connections not supported on prebuilt")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("failed connections not (yet) supported on fentry")
+	}
+
+	// create a linux socket which will reserve a port for us
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	require.NoError(t, err)
+	defer unix.Close(fd)
+
+	// bind it to a port
+	unixLaddr := &unix.SockaddrInet4{
+		Port: 0,
+	}
+	copy(unixLaddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Bind(fd, unixLaddr)
+	require.NoError(t, err)
+
+	// get the port it bound to
+	addr, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	localAddr := &net.TCPAddr{
+		IP:   addr.(*unix.SockaddrInet4).Addr[:],
+		Port: addr.(*unix.SockaddrInet4).Port,
+	}
+
+	unixRemoteAddr := &unix.SockaddrInet4{
+		Port: 47,
+	}
+	copy(unixRemoteAddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Connect(fd, unixRemoteAddr)
+	require.Error(t, err)
+	require.Equal(t, unix.ECONNREFUSED, err)
+	remoteAddr := &net.TCPAddr{
+		IP:   unixRemoteAddr.Addr[:],
+		Port: unixRemoteAddr.Port,
+	}
+
+	var conn *network.ConnectionStats
+	var ok bool
+
+	// for ebpfless, wait for the packet capture to appear
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(localAddr, remoteAddr, connections)
+		require.True(collect, ok)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
+	// there is both an incoming and outgoing connection on loopback, just make sure it's not UNKNOWN
+	assert.NotEqual(t, network.UNKNOWN, conn.Direction)
+
+	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
+	assert.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
 }

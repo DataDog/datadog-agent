@@ -5,6 +5,8 @@
 
 BPF_HASH_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 1)
 
+BPF_HASH_MAP(ssl_ctx_by_tuple, conn_tuple_t, void *, 1)
+
 BPF_HASH_MAP(ssl_read_args, u64, ssl_read_args_t, 1024)
 
 BPF_HASH_MAP(ssl_read_ex_args, u64, ssl_read_ex_args_t, 1024)

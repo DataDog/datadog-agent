@@ -16,10 +16,13 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// overridden in tests
-var numCPU = runtime.NumCPU
+var (
+	// overridden in tests
+	numCPU = runtime.NumCPU
+)
 
 func formatUser(fp *procutil.Process, _ *LookupIdProbe) *model.ProcessUser {
 	return &model.ProcessUser{
@@ -66,8 +69,9 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	return float32(overalPct)
 }
 
-func warnECSFargateMisconfig(_ []*model.Container) {}
-
-func isECSFargatePidModeSetToTask(_ []*model.Container) bool {
+// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
+// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+func (p *ProcessCheck) useWLMCollection() bool {
+	log.Info("process_config.process_collection.use_wlm is not supported on windows")
 	return false
 }

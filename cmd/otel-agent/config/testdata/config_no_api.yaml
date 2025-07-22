@@ -4,7 +4,7 @@ receivers:
       grpc:
       http:
 exporters:
-  datadog:
+  datadog: null
 processors:
   batch:
     timeout: 10s

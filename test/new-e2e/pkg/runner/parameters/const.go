@@ -47,6 +47,8 @@ const (
 	PulumiPassword StoreKey = "pulumi_password"
 	// SkipDeleteOnFailure keep the stack on test failure
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
+	// StackNameSuffix suffix to add to the stack name
+	StackNameSuffix StoreKey = "stack_name_suffix"
 	// StackParameters configuration map for the stack, in a json formatted string
 	StackParameters StoreKey = "stack_params"
 	// PipelineID  used to deploy agent artifacts from a Gitlab pipeline
@@ -67,6 +69,8 @@ const (
 	DevMode StoreKey = "dev_mode"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"
+	// TeardownOnly config flag parameter name
+	TeardownOnly StoreKey = "teardown_only"
 	// PreInitialized config flag parameter name
 	PreInitialized StoreKey = "pre_initialized"
 	// MajorVersion config flag parameter name

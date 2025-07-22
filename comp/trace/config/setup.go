@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -129,7 +128,9 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
 	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
-	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.AuthToken = ipc.GetAuthToken()
+	cfg.IPCTLSClientConfig = ipc.GetTLSClientConfig()
+	cfg.IPCTLSServerConfig = ipc.GetTLSServerConfig()
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}

@@ -1,13 +1,37 @@
 #ifndef __CONTEXT_H__
 #define __CONTEXT_H__
 
-#include <asm/ptrace.h>
 #include "bpf_tracing.h"
 #include "types.h"
 #include "queue.h"
 #include "scratch.h"
 
-DEFINE_QUEUE(pointers, data_item_header_t, 128 << 10);
+typedef uint32_t type_t;
+
+typedef struct frame_data {
+  uint16_t stack_idx;
+  uint64_t cfa;
+} frame_data_t;
+
+typedef struct resolved_go_interface {
+  target_ptr_t addr;
+  uint64_t go_runtime_type;
+} resolved_go_interface_t;
+
+typedef struct resolved_go_any_type {
+  resolved_go_interface_t i;
+  type_t type;
+  bool has_info;
+  type_info_t info;
+} resolved_go_any_type_t;
+
+typedef struct pointers_queue_item {
+  di_data_item_header_t di;
+  uint32_t ttl;
+  uint32_t __padding[3];
+} pointers_queue_item_t;
+
+DEFINE_QUEUE(pointers, pointers_queue_item_t, 128);
 
 #define MAX_CHASED_POINTERS 128
 typedef struct chased_pointers {
@@ -32,6 +56,10 @@ typedef struct stack_machine {
 
   pointers_queue_t pointers_queue;
   chased_pointers_t chased;
+  // Remaining pointer chasing limit, given currently processed data item.
+  // Maybe 0, in which case data might still be processed (i.e. interface type rewrite),
+  // but no further pointers will be chased.
+  uint32_t pointer_chasing_ttl;
 
   // Offset of currently visited context object, or zero.
   buf_offset_t go_context_offset;
@@ -52,7 +80,7 @@ typedef struct stack_machine {
   uint64_t value_0;
   resolved_go_any_type_t resolved_0, resolved_1;
   buf_offset_t buf_offset_0, buf_offset_1;
-  data_item_header_t di_0;
+  di_data_item_header_t di_0;
 } stack_machine_t;
 
 struct {
@@ -62,7 +90,7 @@ struct {
   __type(value, stack_machine_t);
 } stack_machine_buf SEC(".maps");
 
-static stack_machine_t* stack_machine_ctx_load() {
+static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
   const unsigned long zero = 0;
   stack_machine_t* stack_machine =
       (stack_machine_t*)bpf_map_lookup_elem(&stack_machine_buf, &zero);
@@ -72,6 +100,7 @@ static stack_machine_t* stack_machine_ctx_load() {
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
   stack_machine->chased.n = 0;
+  stack_machine->pointer_chasing_ttl = pointer_chasing_limit;
   return stack_machine;
 }
 
@@ -87,7 +116,6 @@ typedef struct stack_walk_ctx {
   int16_t idx_shift;
   struct pt_regs regs;
   target_stack_t stack;
-  char g_prefix[RUNTIME_DOT_G_PREFIX_BYTES];
 } stack_walk_ctx_t;
 
 struct {

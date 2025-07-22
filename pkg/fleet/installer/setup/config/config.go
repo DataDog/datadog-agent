@@ -12,6 +12,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
@@ -144,6 +145,8 @@ type DatadogConfig struct {
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
+	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
+	EnableNVMLDetection  bool                       `yaml:"enable_nvml_detection,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
@@ -222,10 +225,16 @@ type InjectTracerConfigEnvVar struct {
 // SystemProbeConfig represents the configuration to write in /etc/datadog-agent/system-probe.yaml
 type SystemProbeConfig struct {
 	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
+	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
 }
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
 type RuntimeSecurityConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// GPUMonitoringConfig represents the configuration for GPU monitoring
+type GPUMonitoringConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 }
 
@@ -272,6 +281,13 @@ type APMConfigurationDefault struct {
 	IastEnabled                   *bool   `yaml:"DD_IAST_ENABLED,omitempty"`
 	DataJobsEnabled               *bool   `yaml:"DD_DATA_JOBS_ENABLED,omitempty"`
 	AppsecScaEnabled              *bool   `yaml:"DD_APPSEC_SCA_ENABLED,omitempty"`
+}
+
+// DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install
+type DelayedAgentRestartConfig struct {
+	Scheduled bool
+	Delay     time.Duration
+	LogFile   string
 }
 
 // mergeConfig merges the current config with the setup config.

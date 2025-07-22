@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func buildTags(tagCount int) []string {
@@ -62,7 +63,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		blocklist := newBlocklist(list[:i], false)
+		blocklist := utilstrings.NewBlocklist(list[:i], false)
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {

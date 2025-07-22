@@ -18,7 +18,6 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -83,7 +82,7 @@ func NewConfig(deps Dependencies) (Component, error) {
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
-	c.coreConfig.OnUpdate(func(setting string, oldValue, newValue any) {
+	c.coreConfig.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
 		log.Debugf("OnUpdate: %s", setting)
 		if setting != apiKeyConfigKey {
 			return
@@ -134,69 +133,68 @@ func (c *cfg) Object() *traceconfig.AgentConfig {
 
 // SetHandler returns a handler to change the runtime configuration.
 func (c *cfg) SetHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
-			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
-			return
-		}
-		if apiutil.Validate(w, req) != nil {
-			return
-		}
-		for key, values := range req.URL.Query() {
-			if len(values) == 0 {
-				continue
+	// HTTPMiddleware is used to ensure that the request is authenticated
+	return c.ipc.HTTPMiddleware(
+		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.Method != http.MethodPost {
+				httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
+				return
 			}
-			value := html.UnescapeString(values[len(values)-1])
-			switch key {
-			case "log_level":
-				lvl := strings.ToLower(value)
-				if lvl == "warning" {
-					lvl = "warn"
+			for key, values := range req.URL.Query() {
+				if len(values) == 0 {
+					continue
 				}
-				if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
-					httpError(w, http.StatusInternalServerError, err)
-					return
+				value := html.UnescapeString(values[len(values)-1])
+				switch key {
+				case "log_level":
+					lvl := strings.ToLower(value)
+					if lvl == "warning" {
+						lvl = "warn"
+					}
+					if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
+						httpError(w, http.StatusInternalServerError, err)
+						return
+					}
+					log.Infof("Switched log level to %s", lvl)
+				default:
+					log.Infof("Unsupported config change requested (key: %q).", key)
 				}
-				log.Infof("Switched log level to %s", lvl)
-			default:
-				log.Infof("Unsupported config change requested (key: %q).", key)
 			}
-		}
-	})
+		}),
+	)
 }
 
 // GetConfigHandler returns handler to get the runtime configuration.
 func (c *cfg) GetConfigHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodGet {
-			httpError(w,
-				http.StatusMethodNotAllowed,
-				fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodGet),
-			)
-			return
-		}
+	// HTTPMiddleware is used to ensure that the request is authenticated
+	return c.ipc.HTTPMiddleware(
+		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.Method != http.MethodGet {
+				httpError(w,
+					http.StatusMethodNotAllowed,
+					fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodGet),
+				)
+				return
+			}
 
-		if apiutil.Validate(w, req) != nil {
-			return
-		}
+			runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettings())
+			if err != nil {
+				log.Errorf("Unable to marshal runtime config response: %s", err)
+				body, _ := json.Marshal(map[string]string{"error": err.Error()})
+				http.Error(w, string(body), http.StatusInternalServerError)
+				return
+			}
 
-		runtimeConfig, err := yaml.Marshal(c.coreConfig.AllSettings())
-		if err != nil {
-			log.Errorf("Unable to marshal runtime config response: %s", err)
-			body, _ := json.Marshal(map[string]string{"error": err.Error()})
-			http.Error(w, string(body), http.StatusInternalServerError)
-			return
-		}
-
-		scrubbed, err := scrubber.ScrubYaml(runtimeConfig)
-		if err != nil {
-			log.Errorf("Unable to get the core config: %s", err)
-			body, _ := json.Marshal(map[string]string{"error": err.Error()})
-			http.Error(w, string(body), http.StatusInternalServerError)
-			return
-		}
-		_, _ = w.Write(scrubbed)
-	})
+			scrubbed, err := scrubber.ScrubYaml(runtimeConfig)
+			if err != nil {
+				log.Errorf("Unable to get the core config: %s", err)
+				body, _ := json.Marshal(map[string]string{"error": err.Error()})
+				http.Error(w, string(body), http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write(scrubbed)
+		}),
+	)
 }
 
 // SetMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.

@@ -18,10 +18,10 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/devicededuper"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -588,7 +588,7 @@ func (s *SNMPService) IsReady() bool {
 }
 
 // HasFilter returns false on SNMP
-func (s *SNMPService) HasFilter(_ containers.FilterType) bool {
+func (s *SNMPService) HasFilter(_ filter.Scope) bool {
 	return false
 }
 
@@ -629,6 +629,8 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 		return strconv.FormatBool(s.config.CollectDeviceMetadata), nil
 	case "collect_topology":
 		return strconv.FormatBool(s.config.CollectTopology), nil
+	case "collect_vpn":
+		return strconv.FormatBool(s.config.CollectVPN), nil
 	case "use_device_id_as_hostname":
 		return strconv.FormatBool(s.config.UseDeviceIDAsHostname), nil
 	case "tags":

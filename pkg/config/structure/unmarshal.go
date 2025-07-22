@@ -120,6 +120,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	if err != nil {
 		return err
 	}
+
 	outValue := reflect.ValueOf(target)
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
@@ -205,6 +206,7 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 			usedFields[fieldKey] = struct{}{}
 			continue
 		}
+
 		child, err := input.GetChild(fieldKey)
 		if err == nodetreemodel.ErrNotFound {
 			continue
@@ -293,7 +295,13 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 			} else if bval, err := cast.ToBoolE(scalar.Get()); vtype == reflect.TypeOf(true) && err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
 			} else {
-				return fmt.Errorf("only map[string]string and map[string]bool supported currently")
+				elem := reflect.New(vtype).Elem()
+				nextPath := append(currPath, mkey)
+				err := copyAny(elem, child, nextPath, fs)
+				if err != nil {
+					return err
+				}
+				results.SetMapIndex(reflect.ValueOf(mkey), elem)
 			}
 		}
 	}

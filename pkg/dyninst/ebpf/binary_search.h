@@ -37,10 +37,13 @@ typedef struct binary_search_ctx {
     if (mid >= bound_name) {                                                   \
       return 1;                                                                \
     }                                                                          \
-    uint64_t value = array_name[mid];                                          \
-    if (value < search_ctx->target_##target_name) {                            \
+    uint32_t* value = bpf_map_lookup_elem(&array_name, &mid);                  \
+    if (!value) {                                                              \
+      return 1;                                                                \
+    }                                                                          \
+    if (*value < search_ctx->target_##target_name) {                           \
       bin_ctx->left = mid + 1;                                                 \
-    } else if (value == search_ctx->target_##target_name) {                    \
+    } else if (*value == search_ctx->target_##target_name) {                   \
       bin_ctx->left = mid;                                                     \
       bin_ctx->right = mid;                                                    \
     } else {                                                                   \

@@ -6,7 +6,9 @@
 #include "helpers/discarders.h"
 
 int __attribute__((always_inline)) sys_connect(u64 pid_tgid) {
+    struct policy_t policy = fetch_policy(EVENT_CONNECT);
     struct syscall_cache_t syscall = {
+        .policy = policy,
         .type = EVENT_CONNECT,
         .async = pid_tgid ? 1: 0,
         .connect = {
@@ -28,6 +30,10 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
 int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_CONNECT);
     if (!syscall) {
+        return 0;
+    }
+
+    if (approve_syscall(syscall, connect_approvers) == DISCARDED) {
         return 0;
     }
 

@@ -745,6 +745,259 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
+func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
+	var store = &valuestore.ResultValueStore{
+		ColumnValues: valuestore.ColumnResultValuesType{
+			// Outside IPs
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.4": {
+				"1": valuestore.ResultValue{
+					Value: []byte{0x0A, 0x00, 0x00, 0x01}, // 10.0.0.1
+				},
+				"2": valuestore.ResultValue{
+					Value: []byte{0x1E, 0x00, 0x00, 0x01}, // 30.0.0.1
+				},
+				"3": valuestore.ResultValue{
+					Value: []byte{0x32, 0x00, 0x00, 0x01}, // 50.0.0.1
+				},
+			},
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.5": {
+				"1": valuestore.ResultValue{
+					Value: []byte{0x14, 0x00, 0x00, 0x01}, // 20.0.0.1
+				},
+				"2": valuestore.ResultValue{
+					Value: []byte{0x28, 0x00, 0x00, 0x01}, // 40.0.0.1
+				},
+				"3": valuestore.ResultValue{
+					Value: []byte{0x3C, 0x00, 0x00, 0x01}, // 60.0.0.1
+				},
+			},
+
+			// Route Table (Current)
+			"1.3.6.1.2.1.4.24.7.1.7": { // Interface Index
+				"1.4.100.0.0.0.16.2.0.0.0.0": valuestore.ResultValue{
+					Value: "2",
+				},
+				"1.4.110.0.0.0.24.2.0.0.1.4.40.0.0.1": valuestore.ResultValue{
+					Value: "4",
+				},
+				"1.4.120.0.0.0.24.2.0.0.0.0": valuestore.ResultValue{
+					Value: "6",
+				},
+			},
+			"1.3.6.1.2.1.4.24.7.1.17": { // Status
+				"1.4.100.0.0.0.16.2.0.0.0.0": valuestore.ResultValue{
+					Value: "1",
+				},
+				"1.4.110.0.0.0.24.2.0.0.1.4.40.0.0.1": valuestore.ResultValue{
+					Value: "1",
+				},
+				"1.4.120.0.0.0.24.2.0.0.0.0": valuestore.ResultValue{
+					Value: "1",
+				},
+			},
+			// Route Table (Deprecated)
+			"1.3.6.1.2.1.4.24.4.1.5": { // Interface Index
+				"100.1.0.0.255.255.0.0.0.0.0.0.0": valuestore.ResultValue{
+					Value: "2",
+				},
+				"110.0.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
+					Value: "4",
+				},
+				"110.1.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
+					Value: "4",
+				},
+				"120.0.0.0.255.255.0.0.0.0.0.0.0": valuestore.ResultValue{
+					Value: "6",
+				},
+			},
+			"1.3.6.1.2.1.4.24.4.1.16": { // Status
+				"100.1.0.0.255.255.0.0.0.0.0.0.0": valuestore.ResultValue{
+					Value: "1",
+				},
+				"110.0.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
+					Value: "1",
+				},
+				"110.1.0.0.255.255.255.0.0.40.0.0.1": valuestore.ResultValue{
+					Value: "1",
+				},
+				"120.0.0.0.255.255.0.0.0.0.0.0.0": valuestore.ResultValue{
+					Value: "1",
+				},
+			},
+
+			// Tunnels (Current)
+			"1.3.6.1.2.1.10.131.1.1.3.1.6": { // Interface Index
+				"1.4.10.0.0.1.4.20.0.0.1.1.1": valuestore.ResultValue{
+					Value: "2",
+				},
+				"1.4.50.0.0.1.4.60.0.0.1.1.2": valuestore.ResultValue{
+					Value: "6",
+				},
+			},
+			// Tunnels (Deprecated)
+			"1.3.6.1.2.1.10.131.1.1.2.1.5": { // Interface Index
+				"10.0.0.1.20.0.0.1.1.1": valuestore.ResultValue{
+					Value: "2",
+				},
+			},
+		},
+	}
+
+	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	ms := &MetricSender{
+		sender: sender,
+	}
+
+	config := &checkconfig.CheckConfig{
+		IPAddress:          "1.2.3.4",
+		DeviceID:           "1234",
+		ResolvedSubnetName: "127.0.0.0/29",
+		Namespace:          "my-ns",
+	}
+	layout := "2006-01-02 15:04:05"
+	str := "2014-11-12 11:45:26"
+	collectTime, err := time.Parse(layout, str)
+	require.NoError(t, err)
+
+	profile := profiledefinition.ProfileDefinition{
+		Metadata: profiledefinition.MetadataConfig{
+			"cisco_ipsec_tunnel": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"local_outside_ip": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.4",
+							Name: "cipSecTunLocalAddr",
+						},
+					},
+					"remote_outside_ip": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.5",
+							Name: "cipSecTunRemoteAddr",
+						},
+					},
+				},
+			},
+			"ipforward_deprecated": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"if_index": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.24.4.1.5",
+							Name: "ipCidrRouteIfIndex",
+						},
+					},
+					"route_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.24.4.1.16",
+							Name: "ipCidrRouteStatus",
+						},
+					},
+				},
+			},
+			"ipforward": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"if_index": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.24.7.1.7",
+							Name: "inetCidrRouteIfIndex",
+						},
+					},
+					"route_status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.4.24.7.1.17",
+							Name: "inetCidrRouteStatus",
+						},
+					},
+				},
+			},
+			"tunnel_config_deprecated": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"if_index": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.10.131.1.1.2.1.5",
+							Name: "tunnelConfigIfIndex",
+						},
+					},
+				},
+			},
+			"tunnel_config": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"if_index": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.2.1.10.131.1.1.3.1.6",
+							Name: "tunnelInetConfigIfIndex",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ms.ReportNetworkDeviceMetadata(config, profile, store, nil, nil, collectTime, metadata.DeviceStatusReachable, metadata.DeviceStatusReachable, nil)
+
+	// language=json
+	event := []byte(`
+{
+    "subnet": "127.0.0.0/29",
+    "namespace": "my-ns",
+    "integration": "snmp",
+    "devices": [
+        {
+            "id": "1234",
+            "id_tags": null,
+            "tags": [],
+            "ip_address": "1.2.3.4",
+            "status": 1,
+            "ping_status": 1,
+            "subnet": "127.0.0.0/29",
+            "integration": "snmp",
+            "device_type": "other"
+        }
+    ],
+    "vpn_tunnels": [
+        {
+            "device_id": "1234",
+            "interface_id": "1234:2",
+            "local_outside_ip": "10.0.0.1",
+            "remote_outside_ip": "20.0.0.1",
+            "protocol": "ipsec",
+            "route_addresses": [
+                "100.0.0.0/16",
+                "100.1.0.0/16"
+            ]
+        },
+        {
+            "device_id": "1234",
+            "local_outside_ip": "30.0.0.1",
+            "remote_outside_ip": "40.0.0.1",
+            "protocol": "ipsec",
+            "route_addresses": [
+                "110.0.0.0/24",
+                "110.1.0.0/24"
+            ]
+        },
+        {
+            "device_id": "1234",
+            "interface_id": "1234:6",
+            "local_outside_ip": "50.0.0.1",
+            "remote_outside_ip": "60.0.0.1",
+            "protocol": "ipsec",
+            "route_addresses": [
+                "120.0.0.0/16",
+                "120.0.0.0/24"
+            ]
+        }
+    ],
+    "collect_timestamp":1415792726
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, event)
+	assert.NoError(t, err)
+
+	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
+}
+
 func TestComputeInterfaceStatus(t *testing.T) {
 	type testCase struct {
 		ifAdminStatus metadata.IfAdminStatus

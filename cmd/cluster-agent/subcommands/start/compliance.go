@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/client-go/dynamic"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -31,9 +32,9 @@ const (
 	intakeTrackType = "compliance"
 )
 
-func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, compression logscompression.Component, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, compression logscompression.Component, ipc ipc.Component, isLeader func() bool) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader, compression); err != nil {
+	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader, compression, ipc); err != nil {
 		return err
 	}
 
@@ -72,7 +73,7 @@ func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, 
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
-func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component) error {
+func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component, ipc ipc.Component) error {
 	endpoints, ctx, err := newLogContextCompliance()
 	if err != nil {
 		log.Error(err)
@@ -93,7 +94,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 		return err
 	}
 
-	agent := compliance.NewAgent(statsdClient, wmeta, compliance.AgentOptions{
+	agent := compliance.NewAgent(statsdClient, wmeta, ipc, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,

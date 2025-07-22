@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
@@ -90,8 +89,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		s.T().Skip("Skipping test due to missing E2E_PIPELINE_ID variable")
 	}
 
-	flake.Mark(s.T()) // TODO: Fixme once installer 0.10.0 is released
-
 	defer s.Purge()
 
 	// Full supported option set
@@ -118,7 +115,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	// Purge the agent & install using the agent 7 install script
 	s.Purge()
 	defer func() {
-		s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 	}()
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
@@ -126,8 +123,8 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
-		"TESTING_APT_URL":          "s3.amazonaws.com/apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), s.arch),
+		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
+		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
 		"TESTING_YUM_URL":          "s3.amazonaws.com/yumtesting.datad0g.com",
 		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID")),
 	}))

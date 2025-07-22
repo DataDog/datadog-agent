@@ -117,12 +117,58 @@ func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 		LastUpdated: time.Now().UTC(),
 		Offset:      "43",
 	}
+
+	otherpath2 := "otherpath2"
+	suite.a.registry[otherpath2] = &RegistryEntry{
+		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
+		Offset:      "44",
+	}
+
+	otherpath3 := "otherpath3"
+	suite.a.registry[otherpath3] = &RegistryEntry{
+		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
+		Offset:      "45",
+	}
+
+	otherpath4 := "otherpath4"
+	suite.a.registry[otherpath4] = &RegistryEntry{
+		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
+		Offset:      "46",
+	}
+
+	suite.a.SetTailed(otherpath2, true)
+	// SetTailed alters the LastUpdated field, so we need to set it back to the original value to test
+	// that active tails are never removed regardless of their LastUpdated value
+	suite.a.registry[otherpath2].LastUpdated = time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC)
+	suite.a.SetTailed(otherpath4, false)
+
 	suite.a.flushRegistry()
-	suite.Equal(2, len(suite.a.registry))
+	suite.Equal(5, len(suite.a.registry))
 
 	suite.a.cleanupRegistry()
-	suite.Equal(1, len(suite.a.registry))
+	suite.Equal(3, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[otherpath].Offset)
+	suite.Equal("44", suite.a.registry[otherpath2].Offset)
+	suite.Equal("46", suite.a.registry[otherpath4].Offset)
+}
+
+func (suite *AuditorTestSuite) TestAuditorLiveness() {
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
+		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
+		Offset:      "42",
+	}
+
+	suite.a.SetTailed(suite.source.Config.Path, false)
+	suite.WithinDuration(time.Now().UTC(), suite.a.registry[suite.source.Config.Path].LastUpdated, 1*time.Second)
+
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
+		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
+		Offset:      "42",
+	}
+
+	suite.a.KeepAlive(suite.source.Config.Path)
+	suite.WithinDuration(time.Now().UTC(), suite.a.registry[suite.source.Config.Path].LastUpdated, 1*time.Second)
 }
 
 func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {

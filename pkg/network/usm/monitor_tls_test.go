@@ -33,12 +33,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -220,7 +220,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 	fetchPid := uint32(requestCmd.Process.Pid)
 	t.Logf("%s pid %d", cmd[0], fetchPid)
 	assert.Eventuallyf(t, func() bool {
-		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
 		if stats == nil {
 			return false
 		}
@@ -237,8 +237,8 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
-			if statsTags == network.ConnTagGnuTLS || statsTags == network.ConnTagOpenSSL {
-				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
+			if statsTags == ebpftls.ConnTagGnuTLS || statsTags == ebpftls.ConnTagOpenSSL {
+				t.Logf("found tag 0x%x %s", statsTags, ebpftls.GetStaticTags(statsTags))
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
@@ -306,7 +306,7 @@ func (s *tlsSuite) TestOpenSSLVersions() {
 	requestsExist := make([]bool, len(requests))
 
 	require.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
 		if stats == nil {
 			return false
 		}
@@ -378,7 +378,7 @@ func (s *tlsSuite) TestOpenSSLVersionsSlowStart() {
 	expectedMissingRequestsCaught := make([]bool, len(missedRequests))
 
 	require.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
 		if stats == nil {
 			return false
 		}
@@ -598,7 +598,7 @@ func TestOldConnectionRegression(t *testing.T) {
 
 		// Ensure we have captured a request
 		statsObj, cleaners := usmMonitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		stats, ok := statsObj[protocols.HTTP]
 		require.True(t, ok)
 		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
@@ -653,7 +653,7 @@ func TestLimitListenerRegression(t *testing.T) {
 
 		// Ensure we have captured a request
 		statsObj, cleaners := usmMonitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		stats, ok := statsObj[protocols.HTTP]
 		require.True(t, ok)
 		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
@@ -821,7 +821,7 @@ func checkRequests(t *testing.T, usmMonitor *Monitor, expectedOccurrences int, r
 		if isHTTP2 {
 			protocolType = protocols.HTTP2
 		}
-		stats := getHTTPLikeProtocolStats(usmMonitor, protocolType)
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocolType)
 		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
 		return int(occurrences) == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", expectedOccurrences, &occurrences, reqs)
@@ -916,9 +916,9 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config, reinit bool) *Monitor 
 }
 
 // getHTTPLikeProtocolStats returns the stats for the protocols that store their stats in a map of http.Key and *http.RequestStats as values.
-func getHTTPLikeProtocolStats(monitor *Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
+func getHTTPLikeProtocolStats(t *testing.T, monitor *Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
 	statsObj, cleaners := monitor.GetProtocolStats()
-	defer cleaners()
+	t.Cleanup(cleaners)
 	httpStats, ok := statsObj[protocolType]
 	if !ok {
 		return nil
@@ -963,7 +963,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
 		if stats == nil {
 			return false
 		}

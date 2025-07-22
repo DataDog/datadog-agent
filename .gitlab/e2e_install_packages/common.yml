@@ -19,6 +19,14 @@
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch $E2E_ARCH --flavor $FLAVOR
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
 
+.new-e2e_ddot:
+  stage: e2e_install_packages
+  variables:
+    TARGETS: ./tests/agent-platform/ddot
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
+    E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
+
 .new-e2e_script_upgrade7:
   stage: e2e_install_packages
   variables:

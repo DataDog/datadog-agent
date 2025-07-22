@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,8 +17,12 @@ import (
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // newRequest creates a new request for this client.
-func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Request, error) {
-	return http.NewRequest(method, client.endpoint+uri, body)
+func (client *Client) newRequest(method, uri string, body io.Reader, useSessionAuth bool) (*http.Request, error) {
+	// session auth requires token authentication
+	if useSessionAuth {
+		return http.NewRequestWithContext(context.Background(), method, client.directorEndpoint+uri, body)
+	}
+	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -33,13 +38,13 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	defer resp.Body.Close()
 
 	// TODO: should we bring this back with OAuth?
-	// if !isAuthenticated(resp.Header) {
-	// 	log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
-	// 	// clear auth to trigger re-authentication
-	// 	client.clearAuth()
-	// 	// Return 401 on auth errors
-	// 	return nil, 401, nil
-	// }
+	if !isAuthenticated(resp.Header) {
+		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
+		// clear auth to trigger re-authentication
+		client.clearAuth()
+		// Return 401 on auth errors
+		return nil, 401, nil
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -51,15 +56,20 @@ func (client *Client) do(req *http.Request) ([]byte, int, error) {
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // get executes a GET request to the given endpoint with the given query params
-func (client *Client) get(endpoint string, params map[string]string) ([]byte, error) {
-	req, err := client.newRequest("GET", endpoint, nil)
+func (client *Client) get(endpoint string, params map[string]string, useSessionAuth bool) ([]byte, error) {
+	req, err := client.newRequest("GET", endpoint, nil, useSessionAuth)
 	if err != nil {
 		return nil, err
 	}
 
 	// use basic auth
 	// TODO: replace with OAuth token
-	req.SetBasicAuth(client.username, client.password)
+	if useSessionAuth {
+		// use token auth
+		req.Header.Add("X-CSRF-TOKEN", client.token)
+	} else {
+		req.SetBasicAuth(client.username, client.password)
+	}
 
 	query := req.URL.Query()
 	for key, value := range params {
@@ -73,10 +83,12 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 	for attempts := 0; attempts < client.maxAttempts; attempts++ {
 		// TODO: uncomment when OAuth is implemented
 		// currently BASIC Auth is being used
-		// err = client.authenticate()
-		// if err != nil {
-		// 	return nil, err
-		// }
+		if useSessionAuth {
+			err = client.authenticate()
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		bytes, statusCode, err = client.do(req)
 
@@ -86,13 +98,14 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 		}
 	}
 
+	log.Tracef("%d error code hitting endpoint %q response: %s", statusCode, endpoint, string(bytes))
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)
-func get[T Content](client *Client, endpoint string, params map[string]string) (*T, error) {
-	bytes, err := client.get(endpoint, params)
+func get[T Content](client *Client, endpoint string, params map[string]string, useSessionAuth bool) (*T, error) {
+	bytes, err := client.get(endpoint, params, useSessionAuth)
 	if err != nil {
 		return nil, err
 	}

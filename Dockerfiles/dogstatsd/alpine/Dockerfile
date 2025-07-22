@@ -1,5 +1,5 @@
-ARG BASE_IMAGE_ALPINE_VERSION=3.18
-FROM public.ecr.aws/docker/library/alpine:$BASE_IMAGE_ALPINE_VERSION
+ARG BASE_IMAGE_ALPINE_VERSION=3.21
+FROM public.ecr.aws/docker/library/alpine:$BASE_IMAGE_ALPINE_VERSION AS release-base
 ARG TARGETARCH
 ARG BASE_IMAGE_ALPINE_VERSION
 
@@ -21,6 +21,9 @@ COPY entrypoint.sh probe.sh /
 RUN chmod 755 /entrypoint.sh /probe.sh
 COPY dogstatsd.yaml /etc/datadog-agent/dogstatsd.yaml
 COPY install_info /etc/datadog-agent/install_info
+
+FROM release-base
+
 COPY --from=artifacts static/dogstatsd.$TARGETARCH /dogstatsd
 
 ARG DD_GIT_REPOSITORY_URL

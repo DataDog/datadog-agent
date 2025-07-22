@@ -37,11 +37,6 @@ always_build true
 build do
   license :project_license
 
-  bundled_agents = []
-  if heroku_target?
-    bundled_agents = ["process-agent"]
-  end
-
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
@@ -106,13 +101,12 @@ build do
     command "dda inv -- -e rtloader.clean"
     command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
     command "dda inv -- -e rtloader.install"
-    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
     include_sds = ""
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
   end
 
   if osx_target?
@@ -141,10 +135,8 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  if not bundled_agents.include? "trace-agent"
-    platform = windows_arch_i386? ? "x86" : "x64"
-    command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
-  end
+  platform = windows_arch_i386? ? "x86" : "x64"
+  command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
 
   if windows_target?
     copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -153,13 +145,13 @@ build do
   end
 
   # Process agent
-  if not bundled_agents.include? "process-agent"
+  if not heroku_target?
     command "dda inv -- -e process-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
-  else
+  elsif not heroku_target?
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
@@ -193,7 +185,6 @@ build do
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
-    mkdir "#{install_dir}/embedded/share/system-probe/java"
 
     arch = `uname -m`.strip
     if arch == "aarch64"
@@ -228,16 +219,6 @@ build do
   if cws_inst_support
     command "dda inv -- -e cws-instrumentation.build #{fips_args}", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
-  end
-
-  # OTel agent - can never be bundled
-  if ot_target?
-    unless windows_target?
-      command "dda inv -- -e otel-agent.build", :env => env
-      copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
-
-      move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
-    end
   end
 
   # APM Injection agent
@@ -278,6 +259,12 @@ build do
     command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
+  end
+
+  # APM Hands Off config file
+  if linux_target?
+    command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
+    move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
   # TODO: move this to omnibus-ruby::health-check.rb

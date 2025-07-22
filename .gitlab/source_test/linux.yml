@@ -32,9 +32,8 @@
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - dda inv -- -e sds.build-library
     - dda inv -- -e agent.build
-    - dda inv -- -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
+    - dda inv -- -e test $FLAVORS --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -60,6 +59,27 @@ tests_deb-x64-py3:
     - !reference [.upload_coverage]
   variables:
     CONDA_ENV: ddpy3
+
+tests_nodetreemodel:
+  # Tests are currently not passing
+  # They are being fixed, and we want to track progress on this work
+  extends:
+    - .rtloader_tests
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    # Don't upload junit results, which prevents e2e tests from running (they will fail)
+    - !reference [.upload_coverage]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+  variables:
+    CONDA_ENV: ddpy3
+    # This env var enables the NTM config implementation
+    DD_CONF_NODETREEMODEL: enable
+  allow_failure: true
 
 tests_flavor_iot_deb-x64:
   extends:
@@ -164,7 +184,7 @@ new-e2e-unit-tests:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - !reference [ .needs_new_e2e_template ]
+    - go_e2e_deps
     - go_deps
     - go_tools_deps
   before_script:

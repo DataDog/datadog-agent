@@ -761,7 +761,7 @@ def create_and_update_release_branch(
                 or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
             )
             ctx.run(f"git checkout {main_branch}")
-            ctx.run("git pull")
+            ctx.run("git pull", warn=True)
 
             _main()
 
@@ -792,14 +792,14 @@ def create_release_branches(
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    current = current_version(ctx, major_version)
-    current.rc = False
-    current.devel = False
-
-    # Strings with proper branch/tag names
-    release_branch = current.branch()
-
     with agent_context(ctx, commit=commit):
+        current = current_version(ctx, major_version)
+        current.rc = False
+        current.devel = False
+
+        # Strings with proper branch/tag names
+        release_branch = current.branch()
+
         # Step 0: checks
         ctx.run("git fetch")
 
@@ -816,9 +816,8 @@ def create_release_branches(
 
         # Step 1 - Create release branches in all required repositories
 
-        base_branch = get_default_branch() if major_version == 6 else None
-
         for repo in UNFREEZE_REPOS:
+            base_branch = get_default_branch() if major_version == 6 else DEFAULT_BRANCHES[repo]
             create_and_update_release_branch(
                 ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
             )

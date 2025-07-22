@@ -142,8 +142,6 @@ class TestOmnibusCache(unittest.TestCase):
             [
                 # We ran omnibus
                 r'bundle exec omnibus build agent',
-                # Listed tags for cache comparison
-                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
                 # And we created and uploaded the new cache
                 r'git -C omnibus-git-cache/opt/datadog-agent bundle create /\S+/omnibus-git-cache-bundle --tags',
                 r'aws s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/\w+/slug',
@@ -176,6 +174,34 @@ class TestOmnibusCache(unittest.TestCase):
         self.assertRunLines(['bundle exec omnibus build agent'])
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         self.assertNotIn('omnibus-git-cache', commands)
+
+    def test_mutated_cache(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            re.compile(r'git (.* )?tag -l'),
+            [Result('foo-1'), Result('foo-2')],
+        )
+        self._set_up_default_command_mocks()
+        with mock.patch('requests.post') as post_mock:
+            omnibus.build(self.mock_ctx)
+
+        # Assert we sent a cache mutation event
+        assert post_mock.mock_calls
+        self.assertIn("events", post_mock.mock_calls[0].args[0])
+        self.assertIn("omnibus cache mutated", str(post_mock.mock_calls[0].kwargs['json']))
+        # Assert we bundled and uploaded the cache (should always happen on cache misses)
+        self.assertRunLines(
+            [
+                # We copied the cache from remote cache
+                r'aws s3 cp (\S* )?s3://omnibus-cache/\w+/slug \S+/omnibus-git-cache-bundle',
+                # We cloned the repo
+                r'git clone --mirror /\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
+                # We listed the tags to get current cache state
+                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
+                # We ran omnibus
+                r'bundle exec omnibus build agent',
+            ],
+        )
 
 
 class TestOmnibusInstall(unittest.TestCase):
@@ -351,7 +377,7 @@ Description: Datadog Monitoring Agent
 
             # Verify that the URL we requested matches the architecture we set
             mock_get.assert_called_once_with(
-                'https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages', stream=True
+                'https://apt.datad0g.com/dists/nightly/7/binary-amd64/Packages', stream=True, timeout=10
             )
 
             # Verify omnibus_run_task was called with the correct environment variables

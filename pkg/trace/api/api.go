@@ -28,6 +28,8 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -39,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultReceiverBufferSize is used as a default for the initial size of http body buffer
@@ -388,6 +389,7 @@ func (r *HTTPReceiver) Stop() error {
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
 	if err := r.server.Shutdown(ctx); err != nil {
+		log.Warnf("Error shutting down HTTPReceiver: %v", err)
 		return err
 	}
 	r.wg.Wait()
@@ -601,6 +603,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) {
+	// todo wg
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -694,6 +697,8 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		r.handleTracesV1(w, req)
 		return
 	}
+	r.wg.Add(1)
+	defer r.wg.Done()
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)

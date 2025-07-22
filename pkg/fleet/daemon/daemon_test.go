@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -237,7 +237,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	require.NoError(t, err)
 	daemon := newDaemon(
 		rc,
-		func(_ *env.Env) installertypes.Installer { return pm },
+		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
 		taskDB,
 	)

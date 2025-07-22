@@ -12,6 +12,7 @@ exporters:
       reporter_period: 30m0s
       tags: []
     hostname: ""
+    hostname_detection_timeout: 25s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
@@ -45,7 +46,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
@@ -86,13 +86,15 @@ receivers:
       runtime:
         gogc: 75
       scrape_configs:
-        - enable_compression: true
+        - convert_classic_histograms_to_nhcb: false
+          enable_compression: true
           enable_http2: true
           fallback_scrape_protocol: PrometheusText0.0.4
           follow_redirects: true
           honor_timestamps: true
           job_name: datadog-agent
           metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
           metrics_path: /metrics
           scheme: http
           scrape_interval: 5s

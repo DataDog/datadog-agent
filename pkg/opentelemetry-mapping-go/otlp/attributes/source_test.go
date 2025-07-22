@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils"
@@ -50,13 +50,13 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "literal 'host' tag",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				AttributeHost:                       testLiteralHost,
-				AttributeDatadogHostname:            testCustomName,
-				AttributeK8sNodeName:                testNodeName,
-				conventions.AttributeK8SClusterName: testClusterName,
-				conventions.AttributeContainerID:    testContainerID,
-				conventions.AttributeHostID:         testHostID,
-				conventions.AttributeHostName:       testHostName,
+				AttributeHost:                         testLiteralHost,
+				AttributeDatadogHostname:              testCustomName,
+				AttributeK8sNodeName:                  testNodeName,
+				string(conventions.K8SClusterNameKey): testClusterName,
+				string(conventions.ContainerIDKey):    testContainerID,
+				string(conventions.HostIDKey):         testHostID,
+				string(conventions.HostNameKey):       testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testLiteralHost},
@@ -64,12 +64,12 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "custom hostname",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				AttributeDatadogHostname:            testCustomName,
-				AttributeK8sNodeName:                testNodeName,
-				conventions.AttributeK8SClusterName: testClusterName,
-				conventions.AttributeContainerID:    testContainerID,
-				conventions.AttributeHostID:         testHostID,
-				conventions.AttributeHostName:       testHostName,
+				AttributeDatadogHostname:              testCustomName,
+				AttributeK8sNodeName:                  testNodeName,
+				string(conventions.K8SClusterNameKey): testClusterName,
+				string(conventions.ContainerIDKey):    testContainerID,
+				string(conventions.HostIDKey):         testHostID,
+				string(conventions.HostNameKey):       testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testCustomName},
@@ -77,15 +77,15 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "container ID",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeContainerID: testContainerID,
+				string(conventions.ContainerIDKey): testContainerID,
 			}),
 		},
 		{
 			name: "AWS EC2",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAWS,
-				conventions.AttributeHostID:        testHostID,
-				conventions.AttributeHostName:      testHostName,
+				string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
+				string(conventions.HostIDKey):        testHostID,
+				string(conventions.HostNameKey):      testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
@@ -93,12 +93,12 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "ECS Fargate",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeCloudProvider:      conventions.AttributeCloudProviderAWS,
-				conventions.AttributeCloudPlatform:      conventions.AttributeCloudPlatformAWSECS,
-				conventions.AttributeAWSECSTaskARN:      "example-task-ARN",
-				conventions.AttributeAWSECSTaskFamily:   "example-task-family",
-				conventions.AttributeAWSECSTaskRevision: "example-task-revision",
-				conventions.AttributeAWSECSLaunchtype:   conventions.AttributeAWSECSLaunchtypeFargate,
+				string(conventions.CloudProviderKey):      conventions.CloudProviderAWS.Value.AsString(),
+				string(conventions.CloudPlatformKey):      conventions.CloudPlatformAWSECS.Value.AsString(),
+				string(conventions.AWSECSTaskARNKey):      "example-task-ARN",
+				string(conventions.AWSECSTaskFamilyKey):   "example-task-family",
+				string(conventions.AWSECSTaskRevisionKey): "example-task-revision",
+				string(conventions.AWSECSLaunchtypeKey):   conventions.AWSECSLaunchtypeFargate.Value.AsString(),
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.AWSECSFargateKind, Identifier: "example-task-ARN"},
@@ -106,10 +106,10 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "GCP",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeCloudProvider:  conventions.AttributeCloudProviderGCP,
-				conventions.AttributeHostID:         testHostID,
-				conventions.AttributeHostName:       testGCPHostname,
-				conventions.AttributeCloudAccountID: testCloudAccount,
+				string(conventions.CloudProviderKey):  conventions.CloudProviderGCP.Value.AsString(),
+				string(conventions.HostIDKey):         testHostID,
+				string(conventions.HostNameKey):       testGCPHostname,
+				string(conventions.CloudAccountIDKey): testCloudAccount,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testGCPIntegrationHostname},
@@ -117,17 +117,17 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "GCP, no account id",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeCloudProvider: conventions.AttributeCloudProviderGCP,
-				conventions.AttributeHostID:        testHostID,
-				conventions.AttributeHostName:      testGCPHostname,
+				string(conventions.CloudProviderKey): conventions.CloudProviderGCP.Value.AsString(),
+				string(conventions.HostIDKey):        testHostID,
+				string(conventions.HostNameKey):      testGCPHostname,
 			}),
 		},
 		{
 			name: "azure",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAzure,
-				conventions.AttributeHostID:        testHostID,
-				conventions.AttributeHostName:      testHostName,
+				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.HostIDKey):        testHostID,
+				string(conventions.HostNameKey):      testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
@@ -135,8 +135,8 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "host id v. hostname",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeHostID:   testHostID,
-				conventions.AttributeHostName: testHostName,
+				string(conventions.HostIDKey):   testHostID,
+				string(conventions.HostNameKey): testHostName,
 			}),
 			ok:  true,
 			src: source.Source{Kind: source.HostnameKind, Identifier: testHostID},
@@ -174,7 +174,7 @@ func TestLiteralHostNonString(t *testing.T) {
 func TestGetClusterName(t *testing.T) {
 	// OpenTelemetry convention
 	attrs := testutils.NewAttributeMap(map[string]string{
-		conventions.AttributeK8SClusterName: testClusterName,
+		string(conventions.K8SClusterNameKey): testClusterName,
 	})
 	cluster, ok := getClusterName(attrs)
 	assert.True(t, ok)
@@ -182,8 +182,8 @@ func TestGetClusterName(t *testing.T) {
 
 	// Azure
 	attrs = testutils.NewAttributeMap(map[string]string{
-		conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAzure,
-		azure.AttributeResourceGroupName:   "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
+		string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+		azure.AttributeResourceGroupName:     "MC_aks-kenafeh_aks-kenafeh-eu_westeurope",
 	})
 	cluster, ok = getClusterName(attrs)
 	assert.True(t, ok)
@@ -191,7 +191,7 @@ func TestGetClusterName(t *testing.T) {
 
 	// AWS
 	attrs = testutils.NewAttributeMap(map[string]string{
-		conventions.AttributeCloudProvider:          conventions.AttributeCloudProviderAWS,
+		string(conventions.CloudProviderKey):        conventions.CloudProviderAWS.Value.AsString(),
 		"ec2.tag.kubernetes.io/cluster/clustername": "dummy_value",
 	})
 	cluster, ok = getClusterName(attrs)
@@ -207,11 +207,11 @@ func TestGetClusterName(t *testing.T) {
 func TestHostnameKubernetes(t *testing.T) {
 	// Node name and cluster name
 	attrs := testutils.NewAttributeMap(map[string]string{
-		AttributeK8sNodeName:                testNodeName,
-		conventions.AttributeK8SClusterName: testClusterName,
-		conventions.AttributeContainerID:    testContainerID,
-		conventions.AttributeHostID:         testHostID,
-		conventions.AttributeHostName:       testHostName,
+		AttributeK8sNodeName:                  testNodeName,
+		string(conventions.K8SClusterNameKey): testClusterName,
+		string(conventions.ContainerIDKey):    testContainerID,
+		string(conventions.HostIDKey):         testHostID,
+		string(conventions.HostNameKey):       testHostName,
 	})
 	hostname, ok := hostnameFromAttributes(attrs)
 	assert.True(t, ok)
@@ -219,10 +219,10 @@ func TestHostnameKubernetes(t *testing.T) {
 
 	// Node name, no cluster name
 	attrs = testutils.NewAttributeMap(map[string]string{
-		AttributeK8sNodeName:             testNodeName,
-		conventions.AttributeContainerID: testContainerID,
-		conventions.AttributeHostID:      testHostID,
-		conventions.AttributeHostName:    testHostName,
+		AttributeK8sNodeName:               testNodeName,
+		string(conventions.ContainerIDKey): testContainerID,
+		string(conventions.HostIDKey):      testHostID,
+		string(conventions.HostNameKey):    testHostName,
 	})
 	hostname, ok = hostnameFromAttributes(attrs)
 	assert.True(t, ok)
@@ -230,11 +230,11 @@ func TestHostnameKubernetes(t *testing.T) {
 
 	// Node name, no cluster name, AWS EC2
 	attrs = testutils.NewAttributeMap(map[string]string{
-		AttributeK8sNodeName:               testNodeName,
-		conventions.AttributeContainerID:   testContainerID,
-		conventions.AttributeHostID:        testHostID,
-		conventions.AttributeHostName:      testHostName,
-		conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAWS,
+		AttributeK8sNodeName:                 testNodeName,
+		string(conventions.ContainerIDKey):   testContainerID,
+		string(conventions.HostIDKey):        testHostID,
+		string(conventions.HostNameKey):      testHostName,
+		string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
 	})
 	hostname, ok = hostnameFromAttributes(attrs)
 	assert.True(t, ok)
@@ -242,10 +242,10 @@ func TestHostnameKubernetes(t *testing.T) {
 
 	// no node name, cluster name
 	attrs = testutils.NewAttributeMap(map[string]string{
-		conventions.AttributeK8SClusterName: testClusterName,
-		conventions.AttributeContainerID:    testContainerID,
-		conventions.AttributeHostID:         testHostID,
-		conventions.AttributeHostName:       testHostName,
+		string(conventions.K8SClusterNameKey): testClusterName,
+		string(conventions.ContainerIDKey):    testContainerID,
+		string(conventions.HostIDKey):         testHostID,
+		string(conventions.HostNameKey):       testHostName,
 	})
 	hostname, ok = hostnameFromAttributes(attrs)
 	assert.True(t, ok)

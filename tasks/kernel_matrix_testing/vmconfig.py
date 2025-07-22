@@ -11,9 +11,15 @@ from urllib.parse import urlparse
 
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, destroy_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import (
+    check_and_get_stack,
+    create_stack,
+    destroy_stack,
+    stack_exists,
+)
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
@@ -755,6 +761,19 @@ def gen_config_for_stack(
     vm_config = json.loads(orig_vm_config)
 
     vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_by_set(vms, sets), vcpu, memory, ci, template)
+
+    cm = ConfigManager()
+    setup = cm.config.get("setup")
+    if setup is None:
+        raise Exit("KMT setup information not recorded. Please run `dda inv kmt.init` to generate it.")
+
+    if setup == "remote":
+        for vmset in vm_config["vmsets"]:
+            if vmset["arch"] == "local":
+                raise Exit(
+                    "KMT initialized for remote only usage. Local VMs not supported. To use KMT locally run `dda inv -e kmt.init`"
+                )
+
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"

@@ -20,6 +20,7 @@ type ProcessedTrace struct {
 	ClientDroppedP0sWeight float64
 	GitCommitSha           string
 	ImageTag               string
+	Lang                   string
 }
 
 // ProcessedTraceV1 represents a trace being processed in the agent.

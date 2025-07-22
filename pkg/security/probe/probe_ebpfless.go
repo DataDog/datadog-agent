@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -682,7 +683,7 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
-func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
+func NewEBPFLessProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
 	processKiller, err := NewProcessKiller(config, nil)
@@ -717,7 +718,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := hostnameutils.GetHostname()
+	hostname, err := hostnameutils.GetHostname(ipc)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

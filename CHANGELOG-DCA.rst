@@ -2,6 +2,126 @@
 Release Notes
 =============
 
+.. _Release Notes_7.68.1:
+
+7.68.1
+======
+
+.. _Release Notes_7.68.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-17
+Pinned to datadog-agent v7.68.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7681>`_.
+
+.. _Release Notes_7.68.0:
+
+7.68.0
+======
+
+.. _Release Notes_7.68.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-10
+Pinned to datadog-agent v7.68.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7680>`_.
+
+.. _Release Notes_7.68.0_New Features:
+
+New Features
+------------
+
+- The admission controller can now enable kubelet API logging in the
+  injected agent sidecar.
+
+
+.. _Release Notes_7.68.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added a new metric to expose the ksm ``kube_cronjob_status_last_successful_time`` metric. The name of the metric is ``kubernetes_state.cronjob.duration_since_last_successful``.
+
+- Single Step Instrumentation now uses the Python tracer major version 3 by default.
+
+
+.. _Release Notes_7.68.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Stop sending telemetry associated with a DatadogMetric when the object is deleted.
+
+- Fix a bug in the Kubernetes State Metrics (KSM) check where custom resource
+  metrics were incorrectly named using the `kubernetes_state.customresource.<name>`
+  pattern instead of the intended `kubernetes_state_customresource.<prefix>_<name>` format.
+
+- Fixes a bug in the admission controller webhook that caused volume mounts to be skipped when other webhooks injected init containers after our own volume mounts had been added.
+
+- Properly take into account the ``timeZone`` field of the ``CronJob`` objects in the ``kubernetes_state.cronjob.on_schedule_check`` service check.
+
+
+.. _Release Notes_7.67.1:
+
+7.67.1
+======
+
+.. _Release Notes_7.67.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-07-02
+Pinned to datadog-agent v7.67.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7671>`_.
+
+.. _Release Notes_7.67.0:
+
+7.67.0
+======
+
+.. _Release Notes_7.67.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-18
+Pinned to datadog-agent v7.67.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7670>`_.
+
+
+.. _Release Notes_7.67.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The Kubernetes State check no longer supports VPA versions <0.7.0.
+
+
+.. _Release Notes_7.67.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug where the Kubernetes State check could not generate VPA metrics for VPA versions 1.3.0+
+
+- Fix data race in the orchestrator check for the sensitive data scrubber. Note: This
+  would only occur when running the check on Datadog cluster check runners.
+
+
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-03
+Pinned to datadog-agent v7.66.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7661>`_.
+
 .. _Release Notes_7.66.0:
 
 7.66.0

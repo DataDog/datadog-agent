@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build !darwin && !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 var (
@@ -349,11 +349,12 @@ var (
 			"FIN-WAIT-1": "closing",
 			"FIN-WAIT-2": "closing",
 			"TIME-WAIT":  "time_wait",
-			"UNCONN":     "closing",
 			"CLOSE-WAIT": "closing",
 			"LAST-ACK":   "closing",
 			"LISTEN":     "listening",
 			"CLOSING":    "closing",
+			"UNCONN":     "closing",
+			"NONE":       "connections", // sole UDP mapping
 		},
 		"netstat": {
 			"ESTABLISHED": "established",
@@ -367,11 +368,8 @@ var (
 			"LAST_ACK":    "closing",
 			"LISTEN":      "listening",
 			"CLOSING":     "closing",
+			"NONE":        "connections", // sole UDP mapping
 		},
-	}
-
-	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}

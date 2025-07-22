@@ -32,17 +32,45 @@ instances:
     #   - <SUBJECT_1>
     #   - <SUBJECT_2>
 
+    ## @param server - string - optional
+    ## The server with which to connect, defaulting to the local machine.
+    #
+    # server: <SERVER>
+
+    ## @param username - string - optional
+    ## The username used to connect to the `server`.
+    #
+    # username: <USERNAME>
+
+    ## @param password - string - optional
+    ## The password of `username`.
+    #
+    # password: <PASSWORD>
+
     ## @param days_warning - integer - optional - default: 14
     ## Number of days before certificate expiration from which the service check
-    ## `tls.cert_expiration` begins emitting WARNING.
+    ## `windows_certificate.cert_expiration` begins emitting WARNING.
     #
     # days_warning: 14
 
     ## @param days_critical - integer - optional - default: 7
     ## Number of days before certificate expiration from which the service check
-    ## `tls.cert_expiration` begins emitting CRITICAL.
+    ## `windows_certificate.cert_expiration` begins emitting CRITICAL.
     #
     # days_critical: 7
+
+    ## @param enable_crl_monitoring - boolean - optional - default: false
+    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+    #
+    # enable_crl_monitoring: false
+
+    ## @param crl_days_warning - integer - optional - default: 0
+    ## Number of days before CRL expiration from which the service check
+    ## `windows_certificate.crl_expiration` begins emitting WARNING.
+    ## If the CRLs in the store are updated automatically, set to 0 to avoid getting WARNING alerts.
+    ## If the CRLs are updated manually, set to the number days beforehand that you would like to recieve a WARNING.
+    #
+    # crl_days_warning: 0
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.

@@ -44,6 +44,9 @@ var (
 
 	// ErrMultipleEventCategories is returned when multile event categories are in the same expansion
 	ErrMultipleEventCategories = errors.New("multiple event categories in the same rule expansion")
+
+	// ErrPolicyIsEmpty is returned when a policy has no rules or macros
+	ErrPolicyIsEmpty = errors.New("the policy is empty")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type
@@ -82,24 +85,16 @@ func (e ErrNoEventTypeBucket) Error() string {
 	return fmt.Sprintf("no bucket for event type `%s`", e.EventType)
 }
 
-// ErrPoliciesLoad is returned on policies dir error
-type ErrPoliciesLoad struct {
-	Name string
-	Err  error
-}
-
-func (e ErrPoliciesLoad) Error() string {
-	return fmt.Sprintf("policies dir read error `%s`: %s", e.Name, e.Err)
-}
-
 // ErrPolicyLoad is returned on policy file error
 type ErrPolicyLoad struct {
-	Name string
-	Err  error
+	Name    string
+	Version string
+	Source  string
+	Err     error
 }
 
 func (e ErrPolicyLoad) Error() string {
-	return fmt.Sprintf("policy file error `%s`: %s", e.Name, e.Err)
+	return fmt.Sprintf("error loading policy `%s` from source `%s`: %s", e.Name, e.Source, e.Err)
 }
 
 // ErrMacroLoad is on macro definition error
@@ -174,6 +169,16 @@ type ErrActionFilter struct {
 
 func (e ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
+}
+
+// ErrScopeField is return on scope field definition error
+type ErrScopeField struct {
+	Expression string
+	Err        error
+}
+
+func (e ErrScopeField) Error() string {
+	return fmt.Sprintf("scope_field `%s` error: %s", e.Expression, e.Err)
 }
 
 // ErrFieldNotAvailable is returned when a field is not available

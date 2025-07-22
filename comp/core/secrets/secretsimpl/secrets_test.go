@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -925,6 +926,38 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 	}
 }
 
+type alwaysZeroSource struct{}
+
+func (s *alwaysZeroSource) Int63() int64 {
+	return 0
+}
+
+func (s *alwaysZeroSource) Seed(int64) {}
+
+func TestScatterWithSmallRandomValue(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
+	originalValue := isAllowlistEnabled()
+	setAllowlistEnabled(false)
+	defer func() {
+		setAllowlistEnabled(originalValue)
+	}()
+
+	resolver.refreshInterval = 1 * time.Second
+	resolver.refreshIntervalScatter = true
+	resolver.fetchHookFunc = func(_ []string) (map[string]string, error) {
+		return map[string]string{
+			"test-handle": "updated-value",
+		}, nil
+	}
+
+	// NOTE: clock and ticker are not mocked, as the mock ticker doesn't fail on a
+	// zero parameter the way a real ticker does
+	r := rand.New(&alwaysZeroSource{})
+	resolver.startRefreshRoutine(r)
+	require.NotNil(t, resolver.ticker)
+}
+
 // helper to read number of rows in the audit file
 func auditFileNumRows(filename string) int {
 	data, _ := os.ReadFile(filename)
@@ -1005,4 +1038,41 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 			assert.Equal(t, tc.expect, result)
 		})
 	}
+}
+
+func TestBackendTypeWithValidVaultConfig(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	r := newEnabledSecretResolver(tel)
+
+	r.enabled = true
+	r.backendType = "hashicorp.vault"
+	r.backendConfig = map[string]interface{}{
+		"vault_address": "http://127.0.0.1:8200",
+		"secret_path":   "/Datadog/Production",
+		"vault_session": map[string]interface{}{
+			"vault_auth_type": "aws",
+			"vault_aws_role":  "rahul_role",
+			"aws_region":      "us-east-1",
+		},
+	}
+
+	r.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"api_key":     "datadog-api-key-123",
+			"app_key":     "datadog-app-key-456",
+			"db_password": "secure-db-password",
+		}, nil
+	}
+
+	r.Configure(secrets.ConfigParams{Type: r.backendType, Config: r.backendConfig})
+
+	assert.Equal(t, "hashicorp.vault", r.backendType)
+	assert.Equal(t, "http://127.0.0.1:8200", r.backendConfig["vault_address"])
+	assert.Equal(t, "/Datadog/Production", r.backendConfig["secret_path"])
+
+	vaultSession, ok := r.backendConfig["vault_session"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "aws", vaultSession["vault_auth_type"])
+	assert.Equal(t, "rahul_role", vaultSession["vault_aws_role"])
+	assert.Equal(t, "us-east-1", vaultSession["aws_region"])
 }

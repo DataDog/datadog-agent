@@ -9,8 +9,6 @@
 package probes
 
 import (
-	"fmt"
-
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -20,7 +18,7 @@ type probeSelectorBuilder struct {
 
 type psbOption func(*probeSelectorBuilder)
 
-func kprobeOrFentry(funcName string, options ...psbOption) *manager.ProbeSelector {
+func hookFunc(funcName string, options ...psbOption) *manager.ProbeSelector {
 	psb := &probeSelectorBuilder{
 		uid: SecurityAgentUID,
 	}
@@ -32,24 +30,7 @@ func kprobeOrFentry(funcName string, options ...psbOption) *manager.ProbeSelecto
 	return &manager.ProbeSelector{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          psb.uid,
-			EBPFFuncName: fmt.Sprintf("hook_%s", funcName),
-		},
-	}
-}
-
-func kretprobeOrFexit(funcName string, options ...psbOption) *manager.ProbeSelector {
-	psb := &probeSelectorBuilder{
-		uid: SecurityAgentUID,
-	}
-
-	for _, opt := range options {
-		opt(psb)
-	}
-
-	return &manager.ProbeSelector{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          psb.uid,
-			EBPFFuncName: fmt.Sprintf("rethook_%s", funcName),
+			EBPFFuncName: funcName,
 		},
 	}
 }

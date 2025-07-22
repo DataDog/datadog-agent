@@ -9,7 +9,6 @@ package remote
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -19,12 +18,11 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -81,7 +79,7 @@ type GenericCollector struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	Insecure bool // for testing
+	IPC ipc.Component
 }
 
 // Start starts the generic collector
@@ -98,20 +96,8 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 		return net.Dial("tcp", url)
 	})}
 
-	if c.Insecure {
-		// for test purposes
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
-		// NOTE: we're using InsecureSkipVerify because the gRPC server only
-		// persists its TLS certs in memory, and we currently have no
-		// infrastructure to make them available to clients. This is NOT
-		// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-		// connection.
-		creds := credentials.NewTLS(&tls.Config{
-			InsecureSkipVerify: true,
-		})
-		opts = append(opts, grpc.WithTransportCredentials(creds))
-	}
+	creds := credentials.NewTLS(c.IPC.GetTLSClientConfig())
+	opts = append(opts, grpc.WithTransportCredentials(creds))
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
@@ -148,21 +134,14 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		err := util.SetAuthToken(pkgconfigsetup.Datadog())
-		if err != nil {
-			err = fmt.Errorf("unable to set authentication token: %w", err)
-			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
-			return err
-		}
-
-		token := util.GetAuthToken()
+		var err error
 
 		c.streamCtx, c.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", token),
+						fmt.Sprintf("Bearer %s", c.IPC.GetAuthToken()), // TODO IPC: Remove this raw usage of the auth token
 					},
 				},
 			),

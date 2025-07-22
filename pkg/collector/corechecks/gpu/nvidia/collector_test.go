@@ -44,7 +44,6 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
-
 }
 
 func TestGetDeviceTagsMapping(t *testing.T) {
@@ -134,4 +133,48 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			tc.expected(t, tagsMapping)
 		})
 	}
+}
+
+func TestAllCollectorsWork(t *testing.T) {
+	// This test doesn't validate the results of the collectors, it only checks that they work with
+	// the basic mock and we don't have any panics or anything.
+
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
+	ddnvml.WithMockNVML(t, nvmlMock)
+	deviceCache, err := ddnvml.NewDeviceCache()
+	require.NoError(t, err)
+	deps := &CollectorDependencies{DeviceCache: deviceCache}
+	collectors, err := BuildCollectors(deps)
+	require.NoError(t, err)
+	require.NotNil(t, collectors)
+
+	seenCollectors := make(map[CollectorName]struct{})
+
+	for _, collector := range collectors {
+		result, err := collector.Collect()
+		require.NoError(t, err, "collector %s failed to collect", collector.Name())
+		require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		seenCollectors[collector.Name()] = struct{}{}
+	}
+
+	// We should have seen all the collectors
+	for name := range factory {
+		_, ok := seenCollectors[name]
+		require.True(t, ok, "collector %s not seen", name)
+	}
+}
+
+func TestRemoveDuplicateMetrics(t *testing.T) {
+	metrics := []Metric{
+		{Name: "metric1", Priority: 0},
+		{Name: "metric2", Priority: 1},
+		{Name: "metric1", Priority: 2},
+	}
+
+	deduplicated := RemoveDuplicateMetrics(metrics)
+	require.Len(t, deduplicated, 2)
+	require.ElementsMatch(t, deduplicated, []Metric{
+		{Name: "metric1", Priority: 2},
+		{Name: "metric2", Priority: 1},
+	})
 }

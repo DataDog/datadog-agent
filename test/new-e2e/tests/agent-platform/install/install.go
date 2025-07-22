@@ -28,10 +28,10 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 
 	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
-		testEnvVars = append(testEnvVars, "TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com")
+		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", params.PipelineID, params.MajorVersion))
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v-%s %v"`, params.PipelineID, params.MajorVersion, params.Arch, params.MajorVersion))
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="stable-%v %v"`, params.Arch, params.MajorVersion))
 		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=s3.amazonaws.com/yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"

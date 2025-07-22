@@ -43,6 +43,7 @@ const (
 	kubeDeploymentDogstatsdUDP              = "dogstatsd-udp"
 	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
 	kubeDeploymentDogstatsdUDPExternalData  = "dogstatsd-udp-external-data-only"
+	kubeDeploymentDogstatsdUDSWithCSI       = "dogstatsd-uds-with-csi"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
@@ -492,6 +493,9 @@ func (suite *k8sSuite) TestNginx() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -529,6 +533,9 @@ func (suite *k8sSuite) TestNginx() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "network.http.response_time",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -941,6 +948,8 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 	// Test with UDP + External Data
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+	// Test with UDS + CSI Driver
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {

@@ -12,10 +12,8 @@ import (
 	"expvar"
 	"fmt"
 
-	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 
-	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -39,31 +37,6 @@ var (
 type Events struct {
 	EventsArr []*event.Event
 	Hostname  string
-}
-
-// Marshal serialize events using agent-payload definition
-func (events Events) Marshal() ([]byte, error) {
-	payload := &agentpayload.EventsPayload{
-		Events:   []*agentpayload.EventsPayload_Event{},
-		Metadata: &agentpayload.CommonMetadata{},
-	}
-
-	for _, e := range events.EventsArr {
-		payload.Events = append(payload.Events,
-			&agentpayload.EventsPayload_Event{
-				Title:          e.Title,
-				Text:           e.Text,
-				Ts:             e.Ts,
-				Priority:       string(e.Priority),
-				Host:           e.Host,
-				Tags:           e.Tags,
-				AlertType:      string(e.AlertType),
-				AggregationKey: e.AggregationKey,
-				SourceTypeName: e.SourceTypeName,
-			})
-	}
-
-	return proto.Marshal(payload)
 }
 
 func (events Events) getEventsBySourceType() map[string][]*event.Event {

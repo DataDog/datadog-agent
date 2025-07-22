@@ -42,6 +42,7 @@ const (
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
+	InventorySoftwareModule      types.ModuleName = "inventory_software"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -81,15 +82,14 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		}
 	}
 
-	// Load the remote configuration
-	if fleetPoliciesDirPath == "" {
-		fleetPoliciesDirPath = pkgconfigsetup.SystemProbe().GetString("fleet_policies_dir")
-	}
+	// if fleetPoliciesDirPath was provided in the command line, copy it to the config
 	if fleetPoliciesDirPath != "" {
-		err := pkgconfigsetup.SystemProbe().MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
-		if err != nil {
-			return nil, err
-		}
+		pkgconfigsetup.SystemProbe().Set("fleet_policies_dir", fleetPoliciesDirPath, pkgconfigmodel.SourceAgentRuntime)
+	}
+	// apply remote fleet policy to the config
+	err = applyFleetPolicy(pkgconfigsetup.SystemProbe())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load fleet policy: %w", err)
 	}
 
 	return load()
@@ -120,6 +120,7 @@ func load() (*types.Config, error) {
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
+	swEnabled := cfg.GetBool(swNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -176,6 +177,9 @@ func load() (*types.Config, error) {
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
+		if swEnabled {
+			c.EnabledModules[InventorySoftwareModule] = struct{}{}
+		}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
@@ -208,5 +212,21 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		}
 		return err
 	}
+	return nil
+}
+
+func applyFleetPolicy(cfg pkgconfigmodel.Config) error {
+	// Apply overrides for local config options (e.g. fleet_policies_dir)
+	pkgconfigsetup.FleetConfigOverride(cfg)
+
+	// Load the remote configuration
+	fleetPoliciesDirPath := cfg.GetString("fleet_policies_dir")
+	if fleetPoliciesDirPath != "" {
+		err := cfg.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
+		if err != nil {
+			return fmt.Errorf("failed to merge fleet policy: %w", err)
+		}
+	}
+
 	return nil
 }

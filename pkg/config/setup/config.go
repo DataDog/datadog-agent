@@ -313,6 +313,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
+	// If false, the core check will be skipped.
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
+	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+
+	// If true, then the go loader will be prioritized over the python loader.
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
+
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
 	config.BindEnvAndSetDefault("use_diskv2_check", false)
@@ -341,6 +348,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
+	config.BindEnvAndSetDefault("secret_backend_type", "")
+	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
@@ -608,7 +617,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
 	// GPU
-	config.BindEnvAndSetDefault("collect_gpu_tags", false)
+	config.BindEnvAndSetDefault("collect_gpu_tags", true)
 	config.BindEnvAndSetDefault("nvml_lib_path", "")
 	config.BindEnvAndSetDefault("enable_nvml_detection", false)
 
@@ -647,6 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
+	config.BindEnvAndSetDefault("jmx_java_tool_options", "")
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
@@ -814,6 +824,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mode", "remote_copy")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.mount_volume", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.directory", "/tmp")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.timeout", 2)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.provider", "")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
@@ -825,6 +836,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
+
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
 
 	// Declare other keys that don't have a default/env var.
@@ -889,13 +902,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
+	config.BindEnvAndSetDefault("sbom.container_image.allow_missing_repodigest", false)
 
 	// Container file system SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container.enabled", false)
 
 	// Host SBOM configuration
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
-	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os", "languages"})
 
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
@@ -917,6 +931,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"})
+	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
+		// Support both comma and space separators
+		return strings.FieldsFunc(s, func(r rune) bool {
+			return r == ',' || r == ' '
+		})
+	})
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -934,6 +955,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.disable_thp", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
 	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
@@ -1135,6 +1157,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("metadata_provider_stop_timeout", 30*time.Second)
+	config.BindEnvAndSetDefault("inventories_diagnostics_enabled", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
@@ -1233,6 +1256,7 @@ func autoconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
 	config.BindEnvAndSetDefault("exclude_pause_container", true)
+	config.BindEnvAndSetDefault("include_ephemeral_containers", false)
 	config.BindEnvAndSetDefault("ac_include", []string{})
 	config.BindEnvAndSetDefault("ac_exclude", []string{})
 	// ac_load_timeout is used to delay the introduction of sources other than
@@ -1345,10 +1369,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 
 func serializer(config pkgconfigmodel.Setup) {
 	// Serializer
-	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_events_stream_payload_serialization", true)
-	config.BindEnvAndSetDefault("enable_sketch_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_json_stream_shared_compressor_buffers", true)
 
 	// Warning: do not change the following values. Your payloads will get dropped by Datadog's intake.
@@ -1458,6 +1478,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
+	// Control dogstatsd shutdown behaviors
+	config.BindEnvAndSetDefault("dogstatsd_flush_incomplete_buckets", false)
 	// Control how long we keep dogstatsd contexts in memory.
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
@@ -1591,6 +1613,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
+	config.BindEnvAndSetDefault("logs_config.http_timeout", 10)
 
 	bindEnvAndSetLogsConfigKeys(config, "logs_config.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
@@ -1602,6 +1625,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.region", "")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.tags", []string{"datadoghq.com/scrape:true"})
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.dbm_tag", "datadoghq.com/dbm:true")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1837,7 +1866,9 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
 		isSet = true
-		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
+		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
+			return r == ',' || r == ' '
+		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
@@ -1855,8 +1886,8 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceEnvVar)
-		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceAgentRuntime)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1865,7 +1896,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
@@ -2308,6 +2339,8 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
+		Type:                   config.GetString("secret_backend_type"),
+		Config:                 config.GetStringMap("secret_backend_config"),
 		Command:                config.GetString("secret_backend_command"),
 		Arguments:              config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                config.GetInt("secret_backend_timeout"),
@@ -2320,7 +2353,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
 	})
 
-	if config.GetString("secret_backend_command") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before

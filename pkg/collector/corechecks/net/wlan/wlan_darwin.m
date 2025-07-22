@@ -20,8 +20,8 @@
     if (self) {
         self.locationManager = [[CLLocationManager alloc] init];
 
-        if (@available(macOS 10.15, *)) {
-            CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
+        if (@available(macOS 11.0, *)) {
+            CLAuthorizationStatus status = self.locationManager.authorizationStatus;
             if (status == kCLAuthorizationStatusNotDetermined) {
                 [self.locationManager requestWhenInUseAuthorization];
             }
@@ -31,8 +31,8 @@
 }
 
 - (BOOL)checkLocationPermissions {
-    if (@available(macOS 10.15, *)) {
-        CLAuthorizationStatus status = [CLLocationManager authorizationStatus];
+    if (@available(macOS 11.0, *)) {
+        CLAuthorizationStatus status = self.locationManager.authorizationStatus;
         return (status == kCLAuthorizationStatusAuthorized ||
                              status == kCLAuthorizationStatusAuthorizedAlways);
     }

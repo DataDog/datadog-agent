@@ -70,7 +70,10 @@ func (n *innerNode) Merge(src InnerNode) error {
 			dstLeaf, dstIsLeaf := dstChild.(LeafNode)
 			srcLeaf, srcIsLeaf := srcChild.(LeafNode)
 			if srcIsLeaf != dstIsLeaf {
-				return fmt.Errorf("tree conflict, can't merge inner and leaf nodes for '%s'", name)
+				// Ignore the source (incoming) node and keep the destination (current) node
+				// TODO: Improve error handling in a follow-up PR. We should collect errors
+				// and log.Error them, but not break functionality in doing so
+				continue
 			}
 
 			if srcIsLeaf {

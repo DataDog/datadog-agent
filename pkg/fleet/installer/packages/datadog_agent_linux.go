@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
@@ -76,7 +77,6 @@ var (
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
-		{Path: "embedded/share/system-probe/java", Owner: "root", Group: "root", Recursive: true},
 	}
 
 	// agentPackageUninstallPaths are the paths that are deleted during an uninstall
@@ -481,11 +481,11 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.StopUnits(ctx, s.SystemdUnitsStable...)
+		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
 	case service.UpstartType:
-		return upstart.StopAll(ctx, s.UpstartServices...)
+		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 	case service.SysvinitType:
-		return sysvinit.StopAll(ctx, s.SysvinitServices...)
+		return sysvinit.StopAll(ctx, reverseStringSlice(s.SysvinitServices)...)
 	default:
 		return fmt.Errorf("unsupported service manager")
 	}
@@ -658,4 +658,11 @@ func writeEmbeddedUnit(dir string, unit string, content []byte) error {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
 	return nil
+}
+
+func reverseStringSlice(slice []string) []string {
+	reversed := make([]string, len(slice))
+	copy(reversed, slice)
+	slices.Reverse(reversed)
+	return reversed
 }

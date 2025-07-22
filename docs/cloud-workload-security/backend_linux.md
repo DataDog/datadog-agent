@@ -233,6 +233,21 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "CGroupContextSerializer serializes a cgroup context to JSON"
         },
+        "CGroupWriteEvent": {
+            "properties": {
+                "file": {
+                    "$ref": "#/$defs/File",
+                    "description": "File pointing to the cgroup"
+                },
+                "pid": {
+                    "type": "integer",
+                    "description": "PID of the process added to the cgroup"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+        },
         "ConnectEvent": {
             "properties": {
                 "addr": {
@@ -536,6 +551,17 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "mount_origin": {
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
+                },
+                "mount_visible": {
+                    "type": "boolean",
+                    "description": "MountVisible origin of the mount"
+                },
+                "mount_detached": {
+                    "type": "boolean",
+                    "description": "MountDetached origin of the mount"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/FileMetadata"
                 }
             },
             "additionalProperties": false,
@@ -657,6 +683,17 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
                 },
+                "mount_visible": {
+                    "type": "boolean",
+                    "description": "MountVisible origin of the mount"
+                },
+                "mount_detached": {
+                    "type": "boolean",
+                    "description": "MountDetached origin of the mount"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/FileMetadata"
+                },
                 "destination": {
                     "$ref": "#/$defs/File",
                     "description": "Target file information"
@@ -681,6 +718,37 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "gid"
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
+        },
+        "FileMetadata": {
+            "properties": {
+                "size": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "is_executable": {
+                    "type": "boolean"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "abi": {
+                    "type": "string"
+                },
+                "is_upx_packed": {
+                    "type": "boolean"
+                },
+                "compression": {
+                    "type": "string"
+                },
+                "is_garble_obfuscated": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "FileMetadataSerializer serializes a file metadata"
         },
         "Flow": {
             "properties": {
@@ -904,6 +972,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "value": {
                     "type": "string"
+                },
+                "field": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
@@ -987,6 +1058,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "source.path_error": {
                     "type": "string",
                     "description": "Mount source path error"
+                },
+                "detached": {
+                    "type": "boolean",
+                    "description": "Mount is not attached to the VFS tree"
+                },
+                "visible": {
+                    "type": "boolean",
+                    "description": "Mount is not visible in the VFS tree"
                 }
             },
             "additionalProperties": false,
@@ -1195,6 +1274,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/File",
                     "description": "File information of the interpreter"
                 },
+                "cgroup": {
+                    "$ref": "#/$defs/CGroupContext",
+                    "description": "CGroup context"
+                },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
                     "description": "Container context"
@@ -1333,6 +1416,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "interpreter": {
                     "$ref": "#/$defs/File",
                     "description": "File information of the interpreter"
+                },
+                "cgroup": {
+                    "$ref": "#/$defs/CGroupContext",
+                    "description": "CGroup context"
                 },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
@@ -1661,6 +1748,56 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
+        "SetSockOptEvent": {
+            "properties": {
+                "socket_type": {
+                    "type": "string",
+                    "description": "Socket file descriptor"
+                },
+                "socket_family": {
+                    "type": "string",
+                    "description": "Socket family"
+                },
+                "filter_len": {
+                    "type": "integer",
+                    "description": "Length of the filter"
+                },
+                "socket_protocol": {
+                    "type": "string",
+                    "description": "Socket protocol"
+                },
+                "level": {
+                    "type": "string",
+                    "description": "Level at which the option is defined"
+                },
+                "optname": {
+                    "type": "string",
+                    "description": "Name of the option being set"
+                },
+                "is_filter_truncated": {
+                    "type": "boolean",
+                    "description": "Filter truncated"
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "Filter instructions"
+                },
+                "filter_hash": {
+                    "type": "string",
+                    "description": "Filter hash"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "socket_type",
+                "socket_family",
+                "socket_protocol",
+                "level",
+                "optname"
+            ],
+            "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -1840,6 +1977,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -2021,6 +2161,12 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "sysctl": {
             "$ref": "#/$defs/SysCtlEvent"
+        },
+        "setsockopt": {
+            "$ref": "#/$defs/SetSockOptEvent"
+        },
+        "cgroup_write": {
+            "$ref": "#/$defs/CGroupWriteEvent"
         }
     },
     "additionalProperties": false,
@@ -2067,6 +2213,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
 | `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
+| `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
+| `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 
 ## `AWSIMDSEvent`
 
@@ -2422,6 +2570,37 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [Variables](#variables) |
+
+## `CGroupWriteEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "file": {
+            "$ref": "#/$defs/File",
+            "description": "File pointing to the cgroup"
+        },
+        "pid": {
+            "type": "integer",
+            "description": "PID of the process added to the cgroup"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `file` | File pointing to the cgroup |
+| `pid` | PID of the process added to the cgroup |
+
+| References |
+| ---------- |
+| [File](#file) |
 
 ## `ConnectEvent`
 
@@ -2854,6 +3033,17 @@ Workload Protection events for Linux systems have the following JSON schema:
         "mount_origin": {
             "type": "string",
             "description": "MountOrigin origin of the mount"
+        },
+        "mount_visible": {
+            "type": "boolean",
+            "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+            "type": "boolean",
+            "description": "MountDetached origin of the mount"
+        },
+        "metadata": {
+            "$ref": "#/$defs/FileMetadata"
         }
     },
     "additionalProperties": false,
@@ -2894,7 +3084,12 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_path` | MountPath path of the mount |
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
+| `mount_visible` | MountVisible origin of the mount |
+| `mount_detached` | MountDetached origin of the mount |
 
+| References |
+| ---------- |
+| [FileMetadata](#filemetadata) |
 
 ## `FileEvent`
 
@@ -3011,6 +3206,17 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "MountOrigin origin of the mount"
         },
+        "mount_visible": {
+            "type": "boolean",
+            "description": "MountVisible origin of the mount"
+        },
+        "mount_detached": {
+            "type": "boolean",
+            "description": "MountDetached origin of the mount"
+        },
+        "metadata": {
+            "$ref": "#/$defs/FileMetadata"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -3066,6 +3272,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_path` | MountPath path of the mount |
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
+| `mount_visible` | MountVisible origin of the mount |
+| `mount_detached` | MountDetached origin of the mount |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -3073,7 +3281,48 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [FileMetadata](#filemetadata) |
 | [File](#file) |
+
+## `FileMetadata`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "size": {
+            "type": "integer"
+        },
+        "type": {
+            "type": "string"
+        },
+        "is_executable": {
+            "type": "boolean"
+        },
+        "architecture": {
+            "type": "string"
+        },
+        "abi": {
+            "type": "string"
+        },
+        "is_upx_packed": {
+            "type": "boolean"
+        },
+        "compression": {
+            "type": "string"
+        },
+        "is_garble_obfuscated": {
+            "type": "boolean"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "FileMetadataSerializer serializes a file metadata"
+}
+
+{{< /code-block >}}
+
+
 
 ## `Flow`
 
@@ -3417,6 +3666,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "value": {
             "type": "string"
+        },
+        "field": {
+            "type": "string"
         }
     },
     "additionalProperties": false,
@@ -3522,6 +3774,14 @@ Workload Protection events for Linux systems have the following JSON schema:
         "source.path_error": {
             "type": "string",
             "description": "Mount source path error"
+        },
+        "detached": {
+            "type": "boolean",
+            "description": "Mount is not attached to the VFS tree"
+        },
+        "visible": {
+            "type": "boolean",
+            "description": "Mount is not visible in the VFS tree"
         }
     },
     "additionalProperties": false,
@@ -3550,6 +3810,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source.path` | Mount source path |
 | `mountpoint.path_error` | Mount point path error |
 | `source.path_error` | Mount source path error |
+| `detached` | Mount is not attached to the VFS tree |
+| `visible` | Mount is not visible in the VFS tree |
 
 | References |
 | ---------- |
@@ -3837,6 +4099,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/File",
             "description": "File information of the interpreter"
         },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext",
+            "description": "CGroup context"
+        },
         "container": {
             "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
@@ -3925,6 +4191,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
+| `cgroup` | CGroup context |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -3943,6 +4210,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
+| [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 
@@ -4022,6 +4290,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "interpreter": {
             "$ref": "#/$defs/File",
             "description": "File information of the interpreter"
+        },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext",
+            "description": "CGroup context"
         },
         "container": {
             "$ref": "#/$defs/ContainerContext",
@@ -4130,6 +4402,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
+| `cgroup` | CGroup context |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -4152,6 +4425,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
+| [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 | [Process](#process) |
@@ -4530,6 +4804,76 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `event_type_state` | State of the event type in this profile |
 
 
+## `SetSockOptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "socket_type": {
+            "type": "string",
+            "description": "Socket file descriptor"
+        },
+        "socket_family": {
+            "type": "string",
+            "description": "Socket family"
+        },
+        "filter_len": {
+            "type": "integer",
+            "description": "Length of the filter"
+        },
+        "socket_protocol": {
+            "type": "string",
+            "description": "Socket protocol"
+        },
+        "level": {
+            "type": "string",
+            "description": "Level at which the option is defined"
+        },
+        "optname": {
+            "type": "string",
+            "description": "Name of the option being set"
+        },
+        "is_filter_truncated": {
+            "type": "boolean",
+            "description": "Filter truncated"
+        },
+        "filter": {
+            "type": "string",
+            "description": "Filter instructions"
+        },
+        "filter_hash": {
+            "type": "string",
+            "description": "Filter hash"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "socket_type",
+        "socket_family",
+        "socket_protocol",
+        "level",
+        "optname"
+    ],
+    "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `socket_type` | Socket file descriptor |
+| `socket_family` | Socket family |
+| `filter_len` | Length of the filter |
+| `socket_protocol` | Socket protocol |
+| `level` | Level at which the option is defined |
+| `optname` | Name of the option being set |
+| `is_filter_truncated` | Filter truncated |
+| `filter` | Filter instructions |
+| `filter_hash` | Filter hash |
+
+
 ## `SignalEvent`
 
 
@@ -4795,6 +5139,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "rmdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

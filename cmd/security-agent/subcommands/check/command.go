@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -92,6 +94,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 				core.Bundle(),
 				logscompressionfx.Module(),
 				statsd.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -107,13 +110,13 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression logscompression.Component) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression logscompression.Component, ipc ipc.Component) error {
 	var hname string
 	var err error
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		hname, err = hostname.Get(context.TODO())
 	} else {
-		hname, err = hostnameutils.GetHostnameWithContextAndFallback(context.Background())
+		hname, err = hostnameutils.GetHostnameWithContextAndFallback(context.Background(), ipc)
 	}
 	if err != nil {
 		return err
@@ -161,7 +164,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	} else if checkArgs.framework != "" {
 		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.framework)
 	} else {
-		ruleFilter = compliance.MakeDefaultRuleFilter()
+		ruleFilter = compliance.MakeDefaultRuleFilter(ipc)
 		benchDir, benchGlob = configDir, "*.yaml"
 	}
 
@@ -215,7 +218,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 	if checkArgs.report {
-		if err := reportComplianceEvents(log, events, compression); err != nil {
+		if err := reportComplianceEvents(log, events, compression, ipc); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -238,8 +241,8 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent, compression logscompression.Component) error {
-	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
+func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent, compression logscompression.Component, ipc ipc.Component) error {
+	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background(), ipc)
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}

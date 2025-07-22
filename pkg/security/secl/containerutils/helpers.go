@@ -36,22 +36,22 @@ func isSystemdService(cgroup CGroupID) bool {
 	return strings.HasSuffix(string(cgroup), ".service")
 }
 
-func getSystemdCGroupFlags(cgroup CGroupID) uint64 {
+func getSystemdCGroupFlags(cgroup CGroupID) CGroupFlags {
 	if isSystemdScope(cgroup) {
-		return uint64(CGroupManagerSystemd) | uint64(SystemdScope)
+		return CGroupFlags(CGroupManagerSystemd) | SystemdScope
 	} else if isSystemdService(cgroup) {
-		return uint64(CGroupManagerSystemd) | uint64(SystemdService)
+		return CGroupFlags(CGroupManagerSystemd) | SystemdService
 	}
 	return 0
 }
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
-func FindContainerID(s CGroupID) (ContainerID, uint64) {
+func FindContainerID(s CGroupID) (ContainerID, CGroupFlags) {
 	matches := containerIDPattern.FindAllIndex([]byte(s), -1)
 
 	var (
-		flags       CGroupFlags
-		containerID ContainerID
+		cgroupManager CGroupManager
+		containerID   ContainerID
 	)
 
 	for _, match := range matches {
@@ -70,11 +70,11 @@ func FindContainerID(s CGroupID) (ContainerID, uint64) {
 			}
 		}
 
-		containerID, flags = ContainerID(s[match[0]:match[1]]), getContainerRuntime(s)
+		containerID, cgroupManager = ContainerID(s[match[0]:match[1]]), getCGroupManager(s)
 	}
 
 	if containerID != "" {
-		return containerID, uint64(flags)
+		return containerID, CGroupFlags(cgroupManager)
 	}
 
 	return "", getSystemdCGroupFlags(s)

@@ -5,7 +5,6 @@
 
 //go:build ec2
 
-// Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
 import (
@@ -14,6 +13,7 @@ import (
 	"hash/fnv"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -24,16 +24,6 @@ import (
 // AuroraCluster represents an Aurora cluster
 type AuroraCluster struct {
 	Instances []*Instance
-}
-
-// Instance represents an Aurora instance
-type Instance struct {
-	Endpoint   string
-	Port       int32
-	IamEnabled bool
-	Engine     string
-	DbName     string
-	DbmEnabled bool
 }
 
 const (
@@ -68,49 +58,10 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
 					continue
 				}
-				// Add to list of instances for the cluster
-				instance := &Instance{
-					Endpoint: *db.Endpoint.Address,
-				}
-				// Set if IAM is configured for the endpoint
-				if db.IAMDatabaseAuthenticationEnabled != nil {
-					instance.IamEnabled = *db.IAMDatabaseAuthenticationEnabled
-				}
-				// Set the port, if it is known
-				if db.Endpoint.Port != nil {
-					instance.Port = *db.Endpoint.Port
-				}
-				if db.Engine != nil {
-					instance.Engine = *db.Engine
-				}
-				if db.DBName != nil {
-					instance.DbName = *db.DBName
-				} else {
-					if db.Engine != nil {
-						defaultDBName, err := dbNameFromEngine(*db.Engine)
-						if err != nil {
-							return nil, fmt.Errorf("error getting default db name from engine: %v", err)
-						}
-
-						instance.DbName = defaultDBName
-					} else {
-						// This should never happen, as engine is a required field in the API
-						// but we should handle it.
-						return nil, fmt.Errorf("engine is nil for instance %s", clusterID)
-					}
-				}
-				for _, tag := range db.TagList {
-					tagString := ""
-					if tag.Key != nil {
-						tagString += *tag.Key
-					}
-					if tag.Value != nil {
-						tagString += ":" + *tag.Value
-					}
-					if tagString == dbmTag {
-						instance.DbmEnabled = true
-						break
-					}
+				instance, err := makeInstance(db, dbmTag)
+				if err != nil {
+					log.Errorf("error creating instance from DBInstance: %v", err)
+					continue
 				}
 				if _, ok := clusters[*db.DBClusterIdentifier]; !ok {
 					clusters[*db.DBClusterIdentifier] = &AuroraCluster{
@@ -127,27 +78,12 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 	return clusters, nil
 }
 
-// dbNameFromEngine returns the default database name for a given engine type
-func dbNameFromEngine(engine string) (string, error) {
-	switch engine {
-	case auroraMysqlEngine:
-		return "mysql", nil
-	case auroraPostgresqlEngine:
-		return "postgres", nil
-	default:
-		return "", fmt.Errorf("unsupported engine type: %s", engine)
-	}
-}
-
 // GetAuroraClustersFromTags returns a list of Aurora clusters to query from a list of tags
 // it is required to query for the cluster ids first because tags are not propagated to instances
 // that are brought up during an auto-scaling event. That means the only way to reliably filter for the list
 // of database instances is to first query for the cluster ids. This also means the customer
 // will only have to set a single tag on their cluster.
 func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error) {
-	if len(tags) == 0 {
-		return nil, fmt.Errorf("at least one tag filter is required")
-	}
 	clusterIdentifiers := make([]string, 0)
 	var marker *string
 	var err error

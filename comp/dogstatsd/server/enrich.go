@@ -15,6 +15,8 @@ import (
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 var (
@@ -23,6 +25,8 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
+
+	tlmBlockedPoints = telemetry.NewSimpleCounter("dogstatsd", "listener_blocked_points", "How many points were blocked")
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -131,7 +135,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *blocklist) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *utilstrings.Blocklist) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -139,7 +143,8 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if blocklist != nil && blocklist.test(metricName) {
+	if blocklist != nil && blocklist.Test(metricName) {
+		tlmBlockedPoints.Inc()
 		return []metrics.MetricSample{}
 	}
 

@@ -16,16 +16,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"google.golang.org/grpc"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -33,8 +37,9 @@ func TestGetHostname(t *testing.T) {
 		t.Skip("TestGetHostname is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	cfg := configmock.New(t)
+	ipc := ipcclientmock.New(t)
 	ctx := context.Background()
-	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0)
+	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0, ipc)
 	assert.Nil(t, err)
 	// verify we fall back to getting os hostname
 	expectedHostname, _ := os.Hostname()
@@ -55,10 +60,10 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
 		hostname, err := getHostnameFromGRPC(ctx,
-			func(_ context.Context, _, _ string, _ func() *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
+			func(_ context.Context, _, _ string, _ *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
 				return mockClient, nil
 			},
-			func() *tls.Config { return &tls.Config{} },
+			&tls.Config{},
 			pkgconfigsetup.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
 		assert.Nil(t, err)
@@ -68,10 +73,10 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	t.Run("grpc client is unavailable", func(t *testing.T) {
 		grpcErr := errors.New("no grpc client")
 		hostname, err := getHostnameFromGRPC(ctx,
-			func(_ context.Context, _, _ string, _ func() *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
+			func(_ context.Context, _, _ string, _ *tls.Config, _ ...grpc.DialOption) (pb.AgentClient, error) {
 				return nil, grpcErr
 			},
-			func() *tls.Config { return &tls.Config{} },
+			&tls.Config{},
 			pkgconfigsetup.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
 		assert.NotNil(t, err)
@@ -100,16 +105,18 @@ func TestResolveHostname(t *testing.T) {
 	}
 	osHostname, err := os.Hostname()
 	require.NoError(t, err, "failed to get hostname from OS")
+	ipc := ipcclientmock.New(t)
 
 	testCases := []struct {
 		name        string
 		agentFlavor string
 		ddAgentBin  string
-		// function to define the host name returned from the core agent
-		coreAgentHostname func(context.Context) (string, error)
+		features    []env.Feature
 		// hostname specified in the config
 		configHostname   string
+		mockHostname     string
 		expectedHostname string
+		fargateHostname  string
 	}{
 		{
 			name:             "valid hostname specified in config",
@@ -126,19 +133,36 @@ func TestResolveHostname(t *testing.T) {
 			expectedHostname: osHostname,
 		},
 		{
-			name:        "running in core agent so use standard hostname lookup",
-			agentFlavor: flavor.DefaultAgent,
-			coreAgentHostname: func(_ context.Context) (string, error) {
-				return "core-agent-hostname", nil
-			},
+			name:             "process-agent running in Fargate env",
+			agentFlavor:      flavor.ProcessAgent,
+			features:         []env.Feature{env.ECSFargate},
+			fargateHostname:  "fargate_task:arn:unit-test",
+			expectedHostname: "fargate_task:arn:unit-test",
+		},
+		{
+			name:             "running in core agent so use standard hostname lookup",
+			agentFlavor:      flavor.DefaultAgent,
+			mockHostname:     "core-agent-hostname",
 			expectedHostname: "core-agent-hostname",
 		},
 		{
-			name:        "running in iot agent so use standard hostname lookup",
-			agentFlavor: flavor.IotAgent,
-			coreAgentHostname: func(_ context.Context) (string, error) {
-				return "iot-agent-hostname", nil
-			},
+			name:             "running in core agent in a Fargate env with a user defined hostname",
+			agentFlavor:      flavor.DefaultAgent,
+			features:         []env.Feature{env.ECSFargate},
+			configHostname:   "unit-test-hostname",
+			expectedHostname: "unit-test-hostname",
+		},
+		{
+			name:             "running in core agent in a Fargate env",
+			agentFlavor:      flavor.DefaultAgent,
+			features:         []env.Feature{env.ECSFargate},
+			fargateHostname:  "fargate_task:arn:unit-test",
+			expectedHostname: "fargate_task:arn:unit-test",
+		},
+		{
+			name:             "running in iot agent so use standard hostname lookup",
+			agentFlavor:      flavor.IotAgent,
+			mockHostname:     "iot-agent-hostname",
 			expectedHostname: "iot-agent-hostname",
 		},
 	}
@@ -159,16 +183,26 @@ func TestResolveHostname(t *testing.T) {
 				cfg.SetWithoutSource("process_config.dd_agent_bin", tc.ddAgentBin)
 			}
 
-			if tc.coreAgentHostname != nil {
-				previous := coreAgentGetHostname
+			if tc.fargateHostname != "" {
+				originalFn := getFargateHost
+				getFargateHost = func(_ context.Context) (string, error) {
+					return tc.fargateHostname, nil
+				}
 				defer func() {
-					coreAgentGetHostname = previous
+					getFargateHost = originalFn
 				}()
-
-				coreAgentGetHostname = tc.coreAgentHostname
 			}
 
-			hostName, err := resolveHostName(cfg)
+			env.SetFeatures(t, tc.features...)
+
+			hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
+				fx.Options(
+					hostnameinterface.MockModule(),
+					fx.Replace(hostnameinterface.MockHostname(tc.mockHostname)),
+				),
+			)
+
+			hostName, err := resolveHostName(cfg, hostnameComp, ipc)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedHostname, hostName)
 		})

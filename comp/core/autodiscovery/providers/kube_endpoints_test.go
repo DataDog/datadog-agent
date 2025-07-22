@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -468,7 +469,63 @@ func TestGenerateConfigs(t *testing.T) {
 	}
 }
 
-func TestInvalidateIfChangedService(t *testing.T) {
+func TestInvalidateOnServiceAdd(t *testing.T) {
+	serviceWithoutEndpointAnnotations := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-no-endpoint-annotations",
+			Namespace: "default",
+			UID:       types.UID("service-no-endpoint-annotations-uid"),
+			Annotations: map[string]string{
+				"some.annotation": "some-value",
+			},
+		},
+	}
+
+	serviceWithEndpointAnnotations := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-with-endpoint-annotations",
+			Namespace: "default",
+			UID:       types.UID("service-with-endpoint-annotations-uid"),
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.check_names":  "[\"http_check\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"url\": \"http://%%host%%\"}]",
+			},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		newService       *v1.Service
+		expectedUpToDate bool
+	}{
+		{
+			name:             "Add service without endpoint annotations",
+			newService:       serviceWithoutEndpointAnnotations,
+			expectedUpToDate: true,
+		},
+		{
+			name:             "Add service with endpoint annotations",
+			newService:       serviceWithEndpointAnnotations,
+			expectedUpToDate: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			provider := &kubeEndpointsConfigProvider{upToDate: true}
+
+			provider.invalidateOnServiceAdd(test.newService)
+
+			upToDate, err := provider.IsUpToDate(context.TODO())
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedUpToDate, upToDate)
+		})
+	}
+
+}
+
+func TestInvalidateOnServiceUpdate(t *testing.T) {
 	s88 := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "88",
@@ -552,11 +609,71 @@ func TestInvalidateIfChangedService(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			ctx := context.Background()
 			provider := &kubeEndpointsConfigProvider{upToDate: true}
-			provider.invalidateIfChangedService(tc.old, tc.obj)
+			provider.invalidateOnServiceUpdate(tc.old, tc.obj)
 
 			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
+		})
+	}
+}
+
+func TestInvalidateOnServiceDelete(t *testing.T) {
+	serviceWithoutAnnotations := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-no-annotations",
+			Namespace: "default",
+			UID:       types.UID("service-no-annotations-uid"),
+		},
+	}
+
+	serviceWithAnnotations := &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "service-with-annotations",
+			Namespace: "default",
+			UID:       types.UID("service-with-annotations-uid"),
+			Annotations: map[string]string{
+				"ad.datadoghq.com/endpoints.check_names":  "[\"http_check\"]",
+				"ad.datadoghq.com/endpoints.init_configs": "[{}]",
+				"ad.datadoghq.com/endpoints.instances":    "[{\"url\": \"http://%%host%%\"}]",
+			},
+		},
+	}
+
+	tests := []struct {
+		name               string
+		monitoredEndpoints map[string]bool
+		deletedService     *v1.Service
+		expectedUpToDate   bool
+	}{
+		{
+			name: "Delete service that had monitored endpoints",
+			monitoredEndpoints: map[string]bool{
+				apiserver.EntityForEndpoints(serviceWithAnnotations.Namespace, serviceWithAnnotations.Name, ""): true,
+			},
+			deletedService:   serviceWithAnnotations,
+			expectedUpToDate: false,
+		},
+		{
+			name:               "Delete service that did not have monitored endpoints",
+			monitoredEndpoints: map[string]bool{},
+			deletedService:     serviceWithoutAnnotations,
+			expectedUpToDate:   true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			provider := &kubeEndpointsConfigProvider{
+				upToDate:           true,
+				monitoredEndpoints: test.monitoredEndpoints,
+			}
+
+			provider.invalidateOnServiceDelete(test.deletedService)
+
+			upToDate, err := provider.IsUpToDate(context.TODO())
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedUpToDate, upToDate)
 		})
 	}
 }
@@ -878,7 +995,7 @@ func TestInvalidateIfChangedEndpoints(t *testing.T) {
 					apiserver.EntityForEndpoints("default", "myservice", ""): true,
 				},
 			}
-			provider.invalidateIfChangedEndpoints(tc.first, tc.second)
+			provider.invalidateOnEndpointsUpdate(tc.first, tc.second)
 
 			upToDate, err := provider.IsUpToDate(ctx)
 			assert.NoError(t, err)
@@ -957,24 +1074,24 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name                          string
-		currentErrors                 map[string]ErrorMsgSet
+		currentErrors                 map[string]providerTypes.ErrorMsgSet
 		collectedServicesAndEndpoints []runtime.Object
 		expectedNumCollectedConfigs   int
-		expectedErrorsAfterCollect    map[string]ErrorMsgSet
+		expectedErrorsAfterCollect    map[string]providerTypes.ErrorMsgSet
 	}{
 		{
 			name:          "case without errors",
-			currentErrors: map[string]ErrorMsgSet{},
+			currentErrors: map[string]providerTypes.ErrorMsgSet{},
 			collectedServicesAndEndpoints: []runtime.Object{
 				&serviceWithoutErrors,
 				&endpointsOfServiceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 		{
 			name: "endpoint that has been deleted and had errors",
-			currentErrors: map[string]ErrorMsgSet{
+			currentErrors: map[string]providerTypes.ErrorMsgSet{
 				"kube_endpoint_uid://default/deletedService/": {"error1": struct{}{}},
 			},
 			collectedServicesAndEndpoints: []runtime.Object{
@@ -982,11 +1099,11 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 				&endpointsOfServiceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 		{
 			name: "endpoint with error that has been fixed",
-			currentErrors: map[string]ErrorMsgSet{
+			currentErrors: map[string]providerTypes.ErrorMsgSet{
 				"kube_endpoint_uid://default/withoutErrors/": {"error1": struct{}{}},
 			},
 			collectedServicesAndEndpoints: []runtime.Object{
@@ -994,17 +1111,17 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 				&endpointsOfServiceWithoutErrors,
 			},
 			expectedNumCollectedConfigs: 1,
-			expectedErrorsAfterCollect:  map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:  map[string]providerTypes.ErrorMsgSet{},
 		},
 		{
 			name:          "endpoint that did not have an error but now does",
-			currentErrors: map[string]ErrorMsgSet{},
+			currentErrors: map[string]providerTypes.ErrorMsgSet{},
 			collectedServicesAndEndpoints: []runtime.Object{
 				&serviceWithErrors,
 				&endpointsOfServiceWithErrors,
 			},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+			expectedErrorsAfterCollect: map[string]providerTypes.ErrorMsgSet{
 				"kube_endpoint_uid://default/withErrors/": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -1012,7 +1129,7 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 		},
 		{
 			name: "endpoint that had an error and still does",
-			currentErrors: map[string]ErrorMsgSet{
+			currentErrors: map[string]providerTypes.ErrorMsgSet{
 				"kube_endpoint_uid://default/withErrors/": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -1022,7 +1139,7 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 				&endpointsOfServiceWithErrors,
 			},
 			expectedNumCollectedConfigs: 0,
-			expectedErrorsAfterCollect: map[string]ErrorMsgSet{
+			expectedErrorsAfterCollect: map[string]providerTypes.ErrorMsgSet{
 				"kube_endpoint_uid://default/withErrors/": {
 					"could not extract checks config: in instances: failed to unmarshal JSON: invalid character '\"' after object key": struct{}{},
 				},
@@ -1030,10 +1147,10 @@ func TestGetConfigErrors_KubeEndpoints(t *testing.T) {
 		},
 		{
 			name:                          "nothing collected",
-			currentErrors:                 map[string]ErrorMsgSet{},
+			currentErrors:                 map[string]providerTypes.ErrorMsgSet{},
 			collectedServicesAndEndpoints: []runtime.Object{},
 			expectedNumCollectedConfigs:   0,
-			expectedErrorsAfterCollect:    map[string]ErrorMsgSet{},
+			expectedErrorsAfterCollect:    map[string]providerTypes.ErrorMsgSet{},
 		},
 	}
 

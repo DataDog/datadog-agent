@@ -12,7 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -41,6 +40,38 @@ const (
 	packageDatadogInstaller = "datadog-installer"
 	packageAPMLibraryDotnet = "datadog-apm-library-dotnet"
 )
+
+// Installer is a package manager that installs and uninstalls packages.
+type Installer interface {
+	IsInstalled(ctx context.Context, pkg string) (bool, error)
+
+	AvailableDiskSpace() (uint64, error)
+	State(ctx context.Context, pkg string) (repository.State, error)
+	States(ctx context.Context) (map[string]repository.State, error)
+	ConfigState(ctx context.Context, pkg string) (repository.State, error)
+	ConfigStates(ctx context.Context) (map[string]repository.State, error)
+
+	Install(ctx context.Context, url string, args []string) error
+	ForceInstall(ctx context.Context, url string, args []string) error
+	SetupInstaller(ctx context.Context, path string) error
+	Remove(ctx context.Context, pkg string) error
+	Purge(ctx context.Context)
+
+	InstallExperiment(ctx context.Context, url string) error
+	RemoveExperiment(ctx context.Context, pkg string) error
+	PromoteExperiment(ctx context.Context, pkg string) error
+
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
+	RemoveConfigExperiment(ctx context.Context, pkg string) error
+	PromoteConfigExperiment(ctx context.Context, pkg string) error
+
+	GarbageCollect(ctx context.Context) error
+
+	InstrumentAPMInjector(ctx context.Context, method string) error
+	UninstrumentAPMInjector(ctx context.Context, method string) error
+
+	Close() error
+}
 
 // installerImpl is the implementation of the package manager.
 type installerImpl struct {
@@ -58,28 +89,12 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (installertypes.Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-
-	options := []db.Option{
-		db.WithTimeout(10 * time.Second),
-	}
-
-	// On Linux, if we're not root, we can only open the database in read-only mode.
-	if runtime.GOOS == "linux" {
-		currentUser, err := user.Current()
-		if err != nil {
-			return nil, fmt.Errorf("could not get current user: %w", err)
-		}
-		if currentUser.Uid != "0" {
-			options = append(options, db.WithReadOnly())
-		}
-	}
-
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), options...)
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -509,6 +524,11 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 
+	// HACK: close so package can be updated as watchdog runs
+	if pkg == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
+	}
+
 	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
@@ -517,11 +537,20 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.hooks.PreStopConfigExperiment(ctx, pkg)
+	repository := i.configs.Get(pkg)
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	if !state.HasExperiment() {
+		// Return early
+		return nil
+	}
+
+	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	repository := i.configs.Get(pkg)
 	err = repository.DeleteExperiment(ctx)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -740,10 +769,6 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
-	// TODO: Windows support
-	if runtime.GOOS == "windows" {
-		return nil
-	}
 	state, err := i.configs.GetState(pkg)
 	if err != nil {
 		return fmt.Errorf("could not get config repository state: %w", err)
@@ -788,6 +813,12 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+func cleanConfigName(p string) string {
+	// intentionally not using filepath.Clean so that the
+	// path maintains forward slashes on Windows
+	return path.Clean(p)
+}
+
 type configFile struct {
 	Path     string          `json:"path"`
 	Contents json.RawMessage `json:"contents"`
@@ -800,7 +831,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
 	for _, file := range files {
-		file.Path = filepath.Clean(file.Path)
+		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
@@ -888,6 +919,13 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
+	// TODO: should we call paths.EnsureInstallerDataDir() here?
+	//       It should probably be anywhere that the below directories must be
+	//       created, but it feels wrong to have the constructor perform work
+	//       like this. For example, "read only" subcommands like `get-states`
+	//       will end up iterating the filesystem tree to apply permissions,
+	//       and every subprocess during experiments will repeat the work,
+	//       even though it should only be needed at install/setup time.
 	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)

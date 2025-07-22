@@ -15,8 +15,6 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
-	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -24,11 +22,11 @@ import (
 
 	"github.com/DataDog/zstd"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 )
@@ -96,13 +94,6 @@ func newRunnerMock() runner {
 
 // ------------------------------
 // Utility functions
-func convertYamlStrToMap(t *testing.T, cfgStr string) map[string]any {
-	var c map[string]any
-	err := yaml.Unmarshal([]byte(cfgStr), &c)
-	assert.NoError(t, err)
-	assert.NotNil(t, c)
-	return c
-}
 
 func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 	if len(metrics) == 0 {
@@ -135,18 +126,12 @@ func makeTelMock(t *testing.T) telemetry.Component {
 	return tel
 }
 
-func makeCfgMock(t *testing.T, confOverrides map[string]any) config.Component {
-	return fxutil.Test[config.Component](t, config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: confOverrides}))
-}
-
 func makeLogMock(t *testing.T) log.Component {
 	return logmock.New(t)
 }
 
 func makeSenderImpl(t *testing.T, cl client, c string) sender {
-	o := convertYamlStrToMap(t, c)
-	cfg := makeCfgMock(t, o)
+	cfg := configmock.NewFromYAML(t, c)
 	log := makeLogMock(t)
 	if cl == nil {
 		cl = newClientMock()
@@ -159,7 +144,7 @@ func makeSenderImpl(t *testing.T, cl client, c string) sender {
 // aggregator mock function
 func getTestAtel(t *testing.T,
 	tel telemetry.Component,
-	ovrrd map[string]any,
+	YAMLConf string,
 	sndr sender,
 	client client,
 	runner runner) *atel {
@@ -176,7 +161,7 @@ func getTestAtel(t *testing.T,
 		runner = newRunnerMock()
 	}
 
-	cfg := makeCfgMock(t, ovrrd)
+	cfg := configmock.NewFromYAML(t, YAMLConf)
 	log := makeLogMock(t)
 
 	var err error
@@ -194,16 +179,11 @@ func getTestAtel(t *testing.T,
 	return atel
 }
 
-func getCommonOverrideConfig(enabled bool, site string) map[string]any {
+func getCommonYAMLConfig(enabled bool, site string) string {
 	if site == "" {
-		return map[string]any{
-			"agent_telemetry.enabled": enabled,
-		}
+		return fmt.Sprintf("agent_telemetry:\n  enabled: %t", enabled)
 	}
-	return map[string]any{
-		"agent_telemetry.enabled": enabled,
-		"site":                    site,
-	}
+	return fmt.Sprintf("site: %s\nagent_telemetry:\n  enabled: %t", site, enabled)
 }
 
 func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error {
@@ -417,68 +397,76 @@ func getPayloadMetricByTagValues(metrics []*MetricPayload, tags map[string]inter
 // Tests
 
 func TestEnabled(t *testing.T) {
-	o := getCommonOverrideConfig(true, "foo.bar")
-	a := getTestAtel(t, nil, o, nil, nil, nil)
+	a := getTestAtel(t, nil, getCommonYAMLConfig(true, "foo.bar"), nil, nil, nil)
 	assert.True(t, a.enabled)
 }
 
 func TestDisable(t *testing.T) {
-	o := getCommonOverrideConfig(false, "foo.bar")
-	a := getTestAtel(t, nil, o, nil, nil, nil)
+	a := getTestAtel(t, nil, getCommonYAMLConfig(false, "foo.bar"), nil, nil, nil)
 	assert.False(t, a.enabled)
 }
 
 func TestDisableIfFipsEnabled(t *testing.T) {
-	o := map[string]any{
-		"agent_telemetry.enabled": true,
-		"site":                    "foo.bar",
-		"fips.enabled":            true}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
+	c := `
+site: "foo.bar"
+agent_telemetry:
+  enabled: true
+fips:
+  enabled: true
+`
+	a := getTestAtel(t, nil, c, nil, nil, nil)
 	assert.False(t, a.enabled)
 }
 
 func TestEnableIfFipsDisabled(t *testing.T) {
-	o := map[string]any{
-		"agent_telemetry.enabled": true,
-		"site":                    "foo.bar",
-		"fips.enabled":            false}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
+	c := `
+site: "foo.bar"
+agent_telemetry:
+  enabled: true
+fips:
+  enabled: false
+`
+	a := getTestAtel(t, nil, c, nil, nil, nil)
 	assert.True(t, a.enabled)
 }
 
 func TestDisableIfGovCloud(t *testing.T) {
-	o := map[string]any{
-		"agent_telemetry.enabled": true,
-		"site":                    "ddog-gov.com"}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
+	c := `
+site: "ddog-gov.com"
+agent_telemetry:
+  enabled: true
+`
+	a := getTestAtel(t, nil, c, nil, nil, nil)
 	assert.False(t, a.enabled)
 }
 
 func TestEnableIfNotGovCloud(t *testing.T) {
-	o := map[string]any{
-		"agent_telemetry.enabled": true,
-		"site":                    "datadoghq.eu"}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
+	c := `
+site: "datadoghq.eu"
+agent_telemetry:
+  enabled: true
+`
+	a := getTestAtel(t, nil, c, nil, nil, nil)
 	assert.True(t, a.enabled)
 }
 
 func TestRun(t *testing.T) {
 	r := newRunnerMock()
-	o := getCommonOverrideConfig(true, "foo.bar")
-	a := getTestAtel(t, nil, o, nil, nil, r)
+	a := getTestAtel(t, nil, getCommonYAMLConfig(true, "foo.bar"), nil, nil, r)
 	assert.True(t, a.enabled)
 
 	a.start()
 
-	// Default configuration has 2 job. One with 3 profiles and another with 1 profile
-	// Profiles with the same schedule are lumped into the same job
-	assert.Equal(t, 2, len(r.(*runnerMock).jobs))
+	// Default configuration has 3 jobs with different schedules:
+	assert.Equal(t, 3, len(r.(*runnerMock).jobs))
 
-	// The order is not deterministic
-	profile0Len := len(r.(*runnerMock).jobs[0].profiles)
-	profile1Len := len(r.(*runnerMock).jobs[1].profiles)
-	t.Logf("%+v", r.(*runnerMock).jobs)
-	assert.True(t, (profile0Len == 1 && profile1Len == 5) || (profile0Len == 5 && profile1Len == 1))
+	// Verify we have the expected number of profiles across all jobs
+	totalProfiles := 0
+	for _, job := range r.(*runnerMock).jobs {
+		totalProfiles += len(job.profiles)
+	}
+	// Default config has 7 profiles total (checks, logs-and-metrics, database, api, ondemand, service-discovery, runtime-started, runtime-running)
+	assert.Equal(t, 7, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -486,10 +474,9 @@ func TestReportMetricBasic(t *testing.T) {
 	counter := tel.NewCounter("checks", "execution_time", []string{"check_name"}, "")
 	counter.Inc("mycheck")
 
-	o := getCommonOverrideConfig(true, "foo.bar")
 	c := newClientMock()
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, nil, c, r)
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), nil, c, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -520,8 +507,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
 
 	s := &senderMock{}
 	r := newRunnerMock()
-	o := convertYamlStrToMap(t, c)
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -558,10 +544,9 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
 	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Set(20)
 	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Set(30)
 
-	o := convertYamlStrToMap(t, c)
 	s := &senderMock{}
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -597,10 +582,9 @@ func TestNoTagSpecifiedImplicitAggregationGauge(t *testing.T) {
 	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Set(20)
 	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Set(30)
 
-	o := convertYamlStrToMap(t, c)
 	s := &senderMock{}
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -638,10 +622,9 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	hist.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Observe(1002)
 	hist.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Observe(1003)
 
-	o := convertYamlStrToMap(t, c)
 	s := &senderMock{}
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -682,10 +665,9 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
 	counter.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b2", "tag3": "c2"})
 	counter.AddWithTags(30, map[string]string{"tag1": "a2", "tag2": "b3", "tag3": "c3"})
 
-	o := convertYamlStrToMap(t, c)
 	s := &senderMock{}
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -734,10 +716,9 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	counter.AddWithTags(50, map[string]string{"tag1": "a3", "tag2": "b5", "tag3": "c5"})
 	counter.AddWithTags(60, map[string]string{"tag1": "a3", "tag2": "b6", "tag3": "c6"})
 
-	o := convertYamlStrToMap(t, c)
 	s := &senderMock{}
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -794,10 +775,9 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
 	counter2 := tel.NewCounter("foo", "foo", []string{"tag1", "tag2", "tag3"}, "")
 	counter2.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// Get payload
@@ -831,10 +811,9 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	counter1.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 	counter1.AddWithTags(20, map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"})
 
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	payloadJSON, err := a.getAsJSON()
@@ -907,10 +886,9 @@ func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
 	counter2 := tel.NewCounter("foo", "foo", []string{"tag1", "tag2", "tag3"}, "")
 	counter2.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// Get payload
@@ -1090,10 +1068,9 @@ func TestGetAsJSONScrub(t *testing.T) {
 	counter2.AddWithTags(11, map[string]string{"api_key": "1234567890"})
 	counter3.AddWithTags(11, map[string]string{"text": "test"})
 
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// Get payload
@@ -1138,10 +1115,9 @@ func TestAdjustPrometheusCounterValueMultipleTags(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup metrics using few family names, metric names and tag- and tag-less counters
@@ -1247,10 +1223,9 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup metrics using few family names, metric names and tag- and tag-less counters
@@ -1321,10 +1296,9 @@ func TestAdjustPrometheusCounterValueTagless(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup metrics using few family names, metric names and tag- and tag-less counters
@@ -1428,10 +1402,9 @@ func TestHistogramFloatUpperBoundNormalization(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup and initiate atel
@@ -1554,10 +1527,9 @@ func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup and initiate atel
@@ -1671,10 +1643,9 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup and initiate atel
@@ -1921,10 +1892,9 @@ func TestHistogramPercentile(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	// setup and initiate atel
@@ -1997,11 +1967,10 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	hist.Observe(100)
 
 	// setup and initiate atel
-	o1 := convertYamlStrToMap(t, cfg1)
 	cl1 := newClientMock()
 	s1 := makeSenderImpl(t, cl1, cfg1)
 	r1 := newRunnerMock()
-	a1 := getTestAtel(t, tel, o1, s1, cl1, r1)
+	a1 := getTestAtel(t, tel, cfg1, s1, cl1, r1)
 	require.True(t, a1.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -2023,11 +1992,10 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
     `
 
 	// setup and initiate atel
-	o2 := convertYamlStrToMap(t, cfg2)
 	cl2 := newClientMock()
 	s2 := makeSenderImpl(t, cl2, cfg2)
 	r2 := newRunnerMock()
-	a2 := getTestAtel(t, tel, o2, s2, cl2, r2)
+	a2 := getTestAtel(t, tel, cfg2, s2, cl2, r2)
 	require.True(t, a2.enabled)
 
 	// run the runner to trigger the telemetry report
@@ -2060,10 +2028,9 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 
 	// setup and initiate atel
 	tel := makeTelMock(t)
-	o := convertYamlStrToMap(t, c)
 	s := makeSenderImpl(t, nil, c)
 	r := newRunnerMock()
-	a := getTestAtel(t, tel, o, s, nil, r)
+	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
 	gaugeFooBar := tel.NewGaugeWithOpts("foo", "bar", nil, "", telemetry.Options{DefaultMetric: false})
@@ -2084,8 +2051,7 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	c := defaultProfiles
-	o := convertYamlStrToMap(t, c)
-	cfg := makeCfgMock(t, o)
+	cfg := configmock.NewFromYAML(t, c)
 	atCfg, err := parseConfig(cfg)
 
 	require.NoError(t, err)
@@ -2144,9 +2110,7 @@ func TestAgentTelemetryEventConfiguration(t *testing.T) {
             payload_key: agent_barfoo
             message: 'Agent barfoo'
     `
-
-	o := convertYamlStrToMap(t, c)
-	cfg := makeCfgMock(t, o)
+	cfg := configmock.NewFromYAML(t, c)
 	atCfg, err := parseConfig(cfg)
 
 	require.NoError(t, err)
@@ -2194,11 +2158,10 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// setup and initiate atel
-	o := convertYamlStrToMap(t, cfg)
 	cl := newClientMock()
 	s := makeSenderImpl(t, cl, cfg)
 	r := newRunnerMock()
-	a := getTestAtel(t, nil, o, s, cl, r)
+	a := getTestAtel(t, nil, cfg, s, cl, r)
 	require.True(t, a.enabled)
 
 	a.start()
@@ -2260,11 +2223,10 @@ func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// setup and initiate atel
-	o := convertYamlStrToMap(t, cfg)
 	cl := newClientMock()
 	s := makeSenderImpl(t, cl, cfg)
 	r := newRunnerMock()
-	a := getTestAtel(t, nil, o, s, cl, r)
+	a := getTestAtel(t, nil, cfg, s, cl, r)
 	require.True(t, a.enabled)
 
 	a.start()

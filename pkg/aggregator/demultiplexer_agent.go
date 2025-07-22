@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -51,8 +52,9 @@ type AgentDemultiplexer struct {
 	m sync.RWMutex
 
 	// stopChan completely stops the flushLoop of the Demultiplexer when receiving
-	// a message, not doing anything else.
-	stopChan chan struct{}
+	// a message, not doing anything else. Passing a non-nil trigger will perform
+	// a final flush.
+	stopChan chan *trigger
 	// flushChan receives a trigger to run an internal flush of all
 	// samplers (TimeSampler, BufferedAggregator (CheckSampler, Events, ServiceChecks))
 	// to the shared serializer.
@@ -200,7 +202,7 @@ func initAgentDemultiplexer(log log.Component,
 	demux := &AgentDemultiplexer{
 		log:       log,
 		options:   options,
-		stopChan:  make(chan struct{}),
+		stopChan:  make(chan *trigger),
 		flushChan: make(chan trigger),
 
 		// Input
@@ -301,17 +303,24 @@ func (d *AgentDemultiplexer) flushLoop() {
 	for {
 		select {
 		// stop sequence
-		case <-d.stopChan:
+		case trigger, ok := <-d.stopChan:
+			if ok && trigger != nil {
+				// Final flush requested
+				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				if trigger.blockChan != nil {
+					trigger.blockChan <- struct{}{}
+				}
+			}
 			return
 		// manual flush sequence
 		case trigger := <-d.flushChan:
-			d.flushToSerializer(trigger.time, trigger.waitForSerializer)
+			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
 		case t := <-flushTicker:
-			d.flushToSerializer(t, false)
+			d.flushToSerializer(t, false, false)
 		}
 	}
 }
@@ -320,6 +329,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
 	timeout := pkgconfigsetup.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
+	forceFlushAll := pkgconfigsetup.Datadog().GetBool("dogstatsd_flush_incomplete_buckets")
 
 	if d.noAggStreamWorker != nil {
 		d.noAggStreamWorker.stop(flush)
@@ -332,18 +342,31 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 			time:              time.Now(),
 			blockChan:         make(chan struct{}),
 			waitForSerializer: flush,
+			forceFlushAll:     forceFlushAll,
+		}
+		timeoutStart := time.Now()
+
+		select {
+		case <-time.After(timeout):
+			d.log.Errorf("triggering flushing data on Stop() timed out")
+
+		case d.stopChan <- &trigger:
+			timeout = timeout - time.Since(timeoutStart)
+			select {
+			case <-trigger.blockChan:
+			case <-time.After(timeout):
+				d.log.Errorf("completing flushing data on Stop() timed out")
+			}
 		}
 
-		d.flushChan <- trigger
+	} else {
+		// stops the flushloop and makes sure no automatic flushes will happen anymore
 		select {
-		case <-trigger.blockChan:
+		case d.stopChan <- nil:
 		case <-time.After(timeout):
-			d.log.Errorf("flushing data on Stop() timed out")
+			d.log.Debug("unable to guarantee flush loop termination on Stop()")
 		}
 	}
-
-	// stops the flushloop and makes sure no automatic flushes will happen anymore
-	d.stopChan <- struct{}{}
 
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -380,6 +403,7 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 		time:              start,
 		waitForSerializer: waitForSerializer,
 		blockChan:         make(chan struct{}),
+		forceFlushAll:     false,
 	}
 	d.flushChan <- trigger
 	<-trigger.blockChan
@@ -397,7 +421,7 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 // If one day a better (faster?) solution is needed, we could either consider:
 // - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
 // - to have a thread-safe implementation of the underlying `util.BufferedChan`.
-func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool) {
+func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -419,8 +443,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				// order the flush to the time sampler, and wait, in a different routine
 				t := flushTrigger{
 					trigger: trigger{
-						time:      start,
-						blockChan: make(chan struct{}),
+						time:          start,
+						blockChan:     make(chan struct{}),
+						forceFlushAll: forceFlushAll,
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,
@@ -439,6 +464,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						time:              start,
 						blockChan:         make(chan struct{}),
 						waitForSerializer: waitForSerializer,
+						forceFlushAll:     forceFlushAll,
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,
@@ -473,6 +499,14 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 // GetEventPlatformForwarder returns underlying events and service checks channels.
 func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
+}
+
+// SetTimeSamplersBlocklist triggers a reconfiguration of the blocklist
+// applied in the time samplers.
+func (d *AgentDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+	for _, worker := range d.statsd.workers {
+		worker.blocklistChan <- blocklist
+	}
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

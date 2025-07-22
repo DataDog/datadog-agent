@@ -31,6 +31,18 @@ type fakeContainer struct {
 	layerPaths []string
 }
 
+func newFakeContainer(layerIDs []string, imgMeta *workloadmeta.ContainerImageMetadata, layerPaths []string) (*fakeContainer, error) {
+	if len(layerIDs) != len(layerPaths) || len(layerIDs) != len(imgMeta.Layers) {
+		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta.Layers)
+	}
+
+	return &fakeContainer{
+		layerIDs:   layerIDs,
+		imgMeta:    imgMeta,
+		layerPaths: layerPaths,
+	}, nil
+}
+
 func (c *fakeContainer) LayerByDiffID(hash string) (ftypes.LayerPath, error) {
 	for i, layer := range c.layerIDs {
 		diffID, _ := v1.NewHash(layer)
@@ -82,12 +94,12 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, errors.New("failed to get cache for scan")
 	}
 
+	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
+
 	containerArtifact, err := local.NewArtifact(ctr, cache, walker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, err
 	}
-
-	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 
 	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache))
 	if err != nil {

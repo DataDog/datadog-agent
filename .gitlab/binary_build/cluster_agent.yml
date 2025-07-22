@@ -10,9 +10,13 @@
   script:
     - dda inv -- check-go-version
     - dda inv -- -e cluster-agent.build --major-version "$AGENT_MAJOR_VERSION"
+    # keep the unstripped binary for fips compliance checks
+    - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
+    - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
+      - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
       - Dockerfiles/cluster-agent/datadog-cluster.yaml
       - Dockerfiles/cluster-agent/security-agent-policies
     exclude:

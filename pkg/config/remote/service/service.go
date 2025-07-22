@@ -56,7 +56,6 @@ const (
 	maxFetchConfigsUntilLogLevelErrors = 5
 	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
 	maxFetchOrgStatusUntilLogLevelErrors = 5
-	initialUpdateDeadline                = 1 * time.Hour
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -188,6 +187,10 @@ type CoreAgentService struct {
 
 	// set the interval for which we will poll the org status
 	orgStatusRefreshInterval time.Duration
+
+	site         string
+	configRoot   string
+	directorRoot string
 }
 
 // uptaneClient provides functions to get TUF/uptane repo data.
@@ -510,6 +513,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		stopConfigPoller:         make(chan struct{}),
 		disableConfigPollLoop:    options.disableConfigPollLoop,
 		orgStatusRefreshInterval: options.orgStatusRefreshInterval,
+		site:                     options.site,
+		configRoot:               configRoot,
+		directorRoot:             directorRoot,
 	}
 
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
@@ -862,6 +868,8 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		response := make(chan struct{})
 		bypassStart := time.Now()
 
+		log.Debugf("Making bypass request for client %s", request.Client.GetId())
+
 		// Timeout in case the previous request is still pending
 		// and we can't request another one
 		select {
@@ -877,6 +885,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		select {
 		case <-response:
 		case <-time.After(partialNewClientBlockTTL):
+			log.Debugf("Bypass request timed out for client %s", request.Client.GetId())
 			s.telemetryReporter.IncTimeout()
 		}
 
@@ -892,8 +901,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	// If we have made our initial update (or the deadline has expired)
-	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
+	// We only want to check for this if we have successfully initialized the TUF database
+	if !s.firstUpdate {
+
 		// get the expiration time of timestamp.json
 		expires, err := s.uptane.TimestampExpires()
 		if err != nil {
@@ -983,8 +993,8 @@ func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.T
 	return filteredList, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any) {
-	return func(setting string, _, newvalue any) {
+func (s *CoreAgentService) apiKeyUpdateCallback() func(string, any, any, uint64) {
+	return func(setting string, _, newvalue any, _ uint64) {
 		if setting != "api_key" {
 			return
 		}
@@ -1043,6 +1053,41 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 	maps.Copy(response.TargetFilenames, state.TargetFilenames)
 
 	return response, nil
+}
+
+// ConfigResetState resets the remote configuration state, clearing the local store and reinitializing the uptane client
+func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, error) {
+	s.Lock()
+	defer s.Unlock()
+	metadata, err := getMetadata(s.db)
+	if err != nil {
+		return nil, fmt.Errorf("could not read metadata from the database: %w", err)
+	}
+
+	path := s.db.Path()
+	s.db.Close()
+	db, err := recreate(path, metadata.Version, metadata.APIKeyHash, metadata.URL)
+	if err != nil {
+		return nil, err
+	}
+	s.db = db
+
+	opt := []uptane.ClientOption{
+		uptane.WithConfigRootOverride(s.site, s.configRoot),
+		uptane.WithDirectorRootOverride(s.site, s.directorRoot),
+	}
+	uptaneClient, err := uptane.NewCoreAgentClient(
+		db,
+		newRCBackendOrgUUIDProvider(s.api),
+		opt...,
+	)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	s.uptane = uptaneClient
+
+	return &pbgo.ResetStateConfigResponse{}, err
 }
 
 func validateRequest(request *pbgo.ClientGetConfigsRequest) error {

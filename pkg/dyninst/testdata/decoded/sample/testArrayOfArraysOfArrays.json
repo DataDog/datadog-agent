@@ -1,0 +1,108 @@
+[
+  {
+    "service": "sample",
+    "ddsource": "dd_debugger",
+    "logger": {
+      "name": "",
+      "method": "main.testArrayOfArraysOfArrays",
+      "version": 0,
+      "thread_id": 0,
+      "thread_name": ""
+    },
+    "debugger": {
+      "snapshot": {
+        "id": "[id]",
+        "timestamp": "[ts]",
+        "language": "go",
+        "stack": "[stack-unredact-me]",
+        "probe": {
+          "id": "testArrayOfArraysOfArrays",
+          "location": {
+            "method": "main.testArrayOfArraysOfArrays"
+          }
+        },
+        "captures": {
+          "entry": {
+            "arguments": {
+              "b": {
+                "type": "[2][2][2]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "[2][2]int",
+                    "size": "2",
+                    "elements": [
+                      {
+                        "type": "[2]int",
+                        "size": "2",
+                        "elements": [
+                          {
+                            "type": "int",
+                            "value": "1"
+                          },
+                          {
+                            "type": "int",
+                            "value": "2"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[2]int",
+                        "size": "2",
+                        "elements": [
+                          {
+                            "type": "int",
+                            "value": "3"
+                          },
+                          {
+                            "type": "int",
+                            "value": "4"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "[2][2]int",
+                    "size": "2",
+                    "elements": [
+                      {
+                        "type": "[2]int",
+                        "size": "2",
+                        "elements": [
+                          {
+                            "type": "int",
+                            "value": "5"
+                          },
+                          {
+                            "type": "int",
+                            "value": "6"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "[2]int",
+                        "size": "2",
+                        "elements": [
+                          {
+                            "type": "int",
+                            "value": "7"
+                          },
+                          {
+                            "type": "int",
+                            "value": "8"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "timestamp": "[ts]"
+  }
+]

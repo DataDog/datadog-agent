@@ -8,8 +8,10 @@
 package client
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures"
@@ -35,12 +37,29 @@ func fixtureHandler(payload string) http.HandlerFunc {
 	}
 }
 
-func serverURL(server *httptest.Server) string {
-	return strings.TrimPrefix(server.URL, "http://")
+func serverURL(server *httptest.Server) (string, string, error) {
+	splitURL := strings.Split(strings.TrimPrefix(server.URL, "http://"), ":")
+	if len(splitURL) < 2 {
+		return "", "", fmt.Errorf("failed to parse test server URL: %s", server.URL)
+	}
+	return splitURL[0], splitURL[1], nil
 }
 
 func testClient(server *httptest.Server) (*Client, error) {
-	return NewClient(serverURL(server), "testuser", "testpass", true)
+	host, portStr, err := serverURL(server)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, err
+	}
+	client, err := NewClient(host, port, "https://10.0.0.1:8443", "testuser", "testpass", true)
+	if err != nil {
+		return nil, err
+	}
+	client.directorAPIPort = port
+	return client, err
 }
 
 //	type handler struct {
@@ -77,8 +96,8 @@ func setupCommonServerMux() *http.ServeMux {
 // 	return mux, handler
 // }
 
-// SLAMetricsURL holds the API endpoint for Versa Analytics SLA metrics
-var SLAMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
+// AnalyticsMetricsURL holds the API endpoint for Versa Analytics SLA metrics
+var AnalyticsMetricsURL = "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN"
 
 // SetupMockAPIServer starts a mock API server
 func SetupMockAPIServer() *httptest.Server {
@@ -87,7 +106,25 @@ func SetupMockAPIServer() *httptest.Server {
 	mux.HandleFunc("/vnms/organization/orgs", fixtureHandler(fixtures.GetOrganizations))
 	//mux.HandleFunc("/vnms/dashboard/childAppliancesDetail/", fixtureHandler(fixtures.GetChildAppliancesDetail))
 	mux.HandleFunc("/vnms/dashboard/vdStatus", fixtureHandler(fixtures.GetDirectorStatus))
-	mux.HandleFunc(SLAMetricsURL, fixtureHandler(fixtures.GetSLAMetrics))
+	mux.HandleFunc(AnalyticsMetricsURL, func(w http.ResponseWriter, r *http.Request) {
+		// Check if this is a SLA metrics request, Link Usage metrics request, or Link Status metrics request
+		queryParams := r.URL.Query()
+		query := queryParams.Get("q")
+		if strings.Contains(query, "slam(") {
+			fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+		} else if strings.Contains(query, "linkusage(") {
+			fixtureHandler(fixtures.GetLinkUsageMetrics)(w, r)
+		} else if strings.Contains(query, "linkstatus(") {
+			fixtureHandler(fixtures.GetLinkStatusMetrics)(w, r)
+		} else {
+			http.Error(w, "Unknown query type", http.StatusBadRequest)
+		}
+	})
+
+	// mock session auth
+	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
+	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
+	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
 
 	return httptest.NewServer(mux)
 }

@@ -3,6 +3,8 @@
 
 package ebpfcheck
 
+const ioctlCollectKprobeMissedStatsCmd = 0x70c14
+
 type perfBufferKey struct {
 	Id  uint32
 	Cpu uint32

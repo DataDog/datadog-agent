@@ -19,6 +19,8 @@ type Gauge interface {
 	Sub(value float64, tagsValue ...string)
 	// Delete deletes the value for the Gauge with the given tags.
 	Delete(tagsValue ...string)
+	// DeletePartialMatch deletes the values for the Gauges that match the subset of given tags
+	DeletePartialMatch(tags map[string]string)
 	// WithValues returns SimpleGauge for this metric with the given tag values.
 	WithValues(tagsValue ...string) SimpleGauge
 	// WithTags returns SimpleGauge for this metric with the given tag values.

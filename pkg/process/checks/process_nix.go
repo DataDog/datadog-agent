@@ -8,24 +8,21 @@
 package checks
 
 import (
-	"fmt"
 	"math"
 	"os/user"
-	"slices"
 	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/cpu"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// overridden in tests
-var hostCPUCount = system.HostCPUCount
+var (
+	// overridden in tests
+	hostCPUCount = system.HostCPUCount
+)
 
 func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUser {
 	var username string
@@ -93,22 +90,8 @@ func calculatePct(deltaProc, deltaTime, numCPU float64) float32 {
 	return float32(pct)
 }
 
-// warnECSFargateMisconfig pidMode is currently not supported on fargate windows, see docs: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_definition_pidmode
-func warnECSFargateMisconfig(containers []*model.Container) {
-	if fargate.IsFargateInstance() && !isECSFargatePidModeSetToTask(containers) {
-		log.Warn(`Process collection may be misconfigured. Please ensure your task definition has "pidMode":"task" set. See https://docs.datadoghq.com/integrations/ecs_fargate/#process-collection for more information.`)
-	}
-}
-
-// isECSFargatePidModeSetToTask checks if pidMode is set to task in task definition to allow for process collection and assumes the method is called in a fargate environment
-func isECSFargatePidModeSetToTask(containers []*model.Container) bool {
-	// aws-fargate-pause container only exists when "pidMode" is set to "task" on ecs fargate
-	ecsContainerNameTag := fmt.Sprintf("%s:%s", tags.EcsContainerName, "aws-fargate-pause")
-	for _, c := range containers {
-		// container fields are not yet populated with information from tags at this point, so we need to check the tags
-		if slices.Contains(c.Tags, ecsContainerNameTag) {
-			return true
-		}
-	}
-	return false
+// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
+// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+func (p *ProcessCheck) useWLMCollection() bool {
+	return p.config.GetBool("process_config.process_collection.use_wlm")
 }

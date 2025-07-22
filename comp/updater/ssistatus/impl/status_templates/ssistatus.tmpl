@@ -1,0 +1,12 @@
+{{ with .ssiStatus }}
+    {{ if eq .status "unavailable" -}}SSI status is not available
+    {{ else if eq .status "disabled" -}}SSI is not enabled.
+    {{ else if eq .status "unsupported" -}}SSI is not supported.
+    {{ else if eq .status "enabled" }}SSI is enabled. 
+    {{ if gt (len .modes) 0 }}Instrumentation status:
+    {{- range  $key, $value := .modes }}
+        {{ formatTitle $key }}: {{ if $value }}Instrumented{{ else }}Not instrumented{{ end -}}
+    {{ end -}}
+    {{ end -}}
+{{ end -}}
+{{ end }}

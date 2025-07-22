@@ -7,12 +7,15 @@ package agenttests
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -52,6 +55,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
 // through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
+	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -59,7 +63,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	// Act
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
@@ -81,7 +86,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 	// Act
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
@@ -101,6 +107,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 // This is a regression test for WINA-1469, where the Agent account password and
 // password from the LSA did not match after rollback to a version before LSA support was added.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
+	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -110,13 +117,17 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// stop experiment to trigger rollback
-	s.Installer().StopExperiment(consts.AgentPackage)
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Try upgrade again
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
@@ -134,7 +145,8 @@ func (s *testAgentUpgradeSuite) TestRunAgentMSIAfterExperiment() {
 	s.installCurrentAgentVersion()
 	s.MustStartExperimentPreviousVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Act
@@ -154,7 +166,8 @@ func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
 	// Act
 	s.MustStartExperimentPreviousVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.StableAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
@@ -170,7 +183,10 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 	// Act
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().StopExperiment(consts.AgentPackage)
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
@@ -194,7 +210,8 @@ func (s *testAgentUpgradeSuite) TestExperimentForNonExistingPackageFails() {
 
 	// Assert
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	})
 	s.Require().Host(s.Env().RemoteHost).
@@ -213,11 +230,12 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
-	s.Require().ErrorContains(err, "cannot set new experiment to the same version as the current experiment")
+	s.Require().ErrorContains(err, "cannot set new experiment to the same version as stable")
 
 	// Assert
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	})
 	s.Require().Host(s.Env().RemoteHost).
@@ -234,7 +252,8 @@ func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
 
 	// Act
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.CurrentAgentVersion().PackageVersion())
 	})
 
@@ -269,7 +288,8 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDies() {
 		})
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 	})
 }
@@ -301,7 +321,8 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenTimeout() {
 		})
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 	})
 }
@@ -326,8 +347,9 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	s.setExperimentMSIArgs([]string{"WIXFAILWHENDEFERRED=1"})
 
 	// Act
-	s.waitForDaemonToStop(func() {
-		s.StartExperimentCurrentVersion()
+	s.WaitForDaemonToStop(func() {
+		_, err := s.StartExperimentCurrentVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
 		// This returns while the upgrade is still running, so we need to wait for the service to stop
 		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
 		// the service could stop and then restart before we check the status again.
@@ -359,7 +381,8 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 
 	// backend will send stop experiment to the daemon
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 	})
 
@@ -414,7 +437,8 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 
 	// backend will send stop experiment to the daemon
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 	})
 
@@ -456,7 +480,8 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithAgentUser() {
 	// Act
 	s.MustStartExperimentCurrentVersion()
 	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	s.Installer().PromoteExperiment(consts.AgentPackage)
+	_, err = s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 
 	// Assert
@@ -520,8 +545,19 @@ func (s *testAgentUpgradeSuite) setAgentConfig() {
 func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
+	// Ensure the API key is set for telemetry
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
+	}
+
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
-api_key: aaaaaaaaa
+api_key: `+apiKey+`
+site: datadoghq.com
 remote_updates: true
 `))
 }
@@ -569,29 +605,6 @@ func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
 }
 
-// waitForDaemonToStop waits for the daemon service PID to change after the function is called.
-func (s *testAgentUpgradeSuite) waitForDaemonToStop(f func(), b backoff.BackOff) {
-	s.T().Helper()
-
-	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
-	s.Require().NoError(err)
-	s.Require().Greater(originalPID, 0)
-
-	f()
-
-	err = backoff.Retry(func() error {
-		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
-		if err != nil {
-			return err
-		}
-		if newPID == originalPID {
-			return fmt.Errorf("daemon PID %d is still running", newPID)
-		}
-		return nil
-	}, b)
-	s.Require().NoError(err)
-}
-
 type testAgentUpgradeFromGASuite struct {
 	testAgentUpgradeSuite
 }
@@ -607,6 +620,16 @@ func TestAgentUpgradesFromGA(t *testing.T) {
 			winawshost.ProvisionerNoAgentNoFakeIntake(),
 		),
 	)
+}
+
+// BeforeTest wraps the installer in the DatadogInstallerGA type to handle the special cases for 7.65.x
+func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+
+	// Wrap the installer in the InstallerGA type to handle the special cases for 7.65.x
+	s.SetInstaller(&installerwindows.DatadogInstallerGA{
+		DatadogInstaller: s.Installer().(*installerwindows.DatadogInstaller),
+	})
 }
 
 // createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite

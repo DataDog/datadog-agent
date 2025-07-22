@@ -13,6 +13,7 @@ import (
 // Service represents a listening process.
 type Service struct {
 	PID                        int                             `json:"pid"`
+	LogFiles                   []string                        `json:"log_files,omitempty"`
 	GeneratedName              string                          `json:"generated_name"`
 	GeneratedNameSource        string                          `json:"generated_name_source"`
 	AdditionalGeneratedNames   []string                        `json:"additional_generated_names"`
@@ -45,4 +46,20 @@ type ServicesResponse struct {
 	StoppedServices      []Service `json:"stopped_services"`
 	HeartbeatServices    []Service `json:"heartbeat_services"`
 	RunningServicesCount int       `json:"running_services_count"`
+}
+
+// ServicesEndpointResponse is the response for the system-probe /discovery/services endpoint.
+type ServicesEndpointResponse struct {
+	Services []Service `json:"services"`
+}
+
+// NetworkStatsResponse is the response for the system-probe /discovery/network-stats endpoint.
+type NetworkStatsResponse struct {
+	Stats map[int]NetworkStats `json:"stats"`
+}
+
+// NetworkStats contains network statistics for a process.
+type NetworkStats struct {
+	RxBytes uint64 `json:"rx_bytes"`
+	TxBytes uint64 `json:"tx_bytes"`
 }

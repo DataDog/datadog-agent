@@ -31,11 +31,11 @@ type RuntimeReporter struct {
 }
 
 // ReportRaw reports raw (bytes) events to the intake
-func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...string) {
+func (r *RuntimeReporter) ReportRaw(content []byte, service string, timestamp time.Time, tags ...string) {
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
 	origin.SetService(service)
-	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+	msg := message.NewMessage(content, origin, message.StatusInfo, timestamp.UnixNano())
 	msg.Hostname = r.hostname
 	r.logChan <- msg
 }

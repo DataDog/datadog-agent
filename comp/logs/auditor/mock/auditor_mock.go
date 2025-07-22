@@ -9,6 +9,8 @@
 package mock
 
 import (
+	"sync"
+
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,7 +37,7 @@ func newMock() ProvidesMock {
 // NewMockAuditor returns a new mock auditor
 func NewMockAuditor() *Auditor {
 	return &Auditor{
-		Registry:         Registry{},
+		Registry:         *NewMockRegistry(),
 		channel:          make(chan *message.Payload),
 		stopChannel:      make(chan struct{}),
 		ReceivedMessages: make([]*message.Payload, 0),
@@ -80,31 +82,65 @@ func (a *Auditor) run() {
 
 // Registry does nothing
 type Registry struct {
-	offset      string
+	sync.Mutex
+
 	tailingMode string
+
+	StoredOffsets map[string]string
+	KeepAlives    map[string]bool
+	TailedSources map[string]bool
 }
 
 // NewMockRegistry returns a new mock registry.
 func NewMockRegistry() *Registry {
-	return &Registry{}
+	return &Registry{
+		StoredOffsets: make(map[string]string),
+		KeepAlives:    make(map[string]bool),
+		TailedSources: make(map[string]bool),
+	}
 }
 
 // GetOffset returns the offset.
-func (r *Registry) GetOffset(_ string) string {
-	return r.offset
+func (r *Registry) GetOffset(identifier string) string {
+	r.Lock()
+	defer r.Unlock()
+	if offset, ok := r.StoredOffsets[identifier]; ok {
+		return offset
+	}
+	return ""
 }
 
 // SetOffset sets the offset.
-func (r *Registry) SetOffset(offset string) {
-	r.offset = offset
+func (r *Registry) SetOffset(identifier string, offset string) {
+	r.Lock()
+	defer r.Unlock()
+	r.StoredOffsets[identifier] = offset
 }
 
 // GetTailingMode returns the tailing mode.
 func (r *Registry) GetTailingMode(_ string) string {
+	r.Lock()
+	defer r.Unlock()
 	return r.tailingMode
 }
 
 // SetTailingMode sets the tailing mode.
 func (r *Registry) SetTailingMode(tailingMode string) {
+	r.Lock()
+	defer r.Unlock()
 	r.tailingMode = tailingMode
+}
+
+// SetTailed stores the tailed status of the identifier.
+func (r *Registry) SetTailed(identifier string, isTailed bool) {
+	r.Lock()
+	defer r.Unlock()
+	r.TailedSources[identifier] = isTailed
+}
+
+// KeepAlive stores the keep alive status of the identifier.
+func (r *Registry) KeepAlive(identifier string) {
+	r.Lock()
+	defer r.Unlock()
+	r.KeepAlives[identifier] = true
 }

@@ -27,9 +27,8 @@ else
   COMPRESSION_THREADS = 1
 end
 
-# We want an higher compression level on deploy pipelines that are not nightly.
-# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
+# We want an higher compression level on deploy pipelines.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -43,10 +42,6 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
-  if ot_target?
-    raise UnknownPlatform
-  end
-
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
@@ -205,7 +200,6 @@ package :zip do
   else
     # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
   end
@@ -262,6 +256,7 @@ elsif do_package
     dependency "package-artifact"
   end
   dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.

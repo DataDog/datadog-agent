@@ -165,7 +165,7 @@
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
     - dda inv -- -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --vmconfig-template=$TEST_COMPONENT --memory=12288
-    - dda inv -- -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
+    - dda inv -- -e kmt.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -279,7 +279,7 @@
     - scp "$DD_AGENT_TESTING_DIR/job_env.txt" "metal_instance:/home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt"
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
-    - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
+    - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars CI_COMMIT_SHA,DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
     - '[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log'
   artifacts:
@@ -304,17 +304,11 @@
       echo "dda inv kmt.retry-failed-pipeline --pipeline-id $CI_PIPELINE_ID"
     fi
 
-notify_ebpf_complexity_changes:
+.notify_ebpf_complexity_changes:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   timeout: 15m
-  rules:
-    - !reference [.except_main_release_or_mq]
-    - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_deploy]
-    - !reference [.on_system_probe_or_e2e_changes_or_manual]
-    - !reference [.on_security_agent_changes_or_manual]
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
     # Important: the list of platforms should match the one in .define_if_collect_complexity
@@ -347,6 +341,31 @@ notify_ebpf_complexity_changes:
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
   script:
-    - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml
+    - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml $EXTRA_ARGS
+
+notify_ebpf_complexity_changes:
+  extends: .notify_ebpf_complexity_changes
+  rules:
+    - !reference [.except_main_release_or_mq]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_deploy]
+    - !reference [.on_system_probe_or_e2e_changes_or_manual]
+    - !reference [.on_security_agent_changes_or_manual]
+
+test_ebpf_complexity_changes:
+  extends: .notify_ebpf_complexity_changes
+  rules:
+    # Execute this job whenever there are changes to the KMT python files that are used to generate the complexity data
+    - changes:
+        paths:
+        - "tasks/kmt.py"
+        - "tasks/ebpf.py"
+        - "tasks/kernel_matrix_testing/ci.py"
+        compare_to: $COMPARE_TO_BRANCH
+      when: always
+    - !reference [.except_main_release_or_mq]
+  allow_failure: false
+  variables:
+    EXTRA_ARGS: "--skip-github-comment"
