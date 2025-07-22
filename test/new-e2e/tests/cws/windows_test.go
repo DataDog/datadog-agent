@@ -157,11 +157,11 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	// Check if security-agent has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/security-agent.log")
+		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(c, output, securityStartLog, "security-agent could not start")
+		assert.Contains(c, output, systemProbeGrpcLog, "system-probe could not connect to GRPC server")
 	}, 30*time.Second, 1*time.Second)
 
 	// Wait for host tags
