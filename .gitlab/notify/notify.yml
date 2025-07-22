@@ -20,7 +20,7 @@ notify-on-tagged-success:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
@@ -35,7 +35,7 @@ notify:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
@@ -123,7 +123,7 @@ close_failing_tests_stale_issues:
   rules:
     - !reference [.on_scheduled_main]
   needs: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   script:
     - weekday="$(date --utc '+%A')"
     # Weekly on Friday

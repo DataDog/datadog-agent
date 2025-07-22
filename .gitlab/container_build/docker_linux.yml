@@ -117,7 +117,7 @@
 
 .docker_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   variables:
     ARCH: arm64
 

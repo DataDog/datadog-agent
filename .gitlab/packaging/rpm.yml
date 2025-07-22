@@ -36,7 +36,7 @@
 
 .package_rpm_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$CI_IMAGE_RPM_ARM64_SUFFIX:$CI_IMAGE_RPM_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   variables:
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
@@ -220,7 +220,7 @@ iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf

@@ -21,7 +21,7 @@
 
 .linux_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
 
 lint_linux-x64:
   extends:
