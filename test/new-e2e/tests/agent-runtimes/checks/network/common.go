@@ -84,7 +84,7 @@ instances:
     collect_ethtool_metrics: true
 `,
 			``,
-			true, // this setting is not only for Linux but the windows python check is missing some metrics
+			true,
 		},
 		{
 			"collect aws ena metrics",
@@ -94,7 +94,7 @@ instances:
     collect_aws_ena_metrics: true
 `,
 			``,
-			true, // this setting is not only for Linux but the windows python check is missing some metrics
+			true,
 		},
 	}
 

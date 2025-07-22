@@ -261,11 +261,11 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, _ bool, collectEthtoolMetrics bool) error {
 	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
 		// Skip loopback ifaces as they don't support SIOCETHTOOL
 		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
-		return
+		return nil
 	}
 
 	ethtoolObjectPtr, err := ethtool.NewEthtool()
@@ -303,9 +303,6 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 		} else {
 			return errors.New("failed to get ethtool stats information for interface " + interfaceIO.Name + ": " + fmt.Sprintf("%d", err))
 		}
-	}
-
-	if collectEnaMetrics {
 	}
 
 	if collectEthtoolMetrics {
