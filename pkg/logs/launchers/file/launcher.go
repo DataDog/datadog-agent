@@ -208,15 +208,6 @@ func (s *Launcher) scan() {
 					// the setup failed, let's try to tail this file in the next scan
 					continue
 				}
-
-				// For checksum mode, if new file is undersized, don't mark as "should tail"
-				// so the new tailer gets cleaned up, but old tailer continues with 60s grace period
-				fingerprintStrategy := s.resolveFingerprintStrategy(file)
-				if fingerprintStrategy == "checksum" {
-					if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig(&file.Source.Config().FingerprintConfig, fingerprintStrategy)) == 0 {
-						continue
-					}
-				}
 			}
 		} else {
 			// Defer any files that are not tailed for the 2nd pass
@@ -487,6 +478,8 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 			Pattern:      oldRegexPattern,
 		}
 		s.oldInfoMap[file.Path] = regexAndRegistry
+		s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+		return false // Will return false regardless and we will let scan() handle it
 	}
 
 	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern)
