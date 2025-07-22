@@ -606,10 +606,13 @@ func (cs *configStream) Cancel() {
 }
 
 func (cs *configStream) TrySendUpdate(update *pb.ConfigUpdate) bool {
+	timer := time.NewTimer(250 * time.Millisecond)
+	defer timer.Stop()
+
 	select {
 	case cs.configUpdates <- update:
 		return true
-	default:
+	case <-timer.C:
 		return false
 	}
 }
