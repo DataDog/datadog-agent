@@ -118,7 +118,7 @@ func NewDirectConsumer[V any](proto string, callback func(V)) (*DirectConsumer[V
 // Note: The embedded EventHandler must be passed to the eBPF manager during initialization
 // The manager will call PreStart() to start the read loop automatically
 func (c *DirectConsumer[V]) Start() {
-	// The EventHandler's PreStart method will be called by the eBPF manager
+	// The eBPF manager will call the EventHandler's PreStart method
 	// when the manager starts. This happens automatically through the modifier interface.
 	log.Debugf("DirectConsumer: starting for protocol %s", c.proto)
 }
