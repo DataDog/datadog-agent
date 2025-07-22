@@ -385,26 +385,29 @@ func (m *NamespaceMutator) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, containerRegistry string) []libInfo {
-	var (
-		libList        []libInfo
-		extractLibInfo = func(e annotationExtractor[libInfo]) {
-			i, err := e.extract(pod)
-			if err != nil {
-				if !isErrAnnotationNotFound(err) {
-					log.Warnf("error extracting annotation for key %s", e.key)
-				}
-			} else {
-				libList = append(libList, i)
-			}
-		}
-	)
+	var libList []libInfo
 
 	for _, l := range supportedLanguages {
-		extractLibInfo(l.customLibAnnotationExtractor())
-		extractLibInfo(l.libVersionAnnotationExtractor(containerRegistry))
+		customKey := fmt.Sprintf(customLibAnnotationKeyFormat, l)
+		if image, ok := pod.GetAnnotations()[customKey]; ok {
+			libList = append(libList, l.libInfo("", image))
+		}
+
+		libVersionKey := fmt.Sprintf(libVersionAnnotationKeyFormat, l)
+		if version, ok := pod.GetAnnotations()[libVersionKey]; ok {
+			libList = append(libList, l.libInfo("", l.libImageName(containerRegistry, version)))
+		}
+
 		for _, ctr := range pod.Spec.Containers {
-			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, containerRegistry))
+			libCustomCtrKey := fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr.Name, l)
+			if image, ok := pod.GetAnnotations()[libCustomCtrKey]; ok {
+				libList = append(libList, l.libInfo(ctr.Name, image))
+			}
+
+			libVersionCtrKey := fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, l)
+			if version, ok := pod.GetAnnotations()[libVersionCtrKey]; ok {
+				libList = append(libList, l.libInfo(ctr.Name, l.libImageName(containerRegistry, version)))
+			}
 		}
 	}
 
