@@ -7,16 +7,12 @@ toolchain go1.23.6
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.62.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

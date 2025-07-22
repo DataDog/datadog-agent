@@ -1032,11 +1032,11 @@ func initLogger() error {
 
 func swapLogLevel(logLevel log.LogLevel) (log.LogLevel, error) {
 	if logger == nil {
-		logFormat := "[%Date(2006-01-02 15:04:05.000)] [%LEVEL] %Func:%Line %Msg\n"
+		logFormat := "[{{.Date \"2006-01-02 15:04:05.000\"}}] [{{.LEVEL}}] {{.func}}:{{.line}} {{.Msg}}\n"
 
 		var err error
 
-		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, logFormat)
+		logger, err = log.LoggerFromWriterWithMinLevelAndFormat(os.Stdout, logLevel, log.TemplateFormatter(logFormat))
 		if err != nil {
 			return 0, err
 		}

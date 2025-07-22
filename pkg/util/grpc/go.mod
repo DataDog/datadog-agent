@@ -15,9 +15,9 @@ require (
 	cloud.google.com/go/auth v0.16.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
@@ -34,7 +34,6 @@ require (
 	go.opentelemetry.io/otel v1.36.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect

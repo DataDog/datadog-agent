@@ -24,6 +24,8 @@ require (
 	google.golang.org/protobuf v1.36.6
 )
 
+require github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+
 require (
 	cloud.google.com/go/auth v0.16.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
@@ -53,7 +55,6 @@ require (
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

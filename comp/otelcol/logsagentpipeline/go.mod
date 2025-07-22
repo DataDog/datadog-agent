@@ -33,6 +33,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.3 // indirect
@@ -55,7 +56,6 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

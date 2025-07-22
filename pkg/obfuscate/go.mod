@@ -12,11 +12,11 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

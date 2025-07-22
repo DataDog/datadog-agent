@@ -15,9 +15,9 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

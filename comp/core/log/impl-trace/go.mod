@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.64.0-devel.0.20250129182827-bab631c10d61
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect; v2.6
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/fx v1.24.0 // indirect
 )
@@ -33,6 +32,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect

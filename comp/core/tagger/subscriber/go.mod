@@ -14,12 +14,12 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -30,7 +30,6 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

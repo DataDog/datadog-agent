@@ -10,8 +10,9 @@ package logs
 import (
 	"testing"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetSyslogURI(t *testing.T) {
@@ -32,14 +33,4 @@ func TestGetSyslogURI(t *testing.T) {
 
 	mockConfig.SetWithoutSource("syslog_uri", "")
 	assert.Equal(GetSyslogURI(mockConfig), "")
-}
-
-func TestSetupLoggingNowhere(t *testing.T) {
-	// setup logger so that it logs nowhere: i.e.  not to file, not to syslog, not to console
-	mockConfig := configmock.New(t)
-	seelogConfig, _ = buildLoggerConfig("agent", "info", "", "", false, false, false, mockConfig)
-	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
-
-	assert.Nil(t, loggerInterface)
-	assert.NotNil(t, err)
 }

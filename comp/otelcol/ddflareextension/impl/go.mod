@@ -295,7 +295,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/briandowns/spinner v1.23.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/cncf/xds/go v0.0.0-20250326154945-ae57f3c0d45f // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dennwc/varint v1.0.0 // indirect

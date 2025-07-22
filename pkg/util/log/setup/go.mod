@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -23,12 +23,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect

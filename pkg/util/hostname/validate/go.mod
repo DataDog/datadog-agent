@@ -8,12 +8,11 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

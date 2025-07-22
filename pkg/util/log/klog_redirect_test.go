@@ -24,7 +24,7 @@ func TestKlogRedirectLoggerWrite(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
+	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, BasicTestFormatter())
 	SetupLogger(l, DebugStr)
 
 	klogRedirectLogger := NewKlogRedirectLogger(3)

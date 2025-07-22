@@ -27,6 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
@@ -40,7 +41,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
 	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

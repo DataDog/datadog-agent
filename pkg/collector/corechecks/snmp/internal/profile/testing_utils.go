@@ -10,11 +10,12 @@ package profile
 import (
 	"bufio"
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
@@ -215,7 +216,7 @@ func TrapLogs(t testing.TB, level log.LogLevel) LogValidator {
 	t.Helper()
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, level, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, level, log.BasicTestFormatter())
 	if err != nil {
 		t.Errorf("Failed to create a logger: %v", err)
 		return LogValidator{}

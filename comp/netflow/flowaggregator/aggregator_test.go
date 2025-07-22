@@ -337,7 +337,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := ddlog.LoggerFromWriterWithMinLevelAndFormat(w, ddlog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := ddlog.LoggerFromWriterWithMinLevelAndFormat(w, ddlog.DebugLvl, ddlog.BasicTestFormatter())
 	require.NoError(t, err)
 	ddlog.SetupLogger(l, "debug")
 
