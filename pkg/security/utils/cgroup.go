@@ -14,10 +14,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/sys/unix"
@@ -167,10 +169,22 @@ var ErrNoCGroupMountpoint = errors.New("no cgroup mount point found")
 // CGroupFS is a helper type used to find the cgroup context of a process
 type CGroupFS struct {
 	cGroupMountPoints []string
+	rootCGroupPath    string
 }
 
-// NewCGroupFS creates a new CGroupFS instance
-func NewCGroupFS() *CGroupFS {
+var defaultCGroupFS *CGroupFS
+var once sync.Once
+
+// DefaultCGroupFS returns a singleton instance of CGroupFS
+func DefaultCGroupFS() *CGroupFS {
+	once.Do(func() {
+		defaultCGroupFS = newCGroupFS()
+	})
+	return defaultCGroupFS
+}
+
+// newCGroupFS creates a new CGroupFS instance
+func newCGroupFS() *CGroupFS {
 	cfs := &CGroupFS{}
 
 	for _, mountpoint := range defaultCGroupMountpoints {
@@ -179,6 +193,9 @@ func NewCGroupFS() *CGroupFS {
 			cfs.cGroupMountPoints = append(cfs.cGroupMountPoints, hostMountpoint)
 		}
 	}
+
+	// detect the current cgroup path in the pid namespace
+	cfs.detectCurrentCgroupPath(Getpid(), uint32(os.Getpid()))
 
 	return cfs
 }
@@ -197,7 +214,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 	)
 
 	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) (bool, error) {
-		if path == "/" {
+		if path == "/" && cfs.rootCGroupPath == "" {
 			return false, nil
 		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
 			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
@@ -213,10 +230,15 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 
 		ctrlDirectory := strings.TrimPrefix(ctrl, "name=")
 		for _, mountpoint := range cfs.cGroupMountPoints {
-			cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
+			// in case of relative path use rootCgroupPath
+			if strings.HasPrefix(path, "/..") || path == "/" {
+				cgroupPath = filepath.Join(cfs.rootCGroupPath, path)
+			} else {
+				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
+			}
 
 			if exists, err = checkPidExists(cgroupPath, pid); err == nil && exists {
-				cgroupID := containerutils.CGroupID(path)
+				cgroupID := containerutils.CGroupID(cgroupPath)
 				ctrID, flags := containerutils.FindContainerID(cgroupID)
 				cgroupContext.CGroupID = cgroupID
 				cgroupContext.CGroupFlags = containerutils.CGroupFlags(flags)
@@ -295,4 +317,61 @@ func GetCgroup2MountPoint() (string, error) {
 	}
 
 	return "", nil
+}
+
+func isInCGroupNamespace(pid uint32) (bool, error) {
+	cgroups, err := GetProcControlGroups(pid, pid)
+	if err != nil {
+		return false, err
+	}
+
+	if len(cgroups) > 0 {
+		return cgroups[0].Path == "/", nil
+	}
+
+	return false, nil
+}
+
+// DetectCurrentCgroupPath returns the cgroup path of the current process
+func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
+	// check if in a namespace
+	if inNamespace, err := isInCGroupNamespace(currentPid); err != nil || !inNamespace {
+		return
+	}
+
+	grepPid := func(dir string) string {
+		var cgroupPath string
+
+		_ = filepath.WalkDir(dir, func(path string, _ fs.DirEntry, _ error) error {
+			if filepath.Base(path) == "cgroup.procs" || filepath.Base(path) == "cgroup.threads" {
+				data, err := os.ReadFile(path)
+				if err == nil {
+					scanner := bufio.NewScanner(bytes.NewReader(data))
+					for scanner.Scan() {
+						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentNSPid {
+							cgroupPath = filepath.Dir(path)
+							return fs.SkipAll
+						}
+					}
+				}
+			}
+			return nil
+		})
+		return cgroupPath
+	}
+
+	var rootCGroupPath string
+	for _, mountpoint := range cfs.cGroupMountPoints {
+		if cgroupPath := grepPid(mountpoint); cgroupPath != "" {
+			rootCGroupPath = cgroupPath
+			break
+		}
+	}
+
+	cfs.rootCGroupPath = rootCGroupPath
+}
+
+// GetRootCGroupPath returns the root cgroup path
+func (cfs *CGroupFS) GetRootCGroupPath() string {
+	return cfs.rootCGroupPath
 }
