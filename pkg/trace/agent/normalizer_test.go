@@ -58,51 +58,47 @@ func newTestSpan() *pb.Span {
 
 // GetTestSpan returns a Span with different fields set
 func newTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
-	span := &idx.InternalSpan{
-		Strings: strings,
-		Span: &idx.Span{
-			SpanID:      rand.Uint64(),
-			ParentID:    1111,
-			ServiceRef:  strings.Add("django"),
-			NameRef:     strings.Add("django.controller"),
-			ResourceRef: strings.Add("GET /some/raclette"),
-			Start:       1448466874000000000,
-			Duration:    10000000,
-			Attributes: map[uint32]*idx.AnyValue{
-				strings.Add("user"): &idx.AnyValue{
-					Value: &idx.AnyValue_StringValueRef{
-						StringValueRef: strings.Add("leo"),
-					},
-				},
-				strings.Add("pool"): &idx.AnyValue{
-					Value: &idx.AnyValue_StringValueRef{
-						StringValueRef: strings.Add("fondue"),
-					},
-				},
-				strings.Add("cheese_weight"): &idx.AnyValue{
-					Value: &idx.AnyValue_DoubleValue{
-						DoubleValue: 100000.0,
-					},
+	return idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      rand.Uint64(),
+		ParentID:    1111,
+		ServiceRef:  strings.Add("django"),
+		NameRef:     strings.Add("django.controller"),
+		ResourceRef: strings.Add("GET /some/raclette"),
+		Start:       1448466874000000000,
+		Duration:    10000000,
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("user"): &idx.AnyValue{
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: strings.Add("leo"),
 				},
 			},
-			Links: []*idx.SpanLink{
-				{
-					TraceID: []byte{42},
-					SpanID:  1,
-					Attributes: map[uint32]*idx.AnyValue{
-						strings.Add("link.name"): &idx.AnyValue{
-							Value: &idx.AnyValue_StringValueRef{
-								StringValueRef: strings.Add("name"),
-							},
-						},
-					},
-					TracestateRef: 0,
-					Flags:         0,
+			strings.Add("pool"): &idx.AnyValue{
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: strings.Add("fondue"),
+				},
+			},
+			strings.Add("cheese_weight"): &idx.AnyValue{
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 100000.0,
 				},
 			},
 		},
-	}
-	return span
+		Links: []*idx.SpanLink{
+			{
+				TraceID: []byte{42},
+				SpanID:  1,
+				Attributes: map[uint32]*idx.AnyValue{
+					strings.Add("link.name"): &idx.AnyValue{
+						Value: &idx.AnyValue_StringValueRef{
+							StringValueRef: strings.Add("name"),
+						},
+					},
+				},
+				TracestateRef: 0,
+				Flags:         0,
+			},
+		},
+	})
 }
 
 func newTagStats() *info.TagStats {

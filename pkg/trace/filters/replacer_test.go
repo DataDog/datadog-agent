@@ -312,20 +312,16 @@ func TestReplacer(t *testing.T) {
 
 // GetTestSpan returns a Span with different fields set
 func newTestSpanV1EmptyAttributes(strings *idx.StringTable) *idx.InternalSpan {
-	span := &idx.InternalSpan{
-		Strings: strings,
-		Span: &idx.Span{
-			SpanID:      rand.Uint64(),
-			ParentID:    1111,
-			ServiceRef:  strings.Add("django"),
-			NameRef:     strings.Add("django.controller"),
-			ResourceRef: strings.Add("GET /some/raclette"),
-			Start:       1448466874000000000,
-			Duration:    10000000,
-			Attributes:  map[uint32]*idx.AnyValue{},
-		},
-	}
-	return span
+	return idx.NewInternalSpan(strings, &idx.Span{
+		SpanID:      rand.Uint64(),
+		ParentID:    1111,
+		ServiceRef:  strings.Add("django"),
+		NameRef:     strings.Add("django.controller"),
+		ResourceRef: strings.Add("GET /some/raclette"),
+		Start:       1448466874000000000,
+		Duration:    10000000,
+		Attributes:  map[uint32]*idx.AnyValue{},
+	})
 }
 
 func parseRulesFromString(rules [][3]string) []*config.ReplaceRule {

@@ -397,9 +397,7 @@ func GetTestSpan() *pb.Span {
 
 // GetTestSpan returns a Span with different fields set
 func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
-	span := &idx.InternalSpan{
-		Strings: strings,
-		Span: &idx.Span{
+	span := idx.NewInternalSpan(strings, &idx.Span{
 			SpanID:      52,
 			ParentID:    42,
 			ServiceRef:  strings.Add("fennel_IS amazing!"),

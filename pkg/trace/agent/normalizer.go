@@ -328,8 +328,7 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 		}
 	}
 
-	// We directly refer to span.Links to avoid the overhead of calling Links() twice
-	if len(s.Span.Links) > 0 {
+	if s.LenLinks() > 0 {
 		a.normalizeSpanLinksV1(ts, s.Links())
 	}
 	return nil

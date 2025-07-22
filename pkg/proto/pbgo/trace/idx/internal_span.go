@@ -17,6 +17,7 @@ import (
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
 type StringTable struct {
 	strings []string
+	refs    []uint32 // ref count for each string at string[i]
 	lookup  map[string]uint32
 }
 
@@ -24,6 +25,7 @@ type StringTable struct {
 func NewStringTable() *StringTable {
 	return &StringTable{
 		strings: []string{""},
+		refs:    []uint32{0},
 		lookup:  map[string]uint32{"": 0},
 	}
 }
@@ -41,6 +43,7 @@ func (s *StringTable) Msgsize() int {
 // addUnchecked adds a string to the string table without checking for duplicates
 func (s *StringTable) addUnchecked(str string) uint32 {
 	s.strings = append(s.strings, str)
+	s.refs = append(s.refs, 1)
 	s.lookup[str] = uint32(len(s.strings) - 1)
 	return uint32(len(s.strings) - 1)
 }
@@ -48,6 +51,7 @@ func (s *StringTable) addUnchecked(str string) uint32 {
 // Add adds a string to the string table if it doesn't already exist and returns the index of the string
 func (s *StringTable) Add(str string) uint32 {
 	if idx, ok := s.lookup[str]; ok {
+		s.refs[idx]++
 		return idx
 	}
 	return s.addUnchecked(str)
@@ -64,11 +68,23 @@ func (s *StringTable) Len() int {
 }
 
 // Lookup returns the index of the string in the string table, or 0 if the string is not found
+// This does not add a new reference to that string.
 func (s *StringTable) Lookup(str string) uint32 {
 	if idx, ok := s.lookup[str]; ok {
 		return idx
 	}
 	return 0
+}
+
+// DecrementReference decrements the ref count for the string at the given index
+// If the ref count reaches 0, the string is set to the empty string
+func (s *StringTable) DecrementReference(idx uint32) {
+	s.refs[idx]--
+	if s.refs[idx] == 0 {
+		// Remove string from lookup table as well, as it is no longer referenced
+		delete(s.lookup, s.strings[idx])
+		s.strings[idx] = ""
+	}
 }
 
 // InternalTracerPayload is a tracer payload structure that is optimized for trace-agent usage
@@ -104,7 +120,7 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 		chunks[i] = chunk.ToProto()
 	}
 	return &TracerPayload{
-		Strings:            tp.Strings.strings, // TODO: How do we make this work? This will include strings that are not in the payload.
+		Strings:            tp.Strings.strings,
 		ContainerIDRef:     tp.ContainerIDRef,
 		LanguageNameRef:    tp.LanguageNameRef,
 		LanguageVersionRef: tp.LanguageVersionRef,
@@ -132,6 +148,7 @@ func (tp *InternalTracerPayload) LanguageName() string {
 
 // SetLanguageName sets the language name in the string table
 func (tp *InternalTracerPayload) SetLanguageName(name string) {
+	tp.Strings.DecrementReference(tp.LanguageNameRef)
 	tp.LanguageNameRef = tp.Strings.Add(name)
 }
 
@@ -141,6 +158,7 @@ func (tp *InternalTracerPayload) LanguageVersion() string {
 
 // SetLanguageVersion sets the language version in the string table
 func (tp *InternalTracerPayload) SetLanguageVersion(version string) {
+	tp.Strings.DecrementReference(tp.LanguageVersionRef)
 	tp.LanguageVersionRef = tp.Strings.Add(version)
 }
 
@@ -150,6 +168,7 @@ func (tp *InternalTracerPayload) TracerVersion() string {
 
 // SetTracerVersion sets the tracer version in the string table
 func (tp *InternalTracerPayload) SetTracerVersion(version string) {
+	tp.Strings.DecrementReference(tp.TracerVersionRef)
 	tp.TracerVersionRef = tp.Strings.Add(version)
 }
 
@@ -162,6 +181,7 @@ func (tp *InternalTracerPayload) Env() string {
 }
 
 func (tp *InternalTracerPayload) SetEnv(env string) {
+	tp.Strings.DecrementReference(tp.EnvRef)
 	tp.EnvRef = tp.Strings.Add(env)
 }
 
@@ -185,12 +205,7 @@ func (tp *InternalTracerPayload) AddString(s string) uint32 {
 }
 
 func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
-	// TODO: How should we handle removing a tag? Can we just let the string dangle?
-	tp.Attributes[tp.Strings.Add(key)] = &AnyValue{
-		Value: &AnyValue_StringValueRef{
-			StringValueRef: tp.Strings.Add(value),
-		},
-	}
+	SetStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
 // Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
@@ -276,6 +291,7 @@ func (c *InternalTraceChunk) Origin() string {
 }
 
 func (c *InternalTraceChunk) SetOrigin(origin string) {
+	c.Strings.DecrementReference(c.OriginRef)
 	c.OriginRef = c.Strings.Add(origin)
 }
 
@@ -284,31 +300,24 @@ func (c *InternalTraceChunk) DecisionMaker() string {
 }
 
 func (c *InternalTraceChunk) SetDecisionMaker(decisionMaker string) {
+	c.Strings.DecrementReference(c.DecisionMakerRef)
 	c.DecisionMakerRef = c.Strings.Add(decisionMaker)
 }
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := c.Attributes[c.Strings.Lookup(key)]; ok {
-		return attr.AsString(c.Strings), true
-	}
-	return "", false
+	return GetAttributeAsString(key, c.Strings, c.Attributes)
 }
 
 func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
-	// TODO: How should we handle removing a tag? Can we just let the string dangle?
-	c.Attributes[c.Strings.Add(key)] = &AnyValue{
-		Value: &AnyValue_StringValueRef{
-			StringValueRef: c.Strings.Add(value),
-		},
-	}
+	SetStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
 // ToProto converts an InternalTraceChunk to a proto TraceChunk
 func (c *InternalTraceChunk) ToProto() *TraceChunk {
 	spans := make([]*Span, len(c.Spans))
 	for i, span := range c.Spans {
-		spans[i] = span.Span
+		spans[i] = span.span
 	}
 	return &TraceChunk{
 		Priority:         c.Priority,
@@ -327,13 +336,20 @@ func (c *InternalTraceChunk) ToProto() *TraceChunk {
 type InternalSpan struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
-	Span    *Span
+	span    *Span
+}
+
+func NewInternalSpan(strings *StringTable, span *Span) *InternalSpan {
+	return &InternalSpan{
+		Strings: strings,
+		span:    span,
+	}
 }
 
 func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	return &InternalSpan{
 		Strings: s.Strings,
-		Span:    s.Span.ShallowCopy(),
+		span:    s.span.ShallowCopy(),
 	}
 }
 
@@ -362,8 +378,8 @@ func (s *Span) ShallowCopy() *Span {
 
 // Events returns the spans events in the InternalSpanEvent format
 func (s *InternalSpan) Events() []*InternalSpanEvent {
-	events := make([]*InternalSpanEvent, len(s.Span.Events))
-	for i, event := range s.Span.Events {
+	events := make([]*InternalSpanEvent, len(s.span.Events))
+	for i, event := range s.span.Events {
 		events[i] = &InternalSpanEvent{
 			Strings: s.Strings,
 			Event:   event,
@@ -374,14 +390,18 @@ func (s *InternalSpan) Events() []*InternalSpanEvent {
 
 // Links returns the spans links in the InternalSpanLink format
 func (s *InternalSpan) Links() []*InternalSpanLink {
-	links := make([]*InternalSpanLink, len(s.Span.Links))
-	for i, link := range s.Span.Links {
+	links := make([]*InternalSpanLink, len(s.span.Links))
+	for i, link := range s.span.Links {
 		links[i] = &InternalSpanLink{
 			Strings: s.Strings,
 			Link:    link,
 		}
 	}
 	return links
+}
+
+func (s *InternalSpan) LenLinks() int {
+	return len(s.span.Links)
 }
 
 // TODO: how can we maintain this as we add more fields?
@@ -397,16 +417,16 @@ func (s *InternalSpan) Msgsize() int {
 	size += msgp.Uint32Size + msgp.Uint64Size    // Duration
 	size += msgp.Uint32Size + msgp.BoolSize      // Error
 	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
-	for _, attr := range s.Span.Attributes {
+	for _, attr := range s.span.Attributes {
 		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
 	}
 	size += msgp.Uint32Size + msgp.Uint32Size      // TypeRef
 	size += msgp.Uint32Size + msgp.ArrayHeaderSize // SpanLinks
-	for _, link := range s.Span.Links {
+	for _, link := range s.span.Links {
 		size += link.Msgsize()
 	}
 	size += msgp.Uint32Size + msgp.ArrayHeaderSize // SpanEvents
-	for _, event := range s.Span.Events {
+	for _, event := range s.span.Events {
 		size += event.Msgsize()
 	}
 	size += msgp.Uint32Size + msgp.Uint32Size // EnvRef
@@ -418,7 +438,7 @@ func (s *InternalSpan) Msgsize() int {
 
 // SpanKind returns the string representation of the span kind
 func (s *InternalSpan) SpanKind() string {
-	switch s.Span.Kind {
+	switch s.span.Kind {
 	case SpanKind_SPAN_KIND_INTERNAL:
 		return "internal"
 	case SpanKind_SPAN_KIND_SERVER:
@@ -435,102 +455,102 @@ func (s *InternalSpan) SpanKind() string {
 }
 
 func (s *InternalSpan) Service() string {
-	return s.Strings.Get(s.Span.ServiceRef)
+	return s.Strings.Get(s.span.ServiceRef)
 }
 
 func (s *InternalSpan) SetService(svc string) {
-	// TODO: remove old string?
-	s.Span.ServiceRef = s.Strings.Add(svc)
+	s.Strings.DecrementReference(s.span.ServiceRef)
+	s.span.ServiceRef = s.Strings.Add(svc)
 }
 
 func (s *InternalSpan) Name() string {
-	return s.Strings.Get(s.Span.NameRef)
+	return s.Strings.Get(s.span.NameRef)
 }
 
 func (s *InternalSpan) SetName(name string) {
-	// TODO: remove old string?
-	s.Span.NameRef = s.Strings.Add(name)
+	s.Strings.DecrementReference(s.span.NameRef)
+	s.span.NameRef = s.Strings.Add(name)
 }
 
 func (s *InternalSpan) Resource() string {
-	return s.Strings.Get(s.Span.ResourceRef)
+	return s.Strings.Get(s.span.ResourceRef)
 }
 
 func (s *InternalSpan) SetResource(resource string) {
-	s.Span.ResourceRef = s.Strings.Add(resource)
+	s.Strings.DecrementReference(s.span.ResourceRef)
+	s.span.ResourceRef = s.Strings.Add(resource)
 }
 
 func (s *InternalSpan) Type() string {
-	return s.Strings.Get(s.Span.TypeRef)
+	return s.Strings.Get(s.span.TypeRef)
 }
 
 func (s *InternalSpan) SetType(t string) {
-	s.Span.TypeRef = s.Strings.Add(t)
+	s.Strings.DecrementReference(s.span.TypeRef)
+	s.span.TypeRef = s.Strings.Add(t)
 }
 
 func (s *InternalSpan) Env() string {
-	return s.Strings.Get(s.Span.EnvRef)
+	return s.Strings.Get(s.span.EnvRef)
 }
 
 func (s *InternalSpan) SetEnv(e string) {
-	s.Span.EnvRef = s.Strings.Add(e)
+	s.Strings.DecrementReference(s.span.EnvRef)
+	s.span.EnvRef = s.Strings.Add(e)
 }
 
 func (s *InternalSpan) ParentID() uint64 {
-	return s.Span.ParentID
+	return s.span.ParentID
 }
 
 func (s *InternalSpan) SetParentID(parentID uint64) {
-	s.Span.ParentID = parentID
+	s.span.ParentID = parentID
 }
 
 func (s *InternalSpan) SpanID() uint64 {
-	return s.Span.SpanID
+	return s.span.SpanID
 }
 
 func (s *InternalSpan) SetSpanID(spanID uint64) {
-	s.Span.SpanID = spanID
+	s.span.SpanID = spanID
 }
 
 func (s *InternalSpan) Start() uint64 {
-	return s.Span.Start
+	return s.span.Start
 }
 
 func (s *InternalSpan) SetStart(start uint64) {
-	s.Span.Start = start
+	s.span.Start = start
 }
 
 func (s *InternalSpan) Error() bool {
-	return s.Span.Error
+	return s.span.Error
 }
 
 func (s *InternalSpan) Attributes() map[uint32]*AnyValue {
-	return s.Span.Attributes
+	return s.span.Attributes
 }
 
 func (s *InternalSpan) Duration() uint64 {
-	return s.Span.Duration
+	return s.span.Duration
 }
 
 func (s *InternalSpan) SetDuration(duration uint64) {
-	s.Span.Duration = duration
+	s.span.Duration = duration
 }
 
 func (s *InternalSpan) Kind() SpanKind {
-	return s.Span.Kind
+	return s.span.Kind
 }
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := s.Span.Attributes[s.Strings.Lookup(key)]; ok {
-		return attr.AsString(s.Strings), true
-	}
-	return "", false
+	return GetAttributeAsString(key, s.Strings, s.span.Attributes)
 }
 
-// GetAttributeAsFloat64 returns the attribute as a float64 and a boolean indicating if the attribute was found
+// GetAttributeAsFloat64 returns the attribute as a float64 and a boolean indicating if the attribute was found AND it was able to be converted to a float64
 func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
-	if attr, ok := s.Span.Attributes[s.Strings.Lookup(key)]; ok {
+	if attr, ok := s.span.Attributes[s.Strings.Lookup(key)]; ok {
 		doubleVal, err := attr.AsDoubleValue(s.Strings)
 		if err != nil {
 			return 0, false
@@ -541,55 +561,36 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 }
 
 func (s *InternalSpan) SetStringAttribute(key, value string) {
-	// TODO: removing a string
-	if s.Span.Attributes == nil {
-		s.Span.Attributes = make(map[uint32]*AnyValue)
+	if s.span.Attributes == nil {
+		s.span.Attributes = make(map[uint32]*AnyValue)
 	}
-	s.Span.Attributes[s.Strings.Add(key)] = &AnyValue{
-		Value: &AnyValue_StringValueRef{
-			StringValueRef: s.Strings.Add(value),
-		},
-	}
+	SetStringAttribute(key, value, s.Strings, s.span.Attributes)
 }
 
 func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
-	// TODO: removing a string
-	if s.Span.Attributes == nil {
-		s.Span.Attributes = make(map[uint32]*AnyValue)
+	if s.span.Attributes == nil {
+		s.span.Attributes = make(map[uint32]*AnyValue)
 	}
-	s.Span.Attributes[s.Strings.Add(key)] = &AnyValue{
-		Value: &AnyValue_DoubleValue{
-			DoubleValue: value,
-		},
-	}
+	SetFloat64Attribute(key, value, s.Strings, s.span.Attributes)
 }
 
 // SetAttributeFromString sets the attribute from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (s *InternalSpan) SetAttributeFromString(key, value string) {
-	// TODO: removing a string
-	s.Span.Attributes[s.Strings.Add(key)] = FromString(s.Strings, value)
+	SetAttribute(key, FromString(s.Strings, value), s.Strings, s.span.Attributes)
 }
 
 func (s *InternalSpan) DeleteAttribute(key string) {
-	// TODO: removing a string
-	keyIdx := s.Strings.Lookup(key)
-	if keyIdx != 0 {
-		delete(s.Span.Attributes, keyIdx)
-	}
-}
-
-func (s *InternalSpan) DeleteAttributeIdx(keyIdx uint32) {
-	delete(s.Span.Attributes, keyIdx)
+	DeleteAttribute(key, s.Strings, s.span.Attributes)
 }
 
 func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
-	for k, v := range s.Span.Attributes {
+	for k, v := range s.span.Attributes {
 		// TODO: we could cache the results of these transformations
 		vString := v.AsString(s.Strings)
 		newV := f(s.Strings.Get(k), vString)
 		if newV != vString {
-			s.Span.Attributes[k] = &AnyValue{
+			s.span.Attributes[k] = &AnyValue{
 				Value: &AnyValue_StringValueRef{
 					StringValueRef: s.Strings.Add(newV),
 				},
@@ -621,19 +622,11 @@ func (sl *SpanLink) Msgsize() int {
 }
 
 func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := sl.Link.Attributes[sl.Strings.Lookup(key)]; ok {
-		return attr.AsString(sl.Strings), true
-	}
-	return "", false
+	return GetAttributeAsString(key, sl.Strings, sl.Link.Attributes)
 }
 
 func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
-	// TODO: removing a string
-	sl.Link.Attributes[sl.Strings.Add(key)] = &AnyValue{
-		Value: &AnyValue_StringValueRef{
-			StringValueRef: sl.Strings.Add(value),
-		},
-	}
+	SetStringAttribute(key, value, sl.Strings, sl.Link.Attributes)
 }
 
 func (sl *InternalSpanLink) Tracestate() string {
@@ -661,10 +654,7 @@ func (se *SpanEvent) Msgsize() int {
 }
 
 func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := se.Event.Attributes[se.Strings.Lookup(key)]; ok {
-		return attr.AsString(se.Strings), true
-	}
-	return "", false
+	return GetAttributeAsString(key, se.Strings, se.Event.Attributes)
 }
 
 // SetAttributeFromString sets the attribute on an InternalSpanEvent from a string, attempting to use the most backwards compatible type possible
@@ -702,6 +692,24 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 		return "{" + strings.Join(valuesStr, ",") + "}"
 	default:
 		return ""
+	}
+}
+
+// DecStringRefs decrements the ref count for all strings (including nested values) in this AnyValue as this value is being removed / replaced
+// Noop for non-string values
+func (attr *AnyValue) RemoveStringRefs(strTable *StringTable) {
+	switch v := attr.Value.(type) {
+	case *AnyValue_StringValueRef:
+		strTable.DecrementReference(v.StringValueRef)
+	case *AnyValue_ArrayValue:
+		for _, value := range v.ArrayValue.Values {
+			value.RemoveStringRefs(strTable)
+		}
+	case *AnyValue_KeyValueList:
+		for _, kv := range v.KeyValueList.KeyValues {
+			strTable.DecrementReference(kv.Key)
+			kv.Value.RemoveStringRefs(strTable)
+		}
 	}
 }
 
@@ -755,5 +763,47 @@ func FromString(strTable *StringTable, s string) *AnyValue {
 		Value: &AnyValue_StringValueRef{
 			StringValueRef: strTable.Add(s),
 		},
+	}
+}
+
+func GetAttributeAsString(key string, strTable *StringTable, attributes map[uint32]*AnyValue) (string, bool) {
+	if attr, ok := attributes[strTable.Lookup(key)]; ok {
+		return attr.AsString(strTable), true
+	}
+	return "", false
+}
+
+func SetStringAttribute(key, value string, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	SetAttribute(key, &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: strTable.Add(value),
+		},
+	}, strTable, attributes)
+}
+
+func SetFloat64Attribute(key string, value float64, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	SetAttribute(key, &AnyValue{
+		Value: &AnyValue_DoubleValue{
+			DoubleValue: value,
+		},
+	}, strTable, attributes)
+}
+
+func SetAttribute(key string, value *AnyValue, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	newKeyIdx := strTable.Add(key)
+	if oldVal, ok := attributes[newKeyIdx]; ok {
+		// Key already exists, remove the old value's string references
+		oldVal.RemoveStringRefs(strTable)
+	}
+	attributes[newKeyIdx] = value
+}
+
+func DeleteAttribute(key string, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	keyIdx := strTable.Lookup(key)
+	if keyIdx != 0 {
+		// Remove key ref and any value ref
+		strTable.DecrementReference(keyIdx)
+		attributes[keyIdx].RemoveStringRefs(strTable)
+		delete(attributes, keyIdx)
 	}
 }

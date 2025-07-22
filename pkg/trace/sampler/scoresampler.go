@@ -6,7 +6,6 @@
 package sampler
 
 import (
-	"encoding/binary"
 	"sync"
 	"time"
 
@@ -106,7 +105,7 @@ func (s *ScoreSampler) SampleV1(now time.Time, chunk *idx.InternalTraceChunk, ro
 
 	rate := s.getSignatureSampleRate(signature)
 
-	sampled := s.applySampleRateV1(root, chunk.TraceID, rate)
+	sampled := s.applySampleRateV1(root, chunk.LegacyTraceID(), rate)
 	return sampled
 }
 
@@ -131,12 +130,11 @@ func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 	return sampled
 }
 
-func (s *ScoreSampler) applySampleRateV1(root *idx.InternalSpan, traceID []byte, rate float64) bool {
+// We use the legacy traceID here for backwards compatibility with any older version of the agent
+func (s *ScoreSampler) applySampleRateV1(root *idx.InternalSpan, traceID uint64, rate float64) bool {
 	initialRate := GetGlobalRateV1(root)
 	newRate := initialRate * rate
-	// We use the legacy traceID here for backwards compatibility with any older version of the agent
-	legacyTraceID := binary.BigEndian.Uint64(traceID[8:])
-	sampled := SampleByRate(legacyTraceID, newRate)
+	sampled := SampleByRate(traceID, newRate)
 	if sampled {
 		root.SetFloat64Attribute(s.samplingRateKey, rate)
 	}

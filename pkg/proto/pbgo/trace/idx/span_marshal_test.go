@@ -21,7 +21,7 @@ func TestMarshalSpan(t *testing.T) {
 
 		span := &InternalSpan{
 			Strings: strings,
-			Span: &Span{
+			span: &Span{
 				ServiceRef:  strings.Add("my-service"),
 				NameRef:     strings.Add("span-name"),
 				ResourceRef: strings.Add("GET /res"),
@@ -338,20 +338,20 @@ func FuzzSpanMarshalUnmarshal(f *testing.F) {
 }
 
 func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
-	assert.Equal(t, expected.Strings.Get(expected.Span.ServiceRef), span.Strings.Get(span.Span.ServiceRef))
-	assert.Equal(t, expected.Strings.Get(expected.Span.NameRef), span.Strings.Get(span.Span.NameRef))
-	assert.Equal(t, expected.Strings.Get(expected.Span.ResourceRef), span.Strings.Get(span.Span.ResourceRef))
-	assert.Equal(t, expected.Span.SpanID, span.Span.SpanID)
-	assert.Equal(t, expected.Span.ParentID, span.Span.ParentID)
-	assert.Equal(t, expected.Span.Start, span.Span.Start)
-	assert.Equal(t, expected.Span.Duration, span.Span.Duration)
-	assert.Equal(t, expected.Span.Error, span.Span.Error)
-	for k, v := range expected.Span.Attributes {
+	assert.Equal(t, expected.Strings.Get(expected.span.ServiceRef), span.Strings.Get(span.span.ServiceRef))
+	assert.Equal(t, expected.Strings.Get(expected.span.NameRef), span.Strings.Get(span.span.NameRef))
+	assert.Equal(t, expected.Strings.Get(expected.span.ResourceRef), span.Strings.Get(span.span.ResourceRef))
+	assert.Equal(t, expected.span.SpanID, span.span.SpanID)
+	assert.Equal(t, expected.span.ParentID, span.span.ParentID)
+	assert.Equal(t, expected.span.Start, span.span.Start)
+	assert.Equal(t, expected.span.Duration, span.span.Duration)
+	assert.Equal(t, expected.span.Error, span.span.Error)
+	for k, v := range expected.span.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
 		expectedKey := expected.Strings.Get(k)
 		actualKeyIndex := span.Strings.lookup[expectedKey]
-		span.Span.Attributes[actualKeyIndex].assertEqual(t, v, span.Strings, expected.Strings)
+		span.span.Attributes[actualKeyIndex].assertEqual(t, v, span.Strings, expected.Strings)
 	}
 	for i, link := range expected.Links() {
 		span.Links()[i].assertEqual(t, link)
@@ -359,8 +359,8 @@ func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
 	for i, event := range expected.Events() {
 		span.Events()[i].assertEqual(t, event)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.Span.EnvRef), span.Strings.Get(span.Span.EnvRef))
-	assert.Equal(t, expected.Strings.Get(expected.Span.VersionRef), span.Strings.Get(span.Span.VersionRef))
-	assert.Equal(t, expected.Strings.Get(expected.Span.ComponentRef), span.Strings.Get(span.Span.ComponentRef))
-	assert.Equal(t, expected.Span.Kind, span.Span.Kind)
+	assert.Equal(t, expected.Strings.Get(expected.span.EnvRef), span.Strings.Get(span.span.EnvRef))
+	assert.Equal(t, expected.Strings.Get(expected.span.VersionRef), span.Strings.Get(span.span.VersionRef))
+	assert.Equal(t, expected.Strings.Get(expected.span.ComponentRef), span.Strings.Get(span.span.ComponentRef))
+	assert.Equal(t, expected.span.Kind, span.span.Kind)
 }
