@@ -68,6 +68,8 @@ type networkInstanceConfig struct {
 	ExcludedInterfaceRe       string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern  *regexp.Regexp
 	CollectEthtoolStats       bool     `yaml:"collect_ethtool_stats"`
+	CollectEthtoolMetrics     bool     `yaml:"collect_ethtool_metrics"`
+	CollectEnaMetrics         bool     `yaml:"collect_aws_ena_metrics"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
 	BlacklistConntrackMetrics []string `yaml:"blacklist_conntrack_metrics"`
@@ -161,10 +163,10 @@ func (c *NetworkCheck) Run() error {
 	submitInterfaceSysMetrics(sender)
 
 	for _, interfaceIO := range ioByInterface {
-		if !c.isDeviceExcluded(interfaceIO.Name) {
+		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, interfaceIO)
+				err = handleEthtoolStats(sender, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
 				if err != nil {
 					return err
 				}
@@ -186,12 +188,14 @@ func (c *NetworkCheck) Run() error {
 	return nil
 }
 
-func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+func (c *NetworkCheck) isInterfaceExcluded(interfaceName string) bool {
+	if slices.Contains(c.config.instance.ExcludedInterfaces, interfaceName) {
+		log.Debugf("Skipping network interface %s", interfaceName)
 		return true
 	}
-	if c.config.instance.ExcludedInterfacePattern != nil {
-		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
+	if c.config.instance.ExcludedInterfacePattern != nil && c.config.instance.ExcludedInterfacePattern.MatchString(interfaceName) {
+		log.Debugf("Skipping network interface from match: %s", interfaceName)
+		return true
 	}
 	return false
 }
@@ -257,7 +261,13 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) error {
+func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
+		// Skip loopback ifaces as they don't support SIOCETHTOOL
+		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
+		return
+	}
+
 	ethtoolObjectPtr, err := ethtool.NewEthtool()
 	if err != nil {
 		log.Errorf("Failed to create ethtool object: %s", err)
@@ -295,18 +305,23 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat) er
 		}
 	}
 
-	processedMap := getEthtoolMetrics(driverName, statsMap)
-	for extraTag, keyValuePairing := range processedMap {
-		tags := []string{
-			"interface:" + interfaceIO.Name,
-			"driver_name:" + driverName,
-			"driver_version:" + driverVersion,
-			extraTag,
-		}
+	if collectEnaMetrics {
+	}
 
-		for metricName, metricValue := range keyValuePairing {
-			metricName := fmt.Sprintf("system.net.%s", metricName)
-			sender.MonotonicCount(metricName, float64(metricValue), "", tags)
+	if collectEthtoolMetrics {
+		processedMap := getEthtoolMetrics(driverName, statsMap)
+		for extraTag, keyValuePairing := range processedMap {
+			tags := []string{
+				"interface:" + interfaceIO.Name,
+				"driver_name:" + driverName,
+				"driver_version:" + driverVersion,
+				extraTag,
+			}
+
+			for metricName, metricValue := range keyValuePairing {
+				metricName := fmt.Sprintf("system.net.%s", metricName)
+				sender.MonotonicCount(metricName, float64(metricValue), "", tags)
+			}
 		}
 	}
 

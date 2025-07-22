@@ -76,6 +76,26 @@ instances:
 		//	``,
 		//	true,
 		//},
+		{
+			"collect ethtool metrics",
+			`init_config:
+instances:
+  - collect_ethtool_stats: true
+    collect_ethtool_metrics: true
+`,
+			``,
+			true, // this setting is not only for Linux but the windows python check is missing some metrics
+		},
+		{
+			"collect aws ena metrics",
+			`init_config:
+instances:
+  - collect_ethtool_stats: true
+    collect_aws_ena_metrics: true
+`,
+			``,
+			true, // this setting is not only for Linux but the windows python check is missing some metrics
+		},
 	}
 
 	for _, testCase := range testCases {
