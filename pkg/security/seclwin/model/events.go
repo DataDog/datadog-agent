@@ -111,7 +111,7 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
-	// RawPacketEventType raw packet filter event
+	// RawPacketFilterEventType raw packet filter event
 	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType

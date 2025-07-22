@@ -203,11 +203,11 @@ func TestRawPacketAction(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdWrapper.Command("free", []string{}, []string{})
 			return cmd.Run()
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
 		})
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(3 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
 		if err := cmd.Run(); err == nil {
