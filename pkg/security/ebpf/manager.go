@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
 
+// Manager handle the safeness of the ebpf manager
 type Manager struct {
 	sync.Mutex
 	Manager *manager.Manager
