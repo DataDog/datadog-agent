@@ -55,7 +55,7 @@ const (
 	DefaultLinesOrBytesToSkip = 0
 
 	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
-	DefaultFingerprintingMaxLines = 0
+	DefaultFingerprintingMaxLines = 1
 
 	// DefaultSite is the default site the Agent sends data to.
 	DefaultSite = "datadoghq.com"
