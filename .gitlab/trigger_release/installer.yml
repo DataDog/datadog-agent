@@ -6,7 +6,7 @@
 # as we adopt the `dd-pkg` tooling for the Installer. We should deduplicate the code between the two files in the future.
 .installer_release_management_trigger:
   stage: trigger_release
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64$CI_IMAGE_LINUX_X64_SUFFIX:$CI_IMAGE_LINUX_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64"]
   # We don't directly depend/need the package deploy jobs, because
   # that would make us deploy even when there are e2e tests failures etc
