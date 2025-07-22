@@ -192,12 +192,17 @@ func (s *testUpgradeWithMissingPasswordSuite) TestUpgradeWithMissingPassword() {
 	// before the background worker stops any services.
 	// This should allow the daemon to return the error to the user, too.
 	s.assertDaemonStaysRunning(func() {
-		_, err = s.StartExperimentCurrentVersion()
+		_, err := s.StartExperimentCurrentVersion()
 		s.Require().ErrorContains(err, "the Agent user password is not available. The password is required for domain accounts. Please reinstall the Agent with the password provided")
+		// I'm not sure if backend sends stop-experiment here, but if it does
+		// we want to make sure we assert it's a no-op.
+		_, err = s.Installer().StopExperiment(consts.AgentPackage)
+		s.Require().NoError(err)
+		s.assertSuccessfulAgentStopExperiment(secondVersion.PackageVersion())
 	})
 
 	// Assert
-	// If the local API is updated so it updates the task state, we
+	// TODO: If the local API is updated so it updates the task state then we
 	// should assert that it contains the above error, too.
 }
 

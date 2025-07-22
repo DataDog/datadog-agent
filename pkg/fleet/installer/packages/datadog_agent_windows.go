@@ -44,6 +44,7 @@ var datadogAgentPackage = hooks{
 	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
 
+	preStartExperiment:    preStartExperimentDatadogAgent,
 	postStartExperiment:   postStartExperimentDatadogAgent,
 	postStopExperiment:    postStopExperimentDatadogAgent,
 	postPromoteExperiment: postPromoteExperimentDatadogAgent,
@@ -96,23 +97,29 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	return nil
 }
 
+// preStartExperimentDatadogAgent checks prerequisites before starting the experiment
+//
+// These checks are intended to prevent entering a state where we are unable to reinstall stable
+// and the host is left without the Agent installed.
+//
+// Performing the checks in the "pre" hook allows us to return an error before the
+// experiment state is created, which allows us to skip stop_experiment which would
+// otherwise unecessarily try to uninstall and then reinstall the stable Agent.
+func preStartExperimentDatadogAgent(_ HookContext) error {
+	env := getenv()
+	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
+	if err != nil {
+		return fmt.Errorf("cannot start remote update: %w", err)
+	}
+	return nil
+}
+
 // postStartExperimentDatadogAgent stops the watchdog and launches a new process to start the experiment in the background.
 func postStartExperimentDatadogAgent(ctx HookContext) error {
 	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
 	// this allows for running multiple experiments in sequence
 	_ = setWatchdogStopEvent()
-
-	// check prerequisites before starting the experiment
-	// These checks are intended to prevent entering a state where we are unable to reinstall stable
-	// and the host is left without the Agent installed.
-	// Performing the checks before launching the background work allows us to
-	// return an error to the fleet backend and to the user.
-	env := getenv()
-	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
-	if err != nil {
-		return fmt.Errorf("cannot start remote update: %w", err)
-	}
 
 	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartExperimentBackground")
 }
