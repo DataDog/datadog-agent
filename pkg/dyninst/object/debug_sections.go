@@ -9,6 +9,7 @@ package object
 
 import (
 	"debug/dwarf"
+	"iter"
 )
 
 // DebugSections is a struct that contains the data for each debugging
@@ -45,28 +46,45 @@ type DebugSections struct {
 	// sections.
 }
 
-var sectionGetters = map[string]func(*DebugSections) *[]byte{
-	"abbrev":      func(d *DebugSections) *[]byte { return &d.Abbrev },
-	"addr":        func(d *DebugSections) *[]byte { return &d.Addr },
-	"aranges":     func(d *DebugSections) *[]byte { return &d.Aranges },
-	"info":        func(d *DebugSections) *[]byte { return &d.Info },
-	"line":        func(d *DebugSections) *[]byte { return &d.Line },
-	"line_str":    func(d *DebugSections) *[]byte { return &d.LineStr },
-	"str":         func(d *DebugSections) *[]byte { return &d.Str },
-	"str_offsets": func(d *DebugSections) *[]byte { return &d.StrOffsets },
-	"types":       func(d *DebugSections) *[]byte { return &d.Types },
-	"loc":         func(d *DebugSections) *[]byte { return &d.Loc },
-	"loclists":    func(d *DebugSections) *[]byte { return &d.LocLists },
-	"ranges":      func(d *DebugSections) *[]byte { return &d.Ranges },
-	"rnglists":    func(d *DebugSections) *[]byte { return &d.RngLists },
+var sections = []struct {
+	name   string
+	getter func(*DebugSections) *[]byte
+}{
+	{"abbrev", func(d *DebugSections) *[]byte { return &d.Abbrev }},
+	{"addr", func(d *DebugSections) *[]byte { return &d.Addr }},
+	{"aranges", func(d *DebugSections) *[]byte { return &d.Aranges }},
+	{"info", func(d *DebugSections) *[]byte { return &d.Info }},
+	{"line", func(d *DebugSections) *[]byte { return &d.Line }},
+	{"line_str", func(d *DebugSections) *[]byte { return &d.LineStr }},
+	{"str", func(d *DebugSections) *[]byte { return &d.Str }},
+	{"str_offsets", func(d *DebugSections) *[]byte { return &d.StrOffsets }},
+	{"types", func(d *DebugSections) *[]byte { return &d.Types }},
+	{"loc", func(d *DebugSections) *[]byte { return &d.Loc }},
+	{"loclists", func(d *DebugSections) *[]byte { return &d.LocLists }},
+	{"ranges", func(d *DebugSections) *[]byte { return &d.Ranges }},
+	{"rnglists", func(d *DebugSections) *[]byte { return &d.RngLists }},
 }
 
-func (ds *DebugSections) getSection(name string) (*[]byte, bool) {
-	getter, ok := sectionGetters[name]
-	if !ok {
-		return nil, false
+func (ds *DebugSections) getSection(name string) *[]byte {
+	for _, s := range sections {
+		if s.name == name {
+			return s.getter(ds)
+		}
 	}
-	return getter(ds), true
+	return nil
+}
+
+// Sections returns an iterator over all the debug sections with their names and
+// contents. Note that this is not the sections in the file, but rather all the
+// sections that DebugSections supports.
+func (ds *DebugSections) Sections() iter.Seq2[string, []byte] {
+	return func(yield func(string, []byte) bool) {
+		for _, s := range sections {
+			if !yield(s.name, *s.getter(ds)) {
+				return
+			}
+		}
+	}
 }
 
 func (ds *DebugSections) loadDwarfData() (*dwarf.Data, error) {

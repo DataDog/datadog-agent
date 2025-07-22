@@ -8,12 +8,16 @@
 package utils
 
 import (
+	"archive/tar"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 )
 
 func TestCGroupvParseLine(t *testing.T) {
@@ -265,6 +269,14 @@ func TestCGroup(t *testing.T) {
 			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerECS),
 			path:        "/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770",
 		},
+		{
+			name:          "relative-path",
+			cgroupContent: `0::/../../../../kuberuntime.slice/containerd.service`,
+			error:         false,
+			containerID:   "",
+			flags:         containerutils.CGroupFlags(containerutils.CGroupManagerSystemd) | containerutils.SystemdService,
+			path:          "/../../../../kuberuntime.slice/containerd.service",
+		},
 	}
 
 	for _, test := range testsCgroup {
@@ -276,22 +288,22 @@ func TestCGroup(t *testing.T) {
 		)
 
 		t.Run(test.name, func(t *testing.T) {
-			err := parseProcControlGroupsData([]byte(test.cgroupContent), func(id, ctrl, path string) bool {
+			err := parseProcControlGroupsData([]byte(test.cgroupContent), func(id, ctrl, path string) (bool, error) {
 				if path == "/" {
-					return false
+					return false, nil
 				} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
-					return false
+					return false, nil
 				}
 				cgroup, err := makeControlGroup(id, ctrl, path)
 				if err != nil {
-					return false
+					return false, err
 				}
 
 				containerID, flags = cgroup.GetContainerContext()
 				cgroupContext.CGroupID = containerutils.CGroupID(cgroup.Path)
 				cgroupContext.CGroupFlags = flags
 				cgroupPath = path
-				return true
+				return true, nil
 			})
 
 			assert.Equal(t, test.error, err != nil)
@@ -300,4 +312,95 @@ func TestCGroup(t *testing.T) {
 			assert.Equal(t, test.path, cgroupPath)
 		})
 	}
+}
+
+func untar(t *testing.T, tarxzArchive string, destinationDir string) {
+	// extract all the regularfiles
+	err := archive.TarXZExtractAll(tarxzArchive, destinationDir)
+	assert.NoError(t, err)
+
+	// untar symlink
+	archive.WalkTarXZArchive(tarxzArchive, func(_ *tar.Reader, hdr *tar.Header) error {
+		if hdr.Typeflag == tar.TypeSymlink {
+			name := filepath.Join(destinationDir, hdr.Name)
+
+			os.Symlink(hdr.Linkname, name)
+		}
+
+		return nil
+	})
+}
+
+func TestCGroupFS(t *testing.T) {
+	tempDir := t.TempDir()
+
+	hostProc := filepath.Join(tempDir, "proc")
+
+	os.Setenv("HOST_PROC", hostProc)
+	os.Setenv("HOST_SYS", filepath.Join(tempDir, "sys"))
+
+	t.Run("cgroupv2", func(t *testing.T) {
+		defer os.RemoveAll(tempDir)
+
+		untar(t, "testdata/cgroupv2.tar.xz", tempDir)
+
+		cfs := NewCGroupFS()
+		cfs.cGroupMountPoints = []string{
+			filepath.Join(tempDir, "sys/fs/cgroup"),
+		}
+		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc), GetpidFrom(hostProc))
+
+		t.Run("find-cgroup-context-ko", func(t *testing.T) {
+			_, _, _, err := cfs.FindCGroupContext(567, 567)
+			assert.Error(t, err)
+		})
+
+		t.Run("detect-current-cgroup-path", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf444bc33_254d_3cba_c5e8_ce94f864b774.slice/cri-containerd-6c70abd66a591fe3d997d8b1a0a4df08d35f6b2cd4a551b514533d27d7086e37.scope")
+			assert.Equal(t, expectedCgroupPath, cfs.GetRootCGroupPath())
+		})
+
+		t.Run("find-cgroup-context-ok", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf099a5b1_192b_4df6_b6d2_aa0b366fc2f1.slice/cri-containerd-b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17.scope")
+
+			containerID, cgroupContext, cgroupPath, err := cfs.FindCGroupContext(600894, 600894)
+			assert.Equal(t, containerutils.CGroupID(expectedCgroupPath), cgroupContext.CGroupID)
+			assert.Equal(t, containerutils.ContainerID("b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17"), containerID)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedCgroupPath, cgroupPath)
+		})
+	})
+
+	t.Run("cgroupv1", func(t *testing.T) {
+		defer os.RemoveAll(tempDir)
+
+		untar(t, "testdata/cgroupv1.tar.xz", tempDir)
+
+		cfs := NewCGroupFS()
+		cfs.cGroupMountPoints = []string{
+			filepath.Join(tempDir, "sys/fs/cgroup"),
+		}
+
+		cfs.detectCurrentCgroupPath(GetpidFrom(hostProc), GetpidFrom(hostProc))
+
+		t.Run("find-cgroup-context-ko", func(t *testing.T) {
+			_, _, _, err := cfs.FindCGroupContext(567, 567)
+			assert.Error(t, err)
+		})
+
+		t.Run("detect-current-cgroup-path", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/pids/docker/027b54806f2263be225a934f5f083fd6ab718ddae9aedf441195c835ebf7f17d")
+			assert.Equal(t, expectedCgroupPath, cfs.GetRootCGroupPath())
+		})
+
+		t.Run("find-cgroup-context-ok", func(t *testing.T) {
+			expectedCgroupPath := filepath.Join(tempDir, "sys/fs/cgroup/pids/docker/d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f")
+
+			containerID, cgroupContext, cgroupPath, err := cfs.FindCGroupContext(18865, 18865)
+			assert.Equal(t, containerutils.CGroupID(expectedCgroupPath), cgroupContext.CGroupID)
+			assert.Equal(t, containerutils.ContainerID("d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f"), containerID)
+			assert.NoError(t, err)
+			assert.Equal(t, expectedCgroupPath, cgroupPath)
+		})
+	})
 }

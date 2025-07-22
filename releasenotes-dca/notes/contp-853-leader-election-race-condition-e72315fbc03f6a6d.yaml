@@ -6,7 +6,11 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Host SBOMs now include support for languages scanners, reporting more
-    vulnerabilities about binaries and libraries used in your environment.
+    Fixed an issue that caused some Datadog Cluster Agent replicas to restart
+    during the first install.
+  - |
+    When using leases for leader election with the
+    ``leader_election_default_resource`` option, the Datadog Cluster Agent no
+    longer creates an unused config map.
