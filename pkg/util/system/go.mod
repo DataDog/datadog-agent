@@ -3,11 +3,11 @@ module github.com/DataDog/datadog-agent/pkg/util/system
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.68.3-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.68.3-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.68.3-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.68.3-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.68.3-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.68.3-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.68.3-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.68.3-rc.2
 	github.com/shirou/gopsutil/v4 v4.25.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
@@ -15,8 +15,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.68.3-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.68.3-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.68.3-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
