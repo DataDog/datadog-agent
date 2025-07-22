@@ -615,6 +615,8 @@ func (cs *configStream) TrySendUpdate(update *pb.ConfigUpdate) bool {
 }
 
 func runConfigStream(ctx context.Context, config config.Component, stream pb.RemoteAgent_StreamConfigEventsClient, configUpdates chan *pb.ConfigUpdate) {
+	retryInterval := config.GetDuration("remote_agent_registry.config_stream_retry_interval")
+
 outer:
 	for {
 		lastEventSequenceID := uint64(0)
@@ -627,14 +629,14 @@ outer:
 		initialSnapshot, sequenceID, err := createConfigSnapshot(config)
 		if err != nil {
 			log.Errorf("Failed to create initial config snapshot: %v", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(retryInterval)
 			continue
 		}
 
 		err = stream.Send(initialSnapshot)
 		if err != nil {
 			log.Errorf("Failed to send initial config snapshot to remote agent: %v", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(retryInterval)
 			continue
 		}
 
