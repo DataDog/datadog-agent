@@ -344,7 +344,7 @@ func TestCGroupFS(t *testing.T) {
 
 		untar(t, "testdata/cgroupv2.tar.xz", tempDir)
 
-		cfs := NewCGroupFS()
+		cfs := newCGroupFS()
 		cfs.cGroupMountPoints = []string{
 			filepath.Join(tempDir, "sys/fs/cgroup"),
 		}
@@ -376,7 +376,7 @@ func TestCGroupFS(t *testing.T) {
 
 		untar(t, "testdata/cgroupv1.tar.xz", tempDir)
 
-		cfs := NewCGroupFS()
+		cfs := newCGroupFS()
 		cfs.cGroupMountPoints = []string{
 			filepath.Join(tempDir, "sys/fs/cgroup"),
 		}
