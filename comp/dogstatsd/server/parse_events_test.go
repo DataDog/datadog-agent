@@ -9,9 +9,10 @@ import (
 	"testing"
 	"unique"
 
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func parseEvent(t *testing.T, rawEvent []byte) (dogstatsdEvent, error) {
