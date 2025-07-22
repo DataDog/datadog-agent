@@ -22,7 +22,7 @@ type Async struct {
 	// - there is something to flush
 	// - there is something to write
 	// - the handler is closed
-	cond     sync.Cond
+	cond     *sync.Cond
 	closed   bool
 	msgQueue list.List
 	flush    *flushMsg
@@ -46,6 +46,7 @@ type msg struct {
 func NewAsyncHandler(innerHandler slog.Handler) *Async {
 	handler := &Async{
 		innerHandler: innerHandler,
+		cond:         sync.NewCond(&sync.Mutex{}),
 	}
 
 	handler.start()
