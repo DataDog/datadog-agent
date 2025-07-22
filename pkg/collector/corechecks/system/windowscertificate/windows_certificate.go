@@ -57,6 +57,22 @@ const (
 	certNameStrCRLF = 0x08000000
 
 	hcceLocalMachine = windows.Handle(1)
+
+	// Certificate chain policy validation flags
+	certChainPolicyIgnoreNotTimeValidFlag            = 0x00000001
+	certChainPolicyIgnoreCtlNotTimeValidFlag         = 0x00000002
+	certChainPolicyIgnoreNotTimeNestedFlag           = 0x00000004
+	certChainPolicyIgnoreAllNotTimeValidFlags        = certChainPolicyIgnoreNotTimeValidFlag | certChainPolicyIgnoreCtlNotTimeValidFlag | certChainPolicyIgnoreNotTimeNestedFlag
+	certChainPolicyIgnoreInvalidBasicConstraintsFlag = 0x00000008
+	certChainPolicyAllowUnknownCaFlag                = 0x00000010
+	certChainPolicyIgnoreWrongUsageFlag              = 0x00000020
+	certChainPolicyIgnoreInvalidNameFlag             = 0x00000040
+	certChainPolicyIgnoreInvalidPolicyFlag           = 0x00000080
+	certChainPolicyIgnoreEndRevUnknownFlag           = 0x00000100
+	certChainPolicyIgnoreCtlSignerRevUnknownFlag     = 0x00000200
+	certChainPolicyIgnoreCaRevUnknownFlag            = 0x00000400
+	certChainPolicyIgnoreRootRevUnknownFlag          = 0x00000800
+	certChainPolicyIgnoreAllRevUnknownFlags          = certChainPolicyIgnoreEndRevUnknownFlag | certChainPolicyIgnoreCtlSignerRevUnknownFlag | certChainPolicyIgnoreCaRevUnknownFlag | certChainPolicyIgnoreRootRevUnknownFlag
 )
 
 type certChainValidation struct {
@@ -705,33 +721,33 @@ func setCertChainValidationFlags(ignoreFlags []string) uint32 {
 func getCertChainFlagFromString(flag string) uint32 {
 	switch flag {
 	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_VALID_FLAG":
-		return 0x00000001
+		return certChainPolicyIgnoreNotTimeValidFlag
 	case "CERT_CHAIN_POLICY_IGNORE_CTL_NOT_TIME_VALID_FLAG":
-		return 0x00000002
+		return certChainPolicyIgnoreCtlNotTimeValidFlag
 	case "CERT_CHAIN_POLICY_IGNORE_NOT_TIME_NESTED_FLAG":
-		return 0x00000004
+		return certChainPolicyIgnoreNotTimeNestedFlag
 	case "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS":
-		return (0x00000001 | 0x00000002 | 0x00000004)
+		return certChainPolicyIgnoreAllNotTimeValidFlags
 	case "CERT_CHAIN_POLICY_IGNORE_INVALID_BASIC_CONSTRAINTS_FLAG":
-		return 0x00000008
+		return certChainPolicyIgnoreInvalidBasicConstraintsFlag
 	case "CERT_CHAIN_POLICY_ALLOW_UNKNOWN_CA_FLAG":
-		return 0x00000010
+		return certChainPolicyAllowUnknownCaFlag
 	case "CERT_CHAIN_POLICY_IGNORE_WRONG_USAGE_FLAG":
-		return 0x00000020
+		return certChainPolicyIgnoreWrongUsageFlag
 	case "CERT_CHAIN_POLICY_IGNORE_INVALID_NAME_FLAG":
-		return 0x00000040
+		return certChainPolicyIgnoreInvalidNameFlag
 	case "CERT_CHAIN_POLICY_IGNORE_INVALID_POLICY_FLAG":
-		return 0x00000080
+		return certChainPolicyIgnoreInvalidPolicyFlag
 	case "CERT_CHAIN_POLICY_IGNORE_END_REV_UNKNOWN_FLAG":
-		return 0x00000100
+		return certChainPolicyIgnoreEndRevUnknownFlag
 	case "CERT_CHAIN_POLICY_IGNORE_CTL_SIGNER_REV_UNKNOWN_FLAG":
-		return 0x00000200
+		return certChainPolicyIgnoreCtlSignerRevUnknownFlag
 	case "CERT_CHAIN_POLICY_IGNORE_CA_REV_UNKNOWN_FLAG":
-		return 0x00000400
+		return certChainPolicyIgnoreCaRevUnknownFlag
 	case "CERT_CHAIN_POLICY_IGNORE_ROOT_REV_UNKNOWN_FLAG":
-		return 0x00000800
+		return certChainPolicyIgnoreRootRevUnknownFlag
 	case "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS":
-		return (0x00000100 | 0x00000200 | 0x00000400 | 0x00000800)
+		return certChainPolicyIgnoreAllRevUnknownFlags
 	default:
 		log.Warnf("Unknown certificate chain validation flag, %s. Flag will be ignored.", flag)
 		return 0
