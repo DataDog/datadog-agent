@@ -308,7 +308,7 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 func (c *InternalTraceChunk) ToProto() *TraceChunk {
 	spans := make([]*Span, len(c.Spans))
 	for i, span := range c.Spans {
-		spans[i] = span.ToProto()
+		spans[i] = span.Span
 	}
 	return &TraceChunk{
 		Priority:         c.Priority,
@@ -327,75 +327,20 @@ func (c *InternalTraceChunk) ToProto() *TraceChunk {
 type InternalSpan struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
-	// service is the name of the service with which this span is associated.
-	ServiceRef uint32
-	// name is the operation name of this span.
-	NameRef uint32
-	// resource is the resource name of this span, also sometimes called the endpoint (for web spans).
-	ResourceRef uint32
-	// spanID is the ID of this span.
-	SpanID uint64
-	// parentID is the ID of this span's parent, or zero if this span has no parent.
-	ParentID uint64
-	// start is the number of nanoseconds between the Unix epoch and the beginning of this span.
-	Start uint64
-	// duration is the time length of this span in nanoseconds.
-	Duration uint64
-	// if there is an error associated with this span
-	Error bool
-	// meta is a mapping from tag name to tag value for string-valued tags.
-	Attributes map[uint32]*AnyValue
-	// type is the type of the service with which this span is associated.  Example values: web, db, lambda.
-	TypeRef uint32
-	// span_links represents a collection of links, where each link defines a causal relationship between two spans.
-	SpanLinks []*InternalSpanLink
-	// spanEvents represent an event at an instant in time related to this span, but not necessarily during the span.
-	SpanEvents []*InternalSpanEvent
-	// the optional string environment of this span
-	EnvRef uint32
-	// the optional string version of this span
-	VersionRef uint32
-	// the string component name of this span
-	ComponentRef uint32
-	// the SpanKind of this span as defined in the OTEL Specification
-	Kind SpanKind
+	Span    *Span
 }
 
-// TODO: this causes an extra allocation, how can we directly serialize exactly what we need?
-// ToProto converts an InternalSpan to a proto Span
-func (s *InternalSpan) ToProto() *Span {
-	spanLinks := make([]*SpanLink, len(s.SpanLinks))
-	for i, link := range s.SpanLinks {
-		spanLinks[i] = link.ToProto()
-	}
-	spanEvents := make([]*SpanEvent, len(s.SpanEvents))
-	for i, event := range s.SpanEvents {
-		spanEvents[i] = event.ToProto()
-	}
-	return &Span{
-		ServiceRef:   s.ServiceRef,
-		NameRef:      s.NameRef,
-		ResourceRef:  s.ResourceRef,
-		SpanID:       s.SpanID,
-		ParentID:     s.ParentID,
-		Start:        s.Start,
-		Duration:     s.Duration,
-		Error:        s.Error,
-		Attributes:   s.Attributes,
-		TypeRef:      s.TypeRef,
-		Links:        spanLinks,
-		Events:       spanEvents,
-		EnvRef:       s.EnvRef,
-		VersionRef:   s.VersionRef,
-		ComponentRef: s.ComponentRef,
-		Kind:         s.Kind,
-	}
-}
-
-// TODO: add a test to verify we have all fields
 func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	return &InternalSpan{
-		Strings:      s.Strings,
+		Strings: s.Strings,
+		Span:    s.Span.ShallowCopy(),
+	}
+}
+
+// ShallowCopy returns a shallow copy of the span
+func (s *Span) ShallowCopy() *Span {
+	return &Span{
+		// TODO: add a test to verify we have all fields
 		ServiceRef:   s.ServiceRef,
 		NameRef:      s.NameRef,
 		ResourceRef:  s.ResourceRef,
@@ -406,13 +351,37 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 		Error:        s.Error,
 		Attributes:   s.Attributes,
 		TypeRef:      s.TypeRef,
-		SpanLinks:    s.SpanLinks,
-		SpanEvents:   s.SpanEvents,
+		Links:        s.Links,
+		Events:       s.Events,
 		EnvRef:       s.EnvRef,
 		VersionRef:   s.VersionRef,
 		ComponentRef: s.ComponentRef,
 		Kind:         s.Kind,
 	}
+}
+
+// Events returns the spans events in the InternalSpanEvent format
+func (s *InternalSpan) Events() []*InternalSpanEvent {
+	events := make([]*InternalSpanEvent, len(s.Span.Events))
+	for i, event := range s.Span.Events {
+		events[i] = &InternalSpanEvent{
+			Strings: s.Strings,
+			Event:   event,
+		}
+	}
+	return events
+}
+
+// Links returns the spans links in the InternalSpanLink format
+func (s *InternalSpan) Links() []*InternalSpanLink {
+	links := make([]*InternalSpanLink, len(s.Span.Links))
+	for i, link := range s.Span.Links {
+		links[i] = &InternalSpanLink{
+			Strings: s.Strings,
+			Link:    link,
+		}
+	}
+	return links
 }
 
 // TODO: how can we maintain this as we add more fields?
@@ -428,16 +397,16 @@ func (s *InternalSpan) Msgsize() int {
 	size += msgp.Uint32Size + msgp.Uint64Size    // Duration
 	size += msgp.Uint32Size + msgp.BoolSize      // Error
 	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
-	for _, attr := range s.Attributes {
+	for _, attr := range s.Span.Attributes {
 		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
 	}
 	size += msgp.Uint32Size + msgp.Uint32Size      // TypeRef
 	size += msgp.Uint32Size + msgp.ArrayHeaderSize // SpanLinks
-	for _, link := range s.SpanLinks {
+	for _, link := range s.Span.Links {
 		size += link.Msgsize()
 	}
 	size += msgp.Uint32Size + msgp.ArrayHeaderSize // SpanEvents
-	for _, event := range s.SpanEvents {
+	for _, event := range s.Span.Events {
 		size += event.Msgsize()
 	}
 	size += msgp.Uint32Size + msgp.Uint32Size // EnvRef
@@ -449,7 +418,7 @@ func (s *InternalSpan) Msgsize() int {
 
 // SpanKind returns the string representation of the span kind
 func (s *InternalSpan) SpanKind() string {
-	switch s.Kind {
+	switch s.Span.Kind {
 	case SpanKind_SPAN_KIND_INTERNAL:
 		return "internal"
 	case SpanKind_SPAN_KIND_SERVER:
@@ -466,50 +435,50 @@ func (s *InternalSpan) SpanKind() string {
 }
 
 func (s *InternalSpan) Service() string {
-	return s.Strings.Get(s.ServiceRef)
+	return s.Strings.Get(s.Span.ServiceRef)
 }
 
 func (s *InternalSpan) SetService(svc string) {
 	// TODO: remove old string?
-	s.ServiceRef = s.Strings.Add(svc)
+	s.Span.ServiceRef = s.Strings.Add(svc)
 }
 
 func (s *InternalSpan) Name() string {
-	return s.Strings.Get(s.NameRef)
+	return s.Strings.Get(s.Span.NameRef)
 }
 
 func (s *InternalSpan) SetName(name string) {
 	// TODO: remove old string?
-	s.NameRef = s.Strings.Add(name)
+	s.Span.NameRef = s.Strings.Add(name)
 }
 
 func (s *InternalSpan) Resource() string {
-	return s.Strings.Get(s.ResourceRef)
+	return s.Strings.Get(s.Span.ResourceRef)
 }
 
 func (s *InternalSpan) SetResource(resource string) {
-	s.ResourceRef = s.Strings.Add(resource)
+	s.Span.ResourceRef = s.Strings.Add(resource)
 }
 
 func (s *InternalSpan) Type() string {
-	return s.Strings.Get(s.TypeRef)
+	return s.Strings.Get(s.Span.TypeRef)
 }
 
 func (s *InternalSpan) SetType(t string) {
-	s.TypeRef = s.Strings.Add(t)
+	s.Span.TypeRef = s.Strings.Add(t)
 }
 
 func (s *InternalSpan) Env() string {
-	return s.Strings.Get(s.EnvRef)
+	return s.Strings.Get(s.Span.EnvRef)
 }
 
 func (s *InternalSpan) SetEnv(e string) {
-	s.EnvRef = s.Strings.Add(e)
+	s.Span.EnvRef = s.Strings.Add(e)
 }
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
+	if attr, ok := s.Span.Attributes[s.Strings.Lookup(key)]; ok {
 		return attr.AsString(s.Strings), true
 	}
 	return "", false
@@ -517,7 +486,7 @@ func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
 
 // GetAttributeAsFloat64 returns the attribute as a float64 and a boolean indicating if the attribute was found
 func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
-	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
+	if attr, ok := s.Span.Attributes[s.Strings.Lookup(key)]; ok {
 		doubleVal, err := attr.AsDoubleValue(s.Strings)
 		if err != nil {
 			return 0, false
@@ -529,7 +498,7 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 
 func (s *InternalSpan) SetStringAttribute(key, value string) {
 	// TODO: removing a string
-	s.Attributes[s.Strings.Add(key)] = &AnyValue{
+	s.Span.Attributes[s.Strings.Add(key)] = &AnyValue{
 		Value: &AnyValue_StringValueRef{
 			StringValueRef: s.Strings.Add(value),
 		},
@@ -538,7 +507,7 @@ func (s *InternalSpan) SetStringAttribute(key, value string) {
 
 func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 	// TODO: removing a string
-	s.Attributes[s.Strings.Add(key)] = &AnyValue{
+	s.Span.Attributes[s.Strings.Add(key)] = &AnyValue{
 		Value: &AnyValue_DoubleValue{
 			DoubleValue: value,
 		},
@@ -549,28 +518,28 @@ func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (s *InternalSpan) SetAttributeFromString(key, value string) {
 	// TODO: removing a string
-	s.Attributes[s.Strings.Add(key)] = FromString(s.Strings, value)
+	s.Span.Attributes[s.Strings.Add(key)] = FromString(s.Strings, value)
 }
 
 func (s *InternalSpan) DeleteAttribute(key string) {
 	// TODO: removing a string
 	keyIdx := s.Strings.Lookup(key)
 	if keyIdx != 0 {
-		delete(s.Attributes, keyIdx)
+		delete(s.Span.Attributes, keyIdx)
 	}
 }
 
 func (s *InternalSpan) DeleteAttributeIdx(keyIdx uint32) {
-	delete(s.Attributes, keyIdx)
+	delete(s.Span.Attributes, keyIdx)
 }
 
 func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
-	for k, v := range s.Attributes {
+	for k, v := range s.Span.Attributes {
 		// TODO: we could cache the results of these transformations
 		vString := v.AsString(s.Strings)
 		newV := f(s.Strings.Get(k), vString)
 		if newV != vString {
-			s.Attributes[k] = &AnyValue{
+			s.Span.Attributes[k] = &AnyValue{
 				Value: &AnyValue_StringValueRef{
 					StringValueRef: s.Strings.Add(newV),
 				},
@@ -583,25 +552,11 @@ func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
 // Namely it stores Attributes as a map for fast key lookups
 type InternalSpanLink struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
-	Strings       *StringTable
-	TraceID       []byte
-	SpanID        uint64
-	Attributes    map[uint32]*AnyValue
-	TracestateRef uint32
-	Flags         uint32
+	Strings *StringTable
+	Link    *SpanLink
 }
 
-func (sl *InternalSpanLink) ToProto() *SpanLink {
-	return &SpanLink{
-		TraceID:       sl.TraceID,
-		SpanID:        sl.SpanID,
-		Attributes:    sl.Attributes,
-		TracestateRef: sl.TracestateRef,
-		Flags:         sl.Flags,
-	}
-}
-
-func (sl *InternalSpanLink) Msgsize() int {
+func (sl *SpanLink) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                          // Map
 	size += msgp.Uint32Size + msgp.BytesPrefixSize + 16 // TraceID (128 bits)
@@ -616,7 +571,7 @@ func (sl *InternalSpanLink) Msgsize() int {
 }
 
 func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := sl.Attributes[sl.Strings.Lookup(key)]; ok {
+	if attr, ok := sl.Link.Attributes[sl.Strings.Lookup(key)]; ok {
 		return attr.AsString(sl.Strings), true
 	}
 	return "", false
@@ -624,7 +579,7 @@ func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
 
 func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
 	// TODO: removing a string
-	sl.Attributes[sl.Strings.Add(key)] = &AnyValue{
+	sl.Link.Attributes[sl.Strings.Add(key)] = &AnyValue{
 		Value: &AnyValue_StringValueRef{
 			StringValueRef: sl.Strings.Add(value),
 		},
@@ -632,28 +587,18 @@ func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
 }
 
 func (sl *InternalSpanLink) Tracestate() string {
-	return sl.Strings.Get(sl.TracestateRef)
+	return sl.Strings.Get(sl.Link.TracestateRef)
 }
 
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups
 type InternalSpanEvent struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
-	Strings    *StringTable
-	Time       uint64
-	NameRef    uint32
-	Attributes map[uint32]*AnyValue
+	Strings *StringTable
+	Event   *SpanEvent
 }
 
-func (se *InternalSpanEvent) ToProto() *SpanEvent {
-	return &SpanEvent{
-		Time:       se.Time,
-		NameRef:    se.NameRef,
-		Attributes: se.Attributes,
-	}
-}
-
-func (se *InternalSpanEvent) Msgsize() int {
+func (se *SpanEvent) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                   // Map
 	size += msgp.Uint32Size + msgp.Uint64Size    // Time
@@ -666,7 +611,7 @@ func (se *InternalSpanEvent) Msgsize() int {
 }
 
 func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
-	if attr, ok := se.Attributes[se.Strings.Lookup(key)]; ok {
+	if attr, ok := se.Event.Attributes[se.Strings.Lookup(key)]; ok {
 		return attr.AsString(se.Strings), true
 	}
 	return "", false
@@ -675,7 +620,7 @@ func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
 // SetAttributeFromString sets the attribute on an InternalSpanEvent from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (se *InternalSpanEvent) SetAttributeFromString(key, value string) {
-	se.Attributes[se.Strings.Add(key)] = FromString(se.Strings, value)
+	se.Event.Attributes[se.Strings.Add(key)] = FromString(se.Strings, value)
 }
 
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior

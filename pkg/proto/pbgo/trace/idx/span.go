@@ -35,6 +35,9 @@ func UnmarshalSpanList(bts []byte, strings *StringTable) (spans []*InternalSpan,
 // UnmarshalMsg unmarshals the wire representation of a Span from a byte stream, updating the strings slice with new strings
 // directly into an InternalSpan. Note that the Strings field of the InternalSpan must already be initialized.
 func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	if span.Span == nil {
+		span.Span = &Span{}
+	}
 	var numSpanFields uint32
 	numSpanFields, o, err = limitedReadMapHeaderBytes(bts)
 	if err != nil {
@@ -57,7 +60,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span service")
 				return
 			}
-			span.ServiceRef = service
+			span.Span.ServiceRef = service
 		case 2:
 			var name uint32
 			name, o, err = UnmarshalStreamingString(o, span.Strings)
@@ -65,7 +68,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span name")
 				return
 			}
-			span.NameRef = name
+			span.Span.NameRef = name
 
 		case 3:
 			var resc uint32
@@ -74,7 +77,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span resource")
 				return
 			}
-			span.ResourceRef = resc
+			span.Span.ResourceRef = resc
 		case 4:
 			var spanID uint64
 			spanID, o, err = msgp.ReadUint64Bytes(o)
@@ -82,7 +85,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span spanID")
 				return
 			}
-			span.SpanID = spanID
+			span.Span.SpanID = spanID
 		case 5:
 			var parentID uint64
 			parentID, o, err = msgp.ReadUint64Bytes(o)
@@ -90,7 +93,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span parentID")
 				return
 			}
-			span.ParentID = parentID
+			span.Span.ParentID = parentID
 		case 6:
 			var start uint64
 			start, o, err = msgp.ReadUint64Bytes(o)
@@ -98,7 +101,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span start")
 				return
 			}
-			span.Start = start
+			span.Span.Start = start
 		case 7:
 			var duration uint64
 			duration, o, err = msgp.ReadUint64Bytes(o)
@@ -106,7 +109,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span duration")
 				return
 			}
-			span.Duration = duration
+			span.Span.Duration = duration
 		case 8:
 			var spanError bool
 			spanError, o, err = msgp.ReadBoolBytes(o)
@@ -114,7 +117,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span error")
 				return
 			}
-			span.Error = spanError
+			span.Span.Error = spanError
 		case 9:
 			var kvl map[uint32]*AnyValue
 			kvl, o, err = UnmarshalKeyValueMap(o, span.Strings)
@@ -122,7 +125,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span attributes")
 				return
 			}
-			span.Attributes = kvl
+			span.Span.Attributes = kvl
 		case 10:
 			var typ uint32
 			typ, o, err = msgp.ReadUint32Bytes(o)
@@ -130,23 +133,23 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span type")
 				return
 			}
-			span.TypeRef = typ
+			span.Span.TypeRef = typ
 		case 11:
-			var spanLinks []*InternalSpanLink
+			var spanLinks []*SpanLink
 			spanLinks, o, err = UnmarshalSpanLinks(o, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span links")
 				return
 			}
-			span.SpanLinks = spanLinks
+			span.Span.Links = spanLinks
 		case 12:
-			var spanEvents []*InternalSpanEvent
+			var spanEvents []*SpanEvent
 			spanEvents, o, err = UnmarshalSpanEventList(o, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span events")
 				return
 			}
-			span.SpanEvents = spanEvents
+			span.Span.Events = spanEvents
 		case 13:
 			var env uint32
 			env, o, err = UnmarshalStreamingString(o, span.Strings)
@@ -154,7 +157,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span env")
 				return
 			}
-			span.EnvRef = env
+			span.Span.EnvRef = env
 		case 14:
 			var version uint32
 			version, o, err = UnmarshalStreamingString(o, span.Strings)
@@ -162,7 +165,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span version")
 				return
 			}
-			span.VersionRef = version
+			span.Span.VersionRef = version
 		case 15:
 			var component uint32
 			component, o, err = UnmarshalStreamingString(o, span.Strings)
@@ -170,7 +173,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span component")
 				return
 			}
-			span.ComponentRef = component
+			span.Span.ComponentRef = component
 		case 16:
 			var kind uint32
 			kind, o, err = msgp.ReadUint32Bytes(o)
@@ -178,7 +181,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span kind")
 				return
 			}
-			span.Kind = SpanKind(kind)
+			span.Span.Kind = SpanKind(kind)
 		default:
 		}
 	}
@@ -186,17 +189,17 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 }
 
 // UnmarshalSpanEventList unmarshals a list of SpanEvents from a byte stream, updating the strings slice with new strings
-func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*InternalSpanEvent, o []byte, err error) {
+func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*SpanEvent, o []byte, err error) {
 	var numSpanEvents uint32
 	numSpanEvents, o, err = limitedReadArrayHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read span event list header")
 		return
 	}
-	spanEvents = make([]*InternalSpanEvent, numSpanEvents)
+	spanEvents = make([]*SpanEvent, numSpanEvents)
 	for i := range spanEvents {
-		spanEvents[i] = &InternalSpanEvent{Strings: strings}
-		o, err = spanEvents[i].UnmarshalMsg(o)
+		spanEvents[i] = &SpanEvent{}
+		o, err = spanEvents[i].UnmarshalMsg(o, strings)
 		if err != nil {
 			err = msgp.WrapError(err, fmt.Sprintf("Failed to read span event %d", i))
 			return
@@ -206,7 +209,7 @@ func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*Int
 }
 
 // UnmarshalMsg unmarshals a SpanEvent from a byte stream, updating the strings slice with new strings
-func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numSpanEventFields uint32
 	numSpanEventFields, o, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
@@ -232,7 +235,7 @@ func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err erro
 			spanEvent.Time = time
 		case 2:
 			var name uint32
-			name, o, err = UnmarshalStreamingString(o, spanEvent.Strings)
+			name, o, err = UnmarshalStreamingString(o, strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span event name")
 				return
@@ -240,7 +243,7 @@ func (spanEvent *InternalSpanEvent) UnmarshalMsg(bts []byte) (o []byte, err erro
 			spanEvent.NameRef = name
 		case 3:
 			var kvl map[uint32]*AnyValue
-			kvl, o, err = UnmarshalKeyValueMap(o, spanEvent.Strings)
+			kvl, o, err = UnmarshalKeyValueMap(o, strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span event attributes")
 				return
@@ -401,6 +404,8 @@ func UnmarshalAnyValue(bts []byte, strings *StringTable) (value *AnyValue, o []b
 		}
 		value.Value = &AnyValue_KeyValueList{KeyValueList: &KeyValueList{KeyValues: kvl}}
 	default:
+		err = msgp.WrapError(err, fmt.Sprintf("Unknown anyvalue type %d", valueType))
+		return
 	}
 	return
 }
@@ -471,17 +476,17 @@ func isfixstr(b byte) bool {
 }
 
 // UnmarshalSpanLinks unmarshals a list of SpanLinks from a byte stream, updating the strings slice with new strings
-func UnmarshalSpanLinks(bts []byte, strings *StringTable) (links []*InternalSpanLink, o []byte, err error) {
+func UnmarshalSpanLinks(bts []byte, strings *StringTable) (links []*SpanLink, o []byte, err error) {
 	var numLinks uint32
 	numLinks, o, err = limitedReadArrayHeaderBytes(bts)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to read span links header")
 		return
 	}
-	links = make([]*InternalSpanLink, numLinks)
+	links = make([]*SpanLink, numLinks)
 	for i := range links {
-		links[i] = &InternalSpanLink{Strings: strings}
-		o, err = links[i].UnmarshalMsg(o)
+		links[i] = &SpanLink{}
+		o, err = links[i].UnmarshalMsg(o, strings)
 		if err != nil {
 			err = msgp.WrapError(err, fmt.Sprintf("Failed to read span link %d", i))
 			return
@@ -491,7 +496,7 @@ func UnmarshalSpanLinks(bts []byte, strings *StringTable) (links []*InternalSpan
 }
 
 // UnmarshalMsg unmarshals a SpanLink from a byte stream, updating the strings slice with new strings
-func (sl *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (sl *SpanLink) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numFields uint32
 	numFields, o, err = limitedReadMapHeaderBytes(bts)
 	if err != nil {
@@ -520,13 +525,13 @@ func (sl *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				return
 			}
 		case 3: // attributes
-			sl.Attributes, o, err = UnmarshalKeyValueMap(o, sl.Strings)
+			sl.Attributes, o, err = UnmarshalKeyValueMap(o, strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read attributes")
 				return
 			}
 		case 4: // tracestate
-			sl.TracestateRef, o, err = UnmarshalStreamingString(o, sl.Strings)
+			sl.TracestateRef, o, err = UnmarshalStreamingString(o, strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracestate")
 				return
@@ -639,34 +644,34 @@ func (kv *KeyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *Ser
 }
 
 // MarshalMsg marshals a SpanLink into a byte stream
-func (sl *InternalSpanLink) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+func (sl *SpanLink) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
 	o = msgp.AppendMapHeader(bts, 5)
 	o = msgp.AppendUint32(o, 1) // traceID
 	o = msgp.AppendBytes(o, sl.TraceID)
 	o = msgp.AppendUint32(o, 2) // spanID
 	o = msgp.AppendUint64(o, sl.SpanID)
 	o = msgp.AppendUint32(o, 3) // attributes
-	o, err = MarshalAttributesMap(o, sl.Attributes, sl.Strings, serStrings)
+	o, err = MarshalAttributesMap(o, sl.Attributes, strings, serStrings)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to marshal attributes")
 		return
 	}
 	o = msgp.AppendUint32(o, 4) // tracestate
-	o = serStrings.AppendStreamingString(sl.Strings.Get(sl.TracestateRef), sl.TracestateRef, o)
+	o = serStrings.AppendStreamingString(strings.Get(sl.TracestateRef), sl.TracestateRef, o)
 	o = msgp.AppendUint32(o, 5) // flags
 	o = msgp.AppendUint32(o, sl.Flags)
 	return
 }
 
 // MarshalMsg marshals a SpanEvent into a byte stream
-func (evt *InternalSpanEvent) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+func (evt *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
 	o = msgp.AppendMapHeader(bts, 3)
 	o = msgp.AppendUint32(o, 1) // time
 	o = msgp.AppendUint64(o, evt.Time)
 	o = msgp.AppendUint32(o, 2) // name
-	o = serStrings.AppendStreamingString(evt.Strings.Get(evt.NameRef), evt.NameRef, o)
+	o = serStrings.AppendStreamingString(strings.Get(evt.NameRef), evt.NameRef, o)
 	o = msgp.AppendUint32(o, 3) // attributes
-	o, err = MarshalAttributesMap(o, evt.Attributes, evt.Strings, serStrings)
+	o, err = MarshalAttributesMap(o, evt.Attributes, strings, serStrings)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to marshal attributes")
 		return
@@ -678,136 +683,136 @@ func (evt *InternalSpanEvent) MarshalMsg(bts []byte, serStrings *SerializedStrin
 func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
 	// Count non-default fields to determine map header size
 	numFields := 0
-	if span.ServiceRef != 0 {
+	if span.Span.ServiceRef != 0 {
 		numFields++
 	}
-	if span.NameRef != 0 {
+	if span.Span.NameRef != 0 {
 		numFields++
 	}
-	if span.ResourceRef != 0 {
+	if span.Span.ResourceRef != 0 {
 		numFields++
 	}
-	if span.SpanID != 0 {
+	if span.Span.SpanID != 0 {
 		numFields++
 	}
-	if span.ParentID != 0 {
+	if span.Span.ParentID != 0 {
 		numFields++
 	}
-	if span.Start != 0 {
+	if span.Span.Start != 0 {
 		numFields++
 	}
-	if span.Duration != 0 {
+	if span.Span.Duration != 0 {
 		numFields++
 	}
-	if span.Error {
+	if span.Span.Error {
 		numFields++
 	}
-	if len(span.Attributes) > 0 {
+	if len(span.Span.Attributes) > 0 {
 		numFields++
 	}
-	if span.TypeRef != 0 {
+	if span.Span.TypeRef != 0 {
 		numFields++
 	}
-	if len(span.SpanLinks) > 0 {
+	if len(span.Span.Links) > 0 {
 		numFields++
 	}
-	if len(span.SpanEvents) > 0 {
+	if len(span.Span.Events) > 0 {
 		numFields++
 	}
-	if span.EnvRef != 0 {
+	if span.Span.EnvRef != 0 {
 		numFields++
 	}
-	if span.VersionRef != 0 {
+	if span.Span.VersionRef != 0 {
 		numFields++
 	}
-	if span.ComponentRef != 0 {
+	if span.Span.ComponentRef != 0 {
 		numFields++
 	}
-	if span.Kind != 0 {
+	if span.Span.Kind != 0 {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
-	if span.ServiceRef != 0 {
+	if span.Span.ServiceRef != 0 {
 		o = msgp.AppendUint32(o, 1) // service
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.ServiceRef), span.ServiceRef, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.Span.ServiceRef), span.Span.ServiceRef, o)
 	}
-	if span.NameRef != 0 {
+	if span.Span.NameRef != 0 {
 		o = msgp.AppendUint32(o, 2) // name
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.NameRef), span.NameRef, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.Span.NameRef), span.Span.NameRef, o)
 	}
-	if span.ResourceRef != 0 {
+	if span.Span.ResourceRef != 0 {
 		o = msgp.AppendUint32(o, 3) // resource
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.ResourceRef), span.ResourceRef, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.Span.ResourceRef), span.Span.ResourceRef, o)
 	}
-	if span.SpanID != 0 {
+	if span.Span.SpanID != 0 {
 		o = msgp.AppendUint32(o, 4) // spanID
-		o = msgp.AppendUint64(o, span.SpanID)
+		o = msgp.AppendUint64(o, span.Span.SpanID)
 	}
-	if span.ParentID != 0 {
+	if span.Span.ParentID != 0 {
 		o = msgp.AppendUint32(o, 5) // parentID
-		o = msgp.AppendUint64(o, span.ParentID)
+		o = msgp.AppendUint64(o, span.Span.ParentID)
 	}
-	if span.Start != 0 {
+	if span.Span.Start != 0 {
 		o = msgp.AppendUint32(o, 6) // start
-		o = msgp.AppendUint64(o, span.Start)
+		o = msgp.AppendUint64(o, span.Span.Start)
 	}
-	if span.Duration != 0 {
+	if span.Span.Duration != 0 {
 		o = msgp.AppendUint32(o, 7) // duration
-		o = msgp.AppendUint64(o, span.Duration)
+		o = msgp.AppendUint64(o, span.Span.Duration)
 	}
-	if span.Error {
+	if span.Span.Error {
 		o = msgp.AppendUint32(o, 8) // error
-		o = msgp.AppendBool(o, span.Error)
+		o = msgp.AppendBool(o, span.Span.Error)
 	}
-	if len(span.Attributes) > 0 {
+	if len(span.Span.Attributes) > 0 {
 		o = msgp.AppendUint32(o, 9) // attributes
-		o, err = MarshalAttributesMap(o, span.Attributes, span.Strings, serStrings)
+		o, err = MarshalAttributesMap(o, span.Span.Attributes, span.Strings, serStrings)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to marshal attributes")
 			return
 		}
 	}
-	if span.TypeRef != 0 {
+	if span.Span.TypeRef != 0 {
 		o = msgp.AppendUint32(o, 10) // type
-		o = msgp.AppendUint32(o, span.TypeRef)
+		o = msgp.AppendUint32(o, span.Span.TypeRef)
 	}
-	if len(span.SpanLinks) > 0 {
+	if len(span.Span.Links) > 0 {
 		o = msgp.AppendUint32(o, 11) // span links
-		o = msgp.AppendArrayHeader(o, uint32(len(span.SpanLinks)))
-		for _, link := range span.SpanLinks {
-			o, err = link.MarshalMsg(o, serStrings)
+		o = msgp.AppendArrayHeader(o, uint32(len(span.Span.Links)))
+		for _, link := range span.Span.Links {
+			o, err = link.MarshalMsg(o, span.Strings, serStrings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to marshal span link")
 				return
 			}
 		}
 	}
-	if len(span.SpanEvents) > 0 {
+	if len(span.Span.Events) > 0 {
 		o = msgp.AppendUint32(o, 12) // span events
-		o = msgp.AppendArrayHeader(o, uint32(len(span.SpanEvents)))
-		for _, event := range span.SpanEvents {
-			o, err = event.MarshalMsg(o, serStrings)
+		o = msgp.AppendArrayHeader(o, uint32(len(span.Span.Events)))
+		for _, event := range span.Span.Events {
+			o, err = event.MarshalMsg(o, span.Strings, serStrings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to marshal span event")
 				return
 			}
 		}
 	}
-	if span.EnvRef != 0 {
+	if span.Span.EnvRef != 0 {
 		o = msgp.AppendUint32(o, 13) // env
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.EnvRef), span.EnvRef, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.Span.EnvRef), span.Span.EnvRef, o)
 	}
-	if span.VersionRef != 0 {
+	if span.Span.VersionRef != 0 {
 		o = msgp.AppendUint32(o, 14) // version
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.VersionRef), span.VersionRef, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.Span.VersionRef), span.Span.VersionRef, o)
 	}
-	if span.ComponentRef != 0 {
+	if span.Span.ComponentRef != 0 {
 		o = msgp.AppendUint32(o, 15) // component
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.ComponentRef), span.ComponentRef, o)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.Span.ComponentRef), span.Span.ComponentRef, o)
 	}
-	if span.Kind != 0 {
+	if span.Span.Kind != 0 {
 		o = msgp.AppendUint32(o, 16) // kind
-		o = msgp.AppendUint32(o, uint32(span.Kind))
+		o = msgp.AppendUint32(o, uint32(span.Span.Kind))
 	}
 	return
 }

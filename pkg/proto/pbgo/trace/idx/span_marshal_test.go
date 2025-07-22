@@ -20,13 +20,15 @@ func TestMarshalSpan(t *testing.T) {
 		strings := NewStringTable()
 
 		span := &InternalSpan{
-			Strings:     strings,
-			ServiceRef:  strings.Add("my-service"),
-			NameRef:     strings.Add("span-name"),
-			ResourceRef: strings.Add("GET /res"),
-			SpanID:      12345678,
-			Attributes: map[uint32]*AnyValue{
-				strings.Add("foo"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("bar")}},
+			Strings: strings,
+			Span: &Span{
+				ServiceRef:  strings.Add("my-service"),
+				NameRef:     strings.Add("span-name"),
+				ResourceRef: strings.Add("GET /res"),
+				SpanID:      12345678,
+				Attributes: map[uint32]*AnyValue{
+					strings.Add("foo"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("bar")}},
+				},
 			},
 		}
 		bts, err := span.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
@@ -160,13 +162,15 @@ func TestMarshalSpanEvent(t *testing.T) {
 		serStrings := NewSerializedStrings(uint32(strings.Len()))
 		event := &InternalSpanEvent{
 			Strings: strings,
-			Time:    7,
-			NameRef: fooIdx,
-			Attributes: map[uint32]*AnyValue{
-				fooIdx: {Value: &AnyValue_StringValueRef{StringValueRef: barIdx}},
+			Event: &SpanEvent{
+				Time:    7,
+				NameRef: fooIdx,
+				Attributes: map[uint32]*AnyValue{
+					fooIdx: {Value: &AnyValue_StringValueRef{StringValueRef: barIdx}},
+				},
 			},
 		}
-		bts, err := event.MarshalMsg(nil, serStrings)
+		bts, err := event.Event.MarshalMsg(nil, strings, serStrings)
 		assert.NoError(t, err)
 
 		expectedBts := []byte{0x83, 0x01, 0x07, 0x02, 0xA3} // map header 3 elements, 1 key (time), 7 (int64), 2 key (name), string of length 3
@@ -233,67 +237,71 @@ func (val *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings
 func FuzzSpanLinkMarshalUnmarshal(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		strings := NewStringTable()
-		link := &InternalSpanLink{Strings: strings}
-		_, err := link.UnmarshalMsg(data)
+		link := &SpanLink{}
+		_, err := link.UnmarshalMsg(data, strings)
 		if err != nil {
 			t.Skip()
 		}
 		// We got a valid AnyValue, let's marshal it and check if we can unmarshal it back to the same structure
-		bts, err := link.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
+		bts, err := link.MarshalMsg(nil, strings, NewSerializedStrings(uint32(strings.Len())))
 		assert.NoError(t, err)
 
 		strings2 := NewStringTable()
-		link2 := &InternalSpanLink{Strings: strings2}
-		_, err = link2.UnmarshalMsg(bts)
+		link2 := &SpanLink{}
+		_, err = link2.UnmarshalMsg(bts, strings2)
 		assert.NoError(t, err)
-		link.assertEqual(t, link2)
+		il := &InternalSpanLink{Strings: strings, Link: link}
+		il2 := &InternalSpanLink{Strings: strings2, Link: link2}
+		il.assertEqual(t, il2)
 	})
 }
 
 func (sl *InternalSpanLink) assertEqual(t *testing.T, expected *InternalSpanLink) {
-	assert.Equal(t, expected.TraceID, sl.TraceID)
-	assert.Equal(t, expected.SpanID, sl.SpanID)
-	assert.Len(t, sl.Attributes, len(expected.Attributes))
-	for k, v := range expected.Attributes {
+	assert.Equal(t, expected.Link.TraceID, sl.Link.TraceID)
+	assert.Equal(t, expected.Link.SpanID, sl.Link.SpanID)
+	assert.Len(t, sl.Link.Attributes, len(expected.Link.Attributes))
+	for k, v := range expected.Link.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
 		expectedKey := expected.Strings.Get(k)
 		actualKeyIndex := sl.Strings.lookup[expectedKey]
-		sl.Attributes[actualKeyIndex].assertEqual(t, v, sl.Strings, expected.Strings)
+		sl.Link.Attributes[actualKeyIndex].assertEqual(t, v, sl.Strings, expected.Strings)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.TracestateRef), sl.Strings.Get(sl.TracestateRef))
-	assert.Equal(t, expected.FlagsRef, sl.FlagsRef)
+	assert.Equal(t, expected.Strings.Get(expected.Link.TracestateRef), sl.Strings.Get(sl.Link.TracestateRef))
+	assert.Equal(t, expected.Link.Flags, sl.Link.Flags)
 }
 
 func FuzzSpanEventMarshalUnmarshal(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		strings := NewStringTable()
-		event := &InternalSpanEvent{Strings: strings}
-		_, err := event.UnmarshalMsg(data)
+		event := &SpanEvent{}
+		_, err := event.UnmarshalMsg(data, strings)
 		if err != nil {
 			t.Skip()
 		}
-		bts, err := event.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
+		bts, err := event.MarshalMsg(nil, strings, NewSerializedStrings(uint32(strings.Len())))
 		assert.NoError(t, err)
 
 		strings2 := NewStringTable()
-		event2 := &InternalSpanEvent{Strings: strings2}
-		_, err = event2.UnmarshalMsg(bts)
+		event2 := &SpanEvent{}
+		_, err = event2.UnmarshalMsg(bts, strings2)
 		assert.NoError(t, err)
-		event.assertEqual(t, event2)
+		ie := &InternalSpanEvent{Strings: strings, Event: event}
+		ie2 := &InternalSpanEvent{Strings: strings2, Event: event2}
+		ie.assertEqual(t, ie2)
 	})
 }
 
 func (evt *InternalSpanEvent) assertEqual(t *testing.T, expected *InternalSpanEvent) {
-	assert.Equal(t, expected.Time, evt.Time)
-	assert.Equal(t, expected.Strings.Get(expected.NameRef), evt.Strings.Get(evt.NameRef))
-	assert.Len(t, evt.Attributes, len(expected.Attributes))
-	for k, v := range expected.Attributes {
+	assert.Equal(t, expected.Event.Time, evt.Event.Time)
+	assert.Equal(t, expected.Strings.Get(expected.Event.NameRef), evt.Strings.Get(evt.Event.NameRef))
+	assert.Len(t, evt.Event.Attributes, len(expected.Event.Attributes))
+	for k, v := range expected.Event.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
 		expectedKey := expected.Strings.Get(k)
 		actualKeyIndex := evt.Strings.lookup[expectedKey]
-		evt.Attributes[actualKeyIndex].assertEqual(t, v, evt.Strings, expected.Strings)
+		evt.Event.Attributes[actualKeyIndex].assertEqual(t, v, evt.Strings, expected.Strings)
 	}
 }
 
@@ -330,29 +338,29 @@ func FuzzSpanMarshalUnmarshal(f *testing.F) {
 }
 
 func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
-	assert.Equal(t, expected.Strings.Get(expected.ServiceRef), span.Strings.Get(span.ServiceRef))
-	assert.Equal(t, expected.Strings.Get(expected.NameRef), span.Strings.Get(span.NameRef))
-	assert.Equal(t, expected.Strings.Get(expected.ResourceRef), span.Strings.Get(span.ResourceRef))
-	assert.Equal(t, expected.SpanID, span.SpanID)
-	assert.Equal(t, expected.ParentID, span.ParentID)
-	assert.Equal(t, expected.Start, span.Start)
-	assert.Equal(t, expected.Duration, span.Duration)
-	assert.Equal(t, expected.Error, span.Error)
-	for k, v := range expected.Attributes {
+	assert.Equal(t, expected.Strings.Get(expected.Span.ServiceRef), span.Strings.Get(span.Span.ServiceRef))
+	assert.Equal(t, expected.Strings.Get(expected.Span.NameRef), span.Strings.Get(span.Span.NameRef))
+	assert.Equal(t, expected.Strings.Get(expected.Span.ResourceRef), span.Strings.Get(span.Span.ResourceRef))
+	assert.Equal(t, expected.Span.SpanID, span.Span.SpanID)
+	assert.Equal(t, expected.Span.ParentID, span.Span.ParentID)
+	assert.Equal(t, expected.Span.Start, span.Span.Start)
+	assert.Equal(t, expected.Span.Duration, span.Span.Duration)
+	assert.Equal(t, expected.Span.Error, span.Span.Error)
+	for k, v := range expected.Span.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
 		expectedKey := expected.Strings.Get(k)
 		actualKeyIndex := span.Strings.lookup[expectedKey]
-		span.Attributes[actualKeyIndex].assertEqual(t, v, span.Strings, expected.Strings)
+		span.Span.Attributes[actualKeyIndex].assertEqual(t, v, span.Strings, expected.Strings)
 	}
-	for i, link := range expected.SpanLinks {
-		span.SpanLinks[i].assertEqual(t, link)
+	for i, link := range expected.Links() {
+		span.Links()[i].assertEqual(t, link)
 	}
-	for i, event := range expected.SpanEvents {
-		span.SpanEvents[i].assertEqual(t, event)
+	for i, event := range expected.Events() {
+		span.Events()[i].assertEqual(t, event)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.EnvRef), span.Strings.Get(span.EnvRef))
-	assert.Equal(t, expected.Strings.Get(expected.VersionRef), span.Strings.Get(span.VersionRef))
-	assert.Equal(t, expected.Strings.Get(expected.ComponentRef), span.Strings.Get(span.ComponentRef))
-	assert.Equal(t, expected.Kind, span.Kind)
+	assert.Equal(t, expected.Strings.Get(expected.Span.EnvRef), span.Strings.Get(span.Span.EnvRef))
+	assert.Equal(t, expected.Strings.Get(expected.Span.VersionRef), span.Strings.Get(span.Span.VersionRef))
+	assert.Equal(t, expected.Strings.Get(expected.Span.ComponentRef), span.Strings.Get(span.Span.ComponentRef))
+	assert.Equal(t, expected.Span.Kind, span.Span.Kind)
 }

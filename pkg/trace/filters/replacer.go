@@ -88,7 +88,7 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 		for _, s := range trace.Spans {
 			switch key {
 			case "*":
-				for k, v := range s.Attributes {
+				for k, v := range s.Span.Attributes {
 					kString := trace.Strings.Get(k)
 					if strings.HasPrefix(kString, hiddenTagPrefix) {
 						continue
@@ -100,8 +100,8 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 					}
 				}
 				s.SetResource(re.ReplaceAllString(s.Resource(), str))
-				for _, spanEvent := range s.SpanEvents {
-					for keyAttr, val := range spanEvent.Attributes {
+				for _, spanEvent := range s.Events() {
+					for keyAttr, val := range spanEvent.Event.Attributes {
 						kString := trace.Strings.Get(keyAttr)
 						if !strings.HasPrefix(kString, hiddenTagPrefix) {
 							vString := val.AsString(trace.Strings)
@@ -118,7 +118,7 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 				if val, ok := s.GetAttributeAsString(key); ok {
 					s.SetAttributeFromString(key, re.ReplaceAllString(val, str))
 				}
-				for _, spanEvent := range s.SpanEvents {
+				for _, spanEvent := range s.Events() {
 					if val, ok := spanEvent.GetAttributeAsString(key); ok {
 						spanEvent.SetAttributeFromString(key, re.ReplaceAllString(val, str))
 					}
