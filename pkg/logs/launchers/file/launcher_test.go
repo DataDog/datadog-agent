@@ -435,9 +435,6 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	mockConfig := configmock.New(t)
 
-	// Temporarily set the global config for this test
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 2048)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDir := t.TempDir()
 
@@ -449,7 +446,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: config.FingerprintConfig{MaxLines: 1, MaxBytes: 256, ToSkip: 0}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
 	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
