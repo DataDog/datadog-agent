@@ -182,7 +182,7 @@ upload_sysprobe_tests_arm64:
     - .upload_sysprobe_tests
   needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
@@ -240,7 +240,7 @@ kmt_run_sysprobe_tests_arm64:
   extends:
     - .kmt_run_sysprobe_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   needs:
     - kmt_setup_env_sysprobe_arm64
     - upload_dependencies_sysprobe_arm64

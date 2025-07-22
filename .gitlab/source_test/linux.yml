@@ -136,7 +136,7 @@ tests_deb-arm64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_arm64$CI_IMAGE_DEB_ARM64_SUFFIX:$CI_IMAGE_DEB_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   variables:
     CONDA_ENV: ddpy3
 
@@ -148,7 +148,7 @@ tests_rpm-arm64-py3:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$CI_IMAGE_RPM_ARM64_SUFFIX:$CI_IMAGE_RPM_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   variables:
     CONDA_ENV: ddpy3
 

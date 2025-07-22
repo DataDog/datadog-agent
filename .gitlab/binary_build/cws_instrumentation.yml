@@ -28,7 +28,7 @@ cws_instrumentation-build_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: arm64

@@ -105,7 +105,7 @@ build_clang_x64:
 build_clang_arm64:
   extends: .build_clang_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64-ci-test"]
   variables:
     ARCH: arm64
     CMAKE_ARCH: aarch64
