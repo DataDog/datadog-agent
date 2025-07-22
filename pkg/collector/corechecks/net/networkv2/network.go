@@ -879,7 +879,7 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 	}
 
 	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
-		c.config.instanceCollectEthtoolStats = true
+		c.config.instance.CollectEthtoolStats = true
 	}
 
 	return nil
