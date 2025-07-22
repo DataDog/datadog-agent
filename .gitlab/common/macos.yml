@@ -112,13 +112,17 @@
       echo CELIAN /tmp debug
       stat /tmp || true
       stat /private/tmp || true
+    # By default, /tmp is owned by group 'wheel' and TMPDIR is owned by 'staff'.
+    # By making a subfolder in /tmp, and giving it to the same 'staff' group,
+    # we preserve the original environment better. This is needed by secrets tests
+    # which check for *exact* group ownership of executables.
     - |
       export TMPDIR="/tmp/gitlabci/$CI_JOB_ID"
       sudo mkdir -p "$TMPDIR"
       sudo chmod 777 "/tmp/gitlabci"
-      sudo chown root:wheel "/tmp/gitlabci"
+      sudo chown root:staff "/tmp/gitlabci"
       sudo chmod 777 "$TMPDIR"
-      sudo chown root:wheel "$TMPDIR"
+      sudo chown root:staff "$TMPDIR"
       echo "Temporary folder created at $TMPDIR"
     - dda inv -- -e rtloader.make
     - dda inv -- -e rtloader.install
