@@ -350,7 +350,7 @@ func getFlowPidMap(t *testing.T, testModule *testModule) *ebpf.Map {
 		return nil
 	}
 
-	m, _, err := p.Manager.GetMap("flow_pid")
+	m, _, err := p.EM.Manager.GetMap("flow_pid")
 	if err != nil {
 		t.Errorf("failed to get map flow_pid: %v", err)
 		return nil

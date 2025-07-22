@@ -579,7 +579,7 @@ func dnsResponseCodeDiscarderHandler(_ *rules.RuleSet, event *model.Event, probe
 	mask <<= dnsResponse.Response.ResponseCode
 	dnsMask |= mask
 
-	bufferSelector, err := managerhelper.Map(probe.Manager, "filtered_dns_rcodes")
+	bufferSelector, err := managerhelper.Map(probe.EM.Manager, "filtered_dns_rcodes")
 	if err != nil {
 		return false, err
 	}

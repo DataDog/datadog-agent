@@ -14,10 +14,10 @@ import (
 	"os"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -50,7 +50,7 @@ import (
 
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
-	manager              *manager.Manager
+	manager              *ebpf.Manager
 	MountResolver        mount.ResolverInterface
 	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
@@ -71,7 +71,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *ebpf.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -174,7 +174,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
+	processResolver, err := process.NewEBPFResolver(manager.Manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
 		return nil, err
@@ -228,11 +228,11 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.DentryResolver.Start(r.manager); err != nil {
+	if err := r.DentryResolver.Start(r.manager.Manager); err != nil {
 		return err
 	}
 
-	if err := r.SyscallCtxResolver.Start(r.manager); err != nil {
+	if err := r.SyscallCtxResolver.Start(r.manager.Manager); err != nil {
 		return err
 	}
 
@@ -243,7 +243,7 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		}
 	}
 
-	if err := r.UserSessionsResolver.Start(r.manager); err != nil {
+	if err := r.UserSessionsResolver.Start(r.manager.Manager); err != nil {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
@@ -279,7 +279,7 @@ func (r *EBPFResolvers) Snapshot() error {
 	r.ProcessResolver.SetState(process.Snapshotted)
 	r.NamespaceResolver.SetState(process.Snapshotted)
 
-	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.manager.Manager, "selinux_enforce_status")
 	if err != nil {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}

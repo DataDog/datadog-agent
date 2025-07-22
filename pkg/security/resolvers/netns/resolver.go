@@ -24,6 +24,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -141,7 +142,7 @@ func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
 }
 
 // dequeueNetworkDevices dequeues the devices in the current network devices queue.
-func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manager *manager.Manager) {
+func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manager *ebpf.Manager) {
 	nn.Lock()
 	defer nn.Unlock()
 
@@ -197,13 +198,13 @@ type Resolver struct {
 	tcResolver *tc.Resolver
 	client     statsd.ClientInterface
 	config     *config.Config
-	manager    *manager.Manager
+	manager    *ebpf.Manager
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
 }
 
 // NewResolver returns a new instance of Resolver
-func NewResolver(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, tcResolver *tc.Resolver) (*Resolver, error) {
+func NewResolver(config *config.Config, manager *ebpf.Manager, statsdClient statsd.ClientInterface, tcResolver *tc.Resolver) (*Resolver, error) {
 	nr := &Resolver{
 		state:      atomic.NewInt64(0),
 		client:     statsdClient,
@@ -324,7 +325,9 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 		}
 	}()
 
-	ntl, err := nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+	nr.manager.Lock()
+	ntl, err := nr.manager.Manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+	nr.manager.Unlock()
 	if err != nil {
 		seclog.Errorf("couldn't open netlink socket: %s", err)
 		return 0
@@ -473,7 +476,9 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 				seclog.Warnf("could not close file [%s]: %s", handle.Name(), cerr)
 			}
 		}()
-		_, _ = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+		nr.manager.Lock()
+		_, _ = nr.manager.Manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+		nr.manager.Unlock()
 	}
 
 	// close network namespace handle to release the namespace
@@ -485,7 +490,9 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	}
 
 	// remove all references to this network namespace from the manager
-	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
+	nr.manager.Lock()
+	_ = nr.manager.Manager.CleanupNetworkNamespace(netns.nsID)
+	nr.manager.Unlock()
 }
 
 // preventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
@@ -635,7 +642,9 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 				continue
 			}
 
-			ntl, err = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+			nr.manager.Lock()
+			ntl, err = nr.manager.Manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+			nr.manager.Unlock()
 			if err == nil {
 				links, err = ntl.Sock.LinkList()
 				if err == nil {

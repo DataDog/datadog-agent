@@ -21,6 +21,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -90,9 +91,12 @@ func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 
 // SetupNewTCClassifierWithNetNSHandle creates and attaches TC probes on the provided device. WARNING: this function
 // will not close the provided netns handle, so the caller of this function needs to take care of it.
-func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File, m *manager.Manager) error {
+func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File, m *ebpf.Manager) error {
 	tcr.Lock()
 	defer tcr.Unlock()
+
+	m.Lock()
+	defer m.Unlock()
 
 	var combinedErr multierror.Error
 	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
@@ -131,7 +135,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			},
 		}
 
-		if err := m.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
+		if err := m.Manager.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
 			linkNotFoundErr := &netlink.LinkNotFoundError{}
 			if errors.As(err, linkNotFoundErr) {
 				// return now since we won't be able to attach anything at all
@@ -149,14 +153,16 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 }
 
 // FlushNetworkNamespaceID flushes network ID
-func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Manager) {
+func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *ebpf.Manager) {
 	tcr.Lock()
 	defer tcr.Unlock()
+	m.Lock()
+	defer m.Unlock()
 
 	for tcKey, tcProbe := range tcr.programs {
 		if tcKey.NetDevice.NetNS == namespaceID {
 			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
-			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
+			_ = m.Manager.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		}
 	}
@@ -164,9 +170,11 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 
 // FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
 // per network namespace (ignoring the interfaces that are lazily deleted).
-func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
+func (tcr *Resolver) FlushInactiveProbes(m *ebpf.Manager, isLazy func(string) bool) map[uint32]int {
 	tcr.Lock()
 	defer tcr.Unlock()
+	m.Lock()
+	defer m.Unlock()
 
 	probesCountNoLazyDeletion := make(map[uint32]int)
 
@@ -174,7 +182,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	for tcKey, tcProbe := range tcr.programs {
 		if !tcProbe.IsTCFilterActive() {
 			ddebpf.RemoveProgramID(tcProbe.ID(), "cws")
-			_ = m.DetachHook(tcProbe.ProbeIdentificationPair)
+			_ = m.Manager.DetachHook(tcProbe.ProbeIdentificationPair)
 			delete(tcr.programs, tcKey)
 		} else {
 			link, err := tcProbe.ResolveLink()

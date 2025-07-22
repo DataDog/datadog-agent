@@ -138,7 +138,7 @@ func checkBindFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, ex
 		return
 	}
 
-	m, _, err := p.Manager.GetMap("flow_pid")
+	m, _, err := p.EM.Manager.GetMap("flow_pid")
 	if err != nil {
 		close(closeClientSocket)
 		t.Errorf("failed to get map flow_pid: %v", err)

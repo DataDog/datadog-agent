@@ -9,10 +9,17 @@
 package ebpf
 
 import (
+	"sync"
+
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 )
+
+type Manager struct {
+	sync.Mutex
+	Manager *manager.Manager
+}
 
 // NewDefaultOptions returns a new instance of the default runtime security manager options
 func NewDefaultOptions(kretprobeMaxActive int) manager.Options {
