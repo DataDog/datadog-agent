@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestUDSPassCred(t *testing.T) {
@@ -37,7 +37,7 @@ func TestUDSPassCred(t *testing.T) {
 	pool := packets.NewPool(512)
 	poolManager := packets.NewPoolManager(pool)
 	config := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDSDatagramListener(nil, poolManager, nil, config, nil, optional.NewNoneOption[workloadmeta.Component]())
+	s, err := NewUDSDatagramListener(nil, poolManager, nil, config, nil, option.None[workloadmeta.Component]())
 	defer s.Stop()
 
 	assert.Nil(t, err)
