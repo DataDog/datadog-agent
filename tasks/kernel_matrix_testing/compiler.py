@@ -23,8 +23,8 @@ if TYPE_CHECKING:
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 
 DOCKER_BASE_IMAGES = {
-    "x64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux-x64",
-    "arm64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux-arm64",
+    "x64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux",
+    "arm64": "registry.ddbuild.io/ci/datadog-agent-buildimages/linux",
 }
 
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
@@ -37,7 +37,7 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
         ci_config = yaml.safe_load(f)
 
     ci_vars = ci_config['variables']
-    return ci_vars['CI_IMAGE_LINUX_X64_SUFFIX'], ci_vars['CI_IMAGE_LINUX_X64']
+    return ci_vars['CI_IMAGE_LINUX_SUFFIX'], ci_vars['CI_IMAGE_LINUX']
 
 
 def get_docker_image_name(ctx: Context, container: str) -> str:
