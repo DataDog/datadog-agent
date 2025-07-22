@@ -1,6 +1,6 @@
 import os
 
-from tasks.api import run
+from tasks.agent_ci_api import run
 
 
 def destroy_remote_stack(ctx, stack: str):
