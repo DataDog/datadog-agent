@@ -31,7 +31,7 @@ func TestGetInstallPath(t *testing.T) {
 	}
 
 	// get the install path
-	installPath, err := getInstallerPath(tmpDir)
+	installPath, err := getInstallerPath(t.Context(), tmpDir)
 	if err != nil {
 		t.Fatalf("Failed to get install path: %v", err)
 	}

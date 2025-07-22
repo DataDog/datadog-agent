@@ -61,7 +61,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error
+	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -494,7 +494,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfig []byte) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -507,7 +507,15 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	err = i.writeConfig(tmpDir, rawConfig)
+	// Merge config files
+	mergedConfigs, err := mergeConfigs(rawConfigs)
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrConfigMergeFailed,
+			fmt.Errorf("could not merge configs: %w", err),
+		)
+	}
+	err = i.writeConfig(tmpDir, mergedConfigs)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrFilesystemIssue,
@@ -819,24 +827,32 @@ func cleanConfigName(p string) string {
 	return path.Clean(p)
 }
 
+type configFileAction string
+
+const (
+	configFileActionUnknown configFileAction = ""
+	configFileActionAdd     configFileAction = "add"
+	configFileActionRemove  configFileAction = "remove"
+)
+
 type configFile struct {
-	Path     string          `json:"path"`
-	Contents json.RawMessage `json:"contents"`
+	Path     string           `json:"path"`
+	Action   configFileAction `json:"action"`
+	Contents json.RawMessage  `json:"contents"`
 }
 
-func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
-	var files []configFile
-	err := json.Unmarshal(rawConfig, &files)
-	if err != nil {
-		return fmt.Errorf("could not unmarshal config files: %w", err)
-	}
+func (i *installerImpl) writeConfig(dir string, files map[string]configFile) error {
 	for _, file := range files {
 		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}
+
+		if file.Action != configFileActionAdd {
+			return fmt.Errorf("config file %s has unknown action %s", file.Path, file.Action)
+		}
 		var c interface{}
-		err = json.Unmarshal(file.Contents, &c)
+		err := json.Unmarshal(file.Contents, &c)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal config file contents: %w", err)
 		}
@@ -944,4 +960,40 @@ func ensureRepositoriesExist() error {
 	}
 
 	return nil
+}
+
+// mergeConfigs merges multiple config files into a single map of config files.
+// Takes remote-config configs as an input, and returns a map of files to write
+// on disk. The map is keyed by the path of the file to write, and the value is
+// the contents of the file.
+//
+// The input is a slice of bytes, which is the JSON-encoded contents of the
+// remote-config config files. The JSON is expected to be an array of objects,
+// each with a `path` and `contents` field.
+func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
+	mergedFiles := make(map[string]configFile)
+	for _, rawConfig := range rawConfigs {
+		var configFiles []configFile
+		err := json.Unmarshal(rawConfig, &configFiles)
+		if err != nil {
+			return nil, fmt.Errorf("could not unmarshal config files: %w", err)
+		}
+		for _, file := range configFiles {
+			if file.Action == configFileActionUnknown {
+				// Default to add if action is unknown
+				file.Action = configFileActionAdd
+			}
+			file.Path = cleanConfigName(file.Path)
+			if !configNameAllowed(file.Path) {
+				return nil, fmt.Errorf("config file %s is not allowed", file)
+			}
+
+			if file.Action == configFileActionRemove {
+				delete(mergedFiles, file.Path)
+			} else if file.Action == configFileActionAdd {
+				mergedFiles[file.Path] = file
+			}
+		}
+	}
+	return mergedFiles, nil
 }

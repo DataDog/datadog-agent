@@ -493,7 +493,9 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 			return nil, err
 		}
 		var traces pb.Traces
-		err = traces.UnmarshalMsgDictionary(buf.Bytes())
+		if err = traces.UnmarshalMsgDictionary(buf.Bytes()); err != nil {
+			return nil, err
+		}
 		return &pb.TracerPayload{
 			LanguageName:    lang,
 			LanguageVersion: langVersion,
