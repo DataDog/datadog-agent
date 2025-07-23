@@ -15,7 +15,7 @@ import (
 )
 
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprintStrategy string) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, rotationDetectionStrategy string) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -30,7 +30,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	newFingerprint := tailerfile.ComputeFingerprint(filePath, fingerprintConfig)
 
 	// Check if fingerprinting is currently enabled based on the provided strategy
-	fingerprintingEnabled := fingerprintStrategy == "checksum"
+	fingerprintingEnabled := rotationDetectionStrategy == "checksum"
 
 	switch {
 	case mode == config.ForceBeginning:

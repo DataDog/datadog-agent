@@ -195,6 +195,17 @@ func ValidateFingerprintConfig(config *FingerprintConfig) error {
 		return fmt.Errorf("maxBytes must be positive, got: %d", config.MaxBytes)
 	}
 
+	// Validate FingerprintStrategy
+	if config.FingerprintStrategy != "" {
+		validStrategies := map[string]bool{
+			FingerprintStrategyLineChecksum: true,
+			FingerprintStrategyByteChecksum: true,
+		}
+		if !validStrategies[config.FingerprintStrategy] {
+			return fmt.Errorf("fingerprintStrategy must be one of: line_checksum, byte_checksum, got: %s", config.FingerprintStrategy)
+		}
+	}
+
 	return nil
 }
 

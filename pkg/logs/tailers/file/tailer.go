@@ -172,9 +172,9 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
-	fingerprintConfig := ReturnFingerprintConfig(opts.FingerprintConfig, opts.File.Source.Config().FingerprintStrategy)
+	fingerprintConfig := ReturnFingerprintConfig(opts.FingerprintConfig, opts.File.Source.Config().RotationDetectionStrategy)
 	fingerprintingEnabled := false
-	if ResolveFingerprintStrategy(opts.File) == "checksum" {
+	if ResolveRotationDetectionStrategy(opts.File) == "checksum" {
 		fingerprintingEnabled = true
 	}
 	t := &Tailer{
@@ -475,5 +475,5 @@ func (t *Tailer) GetInfo() *status.InfoRegistry {
 
 // ReturnFingerprintConfig returns the fingerprint configuration for this tailer
 func (t *Tailer) ReturnFingerprintConfig() *logsconfig.FingerprintConfig {
-	return ReturnFingerprintConfig(t.fingerprintConfig, t.file.Source.Config().FingerprintStrategy)
+	return ReturnFingerprintConfig(t.fingerprintConfig, t.file.Source.Config().RotationDetectionStrategy)
 }

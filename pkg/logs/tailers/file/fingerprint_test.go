@@ -342,11 +342,13 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 	maxLines := 0
 	maxBytes := 50
 	bytesToSkip := 34
+	fingerprintStrategy := "byte_checksum"
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
 
 	// Expected: skip first 34 bytes, then fingerprint next 50 bytes
@@ -375,11 +377,13 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	maxLines := 0
 	maxBytes := 1000
 	bytesToSkip := 34
+	fingerprintStrategy := "byte_checksum"
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
 
 	// Expected: skip first 34 bytes, but unable to fingerprint since less than 1000 we configured
@@ -407,13 +411,14 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	maxLines := 0
 	maxBytes := 30
 	bytesToSkip := 0
+	fingerprintStrategy := "byte_checksum"
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
-
 	// Expected: fingerprint first 30 bytes
 	expectedText := "this data should be fingerprin"
 
@@ -442,11 +447,13 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	maxLines := 0
 	maxBytes := 100
 	bytesToSkip := 0
+	fingerprintStrategy := "byte_checksum"
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
 
 	// Expected: should return 0 because we have less data than maxBytes
@@ -511,12 +518,15 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	maxLines := 0
 	maxBytes := 21
 	bytesToSkip := 10
+	fingerprintStrategy := "byte_checksum"
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
+
 	expectedText := "st data for byte mode"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
@@ -621,11 +631,13 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 	maxLines := 0
 	maxBytes := 20
 	bytesToSkip := 14
+	fingerprintStrategy := "byte_checksum"
 
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
 
 	tailer := suite.createTailer()
@@ -644,10 +656,12 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	maxLines := 5
 	maxBytes := 1024
 	bytesToSkip := 0
+	fingerprintStrategy := "byte_checksum"
 	config := &config.FingerprintConfig{
-		MaxLines: maxLines,
-		MaxBytes: maxBytes,
-		ToSkip:   bytesToSkip,
+		MaxLines:            maxLines,
+		MaxBytes:            maxBytes,
+		ToSkip:              bytesToSkip,
+		FingerprintStrategy: fingerprintStrategy,
 	}
 
 	osFile, err := os.Open(suite.testPath)

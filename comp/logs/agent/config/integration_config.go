@@ -34,6 +34,10 @@ const (
 	UTF16LE string = "utf-16-le"
 	// SHIFTJIS for Shift JIS (Japanese) encoding
 	SHIFTJIS string = "shift-jis"
+
+	// Fingerprint strategy options
+	FingerprintStrategyLineChecksum string = "line_checksum"
+	FingerprintStrategyByteChecksum string = "byte_checksum"
 )
 
 // LogsConfig represents a log source config, which can be for instance
@@ -99,9 +103,9 @@ type LogsConfig struct {
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
-	AutoMultiLineSamples []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig    FingerprintConfig      `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
-	FingerprintStrategy  string                 `mapstructure:"fingerprint_strategy" json:"fingerprint_strategy" yaml:"fingerprint_strategy"`
+	AutoMultiLineSamples      []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	FingerprintConfig         FingerprintConfig      `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+	RotationDetectionStrategy string                 `mapstructure:"rotation_detection_strategy" json:"rotation_detection_strategy" yaml:"rotation_detection_strategy"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
@@ -138,6 +142,10 @@ type FingerprintConfig struct {
 	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
 	MaxLines int `json:"max_lines" mapstructure:"max_lines" yaml:"max_lines"`
 	ToSkip   int `json:"to_skip" mapstructure:"to_skip" yaml:"to_skip"`
+	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
+	// - "line_checksum": compute checksum based on line content (default)
+	// - "byte_checksum": compute checksum based on byte content
+	FingerprintStrategy string `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -250,7 +258,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	} else {
 		fmt.Fprint(&b, ws("AutoMultiLine: nil,"))
 	}
-	fmt.Fprintf(&b, ws("FingerprintStrategy: %s,"), c.FingerprintStrategy)
+	fmt.Fprintf(&b, ws("RotationDetectionStrategy: %s,"), c.RotationDetectionStrategy)
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
 	return b.String()
@@ -382,7 +390,8 @@ func (c *LogsConfig) validateFingerprintConfig() error {
 	// Check if local fingerprint config is empty (all fields are zero values)
 	localConfigEmpty := c.FingerprintConfig.MaxBytes == 0 &&
 		c.FingerprintConfig.MaxLines == 0 &&
-		c.FingerprintConfig.ToSkip == 0
+		c.FingerprintConfig.ToSkip == 0 &&
+		c.FingerprintConfig.FingerprintStrategy == ""
 
 	// If local config is empty, try to get global config
 	if localConfigEmpty {

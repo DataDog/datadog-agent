@@ -188,8 +188,8 @@ func (s *Launcher) scan() {
 		if isTailed {
 			var didRotate bool
 			var err error
-			fingerprintStrategy := s.resolveFingerprintStrategy(file)
-			if fingerprintStrategy == "checksum" {
+			rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+			if rotationDetectionStrategy == "checksum" {
 				didRotate, err = tailered.DidRotateViaFingerprint()
 				if err != nil {
 					didRotate = false
@@ -234,10 +234,10 @@ func (s *Launcher) scan() {
 		scanKey := file.GetScanKey()
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
-			fingerprintStrategy := s.resolveFingerprintStrategy(file)
-			if fingerprintStrategy == "checksum" {
+			rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+			if rotationDetectionStrategy == "checksum" {
 
-				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig(&file.Source.Config().FingerprintConfig, fingerprintStrategy)) == 0 {
+				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig(&file.Source.Config().FingerprintConfig, rotationDetectionStrategy)) == 0 {
 					continue
 				}
 
@@ -361,10 +361,10 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	// Resolve the fingerprint strategy for this file (source-specific -> global -> default)
-	fingerprintStrategy := s.resolveFingerprintStrategy(file)
+	// Resolve the rotation detection strategy for this file (source-specific -> global -> default)
+	rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, fingerprintStrategy)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, rotationDetectionStrategy)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -422,10 +422,10 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	// Resolve the fingerprint strategy for this file (source-specific -> global -> default)
-	fingerprintStrategy := s.resolveFingerprintStrategy(file)
+	// Resolve the rotation detection strategy for this file (source-specific -> global -> default)
+	rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, fingerprintStrategy)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, rotationDetectionStrategy)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -480,8 +480,8 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	oldInfoRegistry := oldTailer.GetInfo()
 
 	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
-	fingerprintStrategy := s.resolveFingerprintStrategy(file)
-	if fingerprintStrategy == "checksum" && (oldRegexPattern != nil || oldInfoRegistry != nil) {
+	rotationDetectionStrategy := s.resolveRotationDetectionStrategy(file)
+	if rotationDetectionStrategy == "checksum" && (oldRegexPattern != nil || oldInfoRegistry != nil) {
 		regexAndRegistry := &oldTailerInfo{
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
@@ -530,10 +530,10 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, s.registry)
 }
 
-// resolveFingerprintStrategy returns the fingerprint strategy for a given file source.
+// resolveRotationDetectionStrategy returns the rotation detection strategy for a given file source.
 // It checks the source-specific strategy first, then falls back to the global strategy.
-func (s *Launcher) resolveFingerprintStrategy(file *tailer.File) string {
-	return tailer.ResolveFingerprintStrategy(file)
+func (s *Launcher) resolveRotationDetectionStrategy(file *tailer.File) string {
+	return tailer.ResolveRotationDetectionStrategy(file)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

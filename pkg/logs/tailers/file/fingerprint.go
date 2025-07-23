@@ -21,6 +21,10 @@ type FingerprintConfig struct {
 	MaxBytes int `mapstructure:"max_bytes" json:"max_bytes" yaml:"max_bytes"`
 	MaxLines int `mapstructure:"max_lines" json:"max_lines" yaml:"max_lines"`
 	ToSkip   int `mapstructure:"to_skip" json:"to_skip" yaml:"to_skip"`
+	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
+	// - "line_checksum": compute checksum based on line content (default)
+	// - "byte_checksum": compute checksum based on byte content
+	FingerprintStrategy string `mapstructure:"fingerprint_strategy" json:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 }
 
 // crc64Table is a package-level variable for the CRC64 ISO table
@@ -43,15 +47,15 @@ func ReturnFingerprintConfig(sourceConfig *logsconfig.FingerprintConfig, sourceS
 	return globalConfig
 }
 
-// ResolveFingerprintStrategy returns the fingerprint strategy for a given file.
+// ResolveRotationDetectionStrategy returns the rotation detection strategy for a given file.
 // It checks the source-specific strategy first, then falls back to the global strategy.
-func ResolveFingerprintStrategy(file *File) string {
-	// Check if source has a specific fingerprint strategy set
-	if file.Source.Config().FingerprintStrategy != "" {
-		return file.Source.Config().FingerprintStrategy
+func ResolveRotationDetectionStrategy(file *File) string {
+	// Check if source has a specific rotation detection strategy set
+	if file.Source.Config().RotationDetectionStrategy != "" {
+		return file.Source.Config().RotationDetectionStrategy
 	}
 
-	// Fall back to global fingerprint strategy
+	// Fall back to global rotation detection strategy
 	return pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 }
 
@@ -69,16 +73,21 @@ func ComputeFingerprint(filePath string, fingerprintConfig *logsconfig.Fingerpri
 		return 0
 	}
 
-	maxLines := fingerprintConfig.MaxLines
+	// Determine fingerprinting strategy
+	strategy := fingerprintConfig.FingerprintStrategy
+	if strategy == "" {
+		// Default to line_checksum if no strategy is specified
+		strategy = "line_checksum"
+	}
 
-	// Mode selection:
-	// - If maxLines is 0, it implies byte-mode as line-mode is not viable.
-	// - Otherwise, it's line-mode.
-	if maxLines == 0 {
+	// Mode selection based on strategy:
+	// - "byte_checksum": use byte-based fingerprinting
+	// - "line_checksum" or default: use line-based fingerprinting
+	if strategy == "byte_checksum" {
 		return computeFingerPrintByBytes(fpFile, filePath, fingerprintConfig)
 	}
 
-	// Line-based fingerprinting mode
+	// Line-based fingerprinting mode (default)
 	fingerprint := computeFingerPrintByLines(fpFile, filePath, fingerprintConfig)
 	if fingerprint == 0 {
 		log.Debugf("Not enough data for line-based fingerprinting of file %q", filePath)
@@ -93,7 +102,7 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 	if bytesToSkip > 0 {
 		_, err := fpFile.Seek(int64(bytesToSkip), io.SeekStart)
 
-		if err != nil && err != io.EOF {
+		if err != nil {
 			log.Warnf("Failed to skip %d bytes while computing fingerprint for %q: %v", bytesToSkip, filePath, err)
 			return 0
 		}
@@ -132,10 +141,7 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 	maxBytes := fingerprintConfig.MaxBytes
 
 	// Create a LimitedReader to respect maxBytes constraint
-	var limitedReader io.Reader = fpFile
-	if maxBytes > 0 {
-		limitedReader = io.LimitReader(fpFile, int64(maxBytes))
-	}
+	limitedReader := io.LimitReader(fpFile, int64(maxBytes))
 
 	// Create scanner for line-by-line reading
 	scanner := bufio.NewScanner(limitedReader)
@@ -145,6 +151,11 @@ func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConf
 		if !scanner.Scan() {
 			if scanner.Err() != nil {
 				log.Warnf("Failed to skip line while computing fingerprint for %q: %v", filePath, scanner.Err())
+			}
+			// If we hit EOF during skip and limitedReader.N is 0, fall back to bytes fingerprint
+			if lr, ok := limitedReader.(*io.LimitedReader); ok && lr.N == 0 {
+				log.Debugf("Reached maxBytes during line skip, falling back to bytes fingerprint for %q", filePath)
+				return computeFingerPrintByBytes(fpFile, filePath, fingerprintConfig)
 			}
 			return 0
 		}
