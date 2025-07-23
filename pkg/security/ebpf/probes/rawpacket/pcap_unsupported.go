@@ -35,6 +35,11 @@ func (opts *ProgOpts) WithProgPrefix(_ string) *ProgOpts {
 	return opts
 }
 
+// WithGetCurrentCgroupId sets if the program should use the get_current_cgroup_id function
+func (opts *ProgOpts) WithGetCurrentCgroupId(hasGetCurrentCgroupId bool) *ProgOpts {
+	return opts
+}
+
 // FilterToInsts compile a bpf filter expression
 func FilterToInsts(_ int, _ Filter, _ ProgOpts) (asm.Instructions, error) {
 	return asm.Instructions{}, errors.New("not supported")
