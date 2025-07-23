@@ -305,8 +305,8 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.running
-		- name: hostname.drift_detected
-		- name: hostname.drift_resolution_time_ms
+        - name: hostname.drift_detected
+        - name: hostname.drift_resolution_time_ms
   - name: otlp
     metric:
       exclude:

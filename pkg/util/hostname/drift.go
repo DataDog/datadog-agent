@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build !serverless
+
 package hostname
 
 import (
@@ -32,13 +34,48 @@ var (
 	hostnameChanged         = "hostname_drift"
 	providerChanged         = "provider_drift"
 	hostnameProviderChanged = "hostname_provider_drift"
+	noDrift                 = "no_drift"
 )
+
+// driftInfo contains information about hostname drift detection
+type driftInfo struct {
+	state    string
+	hasDrift bool
+}
+
+// determineDriftState determines the drift state and whether any drift occurred
+func determineDriftState(oldData, newData Data) driftInfo {
+	hostnameDiff := oldData.Hostname != newData.Hostname
+	providerDiff := oldData.Provider != newData.Provider
+
+	if hostnameDiff && providerDiff {
+		return driftInfo{state: hostnameProviderChanged, hasDrift: true}
+	} else if hostnameDiff {
+		return driftInfo{state: hostnameChanged, hasDrift: true}
+	} else if providerDiff {
+		return driftInfo{state: providerChanged, hasDrift: true}
+	}
+	return driftInfo{state: noDrift, hasDrift: false}
+}
 
 func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
 	cache.Cache.Set(cacheHostnameKey, hostnameData, cache.NoExpiration)
 
 	go func() {
+		// Wait for the initial delay before the first check
+		initialTimer := time.NewTimer(DefaultInitialDelay)
+		defer initialTimer.Stop()
+
+		select {
+		case <-initialTimer.C:
+			// First check after initial delay
+			checkHostnameDrift(ctx, cacheHostnameKey)
+		case <-ctx.Done():
+			return
+		}
+
+		// Then start the recurring checks
 		driftTicker := time.NewTicker(DefaultRecurringInterval)
 		defer driftTicker.Stop()
 		for {
@@ -64,50 +101,32 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	// Start timing the drift resolution
 	startTime := time.Now()
 
-	iterateProviders(ctx, false, func(p provider, detectedHostname string, err error) bool {
+	for _, p := range GetProviderCatalog(false) {
+		detectedHostname, err := p.cb(ctx, hostname)
 		if err != nil {
-			return true // continue to next provider
+			continue
 		}
 
 		hostname = detectedHostname
 		providerName = p.name
 
-		return !p.stopIfSuccessful
-	})
+		if p.stopIfSuccessful {
+			break
+		}
+	}
 
 	// Calculate resolution time in milliseconds
 	resolutionTime := time.Since(startTime).Milliseconds()
 
-	// Determine drift state for telemetry labels
-	var driftState string
-	if hostnameData.Hostname != hostname && hostnameData.Provider != providerName {
-		driftState = hostnameProviderChanged
-	} else if hostnameData.Hostname != hostname {
-		driftState = hostnameChanged
-	} else if hostnameData.Provider != providerName {
-		driftState = providerChanged
-	} else {
-		driftState = "no_drift"
-	}
+	// Determine drift state
+	newData := Data{Hostname: hostname, Provider: providerName}
+	drift := determineDriftState(hostnameData, newData)
 
 	// Emit resolution time metric
-	tlmDriftResolutionTime.Observe(float64(resolutionTime), driftState, providerName, "")
+	tlmDriftResolutionTime.Observe(float64(resolutionTime), drift.state, providerName, "")
 
-	if hostnameData.Hostname != hostname || hostnameData.Provider != providerName {
-		emitTelemetryMetrics(hostnameData, hostname, providerName)
-		cache.Cache.Set(cacheHostnameKey, Data{
-			Hostname: hostname,
-			Provider: providerName,
-		}, cache.NoExpiration)
-	}
-}
-
-func emitTelemetryMetrics(hostnameData Data, hostname string, providerName string) {
-	if hostnameData.Hostname != hostname && hostnameData.Provider != providerName {
-		tlmDriftDetected.Inc(hostnameProviderChanged, providerName)
-	} else if hostnameData.Hostname != hostname {
-		tlmDriftDetected.Inc(hostnameChanged, providerName)
-	} else if hostnameData.Provider != providerName {
-		tlmDriftDetected.Inc(providerChanged, providerName)
+	if drift.hasDrift {
+		tlmDriftDetected.Inc(drift.state, providerName)
+		cache.Cache.Set(cacheHostnameKey, newData, cache.NoExpiration)
 	}
 }
