@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -98,6 +99,34 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 	}, manifestToSend[2].Manifests)
 	assert.EqualValues(t, bufferCluster, manifestToSend[2].ClusterName)
 	assert.EqualValues(t, expectedTags, manifestToSend[2].Tags)
+}
+
+func TestNewManifestBuffer(t *testing.T) {
+	orchCheck := &OrchestratorCheck{
+		clusterID: "test-cluster-id",
+		orchestratorConfig: &orchcfg.OrchestratorConfig{
+			KubeClusterName:          "test-cluster-name",
+			MaxPerMessage:            100,
+			MaxWeightPerMessageBytes: 1000000,
+		},
+	}
+
+	mb := NewManifestBuffer(orchCheck)
+
+	// Verify the buffer was properly initialized
+	assert.NotNil(t, mb)
+	assert.NotNil(t, mb.Cfg)
+	assert.NotNil(t, mb.ManifestChan)
+	assert.NotNil(t, mb.stopCh)
+	assert.NotNil(t, mb.bufferedManifests)
+	assert.Equal(t, 0, len(mb.bufferedManifests))
+	assert.Equal(t, cap(mb.bufferedManifests), mb.Cfg.MaxBufferedManifests)
+
+	// Verify configuration was copied correctly
+	assert.Equal(t, orchCheck.clusterID, mb.Cfg.ClusterID)
+	assert.Equal(t, orchCheck.orchestratorConfig.KubeClusterName, mb.Cfg.KubeClusterName)
+	assert.Equal(t, orchCheck.orchestratorConfig.MaxPerMessage, mb.Cfg.MaxPerMessage)
+	assert.Equal(t, orchCheck.orchestratorConfig.MaxWeightPerMessageBytes, mb.Cfg.MaxWeightPerMessageBytes)
 }
 
 // getSender returns a mock Sender
