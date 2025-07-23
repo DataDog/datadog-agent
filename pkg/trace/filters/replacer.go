@@ -101,7 +101,7 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 				}
 				s.SetResource(re.ReplaceAllString(s.Resource(), str))
 				for _, spanEvent := range s.Events() {
-					for keyAttr, val := range spanEvent.Event.Attributes {
+					for keyAttr, val := range spanEvent.Attributes() {
 						kString := trace.Strings.Get(keyAttr)
 						if !strings.HasPrefix(kString, hiddenTagPrefix) {
 							vString := val.AsString(trace.Strings)
