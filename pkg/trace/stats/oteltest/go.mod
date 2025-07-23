@@ -24,13 +24,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/api v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
@@ -47,6 +48,7 @@ require (
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect

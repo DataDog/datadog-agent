@@ -55,7 +55,6 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/ebpf/...",
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
-    "./pkg/dynamicinstrumentation/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
@@ -855,6 +854,7 @@ def build_sysprobe_binary(
         bin_path=binary,
         gcflags=gcflags,
         ldflags=ldflags,
+        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
     )
 
@@ -1769,6 +1769,61 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
     ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
 
 
+def compute_go_parallelism(debug: bool = False, ci: bool | None = None) -> int:
+    """
+    Compute Go build parallelism.
+
+    Uses platform-specific heuristics: macOS=1 (due to Go bugs), CI=4,
+    local=(CPU_count/2)+1. Can be overridden with NINJA_GO_PARALLELISM env var.
+
+    Args:
+        debug: Enable debug logging
+        ci: Force CI mode (conservative defaults)
+
+    Returns:
+        Number of parallel Go builds to run (>= 1)
+    """
+
+    def log(message: str):
+        print(message, flush=True, file=sys.stderr)
+
+    def debug_log(message: str):
+        if debug:
+            log(message)
+
+    # We want to bound the number of go builds to run concurrently to be well
+    # below the core count to avoid OOMing the system.
+    env_override = os.environ.get("NINJA_GO_PARALLELISM")
+    go_parallelism = None
+    if env_override:
+        try:
+            go_parallelism = int(env_override)
+            log(f"[+] Using parallelism of {go_parallelism} for Go builds (NINJA_GO_PARALLELISM)")
+        except ValueError:
+            log(f"Invalid value for NINJA_GO_PARALLELISM: {env_override}. Using parallelism of 1.")
+            go_parallelism = 1
+    else:
+        if sys.platform == "darwin":
+            # On macOS there's some bug with running Go builds in parallel.
+            reason = "on macOS, see https://github.com/golang/go/issues/59657"
+            go_parallelism = 1
+        elif ci:
+            # Arbitrary, but high enough for a win and low enough to not OOM.
+            reason = "CI"
+            go_parallelism = 4
+        else:
+            # This heuristic is okay but it runs into trouble in containers
+            # in docker or k8s where the limits on CPU are much lower than the
+            # host has cores. This is the situation in CI
+            reason = "derived from host CPU count"
+            go_parallelism = (os.cpu_count() / 2) + 1
+        debug_log(
+            f"[+] Using parallelism of {go_parallelism} for Go builds ({reason});"
+            + " override with NINJA_GO_PARALLELISM"
+        )
+    return go_parallelism
+
+
 @task
 def process_btfhub_archive(ctx, branch="main"):
     """
@@ -2064,14 +2119,12 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = "."):
+def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
-        # NB: This mirrors the ninja setup used in the kmt.py file. The choice
-        # not to parallelize the build there at all is suspect, but we'll copy
-        # it here for now.
-        nw.pool(name="gobuild", depth=1)
+        go_parallelism = compute_go_parallelism(debug, ci=False)
+        nw.pool(name="gobuild", depth=go_parallelism)
         nw.rule(
             name="gobin",
             command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
@@ -2102,7 +2155,7 @@ def ninja_add_dyninst_test_programs(
 
     # Find the dependencies of the test programs.
     tags_flag = f"-tags \"{','.join(build_tags)}\""
-    list_format = "{{ .ImportPath }} {{ .Module.Main }}: {{ join .Deps \" \" }}"
+    list_format = "{{ .ImportPath }} {{ .Name }}: {{ join .Deps \" \" }}"
     # Run from within the progs directory so that the go list command can find
     # the go.mod file.
     with ctx.cd(progs_path):
@@ -2115,9 +2168,9 @@ def ninja_add_dyninst_test_programs(
     pkg_deps = {}
     for line in res.stdout.splitlines():
         pkg_main, deps = line.split(": ", 1)
-        pkg, main = pkg_main.split(" ", 1)
+        pkg, name = pkg_main.split(" ", 1)
         pkg = pkg.removeprefix(progs_prefix)
-        if bool(main):
+        if name == "main":
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
@@ -2137,6 +2190,7 @@ def ninja_add_dyninst_test_programs(
     ):
         direct = glob.glob(f"{progs_path}/{pkg}/*.go")
         go_files = set(direct)
+        go_files.add(f"{progs_path}/go.mod")
         for dep in pkg_deps[pkg]:
             dep_files = glob.glob(f"{progs_path}/{dep}/*.go")
             dep_files = [p for p in dep_files if not p.endswith("test.go")]

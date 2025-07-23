@@ -37,6 +37,7 @@ include:
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
   - .gitlab/scan/windows.yml
+  - .gitlab/fuzz/infra.yaml
 
 default:
   retry:
@@ -100,6 +101,9 @@ stages:
   - notify
 
 variables:
+  # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
+  # the agent is build with a special flag that allow computing code coverage of the binary when it is running.
+  E2E_COVERAGE_PIPELINE: false
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -163,31 +167,31 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v68913450-a14377f4
+  CI_IMAGE_BTF_GEN: v71194676-f243bb19
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v68913450-a14377f4
+  CI_IMAGE_DEB_X64: v71194676-f243bb19
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v68913450-a14377f4
+  CI_IMAGE_DEB_ARM64: v71194676-f243bb19
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v68913450-a14377f4
+  CI_IMAGE_DEB_ARMHF: v71194676-f243bb19
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v68913450-a14377f4
+  CI_IMAGE_DOCKER_X64: v71194676-f243bb19
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v68913450-a14377f4
+  CI_IMAGE_DOCKER_ARM64: v71194676-f243bb19
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v68913450-a14377f4
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v71194676-f243bb19
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v68913450-a14377f4
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v71194676-f243bb19
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v68913450-a14377f4
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v71194676-f243bb19
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v68913450-a14377f4
+  CI_IMAGE_RPM_X64: v71194676-f243bb19
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v68913450-a14377f4
+  CI_IMAGE_RPM_ARM64: v71194676-f243bb19
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v68913450-a14377f4
+  CI_IMAGE_RPM_ARMHF: v71194676-f243bb19
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v68287210-66c494d7
+  CI_IMAGE_WIN_LTSC2022_X64: v70289801-3a61ff42
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -243,11 +247,14 @@ variables:
   MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
   SLACK_AGENT: slack-agent-ci # agent-devx
   SMP_ACCOUNT: smp # single-machine-performance
-  VIRUS_TOTAL: virus-total  # windows-agent
+  VIRUS_TOTAL: virus-total # windows-agent
   # End vault variables
 
   DD_PKG_VERSION: "latest"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
+
+  # Job cloning strategy
+  GIT_STRATEGY: "s3"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -258,6 +265,7 @@ variables:
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
+  FF_USE_FASTZIP: true
 
 #
 # Condition mixins for simplification of rules
@@ -353,6 +361,9 @@ variables:
     - .gitlab/binary_build/fakeintake.yml
     - .gitlab/container_build/fakeintake.yml
     - .gitlab/dev_container_deploy/fakeintake.yml
+
+.if_coverage_pipeline: &if_coverage_pipeline
+  if: $E2E_COVERAGE_PIPELINE == "true"
 
 #
 # Workflow rules
@@ -1092,3 +1103,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
+
+.except_coverage_pipeline:
+  - <<: *if_coverage_pipeline
+    when: never

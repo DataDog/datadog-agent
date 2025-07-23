@@ -166,6 +166,8 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Helper()
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
+	cfg.AgentVersion = "v1.0.0"
+	cfg.Hostname = "test-host"
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
@@ -173,7 +175,7 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, stats, &timing.NoopReporter{})
-	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+	req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
 			LibVersion: "1.2",
@@ -193,7 +195,7 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				{Name: "5", TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}},
 			},
 		},
-	}).Traces().ResourceSpans()
+	})
 
 	stop := make(chan struct{})
 	go func() {
@@ -207,15 +209,15 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}()
 	defer close(stop)
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, nil)
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, nil)
+	rcv.Export(context.Background(), req)
 
 	calls := stats.CountCalls
-	assert.Equal(4, len(calls))
+	assert.Equal(5, len(calls))
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.payload", Value: 1, Tags: []string{"endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
@@ -4541,4 +4543,81 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 	b.StopTimer()
 	end <- struct{}{}
 	<-end
+}
+
+func TestConvertSpanDBNameMapping(t *testing.T) {
+	tests := []struct {
+		name         string
+		sattrs       map[string]string
+		rattrs       map[string]string
+		expectedName string
+		shouldMap    bool
+	}{
+		{
+			name:         "db.namespace in span attributes, no db.name",
+			sattrs:       map[string]string{string(semconv127.DBNamespaceKey): "testdb"},
+			expectedName: "testdb",
+			shouldMap:    true,
+		},
+		{
+			name:         "db.namespace in resource attributes, no db.name",
+			rattrs:       map[string]string{string(semconv127.DBNamespaceKey): "testdb"},
+			expectedName: "testdb",
+			shouldMap:    true,
+		},
+		{
+			name:         "db.namespace in both, resource takes precedence",
+			sattrs:       map[string]string{string(semconv127.DBNamespaceKey): "span-db"},
+			rattrs:       map[string]string{string(semconv127.DBNamespaceKey): "resource-db"},
+			expectedName: "resource-db",
+			shouldMap:    true,
+		},
+		{
+			name:         "db.name already exists, should not map",
+			sattrs:       map[string]string{"db.name": "existing-db", string(semconv127.DBNamespaceKey): "testdb"},
+			expectedName: "existing-db",
+			shouldMap:    false,
+		},
+		{
+			name:      "no db.namespace, should not map",
+			sattrs:    map[string]string{},
+			shouldMap: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+			span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName("test-lib")
+
+			ddspan := rcv.convertSpan(res, lib, span)
+
+			if tt.shouldMap {
+				assert.Equal(t, tt.expectedName, ddspan.Meta["db.name"])
+			} else {
+				if tt.expectedName != "" {
+					assert.Equal(t, tt.expectedName, ddspan.Meta["db.name"])
+				} else {
+					assert.Empty(t, ddspan.Meta["db.name"])
+				}
+			}
+		})
+	}
 }

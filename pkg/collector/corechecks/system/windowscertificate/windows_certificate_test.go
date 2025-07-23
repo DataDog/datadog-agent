@@ -176,3 +176,73 @@ days_critical: -1`)
 	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
 	m.AssertNumberOfCalls(t, "Commit", 0)
 }
+
+func TestWindowsCertificateWithCrl(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store: CA
+certificate_subjects:
+  - Microsoft
+enable_crl_monitoring: true`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+
+	m.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	m.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	m.On("Commit").Return()
+
+	certCheck.Run()
+
+	m.AssertExpectations(t)
+	m.AssertCalled(t, "Gauge", "windows_certificate.days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.cert_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertCalled(t, "Gauge", "windows_certificate.crl_days_remaining", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"))
+	m.AssertCalled(t, "ServiceCheck", "windows_certificate.crl_expiration", mock.AnythingOfType("servicecheck.ServiceCheckStatus"), "", mock.AnythingOfType("[]string"), mock.AnythingOfType("string"))
+	m.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestWindowsCertificateWithCrlNegativeDaysThresholds(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store: CA
+certificate_subjects:
+  - INVALID
+enable_crl_monitoring: true
+crl_days_warning: -1`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	err := certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+	require.Error(t, err)
+
+	m.AssertNotCalled(t, "Run")
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
+	m.AssertNumberOfCalls(t, "Commit", 0)
+}
+
+func TestWindowsCertificateWithCrlNoCrlFound(t *testing.T) {
+	certCheck := new(WinCertChk)
+
+	instanceConfig := []byte(`
+certificate_store: MY
+certificate_subjects:
+  - INVALID
+enable_crl_monitoring: true`)
+
+	certCheck.BuildID(integration.FakeConfigHash, instanceConfig, nil)
+	m := mocksender.NewMockSender(certCheck.ID())
+	certCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+	m.On("Commit").Return()
+
+	certCheck.Run()
+
+	m.AssertExpectations(t)
+	m.AssertNumberOfCalls(t, "Gauge", 0)
+	m.AssertNumberOfCalls(t, "ServiceCheck", 0)
+	m.AssertNumberOfCalls(t, "Commit", 1)
+}

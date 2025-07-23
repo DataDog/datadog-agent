@@ -177,6 +177,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "create.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.CreateNewFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "create.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
@@ -336,6 +348,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "delete.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.DeleteFile.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -603,6 +627,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
@@ -771,6 +807,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exit.file.name":
@@ -1088,6 +1136,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.file.extension":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveFileExtension(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveFileExtension(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
@@ -1367,6 +1442,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
@@ -1484,6 +1571,21 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.file.name":
@@ -1664,6 +1766,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.destination.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.destination.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
@@ -1731,6 +1845,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.RenameFile.Old)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1966,6 +2092,18 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "write.file.extension":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.CaseInsensitiveCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFimFileExtension(ev, &ev.WriteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "write.file.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.CaseInsensitiveCmp,
@@ -2031,6 +2169,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"container.tags",
 		"create.file.device_path",
 		"create.file.device_path.length",
+		"create.file.extension",
 		"create.file.name",
 		"create.file.name.length",
 		"create.file.path",
@@ -2045,6 +2184,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"create_key.registry.key_path.length",
 		"delete.file.device_path",
 		"delete.file.device_path.length",
+		"delete.file.extension",
 		"delete.file.name",
 		"delete.file.name.length",
 		"delete.file.path",
@@ -2068,6 +2208,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.created_at",
 		"exec.envp",
 		"exec.envs",
+		"exec.file.extension",
 		"exec.file.name",
 		"exec.file.name.length",
 		"exec.file.path",
@@ -2083,6 +2224,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.created_at",
 		"exit.envp",
 		"exit.envs",
+		"exit.file.extension",
 		"exit.file.name",
 		"exit.file.name.length",
 		"exit.file.path",
@@ -2104,6 +2246,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.created_at",
 		"process.ancestors.envp",
 		"process.ancestors.envs",
+		"process.ancestors.file.extension",
 		"process.ancestors.file.name",
 		"process.ancestors.file.name.length",
 		"process.ancestors.file.path",
@@ -2118,6 +2261,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.created_at",
 		"process.envp",
 		"process.envs",
+		"process.file.extension",
 		"process.file.name",
 		"process.file.name.length",
 		"process.file.path",
@@ -2127,6 +2271,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.created_at",
 		"process.parent.envp",
 		"process.parent.envs",
+		"process.parent.file.extension",
 		"process.parent.file.name",
 		"process.parent.file.name.length",
 		"process.parent.file.path",
@@ -2141,12 +2286,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.user_sid",
 		"rename.file.destination.device_path",
 		"rename.file.destination.device_path.length",
+		"rename.file.destination.extension",
 		"rename.file.destination.name",
 		"rename.file.destination.name.length",
 		"rename.file.destination.path",
 		"rename.file.destination.path.length",
 		"rename.file.device_path",
 		"rename.file.device_path.length",
+		"rename.file.extension",
 		"rename.file.name",
 		"rename.file.name.length",
 		"rename.file.path",
@@ -2167,6 +2314,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"set_key_value.value_name",
 		"write.file.device_path",
 		"write.file.device_path.length",
+		"write.file.extension",
 		"write.file.name",
 		"write.file.name.length",
 		"write.file.path",
@@ -2209,6 +2357,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "create", reflect.String, "string", nil
 	case "create.file.device_path.length":
 		return "create", reflect.Int, "int", nil
+	case "create.file.extension":
+		return "create", reflect.String, "string", nil
 	case "create.file.name":
 		return "create", reflect.String, "string", nil
 	case "create.file.name.length":
@@ -2237,6 +2387,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "delete", reflect.String, "string", nil
 	case "delete.file.device_path.length":
 		return "delete", reflect.Int, "int", nil
+	case "delete.file.extension":
+		return "delete", reflect.String, "string", nil
 	case "delete.file.name":
 		return "delete", reflect.String, "string", nil
 	case "delete.file.name.length":
@@ -2283,6 +2435,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.String, "string", nil
 	case "exec.envs":
 		return "exec", reflect.String, "string", nil
+	case "exec.file.extension":
+		return "exec", reflect.String, "string", nil
 	case "exec.file.name":
 		return "exec", reflect.String, "string", nil
 	case "exec.file.name.length":
@@ -2312,6 +2466,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exit.envp":
 		return "exit", reflect.String, "string", nil
 	case "exit.envs":
+		return "exit", reflect.String, "string", nil
+	case "exit.file.extension":
 		return "exit", reflect.String, "string", nil
 	case "exit.file.name":
 		return "exit", reflect.String, "string", nil
@@ -2355,6 +2511,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.ancestors.envs":
 		return "", reflect.String, "string", nil
+	case "process.ancestors.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.ancestors.file.name":
 		return "", reflect.String, "string", nil
 	case "process.ancestors.file.name.length":
@@ -2383,6 +2541,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "process.envs":
 		return "", reflect.String, "string", nil
+	case "process.file.extension":
+		return "", reflect.String, "string", nil
 	case "process.file.name":
 		return "", reflect.String, "string", nil
 	case "process.file.name.length":
@@ -2400,6 +2560,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.parent.envp":
 		return "", reflect.String, "string", nil
 	case "process.parent.envs":
+		return "", reflect.String, "string", nil
+	case "process.parent.file.extension":
 		return "", reflect.String, "string", nil
 	case "process.parent.file.name":
 		return "", reflect.String, "string", nil
@@ -2429,6 +2591,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.device_path.length":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.destination.extension":
+		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.name":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.destination.name.length":
@@ -2441,6 +2605,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "rename", reflect.String, "string", nil
 	case "rename.file.device_path.length":
 		return "rename", reflect.Int, "int", nil
+	case "rename.file.extension":
+		return "rename", reflect.String, "string", nil
 	case "rename.file.name":
 		return "rename", reflect.String, "string", nil
 	case "rename.file.name.length":
@@ -2481,6 +2647,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "write", reflect.String, "string", nil
 	case "write.file.device_path.length":
 		return "write", reflect.Int, "int", nil
+	case "write.file.extension":
+		return "write", reflect.String, "string", nil
 	case "write.file.name":
 		return "write", reflect.String, "string", nil
 	case "write.file.name.length":
@@ -2552,6 +2720,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("create.file.device_path", &ev.CreateNewFile.File.PathnameStr, value)
 	case "create.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "create.file.device_path.length"}
+	case "create.file.extension":
+		return ev.setStringFieldValue("create.file.extension", &ev.CreateNewFile.File.Extension, value)
 	case "create.file.name":
 		return ev.setStringFieldValue("create.file.name", &ev.CreateNewFile.File.BasenameStr, value)
 	case "create.file.name.length":
@@ -2580,6 +2750,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("delete.file.device_path", &ev.DeleteFile.File.PathnameStr, value)
 	case "delete.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.file.device_path.length"}
+	case "delete.file.extension":
+		return ev.setStringFieldValue("delete.file.extension", &ev.DeleteFile.File.Extension, value)
 	case "delete.file.name":
 		return ev.setStringFieldValue("delete.file.name", &ev.DeleteFile.File.BasenameStr, value)
 	case "delete.file.name.length":
@@ -2626,6 +2798,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("exec.envp", &ev.Exec.Process.Envp, value)
 	case "exec.envs":
 		return ev.setStringArrayFieldValue("exec.envs", &ev.Exec.Process.Envs, value)
+	case "exec.file.extension":
+		return ev.setStringFieldValue("exec.file.extension", &ev.Exec.Process.FileEvent.Extension, value)
 	case "exec.file.name":
 		return ev.setStringFieldValue("exec.file.name", &ev.Exec.Process.FileEvent.BasenameStr, value)
 	case "exec.file.name.length":
@@ -2671,6 +2845,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Exit.Process = &Process{}
 		}
 		return ev.setStringArrayFieldValue("exit.envs", &ev.Exit.Process.Envs, value)
+	case "exit.file.extension":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		return ev.setStringFieldValue("exit.file.extension", &ev.Exit.Process.FileEvent.Extension, value)
 	case "exit.file.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -2737,6 +2916,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("process.ancestors.envp", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp, value)
 	case "process.ancestors.envs":
 		return ev.setStringArrayFieldValue("process.ancestors.envs", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs, value)
+	case "process.ancestors.file.extension":
+		return ev.setStringFieldValue("process.ancestors.file.extension", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Extension, value)
 	case "process.ancestors.file.name":
 		return ev.setStringFieldValue("process.ancestors.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.ancestors.file.name.length":
@@ -2765,6 +2946,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("process.envp", &ev.BaseEvent.ProcessContext.Process.Envp, value)
 	case "process.envs":
 		return ev.setStringArrayFieldValue("process.envs", &ev.BaseEvent.ProcessContext.Process.Envs, value)
+	case "process.file.extension":
+		return ev.setStringFieldValue("process.file.extension", &ev.BaseEvent.ProcessContext.Process.FileEvent.Extension, value)
 	case "process.file.name":
 		return ev.setStringFieldValue("process.file.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.file.name.length":
@@ -2783,6 +2966,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("process.parent.envp", &ev.BaseEvent.ProcessContext.Parent.Envp, value)
 	case "process.parent.envs":
 		return ev.setStringArrayFieldValue("process.parent.envs", &ev.BaseEvent.ProcessContext.Parent.Envs, value)
+	case "process.parent.file.extension":
+		return ev.setStringFieldValue("process.parent.file.extension", &ev.BaseEvent.ProcessContext.Parent.FileEvent.Extension, value)
 	case "process.parent.file.name":
 		return ev.setStringFieldValue("process.parent.file.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr, value)
 	case "process.parent.file.name.length":
@@ -2811,6 +2996,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.file.destination.device_path", &ev.RenameFile.New.PathnameStr, value)
 	case "rename.file.destination.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.device_path.length"}
+	case "rename.file.destination.extension":
+		return ev.setStringFieldValue("rename.file.destination.extension", &ev.RenameFile.New.Extension, value)
 	case "rename.file.destination.name":
 		return ev.setStringFieldValue("rename.file.destination.name", &ev.RenameFile.New.BasenameStr, value)
 	case "rename.file.destination.name.length":
@@ -2823,6 +3010,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.file.device_path", &ev.RenameFile.Old.PathnameStr, value)
 	case "rename.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.device_path.length"}
+	case "rename.file.extension":
+		return ev.setStringFieldValue("rename.file.extension", &ev.RenameFile.Old.Extension, value)
 	case "rename.file.name":
 		return ev.setStringFieldValue("rename.file.name", &ev.RenameFile.Old.BasenameStr, value)
 	case "rename.file.name.length":
@@ -2863,6 +3052,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("write.file.device_path", &ev.WriteFile.File.PathnameStr, value)
 	case "write.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "write.file.device_path.length"}
+	case "write.file.extension":
+		return ev.setStringFieldValue("write.file.extension", &ev.WriteFile.File.Extension, value)
 	case "write.file.name":
 		return ev.setStringFieldValue("write.file.name", &ev.WriteFile.File.BasenameStr, value)
 	case "write.file.name.length":

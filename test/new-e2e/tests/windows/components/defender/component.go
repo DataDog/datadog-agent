@@ -7,7 +7,6 @@
 package defender
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
@@ -15,6 +14,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 )
 
 // Manager contains the resources to manage Windows Defender
@@ -38,6 +39,17 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 	}
 
 	var deps []pulumi.ResourceOption
+	cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("get-defender-status"), &command.Args{
+		Create: pulumi.String(powershell.PsHost().
+			WaitForServiceStatus("WinDefend", "Running").
+			Compile()),
+	}, deps...)
+	if err != nil {
+		return nil, err
+	}
+	deps = append(deps, utils.PulumiDependsOn(cmd))
+	manager.Resources = append(manager.Resources, cmd)
+
 	if params.Disabled {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("disable-defender"), &command.Args{
 			Create: pulumi.String(powershell.PsHost().

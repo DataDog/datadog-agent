@@ -7,6 +7,8 @@
 #include "events.h"
 #include "activity_dump.h"
 #include "span.h"
+#include <uapi/linux/filter.h>
+
 
 #define SYSCALL_CTX_STR_TYPE 1
 #define SYSCALL_CTX_INT_TYPE 2

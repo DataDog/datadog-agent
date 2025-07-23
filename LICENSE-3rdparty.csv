@@ -143,7 +143,6 @@ core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Copyright (c) 2015 Datadog, In
 core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/dd-sensitive-data-scanner/sds-go/go,Apache-2.0,"Copyright 2024-present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/appsec/events,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/datastreams/options,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/ddtrace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -216,6 +215,17 @@ core,github.com/DataDog/go-libddwaf/v3/internal/log,Apache-2.0,"Copyright 2016-p
 core,github.com/DataDog/go-libddwaf/v3/internal/support,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v3/internal/unsafe,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v3/timer,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/bindings,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/pin,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/ruleset,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/support,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/unsafe,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/json,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/timer,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/waferrors,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-runtime-metrics-internal/pkg/runtimemetrics,Apache-2.0,"Copyright 2024-2024 Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -455,6 +465,7 @@ core,github.com/aquasecurity/trivy/pkg/detector/ospkg/alma,Apache-2.0,Copyright 
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/alpine,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/amazon,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/azure,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy/pkg/detector/ospkg/bottlerocket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/chainguard,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/debian,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/oracle,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -512,7 +523,7 @@ core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/redhatbase,Apache-2.0,C
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/release,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/ubuntu,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/apk,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/bottlerocket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/bottlerocket_inventory,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/dpkg,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/rpm,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/repo/apk,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -1244,7 +1255,7 @@ core,github.com/gophercloud/gophercloud/v2/openstack/utils,Apache-2.0,"Copyright
 core,github.com/gophercloud/gophercloud/v2/pagination,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gorilla/handlers,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
-core,github.com/gorilla/websocket,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
+core,github.com/gorilla/websocket,BSD-2-Clause,Copyright (c) 2013 The Gorilla WebSocket Authors. All rights reserved | Gary Burd <gary@beagledreams.com> | Google LLC (https://opensource.google.com/) | Joachim Bauch <mail@joachim-bauch.de>
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
 core,github.com/grafana/regexp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/grafana/regexp/syntax,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1901,6 +1912,7 @@ core,github.com/planetscale/vtprotobuf/types/known/anypb,BSD-3-Clause,"Copyright
 core,github.com/planetscale/vtprotobuf/types/known/durationpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/planetscale/vtprotobuf/types/known/emptypb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/planetscale/vtprotobuf/types/known/structpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
+core,github.com/planetscale/vtprotobuf/types/known/timestamppb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/planetscale/vtprotobuf/types/known/wrapperspb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
@@ -2599,6 +2611,7 @@ core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/chacha20poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -2610,6 +2623,8 @@ core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright 2009 The Go 
 core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors

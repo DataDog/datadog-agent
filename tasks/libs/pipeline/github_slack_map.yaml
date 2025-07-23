@@ -31,6 +31,7 @@
 '@datadog/container-experiences': '#process-agent-ops'
 '@datadog/container-platform': '#container-platform'
 '@datadog/database-monitoring': '#database-monitoring'
+'@datadog/data-streams-monitoring': '#data-streams-monitoring'
 '@datadog/debugger': '#debugger-ops-prod'
 '@datadog/debugger-go': '#dynamic-instrumentation-go'
 '@datadog/documentation': DEFAULT_SLACK_CHANNEL

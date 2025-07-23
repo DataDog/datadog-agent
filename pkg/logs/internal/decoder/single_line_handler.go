@@ -77,6 +77,7 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 	}
 
 	if lastWasTruncated || h.shouldTruncate {
+		msg.ParsingExtra.IsTruncated = true
 		addTruncatedTag(msg)
 	}
 	msg.SetContent(content) // refresh the content in the message

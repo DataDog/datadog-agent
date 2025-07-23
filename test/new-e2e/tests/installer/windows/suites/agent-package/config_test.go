@@ -265,6 +265,55 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	})
 }
 
+// TestManagedConfigActiveAfterUpgrade tests that the Agent's config is preserved after a package update.
+//
+// Partial regression test for WINA-1556, making sure that installation does not
+// modify the managed config or its permissions, preventing the Agent from accessing it.
+func (s *testAgentConfigSuite) TestManagedConfigActiveAfterUpgrade() {
+	// Arrange - Start with previous version and custom config
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "info")
+
+	// Set up a custom configuration
+	config := installerwindows.ConfigExperiment{
+		ID: "pre-upgrade-config",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "debug"}`),
+			},
+		},
+	}
+
+	// Start and promote the config experiment to make it the stable config
+	s.mustStartConfigExperiment(config)
+	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
+
+	// Act - Perform a package upgrade to current version
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+
+	// Assert - Verify that the configuration is preserved after the upgrade
+	// The promoted config should still be active after upgrade
+	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
+
+	// Verify the runtime config values are still preserved after upgrade
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
+}
+
 func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)

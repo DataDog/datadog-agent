@@ -3,8 +3,9 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/d
 go 1.23.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.59.0
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.64.0-rc.3
@@ -59,7 +60,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.158 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
@@ -76,7 +77,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.64.0-devel.0.20250218192636-64fdfe7ec366 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.59.0-rc.6 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0 // indirect
@@ -102,7 +102,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
@@ -139,7 +138,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.67.0 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.41.0 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -181,6 +179,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect

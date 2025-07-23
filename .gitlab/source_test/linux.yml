@@ -32,9 +32,8 @@
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - dda inv -- -e sds.build-library
     - dda inv -- -e agent.build
-    - dda inv -- -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
+    - dda inv -- -e test $FLAVORS --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
   artifacts:
     expire_in: 2 weeks
     when: always

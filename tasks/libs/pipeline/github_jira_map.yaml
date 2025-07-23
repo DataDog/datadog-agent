@@ -37,6 +37,7 @@
 '@datadog/debugger': DEBUG
 '@datadog/debugger-go': DEBUG
 '@datadog/database-monitoring': DBMON
+'@datadog/data-streams-monitoring': DSMON
 '@datadog/agent-cspm': SEC
 '@datadog/telemetry-and-analytics': AIT
 '@datadog/apm-trace-storage': APMTS

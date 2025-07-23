@@ -125,7 +125,7 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		//       triggered by FA, so maybe this is OK.
 		//
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any) { i.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { i.Refresh() })
 	}
 
 	return provides{

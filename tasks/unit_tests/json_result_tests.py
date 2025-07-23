@@ -4,6 +4,7 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 from tasks.libs.testing.result_json import ActionType, ResultJson, ResultJsonLine, merge_result_jsons, run_is_failing
 
@@ -25,17 +26,33 @@ def get_dummy_result_lines(test_name: str, test_package: str, cnt: int) -> list[
     return output
 
 
+def get_valid_test_json_files() -> set[str]:
+    """
+    Returns a list of valid test JSON files from the testdata directory.
+    """
+    test_files = glob(str(Path(__file__).parent / "testdata" / "test_output_*.json"))
+    invalid_files = glob(str(Path(__file__).parent / "testdata" / "test_output_*invalid*.json"))
+    return set(test_files) - set(invalid_files)
+
+
 class TestJSONResultLine(TestCase):
     test_name = "TestExample"
     test_package = "github.com/DataDog/datadog-agent/test/example"
 
     def test_parsing(self):
-        # Verify that all test json files in the testdata directory can be parsed
-        test_files = glob(str(Path(__file__).parent / "testdata" / "test_output_*.json"))
-        for file in test_files:
+        # Verify that all valid test json files in the testdata directory can be parsed
+        for file in get_valid_test_json_files():
             with open(file) as f:
                 for line in f:
                     # Just make sure this does not raise an exception
+                    ResultJsonLine.from_dict(json.loads(line))
+
+    def test_parsing_invalid(self):
+        # Verify that the invalid test json file raises an exception
+        file = str(Path(__file__).parent / "testdata" / "test_output_with_invalid.json")
+        with open(file) as f:
+            with self.assertRaises(ValueError, msg=f"Expected ValueError for at least one invalid line in {file}"):
+                for line in f:
                     ResultJsonLine.from_dict(json.loads(line))
 
     def test_run_is_failing_negative(self):
@@ -113,15 +130,45 @@ class TestJSONResultLine(TestCase):
 class TestJSONResult(TestCase):
     def test_parsing(self):
         # Verify that all test json files in the testdata directory can be parsed
-        test_files = glob(str(Path(__file__).parent / "testdata" / "test_output_*.json"))
-        for file in test_files:
+        for file in get_valid_test_json_files():
             # Just make sure this does not raise an exception
             res = ResultJson.from_file(file)
             self.assertGreater(len(res.lines), 0, f"Expected at least one line in {file}")
 
+    @patch("tasks.libs.testing.result_json.print")
+    def test_parsing_invalid(self, p: MagicMock):
+        file = str(Path(__file__).parent / "testdata" / "test_output_with_invalid.json")
+        res = ResultJson.from_file(file)
+        self.assertGreater(p.call_count, 0, f"Expected at least one warning for invalid lines in {file}")
+        last_print_call = p.call_args_list[-1]
+        self.assertIn(
+            "WARNING: Invalid line in result json file, skipping:",
+            last_print_call[0][0],
+            f"Expected a warning about the invalid line in {file}",
+        )
+
+        expected_failing_packages = {
+            "github.com/DataDog/datadog-agent/testpackage1",
+            "github.com/DataDog/datadog-agent/testpackage2",
+            "./pkg",
+            "./comp",
+            "./cmd",
+        }
+        expected_failing_tests = {
+            "github.com/DataDog/datadog-agent/testpackage1": {"test_3", "test_1"},
+            "github.com/DataDog/datadog-agent/testpackage2": {"test_1"},
+        }
+        self.assertEqual(
+            res.failing_packages, expected_failing_packages, "The failing packages do not match the expected set."
+        )
+        self.assertEqual(
+            res.failing_tests,
+            expected_failing_tests,
+            "The failing tests do not match the expected dictionary.",
+        )
+
     def test_package_tests_dict(self):
         # Verify that package_tests_dict is correctly populated
-        # This test file was chosen as it
         res = ResultJson.from_file(str(Path(__file__).parent / "testdata" / "test_output_varied.json"))
         package_tests_dict_actions = {
             package: {test: [line.action.value for line in lines] for test, lines in tests.items()}

@@ -195,7 +195,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.157 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.158 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.67.0 // indirect
@@ -204,7 +204,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.67.0 // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.64.0-devel.0.20250218192636-64fdfe7ec366 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.65.0-devel.0.20250304124125-23a109221842 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.65.0-devel.0.20250304124125-23a109221842
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12 // indirect
@@ -236,7 +236,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
@@ -275,7 +274,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.67.0 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.41.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.6.0 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -343,7 +341,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
-	github.com/gorilla/websocket v1.5.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/hashicorp/consul/api v1.32.0 // indirect

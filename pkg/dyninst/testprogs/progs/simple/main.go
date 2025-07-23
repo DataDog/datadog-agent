@@ -35,6 +35,7 @@ func main() {
 	ptr4 := &ptr3
 	ptr5 := &ptr4
 	PointerChainArg(ptr5)
+	PointerSmallChainArg(ptr2)
 }
 
 //go:noinline
@@ -107,5 +108,9 @@ func bigMapArg(m map[string]bigStruct) {
 }
 
 func PointerChainArg(ptr *****int) {
+	fmt.Println(ptr)
+}
+
+func PointerSmallChainArg(ptr **int) {
 	fmt.Println(ptr)
 }

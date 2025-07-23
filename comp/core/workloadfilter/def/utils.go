@@ -83,3 +83,15 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 
 	return flist
 }
+
+// FlattenFilterSets flattens a slice of filter sets into a single slice.
+func FlattenFilterSets[T ~int](
+	filterSets [][]T, // Generic filter types
+) []T {
+	// Flatten the filter sets into a single slice
+	flattened := make([]T, 0)
+	for _, set := range filterSets {
+		flattened = append(flattened, set...)
+	}
+	return flattened
+}

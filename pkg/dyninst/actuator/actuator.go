@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,8 +25,17 @@ import (
 
 // Actuator manages dynamic instrumentation for processes. It coordinates IR
 // generation, eBPF compilation, program loading, and attachment.
+//
+// The Actuator is multi-tenant: regardless of the number of tenants, we want
+// to have a single instance of the Actuator to coordinate resource usage.
 type Actuator struct {
-	configuration
+	mu struct {
+		sync.Mutex
+		maxTenantID tenantID
+		tenants     map[tenantID]*Tenant
+		sinks       map[ir.ProgramID]Sink
+	}
+	loader Loader
 
 	// Channel for sending events to the state machine processing goroutine
 	// This is send-only from the perspective of external API.
@@ -43,27 +51,48 @@ type Actuator struct {
 	shutdownErr error
 }
 
-// NewActuator creates a new Actuator instance.
-func NewActuator(
-	options ...Option,
-) (*Actuator, error) {
-	cfg, err := makeConfiguration(options...)
-	if err != nil {
-		return nil, err
-	}
+// Tenant is a tenant of the Actuator.
+type Tenant struct {
+	name        string
+	id          tenantID
+	a           *Actuator
+	reporter    Reporter
+	irGenerator IRGenerator
+}
 
-	shutdownCh := make(chan struct{})
+// NewTenant creates a new tenant of the Actuator.
+func (a *Actuator) NewTenant(
+	name string, reporter Reporter, irGenerator IRGenerator,
+) *Tenant {
+	t := &Tenant{
+		a:           a,
+		name:        name,
+		reporter:    reporter,
+		irGenerator: irGenerator,
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mu.maxTenantID++
+	t.id = a.mu.maxTenantID
+	a.mu.tenants[t.id] = t
+	return t
+}
+
+// NewActuator creates a new Actuator instance.
+func NewActuator(loader Loader) *Actuator {
+	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
-		configuration: cfg,
-		events:        eventCh,
-		shuttingDown:  shutdownCh,
+		events:       eventCh,
+		shuttingDown: shuttingDownCh,
+		loader:       loader,
 	}
-
+	a.mu.sinks = make(map[ir.ProgramID]Sink)
+	a.mu.tenants = make(map[tenantID]*Tenant)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.runEventProcessor(eventCh, shutdownCh)
+		a.runEventProcessor(eventCh, shuttingDownCh)
 	}()
 	a.wg.Add(1)
 	go func() {
@@ -71,65 +100,95 @@ func NewActuator(
 		_ = a.runDispatcher()
 	}()
 
-	return a, nil
+	return a
 }
 
 // runDispatcher runs in a separate goroutine and processes messages from the
 // ringbuffer and to hand them to the dispatcher.
-func (a *Actuator) runDispatcher() (err error) {
+func (a *Actuator) runDispatcher() (retErr error) {
 	defer func() {
-		if err != nil {
-			go a.shutdown(fmt.Errorf("error in dispatcher: %w", err))
+		if retErr != nil {
+			go a.shutdown(fmt.Errorf("error in dispatcher: %w", retErr))
 		}
 	}()
-	for {
+	reader := a.loader.OutputReader()
+	inShutdown := func() bool {
 		select {
 		case <-a.shuttingDown:
-			return
+			return true
 		default:
+			return false
 		}
-
+	}
+	for {
+		if inShutdown() {
+			return nil
+		}
 		rec := recordPool.Get().(*ringbuf.Record)
-		if err := a.loader.OutputReader().ReadInto(rec); err != nil {
+		if err := reader.ReadInto(rec); err != nil {
 			if errors.Is(err, ringbuf.ErrFlushed) {
 				continue
 			}
-			return err
+			return fmt.Errorf("error reading message: %w", err)
 		}
-		message := Message{rec: rec}
-		err = a.sink.HandleMessage(message)
+
 		// TODO: Improve error handling here.
 		//
 		// Perhaps we want to find a way to only partially fail. Alternatively,
 		// this interface should not be delivering errors at all.
-		if err != nil {
-			select {
-			case <-a.shuttingDown:
-				recordPool.Put(rec)
-				return
-			default:
-				log.Errorf("Error handling message: %v", err)
-				go a.shutdown(fmt.Errorf("error handling message: %w", err))
-				return
-			}
+		if err := a.handleMessage(Message{
+			rec: rec,
+		}); err != nil && !inShutdown() {
+			log.Errorf("error handling message: %v", err)
+			return fmt.Errorf("error handling message: %w", err)
 		}
 	}
 }
 
+func (a *Actuator) handleMessage(rec Message) error {
+	defer rec.Release()
+
+	ev := rec.Event()
+	evHeader, err := ev.Header()
+	if err != nil {
+		return fmt.Errorf("error getting event header: %w", err)
+	}
+
+	progID := ir.ProgramID(evHeader.Prog_id)
+	sink, ok := a.getSink(progID)
+	if !ok {
+		return fmt.Errorf("no sink for program %d", progID)
+	}
+	if err := sink.HandleEvent(ev); err != nil {
+		return fmt.Errorf("error handling event: %w", err)
+	}
+	return nil
+}
+
+func (a *Actuator) getSink(progID ir.ProgramID) (Sink, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	sink, ok := a.mu.sinks[progID]
+	return sink, ok
+}
+
 // HandleUpdate processes an update to process instrumentation configuration.
 // This is the single public API for updating the actuator state.
-func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
-	log.Debugf("sending update: %v", update)
+func (t *Tenant) HandleUpdate(update ProcessesUpdate) {
+	if log.ShouldLog(log.TraceLvl) {
+		logUpdate := update
+		log.Tracef("sending update: %v", &logUpdate)
+	}
 
-	// Make sure we don't send the update event if we're shutting down.
 	select {
-	case <-a.shuttingDown:
+	case <-t.a.shuttingDown: // prioritize shutdown
 	default:
 		select {
-		case <-a.shuttingDown:
-		case a.events <- eventProcessesUpdated{
-			updated: update.Processes,
-			removed: update.Removals,
+		case <-t.a.shuttingDown:
+		case t.a.events <- eventProcessesUpdated{
+			tenantID: t.id,
+			updated:  update.Processes,
+			removed:  update.Removals,
 		}:
 		}
 	}
@@ -137,19 +196,21 @@ func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
 
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
-func (a *Actuator) runEventProcessor(eventCh <-chan event, shuttingDownCh chan<- struct{}) {
+func (a *Actuator) runEventProcessor(
+	eventCh <-chan event, shuttingDownCh chan<- struct{},
+) {
 	defer a.loader.OutputReader().Flush()
 	state := newState()
 	for !state.isShutdown() {
 		event := <-eventCh
 		if _, isShutdown := event.(eventShutdown); isShutdown {
-			log.Debugf("Received shutdown event")
+			log.Debugf("received shutdown event")
 			close(shuttingDownCh)
 		}
-		log.Debugf("event: %v", event)
+		log.Tracef("event: %v", event)
 		err := handleEvent(state, (*effects)(a), event)
 		if err != nil {
-			log.Errorf("Error handling event %T: %v", event, err)
+			log.Errorf("error handling event %T: %v", event, err)
 
 			// Trigger shutdown on error. Cannot run directly on this goroutine
 			// because it will deadlock. Note that if we're already shutting
@@ -172,62 +233,117 @@ var _ effectHandler = (*effects)(nil)
 
 // loadProgram starts BPF program loading in a background goroutine.
 func (a *effects) loadProgram(
+	tenantID tenantID,
 	programID ir.ProgramID,
 	executable Executable,
+	processID ProcessID,
 	probes []ir.ProbeDefinition,
 ) {
+	tenant := a.getTenant(tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		ir, err := generateIR(programID, executable, probes)
+		ir, err := generateIR(tenant.irGenerator, programID, executable, probes)
+		if err == nil && len(ir.Probes) == 0 {
+			err = &NoSuccessfulProbesError{Issues: ir.Issues}
+		}
 		if err != nil {
-			a.reporter.ReportIRGenFailed(programID, err, probes)
+			tenant.reporter.ReportIRGenFailed(processID, err, probes)
 			a.sendEvent(eventProgramLoadingFailed{
-				programID: ir.ID,
+				programID: programID,
 				err:       err,
 			})
 			return
 		}
 		loaded, err := loadProgram(a.loader, ir)
 		if err != nil {
-			a.reporter.ReportLoadingFailed(ir, err)
+			tenant.reporter.ReportLoadingFailed(processID, ir, err)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: ir.ID,
 				err:       err,
 			})
 			return
 		}
+		sink, err := tenant.reporter.ReportLoaded(processID, executable, ir)
+		if err != nil {
+			loaded.Close()
+			a.sendEvent(eventProgramLoadingFailed{
+				programID: ir.ID,
+				err:       err,
+			})
+			return
+		}
+		a.setSink(ir.ID, sink)
 		a.sendEvent(eventProgramLoaded{
 			programID: ir.ID,
 			loaded: &loadedProgram{
-				program: *loaded,
-				ir:      ir,
+				program:  *loaded,
+				ir:       ir,
+				tenantID: tenantID,
 			},
 		})
 	}()
 }
 
+func (a *effects) getTenant(tenantID tenantID) *Tenant {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.mu.tenants[tenantID]
+}
+
+func (a *effects) setSink(progID ir.ProgramID, sink Sink) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mu.sinks[progID] = sink
+}
+
+// clearSink removes a sink from the map if present.
+func (a *effects) clearSink(progID ir.ProgramID) {
+	a.mu.Lock()
+	delete(a.mu.sinks, progID)
+	a.mu.Unlock()
+}
+
+// unloadProgram performs the cleanup of a loaded program asynchronously and
+// notifies the state-machine once it is complete.
+func (a *effects) unloadProgram(lp *loadedProgram) {
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+
+		// Close kernel program & links.
+		lp.program.Close()
+
+		// TODO: We should flush the ringbuffer here to make sure
+		// that there are no events that haven't been processed that
+		// could possibly be affected by closing the sink.
+
+		// Close sink and unregister it so the dispatcher stops using it.
+		if lp.sink != nil {
+			lp.sink.Close()
+			a.clearSink(lp.ir.ID)
+		}
+
+		// Notify state-machine that unloading is finished.
+		a.sendEvent(eventProgramUnloaded{programID: lp.ir.ID})
+	}()
+}
+
 func generateIR(
+	irGenerator IRGenerator,
 	programID ir.ProgramID,
 	executable Executable,
 	probes []ir.ProbeDefinition,
 ) (*ir.Program, error) {
-	elfFile, err := safeelf.Open(executable.Path)
+	elfFile, err := object.OpenElfFile(executable.Path)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to open executable %s: %w", executable.Path, err,
+			"failed to read object file for %s: %w", executable.Path, err,
 		)
 	}
 	defer elfFile.Close()
 
-	objFile, err := object.NewElfObject(elfFile)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to create object interface for %s: %w", executable.Path, err,
-		)
-	}
-
-	ir, err := irgen.GenerateIR(programID, objFile, probes)
+	ir, err := irGenerator.GenerateIR(programID, elfFile, probes)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to generate IR for %s: %w", executable.Path, err,
@@ -256,20 +372,32 @@ func loadProgram(
 func (a *effects) attachToProcess(
 	loaded *loadedProgram, executable Executable, processID ProcessID,
 ) {
+	tenant := a.getTenant(loaded.tenantID)
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
 
 		attached, err := attachToProcess(
-			loaded, executable, processID, a.reporter,
+			tenant.id, loaded, executable, processID,
 		)
 		if err != nil {
-			a.reporter.ReportAttachingFailed(processID, loaded.ir, err)
+			tenant.reporter.ReportAttachingFailed(processID, loaded.ir, err)
 			a.sendEvent(eventProgramAttachingFailed{
 				programID: loaded.ir.ID,
 				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 		} else {
+			// Tell the reporter we've attached the probes.
+			//
+			// Note: there's something perhaps off about performing this call
+			// here is that the state machine will not have been updated yet to
+			// reflect that the probes are attached.
+			//
+			// At the time of writing, that external state was not exposed
+			// anywhere, and does not have any visible impact on the API, but
+			// it's still a bit of a smell. It's not clear, however, that this
+			// callback ought to be called on the state machine goroutine.
+			tenant.reporter.ReportAttached(processID, loaded.ir)
 			a.sendEvent(eventProgramAttached{
 				program: attached,
 			})
@@ -278,11 +406,12 @@ func (a *effects) attachToProcess(
 }
 
 func attachToProcess(
+	tenantID tenantID,
 	loaded *loadedProgram,
 	executable Executable,
 	processID ProcessID,
-	reporter Reporter,
 ) (*attachedProgram, error) {
+
 	// A silly thing here is that it's going to call, under the hood,
 	// safeelf.Open twice: once for the link package and once for finding the
 	// text section offset to translate the attachpoints.
@@ -330,43 +459,21 @@ func attachToProcess(
 		attached = append(attached, l)
 	}
 
-	// Tell the reporter we've attached the probes.
-	//
-	// Note: there's something perhaps off about performing this call here is
-	// that the state machine will not have been updated yet to reflect that the
-	// probes are attached.
-	//
-	// At the time of writing, that external state was not exposed anywhere, and
-	// does not have any visible impact on the API, but it's still a bit of a
-	// smell. It's not, however, clear that this callback ought to be called on
-	// the state machine goroutine.
-	reporter.ReportAttached(processID, loaded.ir)
-
 	return &attachedProgram{
-		ir:             loaded.ir,
+		tenantID:       tenantID,
 		procID:         processID,
+		ir:             loaded.ir,
 		executableLink: linkExe,
 		attachedLinks:  attached,
 	}, nil
 }
 
-// registerProgramWithDispatcher registers a program with the event dispatcher.
-func (a *effects) registerProgramWithDispatcher(irProgram *ir.Program) {
-	a.sink.RegisterProgram(irProgram)
-}
-
-// unregisterProgramWithDispatcher unregisters a program from the event dispatcher.
-//
-// TODO: We need to do something to make sure all messages that have already
-// been produced are processed before the program is unregistered. This will
-// involve coordinating some flushing with the dispatcher goroutine.
-func (a *effects) unregisterProgramWithDispatcher(programID ir.ProgramID) {
-	a.sink.UnregisterProgram(programID)
-}
-
 // detachFromProcess detaches a program from a process.
 func (a *effects) detachFromProcess(ap *attachedProgram) {
+	tenant := a.getTenant(ap.tenantID)
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		for _, link := range ap.attachedLinks {
 			if err := link.Close(); err != nil {
 				// What else is there to do if this fails?
@@ -377,9 +484,7 @@ func (a *effects) detachFromProcess(ap *attachedProgram) {
 			}
 		}
 
-		if a.reporter != nil {
-			a.reporter.ReportDetached(ap.procID, ap.ir)
-		}
+		tenant.reporter.ReportDetached(ap.procID, ap.ir)
 
 		a.sendEvent(eventProgramDetached{
 			programID: ap.ir.ID,
@@ -398,6 +503,12 @@ func (a *Actuator) Shutdown() error {
 
 func (a *Actuator) shutdown(err error) {
 	a.shutdownOnce.Do(func() {
+		defer log.Debugf("actuator shut down")
+		if err != nil {
+			log.Warnf("shutting down actuator due to error: %v", err)
+		} else {
+			log.Debugf("shutting down actuator")
+		}
 		a.events <- eventShutdown{}
 		a.shutdownErr = err
 

@@ -252,7 +252,8 @@ def graph(
     clusterarg = "-cluster" if cluster else ""
 
     if entrypoint is None:
-        entrypoint = BINARIES[build]["entrypoint"]
+        binaries_build = "iot-agent" if flavor == AgentFlavor.iot.name else build
+        entrypoint = BINARIES[binaries_build]["entrypoint"]
         entrypoint = f"github.com/DataDog/datadog-agent/{entrypoint}:all"
 
     build_tags = get_default_build_tags(

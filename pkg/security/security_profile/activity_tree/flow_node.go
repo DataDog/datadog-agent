@@ -14,43 +14,27 @@ import (
 
 // FlowNode is used to store a flow node
 type FlowNode struct {
-	ImageTags      []string
+	NodeBase
 	GenerationType NodeGenerationType
-
-	Flow model.Flow
+	Flow           model.Flow
 }
 
 // NewFlowNode returns a new FlowNode instance
-func NewFlowNode(flow model.Flow, generationType NodeGenerationType, imageTag string) *FlowNode {
+func NewFlowNode(flow model.Flow, event *model.Event, generationType NodeGenerationType, imageTag string) *FlowNode {
 	node := &FlowNode{
 		GenerationType: generationType,
 		Flow:           flow,
 	}
-	node.appendImageTag(imageTag)
+	node.NodeBase = NewNodeBase()
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 	return node
 }
 
-func (node *FlowNode) appendImageTag(imageTag string) {
-	node.ImageTags, _ = AppendIfNotPresent(node.ImageTags, imageTag)
-}
-
-func (node *FlowNode) evictImageTag(imageTag string) bool {
-	imageTags, removed := removeImageTagFromList(node.ImageTags, imageTag)
-	if removed {
-		if len(imageTags) == 0 {
-			return true
-		}
-		node.ImageTags = imageTags
-	}
-	return false
-}
-
-func (node *FlowNode) addFlow(flow model.Flow, imageTag string) {
-	if imageTag != "" {
-		node.appendImageTag(imageTag)
-	}
+func (node *FlowNode) addFlow(flow model.Flow, event *model.Event, imageTag string) {
+	node.AppendImageTag(imageTag, event.ResolveEventTime())
 
 	// add metrics
 	node.Flow.Egress.Add(flow.Egress)
 	node.Flow.Ingress.Add(flow.Ingress)
+
 }

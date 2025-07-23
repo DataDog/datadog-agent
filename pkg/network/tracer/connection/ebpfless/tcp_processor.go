@@ -269,7 +269,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 	}
 	conn.TCPFailures[uint16(reason)]++
 
-	if st.tcpState == connStatEstablished {
+	if st.tcpState != connStatClosed {
 		conn.Monotonic.TCPClosed++
 	}
 	*st = connectionState{

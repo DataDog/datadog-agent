@@ -141,7 +141,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
 	return provides{
@@ -482,6 +482,10 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
+
+	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
+		delete(data, "diagnostics")
+	}
 
 	return &Payload{
 		Hostname:  ia.hostname,

@@ -13,12 +13,13 @@ func _() {
 	_ = x[programStateLoading-2]
 	_ = x[programStateLoaded-3]
 	_ = x[programStateDraining-4]
-	_ = x[programStateLoadingAborted-5]
+	_ = x[programStateUnloading-5]
+	_ = x[programStateLoadingAborted-6]
 }
 
-const _programState_name = "InvalidQueuedLoadingLoadedDrainingLoadingAborted"
+const _programState_name = "InvalidQueuedLoadingLoadedDrainingUnloadingLoadingAborted"
 
-var _programState_index = [...]uint8{0, 7, 13, 20, 26, 34, 48}
+var _programState_index = [...]uint8{0, 7, 13, 20, 26, 34, 43, 57}
 
 func (i programState) String() string {
 	if i >= programState(len(_programState_index)-1) {

@@ -283,3 +283,19 @@ func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
 	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
 	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
 }
+
+func (d *safeDeviceImpl) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
+	if err := d.lib.lookup("nvmlGpmQueryDeviceSupport"); err != nil {
+		return nvml.GpmSupport{}, err
+	}
+	support, ret := d.nvmlDevice.GpmQueryDeviceSupport()
+	return support, NewNvmlAPIErrorOrNil("GpmQueryDeviceSupport", ret)
+}
+
+func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
+	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.GpmSampleGet(sample)
+	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
+}

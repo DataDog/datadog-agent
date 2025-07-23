@@ -349,11 +349,12 @@ var (
 			"FIN-WAIT-1": "closing",
 			"FIN-WAIT-2": "closing",
 			"TIME-WAIT":  "time_wait",
-			"UNCONN":     "closing",
 			"CLOSE-WAIT": "closing",
 			"LAST-ACK":   "closing",
 			"LISTEN":     "listening",
 			"CLOSING":    "closing",
+			"UNCONN":     "closing",
+			"NONE":       "connections", // sole UDP mapping
 		},
 		"netstat": {
 			"ESTABLISHED": "established",
@@ -367,11 +368,8 @@ var (
 			"LAST_ACK":    "closing",
 			"LISTEN":      "listening",
 			"CLOSING":     "closing",
+			"NONE":        "connections", // sole UDP mapping
 		},
-	}
-
-	udpStateMetricsSuffixMapping = map[string]string{
-		"NONE": "connections",
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}

@@ -37,7 +37,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil> -> 1
   queued_programs: '[]'
@@ -48,7 +48,6 @@ state:
 ---
 event: !loaded {program_id: 1}
 effects:
-  - !register-program-with-dispatcher {program_id: 1}
   - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
 state:
   currently_loading: 1 -> <nil>
@@ -78,7 +77,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
-  - !spawn-bpf-loading {executable: /usr/bin/test2@0.0m0.0, probes: [probe2], program_id: 2}
+  - !spawn-bpf-loading {executable: /usr/bin/test2@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 2}
 state:
   currently_loading: <nil> -> 2
   queued_programs: '[]'
@@ -104,13 +103,13 @@ state:
 ---
 event: !detached {program_id: 1, process_id: 1001}
 effects:
-  - !unregister-program-with-dispatcher {program_id: 1}
+  - !unload-program {program_id: 1}
 state:
   currently_loading: "2"
   queued_programs: '[]'
   processes:
-    1001: Detaching (prog 1) -> <nil>
+    1001: Detaching (prog 1)
     1002: WaitingForProgram (prog 2)
   programs:
-    1: Draining (proc 1001) -> <nil>
+    1: Draining (proc 1001) -> Unloading (proc 1001)
     2: LoadingAborted (proc 1002)

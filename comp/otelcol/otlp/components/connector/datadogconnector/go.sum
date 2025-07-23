@@ -1,13 +1,11 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/agent-payload/v5 v5.0.157 h1:d6LuZ/A1DFad1XyQAcf+fDlYsKLg8TQu8AAkFsNEtH4=
-github.com/DataDog/agent-payload/v5 v5.0.157/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.158 h1:RwzP7qJpTNXwPCM7MeBU4JSbcEOszGA096MiVFq9oYQ=
+github.com/DataDog/agent-payload/v5 v5.0.158/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/datadog-api-client-go/v2 v2.41.0 h1:MCcyRk3whNVSlNuKvV3AyxpvTj3oVHufmTjRVMisqwY=
 github.com/DataDog/datadog-api-client-go/v2 v2.41.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEUqFvRDw=
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 h1:RoH7VLzTnxHEugRPIgnGlxwDFszFGI7b3WZZUtWuPRM=
-github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/DataDog/go-sqllexer v0.1.6 h1:skEXpWEVCpeZFIiydoIa2f2rf+ymNpjiIMqpW4w3YAk=
 github.com/DataDog/go-sqllexer v0.1.6/go.mod h1:GGpo1h9/BVSN+6NJKaEcJ9Jn44Hqc63Rakeb+24Mjgo=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
@@ -182,6 +180,8 @@ github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm4
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
+github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.0/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
 github.com/grpc-ecosystem/go-grpc-middleware v1.2.0/go.mod h1:mJzapYve32yjrKlk9GbyCZHuPgZsrbyIbyKhSzOpg6s=
@@ -355,8 +355,8 @@ github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3/go.mod h1
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
-github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
-github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
+github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
+github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/rs/cors v1.11.1 h1:eU3gRzXLRK57F5rKMGMZURNdIG4EoAmX8k94r9wXWHA=
 github.com/rs/cors v1.11.1/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=

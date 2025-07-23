@@ -8,8 +8,11 @@ needs-rules:
     - lint
     - notify
     - deploy_dca
+    - deploy_dca_mutable_tags
     - deploy_containers
     - deploy_mutable_image_tags
+    - deploy_cws_instrumentation
+    - deploy_cws_instrumentation_mutable_tags
 
   allowed-jobs:
     - build_clang_arm64
@@ -18,10 +21,6 @@ needs-rules:
     - build_processed_btfhub_archive
     - check_already_deployed_version_7
     - compute_gitlab_ci_config
-    - deploy_containers-cws-instrumentation-final-versioned
-    - deploy_containers-cws-instrumentation-latest
-    - deploy_containers-cws-instrumentation-rc-mutable
-    - deploy_containers-cws-instrumentation-rc-versioned
     - dogstatsd_x64_size_test
     - go_mod_tidy_check
     - golang_deps_send_count_metrics
@@ -31,6 +30,7 @@ needs-rules:
     - lint_linux-arm64
     - lint_linux-x64
     - lint_macos_gitlab_amd64
+    - lint_macos_gitlab_arm64
     - new-e2e-eks-cleanup-on-failure
     - protobuf_test
     - publish_winget_7_x64
@@ -40,6 +40,7 @@ needs-rules:
     - tests_ebpf_arm64
     - tests_ebpf_x64
     - tests_macos_gitlab_amd64
+    - tests_macos_gitlab_arm64
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
@@ -63,6 +64,7 @@ job-owners:
     - build_otel_agent_binary_arm64
     - build_otel_agent_binary_x64
     - cancel-prev-pipelines
+    - clone
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
     - deploy_cluster_agent_cloudfoundry

@@ -524,7 +524,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
+                               "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
 
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`

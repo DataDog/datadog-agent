@@ -5,12 +5,19 @@
 
 package ir
 
-// ProbeDefinition abstracts the configuration of a probe.
-type ProbeDefinition interface {
+import "cmp"
+
+// ProbeIDer is an interface that allows for comparison of probe definitions.
+type ProbeIDer interface {
 	// GetID returns the ID of the probe.
 	GetID() string
 	// GetVersion returns the version of the probe.
 	GetVersion() int
+}
+
+// ProbeDefinition abstracts the configuration of a probe.
+type ProbeDefinition interface {
+	ProbeIDer
 	// GetTags returns the tags of the probe.
 	GetTags() []string
 	// GetKind returns the kind of the probe.
@@ -21,6 +28,14 @@ type ProbeDefinition interface {
 	GetCaptureConfig() CaptureConfig
 	// ThrottleConfig returns the throttle configuration of the probe.
 	GetThrottleConfig() ThrottleConfig
+}
+
+// CompareProbeIDs compares two probe definitions by their ID and version.
+func CompareProbeIDs[A, B ProbeIDer](a A, b B) int {
+	return cmp.Or(
+		cmp.Compare(a.GetID(), b.GetID()),
+		cmp.Compare(b.GetVersion(), a.GetVersion()), // reverse version order
+	)
 }
 
 // Where is a where clause of a probe.
