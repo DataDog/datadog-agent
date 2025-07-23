@@ -166,6 +166,15 @@ func GetTestTracesV1(traceN, size int, realisticIDs bool) *idx.InternalTracerPay
 
 // GetTestTraceChunks returns a []TraceChunk that is composed by “traceN“ number
 // of traces, each one composed by “size“ number of spans.
+func GetTestTraceChunksV1(traceN, size int, realisticIDs bool) []*idx.InternalTraceChunk {
+	traces := GetTestTracesV1(traceN, size, realisticIDs)
+	traceChunks := make([]*idx.InternalTraceChunk, 0, len(traces.Chunks))
+	traceChunks = append(traceChunks, traces.Chunks...)
+	return traceChunks
+}
+
+// GetTestTraceChunks returns a []TraceChunk that is composed by “traceN“ number
+// of traces, each one composed by “size“ number of spans.
 func GetTestTraceChunks(traceN, size int, realisticIDs bool) []*pb.TraceChunk {
 	traces := GetTestTraces(traceN, size, realisticIDs)
 	traceChunks := make([]*pb.TraceChunk, 0, len(traces))

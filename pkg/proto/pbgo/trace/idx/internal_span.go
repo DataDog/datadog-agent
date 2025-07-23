@@ -15,13 +15,14 @@ import (
 )
 
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
+// Strings are reference counted, when a string has no references it is removed from the table.
 type StringTable struct {
 	strings []string
 	refs    []uint32 // ref count for each string at string[i]
 	lookup  map[string]uint32
 }
 
-// NewStringTable creates a new string table, always starts with an empty string
+// NewStringTable creates a new string table, always starts with an empty string at index 0
 func NewStringTable() *StringTable {
 	return &StringTable{
 		strings: []string{""},
@@ -49,6 +50,7 @@ func (s *StringTable) addUnchecked(str string) uint32 {
 }
 
 // Add adds a string to the string table if it doesn't already exist and returns the index of the string
+// This is counted as a new reference to the string.
 func (s *StringTable) Add(str string) uint32 {
 	if idx, ok := s.lookup[str]; ok {
 		s.refs[idx]++
@@ -112,6 +114,28 @@ type InternalTracerPayload struct {
 	Attributes map[uint32]*AnyValue
 	// chunks specifies list of containing trace chunks.
 	Chunks []*InternalTraceChunk
+}
+
+func (tp *InternalTracerPayload) Msgsize() int {
+	size := 0
+	size += tp.Strings.Msgsize()
+	size += msgp.Uint32Size + msgp.Uint32Size // containerIDRef
+	size += msgp.Uint32Size + msgp.Uint32Size // languageNameRef
+	size += msgp.Uint32Size + msgp.Uint32Size // languageVersionRef
+	size += msgp.Uint32Size + msgp.Uint32Size // tracerVersionRef
+	size += msgp.Uint32Size + msgp.Uint32Size // runtimeIDRef
+	size += msgp.Uint32Size + msgp.Uint32Size // envRef
+	size += msgp.Uint32Size + msgp.Uint32Size // hostnameRef
+	size += msgp.Uint32Size + msgp.Uint32Size // appVersionRef
+	size += msgp.MapHeaderSize                // Attributes
+	for _, attr := range tp.Attributes {
+		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
+	}
+	size += msgp.ArrayHeaderSize // Chunks
+	for _, chunk := range tp.Chunks {
+		size += chunk.Msgsize()
+	}
+	return size
 }
 
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
