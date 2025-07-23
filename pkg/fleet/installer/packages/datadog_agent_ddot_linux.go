@@ -6,19 +6,57 @@
 package packages
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var datadogAgentDdotPackage = hooks{
-	preRemove: preRemoveDatadogAgentDdot,
+	postInstall: postInstallDatadogAgentDdot,
+	preRemove:   preRemoveDatadogAgentDdot,
 }
 
 var (
+	ddotConfigPermissions = file.Permissions{
+		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+	}
+
+	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files
+	ddotPackagePermissions = file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+	}
+
 	ddotConfigUninstallPaths = file.Paths{
 		"otel-config.yaml.example",
 	}
 )
+
+// postInstallDatadogAgentDdot performs post-installation steps for the DDOT package
+func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("setup_ddot_filesystem")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// Ensure the dd-agent user and group exist
+	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	}
+
+	// Set DDOT package permissions
+	if err = ddotPackagePermissions.Ensure(ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
+	}
+
+	// Set DDOT config permissions
+	if err = ddotConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
+	}
+
+	return nil
+}
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
