@@ -67,7 +67,7 @@ const (
 
 	tlsTerminationTailCall              = "uprobe__kafka_tls_termination"
 	tlsFetchOrProduceDispatcherTailCall = "uprobe__tls_protocol_dispatcher_kafka_fetch_or_produce"
-	tlsApiVersionsDispatcherTailCall    = "uprobe__tls_protocol_dispatcher_kafka_api_versions"
+	tlsAPIVersionsDispatcherTailCall    = "uprobe__tls_protocol_dispatcher_kafka_api_versions"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
 	netifProbe414    = "netif_receive_skb_core_kafka_4_14"
@@ -252,7 +252,7 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsApiVersionsDispatcherTailCall,
+				EBPFFuncName: tlsAPIVersionsDispatcherTailCall,
 			},
 		},
 	},
