@@ -20,11 +20,25 @@ import (
 type mockWorkloadmetaStore struct {
 	workloadmeta.Component
 	notifiedEvents []workloadmeta.CollectorEvent
+	existingImages map[string]*workloadmeta.ContainerImageMetadata
 }
 
 // Notify appends events to the store's notifiedEvents, simulating notification behavior in tests.
 func (store *mockWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent) {
 	store.notifiedEvents = append(store.notifiedEvents, events...)
+}
+
+// GetImage returns an image if it exists in the mock store, otherwise returns an error.
+func (store *mockWorkloadmetaStore) GetImage(id string) (*workloadmeta.ContainerImageMetadata, error) {
+	if store.existingImages == nil {
+		return nil, errors.New("image not found")
+	}
+	
+	if img, exists := store.existingImages[id]; exists {
+		return img, nil
+	}
+	
+	return nil, errors.New("image not found")
 }
 
 // mockCRIOClient simulates the CRI-O client, with configurable behavior through function hooks.
@@ -35,6 +49,7 @@ type mockCRIOClient struct {
 	mockGetContainerImage  func(ctx context.Context, imageSpec *v1.ImageSpec, verbose bool) (*v1.ImageStatusResponse, error)
 	mockRuntimeMetadata    func(ctx context.Context) (*v1.VersionResponse, error)
 	mockGetCRIOImageLayers func(imgMeta *workloadmeta.ContainerImageMetadata) ([]string, error)
+	mockListImages         func(ctx context.Context) ([]*v1.Image, error)
 }
 
 // GetAllContainers returns a list of containers, or calls a mock function if defined.
@@ -89,4 +104,18 @@ func (f *mockCRIOClient) GetCRIOImageLayers(_ *workloadmeta.ContainerImageMetada
 		return f.mockGetCRIOImageLayers(nil)
 	}
 	return nil, errors.New("mock GetCRIOImageLayers function not defined")
+}
+
+// ListImages retrieves all images, or calls a mock function if defined.
+func (f *mockCRIOClient) ListImages(ctx context.Context) ([]*v1.Image, error) {
+	if f.mockListImages != nil {
+		return f.mockListImages(ctx)
+	}
+	return []*v1.Image{
+		{
+			Id:          "image123",
+			RepoTags:    []string{"myrepo/myimage:latest"},
+			RepoDigests: []string{"myrepo/myimage@sha256:123abc"},
+		},
+	}, nil
 }

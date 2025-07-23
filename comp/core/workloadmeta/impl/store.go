@@ -26,7 +26,7 @@ import (
 const (
 	retryCollectorInitialInterval = 1 * time.Second
 	retryCollectorMaxInterval     = 30 * time.Second
-	pullCollectorInterval         = 5 * time.Second
+	pullCollectorInterval         = 60 * time.Second // Changed from 5s to 60s for testing CRI-O optimization
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
 	eventChBufferSize             = 50

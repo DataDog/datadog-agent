@@ -215,6 +215,99 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 	return imgInfo
 }
 
+// generateImageEventsFromImageList creates workloadmeta image events from the full image list.
+// This method checks if each image already exists in the workloadmeta store to avoid
+// unnecessary expensive image status calls.
+func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]workloadmeta.CollectorEvent, error) {
+	images, err := c.client.ListImages(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %w", err)
+	}
+
+	log.Infof("[CRIO_OPTIMIZATION] Retrieved %d images from CRI-O ListImages call", len(images))
+
+	imageEvents := make([]workloadmeta.CollectorEvent, 0)
+	skippedCount := 0
+	newImageCount := 0
+	imageStatusCalls := 0
+
+	for _, img := range images {
+		// Extract the image ID - prefer digest over the raw ID
+		imgID := img.GetId()
+		if imgIDAsDigest, err := parseDigests(img.GetRepoDigests()); err == nil {
+			imgID = imgIDAsDigest
+		}
+
+		// Check if image already exists in workloadmeta store
+		// Try both computed ID and raw ID to handle ID format inconsistencies that can occur when:
+		// 1. ListImages() returns digest info but GetContainerImage() returns empty digests (dangling images)
+		// 2. Digest parsing fails differently between lookup and storage phases  
+		// 3. Images are stored with raw ID due to empty repo digests but lookup computes digest ID
+		// The fallback ensures we find existing images regardless of which ID format was used during storage
+		rawID := img.GetId()
+		var foundID string
+		var usedRawIDFallback bool
+		
+		if _, err := c.store.GetImage(imgID); err == nil {
+			foundID = imgID
+			usedRawIDFallback = false
+		} else if _, err := c.store.GetImage(rawID); err == nil {
+			foundID = rawID
+			usedRawIDFallback = true
+		}
+		
+		if foundID != "" {
+			// Create skipped image event to prevent it from being marked as removed
+			skippedImageEvent := workloadmeta.CollectorEvent{
+				Type:   workloadmeta.EventTypeSet,
+				Source: workloadmeta.SourceRuntime,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   foundID,
+					},
+				},
+			}
+			imageEvents = append(imageEvents, skippedImageEvent)
+			skippedCount++
+			
+			if usedRawIDFallback {
+				log.Infof("[CRIO_OPTIMIZATION] Skipping existing image %s (found via raw ID fallback: %s, computed ID: %s)", img.GetRepoTags(), rawID, imgID)
+			} else {
+				log.Debugf("[CRIO_OPTIMIZATION] Skipping existing image %s (ID: %s)", img.GetRepoTags(), imgID)
+			}
+			continue
+		}
+
+		// Image doesn't exist, need to get full metadata using image status
+		newImageCount++
+		imageStatusCalls++
+		log.Infof("[CRIO_OPTIMIZATION] Making GetContainerImage call for new image %s (ID: %s, RawID: %s, RepoDigests: %s)", img.GetRepoTags(), imgID, img.GetId(), img.GetRepoDigests())
+		
+		imageSpec := &v1.ImageSpec{Image: img.GetId()}
+		imageResp, err := c.client.GetContainerImage(ctx, imageSpec, true)
+		if err != nil {
+			log.Warnf("Failed to get image status for image %s: %v", img.GetId(), err)
+			continue
+		}
+
+		// Log what we got back from GetContainerImage call
+		respImg := imageResp.GetImage()
+		log.Infof("[CRIO_OPTIMIZATION] GetContainerImage response - RepoTags: %s, RepoDigests: %s, ID: %s", respImg.GetRepoTags(), respImg.GetRepoDigests(), respImg.GetId())
+
+		// Get namespace from any container using this image - use empty string as default
+		namespace := ""
+
+		imageEvent := c.convertImageToEvent(imageResp.GetImage(), imageResp.GetInfo(), namespace)
+		imageEvents = append(imageEvents, *imageEvent)
+	}
+
+	log.Infof("[CRIO_OPTIMIZATION] Image collection summary: %d total images, %d skipped (optimization), %d new images processed, %d GetContainerImage calls made", 
+		len(images), skippedCount, newImageCount, imageStatusCalls)
+
+	return imageEvents, nil
+}
+
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo
 func parseLayerInfo(rootPath string, imgID string) ([]layerInfo, error) {
 	filePath := fmt.Sprintf("%s/%s/manifest", rootPath, imgID)
