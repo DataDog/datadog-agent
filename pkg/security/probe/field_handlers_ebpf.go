@@ -974,13 +974,25 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 }
 
 func CustomParseBPFFilter(raw []bpf.RawInstruction) []int {
-	magic_values := []uint32{21139, 29269, 960051513}
+	contains := func(slice []int, e int) bool {
+		for _, a := range slice {
+			if a == e {
+				return true
+			}
+		}
+		return false
+	}
+	// For test only
+	magic_values := []uint32{11, 17, 24, 30, 48, 55}
+	// magic_values := []uint32{21139, 29269, 960051513}
 	var magic_values_found []int
 	for _, inst := range raw {
 		// Check if we load or branch on a magic value
 		for _, magic := range magic_values {
 			if inst.K == magic {
-				magic_values_found = append(magic_values_found, int(inst.K))
+				if !contains(magic_values_found, int(inst.K)) {
+					magic_values_found = append(magic_values_found, int(inst.K))
+				}
 			}
 		}
 	}
