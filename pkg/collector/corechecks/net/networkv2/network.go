@@ -306,7 +306,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	}
 
 	if collectEnaMetrics {
-		enaMetrics := getEnaMetrics(driverName, statsMap)
+		enaMetrics := getEnaMetrics(statsMap)
 		tags := []string{
 			"device:" + interfaceIO.Name,
 			"driver_name:" + driverName,
@@ -319,7 +319,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 			sender.Gauge(metricName, float64(metricValue), "", tags)
 			count++
 		}
-		log.Debugf("tracked %s network ena metrics for interface %s", count, interfaceIO.Name)
+		log.Debugf("tracked %d network ena metrics for interface %s", count, interfaceIO.Name)
 	}
 
 	if collectEthtoolMetrics {
@@ -342,7 +342,7 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, co
 	return nil
 }
 
-func getEnaMetrics(driverName string, statsMap map[string]uint64) map[string]uint64 {
+func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 	metrics := make(map[string]uint64)
 
 	for stat, value := range statsMap {
