@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -382,4 +383,10 @@ func yieldConnections(count int) []*model.Connection {
 		result[i] = &model.Connection{LastBytesReceived: 10, LastBytesSent: 20}
 	}
 	return result
+}
+
+func constantMockClock(time time.Time) *clock.Mock {
+	c := clock.NewMock()
+	c.Set(time)
+	return c
 }
