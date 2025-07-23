@@ -478,6 +478,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	// defer s.Purge()
+	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
