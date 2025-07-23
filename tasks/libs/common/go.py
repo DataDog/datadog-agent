@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import io
+import os
+import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+from invoke import Context
+from invoke.exceptions import Exit
+from invoke.runners import Local, Result
 
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
-
-if TYPE_CHECKING:
-    from invoke import Context
-    from invoke.runners import Result
 
 
 def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = False, max_retry: int = 3):
@@ -35,9 +37,12 @@ def go_build(
     bin_path: str | Path | None = None,
     verbose: bool = False,
     echo: bool = False,
+    check_deadcode_in_ci: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
+    check_deadcode = check_deadcode_in_ci and os.getenv("CI_JOB_NAME") is not None
+
     cmd = "go build"
     if coverage:
         cmd += " -cover -covermode=atomic"
@@ -58,6 +63,8 @@ def go_build(
         cmd += f" -o {bin_path}"
     if gcflags:
         cmd += f" -gcflags=\"{gcflags}\""
+    if check_deadcode:
+        ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
     if trimpath:
@@ -65,4 +72,41 @@ def go_build(
 
     cmd += f" {entrypoint}"
 
-    return ctx.run(cmd, env=env)
+    # use a custom runner to read stderr in bigger chunks as dumpdep output is huge
+    # and invoke is super slow by default when writing to stdout/stderr
+    # https://github.com/pyinvoke/invoke/issues/774
+    runner = Local(ctx)
+    runner.read_chunk_size = 1024 * 1024 * 10
+    _ = runner.read_chunk_size  # please linters
+    runner.input_sleep = 0
+    _ = runner.input_sleep  # please linters
+
+    # -dumpdep is very verbose so we hide that
+    # any unrecognized log line is shown by whydeadcode anyway
+    res = runner.run(cmd, env=env, hide="stderr" if check_deadcode else None)
+
+    if check_deadcode:
+        if not shutil.which("whydeadcode"):
+            with ctx.cd("internal/tools"):
+                run_command_with_retry(ctx, "go install github.com/aarzilli/whydeadcode", max_retry=3)
+        # whydeadcode prints unexpected input on stderr (eg. build warnings), and
+        # dead code call stack on stdout
+        # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
+        # so we check whether stdout is empty to know if dead code elimination is disabled
+        whydeadcoderes = runner.run("whydeadcode", in_stream=CustomReader(res.stderr), warn=True, hide="out")
+        if whydeadcoderes.stdout:
+            raise Exit(
+                f"dead code elimination is disabled by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            )
+
+    return res
+
+
+# reading from stdin in invoke is super slow, see https://github.com/pyinvoke/invoke/issues/819
+# so we use a custom reader that always reads 10MiB at a time
+class CustomReader(io.StringIO):
+    def __init__(self, data: str):
+        super().__init__(data)
+
+    def read(self, n: int | None = None) -> str:
+        return super().read(1024 * 1024 * 10)
