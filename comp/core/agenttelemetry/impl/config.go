@@ -305,6 +305,30 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.running
+  - name: otlp
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.datadog_agent_otlp_ingest_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_metrics
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_traces
+          aggregate_tags:
+            - version
+            - command
+            - host
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {
