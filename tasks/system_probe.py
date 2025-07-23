@@ -20,6 +20,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+# change
 from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
@@ -47,7 +48,9 @@ BPF_TAG = "linux_bpf"
 BUNDLE_TAG = "ebpf_bindata"
 NPM_TAG = "npm"
 
-TEST_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "new-e2e", "tests"))
+TEST_DIR = os.getenv("DD_AGENT_TESTING_DIR") or os.path.normpath(
+    os.path.join(os.getcwd(), "test", "new-e2e", "tests")
+)
 E2E_ARTIFACT_DIR = os.path.join(TEST_DIR, "sysprobe-functional/artifacts")
 TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
@@ -71,7 +74,9 @@ TEST_TIMEOUTS = {
     "pkg/network/usm/tests$": "55m",
 }
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
-EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
+EMBEDDED_SHARE_DIR = os.path.join(
+    "/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf"
+)
 
 is_windows = sys.platform == "win32"
 is_macos = sys.platform == "darwin"
@@ -94,7 +99,9 @@ TEST_HELPER_CBINS = ["cudasample"]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
-    return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
+    return (
+        Path("pkg/ebpf/bytecode/build") / arch.kmt_arch
+    )  # Use KMT arch names for compatibility with CI
 
 
 def get_ebpf_runtime_dir() -> Path:
@@ -102,12 +109,16 @@ def get_ebpf_runtime_dir() -> Path:
 
 
 def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
-    maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
+    maj_ver, min_ver, patch_ver = get_version_numeric_only(
+        ctx, major_version=major_version
+    ).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
     nw.variable("windrestarget", "pe-x86-64")
-    nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
+    nw.rule(
+        name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in"
+    )
     nw.rule(
         name="windres",
         command="windres --define MAJ_VER=$maj_ver --define MIN_VER=$min_ver --define PATCH_VER=$patch_ver "
@@ -138,7 +149,7 @@ def ninja_define_ebpf_compiler(
     )
 
     strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g $out"
-    strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
+    strip_lbb = '/opt/datadog-agent/embedded/bin/llvm-strip -w -N "LBB*" $out'
     strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
 
     nw.rule(
@@ -157,7 +168,7 @@ def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
     )
 
 
-def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
+def ninja_define_exe_compiler(nw: NinjaWriter, compiler="clang"):
     nw.rule(
         name="exe" + compiler,
         command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
@@ -200,14 +211,20 @@ def ninja_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, variables=None):
 
 
 def ninja_security_ebpf_programs(
-    nw: NinjaWriter, build_dir: Path, debug: bool, kernel_release: str | None, arch: Arch | None = None
+    nw: NinjaWriter,
+    build_dir: Path,
+    debug: bool,
+    kernel_release: str | None,
+    arch: Arch | None = None,
 ):
     security_agent_c_dir = os.path.join("pkg", "security", "ebpf", "c")
     security_agent_prebuilt_dir_include = os.path.join(security_agent_c_dir, "include")
     security_agent_prebuilt_dir = os.path.join(security_agent_c_dir, "prebuilt")
 
     kernel_headers = get_linux_header_dirs(
-        kernel_release=kernel_release, minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION, arch=arch
+        kernel_release=kernel_release,
+        minimal_kernel_release=CWS_PREBUILT_MINIMUM_KERNEL_VERSION,
+        arch=arch,
     )
     kheaders = " ".join(f"-isystem{d}" for d in kernel_headers)
     debugdef = "-DDEBUG=1" if debug else ""
@@ -258,7 +275,9 @@ def ninja_security_ebpf_programs(
     outfiles.append(syscall_wrapper_outfile)
 
     # offset guesser
-    offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
+    offset_guesser_outfile = os.path.join(
+        build_dir, "runtime-security-offset-guesser.o"
+    )
     ninja_ebpf_program(
         nw,
         infile=os.path.join(security_agent_prebuilt_dir, "offset-guesser.c"),
@@ -276,7 +295,9 @@ def ninja_security_ebpf_programs(
 def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+    ninja_ebpf_program(
+        nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}
+    )
 
 
 def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
@@ -296,13 +317,15 @@ def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
         outfile = os.path.join(co_re_build_dir, f"{prog}.c")
 
         co_re_flags = [f"-I{src_dir}"]
-        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
+        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, " ".join(co_re_flags))
 
 
 def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+    ninja_ebpf_co_re_program(
+        nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}
+    )
 
 
 def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
@@ -369,21 +392,30 @@ def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": gpu_flags + " -DDEBUG=1"}
+        )
 
 
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
-    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
+    container_integrations_co_re_dir = os.path.join(
+        "pkg", "collector", "corechecks", "ebpf", "c", "runtime"
+    )
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
     container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        ninja_ebpf_co_re_program(
+            nw, infile, outfile, {"flags": container_integrations_co_re_flags}
+        )
         root, ext = os.path.splitext(outfile)
         ninja_ebpf_co_re_program(
-            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+            nw,
+            infile,
+            f"{root}-debug{ext}",
+            {"flags": container_integrations_co_re_flags + " -DDEBUG=1"},
         )
 
 
@@ -397,7 +429,9 @@ def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}
+        )
 
 
 def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
@@ -410,7 +444,9 @@ def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir
         outfile = os.path.join(co_re_build_dir, f"dyninst_{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
         root, ext = os.path.splitext(outfile)
-        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDYNINST_DEBUG=1"})
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDYNINST_DEBUG=1"}
+        )
 
 
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
@@ -449,11 +485,13 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
 
     nw.rule(
         name="headerincl",
-        command="go generate -run=\"include_headers\" -mod=readonly -tags linux_bpf $in",
+        command='go generate -run="include_headers" -mod=readonly -tags linux_bpf $in',
         depfile="$out.d",
     )
     nw.rule(
-        name="integrity", command="go generate -run=\"integrity\" -mod=readonly -tags linux_bpf $in", depfile="$out.d"
+        name="integrity",
+        command='go generate -run="integrity" -mod=readonly -tags linux_bpf $in',
+        depfile="$out.d",
     )
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
@@ -494,12 +532,14 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             + "(cd $in_dir);"
             + "(go tool cgo -godefs -- -fsigned-char $in_file | "
             + "go run $script_path | Out-File -encoding ascii $out_file);"
-            + "exit $$LastExitCode\"",
+            + 'exit $$LastExitCode"',
         )
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack/types.h"],
+            "pkg/network/ebpf/conntrack_types.go": [
+                "pkg/network/ebpf/c/conntrack/types.h"
+            ],
             "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
@@ -563,7 +603,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
-            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
+            "pkg/dynamicinstrumentation/ditypes/ebpf.go": [
+                "pkg/dynamicinstrumentation/codegen/c/base_event.h"
+            ],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
@@ -617,7 +659,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
 def ninja_generate(
     ctx: Context,
     ninja_path,
-    major_version='7',
+    major_version="7",
     arch: str | Arch = CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
@@ -628,7 +670,7 @@ def ninja_generate(
     build_dir = get_ebpf_build_dir(arch)
     co_re_build_dir = os.path.join(build_dir, "co-re")
 
-    with open(ninja_path, 'w') as ninja_file:
+    with open(ninja_path, "w") as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
 
         if is_windows:
@@ -638,8 +680,8 @@ def ninja_generate(
             in_name = os.path.splitext(os.path.basename(in_path))[0]
             in_dir = os.path.dirname(in_path)
             rcout = os.path.join(in_dir, f"{in_name}.rc")
-            hout = os.path.join(in_dir, f'{in_name}.h')
-            msgout = os.path.join(in_dir, 'MSG00409.bin')
+            hout = os.path.join(in_dir, f"{in_name}.h")
+            msgout = os.path.join(in_dir, "MSG00409.bin")
             nw.build(
                 inputs=[in_path],
                 outputs=[rcout],
@@ -647,17 +689,27 @@ def ninja_generate(
                 rule="windmc",
                 variables={"rcdir": in_dir},
             )
-            nw.build(inputs=[rcout], outputs=[os.path.join(in_dir, "rsrc.syso")], rule="windres")
+            nw.build(
+                inputs=[rcout],
+                outputs=[os.path.join(in_dir, "rsrc.syso")],
+                rule="windres",
+            )
             # system-probe
             rcin = "cmd/system-probe/windows_resources/system-probe.rc"
-            nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
+            nw.build(
+                inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres"
+            )
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_ebpf_compiler(
+                nw, strip_object_files, kernel_release, with_unit_test, arch=arch
+            )
             ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
-            ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
+            ninja_security_ebpf_programs(
+                nw, build_dir, debug, kernel_release, arch=arch
+            )
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
@@ -677,7 +729,9 @@ def build_libpcap(ctx):
     assert embedded_path, "Failed to find embedded path"
     target_file = os.path.join(embedded_path, "lib", "libpcap.a")
     if os.path.exists(target_file):
-        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
+        version = ctx.run(
+            f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3"
+        ).stdout.strip()
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
@@ -686,14 +740,16 @@ def build_libpcap(ctx):
     ctx.run(f"rm -rf {lib_dir}")
     with ctx.cd(dist_dir):
         # TODO check the checksum of the download before using
-        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
+        ctx.run(
+            f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ"
+        )
     with ctx.cd(lib_dir):
         env = {}
         # TODO cross-compile?
-        if os.getenv('DD_CC'):
-            env['CC'] = os.getenv('DD_CC')
-        if os.getenv('DD_CXX'):
-            env['CXX'] = os.getenv('DD_CXX')
+        if os.getenv("DD_CC"):
+            env["CC"] = os.getenv("DD_CC")
+        if os.getenv("DD_CXX"):
+            env["CXX"] = os.getenv("DD_CXX")
         with environ(env):
             config_opts = [
                 f"--prefix={embedded_path}",
@@ -722,15 +778,15 @@ def get_libpcap_cgo_flags(ctx, install_path: str = None):
     """
     if install_path is not None:
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
+            "CGO_CFLAGS": f"-I{os.path.join(install_path, 'embedded', 'include')}",
+            "CGO_LDFLAGS": f"-L{os.path.join(install_path, 'embedded', 'lib')}",
         }
     else:
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
         return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'lib')}",
+            "CGO_CFLAGS": f"-I{os.path.join(embedded_path, 'include')}",
+            "CGO_LDFLAGS": f"-L{os.path.join(embedded_path, 'lib')}",
         }
 
 
@@ -739,7 +795,7 @@ def build(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
+    major_version="7",
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -796,7 +852,7 @@ def build_sysprobe_binary(
     ctx,
     race=False,
     rebuild=False,
-    major_version='7',
+    major_version="7",
     go_mod="readonly",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -822,7 +878,7 @@ def build_sysprobe_binary(
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
-        ldflags += ' -s -w'
+        ldflags += " -s -w"
 
     if static:
         build_tags.extend(["osusergo", "netgo", "static"])
@@ -919,7 +975,9 @@ def test(
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
-    args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    args["sudo"] = (
+        "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    )
     args["extra_arguments"] = extra_arguments
 
     _, _, env = get_build_flags(ctx)
@@ -1025,7 +1083,7 @@ def go_package_dirs(packages, build_tags):
     This handles the ellipsis notation (eg. ./pkg/ebpf/...)
     """
 
-    format_arg = '{{ .Dir }}'
+    format_arg = "{{ .Dir }}"
     buildtags_arg = ",".join(build_tags)
 
     # Prepend module path if the package path is relative
@@ -1042,9 +1100,11 @@ def go_package_dirs(packages, build_tags):
     else:
         packages_arg = " ".join(packages)
 
-    cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
+    cmd = f'go list -find -f "{format_arg}" -mod=readonly -tags "{buildtags_arg}" {packages_arg}'
 
-    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
+    target_packages = [
+        p.strip() for p in check_output(cmd, shell=True, encoding="utf-8").split("\n")
+    ]
     return [p for p in target_packages if len(p) > 0]
 
 
@@ -1149,7 +1209,11 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     go_build(
-                        ctx, f"{gobin}.go", build_tags=["test"], ldflags="-extldflags '-static'", bin_path=binary_path
+                        ctx,
+                        f"{gobin}.go",
+                        build_tags=["test"],
+                        ldflags="-extldflags '-static'",
+                        bin_path=binary_path,
                     )
 
         for cbin in TEST_HELPER_CBINS:
@@ -1170,7 +1234,13 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
-    go_build(ctx, "cmd/test2json", ldflags="-s -w", bin_path=f"{files_dir}/test2json", env={"CGO_ENABLED": "0"})
+    go_build(
+        ctx,
+        "cmd/test2json",
+        ldflags="-s -w",
+        bin_path=f"{files_dir}/test2json",
+        env={"CGO_ENABLED": "0"},
+    )
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
@@ -1178,16 +1248,16 @@ def get_kernel_arch() -> Arch:
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     kernel_arch = (
         check_output(
-            '''uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
+            """uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
                 -e s/sun4u/sparc64/ \
                 -e s/arm.*/arm/ -e s/sa110/arm/ \
                 -e s/s390x/s390/ -e s/parisc64/parisc/ \
                 -e s/ppc.*/powerpc/ -e s/mips.*/mips/ \
                 -e s/sh[234].*/sh/ -e s/aarch64.*/arm64/ \
-                -e s/riscv.*/riscv/''',
+                -e s/riscv.*/riscv/""",
             shell=True,
         )
-        .decode('utf-8')
+        .decode("utf-8")
         .strip()
     )
 
@@ -1244,10 +1314,14 @@ def get_linux_header_dirs(
     # Also, maintain a sort order to ensure that headers are included in the right position.
     # Priority and sort order will be the first two elements of each tuple of the list.
     paths_with_priority_and_sort_order: list[tuple[int, int, Path]] = []
-    discarded_paths: list[tuple[str, Path]] = []  # Keep track of the discarded paths so we can debug failures
+    discarded_paths: list[tuple[str, Path]] = (
+        []
+    )  # Keep track of the discarded paths so we can debug failures
     for path in candidates:
         # Get the kernel name, discard when we cannot get a kernel version out of them
-        candidate_kernel = path.name.removeprefix("linux-headers-").removeprefix("linux-kbuild-")
+        candidate_kernel = path.name.removeprefix("linux-headers-").removeprefix(
+            "linux-kbuild-"
+        )
         try:
             candidate_kernel_vers = parse_kernel_version(candidate_kernel)
         except ValueError:
@@ -1262,14 +1336,22 @@ def get_linux_header_dirs(
             priority += 1
 
         # Completely discard kernels that don't match the minimal version
-        if minimal_kernel_release is not None and candidate_kernel_vers < minimal_kernel_release:
+        if (
+            minimal_kernel_release is not None
+            and candidate_kernel_vers < minimal_kernel_release
+        ):
             discarded_paths.append(
-                (f"kernel version {candidate_kernel_vers} less than minimal {minimal_kernel_release}", path)
+                (
+                    f"kernel version {candidate_kernel_vers} less than minimal {minimal_kernel_release}",
+                    path,
+                )
             )
             continue
 
         # Give more priority to kernels that match the desired architecture.
-        matching_kernel_archs = {a for a in ALL_ARCHS if any(x in candidate_kernel for x in a.spellings)}
+        matching_kernel_archs = {
+            a for a in ALL_ARCHS if any(x in candidate_kernel for x in a.spellings)
+        }
         if arch in matching_kernel_archs:
             sort_order = 0  # Matching architecture paths should be sorted the first
             priority += 1
@@ -1284,19 +1366,25 @@ def get_linux_header_dirs(
             paths_with_priority_and_sort_order.append((priority, sort_order, path))
 
     if len(paths_with_priority_and_sort_order) == 0:
-        raise ValueError(f"No kernel header path found. Discarded paths and reasons: {discarded_paths}")
+        raise ValueError(
+            f"No kernel header path found. Discarded paths and reasons: {discarded_paths}"
+        )
 
     # Only get paths with maximum priority, those are the ones that match the best.
     # Note that there might be multiple of them (e.g., the arch-specific and the common path)
     max_priority = max(prio for prio, _, _ in paths_with_priority_and_sort_order)
     unsorted_linux_headers = [
-        (path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority
+        (path, ord)
+        for prio, ord, path in paths_with_priority_and_sort_order
+        if prio == max_priority
     ]
 
     # Include sort order is important, ensure we respect the sort order we defined while
     # discovering the paths. Also, in case of equal sort order, sort by path name to ensure
     # a deterministic order (useful to stop ninja from rebuilding on reordering of headers).
-    linux_headers = [path for path, _ in sorted(unsorted_linux_headers, key=lambda x: (x[1], x[0]))]
+    linux_headers = [
+        path for path, _ in sorted(unsorted_linux_headers, key=lambda x: (x[1], x[0]))
+    ]
 
     # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [
@@ -1330,11 +1418,11 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     flags = []
     flags.extend(
         [
-            '-D__KERNEL__',
-            '-DCONFIG_64BIT',
-            '-D__BPF_TRACING__',
+            "-D__KERNEL__",
+            "-DCONFIG_64BIT",
+            "-D__BPF_TRACING__",
             '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
-            '-DCOMPILE_PREBUILT',
+            "-DCOMPILE_PREBUILT",
         ]
     )
     if arch is not None:
@@ -1344,15 +1432,15 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
         flags.append(f"-D__{arch.gcc_arch.replace('-', '_')}__")
 
     if unit_test:
-        flags.extend(['-D__BALOUM__'])
+        flags.extend(["-D__BALOUM__"])
     flags.extend(
         [
-            '-Wno-unused-value',
-            '-Wno-pointer-sign',
-            '-Wno-compare-distinct-pointer-types',
-            '-Wunused',
-            '-Wall',
-            '-Werror',
+            "-Wno-unused-value",
+            "-Wno-pointer-sign",
+            "-Wno-compare-distinct-pointer-types",
+            "-Wunused",
+            "-Wall",
+            "-Werror",
         ]
     )
     flags.extend(["-include pkg/ebpf/c/asm_goto_workaround.h"])
@@ -1360,12 +1448,12 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
     flags.extend(
         [
             # Some linux distributions enable stack protector by default which is not available on eBPF
-            '-fno-stack-protector',
-            '-fno-color-diagnostics',
-            '-fno-unwind-tables',
-            '-fno-asynchronous-unwind-tables',
-            '-fno-jump-tables',
-            '-fmerge-all-constants',
+            "-fno-stack-protector",
+            "-fno-color-diagnostics",
+            "-fno-unwind-tables",
+            "-fno-asynchronous-unwind-tables",
+            "-fno-jump-tables",
+            "-fmerge-all-constants",
         ]
     )
     flags.extend(["-Ipkg/ebpf/c"])
@@ -1375,15 +1463,15 @@ def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
 def get_co_re_build_flags(arch: Arch | None = None):
     flags = get_ebpf_build_flags(arch=arch)
 
-    flags.remove('-DCOMPILE_PREBUILT')
-    flags.remove('-DCONFIG_64BIT')
-    flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
+    flags.remove("-DCOMPILE_PREBUILT")
+    flags.remove("-DCONFIG_64BIT")
+    flags.remove("-include pkg/ebpf/c/asm_goto_workaround.h")
 
     flags.extend(
         [
             "-DCOMPILE_CORE",
-            '-emit-llvm',
-            '-g',
+            "-emit-llvm",
+            "-g",
         ]
     )
 
@@ -1397,11 +1485,15 @@ def get_co_re_build_flags(arch: Arch | None = None):
     return flags
 
 
-def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None, arch: Arch | None = None):
+def get_kernel_headers_flags(
+    kernel_release=None, minimal_kernel_release=None, arch: Arch | None = None
+):
     return [
         f"-isystem{d}"
         for d in get_linux_header_dirs(
-            kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release, arch=arch
+            kernel_release=kernel_release,
+            minimal_kernel_release=minimal_kernel_release,
+            arch=arch,
         )
     ]
 
@@ -1412,7 +1504,11 @@ def check_for_inline(ctx):
     grep_filter = "--include='*.c' --include '*.h'"
     grep_exclude = "--exclude='bpf_helpers.h'"
     pattern = "'^[^/]*\\binline\\b'"
-    grep_res = ctx.run(f"grep -n {grep_filter} {grep_exclude} -r {pattern} {' '.join(src_dirs)}", warn=True, hide=True)
+    grep_res = ctx.run(
+        f"grep -n {grep_filter} {grep_exclude} -r {pattern} {' '.join(src_dirs)}",
+        warn=True,
+        hide=True,
+    )
     if grep_res.ok:
         print(color_message("Use __always_inline instead of inline:", "red"))
         print(grep_res.stdout)
@@ -1424,7 +1520,7 @@ def run_ninja(
     task="",
     target="",
     explain=False,
-    major_version='7',
+    major_version="7",
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1432,7 +1528,7 @@ def run_ninja(
     with_unit_test=False,
 ) -> None:
     check_for_ninja(ctx)
-    nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
+    nf_path = os.path.join(ctx.cwd, "system-probe.ninja")
     ninja_generate(
         ctx,
         nf_path,
@@ -1461,12 +1557,14 @@ def get_clang_version_and_build_version() -> tuple[str, str]:
     with open(gitlab_ci_file) as f:
         ci_config = yaml.safe_load(f)
 
-    ci_vars = ci_config['variables']
-    return ci_vars['CLANG_LLVM_VER'], ci_vars['CLANG_BUILD_VERSION']
+    ci_vars = ci_config["variables"]
+    return ci_vars["CLANG_LLVM_VER"], ci_vars["CLANG_BUILD_VERSION"]
 
 
 def setup_runtime_clang(
-    ctx: Context, arch: Arch | None = None, target_dir: Path | str = "/opt/datadog-agent/embedded/bin"
+    ctx: Context,
+    arch: Arch | None = None,
+    target_dir: Path | str = "/opt/datadog-agent/embedded/bin",
 ) -> None:
     target_dir = Path(target_dir)
     needs_sudo = not os.access(target_dir, os.W_OK)
@@ -1478,9 +1576,17 @@ def setup_runtime_clang(
     clang_version, clang_build_version = get_clang_version_and_build_version()
 
     runtime_binaries = {
-        "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
+        "clang-bpf": {
+            "url_prefix": "clang",
+            "version_line": 0,
+            "needs_download": False,
+        },
         "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
-        "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
+        "llvm-strip": {
+            "url_prefix": "llvm-strip",
+            "version_line": 2,
+            "needs_download": False,
+        },
     }
 
     for binary, meta in runtime_binaries.items():
@@ -1496,14 +1602,23 @@ def setup_runtime_clang(
             # matches the desired one
             res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
             if res is not None and res.ok:
-                version_str = res.stdout.split("\n")[meta["version_line"]].strip().split(" ")[2].strip()
+                version_str = (
+                    res.stdout.split("\n")[meta["version_line"]]
+                    .strip()
+                    .split(" ")[2]
+                    .strip()
+                )
                 if version_str != clang_version:
-                    print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
+                    print(
+                        f"'{binary}' version '{version_str}' is not required version '{clang_version}'"
+                    )
                     runtime_binaries[binary]["needs_download"] = True
         else:
             # If we're cross-compiling we cannot check the version of clang and llc on the system,
             # so we download them only if they don't exist
-            runtime_binaries[binary]["needs_download"] = not binary_path.exists() or binary_path.stat().st_size == 0
+            runtime_binaries[binary]["needs_download"] = (
+                not binary_path.exists() or binary_path.stat().st_size == 0
+            )
 
     if not target_dir.exists():
         ctx.run(f"{sudo} mkdir -p {target_dir}")
@@ -1521,7 +1636,9 @@ def setup_runtime_clang(
 
 
 @task
-def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True):
+def validate_object_file_metadata(
+    ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True
+):
     build_dir = Path(build_dir)
     missing_metadata_files = 0
     total_metadata_files = 0
@@ -1556,7 +1673,7 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
-    major_version='7',
+    major_version="7",
     arch: str = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1592,7 +1709,9 @@ def build_object_files(
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
-            rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
+            rsync_filter = (
+                "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
+            )
             ctx.run(
                 f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}"
             )
@@ -1614,16 +1733,20 @@ def build_object_files(
 
                 ctx.run(f"{sudo} find . -maxdepth 1 -type f -name '*.o' {cp_cmd('.')}")
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/co-re")
-                ctx.run(f"{sudo} find ./co-re -maxdepth 1 -type f -name '*.o' {cp_cmd('co-re')}")
+                ctx.run(
+                    f"{sudo} find ./co-re -maxdepth 1 -type f -name '*.o' {cp_cmd('co-re')}"
+                )
 
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
-                ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+                ctx.run(
+                    f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}"
+                )
 
 
 def build_cws_object_files(
     ctx,
-    major_version='7',
+    major_version="7",
     arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
@@ -1642,7 +1765,9 @@ def build_cws_object_files(
     )
 
 
-def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
+def clean_object_files(
+    ctx, major_version="7", kernel_release=None, debug=False, strip_object_files=False
+):
     run_ninja(
         ctx,
         task="clean",
@@ -1682,7 +1807,7 @@ def check_for_ninja(ctx):
 no_minimize = ["lock_contention.o"]
 
 
-@task(iterable=['bpf_programs'])
+@task(iterable=["bpf_programs"])
 def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
     """
     Given an input directory containing compressed full-sized BTFs, generates an identically-structured
@@ -1713,12 +1838,15 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
     check_for_ninja(ctx)
 
-    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
-    with open(ninja_file_path, 'w') as ninja_file:
+    ninja_file_path = os.path.join(ctx.cwd, "generate-minimized-btfs.ninja")
+    with open(ninja_file_path, "w") as ninja_file:
         nw = NinjaWriter(ninja_file, width=180)
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
-        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
+        nw.rule(
+            name="minimize_btf",
+            command="bpftool gen min_core_btf $in $out $input_bpf_programs",
+        )
         nw.rule(
             name="compress_minimized_btf",
             command="tar --mtime=@0 -cJf $out -C $tar_working_directory $rel_in && rm $in",
@@ -1736,7 +1864,9 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     continue
 
                 btf_filename = file.removesuffix(".tar.xz")
-                minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
+                minimized_btf_path = os.path.join(
+                    output_dir, path_from_root, btf_filename
+                )
 
                 nw.build(
                     rule="decompress_btf",
@@ -1761,12 +1891,17 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     inputs=[minimized_btf_path],
                     outputs=[f"{minimized_btf_path}.tar.xz"],
                     variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root),
+                        "tar_working_directory": os.path.join(
+                            output_dir, path_from_root
+                        ),
                         "rel_in": btf_filename,
                     },
                 )
 
-    ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
+    ctx.run(
+        f"ninja -f {ninja_file_path}",
+        env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "},
+    )
 
 
 def compute_go_parallelism(debug: bool = False, ci: bool | None = None) -> int:
@@ -1798,9 +1933,13 @@ def compute_go_parallelism(debug: bool = False, ci: bool | None = None) -> int:
     if env_override:
         try:
             go_parallelism = int(env_override)
-            log(f"[+] Using parallelism of {go_parallelism} for Go builds (NINJA_GO_PARALLELISM)")
+            log(
+                f"[+] Using parallelism of {go_parallelism} for Go builds (NINJA_GO_PARALLELISM)"
+            )
         except ValueError:
-            log(f"Invalid value for NINJA_GO_PARALLELISM: {env_override}. Using parallelism of 1.")
+            log(
+                f"Invalid value for NINJA_GO_PARALLELISM: {env_override}. Using parallelism of 1."
+            )
             go_parallelism = 1
     else:
         if sys.platform == "darwin":
@@ -1834,9 +1973,7 @@ def process_btfhub_archive(ctx, branch="main"):
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
-            clone_cmd = (
-                f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
-            )
+            clone_cmd = f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
             retries = 2
             downloaded = False
 
@@ -1846,7 +1983,9 @@ def process_btfhub_archive(ctx, branch="main"):
 
                 if not downloaded:
                     retries -= 1
-                    print(f"Failed to clone btfhub-archive. Remaining retries: {retries}")
+                    print(
+                        f"Failed to clone btfhub-archive. Remaining retries: {retries}"
+                    )
 
             if not downloaded:
                 raise Exit("Failed to clone btfhub-archive")
@@ -1867,7 +2006,10 @@ def process_btfhub_archive(ctx, branch="main"):
                                 # iterate over arch directories
                                 with os.scandir(rdir.path) as ait:
                                     for adir in ait:
-                                        if not adir.is_dir() or adir.name not in {"x86_64", "arm64"}:
+                                        if not adir.is_dir() or adir.name not in {
+                                            "x86_64",
+                                            "arm64",
+                                        }:
                                             continue
 
                                         print(f"{pdir.name}/{rdir.name}/{adir.name}")
@@ -1880,16 +2022,22 @@ def process_btfhub_archive(ctx, branch="main"):
                                             src_file = os.path.join(src_dir, file)
 
                                             # remove release and arch from destination
-                                            btfs_dir = os.path.join(temp_dir, f"btfs-{adir.name}")
+                                            btfs_dir = os.path.join(
+                                                temp_dir, f"btfs-{adir.name}"
+                                            )
                                             dst_dir = os.path.join(btfs_dir, pdir.name)
                                             # ubuntu retains release version
                                             if pdir.name == "ubuntu":
-                                                dst_dir = os.path.join(btfs_dir, pdir.name, rdir.name)
+                                                dst_dir = os.path.join(
+                                                    btfs_dir, pdir.name, rdir.name
+                                                )
 
                                             os.makedirs(dst_dir, exist_ok=True)
                                             dst_file = os.path.join(dst_dir, file)
                                             if os.path.exists(dst_file):
-                                                raise Exit(message=f"{dst_file} already exists")
+                                                raise Exit(
+                                                    message=f"{dst_file} already exists"
+                                                )
 
                                             shutil.move(src_file, dst_file)
 
@@ -1910,14 +2058,16 @@ def generate_event_monitor_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
+            ctx.run(
+                "go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0"
+            )
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
 
             plugin_opts = " ".join(
                 [
-                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
-                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
-                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
+                    f'--plugin protoc-gen-go="{temp_gobin}/protoc-gen-go"',
+                    f'--plugin protoc-gen-go-grpc="{temp_gobin}/protoc-gen-go-grpc"',
+                    f'--plugin protoc-gen-go-vtproto="{temp_gobin}/protoc-gen-go-vtproto"',
                 ]
             )
 
@@ -1930,7 +2080,9 @@ def generate_event_monitor_proto(ctx):
         with open(path) as f:
             content = f.read()
 
-        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        replaced_content = re.sub(
+            r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content
+        )
         with open(path, "w") as f:
             f.write(replaced_content)
 
@@ -1945,15 +2097,21 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         arch = "amd64"
 
     # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
+    resp = requests.get(
+        "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls"
+    )
 
     # remove the public.ecr.aws/docker/library/ prefix as we might be downloading official images
     # from the AWS mirror instead of dockerhub to avoid rate limits
-    docker_ls = {line.removeprefix("public.ecr.aws/docker/library/") for line in resp.text.split('\n') if line.strip()}
+    docker_ls = {
+        line.removeprefix("public.ecr.aws/docker/library/")
+        for line in resp.text.split("\n")
+        if line.strip()
+    }
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
-        output_path = image.translate(str.maketrans('', '', string.punctuation))
+        output_path = image.translate(str.maketrans("", "", string.punctuation))
         output_file = f"{os.path.join(output_dir, output_path)}.tar"
         if use_crane:
             ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
@@ -1965,14 +2123,18 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
 @task
 def test_docker_image_list(_):
     images = _test_docker_image_list()
-    print('\n'.join(images))
+    print("\n".join(images))
 
 
 def _test_docker_image_list():
     import yaml
 
-    docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
-    docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
+    docker_compose_paths = glob.glob(
+        "./pkg/network/protocols/**/*/docker-compose.yml", recursive=True
+    )
+    docker_compose_paths.extend(
+        glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True)
+    )
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -2019,7 +2181,7 @@ def save_build_outputs(ctx, destfile):
                 outdir = os.path.join(stagedir, filedir)
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
-                outfiles.append(outputitem['output'])
+                outfiles.append(outputitem["output"])
                 count += 1
 
         if count == 0:
@@ -2031,7 +2193,9 @@ def save_build_outputs(ctx, destfile):
         ctx.run(f"sha256sum {outfile} >> {absdest}.sum")
 
 
-def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None):
+def copy_ebpf_and_related_files(
+    ctx: Context, target: Path | str, arch: Arch | None = None
+):
     if arch is None:
         arch = Arch.local()
 
@@ -2071,7 +2235,7 @@ def build_usm_debugger(
     arch_obj = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, arch=arch_obj)
     if strip_binary:
-        ldflags += ' -s -w'
+        ldflags += " -s -w"
 
     go_build(
         ctx,
@@ -2099,7 +2263,13 @@ def build_gpu_event_viewer(ctx):
 
 
 @task
-def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1000, namespace: str | None = None):
+def collect_gpu_events(
+    ctx,
+    output_dir: str,
+    pod_name: str,
+    event_count: int = 1000,
+    namespace: str | None = None,
+):
     """
     Collect GPU events from a node for a given duration.
 
@@ -2115,11 +2285,15 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
     )
 
     ctx.run(f"mkdir -p {output_dir}")
-    ctx.run(f"kubectl {ns_arg} cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson")
+    ctx.run(
+        f"kubectl {ns_arg} cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson"
+    )
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False):
+def build_dyninst_test_programs(
+    ctx: Context, output_root: Path = ".", debug: bool = False
+):
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
@@ -2155,7 +2329,7 @@ def ninja_add_dyninst_test_programs(
 
     # Find the dependencies of the test programs.
     tags_flag = f"-tags \"{','.join(build_tags)}\""
-    list_format = "{{ .ImportPath }} {{ .Name }}: {{ join .Deps \" \" }}"
+    list_format = '{{ .ImportPath }} {{ .Name }}: {{ join .Deps " " }}'
     # Run from within the progs directory so that the go list command can find
     # the go.mod file.
     with ctx.cd(progs_path):
