@@ -12,8 +12,11 @@ package installinfo
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -50,6 +53,25 @@ type versionHistoryEntries struct {
 
 const maxVersionHistoryEntries = 60
 
+// Runtime override for install info - protected by mutex for concurrent access
+var (
+	runtimeInstallInfo *InstallInfo
+	runtimeInfoMutex   sync.RWMutex
+)
+
+// SetInstallInfoRequest represents the JSON payload for setting install info
+type SetInstallInfoRequest struct {
+	Tool             string `json:"tool"`
+	ToolVersion      string `json:"tool_version"`
+	InstallerVersion string `json:"installer_version"`
+}
+
+// SetInstallInfoResponse represents the response after setting install info
+type SetInstallInfoResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
+
 // GetFilePath returns the path of the 'install_info' directory relative to the loaded coinfiguration file. The
 // 'install_info' directory contains information about how the agent was installed.
 func GetFilePath(conf model.Reader) string {
@@ -58,10 +80,56 @@ func GetFilePath(conf model.Reader) string {
 
 // Get returns information about how the Agent was installed.
 func Get(conf model.Reader) (*InstallInfo, error) {
+	if installInfo := getRuntimeInstallInfo(); installInfo != nil {
+		return installInfo, nil
+	}
 	if installInfo, ok := getFromEnvVars(); ok {
 		return installInfo, nil
 	}
 	return getFromPath(GetFilePath(conf))
+}
+
+// setRuntimeInstallInfo sets the install info at runtime, overriding file and env var values
+func setRuntimeInstallInfo(info *InstallInfo) error {
+	if info == nil {
+		return fmt.Errorf("install info cannot be nil")
+	}
+
+	if info.Tool == "" || info.ToolVersion == "" || info.InstallerVersion == "" {
+		return fmt.Errorf("install info must have tool, tool_version, and installer_version set")
+	}
+
+	runtimeInfoMutex.Lock()
+	defer runtimeInfoMutex.Unlock()
+
+	// Note: Unlike file/env-based sources which scrub on read, this scrubs the data at write time.
+	// This means the original (unscrubbed) values are not retained.
+	runtimeInstallInfo = scrubFields(&InstallInfo{
+		Tool:             info.Tool,
+		ToolVersion:      info.ToolVersion,
+		InstallerVersion: info.InstallerVersion,
+	})
+
+	log.Infof("Runtime install info set: tool=%s, tool_version=%s, installer_version=%s",
+		runtimeInstallInfo.Tool, runtimeInstallInfo.ToolVersion, runtimeInstallInfo.InstallerVersion)
+
+	return nil
+}
+
+// getRuntimeInstallInfo returns the current runtime install info if set
+func getRuntimeInstallInfo() *InstallInfo {
+	runtimeInfoMutex.RLock()
+	defer runtimeInfoMutex.RUnlock()
+
+	if runtimeInstallInfo == nil {
+		return nil
+	}
+
+	return &InstallInfo{
+		Tool:             runtimeInstallInfo.Tool,
+		ToolVersion:      runtimeInstallInfo.ToolVersion,
+		InstallerVersion: runtimeInstallInfo.InstallerVersion,
+	}
 }
 
 func getFromEnvVars() (*InstallInfo, bool) {
@@ -137,7 +205,9 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 		Version:   agentVersion,
 		Timestamp: timestamp,
 	}
-	if installInfo, ok := getFromEnvVars(); ok {
+	if installInfo := getRuntimeInstallInfo(); installInfo != nil {
+		newEntry.InstallMethod = *installInfo
+	} else if installInfo, ok := getFromEnvVars(); ok {
 		newEntry.InstallMethod = *installInfo
 	} else if installInfo, err := getFromPath(installInfoFilePath); err == nil {
 		newEntry.InstallMethod = *installInfo
@@ -163,6 +233,74 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 	err = os.WriteFile(versionHistoryFilePath, file, 0644)
 	if err != nil {
 		log.Errorf("Cannot write json file: %s %v", versionHistoryFilePath, err)
+		return
+	}
+}
+
+// HandleSetInstallInfo is an HTTP handler for setting install info at runtime
+func HandleSetInstallInfo(w http.ResponseWriter, r *http.Request) {
+	var req SetInstallInfoRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid JSON payload: "+err.Error())
+		return
+	}
+
+	installInfo := &InstallInfo{
+		Tool:             req.Tool,
+		ToolVersion:      req.ToolVersion,
+		InstallerVersion: req.InstallerVersion,
+	}
+
+	if err := setRuntimeInstallInfo(installInfo); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Failed to set install info: "+err.Error())
+		return
+	}
+
+	respondWithSuccess(w, "Install info set successfully")
+}
+
+// HandleGetInstallInfo is an HTTP handler for getting current install info
+func HandleGetInstallInfo(w http.ResponseWriter, _ *http.Request) {
+	installInfo, err := Get(pkgconfigsetup.Datadog())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to get install info: "+err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(installInfo); err != nil {
+		log.Errorf("Failed to encode install info response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// Helper functions for HTTP responses
+func respondWithError(w http.ResponseWriter, statusCode int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	response := SetInstallInfoResponse{
+		Success: false,
+		Message: message,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Errorf("Failed to encode error response: %v", err)
+	}
+}
+
+func respondWithSuccess(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
+
+	response := SetInstallInfoResponse{
+		Success: true,
+		Message: message,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Errorf("Failed to encode success response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 }
