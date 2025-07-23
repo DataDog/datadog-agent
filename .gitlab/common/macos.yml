@@ -78,9 +78,16 @@
   # Python 3.12 changes default behavior how packages are installed.
   # In particular, --break-system-packages command line option is
   # required to use the old behavior or use a virtual env. https://github.com/actions/runner-images/issues/8615
+  - python3 -m pip uninstall -y dmgbuild
+  - pyenv exec pip uninstall -y dmgbuild
+  - cat .dda/version
   - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)" --break-system-packages
+  - python3 -m pip uninstall -y dmgbuild
+  - pyenv exec pip uninstall -y dmgbuild
   - pyenv rehash
   - python3 -m dda self dep sync -f legacy-tasks
+  - python3 -m pip uninstall -y dmgbuild
+  - pyenv exec pip uninstall -y dmgbuild
   - pyenv rehash
 
 .vault_login:

@@ -27,7 +27,8 @@
 .deploy_packages_dmg:
   stage: deploy_packages
   rules:
-    !reference [.on_deploy]
+    - !reference [.on_deploy]
+    - !reference [ .manual ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   before_script:
