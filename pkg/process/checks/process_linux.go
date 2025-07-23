@@ -12,20 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
-	return &procutil.Process{
-		Pid:     wlmProc.Pid,
-		Ppid:    wlmProc.Ppid,
-		NsPid:   wlmProc.NsPid,
-		Name:    wlmProc.Name,
-		Cwd:     wlmProc.Cwd,
-		Exe:     wlmProc.Exe,
-		Comm:    wlmProc.Comm,
-		Cmdline: wlmProc.Cmdline,
-		Uids:    wlmProc.Uids,
-		Gids:    wlmProc.Gids,
-		Stats:   stats,
-	}
+// useWLMCollection checks the configuration to use the workloadmeta process collector or not in linux
+// TODO: process_config.process_collection.use_wlm is a temporary configuration for refactoring purposes
+func (p *ProcessCheck) useWLMCollection() bool {
+	return p.config.GetBool("process_config.process_collection.use_wlm")
 }
 
 // processesByPID returns the processes by pid from different sources depending on the configuration (process probe or workloadmeta)
@@ -59,4 +49,20 @@ func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Pr
 		return nil, err
 	}
 	return procs, nil
+}
+
+func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) *procutil.Process {
+	return &procutil.Process{
+		Pid:     wlmProc.Pid,
+		Ppid:    wlmProc.Ppid,
+		NsPid:   wlmProc.NsPid,
+		Name:    wlmProc.Name,
+		Cwd:     wlmProc.Cwd,
+		Exe:     wlmProc.Exe,
+		Comm:    wlmProc.Comm,
+		Cmdline: wlmProc.Cmdline,
+		Uids:    wlmProc.Uids,
+		Gids:    wlmProc.Gids,
+		Stats:   stats,
+	}
 }
