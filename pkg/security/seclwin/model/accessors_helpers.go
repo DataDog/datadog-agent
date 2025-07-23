@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// GetFieldValue retrieves the value of a field from the event using the evaluator.
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	m := &Model{}
 	evaluator, err := m.GetEvaluator(field, "", 0)
