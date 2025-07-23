@@ -80,7 +80,7 @@ require (
 
 require (
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
-	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
+	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/redis/go-redis/v9 v9.8.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
