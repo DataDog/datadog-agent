@@ -19,11 +19,13 @@
   # Create custom temporary folder to isolate jobs from each other
   - |
     export OLDTMPDIR="$TMPDIR"
+    echo "Old temporary folder: $OLDTMPDIR"
     sudo rm -rf "$OLDTMPDIR/gitlabci"
     export TMPDIR="$OLDTMPDIR/gitlabci/$CI_JOB_ID"
     mkdir -p "$TMPDIR"
-    # sudo chmod 777 "$TMPDIR"
-    # sudo chown "$USER":staff "$TMPDIR"
+    sudo chmod 777 "$TMPDIR"
+    sudo chown "$USER":staff "$TMPDIR"
+    stat "$TMPDIR"
     echo "Temporary folder created at $TMPDIR"
 
 .select_python_env_commands:
