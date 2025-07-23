@@ -588,7 +588,7 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
-		if err != nil {
+		if err != nil && testMod != nil {
 			testMod.cleanup()
 			testMod = nil
 		}
