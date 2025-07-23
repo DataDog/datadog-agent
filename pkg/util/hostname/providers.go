@@ -189,6 +189,24 @@ func GetWithLegacyResolutionProvider(ctx context.Context) (Data, error) {
 	return getHostname(ctx, "legacy_resolution_hostname", true)
 }
 
+// iterateProviders iterates through the provider catalog and calls the provided callback for each provider.
+// The callback receives the provider, detected hostname, and error, and should return whether to continue iteration.
+func iterateProviders(ctx context.Context, legacyHostnameResolution bool, callback func(p provider, detectedHostname string, err error) (shouldContinue bool)) {
+	var hostname string
+
+	for _, p := range getProviderCatalog(legacyHostnameResolution) {
+		detectedHostname, err := p.cb(ctx, hostname)
+
+		if !callback(p, detectedHostname, err) {
+			break
+		}
+
+		if err == nil {
+			hostname = detectedHostname
+		}
+	}
+}
+
 func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution bool) (Data, error) {
 	cacheHostnameKey := cache.BuildAgentKey(keyCache)
 
@@ -197,20 +215,18 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 		return cacheHostname.(Data), nil
 	}
 
-	var err error
 	var hostname string
 	var providerName string
 
-	for _, p := range getProviderCatalog(legacyHostnameResolution) {
+	iterateProviders(ctx, legacyHostnameResolution, func(p provider, detectedHostname string, err error) bool {
 		log.Debugf("trying to get hostname from '%s' provider", p.name)
 
-		detectedHostname, err := p.cb(ctx, hostname)
 		if err != nil {
 			expErr := new(expvar.String)
 			expErr.Set(err.Error())
 			hostnameErrors.Set(p.expvarName, expErr)
 			log.Debugf("unable to get the hostname from '%s' provider: %s", p.name, err)
-			continue
+			return true // continue to next provider
 		}
 
 		log.Debugf("hostname provider '%s' successfully found hostname '%s'", p.name, detectedHostname)
@@ -219,18 +235,21 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 
 		if p.stopIfSuccessful {
 			log.Debugf("hostname provider '%s' succeeded, stoping here with hostname '%s'", p.name, detectedHostname)
-			return saveHostname(cacheHostnameKey, hostname, p.name, legacyHostnameResolution), nil
-
+			return false // stop iteration
 		}
-	}
+
+		return true // continue to next provider
+	})
 
 	warnAboutFQDN(ctx, hostname)
 
 	if hostname != "" {
-		return saveHostname(cacheHostnameKey, hostname, providerName, legacyHostnameResolution), nil
+		hostnameData := saveHostname(cacheHostnameKey, hostname, providerName, legacyHostnameResolution)
+		scheduleHostnameDriftChecks(ctx, hostnameData)
+		return hostnameData, nil
 	}
 
-	err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
+	err := fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 	expErr := new(expvar.String)
 	expErr.Set(err.Error())
 	hostnameErrors.Set("all", expErr)
