@@ -152,7 +152,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.to_skip", 0)
@@ -223,7 +223,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
@@ -397,7 +397,7 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	// Temporarily set the global config for this test
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	testDir := t.TempDir()
@@ -461,7 +461,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 
 func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 	// Temporarily set the global config for this test
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -988,7 +988,7 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -1039,7 +1039,7 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.rotation_detection_strategy", "checksum")
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
