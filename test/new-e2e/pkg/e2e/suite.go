@@ -146,6 +146,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -653,6 +654,11 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	}
 }
 
+// IsWithinCI returns true if the test suite is running in a CI environment.
+func (bs *BaseSuite[Env]) IsWithinCI() bool {
+	return os.Getenv("GITLAB_CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
+}
+
 // TearDownSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
@@ -681,25 +687,39 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
-		// Run provisioner Diagnose before tearing down the stack if not in teardownOnly mode
+		// Run provisioner Diagnose before tearing down the stack
+		stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+		if err != nil {
+			bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			continue
+		}
 		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok && !bs.teardownOnly {
 			bs.T().Logf("Running Diagnose for provisioner %s", id)
-			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
-			if err != nil {
-				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
-			} else {
-				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
-				if diagnoseErr != nil {
-					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
-				} else if diagnoseResult != "" {
-					bs.T().Logf("Diagnose result: %s", diagnoseResult)
-				}
+			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+			if diagnoseErr != nil {
+				bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+			} else if diagnoseResult != "" {
+				bs.T().Logf("Diagnose result: %s", diagnoseResult)
 			}
 		}
 
-		bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
-		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
+			fullStackName := fmt.Sprintf("organization/e2eci/%s", stackName)
+			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
+
+			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
+			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")))
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				bs.T().Errorf("Unable to destroy stack %s: %s", stackName, out)
+			} else {
+				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
+			}
+		} else {
+			bs.T().Logf("Destroying stack %s with provisioner %s", bs.params.stackName, id)
+			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
+				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+			}
 		}
 	}
 }
