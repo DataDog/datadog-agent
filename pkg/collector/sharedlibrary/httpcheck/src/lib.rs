@@ -42,11 +42,6 @@ impl AgentCheck {
     pub fn check(self) -> Result<(), Box<dyn Error>> {
         /* check implementation goes here */
 
-        // TODO:
-        // - tags list
-        // - service checks tags 
-        // - ssl certificates
-
         // consts
         const DEFAULT_EXPIRE_DAYS_WARNING: i32 = 14;
         const DEFAULT_EXPIRE_DAYS_CRITICAL: i32 = 7;
@@ -54,7 +49,6 @@ impl AgentCheck {
         const DEFAULT_EXPIRE_CRITICAL: i32 = DEFAULT_EXPIRE_DAYS_CRITICAL * 24 * 3600;
                 
         // hardcoded variables (should be passed as parameters inside a struct)
-        // option variables that are Some is initialized and None otherwise?
         let url = "datadog.com";
         let response_time = true;
         let ssl_expire = true;
@@ -100,7 +94,6 @@ impl AgentCheck {
         match TcpStream::connect_timeout(&addr, Duration::from_secs(5)) {
             Ok(mut sock) => {
                 // Set timeouts
-                // TODO: handle timeout errors later in the code
                 sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
                 sock.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
                 

@@ -25,7 +25,7 @@ impl AgentCheck {
         AgentCheck { check_id, aggregator }
     }
 
-    // TODO: use Into<String> trait to allow passing any type of string that can be converted to String ???
+    // TODO: maybe use Into<String> trait to allow passing any type of string that can be converted to String ???
     // use Option for optional arguments (tags, hostname, flush_first_value)
 
     // metric functions
