@@ -32,7 +32,6 @@ needs-rules:
     - lint_macos_gitlab_amd64
     - new-e2e-cleanup-on-failure
     - lint_macos_gitlab_arm64
-    - new-e2e-eks-cleanup-on-failure
     - protobuf_test
     - publish_winget_7_x64
     - revert_latest_7
