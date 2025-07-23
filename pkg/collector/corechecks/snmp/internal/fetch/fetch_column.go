@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+// FetchColumnOidsWithBatching fetches all values for each specified column OID by batch.
+func FetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
 	batches, err := common.CreateStringBatches(oids, oidBatchSize)
@@ -46,8 +47,8 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 
 // fetchColumnOids fetches all values for each specified column OID.
 // bulkMaxRepetitions is the number of entries to request per OID per SNMP
-// request when fetchStrategy = useGetBulk; it is ignored when fetchStrategy is
-// useGetNext.
+// request when fetchStrategy = UseGetBulk; it is ignored when fetchStrategy is
+// UseGetNext.
 func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
@@ -90,7 +91,7 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 
 func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
-	if sess.GetVersion() == gosnmp.Version1 || fetchStrategy == useGetNext {
+	if sess.GetVersion() == gosnmp.Version1 || fetchStrategy == UseGetNext {
 		// snmp v1 doesn't support GetBulk
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {

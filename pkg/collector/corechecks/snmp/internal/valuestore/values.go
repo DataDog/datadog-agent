@@ -42,6 +42,12 @@ func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
 	return value, nil
 }
 
+// ContainsColumn returns whether the store contains the column OID
+func (v *ResultValueStore) ContainsColumn(oid string) bool {
+	_, ok := v.ColumnValues[oid]
+	return ok
+}
+
 // GetColumnValues look for oid in ResultValueStore and returns a map[<fullIndex>]ResultValue
 // where `fullIndex` refer to the entire index part of the instance OID.
 // For example if the row oid (instance oid) is `1.3.6.1.4.1.1.2.3.10.11.12`,

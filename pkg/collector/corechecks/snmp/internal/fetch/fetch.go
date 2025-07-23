@@ -19,16 +19,16 @@ import (
 type columnFetchStrategy int
 
 const (
-	useGetBulk columnFetchStrategy = iota
-	useGetNext
+	UseGetBulk columnFetchStrategy = iota
+	UseGetNext
 )
 
 func (c columnFetchStrategy) String() string {
 	switch c {
-	case useGetBulk:
-		return "useGetBulk"
-	case useGetNext:
-		return "useGetNext"
+	case UseGetBulk:
+		return "UseGetBulk"
+	case UseGetNext:
+		return "UseGetNext"
 	default:
 		return strconv.Itoa(int(c))
 	}
@@ -43,13 +43,13 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSize int,
 		return nil, fmt.Errorf("failed to fetch scalar oids with batching: %v", err)
 	}
 
-	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSize,
-		bulkMaxRepetitions, useGetBulk)
+	columnResults, err := FetchColumnOidsWithBatching(sess, columnOIDs, batchSize,
+		bulkMaxRepetitions, UseGetBulk)
 	if err != nil {
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
-		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSize, bulkMaxRepetitions,
-			useGetNext)
+		columnResults, err = FetchColumnOidsWithBatching(sess, columnOIDs, batchSize, bulkMaxRepetitions,
+			UseGetNext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}

@@ -8,12 +8,13 @@ package buildprofile
 import (
 	"fmt"
 	"maps"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
-	"github.com/gosnmp/gosnmp"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DefaultMetadataConfig holds default configs per resource type
@@ -21,7 +22,7 @@ type DefaultMetadataConfig profiledefinition.ListMap[DefaultMetadataResourceConf
 
 // DefaultMetadataResourceConfig holds default configs for a metadata resource
 type DefaultMetadataResourceConfig struct {
-	ShouldMergeMetadata func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool
+	ShouldMergeMetadata func(valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) bool
 	Fields              profiledefinition.ListMap[profiledefinition.MetadataField]
 	IDTags              profiledefinition.MetricTagConfigList
 }
@@ -51,7 +52,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// The LegacyMetadataConfig is used as fallback to provide metadata definitions for those resources.
 	{
 		"device": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, _ *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, _ *checkconfig.CheckConfig) bool {
 				return true
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -76,7 +77,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"interface": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, _ *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, _ *checkconfig.CheckConfig) bool {
 				return true
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -129,7 +130,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"ip_addresses": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, _ *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, _ *checkconfig.CheckConfig) bool {
 				return true
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -152,7 +153,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// Topology metadata
 	{
 		"lldp_remote": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -204,7 +205,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"lldp_remote_management": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -217,7 +218,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"lldp_local": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -236,7 +237,7 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"cdp_remote": {
-			ShouldMergeMetadata: func(_ session.Session, _ bool, config *checkconfig.CheckConfig) bool {
+			ShouldMergeMetadata: func(_ *valuestore.ResultValueStore, _ bool, config *checkconfig.CheckConfig) bool {
 				return config.CollectTopology
 			},
 			Fields: map[string]profiledefinition.MetadataField{
@@ -307,9 +308,14 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// VPN tunnels metadata
 	{
 		"cisco_ipsec_tunnel": {
-			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
-				return config.CollectVPN &&
-					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.4.1.9.9.171.1.3.2.1.4")
+			ShouldMergeMetadata: func(valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) bool {
+				if !config.CollectVPN {
+					return false
+				}
+				if !validConnection {
+					return true
+				}
+				return valueStore.ContainsColumn("1.3.6.1.4.1.9.9.171.1.3.2.1.4")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"local_outside_ip": {
@@ -331,9 +337,14 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// Route table metadata needed for VPN tunnels
 	{
 		"ipforward_deprecated": {
-			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
-				return config.CollectVPN &&
-					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.4.24.4.1.5")
+			ShouldMergeMetadata: func(valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) bool {
+				if !config.CollectVPN {
+					return false
+				}
+				if !validConnection {
+					return true
+				}
+				return valueStore.ContainsColumn("1.3.6.1.2.1.4.24.4.1.5")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -351,9 +362,14 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"ipforward": {
-			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
-				return config.CollectVPN &&
-					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.4.24.7.1.7")
+			ShouldMergeMetadata: func(valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) bool {
+				if !config.CollectVPN {
+					return false
+				}
+				if !validConnection {
+					return true
+				}
+				return valueStore.ContainsColumn("1.3.6.1.2.1.4.24.7.1.7")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -375,9 +391,14 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	// Tunnel metadata needed for VPN tunnels
 	{
 		"tunnel_config_deprecated": {
-			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
-				return config.CollectVPN &&
-					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.10.131.1.1.2.1.5")
+			ShouldMergeMetadata: func(valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) bool {
+				if !config.CollectVPN {
+					return false
+				}
+				if !validConnection {
+					return true
+				}
+				return valueStore.ContainsColumn("1.3.6.1.2.1.10.131.1.1.2.1.5")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -389,9 +410,14 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 			},
 		},
 		"tunnel_config": {
-			ShouldMergeMetadata: func(sess session.Session, validConnection bool, config *checkconfig.CheckConfig) bool {
-				return config.CollectVPN &&
-					checkOidIfConnectedOrSkip(sess, validConnection, "1.3.6.1.2.1.10.131.1.1.3.1.6")
+			ShouldMergeMetadata: func(valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) bool {
+				if !config.CollectVPN {
+					return false
+				}
+				if !validConnection {
+					return true
+				}
+				return valueStore.ContainsColumn("1.3.6.1.2.1.10.131.1.1.3.1.6")
 			},
 			Fields: map[string]profiledefinition.MetadataField{
 				"if_index": {
@@ -405,37 +431,13 @@ var DefaultMetadataConfigs = []DefaultMetadataConfig{
 	},
 }
 
-// checkOidIfConnectedOrSkip checks whether a given OID is present on the device only when validConnection is true
-// If validConnection is false, it returns true by default
-func checkOidIfConnectedOrSkip(sess session.Session, validConnection bool, oid string) bool {
-	if !validConnection {
-		return true
-	}
-	return checkOid(sess, oid)
-}
-
-// checkOid checks whether a given OID is present on the device
-func checkOid(sess session.Session, oid string) bool {
-	result, err := sess.GetNext([]string{oid})
-	if err != nil {
-		return false
-	}
-
-	if len(result.Variables) != 1 {
-		return false
-	}
-
-	snmpPDU := result.Variables[0]
-	if snmpPDU.Type == gosnmp.NoSuchObject ||
-		snmpPDU.Type == gosnmp.NoSuchInstance ||
-		snmpPDU.Type == gosnmp.EndOfMibView {
-		return false
-	}
-
-	// We check that the returned full OID is equal or starts with the parameter OID because
-	// SNMP GETNEXT command returns the next OID whether it's from the same OID or not
-	nextOID := strings.TrimPrefix(snmpPDU.Name, ".")
-	return nextOID == oid || strings.HasPrefix(nextOID, oid+".")
+// ColumnOidsToFetch contains all column OIDs that should be fetched to be used in the ShouldMergeMetadata functions
+var ColumnOidsToFetch = []string{
+	"1.3.6.1.4.1.9.9.171.1.3.2.1.4",
+	"1.3.6.1.2.1.4.24.4.1.5",
+	"1.3.6.1.2.1.4.24.7.1.7",
+	"1.3.6.1.2.1.10.131.1.1.2.1.5",
+	"1.3.6.1.2.1.10.131.1.1.3.1.6",
 }
 
 // updateMetadataDefinitionWithDefaults will add metadata config for resources that does not have metadata definitions
@@ -445,14 +447,31 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		newMetadataConfig = make(profiledefinition.MetadataConfig)
 	}
 
+	columnValues := make(valuestore.ColumnResultValuesType)
+	if validConnection {
+		values, err := fetch.FetchColumnOidsWithBatching(
+			sess, ColumnOidsToFetch, config.OidBatchSize, config.BulkMaxRepetitions, fetch.UseGetNext)
+		if err != nil {
+			log.Warnf("failed to fetch oids with GetNext batching: %v", err)
+		} else {
+			columnValues = values
+		}
+	}
+
+	valueStore := &valuestore.ResultValueStore{
+		ScalarValues: make(valuestore.ScalarResultValuesType),
+		ColumnValues: columnValues,
+	}
+
 	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
-		mergeMetadata(newMetadataConfig, defaultMetadataConfig, sess, validConnection, config)
+		mergeMetadata(newMetadataConfig, defaultMetadataConfig, valueStore, validConnection, config)
 	}
 
 	return newMetadataConfig
 }
 
-func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig, sess session.Session, validConnection bool, config *checkconfig.CheckConfig) {
+func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadata DefaultMetadataConfig,
+	valueStore *valuestore.ResultValueStore, validConnection bool, config *checkconfig.CheckConfig) {
 	for resourceName, resourceConfig := range extraMetadata {
 		if resourceConfig.ShouldMergeMetadata == nil {
 			// This is to force always having to specify the ShouldMergeMetadata function, else the Agent will panic
@@ -460,7 +479,7 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 				resourceName))
 		}
 
-		if !resourceConfig.ShouldMergeMetadata(sess, validConnection, config) {
+		if !resourceConfig.ShouldMergeMetadata(valueStore, validConnection, config) {
 			continue
 		}
 
