@@ -174,9 +174,10 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
-		"max_lines": 10,
-		"max_bytes": 1024,
-		"to_skip":   5,
+		"max_lines":            10,
+		"max_bytes":            1024,
+		"to_skip":              5,
+		"fingerprint_strategy": "line_checksum",
 	})
 
 	config, err := GlobalFingerprintConfig(suite.config)
@@ -189,7 +190,7 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidJSONString() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"max_lines": 5, "max_bytes": 512, "to_skip": 2}`)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"max_lines": 5, "max_bytes": 512, "to_skip": 2, "fingerprint_strategy": "line_checksum"}`)
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.Nil(err)
@@ -201,7 +202,7 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithV
 
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidJSON() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"max_lines": 5, "max_bytes": 512, "to_skip": 2`)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config", `{"max_lines": 5, "max_bytes": 512, "to_skip": 2, "fingerprint_strategy": "line_checksum"`)
 
 	config, err := GlobalFingerprintConfig(suite.config)
 	suite.NotNil(err)
@@ -211,9 +212,10 @@ func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithIn
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
 	suite.config.SetWithoutSource("logs_config.fingerprint_config", map[string]interface{}{
-		"max_lines": -1, // Invalid: negative value
-		"max_bytes": 1024,
-		"to_skip":   5,
+		"max_lines":            -1, // Invalid: negative value
+		"max_bytes":            1024,
+		"to_skip":              5,
+		"fingerprint_strategy": "",
 	})
 
 	config, err := GlobalFingerprintConfig(suite.config)

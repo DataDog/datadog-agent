@@ -153,7 +153,7 @@ func TestPublicJSON(t *testing.T) {
 	ret, err := config.PublicJSON()
 	assert.NoError(t, err)
 
-	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"],"fingerprint_config":{"max_bytes":0,"max_lines":0,"to_skip":0}}`
+	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"],"fingerprint_config":{"max_bytes":0,"max_lines":0,"to_skip":0,"fingerprint_strategy":""}}`
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
