@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
-	log "github.com/sirupsen/logrus"
 )
 
 // keyvaultClient is an interface that defines the methods we use from the ssm client
@@ -30,16 +29,16 @@ type keyvaultClient interface {
 
 // getKeyvaultClient is a variable that holds the function to create a new keyvaultClient
 // it will be overwritten in tests
-var getKeyvaultClient = func(keyVaultURL string) keyvaultClient {
+var getKeyvaultClient = func(keyVaultURL string) (keyvaultClient, error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		log.Errorf("getting default credentials: %s", err)
+		return nil, fmt.Errorf("getting default credentials: %s", err)
 	}
 	client, err := azsecrets.NewClient(keyVaultURL, cred, nil)
 	if err != nil {
-		log.Fatalf("failed to create client: %v", err)
+		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
-	return client
+	return client, nil
 }
 
 // KeyVaultBackendConfig contains the configuration to connect for Azure backend
@@ -60,11 +59,14 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 	backendConfig := KeyVaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.WithError(err).Error("failed to map backend configuration")
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
+	}
+
+	client, err := getKeyvaultClient(backendConfig.KeyVaultURL)
+	if err != nil {
 		return nil, err
 	}
 
-	client := getKeyvaultClient(backendConfig.KeyVaultURL)
 	backend := &KeyVaultBackend{
 		Config: backendConfig,
 		Client: client,
@@ -87,11 +89,6 @@ func (b *KeyVaultBackend) GetSecretOutput(secretName string) secret.Output {
 	version := ""
 	out, err := b.Client.GetSecret(context.Background(), secretID, version, nil)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"backend_type": b.Config.BackendType,
-			"secret_id":    secretID,
-			"keyvaulturl":  b.Config.KeyVaultURL,
-		}).WithError(err).Error("failed to retrieve secret value")
 		return b.makeErrorResponse(err)
 	}
 
@@ -120,13 +117,6 @@ func (b *KeyVaultBackend) GetSecretOutput(secretName string) secret.Output {
 			}
 		}
 	}
-
-	log.WithFields(log.Fields{
-		"backend_type": b.Config.BackendType,
-		"secret_id":    secretID,
-		"keyvaulturl":  b.Config.KeyVaultURL,
-		"secret_key":   secretKey,
-	}).Error("value does not contain secret key")
 
 	return b.makeErrorResponse(fmt.Errorf("value does not contain secret key"))
 }

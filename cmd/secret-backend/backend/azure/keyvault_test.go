@@ -42,8 +42,8 @@ func TestKeyvaultBackend(t *testing.T) {
 			"key2": "{\"foo\":\"bar\"}",
 		},
 	}
-	getKeyvaultClient = func(_ string) keyvaultClient {
-		return mockClient
+	getKeyvaultClient = func(_ string) (keyvaultClient, error) {
+		return mockClient, nil
 	}
 
 	keyvaultBackendParams := map[string]interface{}{
@@ -72,8 +72,8 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 			"key1": "{\\\"foo\\\":\\\"bar\\\"}",
 		},
 	}
-	getKeyvaultClient = func(_ string) keyvaultClient {
-		return mockClient
+	getKeyvaultClient = func(_ string) (keyvaultClient, error) {
+		return mockClient, nil
 	}
 
 	keyvaultBackendParams := map[string]interface{}{
