@@ -139,17 +139,6 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
     // if we didn't hit any of the above checks, we are good to go.
     return true;
 }
-//static __always_inline bool is_supported_api_version_for_classification(s16 api_key, s16 api_version) {
-//    return (api_key == KAFKA_FETCH &&
-//         api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION &&
-//         api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) ||
-//        (api_key == KAFKA_PRODUCE &&
-//         api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION &&
-//         api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) ||
-//        (api_key == KAFKA_API_VERSIONS &&
-//         api_version >= KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION &&
-//         api_version <= KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION);
-//}
 
 static __always_inline bool isMSBSet(uint8_t byte) {
     return (byte & 0x80) != 0;
