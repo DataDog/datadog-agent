@@ -194,24 +194,32 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 
 	mr.insert(mount, 0, true)
 
-	prevMount, ok := mr.mounts.Get(mount.MountID)
+	insertedMount, ok := mr.mounts.Get(mount.MountID)
 	if !ok {
 		seclog.Errorf("Tried to move a mountpoint that didn't exist in our database")
 		return
 	}
 
-	prevMount.MountPointStr, _ = mr.dentryResolver.Resolve(prevMount.ParentPathKey, true)
-	newPath, _, _, _ := mr._getMountPath(prevMount.MountID, 0, 0, map[uint32]bool{})
+	insertedMount.MountPointStr, _ = mr.dentryResolver.Resolve(insertedMount.ParentPathKey, true)
+	insertedMount.MountPointStr, _, _, _ = mr._getMountPath(insertedMount.MountID, 0, 0, map[uint32]bool{})
 
 	var allChildren []*model.Mount
 	mr.getAllChildrenRecursive(mount, &allChildren)
+
+	changePrefix := func(s, oldPrefix, newPrefix string) string {
+		if strings.HasPrefix(s, oldPrefix) {
+			return newPrefix + s[len(oldPrefix):]
+		}
+		return s
+	}
 
 	for _, child := range allChildren {
 		if child.MountID == mount.MountID {
 			continue
 		}
 		currentChildPath, _, _, _ := mr._getMountPath(child.MountID, 0, 0, map[uint32]bool{})
-		child.MountPointStr = strings.Replace(currentChildPath, oldPath, newPath, 1)
+
+		child.MountPointStr = changePrefix(currentChildPath, oldPath, insertedMount.MountPointStr)
 		if oldPath == child.MountPointStr {
 			seclog.Errorf("Error replacing mountpoint string for %s", child.MountPointStr)
 		}
@@ -254,7 +262,7 @@ func (mr *Resolver) delete(mount *model.Mount) {
 func (mr *Resolver) deleteOne(curr *model.Mount, now time.Time) {
 	parent, exists := mr.mounts.Get(curr.MountID)
 	if exists {
-		for i := 0; i < len(curr.Children); i++ {
+		for i := 0; i != len(curr.Children); i++ {
 			if curr.Children[i] == curr.MountID {
 				parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
 				break

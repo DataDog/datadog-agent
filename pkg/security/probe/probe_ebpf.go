@@ -1088,7 +1088,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	switch eventType {
 
 	case model.FileMountEventType:
-	case model.FileMoveMountType:
+	case model.FileMoveMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
@@ -2026,7 +2026,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	if !m.Detached && ev.GetEventType() != model.FileMoveMountType {
+	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
@@ -2038,7 +2038,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 		}
 	}
 
-	if ev.GetEventType() == model.FileMoveMountType {
+	if ev.GetEventType() == model.FileMoveMountEventType {
 		if err := p.Resolvers.MountResolver.InsertMoved(*m); err != nil {
 			return fmt.Errorf("failed to insert mount event: %w", err)
 		}

@@ -99,13 +99,19 @@ func TestMoveMount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "mount" && event.Mount.MountID != uint32(mountid) {
+			if event.GetType() != "move_mount" && event.Mount.MountID != uint32(mountid) {
 				return false
 			}
-
-			assert.Equal(t, submountDir, event.Mount.MountPointStr, "Wrong mountpoint path")
+			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			assert.Equal(t, err, nil)
+			assert.Equal(t, submountDir, mountPtr.MountPointStr, "Wrong mountpoint path")
 			return true
-		}, 10*time.Second, model.FileMountEventType)
+		}, 10*time.Second, model.FileMoveMountEventType)
+
+		if err != nil {
+			t.Fatal("Test timeout without any event")
+		}
 	})
 
 	_ = unix.Unmount(submountDir, unix.MNT_FORCE|unix.MNT_DETACH)
@@ -223,7 +229,11 @@ func TestMoveMountRecursive(t *testing.T) {
 			}
 
 			return true
-		}, 10*time.Second, model.FileMoveMountType)
+		}, 10*time.Second, model.FileMoveMountEventType)
+
+		if err != nil {
+			t.Fatal("Test timeout without any event")
+		}
 	})
 
 }
