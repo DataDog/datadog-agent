@@ -70,6 +70,7 @@ from tasks.system_probe import (
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     check_for_ninja,
+    compute_go_parallelism,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -580,11 +581,13 @@ def is_root():
     return os.getuid() == 0
 
 
-def ninja_define_rules(nw: NinjaWriter):
-    # go build does not seem to be designed to run concurrently on the same
-    # source files. To make go build work with ninja we create a pool to force
-    # only a single instance of go to be running.
-    nw.pool(name="gobuild", depth=1)
+def ninja_define_rules(
+    nw: NinjaWriter,
+    debug: bool = False,
+    ci: bool = False,
+):
+    go_parallelism = compute_go_parallelism(debug=debug, ci=ci)
+    nw.pool(name="gobuild", depth=go_parallelism)
 
     nw.rule(
         name="gotestsuite",
@@ -749,7 +752,7 @@ def kmt_secagent_prepare(
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=verbose, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(
             nw,
@@ -1028,7 +1031,7 @@ def kmt_sysprobe_prepare(
             env_str += f"{key}='{new_val}' "
         env_str = env_str.rstrip()
 
-        ninja_define_rules(nw)
+        ninja_define_rules(nw, debug=True, ci=ci)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
         ninja_add_dyninst_test_programs(
