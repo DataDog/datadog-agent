@@ -16,6 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -201,6 +203,17 @@ var _ protocols.Protocol = (*nodeJSMonitor)(nil)
 
 func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) {
+		return nil, nil
+	}
+
+	// Check for kernel bug that causes segfaults with uretprobes and seccomp
+	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	if err != nil {
+		log.Errorf("failed to check for uretprobe syscall seccomp bug: %v", err)
+		return nil, err
+	}
+	if hasUretprobeBug {
+		log.Warn("NodeJS TLS monitoring disabled due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
 		return nil, nil
 	}
 
