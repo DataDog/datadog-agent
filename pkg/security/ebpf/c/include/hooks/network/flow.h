@@ -1,6 +1,5 @@
 #ifndef _HOOKS_NETWORK_FLOW_H_
 #define _HOOKS_NETWORK_FLOW_H_
-
 #include "constants/offsets/network.h"
 #include "constants/offsets/netns.h"
 #include "helpers/network/pid_resolver.h"
@@ -53,9 +52,9 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
             // this is an AF_INET6 flow
             bpf_probe_read(&key.addr, sizeof(u64) * 2, (void *)fl + get_flowi6_saddr_offset());
             bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi6_proto_offset());
-            if (key.l4_protocol == 0) {
-                key.l4_protocol = 3; 
-            }
+            char msg[] = "flow-if (flow_family == AF_INET6): l4_protocol: %u\n";
+            bpf_trace_printk(msg, sizeof(msg), key.l4_protocol);
+
 
         }
     }
@@ -80,9 +79,22 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
             // This is an AF_INET flow
             bpf_probe_read(&key.addr, sizeof(u32), (void *)fl + get_flowi4_saddr_offset());
             bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi4_proto_offset());
-            if (key.l4_protocol == 0) {
-                return key.l4_protocol = 1;
+            int debug_dump = 0;
+            bpf_probe_read(&debug_dump, sizeof(debug_dump), (void *)fl + 14);
+            
+            {
+                char msg1[] = "flow-ifskport!=key.port: l4_protocol: %u\n";
+                bpf_trace_printk(msg1, sizeof(msg1), key.l4_protocol);
             }
+            {
+                char msg2[] = "flow-ifskport!=key.port: offsetproto: %u\n";
+                bpf_trace_printk(msg2, sizeof(msg2), get_flowi4_proto_offset());
+            }
+            {
+                char msg3[] = "flow-ifskport!=key.port: debug_dump: %d\n";
+                bpf_trace_printk(msg3, sizeof(msg3), debug_dump);
+            }
+
         }
     }
 
@@ -210,9 +222,8 @@ __attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t
     route->port = ns_flow->flow.sport;
     route->netns = ns_flow->netns;
     route->l4_protocol = ns_flow->flow.l4_protocol;
-    if (route->l4_protocol == 0) {
-        route->l4_protocol = 4;
-    }
+    char msg[] = "fill_pid_route_from_sflow: l4_protocol: %u\n";
+    bpf_trace_printk(msg, sizeof(msg), route->l4_protocol);
 }
 
 __attribute__((always_inline)) void flush_flow_pid_by_route(struct pid_route_t *route) {
@@ -298,9 +309,15 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
     }
     // extraact protocol
     route.l4_protocol = get_protocol_from_sock(sk);
-    if (route.l4_protocol == 0) {
-        route.l4_protocol = 5;
-    }
+    char msg[] = "L291: l4_protocol: %u\n";
+    bpf_trace_printk(msg, sizeof(msg), route.l4_protocol);
+
+
+
+
+
+
+
     // extract port
     route.port = get_skc_num_from_sock_common((void *)sk);
 
@@ -582,9 +599,9 @@ __attribute__((always_inline)) int handle_inet_bind_ret(int ret) {
     if (route.netns != 0) {
         bpf_map_update_elem(&netns_cache, &tid, &route.netns, BPF_ANY);
     }
-    if (route.l4_protocol == 0) {
-        route.l4_protocol = 7;
-    }
+    char msg[] = "L573: l4_protocol: %u\n";
+    bpf_trace_printk(msg, sizeof(msg), route.l4_protocol);
+
     // copy ipv4 / ipv6
     u16 family = 0;
     bpf_probe_read(&family, sizeof(family), &sk->__sk_common.skc_family);
