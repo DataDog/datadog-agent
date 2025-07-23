@@ -1793,6 +1793,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "filter_hash": {
                     "type": "string",
                     "description": "Filter hash"
+                },
+                "magic_values_found": {
+                    "type": "string",
+                    "description": "Filter static analysis"
                 }
             },
             "additionalProperties": false,
@@ -4863,6 +4867,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "filter_hash": {
             "type": "string",
             "description": "Filter hash"
+        },
+        "magic_values_found": {
+            "type": "string",
+            "description": "Filter static analysis"
         }
     },
     "additionalProperties": false,
@@ -4890,6 +4898,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `is_filter_truncated` | Filter truncated |
 | `filter` | Filter instructions |
 | `filter_hash` | Filter hash |
+| `magic_values_found` | Filter static analysis |
 
 
 ## `SignalEvent`

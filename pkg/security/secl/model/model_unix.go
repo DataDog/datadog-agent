@@ -1026,4 +1026,5 @@ type SetSockOptEvent struct {
 	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"` // SECLDoc[filter_instructions] Definition:`Filter instructions`
 	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
+	MagicValuesFound   string `field:"magic_values_found"`                                              // SECLDoc[magic_values_found] Definition:`Magic values found in the filter that can be related to a malware`
 }

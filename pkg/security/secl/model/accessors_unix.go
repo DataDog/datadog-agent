@@ -23398,6 +23398,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setsockopt.magic_values_found":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetSockOpt.MagicValuesFound
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setsockopt.optname":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -31351,6 +31362,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setsockopt.filter_len",
 		"setsockopt.is_filter_truncated",
 		"setsockopt.level",
+		"setsockopt.magic_values_found",
 		"setsockopt.optname",
 		"setsockopt.retval",
 		"setsockopt.socket_family",
@@ -34745,6 +34757,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setsockopt", reflect.Bool, "bool", nil
 	case "setsockopt.level":
 		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.magic_values_found":
+		return "setsockopt", reflect.String, "string", nil
 	case "setsockopt.optname":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.retval":
@@ -42621,6 +42635,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("setsockopt.is_filter_truncated", &ev.SetSockOpt.IsFilterTruncated, value)
 	case "setsockopt.level":
 		return ev.setUint32FieldValue("setsockopt.level", &ev.SetSockOpt.Level, value)
+	case "setsockopt.magic_values_found":
+		return ev.setStringFieldValue("setsockopt.magic_values_found", &ev.SetSockOpt.MagicValuesFound, value)
 	case "setsockopt.optname":
 		return ev.setUint32FieldValue("setsockopt.optname", &ev.SetSockOpt.OptName, value)
 	case "setsockopt.retval":

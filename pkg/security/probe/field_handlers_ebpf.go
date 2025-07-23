@@ -957,6 +957,7 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 			})
 		}
 
+		e.MagicValuesFound = strings.Trim(strings.Replace(fmt.Sprint(CustomParseBPFFilter(raw)), " ", ",", -1), "[]")
 		instructions, allDecoded := bpf.Disassemble(raw)
 		if !allDecoded {
 			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
@@ -970,4 +971,18 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 		return e.FilterInstructions
 	}
 	return e.FilterInstructions
+}
+
+func CustomParseBPFFilter(raw []bpf.RawInstruction) []int {
+	magic_values := []uint32{21139, 29269, 960051513}
+	var magic_values_found []int
+	for _, inst := range raw {
+		// Check if we load or branch on a magic value
+		for _, magic := range magic_values {
+			if inst.K == magic {
+				magic_values_found = append(magic_values_found, int(inst.K))
+			}
+		}
+	}
+	return magic_values_found
 }

@@ -1835,6 +1835,7 @@ A setsockopt was executed
 | [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
 | [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
+| [`setsockopt.magic_values_found`](#setsockopt-magic_values_found-doc) | Magic values found in the filter that can be related to a malware |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
@@ -4003,6 +4004,13 @@ Definition: Indicates that the filter is truncated
 Type: int
 
 Definition: Socket level
+
+
+
+### `setsockopt.magic_values_found` {#setsockopt-magic_values_found-doc}
+Type: string
+
+Definition: Magic values found in the filter that can be related to a malware
 
 
 

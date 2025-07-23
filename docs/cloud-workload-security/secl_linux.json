@@ -7758,6 +7758,11 @@
           "property_doc_link": "setsockopt-level-doc"
         },
         {
+          "name": "setsockopt.magic_values_found",
+          "definition": "Magic values found in the filter that can be related to a malware",
+          "property_doc_link": "setsockopt-magic_values_found-doc"
+        },
+        {
           "name": "setsockopt.optname",
           "definition": "Socket option name",
           "property_doc_link": "setsockopt-optname-doc"
@@ -13857,6 +13862,18 @@
       "link": "setsockopt-level-doc",
       "type": "int",
       "definition": "Socket level",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.magic_values_found",
+      "link": "setsockopt-magic_values_found-doc",
+      "type": "string",
+      "definition": "Magic values found in the filter that can be related to a malware",
       "prefixes": [
         "setsockopt"
       ],
