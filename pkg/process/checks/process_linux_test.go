@@ -21,6 +21,64 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestProcessesByPIDWLM tests processesByPID map creation when WLM collection is ON
+func TestProcessesByPIDWLM(t *testing.T) {
+	for _, tc := range []struct {
+		description  string
+		collectStats bool
+	}{
+		{
+			description:  "wlm collection ENABLED, with stats ENABLED",
+			collectStats: true,
+		},
+		{
+			description:  "wlm collection ENABLED, with stats DISABLED",
+			collectStats: false,
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			// INITIALIZATION
+			mockProbe := probemocks.NewProbe(t)
+			mockWLM := wmimpl.NewMockWLM(t)
+			mockConstantClock := constantMockClock(time.Now())
+			processCheck := &ProcessCheck{
+				wmeta:                   mockWLM,
+				probe:                   mockProbe,
+				useWLMProcessCollection: true,
+				clock:                   mockConstantClock,
+			}
+
+			// MOCKING
+			nowSeconds := mockConstantClock.Now().Unix()
+			proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
+			proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
+			proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
+			proc4 := wlmProcessWithCreateTime(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
+			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
+			statsByPid := make(map[int32]*procutil.Stats)
+			mockWLM.EXPECT().ListProcesses().Return(procs).Once()
+			if tc.collectStats {
+				// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
+				statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
+				mockProbe.EXPECT().StatsForPIDs([]int32{proc1.Pid, proc2.Pid, proc3.Pid, proc4.Pid}, mockConstantClock.Now()).Return(statsByPid, nil).Once()
+			}
+
+			// EXPECTED
+			expected := map[int32]*procutil.Process{
+				proc1.Pid: mapWLMProcToProc(proc1, statsByPid[proc1.Pid]),
+				proc2.Pid: mapWLMProcToProc(proc2, statsByPid[proc2.Pid]),
+				proc3.Pid: mapWLMProcToProc(proc3, statsByPid[proc3.Pid]),
+				proc4.Pid: mapWLMProcToProc(proc4, statsByPid[proc4.Pid]),
+			}
+
+			// TESTING
+			actual, err := processCheck.processesByPID(tc.collectStats)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, actual)
+		})
+	}
+}
+
 func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
 	return &wmdef.Process{
 		EntityID: wmdef.EntityID{
@@ -31,6 +89,14 @@ func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationT
 		Cmdline:      strings.Split(spaceSeparatedCmdline, " "),
 		CreationTime: time.Unix(creationTime, 0),
 	}
+}
+
+func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bool) map[int32]*procutil.Stats {
+	statsByPid := make(map[int32]*procutil.Stats, len(wlmProcs))
+	for _, wlmProc := range wlmProcs {
+		statsByPid[wlmProc.Pid] = randomProcessStats(wlmProc.CreationTime.Unix(), elevatedPermissions)
+	}
+	return statsByPid
 }
 
 // randRange returns a random number between min and max inclusive [min, max]
@@ -98,109 +164,4 @@ func randomProcessStats(createTime int64, withPriviledgedData bool) *procutil.St
 		proc.OpenFdCount = int32(randRange(0, 5000)) // 3 minimum (stdin/out/err) to thousands for busy daemons
 	}
 	return proc
-}
-
-func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bool) map[int32]*procutil.Stats {
-	statsByPid := make(map[int32]*procutil.Stats, len(wlmProcs))
-	for _, wlmProc := range wlmProcs {
-		statsByPid[wlmProc.Pid] = randomProcessStats(wlmProc.CreationTime.Unix(), elevatedPermissions)
-	}
-	return statsByPid
-}
-
-// TestWLMProcessesByPID tests processesByPID map creation when WLM collection is ON
-func TestWLMCollectedProcessesByPIDOn(t *testing.T) {
-	for _, tc := range []struct {
-		description  string
-		collectStats bool
-	}{
-		{
-			description:  "wlm collection ENABLED, with stats ENABLED",
-			collectStats: true,
-		},
-		{
-			description:  "wlm collection ENABLED, with stats DISABLED",
-			collectStats: false,
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			// INITIALIZATION
-			mockProbe := probemocks.NewProbe(t)
-			mockWLM := wmimpl.NewMockWLM(t)
-			mockConstantClock := constantMockClock(time.Now())
-			processCheck := &ProcessCheck{
-				wmeta:                   mockWLM,
-				probe:                   mockProbe,
-				useWLMProcessCollection: true,
-				clock:                   mockConstantClock,
-			}
-
-			// MOCKING
-			nowSeconds := mockConstantClock.Now().Unix()
-			proc1 := wlmProcessWithCreateTime(1, "git clone google.com", nowSeconds)
-			proc2 := wlmProcessWithCreateTime(2, "mine-bitcoins -all -x", nowSeconds-1)
-			proc3 := wlmProcessWithCreateTime(3, "datadog-agent --cfgpath datadog.conf", nowSeconds+2)
-			proc4 := wlmProcessWithCreateTime(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
-			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
-			statsByPid := make(map[int32]*procutil.Stats)
-			mockWLM.EXPECT().ListProcesses().Return(procs).Once()
-			if tc.collectStats {
-				// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
-				statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
-				mockProbe.EXPECT().StatsForPIDs([]int32{proc1.Pid, proc2.Pid, proc3.Pid, proc4.Pid}, mockConstantClock.Now()).Return(statsByPid, nil).Once()
-			}
-
-			// EXPECTED
-			expected := map[int32]*procutil.Process{
-				proc1.Pid: mapWLMProcToProc(proc1, statsByPid[proc1.Pid]),
-				proc2.Pid: mapWLMProcToProc(proc2, statsByPid[proc2.Pid]),
-				proc3.Pid: mapWLMProcToProc(proc3, statsByPid[proc3.Pid]),
-				proc4.Pid: mapWLMProcToProc(proc4, statsByPid[proc4.Pid]),
-			}
-
-			// TESTING
-			actual, err := processCheck.processesByPID(tc.collectStats)
-			assert.NoError(t, err)
-			assert.Equal(t, expected, actual)
-		})
-	}
-}
-
-// TestWLMProcessesByPID tests processesByPID normal probe usage when WLM collection is OFF
-func TestWLMCollectedProcessesByPIDOff(t *testing.T) {
-	for _, tc := range []struct {
-		description  string
-		collectStats bool
-	}{
-		{
-			description:  "wlm collection DISABLED, with stats ENABLED",
-			collectStats: true,
-		},
-		{
-			description:  "wlm collection DISABLED, with stats DISABLED",
-			collectStats: false,
-		},
-	} {
-		t.Run(tc.description, func(t *testing.T) {
-			// INITIALIZATION
-			mockProbe := probemocks.NewProbe(t)
-			mockWLM := wmimpl.NewMockWLM(t)
-			mockConstantClock := constantMockClock(time.Now())
-			processCheck := &ProcessCheck{
-				wmeta:                   mockWLM,
-				probe:                   mockProbe,
-				useWLMProcessCollection: false,
-				clock:                   mockConstantClock,
-			}
-
-			// MOCKING
-			mockWLM.AssertNotCalled(t, "ListProcesses")
-			mockProbe.AssertNotCalled(t, "StatsForPIDs")
-			mockProbe.EXPECT().ProcessesByPID(mockConstantClock.Now(), tc.collectStats).Return(nil, nil).Once()
-
-			// TESTING
-			_, err := processCheck.processesByPID(tc.collectStats)
-			assert.NoError(t, err)
-		})
-	}
 }

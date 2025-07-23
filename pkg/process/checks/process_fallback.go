@@ -11,7 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// processesByPID returns the processes by pid from the system probe
+// processesByPID returns the processes by pid from the process probe for non-linux platforms
+// because the workload meta process collection is only available on linux
 func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Process, error) {
 	procs, err := p.probe.ProcessesByPID(p.clock.Now(), collectStats)
 	if err != nil {

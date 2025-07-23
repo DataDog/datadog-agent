@@ -61,18 +61,19 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	mockGpuSubscriber := gpusubscriberfxmock.SetupMockGpuSubscriber(t)
 
 	return &ProcessCheck{
-		probe:             probe,
-		scrubber:          procutil.NewDefaultDataScrubber(),
-		hostInfo:          hostInfo,
-		containerProvider: mockContainerProvider(t),
-		sysProbeConfig:    &SysProbeConfig{},
-		checkCount:        0,
-		skipAmount:        2,
-		serviceExtractor:  serviceExtractor,
-		extractors:        []metadata.Extractor{serviceExtractor},
-		gpuSubscriber:     mockGpuSubscriber,
-		statsd:            &statsd.NoOpClient{},
-		clock:             clock.NewMock(),
+		probe:                   probe,
+		scrubber:                procutil.NewDefaultDataScrubber(),
+		hostInfo:                hostInfo,
+		containerProvider:       mockContainerProvider(t),
+		sysProbeConfig:          &SysProbeConfig{},
+		checkCount:              0,
+		skipAmount:              2,
+		serviceExtractor:        serviceExtractor,
+		extractors:              []metadata.Extractor{serviceExtractor},
+		gpuSubscriber:           mockGpuSubscriber,
+		useWLMProcessCollection: false,
+		statsd:                  &statsd.NoOpClient{},
+		clock:                   clock.NewMock(),
 	}, probe
 }
 

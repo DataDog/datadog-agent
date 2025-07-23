@@ -28,7 +28,8 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 	}
 }
 
-// processesByPID returns the processes by pid from different sources depending on the configuration (system probe or workloadmeta)
+// processesByPID returns the processes by pid from different sources depending on the configuration (process probe or workloadmeta)
+// workload meta process collection is only available on linux and TODO: will eventually be the only source for linux process collection
 func (p *ProcessCheck) processesByPID(collectStats bool) (map[int32]*procutil.Process, error) {
 	if p.useWLMProcessCollection {
 		wlmProcList := p.wmeta.ListProcesses()

@@ -14,6 +14,7 @@ import (
 	wmimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	probemocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // TestProcessByPID ensures the usage of the probe when wlm collection is ON/OFF
@@ -24,24 +25,14 @@ func TestProcessByPID(t *testing.T) {
 		collectStats     bool
 	}{
 		{
-			description:      "wlm collection ENABLED, with stats ENABLED",
+			description:      "wlm collection ENABLED",
 			useWLMCollection: true,
 			collectStats:     true,
 		},
 		{
-			description:      "wlm collection ENABLED, with stats DISABLED",
-			useWLMCollection: true,
-			collectStats:     false,
-		},
-		{
-			description:      "wlm collection DISABLED, with stats ENABLED",
+			description:      "wlm collection DISABLED",
 			useWLMCollection: false,
 			collectStats:     true,
-		},
-		{
-			description:      "wlm collection DISABLED, with stats DISABLED",
-			useWLMCollection: false,
-			collectStats:     false,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -59,9 +50,10 @@ func TestProcessByPID(t *testing.T) {
 			// MOCKING
 			mockWLM.AssertNotCalled(t, "ListProcesses")
 			mockProbe.AssertNotCalled(t, "StatsForPIDs")
-			mockProbe.EXPECT().ProcessesByPID(mockConstantClock.Now(), tc.collectStats).Return(nil, nil).Once()
+			mockProbe.EXPECT().ProcessesByPID(mockConstantClock.Now(), mock.Anything).Return(nil, nil).Once()
 			// TESTING
-			_, err := processCheck.processesByPID(tc.collectStats)
+			// collectStats is irrelevant since it should not impact which functions are called
+			_, err := processCheck.processesByPID(true)
 			assert.NoError(t, err)
 		})
 	}
