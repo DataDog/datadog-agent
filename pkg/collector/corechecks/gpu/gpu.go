@@ -170,7 +170,7 @@ func (c *Check) Run() error {
 
 	// Refresh SP cache before collecting metrics (if using SP process metrics)
 	if c.useSystemProbeProcessMetrics && c.spCache != nil {
-		if err := c.spCache.Refresh(); err != nil {
+		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing system-probe cache: %v", err)
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
@@ -180,7 +180,7 @@ func (c *Check) Run() error {
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
-	if err := c.emitMetrics(snd, gpuToContainersMap); err != nil {
+	if err := c.emitMetrics(snd, gpuToContainersMap); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
 
