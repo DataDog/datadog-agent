@@ -173,7 +173,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     final_state = "success"
     gate_states = []
 
-    nightly_run = True if os.environ.get("BUCKET_BRANCH") == "nightly" else False
+    nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
 
     for gate in gate_list:
