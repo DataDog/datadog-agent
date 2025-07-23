@@ -32,7 +32,7 @@ build do
 
     if mac_os_x?
       python_configure_options.push("--enable-ipv6",
-                            "--with-universal-archs=intel",
+                            "--with-universal-archs=#{arm_target? ? "universal2" : "intel"}",
                             "--enable-shared")
     elsif linux_target?
       python_configure_options.push("--enable-shared",
