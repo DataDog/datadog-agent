@@ -19,6 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -61,8 +62,9 @@ type Requires struct {
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
 
-	Tagger   tagger.Component
-	Hostname hostnameinterface.Component
+	Tagger    tagger.Component
+	Hostname  hostnameinterface.Component
+	Telemetry telemetry.Component
 }
 
 // Provides specifics the types returned by the constructor
@@ -86,6 +88,7 @@ type collectorImpl struct {
 	clientTimeout  time.Duration
 	ctx            context.Context
 	hostname       hostnameinterface.Component
+	telemetry      telemetry.Component
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -101,7 +104,7 @@ func (c *collectorImpl) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.hostname)
+	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.hostname, c.telemetry)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		c.log.Errorf("Error creating the OTLP ingest pipeline: %v", err)
@@ -147,6 +150,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		ctx:            context.Background(),
 		hostname:       reqs.Hostname,
+		telemetry:      reqs.Telemetry,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
