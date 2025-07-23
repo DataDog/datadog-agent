@@ -44,16 +44,8 @@ func createGroupsDiagnosis(actualGroups []string, hasDesired bool, err error) di
 	}
 
 	if err != nil {
-		if isAccessDenied(err) {
-			return diagnose.Diagnosis{
-				Status:      diagnose.DiagnosisWarning,
-				Name:        name,
-				Diagnosis:   fmt.Sprintf("Cannot verify agent user account group membership due to insufficient privileges.\n  Expected: %v\n  Detected: unable to check due to access denied", requiredGroups),
-				Category:    category,
-				RawError:    err.Error(),
-				Remediation: "Run as Administrator to check agent user account group membership, or ensure the agent service is running with appropriate privileges.",
-			}
-		}
+		// access denied should not happen to user groups check, so we skip the specific error check
+
 		if isAgentNotInstalled(err) {
 			return diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisWarning,
