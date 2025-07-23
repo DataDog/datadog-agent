@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"errors"
 	"math"
 	"fmt"
 
