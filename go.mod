@@ -758,9 +758,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.66.1 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.38.0 // indirect
-	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.67.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.41.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250319104955-81009b9bad14 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.29.0 // indirect
