@@ -279,19 +279,19 @@ func TestGetAbsoluteCgroupForProcess(t *testing.T) {
 		t.Skip("Test requires root privileges")
 	}
 
-	currentCgroup, err := getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()))
+	currentCgroup, err := getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
 	require.NoError(t, err)
 	require.NotEmpty(t, currentCgroup) // Cgroup could be anything, but it should not be empty
 
 	testCgroupName := fmt.Sprintf("test-get-cgroup-for-process-%s", utils.RandString(10))
 	moveSelfToCgroup(t, testCgroupName)
 
-	currentCgroup, err = getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()))
+	currentCgroup, err = getAbsoluteCgroupForProcess("", "/", uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
 	require.NoError(t, err)
 	require.Equal(t, "/"+testCgroupName, currentCgroup)
 }
 
-func TestGetAbsoluteCgroupForProcessInsideContainer(t *testing.T) {
+func TestGetAbsoluteCgroupV2ForProcessInsideContainer(t *testing.T) {
 	// For this test, instead of setting up the container completely as we do in the other tests,
 	// we will just mock the cgroup hierarchy
 	containerRoot := t.TempDir()
@@ -305,6 +305,9 @@ func TestGetAbsoluteCgroupForProcessInsideContainer(t *testing.T) {
 	// Avoid memoization of ProcFSRoot, as we're not using the real procfs for utils.GetProcControlGroups
 	kernel.ResetProcFSRoot()
 	t.Setenv("HOST_PROC", hostProc)
+	t.Cleanup(func() {
+		kernel.ResetProcFSRoot()
+	})
 
 	mainProcCgroupFile := filepath.Join(hostProc, strconv.Itoa(pid), "task", strconv.Itoa(pid), "cgroup")
 	require.NoError(t, os.MkdirAll(filepath.Dir(mainProcCgroupFile), 0755))
@@ -352,13 +355,13 @@ func TestGetAbsoluteCgroupForProcessInsideContainer(t *testing.T) {
 	siblingCgroupPath := filepath.Join(parentCgroupName, siblingCgroupName)
 
 	t.Run("SameProcess", func(t *testing.T) {
-		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(pid))
+		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(pid), containerdcgroups.Unified)
 		require.NoError(t, err)
 		require.Equal(t, "/"+childCgroupPath, cgroupPath)
 	})
 
 	t.Run("SiblingProcess", func(t *testing.T) {
-		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(siblingProc))
+		cgroupPath, err := getAbsoluteCgroupForProcess(containerRoot, hostRootMountpoint, uint32(pid), uint32(siblingProc), containerdcgroups.Unified)
 		require.NoError(t, err)
 		require.Equal(t, "/"+siblingCgroupPath, cgroupPath)
 	})
@@ -443,7 +446,7 @@ func BenchmarkGetAbsoluteCgroupForProcess(b *testing.B) {
 	// want the code to iterate though all the directories in the
 	// cgroup directory.
 	for b.Loop() {
-		getAbsoluteCgroupForProcess("", tempdir, uint32(os.Getpid()), uint32(os.Getpid()))
+		getAbsoluteCgroupForProcess("", tempdir, uint32(os.Getpid()), uint32(os.Getpid()), containerdcgroups.Mode())
 	}
 
 	b.ReportMetric(float64(numDirs), "dirs/op")

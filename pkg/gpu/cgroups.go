@@ -28,7 +28,8 @@ import (
 
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
 func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
-	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid)
+	cgroupMode := cgroups.Mode()
+	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroupMode)
 	if err != nil {
 		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
 	}
@@ -40,7 +41,7 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 	}
 
 	// Now configure the cgroup device allow, depending on the cgroup version
-	if cgroups.Mode() == cgroups.Legacy {
+	if cgroupMode == cgroups.Legacy {
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
@@ -69,7 +70,7 @@ const (
 // hostRoot is the path to the host root filesystem, relative to rootfs
 // currentProcessPid is the PID of the process currently running (os.Getpid(), but can be different for unit testing)
 // targetProcessPid is the PID of the process whose cgroup we want to get
-func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, targetProcessPid uint32) (string, error) {
+func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, targetProcessPid uint32, cgroupMode cgroups.CGMode) (string, error) {
 	// Get the cgroup for the target process
 	procCgroups, err := utils.GetProcControlGroups(targetProcessPid, targetProcessPid)
 	if err != nil {
@@ -89,7 +90,7 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 	// just return the cgroup path as we see it, we cannot do anything else.
 	// Also, cgroupv1 returns the cgroup name correctly here, so we can return it
 	// directly too
-	if hostRoot == "" || cgroups.Mode() == cgroups.Legacy {
+	if hostRoot == "" || cgroupMode == cgroups.Legacy {
 		return cgroupPath, nil
 	}
 
@@ -123,7 +124,7 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 			return "", fmt.Errorf("impossible situation: got a relative path for our own cgroup %s for pid %d", cgroupPath, targetProcessPid)
 		}
 
-		currentCgroup, err := getAbsoluteCgroupForProcess(rootfs, hostRoot, currentProcessPid, currentProcessPid)
+		currentCgroup, err := getAbsoluteCgroupForProcess(rootfs, hostRoot, currentProcessPid, currentProcessPid, cgroupMode)
 		if err != nil {
 			return "", fmt.Errorf("failed to get current process (pid=%d) cgroup: %w", currentProcessPid, err)
 		}
