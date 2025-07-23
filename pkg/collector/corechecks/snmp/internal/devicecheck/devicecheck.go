@@ -106,9 +106,13 @@ func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, now t
 		// If we're auto-detecting profiles and the sysObjectID has changed, we're out of date.
 		return true
 	}
+	if now.Sub(pc.timestamp) > profileRefreshDelay*time.Second {
+		// If the profile refresh delay has been exceeded, we're out of date.
+		return true
+	}
 	// If we get here then either we're auto-detecting but the sysobjectid hasn't
-	// changed, or we have a static name; either way we're out of date if the profile
-	// refresh delay has been exceeded or if the profile provider has updated.
+	// changed, or we have a static name; either way we're out of date if and only
+	// if the profile provider has updated.
 	return now.Sub(pc.timestamp) > profileRefreshDelay*time.Second ||
 		pc.timestamp.Before(lastUpdate)
 }
