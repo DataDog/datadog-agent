@@ -221,11 +221,12 @@ while (-not $success -and $stopwatch.Elapsed -lt $timeout) {
         $attempt++
         Start-Sleep -Seconds 2
     }
-
 }
 
+$stopwatch.Stop()
+
 if (-not $success -and $stopwatch.Elapsed -ge $timeout) {
-    throw "Get-MpPreference failed after $($stopwatch.Elapsed.TotalSeconds) seconds"
+    Write-Error "Get-MpPreference failed after $($stopwatch.Elapsed.TotalSeconds) seconds and $attempt attempts: $($Error[0].Exception.Message)"
 }`)
 	return ps
 }
