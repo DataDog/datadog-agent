@@ -463,6 +463,16 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		ColumnValues: columnValues,
 	}
 
+	fmt.Println("=============================")
+	fmt.Println("=============================")
+	fmt.Println("=============================")
+	fmt.Println(columnValues)
+	fmt.Println("=============================")
+	fmt.Println(valueStore.ContainsColumn("1.3.6.1.4.1.9.9.171.1.3.2.1.4"))
+	fmt.Println("=============================")
+	fmt.Println("=============================")
+	fmt.Println("=============================")
+
 	for _, defaultMetadataConfig := range DefaultMetadataConfigs {
 		mergeMetadata(newMetadataConfig, defaultMetadataConfig, valueStore, validConnection, config)
 	}
