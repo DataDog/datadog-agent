@@ -86,7 +86,7 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	// Start timing the drift resolution
 	startTime := time.Now()
 
-	iterateProviders(ctx, false, func(p provider, detectedHostname string, err error) bool {
+	IterateProviders(ctx, false, func(p provider, detectedHostname string, err error) bool {
 		if err != nil {
 			return true // continue to next provider
 		}
