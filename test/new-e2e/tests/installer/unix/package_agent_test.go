@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,8 @@ import (
 const (
 	agentUnit      = "datadog-agent.service"
 	agentUnitXP    = "datadog-agent-exp.service"
+	ddotUnit       = "datadog-agent-ddot.service"
+	ddotUnitXP     = "datadog-agent-ddot-exp.service"
 	traceUnit      = "datadog-agent-trace.service"
 	traceUnitXP    = "datadog-agent-trace-exp.service"
 	processUnit    = "datadog-agent-process.service"
@@ -208,7 +211,6 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("trace-agent")
 
 	defer func() { s.host.Run("sudo rm -rf /etc/systemd/system/datadog*.d/override.conf") }()
-
 	for _, unit := range []string{traceUnitXP, agentUnitXP} {
 		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/override.conf", unit))
@@ -460,4 +462,42 @@ func (s *packageAgentSuite) installDebRPMAgent() {
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 	}
 
+}
+
+func (s *packageAgentSuite) TestInstallWithDDOT() {
+	// Set up environment variables using the same logic as InstallInstallerScriptEnvWithPackages
+	apiKey := os.Getenv("DD_API_KEY")
+	if apiKey == "" {
+		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+	}
+
+	// Create environment file that systemd service will read
+	s.host.Run(fmt.Sprintf("sudo sh -c 'echo \"DD_API_KEY=%s\" > /etc/datadog-agent/environment'", apiKey))
+	s.host.Run("sudo sh -c 'echo \"DD_SITE=datadoghq.com\" >> /etc/datadog-agent/environment'")
+	s.host.Run("sudo sh -c 'echo \"DD_OTELCOLLECTOR_ENABLED=true\" >> /etc/datadog-agent/environment'")
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	// defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+
+	pipelineID := os.Getenv("E2E_PIPELINE_ID")
+	ddotOCIURL := fmt.Sprintf("oci://installtesting.datad0g.com/ddot-package:pipeline-%s", pipelineID)
+
+	s.host.Run(fmt.Sprintf("sudo datadog-installer install %q", ddotOCIURL))
+	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
+
+	// Reload systemd daemon and start the DDOT service
+	s.host.Run("sudo systemctl start datadog-agent-ddot.service")
+
+	s.host.WaitForUnitActive(s.T(), ddotUnit)
+
+	state := s.host.State()
+	s.assertUnits(state, false)
+	// s.assertDdotUnits(state, false)
+
+	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0644, "dd-agent", "dd-agent")
+
+	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
+	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 }
