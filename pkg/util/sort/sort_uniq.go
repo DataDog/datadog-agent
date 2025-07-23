@@ -43,6 +43,9 @@ func uniqSorted[T comparable](elements []T) []T {
 }
 
 func UniqInPlace2(elements []unique.Handle[string]) []unique.Handle[string] {
+	if len(elements) < 2 {
+		return elements
+	}
 	sort.Slice(elements, func(i, j int) bool { return elements[i].Value() < elements[j].Value() })
 	return uniqSorted(elements)
 }
