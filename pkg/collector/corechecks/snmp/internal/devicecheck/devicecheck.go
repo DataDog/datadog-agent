@@ -113,8 +113,7 @@ func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, now t
 	// If we get here then either we're auto-detecting but the sysobjectid hasn't
 	// changed, or we have a static name; either way we're out of date if and only
 	// if the profile provider has updated.
-	return now.Sub(pc.timestamp) > profileRefreshDelay*time.Second ||
-		pc.timestamp.Before(lastUpdate)
+	return pc.timestamp.Before(lastUpdate)
 }
 
 // DeviceCheck hold info necessary to collect info for a single device
