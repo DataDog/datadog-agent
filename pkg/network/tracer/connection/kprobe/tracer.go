@@ -199,7 +199,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		for _, mapName := range []string{probes.ProtocolClassificationBufMap, probes.KafkaClientIDBufMap, probes.KafkaTopicNameBufMap} {
+		for _, mapName := range []string{probes.ProtocolClassificationBufMap, probes.KafkaClientIDBufMap, probes.KafkaClientStringBufMap, probes.KafkaTopicNameBufMap} {
 			mgrOpts.MapSpecEditors[mapName] = manager.MapSpecEditor{
 				Type:       ebpf.Array,
 				EditorFlag: manager.EditType,
