@@ -115,7 +115,6 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 
-		// TODO GABE: add release note for adding annotation filtering the summary provider
 		if p.filterStore.IsPodExcluded(workloadmetafilter.CreatePod(podData), workloadfilter.GetPodSharedMetricFilters()) {
 			continue
 		}
