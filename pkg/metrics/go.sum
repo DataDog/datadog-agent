@@ -1,9 +1,9 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.28.0 h1:SikiqNerMR3ax/pFZbO6eisEm6ktLsI3qtOj9MN5Mp4=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.28.0/go.mod h1:xQ8SuoIm/0lZcUeotR9caLqF5vFp76Dy1mNgn0yBWxs=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.28.0 h1:sDExR+XUqA3kwugKG2IUId6PAVmzoOG04ezcFk8eUkc=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.28.0/go.mod h1:8HSyGjML2NnMhtpTPVKCXk+PFxtFTsSeaJlCJJ4GMKg=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.29.0 h1:j2bmNCnGQUuKtWO5HxP2uAHuBySNrUM7pKrsEiKmPg4=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.29.0/go.mod h1:xQ8SuoIm/0lZcUeotR9caLqF5vFp76Dy1mNgn0yBWxs=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0 h1:i8Y/l5iVp+bMZyS5dB7+/+GukrV5+XNJCEeoDXIVBcU=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0/go.mod h1:5UTi5a9LKOdVAdTj+Zp7+qJ1g09RcZXpvZUmbUWtDJk=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4 h1:PwqhnH1ln2EjGm9XZGUF4RTCwLt0Jt4cebbZBTe+BnA=
@@ -188,8 +188,8 @@ github.com/prometheus/tsdb v0.7.1/go.mod h1:qhTCs0VvXwvX/y3TZrWD7rabWM+ijKTux40T
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
-github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
-github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
+github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
+github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/shirou/gopsutil/v4 v4.25.5 h1:rtd9piuSMGeU8g1RMXjZs9y9luK5BwtnG7dZaQUJAsc=
 github.com/shirou/gopsutil/v4 v4.25.5/go.mod h1:PfybzyydfZcN+JMMjkF6Zb8Mq1A/VcogFFg7hj50W9c=
