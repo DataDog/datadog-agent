@@ -56,7 +56,7 @@ func ResolveRotationDetectionStrategy(file *File) string {
 	}
 
 	// Fall back to global rotation detection strategy
-	return pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_config.fingerprint_strategy")
+	return pkgconfigsetup.Datadog().GetString("logs_config.rotation_detection_strategy")
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
