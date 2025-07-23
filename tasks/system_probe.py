@@ -2155,7 +2155,7 @@ def ninja_add_dyninst_test_programs(
 
     # Find the dependencies of the test programs.
     tags_flag = f"-tags \"{','.join(build_tags)}\""
-    list_format = "{{ .ImportPath }} {{ .Module.Main }}: {{ join .Deps \" \" }}"
+    list_format = "{{ .ImportPath }} {{ .Name }}: {{ join .Deps \" \" }}"
     # Run from within the progs directory so that the go list command can find
     # the go.mod file.
     with ctx.cd(progs_path):
@@ -2168,9 +2168,9 @@ def ninja_add_dyninst_test_programs(
     pkg_deps = {}
     for line in res.stdout.splitlines():
         pkg_main, deps = line.split(": ", 1)
-        pkg, main = pkg_main.split(" ", 1)
+        pkg, name = pkg_main.split(" ", 1)
         pkg = pkg.removeprefix(progs_prefix)
-        if bool(main):
+        if name == "main":
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
@@ -2190,6 +2190,7 @@ def ninja_add_dyninst_test_programs(
     ):
         direct = glob.glob(f"{progs_path}/{pkg}/*.go")
         go_files = set(direct)
+        go_files.add(f"{progs_path}/go.mod")
         for dep in pkg_deps[pkg]:
             dep_files = glob.glob(f"{progs_path}/{dep}/*.go")
             dep_files = [p for p in dep_files if not p.endswith("test.go")]
