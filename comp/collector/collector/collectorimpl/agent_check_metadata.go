@@ -32,6 +32,7 @@ import (
 const (
 	defaultInterval   = 10 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
+	shortInterval     = 15 * time.Second
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -44,8 +45,9 @@ type Payload struct {
 
 type agentCheck struct {
 	instanceType string
-	instanceName string
+	instanceName interface{}
 	status       string
+	error        interface{}
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -61,48 +63,35 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }
 
-// GetPayload builds a payload of all the agentchecks metadata
-func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck) {
-	hostnameData, _ := c.hostname.Get(ctx)
-
-	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
-	meta.Hostname = hostnameData
-
-	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
-	payload := &Payload{
-		CommonPayload:    *cp,
-		Meta:             *meta,
-		ExternalhostTags: *externalhost.GetPayload(),
-	}
-
+func (c *collectorImpl) getAgentChecks() []agentCheck {
 	agentChecks := []agentCheck{}
+
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
-			var status []interface{}
-			var checkStatus string
+			var check agentCheck
 			if s.LastError != "" {
-				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "",
+				check = agentCheck{
+					instanceType: s.CheckName,
+					instanceName: s.CheckID,
+					error:        s.LastError,
+					status:       "ERROR",
 				}
-				checkStatus = "ERROR"
 			} else if len(s.LastWarnings) != 0 {
-				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "",
+				check = agentCheck{
+					instanceType: s.CheckName,
+					instanceName: s.CheckID,
+					error:        s.LastWarnings,
+					status:       "WARNING",
 				}
-				checkStatus = "WARNING"
 			} else {
-				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "OK", "", "",
+				check = agentCheck{
+					instanceType: s.CheckName,
+					instanceName: s.CheckID,
+					status:       "OK",
 				}
-				checkStatus = "OK"
 			}
-			payload.AgentChecks = append(payload.AgentChecks, status)
-			agentChecks = append(agentChecks, agentCheck{
-				instanceType: s.CheckName,
-				instanceName: string(s.CheckID),
-				status:       checkStatus,
-			})
+			agentChecks = append(agentChecks, check)
 		}
 	}
 
@@ -112,39 +101,30 @@ func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck)
 		if err != nil {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
-		status := []interface{}{
-			check, check, "initialization", "ERROR", string(jsonErrs),
-		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
 		agentChecks = append(agentChecks, agentCheck{
 			instanceType: "initialization",
 			instanceName: check,
+			error:        string(jsonErrs),
 			status:       "ERROR",
 		})
 	}
 
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
-		status := []interface{}{
-			check, check, "initialization", "ERROR", e,
-		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
 		agentChecks = append(agentChecks, agentCheck{
 			instanceType: "initialization",
 			instanceName: check,
+			error:        e,
 			status:       "ERROR",
 		})
 	}
 
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
-		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError,
-		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
 		agentChecks = append(agentChecks, agentCheck{
 			instanceType: "jmx",
 			instanceName: "initialization",
+			error:        jmxStartupError.LastError,
 			status:       "ERROR",
 		})
 	}
@@ -178,24 +158,46 @@ func (c *collectorImpl) GetPayload(ctx context.Context) (*Payload, []agentCheck)
 					if !ok {
 						checkError = ""
 					}
-					status := []interface{}{
-						checkName, checkName, checkID, checkStatus, checkError,
-					}
-					payload.AgentChecks = append(payload.AgentChecks, status)
+
 					agentChecks = append(agentChecks, agentCheck{
 						instanceType: checkName,
 						instanceName: checkID,
 						status:       checkStatus,
+						error:        checkError,
 					})
 				}
 			}
 		}
 	}
-	return payload, agentChecks
+	return agentChecks
+
+}
+
+// GetPayload builds a payload of all the agentchecks metadata
+func (c *collectorImpl) GetPayload(ctx context.Context, agentChecks []agentCheck) *Payload {
+	hostnameData, _ := c.hostname.Get(ctx)
+
+	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
+	meta.Hostname = hostnameData
+
+	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)
+	payload := &Payload{
+		CommonPayload:    *cp,
+		Meta:             *meta,
+		ExternalhostTags: *externalhost.GetPayload(),
+	}
+
+	for _, check := range agentChecks {
+		payload.AgentChecks = append(payload.AgentChecks, []interface{}{
+			check.instanceType, check.instanceType, check.instanceName, check.status, check.error,
+		})
+	}
+
+	return payload
 }
 
 // sendAgentCheckMetrics creates and sends metrics series for agent checks
-func (c *collectorImpl) sendAgentCheckMetricsFromPayload(ctx context.Context, timestamp time.Time, agentChecks []interface{}) error {
+func (c *collectorImpl) sendAgentCheckMetrics(ctx context.Context, timestamp time.Time, agentChecks []agentCheck) error {
 	// Get hostname for the metrics
 	hostname, _ := c.hostname.Get(ctx)
 
@@ -208,30 +210,20 @@ func (c *collectorImpl) sendAgentCheckMetricsFromPayload(ctx context.Context, ti
 	}
 
 	for _, check := range agentChecks {
-		check, ok := check.([]interface{})
-		if !ok || len(check) < 4 {
-			log.Warnf("Invalid check format in agent checks payload")
-			continue
-		}
-
 		status := "unknown"
-		if checkStatus, ok := check[3].(string); ok {
-			switch checkStatus {
-			case "OK":
-				status = "healthy"
-			case "WARNING":
-				status = "warning"
-			case "ERROR":
-				status = "broken"
-			}
-		} else {
-			log.Warnf("Invalid check status in agent checks payload")
+		switch check.status {
+		case "OK":
+			status = "healthy"
+		case "WARNING":
+			status = "warning"
+		case "ERROR":
+			status = "broken"
 		}
 
 		// Create tags for the check
 		tags := []string{
-			fmt.Sprintf("integration_type:%v", check[1]),
-			fmt.Sprintf("integration_name:%v", check[2]),
+			fmt.Sprintf("integration_type:%v", check.instanceType),
+			fmt.Sprintf("integration_name:%v", check.instanceName),
 			fmt.Sprintf("status:%s", status),
 		}
 
@@ -261,15 +253,21 @@ func (c *collectorImpl) collectMetadata(ctx context.Context) time.Duration {
 		return firstPayloadDelay - time.Since(c.createdAt)
 	}
 
-	payload, _ := c.GetPayload(ctx)
+	agentChecks := c.getAgentChecks()
+	payload := c.GetPayload(ctx, agentChecks)
 	if err := metricSerializer.SendAgentchecksMetadata(payload); err != nil {
 		c.log.Errorf("unable to submit agentchecks metadata payload, %s", err)
 	}
 
-	// Send agent check metrics for monitored checks
-	if err := c.sendAgentCheckMetricsFromPayload(ctx, time.Now(), payload.AgentChecks); err != nil {
+	return defaultInterval
+}
+
+func (c *collectorImpl) collectCheckMetadata(ctx context.Context) time.Duration {
+	agentChecks := c.getAgentChecks()
+
+	if err := c.sendAgentCheckMetrics(ctx, time.Now(), agentChecks); err != nil {
 		c.log.Errorf("unable to send agent check metrics: %s", err)
 	}
 
-	return defaultInterval
+	return shortInterval
 }
