@@ -189,8 +189,7 @@ func GetWithLegacyResolutionProvider(ctx context.Context) (Data, error) {
 	return getHostname(ctx, "legacy_resolution_hostname", true)
 }
 
-// iterateProviders iterates through the provider catalog and calls the provided callback for each provider.
-// The callback receives the provider, detected hostname, and error, and should return whether to continue iteration.
+// IterateProviders iterates through the provider catalog and calls the provided callback for each provider. The callback receives the provider, detected hostname, and error, and should return whether to continue iteration.
 func IterateProviders(ctx context.Context, legacyHostnameResolution bool, callback func(p provider, detectedHostname string, err error) (shouldContinue bool)) {
 	var hostname string
 
