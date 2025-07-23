@@ -90,7 +90,7 @@ func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 	var ruleOpts Opts
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
-		WithStateScopes(getStateScopes())
+		WithStateScopes(DefaultStateScopes())
 
 	return &ruleOpts
 }

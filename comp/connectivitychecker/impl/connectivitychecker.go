@@ -139,6 +139,14 @@ func (c *inventoryImpl) start(_ context.Context) error {
 func (c *inventoryImpl) stop(_ context.Context) error {
 	// Cancel any ongoing collect operations
 	c.collectCancel()
-	close(c.timerStopCh)
+
+	// Safely close the timer channel if it's not already closed
+	select {
+	case <-c.timerStopCh:
+		// Channel is already closed, do nothing
+	default:
+		close(c.timerStopCh)
+	}
+
 	return nil
 }

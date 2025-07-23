@@ -7,10 +7,11 @@ package agenttests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
@@ -55,7 +56,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeMSI() {
 // TestUpgradeAgentPackage tests that the daemon can upgrade the Agent
 // through the experiment (start/promote) workflow.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
-	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -499,6 +499,16 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	s.Require().NoError(err)
 }
 
+func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
+	termValue := 0
+	if terminatePolicy {
+		termValue = 1
+	}
+	// Set HKEY_LOCAL_MACHINE\SOFTWARE\Datadog\Datadog Agent\TerminatePolicy to terminatePolicy
+	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SOFTWARE\Datadog\Datadog Agent`, "TerminatePolicy", termValue)
+	s.Require().NoError(err)
+}
+
 func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwindows.MsiOption) {
 	agentVersion := s.StableAgentVersion().Version()
 	options := []installerwindows.MsiOption{
@@ -626,6 +636,10 @@ func TestAgentUpgradesFromGA(t *testing.T) {
 func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
+	// set terminate policy to false to prevent the service from being forcefully terminated
+	// this is to alert us to issues with agent termination that might be hidden by the default policy
+	s.setTerminatePolicy(false)
+
 	// Wrap the installer in the InstallerGA type to handle the special cases for 7.65.x
 	s.SetInstaller(&installerwindows.DatadogInstallerGA{
 		DatadogInstaller: s.Installer().(*installerwindows.DatadogInstaller),
@@ -634,8 +648,8 @@ func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
 
 // createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
 func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
-	previousVersion := "7.65.0-rc.10"
-	previousVersionPackage := "7.65.0-rc.10-1"
+	previousVersion := "7.65.2"
+	previousVersionPackage := "7.65.2-1"
 
 	// Get previous version OCI package
 	previousOCI, err := installerwindows.NewPackageConfig(
@@ -647,7 +661,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
-	url, err := windowsagent.GetChannelURL("beta")
+	url, err := windowsagent.GetChannelURL("stable")
 	s.Require().NoError(err)
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(previousVersionPackage),

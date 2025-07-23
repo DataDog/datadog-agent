@@ -16,14 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestIterableSeriesEmptyMarshalJSON(t *testing.T) {
-	r := require.New(t)
-	iterableSerie := CreateIterableSeries(CreateSerieSource(metrics.Series{}))
-	bytes, err := iterableSerie.MarshalJSON()
-	r.NoError(err)
-	r.Equal(`{"series":[]}`, strings.TrimSpace(string(bytes)))
-}
-
 func TestIterableSeriesMoveNext(t *testing.T) {
 	r := require.New(t)
 	series := metrics.Series{

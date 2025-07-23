@@ -440,6 +440,10 @@
           "type": "string",
           "description": "File basename"
         },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
+        },
         "path_resolution_error": {
           "type": "string",
           "description": "Error message from path resolution"
@@ -570,6 +574,10 @@
         "name": {
           "type": "string",
           "description": "File basename"
+        },
+        "extension": {
+          "type": "string",
+          "description": "File extension"
         },
         "path_resolution_error": {
           "type": "string",
