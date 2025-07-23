@@ -475,6 +475,25 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	assert.Empty(t, proc.Command.Args)
 }
 
+func BenchmarkProcessCheck(b *testing.B) {
+	processCheck, probe := processCheckWithMockProbe(&testing.T{})
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
+
+	for n := 0; n < b.N; n++ {
+		_, err := processCheck.run(0, false)
+		require.NoError(b, err)
+	}
+}
+
 func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	cfg := configmock.New(t)
