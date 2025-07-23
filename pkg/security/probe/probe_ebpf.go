@@ -1797,10 +1797,10 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscalls bool) error {
+func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
-	requestedEventTypes = append(requestedEventTypes, ruleEventTypes...)
+	requestedEventTypes = append(requestedEventTypes, ruleSetEventTypes...)
 	for eventType, handlers := range p.probe.eventHandlers {
 		if len(handlers) == 0 {
 			continue
@@ -2198,6 +2198,17 @@ func isKillActionPresent(rs *rules.RuleSet) bool {
 	return false
 }
 
+func isRawPacketActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Def.Actions {
+			if action.NetworkFilter != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
 	if p.opts.SyscallsMonitorEnabled {
@@ -2253,6 +2264,13 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 			seclog.Errorf("failed to get on-demand hook points from ruleset: %v", err)
 		}
 		p.onDemandManager.setHookPoints(hookPoints)
+	}
+
+	// check if there is a network packet action
+	if isRawPacketActionPresent(rs) {
+		if !slices.Contains(eventTypes, model.RawPacketActionEventType.String()) {
+			eventTypes = append(eventTypes, model.RawPacketActionEventType.String())
+		}
 	}
 
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {

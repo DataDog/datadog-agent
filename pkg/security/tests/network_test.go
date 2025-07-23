@@ -166,12 +166,6 @@ func TestRawPacketAction(t *testing.T) {
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
-	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
-		if out, err := loadModule("veth"); err != nil {
-			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
-		}
-	}
-
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule_raw_packet_drop",
 		Expression: `exec.file.name == "free"`,

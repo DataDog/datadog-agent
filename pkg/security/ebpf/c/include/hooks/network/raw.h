@@ -5,14 +5,7 @@
 #include "helpers/network/raw.h"
 #include "perf_ring.h"
 
-
-__attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, u32 event_type, u32 action) {
-    struct packet_t *pkt = get_packet();
-    if (pkt == NULL) {
-        // should never happen
-        return TC_ACT_UNSPEC;
-    }
-
+__attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt, u32 event_type, u32 action) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     if (evt == NULL || skb == NULL || evt->len == 0) {
         // should never happen
@@ -43,6 +36,17 @@ __attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, 
 }
 
 TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
+    struct packet_t *pkt = get_packet();
+    if (pkt == NULL) {
+        // should never happen
+        return TC_ACT_UNSPEC;
+    }
+
+    // mostly a rate limiter
+    if (!is_raw_packet_allowed(pkt)) {
+        return TC_ACT_UNSPEC;
+    }
+
     u64 rate = 10;
     LOAD_CONSTANT("raw_packet_limiter_rate", rate);
 
@@ -50,15 +54,21 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
         return TC_ACT_UNSPEC;
     }
 
-    return send_raw_packet_event(skb, EVENT_RAW_PACKET_FILTER, TC_ACT_UNSPEC);
+    return send_raw_packet_event(skb, pkt, EVENT_RAW_PACKET_FILTER, TC_ACT_UNSPEC);
 }
 
 TAIL_CALL_CLASSIFIER_FNC(raw_packet_drop_action_cb, struct __sk_buff *skb) {
+    struct packet_t *pkt = get_packet();
+    if (pkt == NULL) {
+        // should never happen
+        return TC_ACT_UNSPEC;
+    }
+
     if (!global_limiter_allow(RAW_PACKET_ACTION_LIMITER, 1, 1)) {
         return TC_ACT_SHOT;
     }
 
-    return send_raw_packet_event(skb, EVENT_RAW_PACKET_ACTION, TC_ACT_SHOT);
+    return send_raw_packet_event(skb, pkt, EVENT_RAW_PACKET_ACTION, TC_ACT_SHOT);
 }
 
 #endif

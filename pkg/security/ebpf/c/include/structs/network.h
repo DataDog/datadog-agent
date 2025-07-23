@@ -111,6 +111,7 @@ struct packet_t {
     s64 pid;
     u32 payload_len;
     u32 network_direction;
+    u64 cgroup_id;
 };
 
 struct network_device_context_t {

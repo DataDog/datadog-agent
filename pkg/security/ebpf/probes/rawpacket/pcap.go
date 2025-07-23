@@ -31,9 +31,19 @@ const (
 	packetCaptureSize = 256
 
 	// raw packet data, see kernel definition
+<<<<<<< HEAD
 	structRawPacketEventDataSize   = 256
 	structRawPacketEventDataOffset = 164
 	structRawPacketEventPidOffset  = 16
+=======
+	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
+	packetPidOffset      = 16
+	packetCgroupIdOffset = 136
+	packetDataOffset     = 164
+
+	// payload size
+	packetDataSize = 256
+>>>>>>> e988783e33d (fix probes selection)
 )
 
 // ProgOpts defines options
@@ -50,9 +60,7 @@ type ProgOpts struct {
 	ProgPrefix string
 
 	// internals
-
-	// target register. register holding either the pid or the cgroup id/path
-	pidReg                asm.Register
+	eventPtrReg           asm.Register
 	onMatchLabel          string
 	ctxSaveReg            asm.Register
 	tailCallMapFd         int
@@ -74,7 +82,7 @@ func DefaultProgOpts() ProgOpts {
 			},
 			StackOffset: 16, // adapt using the stack size used outside of the filter itself, ex: map_lookup
 		},
-		pidReg:       asm.R8,
+		eventPtrReg:  asm.R8,
 		onMatchLabel: "on_match",
 		ctxSaveReg:   asm.R9,
 		MaxTailCalls: probes.RawPacketMaxTailCall,
@@ -137,48 +145,36 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
 
 			// check the pid
-			asm.JEq.Imm(opts.pidReg, int32(filter.Pid), opts.onMatchLabel),
-			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
+			// load the pid from the packet
+			asm.LoadMem(asm.R7, opts.eventPtrReg, packetPidOffset, asm.Word),
+			asm.JEq.Imm(asm.R7, int32(filter.Pid), opts.onMatchLabel),
+			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel), // nop instruction, just hold the symbol
 		)
 	} else if !filter.CGroupPathKey.IsNull() {
 		// use the cgroup id which the inode of the cgroup path
 		insts = append(insts,
 			// == 0, no match
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
-		)
 
-		if opts.hasGetCurrentCgroupId {
-			insts = append(insts,
-				asm.FnGetCurrentCgroupId.Call(),
-				asm.Mov.Reg(asm.R7, asm.R0),
-			)
-		} else {
-			insts = append(insts,
-				asm.Mov.Reg(asm.R1, opts.ctxSaveReg),
-				asm.FnSkbCgroupId.Call(),
-				asm.Mov.Reg(asm.R7, asm.R0),
-			)
-		}
-
-		insts = append(insts,
+			// load the cgroup id from the packet
+			asm.LoadMem(asm.R7, opts.eventPtrReg, packetCgroupIdOffset, asm.DWord),
 
 			// printk
-			/*
-				asm.Mov.Reg(asm.R3, asm.R0),
-				asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
-				asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
-				asm.Mov.Imm(asm.R2, 100),
-				asm.StoreMem(asm.RFP, -8, asm.R2, asm.Half),
-				asm.Mov.Reg(asm.R1, asm.RFP),
-				asm.Add.Imm(asm.R1, -16),
-				asm.Mov.Imm(asm.R2, 10),
-				asm.FnTracePrintk.Call(),
-				asm.Mov.Reg(asm.R0, asm.R7),
-			*/
+
+			asm.Mov.Reg(asm.R3, asm.R7),
+			asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
+			asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
+			asm.Mov.Imm(asm.R2, 100),
+			asm.StoreMem(asm.RFP, -8, asm.R2, asm.Half),
+			asm.Mov.Reg(asm.R1, asm.RFP),
+			asm.Add.Imm(asm.R1, -16),
+			asm.Mov.Imm(asm.R2, 10),
+			asm.FnTracePrintk.Call(),
 
 			// check the cgroup id
-			asm.JEq.Imm(asm.R7, int32(filter.CGroupPathKey.Inode), opts.onMatchLabel),
-			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel),
+			asm.LoadImm(asm.R8, int64(filter.CGroupPathKey.Inode), asm.DWord),
+			asm.JEq.Reg(asm.R7, asm.R8, opts.onMatchLabel),
+			asm.Mov.Imm(asm.R4, 0).WithSymbol(mismatchLabel), // nop instruction, just hold the symbol
 		)
 	} else {
 		insts = append(insts,
@@ -270,8 +266,8 @@ func getHeaderInsts(rawPacketEventMapFd int, opts ProgOpts) asm.Instructions {
 		asm.JNE.Imm(asm.R0, 0, "raw-packet-event-not-null"),
 		asm.Mov.Imm(asm.R0, probes.TCActUnspec),
 		asm.Return(),
-		// load the pid from the packet
-		asm.LoadMem(opts.pidReg, asm.R0, structRawPacketEventPidOffset, asm.Word).WithSymbol("raw-packet-event-not-null"),
+		// keep the event pointer in the target register
+		asm.Mov.Reg(opts.eventPtrReg, asm.R0).WithSymbol("raw-packet-event-not-null"),
 		// place in result in the start register and end register
 		asm.Mov.Reg(opts.PacketStart, asm.R0),
 		asm.Add.Imm(opts.PacketStart, structRawPacketEventDataOffset),
