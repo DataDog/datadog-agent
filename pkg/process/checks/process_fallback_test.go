@@ -22,17 +22,14 @@ func TestProcessByPID(t *testing.T) {
 	for _, tc := range []struct {
 		description      string
 		useWLMCollection bool
-		collectStats     bool
 	}{
 		{
 			description:      "wlm collection ENABLED",
 			useWLMCollection: true,
-			collectStats:     true,
 		},
 		{
 			description:      "wlm collection DISABLED",
 			useWLMCollection: false,
-			collectStats:     true,
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
