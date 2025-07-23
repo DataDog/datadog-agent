@@ -32,7 +32,29 @@ var (
 	hostnameChanged         = "hostname_drift"
 	providerChanged         = "provider_drift"
 	hostnameProviderChanged = "hostname_provider_drift"
+	noDrift                 = "no_drift"
 )
+
+// driftInfo contains information about hostname drift detection
+type driftInfo struct {
+	state    string
+	hasDrift bool
+}
+
+// determineDriftState determines the drift state and whether any drift occurred
+func determineDriftState(oldData, newData Data) driftInfo {
+	hostnameDiff := oldData.Hostname != newData.Hostname
+	providerDiff := oldData.Provider != newData.Provider
+
+	if hostnameDiff && providerDiff {
+		return driftInfo{state: hostnameProviderChanged, hasDrift: true}
+	} else if hostnameDiff {
+		return driftInfo{state: hostnameChanged, hasDrift: true}
+	} else if providerDiff {
+		return driftInfo{state: providerChanged, hasDrift: true}
+	}
+	return driftInfo{state: noDrift, hasDrift: false}
+}
 
 func scheduleHostnameDriftChecks(ctx context.Context, hostnameData Data) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
@@ -78,36 +100,15 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	// Calculate resolution time in milliseconds
 	resolutionTime := time.Since(startTime).Milliseconds()
 
-	// Determine drift state for telemetry labels
-	var driftState string
-	if hostnameData.Hostname != hostname && hostnameData.Provider != providerName {
-		driftState = hostnameProviderChanged
-	} else if hostnameData.Hostname != hostname {
-		driftState = hostnameChanged
-	} else if hostnameData.Provider != providerName {
-		driftState = providerChanged
-	} else {
-		driftState = "no_drift"
-	}
+	// Determine drift state
+	newData := Data{Hostname: hostname, Provider: providerName}
+	drift := determineDriftState(hostnameData, newData)
 
 	// Emit resolution time metric
-	tlmDriftResolutionTime.Observe(float64(resolutionTime), driftState, providerName, "")
+	tlmDriftResolutionTime.Observe(float64(resolutionTime), drift.state, providerName, "")
 
-	if hostnameData.Hostname != hostname || hostnameData.Provider != providerName {
-		emitTelemetryMetrics(hostnameData, hostname, providerName)
-		cache.Cache.Set(cacheHostnameKey, Data{
-			Hostname: hostname,
-			Provider: providerName,
-		}, cache.NoExpiration)
-	}
-}
-
-func emitTelemetryMetrics(hostnameData Data, hostname string, providerName string) {
-	if hostnameData.Hostname != hostname && hostnameData.Provider != providerName {
-		tlmDriftDetected.Inc(hostnameProviderChanged, providerName)
-	} else if hostnameData.Hostname != hostname {
-		tlmDriftDetected.Inc(hostnameChanged, providerName)
-	} else if hostnameData.Provider != providerName {
-		tlmDriftDetected.Inc(providerChanged, providerName)
+	if drift.hasDrift {
+		tlmDriftDetected.Inc(drift.state, providerName)
+		cache.Cache.Set(cacheHostnameKey, newData, cache.NoExpiration)
 	}
 }
