@@ -159,17 +159,18 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 			// load the cgroup id from the packet
 			asm.LoadMem(asm.R7, opts.eventPtrReg, packetCgroupIdOffset, asm.DWord),
 
-			// printk
-
-			asm.Mov.Reg(asm.R3, asm.R7),
-			asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
-			asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
-			asm.Mov.Imm(asm.R2, 100),
-			asm.StoreMem(asm.RFP, -8, asm.R2, asm.Half),
-			asm.Mov.Reg(asm.R1, asm.RFP),
-			asm.Add.Imm(asm.R1, -16),
-			asm.Mov.Imm(asm.R2, 10),
-			asm.FnTracePrintk.Call(),
+			// printk the cgroup id
+			/*
+				asm.Mov.Reg(asm.R3, asm.R7),
+				asm.LoadImm(asm.R2, 2675202386094219606, asm.DWord),
+				asm.StoreMem(asm.RFP, -16, asm.R2, asm.DWord),
+				asm.Mov.Imm(asm.R2, 100),
+				asm.StoreMem(asm.RFP, -8, asm.R2, asm.Half),
+				asm.Mov.Reg(asm.R1, asm.RFP),
+				asm.Add.Imm(asm.R1, -16),
+				asm.Mov.Imm(asm.R2, 10),
+				asm.FnTracePrintk.Call(),
+			*/
 
 			// check the cgroup id
 			asm.LoadImm(asm.R8, int64(filter.CGroupPathKey.Inode), asm.DWord),

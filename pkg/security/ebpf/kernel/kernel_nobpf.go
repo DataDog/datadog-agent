@@ -79,3 +79,9 @@ func (k *Version) HasTracingHelpersInCgroupSysctlPrograms() bool {
 func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 	return false
 }
+
+// HasBpfGetCurrentCgroupIdForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
+// https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
+func (k *Version) HasBpfGetCurrentCgroupIdForSchedCLS() bool {
+	return false
+}

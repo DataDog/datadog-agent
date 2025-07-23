@@ -2485,6 +2485,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "sched_cls_has_current_pid_tgid_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
+		manager.ConstantEditor{
+			Name:  "sched_cls_has_current_cgroup_id_helper",
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIdForSchedCLS()),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
