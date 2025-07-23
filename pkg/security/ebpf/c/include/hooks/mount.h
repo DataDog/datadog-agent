@@ -179,7 +179,6 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
-    bpf_printk("handle new mount. id=%d", syscall->mount.root_key.mount_id);
     syscall->mount.root_key.ino = get_dentry_ino(root_dentry);
     update_path_id(&syscall->mount.root_key, 0);
 
@@ -188,8 +187,6 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
         syscall->mount.mountpoint_key.mount_id = get_mount_mount_id(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
         update_path_id(&syscall->mount.mountpoint_key, 0);
-
-        bpf_printk("setting mount parent to %d", syscall->mount.mountpoint_key.mount_id);
     }
 
     // populate the device of the new mount
@@ -255,7 +252,6 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
     if (!syscall) {
         return 0;
     }
-    bpf_printk("*** stage_two");
 
     if (syscall->type == EVENT_MOUNT || syscall->type == EVENT_OPEN_TREE || syscall->type == EVENT_MOVE_MOUNT) {
         struct mount_event_t event = {
@@ -277,16 +273,12 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             event.mountfields.visible = true;
             if(syscall->type == EVENT_MOUNT) {
                 event.source = SOURCE_MOUNT;
-                bpf_printk("popping EVENT_MOUNT");
                 pop_syscall(EVENT_MOUNT);
             } else {
                 event.source = SOURCE_MOVE_MOUNT;
             }
         }
-        bpf_printk("sending event");
         if (syscall->type == EVENT_MOVE_MOUNT) {
-            bpf_printk("******* sending move mount ******* ");
-            bpf_printk("*detached %d - visible %d ", event.mountfields.detached, event.mountfields.visible);
             send_event(ctx, EVENT_MOVE_MOUNT, event);
             return 0;
         }
@@ -317,7 +309,6 @@ int hook_mnt_change_mountpoint(ctx_t *ctx)
         return 0;
     }
 
-    bpf_printk("mnt_change_mountpoint");
     return 0;
 }
 
@@ -346,7 +337,6 @@ int hook_attach_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("__attach_mnt")
 int hook___attach_mnt(ctx_t *ctx) {
-    bpf_printk("__attach_mnt");
     struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_open_tree_or_move_mount);
     if (!syscall) {
         return 0;
@@ -360,7 +350,6 @@ int hook___attach_mnt(ctx_t *ctx) {
 
     syscall->mount.newmnt = newmnt;
     syscall->mount.parent = (struct mount *)CTX_PARM2(ctx);
-    bpf_printk("setting mount parent");
     syscall->mount.mountpoint_dentry = get_mount_mountpoint_dentry(newmnt);
 
     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
@@ -370,14 +359,9 @@ int hook___attach_mnt(ctx_t *ctx) {
 
 HOOK_ENTRY("mnt_set_mountpoint")
 int hook_mnt_set_mountpoint(ctx_t *ctx) {
-    bpf_printk("mnt_set_mountpoint");
     struct syscall_cache_t *syscall = peek_syscall_with(unshare_or_move_mount);
     if (!syscall) {
         return 0;
-    }
-
-    if (syscall->type == EVENT_MOVE_MOUNT) {
-        bpf_printk("mnt_set_mountpoint");
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM3(ctx);
@@ -558,8 +542,6 @@ HOOK_SYSCALL_EXIT(fsmount) {
 
 HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int, to_dfd, const char *, to_pathname)
 {
-    bpf_printk("===beg=== Move mount ===beg===");
-
     struct syscall_cache_t syscall = {
         .type = EVENT_MOVE_MOUNT,
     };
@@ -571,9 +553,6 @@ HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int,
 
 
 HOOK_SYSCALL_EXIT(move_mount) {
-    bpf_printk("===end=== Move mount ===end===");
-    bpf_printk("popping MOVE_MOUNT");
-
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MOVE_MOUNT);
     if (!syscall) {
         // should never happen
