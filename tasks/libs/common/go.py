@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -60,7 +61,7 @@ def go_build(
         cmd += f" -gcflags=\"{gcflags}\""
     if ldflags:
         cmd += f" -ldflags=\"{ldflags}\""
-    if trimpath:
+    if trimpath and 'DELVE' not in os.environ:
         cmd += " -trimpath"
 
     cmd += f" {entrypoint}"
