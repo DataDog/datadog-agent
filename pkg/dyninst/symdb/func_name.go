@@ -55,6 +55,20 @@ var (
 	parseAnonFuncInsideInlinedFuncRE = regexp.MustCompile(`^((?P<pkg>(.*/)?.*?)\.)\w+(\.\w+)+\.(func)?(\d)+$`)
 )
 
+type parseFuncNameFailureReason int
+
+const (
+	parseFuncNameFailureReasonUndefined parseFuncNameFailureReason = iota
+	// parseFuncNameFailureReasonGenericFunction is used if the function takes
+	// type arguments.
+	parseFuncNameFailureReasonGenericFunction
+	// Functions like time.map.init.0 that initialize statically-defined maps.
+	parseFuncNameFailureReasonMapInit
+	// Functions like runtime.gcMarkDone.forEachP.func5, which are anonymous
+	// functions called from inlined functions.
+	parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc
+)
+
 // funcName is the result of parsing a Go function name by parseFuncName().
 type funcName struct {
 	Package string
@@ -66,15 +80,20 @@ type funcName struct {
 	// QualifiedName looks like
 	// github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker
 	QualifiedName string
-
-	// GenericFunction is set if the function takes type arguments. We don't
-	// support parsing these functions at the moment, so no other fields except
-	// QualifiedName are set.
-	GenericFunction bool
 }
 
 func (f *funcName) Empty() bool {
-	return *f == (funcName{})
+	return f.Name == ""
+}
+
+// parseFuncNameResult is the result of parsing a Go function name by
+// parseFuncName().
+type parseFuncNameResult struct {
+	// failureReason is set if the function name was not be parsed because the
+	// function is not supported. Such functions should be ignored.
+	failureReason parseFuncNameFailureReason
+	// funcName is the parsed function name. Set if failureReason is not set.
+	funcName funcName
 }
 
 // parseFuncName parses a Go qualified function name. For a qualifiedName name
@@ -84,7 +103,9 @@ func (f *funcName) Empty() bool {
 // the type is: raftSchedulerShard (note that it doesn't include the '*' signifying a pointer receiver).
 // the name is: worker
 //
-// Returns (zero value, nil) if the function should be ignored.
+// Some functions are not supported. For these, failureReason is set on the
+// result and a nil error is returned. A returned error indicates an unexpected
+// failure.
 //
 // Cases we need to support:
 // github.com/cockroachdb/cockroach/pkg/kv/kvserver.(*raftSchedulerShard).worker
@@ -95,26 +116,31 @@ func (f *funcName) Empty() bool {
 // internal/bytealg.init.0
 //
 // Cases we don't currently support, but we should:
-// - Anonymous functions defined inside methods:
-// github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.(*ChoosePreferredReplica).func1
-// github.com/cockroachdb/cockroach/pkg/sql/physicalplan/replicaoracle.preferFollowerOracle.ChoosePreferredReplica.func1
-// (we don't support these because we confuse them with anonymous functions called from inlined functions)
-func parseFuncName(qualifiedName string) (funcName, error) {
+// - Anonymous functions defined inside methods with value receivers, e.g.:
+// github.com/cockroachdb/pebble/wal.FailoverOptions.EnsureDefaults.func1
+// (we don't support these because we confuse them with anonymous functions
+// called from inlined functions)
+// - Nested anonymous functions, e.g.:
+// github.com/cockroachdb/cockroach/pkg/server.(*apiV2Server).execSQL.func8.1.3.2
+// (we don't support these because we also confuse them with anonymous functions
+// called from inlined functions)
+func parseFuncName(qualifiedName string) (parseFuncNameResult, error) {
 	// Filter out generic functions, e.g.
 	// os.init.OnceValue[go.shape.interface { Error() string }].func3
 	// Note that this name is weird -- os.init is neither a package nor a type,
 	// but rather it has something to do with the generic function's caller.
 	if strings.ContainsRune(qualifiedName, '[') {
-		return funcName{
-			QualifiedName:   qualifiedName,
-			GenericFunction: true,
+		return parseFuncNameResult{
+			failureReason: parseFuncNameFailureReasonGenericFunction,
 		}, nil
 	}
 
 	// Ignore map initialization functions like time.map.init.0. These initialize
 	// global map variables.
 	if strings.Contains(qualifiedName, ".map.init.") {
-		return funcName{}, nil
+		return parseFuncNameResult{
+			failureReason: parseFuncNameFailureReasonMapInit,
+		}, nil
 	}
 
 	// Ignore anonymous functions declared inside inlined functions. These are
@@ -122,7 +148,9 @@ func parseFuncName(qualifiedName string) (funcName, error) {
 	// inside a function that was inlined. We don't know what to do with them
 	// because the debug info doesn't point back to the abstract origin.
 	if parseAnonFuncInsideInlinedFuncRE.FindString(qualifiedName) != "" {
-		return funcName{}, nil
+		return parseFuncNameResult{
+			failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+		}, nil
 	}
 
 	// First, we need to distinguish between the following cases:
@@ -140,17 +168,19 @@ func parseFuncName(qualifiedName string) (funcName, error) {
 	// function that's not a method.
 	groups := parseAnonymousFuncNameRE.FindStringSubmatch(qualifiedName)
 	if groups != nil {
-		return funcName{
-			Package:       groups[anonPkgIdx],
-			Name:          groups[anonNameIdx],
-			QualifiedName: qualifiedName,
+		return parseFuncNameResult{
+			funcName: funcName{
+				Package:       groups[anonPkgIdx],
+				Name:          groups[anonNameIdx],
+				QualifiedName: qualifiedName,
+			},
 		}, nil
 	}
 
 	// We're done with the special cases. Now parse the general case.
 	groups = parseFuncNameRE.FindStringSubmatch(qualifiedName)
 	if groups == nil {
-		return funcName{}, fmt.Errorf("failed to parse function qualified name: %s", qualifiedName)
+		return parseFuncNameResult{}, fmt.Errorf("failed to parse function qualified name: %s", qualifiedName)
 	}
 
 	// Ignore funky functions like:
@@ -165,13 +195,17 @@ func parseFuncName(qualifiedName string) (funcName, error) {
 	// recognize such functions when their receiver is not a pointer.
 	name := groups[nameIdx]
 	if strings.ContainsRune(name, '(') {
-		return funcName{}, nil
+		return parseFuncNameResult{
+			failureReason: parseFuncNameFailureReasonAnonymousFuncInsideInlinedFunc,
+		}, nil
 	}
 
-	return funcName{
-		Package:       groups[pkgIdx],
-		Type:          groups[typIdx],
-		Name:          groups[nameIdx],
-		QualifiedName: qualifiedName,
+	return parseFuncNameResult{
+		funcName: funcName{
+			Package:       groups[pkgIdx],
+			Type:          groups[typIdx],
+			Name:          groups[nameIdx],
+			QualifiedName: qualifiedName,
+		},
 	}, nil
 }
