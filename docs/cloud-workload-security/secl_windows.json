@@ -83,6 +83,11 @@
           "property_doc_link": "common-process-envs-doc"
         },
         {
+          "name": "process.ancestors.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.ancestors.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fileevent-name-doc"
@@ -153,6 +158,11 @@
           "property_doc_link": "common-process-envs-doc"
         },
         {
+          "name": "process.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "process.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fileevent-name-doc"
@@ -196,6 +206,11 @@
           "name": "process.parent.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.parent.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "process.parent.file.name",
@@ -316,6 +331,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "create.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "create.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -402,6 +422,11 @@
           "name": "delete.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "delete.file.name",
@@ -507,6 +532,11 @@
           "property_doc_link": "common-process-envs-doc"
         },
         {
+          "name": "exec.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
+        },
+        {
           "name": "exec.file.name",
           "definition": "File's basename",
           "property_doc_link": "common-fileevent-name-doc"
@@ -589,6 +619,11 @@
           "name": "exit.envs",
           "definition": "Environment variable names of the process",
           "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "exit.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fileevent-extension-doc"
         },
         {
           "name": "exit.file.name",
@@ -699,6 +734,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "rename.file.destination.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
+        },
+        {
           "name": "rename.file.destination.name",
           "definition": "File's basename",
           "property_doc_link": "common-fimfileevent-name-doc"
@@ -727,6 +767,11 @@
           "name": "rename.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "rename.file.name",
@@ -845,6 +890,11 @@
           "name": "write.file.device_path.length",
           "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "write.file.extension",
+          "definition": "File's extension",
+          "property_doc_link": "common-fimfileevent-extension-doc"
         },
         {
           "name": "write.file.name",
@@ -975,6 +1025,38 @@
         "process",
         "process.ancestors",
         "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "exec.file",
+        "exit.file",
+        "process.ancestors.file",
+        "process.file",
+        "process.parent.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.extension",
+      "link": "common-fimfileevent-extension-doc",
+      "type": "string",
+      "definition": "File's extension",
+      "prefixes": [
+        "create.file",
+        "delete.file",
+        "rename.file",
+        "rename.file.destination",
+        "write.file"
       ],
       "constants": "",
       "constants_link": "",

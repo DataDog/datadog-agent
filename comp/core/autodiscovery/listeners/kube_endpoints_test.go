@@ -16,7 +16,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestProcessEndpoints(t *testing.T) {
@@ -41,7 +43,7 @@ func TestProcessEndpoints(t *testing.T) {
 		},
 	}
 
-	eps := processEndpoints(kep, []string{"foo:bar"})
+	eps := processEndpoints(kep, []string{"foo:bar"}, workloadfilterfxmock.SetupMockFilter(t))
 
 	// Sort eps to impose the order
 	sort.Slice(eps, func(i, j int) bool {
@@ -399,7 +401,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 		metricsExcluded bool
 		globalExcluded  bool
 		want            bool
-		filterScope     filter.Scope
+		filterScope     workloadfilter.Scope
 	}{
 		{
 			name: "metrics excluded is true",
@@ -428,7 +430,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			},
 			metricsExcluded: true,
 			want:            true,
-			filterScope:     filter.MetricsFilter,
+			filterScope:     workloadfilter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is false",
@@ -458,7 +460,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            false,
-			filterScope:     filter.MetricsFilter,
+			filterScope:     workloadfilter.MetricsFilter,
 		},
 		{
 			name: "metrics excluded is true with logs filter",
@@ -488,7 +490,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  false,
 			want:            false,
-			filterScope:     filter.LogsFilter,
+			filterScope:     workloadfilter.LogsFilter,
 		},
 		{
 			name: "metrics excluded is false with logs filter",
@@ -518,7 +520,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  true,
 			want:            false,
-			filterScope:     filter.LogsFilter,
+			filterScope:     workloadfilter.LogsFilter,
 		},
 		{
 			name: "global excluded is true",
@@ -548,7 +550,7 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: true,
 			globalExcluded:  true,
 			want:            true,
-			filterScope:     filter.GlobalFilter,
+			filterScope:     workloadfilter.GlobalFilter,
 		},
 		{
 			name: "metrics excluded is false",
@@ -578,16 +580,142 @@ func TestHasFilterKubeEndpoints(t *testing.T) {
 			metricsExcluded: false,
 			globalExcluded:  false,
 			want:            false,
-			filterScope:     filter.GlobalFilter,
+			filterScope:     workloadfilter.GlobalFilter,
 		},
 	}
+
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := processService(tt.ksvc)
+			svc := processService(tt.ksvc, filterStore)
 			svc.metricsExcluded = tt.metricsExcluded
 			svc.globalExcluded = tt.globalExcluded
 			isFilter := svc.HasFilter(tt.filterScope)
 			assert.Equal(t, isFilter, tt.want)
+		})
+	}
+}
+
+func TestKubeEndpointsFiltering(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude_metrics", []string{"kube_namespace:excluded-namespace"})
+	mockConfig.SetWithoutSource("container_exclude", []string{"name:global-excluded"})
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
+	// Create test endpoints with different scenarios
+	testCases := []struct {
+		name                string
+		endpoint            *v1.Endpoints
+		expectedMetricsExcl bool
+		expectedGlobalExcl  bool
+	}{
+		{
+			name: "normal endpoint: not excluded",
+			endpoint: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "normal-service",
+					Namespace: "default",
+					UID:       types.UID("normal-uid"),
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.1"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "http", Port: 80},
+						},
+					},
+				},
+			},
+			expectedMetricsExcl: false,
+			expectedGlobalExcl:  false,
+		},
+		{
+			name: "endpoint in excluded namespace: metrics excluded",
+			endpoint: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "service-in-excluded-ns",
+					Namespace: "excluded-namespace",
+					UID:       types.UID("excluded-ns-uid"),
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.2"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "http", Port: 80},
+						},
+					},
+				},
+			},
+			expectedMetricsExcl: true,
+			expectedGlobalExcl:  false,
+		},
+		{
+			name: "globally excluded endpoint",
+			endpoint: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "global-excluded",
+					Namespace: "default",
+					UID:       types.UID("global-excluded-uid"),
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.3"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "http", Port: 80},
+						},
+					},
+				},
+			},
+			expectedMetricsExcl: false,
+			expectedGlobalExcl:  true,
+		},
+		{
+			name: "endpoint with AD annotations: metrics excluded",
+			endpoint: &v1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ad-excluded",
+					Namespace: "default",
+					UID:       types.UID("ad-excluded-uid"),
+					Annotations: map[string]string{
+						"ad.datadoghq.com/service.check_names": "[\"http_check\"]",
+						"ad.datadoghq.com/metrics_exclude":     "true",
+						"ad.datadoghq.com/exclude":             "false",
+					},
+				},
+				Subsets: []v1.EndpointSubset{
+					{
+						Addresses: []v1.EndpointAddress{
+							{IP: "10.0.0.4"},
+						},
+						Ports: []v1.EndpointPort{
+							{Name: "http", Port: 80},
+						},
+					},
+				},
+			},
+			expectedMetricsExcl: true,
+			expectedGlobalExcl:  false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			eps := processEndpoints(tc.endpoint, []string{}, mockFilterStore)
+			assert.NotEmpty(t, eps, "Should have at least one endpoint service")
+			for _, ep := range eps {
+				assert.Equal(t, tc.expectedMetricsExcl, ep.metricsExcluded,
+					"Expected metricsExcluded to be %v for endpoint %s/%s",
+					tc.expectedMetricsExcl, tc.endpoint.Namespace, tc.endpoint.Name)
+				assert.Equal(t, tc.expectedGlobalExcl, ep.globalExcluded,
+					"Expected globalExcluded to be %v for endpoint %s/%s",
+					tc.expectedGlobalExcl, tc.endpoint.Namespace, tc.endpoint.Name)
+			}
 		})
 	}
 }

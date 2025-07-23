@@ -334,7 +334,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	rs := e.probe.NewRuleSet(e.getEventTypeEnabled())
 
-	loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
+	filteredRules, loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
 	}
@@ -364,7 +364,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 	seclog.Debugf("Filter Report: %s", filterReport)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	policies := monitor.NewPoliciesState(rs, filteredRules, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
 
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
@@ -675,11 +675,7 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		for pInfo := range rule.Policies() {
-			if rule.Policy.IsInternal && !includeInternalPolicies {
-				continue
-			}
-
+		for pInfo := range rule.Policies(includeInternalPolicies) {
 			version := pInfo.Version
 			if _, exists := cache[version]; !exists {
 				cache[version] = true

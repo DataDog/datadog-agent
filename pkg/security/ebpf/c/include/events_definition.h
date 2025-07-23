@@ -300,15 +300,7 @@ struct mount_event_t {
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
     struct mount_fields_t mountfields;
-};
-
-struct fsmount_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct container_context_t container;
-    struct syscall_t syscall;
-    struct fsmount_fields_t fsmountfields;
+    u32    source;
 };
 
 struct unshare_mntns_event_t {

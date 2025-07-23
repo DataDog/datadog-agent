@@ -215,6 +215,17 @@ core,github.com/DataDog/go-libddwaf/v3/internal/log,Apache-2.0,"Copyright 2016-p
 core,github.com/DataDog/go-libddwaf/v3/internal/support,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v3/internal/unsafe,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v3/timer,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/bindings,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/pin,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/ruleset,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/support,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/internal/unsafe,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/json,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/timer,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v4/waferrors,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-runtime-metrics-internal/pkg/runtimemetrics,Apache-2.0,"Copyright 2024-2024 Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -454,6 +465,7 @@ core,github.com/aquasecurity/trivy/pkg/detector/ospkg/alma,Apache-2.0,Copyright 
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/alpine,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/amazon,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/azure,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy/pkg/detector/ospkg/bottlerocket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/chainguard,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/debian,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/detector/ospkg/oracle,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -511,7 +523,7 @@ core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/redhatbase,Apache-2.0,C
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/release,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/os/ubuntu,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/apk,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/bottlerocket,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
+core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/bottlerocket_inventory,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/dpkg,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/pkg/rpm,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/pkg/fanal/analyzer/repo/apk,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
@@ -1243,7 +1255,7 @@ core,github.com/gophercloud/gophercloud/v2/openstack/utils,Apache-2.0,"Copyright
 core,github.com/gophercloud/gophercloud/v2/pagination,Apache-2.0,"Copyright 2012-2013 Rackspace, Inc | Copyright Gophercloud authors"
 core,github.com/gorilla/handlers,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
 core,github.com/gorilla/mux,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
-core,github.com/gorilla/websocket,BSD-3-Clause,Copyright (c) 2023 The Gorilla Authors. All rights reserved
+core,github.com/gorilla/websocket,BSD-2-Clause,Copyright (c) 2013 The Gorilla WebSocket Authors. All rights reserved | Gary Burd <gary@beagledreams.com> | Google LLC (https://opensource.google.com/) | Joachim Bauch <mail@joachim-bauch.de>
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
 core,github.com/grafana/regexp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/grafana/regexp/syntax,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2167,8 +2179,11 @@ core,github.com/uptrace/bun/dialect/sqltype,BSD-2-Clause,Copyright (c) 2021 Vlad
 core,github.com/uptrace/bun/driver/pgdriver,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/extra/bunjson,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/internal/ordered,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal/parser,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal/tagparser,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/migrate,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/migrate/sqlschema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
@@ -2537,6 +2552,7 @@ core,go.opentelemetry.io/otel/semconv/v1.22.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.27.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.34.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.8.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2599,6 +2615,7 @@ core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/chacha20poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -2610,6 +2627,8 @@ core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright 2009 The Go 
 core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors

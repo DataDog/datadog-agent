@@ -11,6 +11,7 @@ package mount
 import (
 	"encoding/json"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -66,6 +67,11 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		}
 	}
 
+	if mnt.FSType == "cgroup2" && strings.HasPrefix(root, "/..") {
+		cfs := utils.DefaultCGroupFS()
+		root = filepath.Join(cfs.GetRootCGroupPath(), root)
+	}
+
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID: uint32(mnt.ID),
@@ -78,6 +84,8 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		Path:          mnt.Mountpoint,
 		RootStr:       root,
 		Origin:        model.MountOriginProcfs,
+		Visible:       true,
+		Detached:      false,
 	}
 }
 
@@ -372,7 +380,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	}
 	cache[mountID] = true
 
-	if mount.Origin == model.MountOriginFsmount {
+	if mount.Detached {
 		// Detached mount
 		return "/", source, mount.Origin, nil
 	}

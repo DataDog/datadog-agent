@@ -366,4 +366,43 @@ int BPF_URETPROBE(uretprobe__cudaMemcpy) {
     return 0;
 }
 
+SEC("uprobe/setenv")
+int BPF_UPROBE(uprobe__setenv, const char *name, const char *value, int overwrite) {
+    // Check if the env var is CUDA_VISIBLE_DEVICES. This is BPF_UPROBE, so we can't use a string
+    // comparison.
+    const char cuda_visible_devices[] = "CUDA_VISIBLE_DEVICES";
+    char name_buf[sizeof(cuda_visible_devices)];
+
+    // bpf_probe_read_user_str is available from kernel 5.5, our minimum kernel version is 5.8.0
+    int res = bpf_probe_read_user_str_with_telemetry(name_buf, sizeof(name_buf), name);
+    if (res < 0) {
+        return 0;
+    }
+
+    // return value of bpf_probe_read_user_str_with_telemetry is the length of the string read,
+    // including the NULL byte. If the string is not the same length, it's not CUDA_VISIBLE_DEVICES.
+    if (res != sizeof(cuda_visible_devices)) {
+        return 0;
+    }
+
+    // bpf_strncmp is available in kernel 5.17, our minimum kernel version is 5.8.0
+    // so we need to do a manual comparison
+    for (int i = 0; i < sizeof(cuda_visible_devices); i++) {
+        if (name_buf[i] != cuda_visible_devices[i]) {
+            return 0;
+        }
+    }
+
+    cuda_visible_devices_set_t event = { 0 };
+
+    if (bpf_probe_read_user_str_with_telemetry(event.visible_devices, sizeof(event.visible_devices), value) < 0) {
+        return 0;
+    }
+
+    fill_header(&event.header, 0, cuda_visible_devices_set);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
+    return 0;
+}
+
 char __license[] SEC("license") = "GPL";

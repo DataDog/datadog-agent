@@ -153,7 +153,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write__return) {
         return 0;
     }
 
-    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data_ptr->conn_pointer, pid_tgid);
+    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data_ptr->conn_pointer);
     if (t == NULL) {
         log_debug("[go-tls-write-return] failed getting conn tup from tls conn for pid %llu", pid);
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
@@ -254,7 +254,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
         goto cleanup;
     }
 
-    conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
+    conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer);
     if (t == NULL) {
         log_debug("[go-tls-read-return] failed getting conn tup from tls conn for pid %u", pid);
         goto cleanup;
@@ -301,16 +301,17 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
         return 0;
     }
 
-    conn_tuple_t* t = conn_tup_from_tls_conn(od, conn_pointer, pid_tgid);
+    conn_tuple_t* t = conn_tup_from_tls_conn(od, conn_pointer);
     if (t == NULL) {
         log_debug("[go-tls-close] failed getting conn tup from tls conn for pid %llu", GET_USER_MODE_PID(pid_tgid));
         return 0;
     }
 
-    // Clear the element in the map since this connection is closed
+    // Clear both the forward and reverse mappings since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
-
     conn_tuple_t copy = *t;
+    bpf_map_delete_elem(&go_tls_conn_by_tuple, &copy);
+
     // tls_finish can launch a tail call, thus cleanup should be done before.
     tls_finish(ctx, &copy, false);
     return 0;

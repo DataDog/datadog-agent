@@ -58,6 +58,7 @@ var (
 	_ Type = (*StructureType)(nil)
 	_ Type = (*ArrayType)(nil)
 
+	_ Type = (*VoidPointerType)(nil)
 	_ Type = (*GoSliceHeaderType)(nil)
 	_ Type = (*GoSliceDataType)(nil)
 	_ Type = (*GoStringHeaderType)(nil)
@@ -107,6 +108,15 @@ type BaseType struct {
 }
 
 func (t *BaseType) irType() {}
+
+// VoidPointerType is a type that represents a pointer to a value of an unknown type.
+// unsafe.Pointer is such a type.
+type VoidPointerType struct {
+	TypeCommon
+	GoTypeAttributes
+}
+
+func (t *VoidPointerType) irType() {}
 
 // PointerType is a pointer type in the target program.
 type PointerType struct {
@@ -310,7 +320,7 @@ type EventRootType struct {
 
 	// Bitset tracking successful expression evaluation (one bit per
 	// expression).
-	PresenseBitsetSize uint32
+	PresenceBitsetSize uint32
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression

@@ -282,7 +282,9 @@ func TestConfigRefresh(t *testing.T) {
 
 	assert.False(t, ia.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.True(t, ia.RefreshTriggered())
+	assert.Eventually(t, func() bool {
+		return assert.True(t, ia.RefreshTriggered())
+	}, 5*time.Second, 1*time.Second)
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
@@ -745,4 +747,28 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)
+}
+
+func TestGetDiagnosticsDisabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_diagnostics_enabled": false,
+	}, nil)
+	ia.Set("diagnostics", "test")
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.NotContains(t, payload.Metadata, "diagnostics")
+}
+
+func TestGetDiagnosticsEnabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_diagnostics_enabled": true,
+	}, nil)
+	ia.Set("diagnostics", "test")
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.Contains(t, payload.Metadata, "diagnostics")
 }
