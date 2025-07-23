@@ -1,0 +1,25 @@
+#!/bin/sh
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer in the following    #
+# file: pkg/fleet/installer/packages/datadog_agent_ddot_linux.go              #
+#                                                                        #
+##########################################################################
+
+INSTALLER_DEB=/opt/datadog-agent/embedded/bin/installer
+INSTALLER_OCI=/opt/datadog-package/datadog-agent-ddot/stable/embedded/bin/installer
+
+# Run the postinst. See pkg/fleet/installer/packages/datadog_agent_ddot_linux.go
+if [ -f ${INSTALLER_DEB} ] && [ "$1" = "remove" ]; then
+    ${INSTALLER_DEB} prerm datadog-agent-ddot deb || true
+elif [ -f ${INSTALLER_DEB} ] && [ "$1" = "upgrade" ]; then
+    ${INSTALLER_DEB} prerm --upgrade datadog-agent-ddot deb || true
+fi
+
+# Remove the agent if it was upgraded using the installer
+if [ -f ${INSTALLER_OCI} ] && [ "$1" = "remove" ]; then
+    ${INSTALLER_OCI} remove datadog-agent-ddot || printf "[ WARNING ]\tFailed to remove datadog-agent-ddot installed by the installer\n"
+fi
+
+exit 0
