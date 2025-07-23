@@ -7,6 +7,8 @@ package aggregator
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	"os"
 	"sync"
 	"time"
 
@@ -111,7 +113,8 @@ func (d *ServerlessDemultiplexer) Stop(flush bool) {
 
 // ForceFlushToSerializer flushes all data from the time sampler to the serializer.
 func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSerializer bool) {
-	d.forceFlushToSerializer(start, waitForSerializer, false)
+	_, forceFlushAll := os.LookupEnv(cloudservice.CloudRunJobNameEnvVar)
+	d.forceFlushToSerializer(start, waitForSerializer, forceFlushAll)
 }
 
 func (d *ServerlessDemultiplexer) forceFlushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {

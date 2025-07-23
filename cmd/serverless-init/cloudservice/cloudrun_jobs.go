@@ -14,7 +14,7 @@ import (
 const CloudRunJobsOrigin = "cloudrun"
 
 const (
-	cloudRunJobNameEnvVar     = "CLOUD_RUN_JOB"
+	CloudRunJobNameEnvVar     = "CLOUD_RUN_JOB"
 	cloudRunExecutionEnvVar   = "CLOUD_RUN_EXECUTION"
 	cloudRunTaskIndexEnvVar   = "CLOUD_RUN_TASK_INDEX"
 	cloudRunTaskAttemptEnvVar = "CLOUD_RUN_TASK_ATTEMPT"
@@ -39,7 +39,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	tags := metadataHelperFunc(GetDefaultConfig(), false)
 	tags["_dd.origin"] = CloudRunJobsOrigin
 
-	jobNameVal := os.Getenv(cloudRunJobNameEnvVar)
+	jobNameVal := os.Getenv(CloudRunJobNameEnvVar)
 	executionNameVal := os.Getenv(cloudRunExecutionEnvVar)
 	taskIndexVal := os.Getenv(cloudRunTaskIndexEnvVar)
 	taskAttemptVal := os.Getenv(cloudRunTaskAttemptEnvVar)
@@ -90,6 +90,6 @@ func (c *CloudRunJobs) GetStartMetricName() string {
 }
 
 func isCloudRunJob() bool {
-	_, exists := os.LookupEnv(cloudRunJobNameEnvVar)
+	_, exists := os.LookupEnv(CloudRunJobNameEnvVar)
 	return exists
 }
