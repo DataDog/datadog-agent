@@ -23,6 +23,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -43,12 +44,6 @@ type flareResponse struct {
 type FlareSource struct {
 	sourceType string
 	rcTaskUUID string
-}
-
-// RetryConfig holds configuration for retry behavior
-type RetryConfig struct {
-	MaxRetries int
-	BaseDelay  time.Duration
 }
 
 // NewLocalFlareSource returns a flare source struct for local flares
@@ -249,7 +244,7 @@ func mkURL(baseURL string, caseID string) string {
 }
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
-// components. When possible use the "Send" method of the "flare" component instead. Configurable retry logic is used.
+// components. When possible use the "Send" method of the "flare" component instead.
 func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
 	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
@@ -274,20 +269,13 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 
 	// Retry logic for the actual flare file posting
 	var lastErr error
-	var maxTries = 3
-	var baseDelay = 100 * time.Millisecond
+	var baseDelay = 1 * time.Second
 
-	for attempt := 1; attempt <= maxTries; attempt++ {
-		if attempt > 1 {
-			// Exponential backoff
-			delay := time.Duration(attempt-1) * baseDelay
-			time.Sleep(delay)
-		}
-
+	for attempt := 3; attempt > 0; attempt-- {
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
 			// Always close the response body if it exists
-			if r != nil && r.Body != nil {
+			if r != nil {
 				r.Body.Close()
 			}
 
@@ -296,23 +284,20 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 				statusCode = r.StatusCode
 			}
 			lastErr = err
-			if attempt < maxTries && isRetryableFlareError(err, statusCode) {
-				continue
-			}
-			// If it's not retryable, return immediately
+
 			if !isRetryableFlareError(err, statusCode) {
 				return "", err
 			}
-
-			// If we've exhausted retries for a retryable error, fall through to return retry exhaustion error
-			break
+			log.Warn("Failed to send flare, retrying in 1 second")
+			time.Sleep(baseDelay)
+			continue
 		}
 
 		// Success case - analyze the response
 		defer r.Body.Close()
 		return analyzeResponse(r, apiKey)
 	}
-	return "", fmt.Errorf("failed to send flare after %d attempts: %w", maxTries, lastErr)
+	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
 }
 
 func isRetryableFlareError(err error, statusCode int) bool {

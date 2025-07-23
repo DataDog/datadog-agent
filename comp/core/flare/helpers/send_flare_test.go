@@ -402,15 +402,14 @@ func TestSendToRetryLogic(t *testing.T) {
 			// Verify retry delays
 			if len(timeBetweenAttempts) > 0 {
 				for i, duration := range timeBetweenAttempts {
-					expectedDelay := time.Duration(i+1) * 100 * time.Millisecond
-					assert.True(t, duration >= expectedDelay-50*time.Millisecond && duration <= expectedDelay+50*time.Millisecond,
+					expectedDelay := 1 * time.Second
+					assert.True(t, duration >= expectedDelay-100*time.Millisecond && duration <= expectedDelay+100*time.Millisecond,
 						"Retry delay %d was %v, expected around %v", i+1, duration, expectedDelay)
 				}
 			}
 		})
 	}
 }
-
 func TestIsRetryableFlareError(t *testing.T) {
 	testCases := []struct {
 		name      string
