@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +34,10 @@ const (
 	UTF16LE string = "utf-16-le"
 	// SHIFTJIS for Shift JIS (Japanese) encoding
 	SHIFTJIS string = "shift-jis"
+
+	// Fingerprint strategy options
+	FingerprintStrategyLineChecksum string = "line_checksum"
+	FingerprintStrategyByteChecksum string = "byte_checksum"
 )
 
 // LogsConfig represents a log source config, which can be for instance
@@ -98,7 +103,9 @@ type LogsConfig struct {
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
-	AutoMultiLineSamples []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	AutoMultiLineSamples      []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	FingerprintConfig         FingerprintConfig      `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
+	RotationDetectionStrategy string                 `mapstructure:"rotation_detection_strategy" json:"rotation_detection_strategy" yaml:"rotation_detection_strategy"`
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
@@ -128,6 +135,17 @@ type SourceAutoMultiLineOptions struct {
 
 	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+}
+
+// FingerprintConfig defines the options for the fingerprint configuration.
+type FingerprintConfig struct {
+	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
+	MaxLines int `json:"max_lines" mapstructure:"max_lines" yaml:"max_lines"`
+	ToSkip   int `json:"to_skip" mapstructure:"to_skip" yaml:"to_skip"`
+	// FingerprintStrategy defines the strategy used for fingerprinting. Options are:
+	// - "line_checksum": compute checksum based on line content (default)
+	// - "byte_checksum": compute checksum based on byte content
+	FingerprintStrategy string `json:"fingerprint_strategy" mapstructure:"fingerprint_strategy" yaml:"fingerprint_strategy"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection
@@ -240,6 +258,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	} else {
 		fmt.Fprint(&b, ws("AutoMultiLine: nil,"))
 	}
+	fmt.Fprintf(&b, ws("RotationDetectionStrategy: %s,"), c.RotationDetectionStrategy)
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
 	return b.String()
@@ -250,31 +269,33 @@ func (c *LogsConfig) Dump(multiline bool) string {
 func (c *LogsConfig) PublicJSON() ([]byte, error) {
 	// Export only fields that are explicitly documented in the public documentation
 	return json.Marshal(&struct {
-		Type            string            `json:"type,omitempty"`
-		Port            int               `json:"port,omitempty"`           // Network
-		Path            string            `json:"path,omitempty"`           // File, Journald
-		Encoding        string            `json:"encoding,omitempty"`       // File
-		ExcludePaths    []string          `json:"exclude_paths,omitempty"`  // File
-		TailingMode     string            `json:"start_position,omitempty"` // File
-		ChannelPath     string            `json:"channel_path,omitempty"`   // Windows Event
-		Service         string            `json:"service,omitempty"`
-		Source          string            `json:"source,omitempty"`
-		Tags            []string          `json:"tags,omitempty"`
-		ProcessingRules []*ProcessingRule `json:"log_processing_rules,omitempty"`
-		AutoMultiLine   *bool             `json:"auto_multi_line_detection,omitempty"`
+		Type              string            `json:"type,omitempty"`
+		Port              int               `json:"port,omitempty"`           // Network
+		Path              string            `json:"path,omitempty"`           // File, Journald
+		Encoding          string            `json:"encoding,omitempty"`       // File
+		ExcludePaths      []string          `json:"exclude_paths,omitempty"`  // File
+		TailingMode       string            `json:"start_position,omitempty"` // File
+		ChannelPath       string            `json:"channel_path,omitempty"`   // Windows Event
+		Service           string            `json:"service,omitempty"`
+		Source            string            `json:"source,omitempty"`
+		Tags              []string          `json:"tags,omitempty"`
+		ProcessingRules   []*ProcessingRule `json:"log_processing_rules,omitempty"`
+		AutoMultiLine     *bool             `json:"auto_multi_line_detection,omitempty"`
+		FingerprintConfig FingerprintConfig `json:"fingerprint_config,omitempty"`
 	}{
-		Type:            c.Type,
-		Port:            c.Port,
-		Path:            c.Path,
-		Encoding:        c.Encoding,
-		ExcludePaths:    c.ExcludePaths,
-		TailingMode:     c.TailingMode,
-		ChannelPath:     c.ChannelPath,
-		Service:         c.Service,
-		Source:          c.Source,
-		Tags:            c.Tags,
-		ProcessingRules: c.ProcessingRules,
-		AutoMultiLine:   c.AutoMultiLine,
+		Type:              c.Type,
+		Port:              c.Port,
+		Path:              c.Path,
+		Encoding:          c.Encoding,
+		ExcludePaths:      c.ExcludePaths,
+		TailingMode:       c.TailingMode,
+		ChannelPath:       c.ChannelPath,
+		Service:           c.Service,
+		Source:            c.Source,
+		Tags:              c.Tags,
+		ProcessingRules:   c.ProcessingRules,
+		AutoMultiLine:     c.AutoMultiLine,
+		FingerprintConfig: c.FingerprintConfig,
 	})
 }
 
@@ -340,7 +361,14 @@ func (c *LogsConfig) Validate() error {
 	case c.Type == UDPType && c.Port == 0:
 		return fmt.Errorf("udp source must have a port")
 	}
-	err := ValidateProcessingRules(c.ProcessingRules)
+
+	// Validate fingerprint configuration
+	err := c.validateFingerprintConfig()
+	if err != nil {
+		return err
+	}
+
+	err = ValidateProcessingRules(c.ProcessingRules)
 	if err != nil {
 		return err
 	}
@@ -356,6 +384,31 @@ func (c *LogsConfig) validateTailingMode() error {
 		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
 	}
 	return nil
+}
+
+func (c *LogsConfig) validateFingerprintConfig() error {
+	// Check if local fingerprint config is empty (all fields are zero values)
+	localConfigEmpty := c.FingerprintConfig.MaxBytes == 0 &&
+		c.FingerprintConfig.MaxLines == 0 &&
+		c.FingerprintConfig.ToSkip == 0 &&
+		c.FingerprintConfig.FingerprintStrategy == ""
+
+	// If local config is empty, try to get global config
+	if localConfigEmpty {
+		globalConfig, err := GlobalFingerprintConfig(pkgconfigsetup.Datadog())
+		if err != nil {
+			return fmt.Errorf("failed to load global fingerprint config: %w", err)
+		}
+
+		// If global config exists, populate fingerprint config with those values.
+		// If not, populate with fingerprint with default global values (256 bytes, 1 line, 0 to skip)
+		if globalConfig != nil {
+			c.FingerprintConfig = *globalConfig
+		}
+	}
+
+	// Validate the final fingerprint configuration (either local, global, or merged)
+	return ValidateFingerprintConfig(&c.FingerprintConfig)
 }
 
 // LegacyAutoMultiLineEnabled determines whether the agent has fallen back to legacy auto multi line detection
