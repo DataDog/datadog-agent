@@ -268,7 +268,7 @@ func TestRawPacketFilters(t *testing.T) {
 }
 
 func TestRawPacketDropAction(t *testing.T) {
-	t.Run("syn-port-std-ok", func(t *testing.T) {
+	t.Run("syn-port-std-pid-ok", func(t *testing.T) {
 		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ok",
