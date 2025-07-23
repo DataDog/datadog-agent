@@ -103,7 +103,7 @@ func TestMoveMount(t *testing.T) {
 				return false
 			}
 
-			assert.Equal(t, event.GetMountMountpointPath(), submountDir, "Wrong mountpoint path")
+			assert.Equal(t, submountDir, event.Mount.MountPointStr, "Wrong mountpoint path")
 			return true
 		}, 10*time.Second, model.FileMountEventType)
 	})
@@ -222,7 +222,7 @@ func TestMoveMountRecursive(t *testing.T) {
 				assert.True(t, strings.HasPrefix(child.MountPointStr, submountDirDst), "Path wasn't updated")
 			}
 
-			return false
+			return true
 		}, 10*time.Second, model.FileMoveMountType)
 	})
 

@@ -189,15 +189,16 @@ func (mr *Resolver) syncCache(mountID uint32, pids []uint32) error {
 const openQueuePreAllocSize = 32 // should be enough to handle most of in queue mounts waiting to be deleted
 
 func (mr *Resolver) insertMoved(mount *model.Mount) {
-	prevMount, ok := mr.mounts.Get(mount.MountID)
-	if !ok {
-		seclog.Errorf("Tried to move a mountpoint that didn't exist in our database")
-	}
-
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, true)
 	oldPath, _, _, _ := mr._getMountPath(mount.MountID, 0, 0, map[uint32]bool{})
 
 	mr.insert(mount, 0, true)
+
+	prevMount, ok := mr.mounts.Get(mount.MountID)
+	if !ok {
+		seclog.Errorf("Tried to move a mountpoint that didn't exist in our database")
+		return
+	}
 
 	prevMount.MountPointStr, _ = mr.dentryResolver.Resolve(prevMount.ParentPathKey, true)
 	newPath, _, _, _ := mr._getMountPath(prevMount.MountID, 0, 0, map[uint32]bool{})
