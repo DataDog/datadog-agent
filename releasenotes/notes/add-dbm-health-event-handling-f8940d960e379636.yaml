@@ -9,5 +9,5 @@
 other:
   - |
     Add handling for dbm-health events in the event platform forwarder.
-    These events will be used by Database Monitoring integrations to
-    report on agent status.
+    These events are used by Database Monitoring integrations to
+    report on Agent status.
