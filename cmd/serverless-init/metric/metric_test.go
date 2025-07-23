@@ -58,7 +58,8 @@ func TestAddStartMetric(t *testing.T) {
 func TestAddShutdownMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	AddShutdownMetric("gcp.run", cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	cloudRun := &cloudservice.CloudRun{}
+	Add(cloudRun.GetShutdownMetricName(), cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
