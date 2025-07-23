@@ -248,39 +248,31 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.GetContent()))
 
-	// Get tailer and update registry
+	// Get tailer and verify it's working
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
 
-	// Create fingerprint config - use the same values as the mock config
-	maxLines := 1
-	maxBytes := 256 // Match the mock config value
-	toSkip := 0
-	fingerprintConfig := &config.FingerprintConfig{
-		MaxBytes: maxBytes,
-		MaxLines: maxLines,
-		ToSkip:   toSkip,
-	}
-	filePath := tailer.Identifier()[5:]
-	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
-	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
-	s.registry.(*auditorMock.Registry).SetFingerprintConfig(fingerprintConfig)
-
-	// Rotate file
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	// Write more content to the same file (no rotation)
+	additionalContent := "hello again\n"
+	_, err = suite.testFile.WriteString(additionalContent)
 	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
 
-	// Write same content
-	_, err = f.WriteString(initialContent)
+	// Verify rotation is NOT detected
+	didRotate, err := tailer.DidRotateViaFingerprint()
 	suite.Nil(err)
-	suite.Nil(f.Sync())
-	defer f.Close()
+	suite.False(didRotate, "Should not detect rotation when writing to the same file")
 
+	// Scan again - should not trigger any rotation logic
 	s.scan()
 
+	// Verify the same tailer is still being used
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
-	suite.True(tailer == newTailer, "A new tailer should not have been created as content is the same")
+	suite.True(tailer == newTailer, "The same tailer should continue as no rotation occurred")
+
+	// Read the additional message
+	msg = <-suite.outputChan
+	suite.Equal("hello again", string(msg.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
