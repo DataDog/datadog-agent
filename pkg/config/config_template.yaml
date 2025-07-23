@@ -881,7 +881,8 @@ api_key:
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
 ## This feature is in preview.
 ##
-## The section contains information required to resolved secrets.
+## The section contains configuration required by `secret_backend_type` to resolve secrets.
+## The necessary configuration depends upon which type is used.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_config:
@@ -912,7 +913,7 @@ api_key:
 ##
 ## This option take precedence over `secret_backend_type`.
 ##
-## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_command: <COMMAND_PATH>
 
@@ -3623,14 +3624,6 @@ api_key:
 ## Set a custom Client key file path.
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
-
-## @param kubelet_wait_on_missing_container - integer - optional - default: 0
-## @env DD_KUBELET_WAIT_ON_MISSING_CONTAINER - integer - optional - default: 0
-## On some kubelet versions, containers can take up to a second to
-## register in the podlist. This option allows to wait for up to a given
-## number of seconds (in 250ms chunks) when a container does not exist in the podlist.
-#
-# kubelet_wait_on_missing_container: 0
 
 ## @param kubelet_cache_pods_duration - integer - optional - default: 5
 ## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5

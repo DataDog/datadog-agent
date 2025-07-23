@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -227,6 +228,45 @@ func TestEmitNvmlMetrics(t *testing.T) {
 		// metric3: only from fields collector (priority 1)
 		mockSender.AssertCalled(t, "Gauge", "gpu.metric3", float64(metricValueBase+3), "", mock.MatchedBy(matchTagsFunc))
 	}
+}
+
+func TestRunDoesNotError(t *testing.T) {
+	// Tests for the specific output are above, this only ensures that the run function does not error
+	// even if things are not correctly setup
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions()))
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+
+	// Create check instance using mocks
+	checkGeneric := newCheck(
+		fakeTagger,
+		testutil.GetTelemetryMock(t),
+		wmetaMock,
+	)
+
+	// Add a container to the workload meta mock with GPU devices
+	wmetaMock.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "container1",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "container1",
+		},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+			{
+				Name: "nvidia.com/gpu",
+				ID:   testutil.DefaultGpuUUID,
+			},
+		},
+	})
+
+	checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+
+	require.NoError(t, checkGeneric.Run())
 }
 
 // mockCollector implements the nvidia.Collector interface for testing
