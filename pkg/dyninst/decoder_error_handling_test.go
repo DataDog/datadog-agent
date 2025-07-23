@@ -55,7 +55,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 	cfg := cfgs[idx]
 
 	sampleServicePath := testprogs.MustGetBinary(t, "rc_tester", cfg)
-	sampleServiceCmd, serverPort, err := startSampleService(t, sampleServiceConfig{
+	_, sampleServicePID, serverPort, err := startSampleService(t, sampleServiceConfig{
 		binaryPath: sampleServicePath,
 		tmpDir:     tmpDir,
 	})
@@ -100,7 +100,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 	scraper.setUpdates([]rcscrape.ProcessUpdate{
 		{
 			ProcessUpdate: procmon.ProcessUpdate{
-				ProcessID: procmon.ProcessID{PID: int32(sampleServiceCmd.Process.Pid)},
+				ProcessID: procmon.ProcessID{PID: int32(sampleServicePID)},
 				Executable: procmon.Executable{
 					Path: sampleServicePath,
 				},
@@ -148,7 +148,7 @@ func TestDecoderErrorHandling(t *testing.T) {
 		}
 	}()
 	// They'll both still emit.
-	waitForLogMessages(t, backend, 10, "")
+	waitForLogMessages(t, backend, 10, "", false /* rewrite */)
 }
 
 type mockScraper struct {

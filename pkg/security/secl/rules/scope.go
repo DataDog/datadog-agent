@@ -18,6 +18,8 @@ const (
 	ScopeProcess = "process"
 	// ScopeContainer is the scope for container variables
 	ScopeContainer = "container"
+	// ScopeCGroup is the scope for cgroup variables
+	ScopeCGroup = "cgroup"
 )
 
 // IsScopeVariable returns true if the variable name is a scope variable
