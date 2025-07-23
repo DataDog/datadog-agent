@@ -20,7 +20,7 @@ var datadogAgentDdotPackage = hooks{
 
 var (
 	ddotConfigPermissions = file.Permissions{
-		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
+		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0644},
 	}
 
 	// ddotPackagePermissions are the ownerships and modes that are enforced on the DDOT package files

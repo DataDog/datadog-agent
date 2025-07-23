@@ -491,6 +491,8 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.host.Run(fmt.Sprintf("sudo datadog-installer install %q", ddotOCIURL))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
+	s.host.Run("sudo cp /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml")
+
 	// Start ddot service
 	s.host.Run("sudo systemctl start datadog-agent-ddot.service")
 
