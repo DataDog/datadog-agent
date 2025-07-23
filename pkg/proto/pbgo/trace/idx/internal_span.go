@@ -77,7 +77,7 @@ func (s *StringTable) Lookup(str string) uint32 {
 }
 
 // DecrementReference decrements the ref count for the string at the given index
-// If the ref count reaches 0, the string is set to the empty string
+// If the ref count reaches 0, the string is set to the empty string and the lookup is removed
 func (s *StringTable) DecrementReference(idx uint32) {
 	s.refs[idx]--
 	if s.refs[idx] == 0 {
@@ -210,7 +210,7 @@ func (tp *InternalTracerPayload) AddString(s string) uint32 {
 }
 
 func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
-	SetStringAttribute(key, value, tp.Strings, tp.Attributes)
+	setStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
 // Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
@@ -311,11 +311,11 @@ func (c *InternalTraceChunk) SetDecisionMaker(decisionMaker string) {
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
-	return GetAttributeAsString(key, c.Strings, c.Attributes)
+	return getAttributeAsString(key, c.Strings, c.Attributes)
 }
 
 func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
-	SetStringAttribute(key, value, c.Strings, c.Attributes)
+	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
 // ToProto converts an InternalTraceChunk to a proto TraceChunk
@@ -550,7 +550,7 @@ func (s *InternalSpan) Kind() SpanKind {
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
 func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
-	return GetAttributeAsString(key, s.Strings, s.span.Attributes)
+	return getAttributeAsString(key, s.Strings, s.span.Attributes)
 }
 
 // GetAttributeAsFloat64 returns the attribute as a float64 and a boolean indicating if the attribute was found AND it was able to be converted to a float64
@@ -569,24 +569,24 @@ func (s *InternalSpan) SetStringAttribute(key, value string) {
 	if s.span.Attributes == nil {
 		s.span.Attributes = make(map[uint32]*AnyValue)
 	}
-	SetStringAttribute(key, value, s.Strings, s.span.Attributes)
+	setStringAttribute(key, value, s.Strings, s.span.Attributes)
 }
 
 func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
 	if s.span.Attributes == nil {
 		s.span.Attributes = make(map[uint32]*AnyValue)
 	}
-	SetFloat64Attribute(key, value, s.Strings, s.span.Attributes)
+	setFloat64Attribute(key, value, s.Strings, s.span.Attributes)
 }
 
 // SetAttributeFromString sets the attribute from a string, attempting to use the most backwards compatible type possible
 // for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
 func (s *InternalSpan) SetAttributeFromString(key, value string) {
-	SetAttribute(key, FromString(s.Strings, value), s.Strings, s.span.Attributes)
+	setAttribute(key, FromString(s.Strings, value), s.Strings, s.span.Attributes)
 }
 
 func (s *InternalSpan) DeleteAttribute(key string) {
-	DeleteAttribute(key, s.Strings, s.span.Attributes)
+	deleteAttribute(key, s.Strings, s.span.Attributes)
 }
 
 func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
@@ -639,11 +639,11 @@ func (sl *InternalSpanLink) Flags() uint32 {
 }
 
 func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
-	return GetAttributeAsString(key, sl.Strings, sl.link.Attributes)
+	return getAttributeAsString(key, sl.Strings, sl.link.Attributes)
 }
 
 func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
-	SetStringAttribute(key, value, sl.Strings, sl.link.Attributes)
+	setStringAttribute(key, value, sl.Strings, sl.link.Attributes)
 }
 
 func (sl *InternalSpanLink) Tracestate() string {
@@ -675,7 +675,7 @@ func (se *SpanEvent) Msgsize() int {
 }
 
 func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
-	return GetAttributeAsString(key, se.Strings, se.event.Attributes)
+	return getAttributeAsString(key, se.Strings, se.event.Attributes)
 }
 
 // SetAttributeFromString sets the attribute on an InternalSpanEvent from a string, attempting to use the most backwards compatible type possible
@@ -787,30 +787,30 @@ func FromString(strTable *StringTable, s string) *AnyValue {
 	}
 }
 
-func GetAttributeAsString(key string, strTable *StringTable, attributes map[uint32]*AnyValue) (string, bool) {
+func getAttributeAsString(key string, strTable *StringTable, attributes map[uint32]*AnyValue) (string, bool) {
 	if attr, ok := attributes[strTable.Lookup(key)]; ok {
 		return attr.AsString(strTable), true
 	}
 	return "", false
 }
 
-func SetStringAttribute(key, value string, strTable *StringTable, attributes map[uint32]*AnyValue) {
-	SetAttribute(key, &AnyValue{
+func setStringAttribute(key, value string, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	setAttribute(key, &AnyValue{
 		Value: &AnyValue_StringValueRef{
 			StringValueRef: strTable.Add(value),
 		},
 	}, strTable, attributes)
 }
 
-func SetFloat64Attribute(key string, value float64, strTable *StringTable, attributes map[uint32]*AnyValue) {
-	SetAttribute(key, &AnyValue{
+func setFloat64Attribute(key string, value float64, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	setAttribute(key, &AnyValue{
 		Value: &AnyValue_DoubleValue{
 			DoubleValue: value,
 		},
 	}, strTable, attributes)
 }
 
-func SetAttribute(key string, value *AnyValue, strTable *StringTable, attributes map[uint32]*AnyValue) {
+func setAttribute(key string, value *AnyValue, strTable *StringTable, attributes map[uint32]*AnyValue) {
 	newKeyIdx := strTable.Add(key)
 	if oldVal, ok := attributes[newKeyIdx]; ok {
 		// Key already exists, remove the old value's string references
@@ -819,7 +819,7 @@ func SetAttribute(key string, value *AnyValue, strTable *StringTable, attributes
 	attributes[newKeyIdx] = value
 }
 
-func DeleteAttribute(key string, strTable *StringTable, attributes map[uint32]*AnyValue) {
+func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*AnyValue) {
 	keyIdx := strTable.Lookup(key)
 	if keyIdx != 0 {
 		// Remove key ref and any value ref
