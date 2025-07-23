@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -102,7 +103,7 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 
 	cid, _, _, err := cfs.FindCGroupContext(uint32(pid), uint32(pid))
 	if err != nil {
-		return nil, err
+		seclog.Warnf("unable to find agent cgroup context: %v", err)
 	}
 	acc.ContainerID = cid
 	return acc, nil
