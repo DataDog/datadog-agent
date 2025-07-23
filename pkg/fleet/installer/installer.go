@@ -61,7 +61,9 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
+	InstallConfigExperiment(
+		ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+	) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -494,7 +496,9 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+func (i *installerImpl) InstallConfigExperiment(
+	ctx context.Context, pkg string, version string, rawConfigs [][]byte, configOrder []string,
+) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
@@ -508,7 +512,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	defer os.RemoveAll(tmpDir)
 
 	// Merge config files
-	mergedConfigs, err := mergeConfigs(rawConfigs, []string{})
+	mergedConfigs, err := mergeConfigs(rawConfigs, configOrder)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrConfigMergeFailed,
