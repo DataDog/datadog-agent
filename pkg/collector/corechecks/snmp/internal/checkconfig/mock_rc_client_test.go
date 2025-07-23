@@ -21,7 +21,7 @@ ip_address: 1.2.3.4
 profile: profile1`)
 	// language=yaml
 	rawInitConfig := []byte(`use_remote_config_profiles: true`)
-	client, err := MakeMockClient([]profiledefinition.ProfileDefinition{
+	client, err := MakeMockRCClient([]profiledefinition.ProfileDefinition{
 		{
 			Name: "profile1",
 			Metrics: []profiledefinition.MetricsConfig{
@@ -45,7 +45,7 @@ func TestDynamicRCConfig(t *testing.T) {
 	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
 	// language=yaml
 	rawInitConfig := []byte(`use_remote_config_profiles: true`)
-	client, err := MakeMockClient([]profiledefinition.ProfileDefinition{
+	client, err := MakeMockRCClient([]profiledefinition.ProfileDefinition{
 		{
 			Name:         "profile1",
 			SysObjectIDs: []string{"1.2.3.4.*"},
@@ -70,7 +70,7 @@ func TestRCConflict(t *testing.T) {
 	rawInstanceConfig := []byte(`ip_address: 1.2.3.4`)
 	// language=yaml
 	rawInitConfig := []byte(`use_remote_config_profiles: true`)
-	client, err := MakeMockClient([]profiledefinition.ProfileDefinition{
+	client, err := MakeMockRCClient([]profiledefinition.ProfileDefinition{
 		{
 			Name:         "profile1",
 			SysObjectIDs: []string{"1.2.3.4.*"},

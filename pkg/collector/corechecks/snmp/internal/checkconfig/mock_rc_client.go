@@ -21,8 +21,8 @@ type MockRCClient struct {
 	profiles   map[string]state.RawConfig
 }
 
-// MakeMockClient creates a MockRCClient
-func MakeMockClient(profiles []profiledefinition.ProfileDefinition) (*MockRCClient, error) {
+// MakeMockRCClient creates a MockRCClient
+func MakeMockRCClient(profiles []profiledefinition.ProfileDefinition) (*MockRCClient, error) {
 	update := make(map[string]state.RawConfig)
 	for _, profile := range profiles {
 		bytes, err := json.Marshal(profiledefinition.DeviceProfileRcConfig{Profile: profile})

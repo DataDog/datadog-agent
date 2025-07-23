@@ -794,7 +794,7 @@ profile: profile1`),
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := checkconfig.MakeMockClient(tt.profiles)
+			client, err := checkconfig.MakeMockRCClient(tt.profiles)
 			defer profile.ResetRCProvider()
 			require.NoError(t, err)
 
