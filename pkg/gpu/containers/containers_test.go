@@ -124,6 +124,61 @@ func TestMatchContainerDevices(t *testing.T) {
 		require.Len(t, filteredDevices, 0)
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
+
+	t.Run("DockerContainerWithVisibleDevices", func(t *testing.T) {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-docker",
+			},
+			Runtime: workloadmeta.ContainerRuntimeDocker,
+			EnvVars: map[string]string{
+				"NVIDIA_VISIBLE_DEVICES": "1",
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("DockerContainerWithInvalidVisibleDevices", func(t *testing.T) {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-docker-invalid",
+			},
+			Runtime: workloadmeta.ContainerRuntimeDocker,
+			EnvVars: map[string]string{
+				"NVIDIA_VISIBLE_DEVICES": "invalid",
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.Error(t, err)
+		require.Len(t, filteredDevices, 0)
+	})
+
+	t.Run("DockerContainerWithAllVisibleDevices", func(t *testing.T) {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container-docker-all",
+			},
+			Runtime: workloadmeta.ContainerRuntimeDocker,
+			EnvVars: map[string]string{
+				"NVIDIA_VISIBLE_DEVICES": "all",
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, len(devices))
+		for i, device := range devices {
+			assert.Equal(t, device, filteredDevices[i])
+		}
+	})
 }
 
 func TestFindDeviceForResourceName(t *testing.T) {
@@ -268,42 +323,48 @@ func TestFindDeviceByIndex(t *testing.T) {
 	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
 
 	t.Run("ValidIndex", func(t *testing.T) {
-		device, err := findDeviceByIndex(devices, 1)
+		device, err := findDeviceByIndex(devices, "1")
 		require.NoError(t, err)
 		assert.Equal(t, devices[1], device)
 	})
 
 	t.Run("ValidIndexZero", func(t *testing.T) {
-		device, err := findDeviceByIndex(devices, 0)
+		device, err := findDeviceByIndex(devices, "0")
 		require.NoError(t, err)
 		assert.Equal(t, devices[0], device)
 	})
 
 	t.Run("ValidIndexLast", func(t *testing.T) {
-		device, err := findDeviceByIndex(devices, 2)
+		device, err := findDeviceByIndex(devices, "2")
 		require.NoError(t, err)
 		assert.Equal(t, devices[2], device)
 	})
 
 	t.Run("InvalidIndex", func(t *testing.T) {
-		_, err := findDeviceByIndex(devices, 999)
+		_, err := findDeviceByIndex(devices, "999")
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 		assert.Contains(t, err.Error(), "999")
 	})
 
 	t.Run("NegativeIndex", func(t *testing.T) {
-		_, err := findDeviceByIndex(devices, -1)
+		_, err := findDeviceByIndex(devices, "-1")
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 		assert.Contains(t, err.Error(), "-1")
 	})
 
 	t.Run("EmptyDeviceList", func(t *testing.T) {
-		_, err := findDeviceByIndex([]ddnvml.Device{}, 0)
+		_, err := findDeviceByIndex([]ddnvml.Device{}, "0")
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
+
+	t.Run("InvalidIndexString", func(t *testing.T) {
+		_, err := findDeviceByIndex(devices, "invalid-index")
+		require.Error(t, err)
+	})
+
 }
 
 func TestMatchContainerDevicesWithErrors(t *testing.T) {
