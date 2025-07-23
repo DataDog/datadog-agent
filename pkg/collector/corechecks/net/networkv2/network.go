@@ -305,11 +305,28 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, _ 
 		}
 	}
 
+	if collectEnaMetrics {
+		enaMetrics := getEnaMetrics(driverName, statsMap)
+		tags := []string{
+			"device:" + interfaceIO.Name,
+			"driver_name:" + driverName,
+			"driver_version:" + driverVersion,
+		}
+
+		count := 0
+		for metricName, metricValue := range enaMetrics {
+			metricName := fmt.Sprintf("system.net.%s", metricName)
+			sender.Gauge(metricName, float64(metricValue), "", tags)
+			count++
+		}
+		log.Debugf("tracked %s network ena metrics for interface %s", count, interfaceIO.Name)
+	}
+
 	if collectEthtoolMetrics {
 		processedMap := getEthtoolMetrics(driverName, statsMap)
 		for extraTag, keyValuePairing := range processedMap {
 			tags := []string{
-				"interface:" + interfaceIO.Name,
+				"device:" + interfaceIO.Name,
 				"driver_name:" + driverName,
 				"driver_version:" + driverVersion,
 				extraTag,
@@ -323,6 +340,18 @@ func handleEthtoolStats(sender sender.Sender, interfaceIO net.IOCountersStat, _ 
 	}
 
 	return nil
+}
+
+func getEnaMetrics(driverName string, statsMap map[string]uint64) map[string]uint64 {
+	metrics := make(map[string]uint64)
+
+	for stat, value := range statsMap {
+		if slices.Contains(enaMetricNames, stat) {
+			metrics[enaMetricPrefix+stat] = value
+		}
+	}
+
+	return metrics
 }
 
 func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {

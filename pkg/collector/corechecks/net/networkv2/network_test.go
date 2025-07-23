@@ -762,12 +762,12 @@ func TestFetchEthtoolStats(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTags := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	expectedTags := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTags)
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTags)
-	expectedTagsCPU := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
+	expectedTagsCPU := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPU)
-	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
+	expectedTagsGlobal := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
@@ -809,12 +809,12 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTagsIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
+	expectedTagsIfNoError := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "queue:0"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.tx_packets", float64(12345), "", expectedTagsIfNoError)
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.queue.rx_packets", float64(67890), "", expectedTagsIfNoError)
-	expectedTagsCPUIfNoError := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
+	expectedTagsCPUIfNoError := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "cpu:0"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPUIfNoError)
-	expectedTagsGlobal := []string{"interface:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
+	expectedTagsGlobal := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
 	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
 }
 
