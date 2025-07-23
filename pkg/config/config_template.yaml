@@ -864,24 +864,6 @@ api_key:
 #
 # windows_use_pythonpath: false
 {{ end }}
-## @param secret_refresh_interval - integer - optional
-## @env DD_SECRET_REFRESH_INTERVAL - integer - optional
-##
-## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed.
-## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
-##
-#
-# secret_refresh_interval: <REFRESH_INTERVAL>
-
-## @param secret_refresh_scatter - boolean - optional
-## @env DD_SECRET_REFRESH_SCATTER - boolean - optional
-##
-## `secret_refresh_scatter`, if set to true, will randomize the first secret refresh. `secret_refresh_interval` needs to be set
-## for this to take effect. This is useful to avoid all agents refreshing secrets at the same time.
-## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
-##
-# secret_refresh_scatter: <REFRESH_SCATTER>
-
 ## @param secret_backend_type - string - optional
 ## @env DD_SECRET_BACKEND_TYPE - string - optional
 ## This feature is in preview.
@@ -904,6 +886,24 @@ api_key:
 #
 # secret_backend_config:
 #   <KEY_1>: <VALUE_1>
+
+## @param secret_refresh_interval - integer - optional
+## @env DD_SECRET_REFRESH_INTERVAL - integer - optional
+##
+## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
+##
+#
+# secret_refresh_interval: 3600
+
+## @param secret_refresh_scatter - boolean - optional
+## @env DD_SECRET_REFRESH_SCATTER - boolean - optional
+##
+## `secret_refresh_scatter`, if set to true, will randomize the first secret refresh. `secret_refresh_interval` needs to be set
+## for this to take effect. This prevents a fleet of Agents from having a deployment where they refresh their secrets at the same time.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
+##
+# secret_refresh_scatter: true
 
 ## @param secret_backend_command - string - optional
 ## @env DD_SECRET_BACKEND_COMMAND - string - optional
