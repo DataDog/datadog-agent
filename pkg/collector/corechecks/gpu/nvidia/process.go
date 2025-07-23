@@ -8,8 +8,10 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -126,6 +128,12 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
 	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
 	if err != nil {
+		// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
+		// This can happen when no processes are running or when process utilization data isn't available
+		var nvmlErr *ddnvml.NvmlAPIError
+		if errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			return nil, nil // Return no metrics, not an error
+		}
 		return nil, err
 	}
 
