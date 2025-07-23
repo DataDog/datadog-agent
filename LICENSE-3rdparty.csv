@@ -2611,6 +2611,7 @@ core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/chacha20poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -2622,6 +2623,8 @@ core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright 2009 The Go 
 core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors

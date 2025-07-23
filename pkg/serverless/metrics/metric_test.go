@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
@@ -118,7 +118,7 @@ func TestStartWithProxy(t *testing.T) {
 }
 
 func TestRaceFlushVersusAddSample(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestRaceFlushVersusAddSample is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	metricAgent := &ServerlessMetricAgent{

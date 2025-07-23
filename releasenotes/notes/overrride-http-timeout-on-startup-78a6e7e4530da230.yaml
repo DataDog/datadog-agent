@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Host SBOMs now include support for languages scanners, reporting more
-    vulnerabilities about binaries and libraries used in your environment.
+    Limit the HTTP timeout on startup to 5 seconds for the Logs Agent.
