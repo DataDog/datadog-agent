@@ -11,14 +11,16 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestTagsOrderAndDupsDontMatter(t *testing.T) {
 	assert := assert.New(t)
 
-	tags := []string{"bar", "foo", "key:value", "key:value2"}
+	tags := utilstrings.ToUnique([]string{"bar", "foo", "key:value", "key:value2"})
 
 	hg := NewHashGenerator()
 	tagsBuf := NewHashingTagsAccumulatorWithTags(tags)
@@ -31,14 +33,14 @@ func TestTagsOrderAndDupsDontMatter(t *testing.T) {
 	assert.Equal(key, key2, "order of tags should not matter")
 
 	// add a duplicated tag
-	tags = append(tags, "key:value", "foo")
+	tags = append(tags, unique.Make("key:value"), unique.Make("foo"))
 	tagsBuf3 := NewHashingTagsAccumulatorWithTags(tags)
 	key3 := hg.Hash(tagsBuf3)
 	assert.Equal(key, key3, "duplicated tags should not matter")
 	assert.Equal(tagsBuf2.Get(), tagsBuf3.Get(), "duplicated tags should be removed from the buffer")
 
 	// and now, completely change of the tag, the generated key should NOT be the same
-	tags[2] = "another:tag"
+	tags[2] = unique.Make("another:tag")
 	key4 := hg.Hash(NewHashingTagsAccumulatorWithTags(tags))
 	assert.NotEqual(key, key4, "tags content should matter")
 }
@@ -99,12 +101,12 @@ func BenchmarkHashGeneration(b *testing.B) {
 	}
 }
 
-func genTags(count int, div int) ([]string, []string) {
-	var tags []string
+func genTags(count int, div int) ([]unique.Handle[string], []string) {
+	var tags []unique.Handle[string]
 	uniqMap := make(map[string]struct{})
 	for i := 0; i < count; i++ {
 		tag := fmt.Sprintf("tag%d:value%d", i/div, i/div)
-		tags = append(tags, tag)
+		tags = append(tags, unique.Make(tag))
 		uniqMap[tag] = struct{}{}
 	}
 
@@ -142,8 +144,8 @@ func TestDedup2Small(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			l := NewHashingTagsAccumulatorWithTags(strings.Split(tc.l, ","))
-			r := NewHashingTagsAccumulatorWithTags(strings.Split(tc.r, ","))
+			l := NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(strings.Split(tc.l, ",")))
+			r := NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(strings.Split(tc.r, ",")))
 
 			b := NewHashingTagsAccumulator()
 			b.Append(l.Get()...)
