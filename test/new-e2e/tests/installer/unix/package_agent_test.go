@@ -465,21 +465,24 @@ func (s *packageAgentSuite) installDebRPMAgent() {
 }
 
 func (s *packageAgentSuite) TestInstallWithDDOT() {
-	// Set variables
+	// Install datadog-agent (base infrastructure)
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+
+	// Set env variables
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
 		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 	}
 
-	s.host.Run(fmt.Sprintf("sudo sh -c 'echo \"DD_API_KEY=%s\" > /etc/datadog-agent/environment'", apiKey))
-	s.host.Run("sudo sh -c 'echo \"DD_SITE=datadoghq.com\" >> /etc/datadog-agent/environment'")
-	s.host.Run("sudo sh -c 'echo \"DD_OTELCOLLECTOR_ENABLED=true\" >> /etc/datadog-agent/environment'")
+	envContent := fmt.Sprintf(`DD_API_KEY=%s
+		DD_SITE=datadoghq.com
+		DD_OTELCOLLECTOR_ENABLED=true
+		`, apiKey)
 
-	// Install datadog-agent
-	s.RunInstallScript()
-	defer s.Purge()
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.Run(fmt.Sprintf(`printf "%s" | sudo tee /etc/datadog-agent/environment > /dev/null`, envContent))
 
 	// Install ddot
 	pipelineID := os.Getenv("E2E_PIPELINE_ID")
