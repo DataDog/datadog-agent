@@ -113,7 +113,7 @@ func createRightsDiagnosis(actualRights []string, hasDesired bool, err error) di
 				Diagnosis:   fmt.Sprintf("Cannot verify agent user account rights due to insufficient privileges.\n  Expected: %v\n  Detected: unable to check due to access denied", requiredRights),
 				Category:    category,
 				RawError:    err.Error(),
-				Remediation: "Current agent user account might not have the required privileges. To work around, please run command with --local flag with elevated privileges.",
+				Remediation: "Run the command with the --local flag and elevated privileges to complete the account rights check.",
 			}
 		}
 		if isAgentNotInstalled(err) {
