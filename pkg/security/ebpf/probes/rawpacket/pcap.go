@@ -52,10 +52,11 @@ type ProgOpts struct {
 	// internals
 
 	// target register. register holding either the pid or the cgroup id/path
-	pidReg        asm.Register
-	onMatchLabel  string
-	ctxSaveReg    asm.Register
-	tailCallMapFd int
+	pidReg                asm.Register
+	onMatchLabel          string
+	ctxSaveReg            asm.Register
+	tailCallMapFd         int
+	hasGetCurrentCgroupId bool
 }
 
 // DefaultProgOpts default options
@@ -84,6 +85,12 @@ func DefaultProgOpts() ProgOpts {
 // WithAction sets the action to take when a filter matches
 func (opts *ProgOpts) WithProgPrefix(prefix string) *ProgOpts {
 	opts.ProgPrefix = prefix
+	return opts
+}
+
+// WithGetCurrentCgroupId sets if the program should use the get_current_cgroup_id function
+func (opts *ProgOpts) WithGetCurrentCgroupId(hasGetCurrentCgroupId bool) *ProgOpts {
+	opts.hasGetCurrentCgroupId = hasGetCurrentCgroupId
 	return opts
 }
 
@@ -138,10 +145,22 @@ func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, e
 		insts = append(insts,
 			// == 0, no match
 			asm.JEq.Imm(cbpfcOpts.Result, 0, mismatchLabel).WithSymbol(resultLabel),
+		)
 
-			// check the cgroup id
-			asm.FnGetCurrentCgroupId.Call(),
-			asm.Mov.Reg(asm.R7, asm.R0),
+		if opts.hasGetCurrentCgroupId {
+			insts = append(insts,
+				asm.FnGetCurrentCgroupId.Call(),
+				asm.Mov.Reg(asm.R7, asm.R0),
+			)
+		} else {
+			insts = append(insts,
+				asm.Mov.Reg(asm.R1, opts.ctxSaveReg),
+				asm.FnSkbCgroupId.Call(),
+				asm.Mov.Reg(asm.R7, asm.R0),
+			)
+		}
+
+		insts = append(insts,
 
 			// printk
 			/*

@@ -685,7 +685,7 @@ func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 		opts.MaxProgSize = 1_000_000
 	}
 
-	seclog.Debugf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
+	seclog.Debugf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	rawPacketEventMap, routerMap, err := p.getRawPacketMaps()
 	if err != nil {
@@ -709,13 +709,14 @@ func (p *EBPFProbe) applyRawPacketActionFilters() error {
 
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
+	opts.WithGetCurrentCgroupId(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
 		opts.MaxProgSize = 1_000_000
 	}
 
-	seclog.Errorf("generate rawpacker filter programs with a limit of %d max instructions", opts.MaxProgSize)
+	seclog.Errorf("generate rawpacket filter programs with a limit of %d max instructions", opts.MaxProgSize)
 
 	rawPacketEventMap, routerMap, err := p.getRawPacketMaps()
 	if err != nil {
