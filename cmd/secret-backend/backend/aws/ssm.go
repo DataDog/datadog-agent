@@ -8,11 +8,11 @@ package aws
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
@@ -49,16 +49,12 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (*SSMParameterStoreB
 	backendConfig := SSMParameterStoreBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to map backend configuration")
-		return nil, err
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
 	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to initialize aws session")
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize aws session: %s", err)
 	}
 	client := getSSMClient(*cfg)
 
@@ -79,22 +75,11 @@ func (b *SSMParameterStoreBackend) GetSecretOutput(secretKey string) secret.Outp
 	out, err := b.Client.GetParameter(context.TODO(), input)
 	if err != nil {
 		es := err.Error()
-		log.Error().Err(err).
-			Str("backend_type", b.Config.BackendType).
-			Str("parameter_name", secretKey).
-			Str("aws_access_key_id", b.Config.Session.AccessKeyID).
-			Str("aws_profile", b.Config.Session.Profile).
-			Str("aws_region", b.Config.Session.Region).
-			Msg("failed to retrieve parameter")
 		return secret.Output{Value: nil, Error: &es}
 	}
 
 	if out.Parameter == nil || out.Parameter.Value == nil {
 		es := "parameter value is nil"
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("parameter_name", secretKey).
-			Msg(es)
 		return secret.Output{Value: nil, Error: &es}
 	}
 

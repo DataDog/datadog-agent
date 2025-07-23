@@ -292,8 +292,6 @@ core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinni
 core,github.com/kevinburke/ssh_config,MIT,"Copyright (c) 2013 - 2017 Thomas Pelletier, Eric Anderton | Copyright (c) 2017 Kevin Burke"
 core,github.com/kylelemons/godebug/diff,Apache-2.0,Copyright 2013 Google Inc.  All rights reserved.
 core,github.com/kylelemons/godebug/pretty,Apache-2.0,Copyright 2013 Google Inc.  All rights reserved.
-core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
-core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-zglob,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob/fastwalk,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mitchellh/go-homedir,MIT,Copyright (c) 2013 Mitchell Hashimoto
@@ -304,10 +302,6 @@ core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors.
 core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
 core,github.com/pkg/browser,BSD-2-Clause,"Copyright (c) 2014, Dave Cheney <dave@cheney.net>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
-core,github.com/rs/zerolog,MIT,Copyright (c) 2017 Olivier Poitrey
-core,github.com/rs/zerolog/internal/cbor,MIT,Copyright (c) 2017 Olivier Poitrey
-core,github.com/rs/zerolog/internal/json,MIT,Copyright (c) 2017 Olivier Poitrey
-core,github.com/rs/zerolog/log,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/russross/blackfriday/v2,BSD-2-Clause,Copyright © 2011 Russ Ross
 core,github.com/ryanuber/go-glob,MIT,Copyright (c) 2014 Ryan Uber
 core,github.com/sergi/go-diff/diffmatchpatch,MIT,Copyright (c) 2012-2016 The go-diff Authors. All rights reserved | Danny Yoo <dannyyoo@google.com> | James Kolb <jkolb@google.com> | Jonathan Amsterdam <jba@google.com> | Markus Zimmermann <markus.zimmermann@nethead.at> <markus.zimmermann@symflower.com> <zimmski@gmail.com> | Matt Kovars <akaskik@gmail.com> | Osman Masood <oamasood@gmail.com> | Robert Carlsen <rwcarlsen@gmail.com> | Rory Flynn <roryflynn@users.noreply.github.com> | Sergi Mansilla <sergi.mansilla@gmail.com> | Shatrugna Sadhu <ssadhu@apcera.com> | Shawn Smith <shawnpsmith@gmail.com> | Stas Maksimov <maksimov@gmail.com> | Tor Arvid Lund <torarvid@gmail.com> | Zac Bergquist <zbergquist99@gmail.com> | Örjan Persson <orjan@spotify.com>

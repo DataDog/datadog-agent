@@ -10,11 +10,11 @@ package akeyless
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
 )
 
 // BackendConfig is the configuration for a akeyless backend
@@ -48,16 +48,12 @@ func NewAkeylessBackend(bc map[string]interface{}) (*Backend, error) {
 	backendConfig := BackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to map backend configuration")
-		return nil, err
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
 	authToken, err := NewAkeylessConfigFromBackendConfig(backendConfig.AkeylessURL, backendConfig.AkeylessSession)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to initialize Akeyless session")
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize Akeyless session: %s", err)
 	}
 
 	backend := &Backend{
@@ -83,10 +79,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	requestPayload, err := json.Marshal(payload)
 	if err != nil {
 		es := err.Error()
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_key", secretKey).
-			Msg("failed to marshal payload")
 		return secret.Output{Value: nil, Error: &es}
 	}
 
@@ -94,10 +86,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	req, err := http.NewRequest("POST", b.Config.AkeylessURL+"/get-secret-value", bytes.NewBuffer(requestPayload))
 	if err != nil {
 		es := err.Error()
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_key", secretKey).
-			Msg("failed to create request")
 		return secret.Output{Value: nil, Error: &es}
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -107,37 +95,15 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	resp, err := client.Do(req)
 	if err != nil {
 		es := err.Error()
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_key", secretKey).
-			Msg("failed to send request")
 		return secret.Output{Value: nil, Error: &es}
 	}
 	defer resp.Body.Close()
-
-	// Dump the response for debugging
-	//respDump, err := httputil.DumpResponse(resp, true)
-	//if err != nil {
-	//	log.Error().
-	//		Str("backend_type", b.Config.BackendType).
-	//		Str("secret_key", secretKey).
-	//		Msg("failed to dump response")
-	//} else {
-	//	log.Info().
-	//		Str("backend_type", b.Config.BackendType).
-	//		Str("secret_key", secretKey).
-	//		Msgf("Response:\n%s", string(respDump))
-	//}
 
 	// Handle the response
 	var response secretResponse
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
 		es := err.Error()
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_key", secretKey).
-			Msg("failed to decode response")
 		return secret.Output{Value: nil, Error: &es}
 	}
 
@@ -145,10 +111,6 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	secretValue, ok := response[secretKey]
 	if !ok {
 		es := secret.ErrKeyNotFound.Error()
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_key", secretKey).
-			Msg("failed to retrieve secret from response")
 		return secret.Output{Value: nil, Error: &es}
 	}
 

@@ -12,33 +12,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 
 	"github.com/DataDog/datadog-secret-backend/backend"
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
 var appVersion = "dev"
-
-func init() {
-	zerolog.TimestampFunc = func() time.Time {
-		return time.Now().UTC()
-	}
-	output := zerolog.ConsoleWriter{
-		Out:        os.Stderr,
-		TimeFormat: time.RFC3339,
-		FormatLevel: func(i interface{}) string {
-			return strings.ToUpper(fmt.Sprintf("| %-6s|", i))
-		},
-	}
-	log.Logger = zerolog.New(output).With().Timestamp().Logger()
-}
 
 func main() {
 	program, _ := os.Executable()
@@ -54,12 +36,12 @@ func main() {
 
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to read from stdin")
+		log.Fatalf("failed to read from stdin: %s", err)
 	}
 
 	inputPayload := &secret.Input{}
 	if err := json.Unmarshal(input, inputPayload); err != nil {
-		log.Fatal().Err(err).Msg("failed to unmarshal input")
+		log.Fatalf("failed to unmarshal input: %s", err)
 	}
 
 	backend := &backend.GenericConnector{}
@@ -71,7 +53,7 @@ func main() {
 
 	output, err := json.Marshal(secretOutputs)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to marshal output")
+		log.Fatalf("failed to marshal output: %s", err)
 	}
 
 	fmt.Print(string(output))

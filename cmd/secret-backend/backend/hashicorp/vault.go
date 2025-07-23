@@ -9,13 +9,12 @@ package hashicorp
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/hashicorp/vault/api"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
 )
 
 // VaultBackendConfig contains the configuration to connect to Hashicorp vault backend
@@ -48,9 +47,7 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 	backendConfig := VaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to map backend configuration")
-		return nil, err
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
 	clientConfig := &api.Config{Address: backendConfig.VaultAddress}
@@ -66,43 +63,31 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 		}
 		err := clientConfig.ConfigureTLS(tlsConfig)
 		if err != nil {
-			log.Error().Err(err).
-				Msg("failed to initialize vault tls configuration")
-			return nil, err
+			return nil, fmt.Errorf("failed to initialize vault tls configuration: %s", err)
 		}
 	}
 
 	client, err := api.NewClient(clientConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to create vault client")
-		return nil, err
+		return nil, fmt.Errorf("failed to create vault client: %s", err)
 	}
 
 	authMethod, err := NewVaultConfigFromBackendConfig(backendConfig.VaultSession)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to initialize vault session")
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize vault session: %s", err)
 	}
 	if authMethod != nil {
 		authInfo, err := client.Auth().Login(context.TODO(), authMethod)
 		if err != nil {
-			log.Error().Err(err).
-				Msg("failed to created auth info")
-			return nil, err
+			return nil, fmt.Errorf("failed to created auth info: %s", err)
 		}
 		if authInfo == nil {
-			log.Error().Err(err).
-				Msg("No auth info returned")
-			return nil, errors.New("no auth info returned")
+			return nil, fmt.Errorf("no auth info returned")
 		}
 	} else if backendConfig.VaultToken != "" {
 		client.SetToken(backendConfig.VaultToken)
 	} else {
-		log.Error().
-			Msg("No auth method or token provided")
-		return nil, errors.New("no auth method or token provided")
+		return nil, fmt.Errorf("no auth method or token provided")
 	}
 
 	backend := &VaultBackend{
@@ -117,10 +102,6 @@ func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
 	segments := strings.SplitN(secretString, ";", 2)
 	if len(segments) != 2 {
 		es := "invalid secret format, expected 'secret_id;key'"
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_string", secretString).
-			Msg(es)
 		return secret.Output{Value: nil, Error: &es}
 	}
 	secretPath := segments[0]
@@ -128,21 +109,11 @@ func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
 	sec, err := b.Client.Logical().Read(secretPath)
 	if err != nil {
 		es := err.Error()
-		log.Error().Err(err).
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_path", secretPath).
-			Str("secret_key", secretKey).
-			Msg("failed to read secret from vault")
 		return secret.Output{Value: nil, Error: &es}
 	}
 
 	if sec == nil || sec.Data == nil {
 		es := "secret data is nil"
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_path", secretPath).
-			Str("secret_key", secretKey).
-			Msg(es)
 		return secret.Output{Value: nil, Error: &es}
 	}
 
@@ -151,19 +122,9 @@ func (b *VaultBackend) GetSecretOutput(secretString string) secret.Output {
 			return secret.Output{Value: &strValue, Error: nil}
 		}
 		es := "secret value is not a string"
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_path", secretPath).
-			Str("secret_key", secretKey).
-			Msg(es)
 		return secret.Output{Value: nil, Error: &es}
 	}
 
 	es := secret.ErrKeyNotFound.Error()
-	log.Error().
-		Str("backend_type", b.Config.BackendType).
-		Str("secret_path", secretPath).
-		Str("secret_key", secretKey).
-		Msg("failed to retrieve secrets")
 	return secret.Output{Value: nil, Error: &es}
 }

@@ -27,7 +27,6 @@ require (
 	github.com/hashicorp/vault/api/auth/ldap v0.6.0
 	github.com/hashicorp/vault/api/auth/userpass v0.6.0
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/rs/zerolog v1.32.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v2 v2.4.0

@@ -9,10 +9,10 @@ package file
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
@@ -36,23 +36,17 @@ func NewJSONBackend(bc map[string]interface{}) (
 	backendConfig := JSONBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to map backend configuration")
-		return nil, err
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
 	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		log.Error().Err(err).Str("file_path", backendConfig.FilePath).
-			Msg("failed to read json secret file")
-		return nil, err
+		return nil, fmt.Errorf("failed to read json secret file '%s': %s", backendConfig.FilePath, err)
 	}
 
 	secretValue := make(map[string]string, 0)
 	if err := json.Unmarshal(content, &secretValue); err != nil {
-		log.Error().Err(err).Str("file_path", backendConfig.FilePath).
-			Msg("failed to unmarshal json secret")
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal json secret '%s': %s", backendConfig.FilePath, err)
 	}
 
 	backend := &JSONBackend{
@@ -68,11 +62,5 @@ func (b *JSONBackend) GetSecretOutput(secretKey string) secret.Output {
 		return secret.Output{Value: &val, Error: nil}
 	}
 	es := secret.ErrKeyNotFound.Error()
-
-	log.Error().
-		Str("backend_type", b.Config.BackendType).
-		Str("file_path", b.Config.FilePath).
-		Str("secret_key", secretKey).
-		Msg(es)
 	return secret.Output{Value: nil, Error: &es}
 }

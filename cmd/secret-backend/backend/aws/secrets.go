@@ -10,12 +10,12 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
@@ -54,16 +54,12 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 	backendConfig := SecretsManagerBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to map backend configuration")
-		return nil, err
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
 	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to initialize aws session")
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize aws session: %s", err)
 	}
 	client := getSecretsManagerClient(*cfg)
 
@@ -79,10 +75,6 @@ func (b *SecretsManagerBackend) GetSecretOutput(secretString string) secret.Outp
 	segments := strings.SplitN(secretString, ";", 2)
 	if len(segments) != 2 {
 		es := "invalid secret format, expected 'secret_id;key'"
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_string", secretString).
-			Msg(es)
 		return secret.Output{Value: nil, Error: &es}
 	}
 	secretID := segments[0]
@@ -95,21 +87,11 @@ func (b *SecretsManagerBackend) GetSecretOutput(secretString string) secret.Outp
 	out, err := b.Client.GetSecretValue(context.TODO(), input)
 	if err != nil {
 		es := err.Error()
-		log.Error().Err(err).
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_id", secretID).
-			Str("aws_access_key_id", b.Config.Session.AccessKeyID).
-			Str("aws_profile", b.Config.Session.Profile).
-			Msg("failed to retrieve secret value")
 		return secret.Output{Value: nil, Error: &es}
 	}
 
 	if out.SecretString == nil {
 		es := "secret string is nil"
-		log.Error().
-			Str("backend_type", b.Config.BackendType).
-			Str("secret_id", secretID).
-			Msg(es)
 		return secret.Output{Value: nil, Error: &es}
 	}
 
@@ -128,10 +110,6 @@ func (b *SecretsManagerBackend) GetSecretOutput(secretString string) secret.Outp
 				secretValue = val
 			} else {
 				es := secret.ErrKeyNotFound.Error()
-				log.Error().
-					Str("backend_type", b.Config.BackendType).
-					Str("secret_key", secretKey).
-					Msg(es)
 				return secret.Output{Value: nil, Error: &es}
 			}
 		}

@@ -7,12 +7,12 @@
 package file
 
 import (
+	"fmt"
 	"os"
 
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/rs/zerolog/log"
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
@@ -36,25 +36,17 @@ func NewYAMLBackend(bc map[string]interface{}) (
 	backendConfig := YamlBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
-			Msg("failed to map backend configuration")
-		return nil, err
+		return nil, fmt.Errorf("failed to map backend configuration: %s", err)
 	}
 
 	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		log.Error().Err(err).
-			Str("file_path", backendConfig.FilePath).
-			Msg("failed to read yaml secret file")
-		return nil, err
+		return nil, fmt.Errorf("failed to read yaml secret file '%s': %s", backendConfig.FilePath, err)
 	}
 
 	secretValue := make(map[string]string, 0)
 	if err := yaml.Unmarshal(content, secretValue); err != nil {
-		log.Error().Err(err).
-			Str("file_path", backendConfig.FilePath).
-			Msg("failed to unmarshal yaml secret")
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal yaml secret from '%s': %s", backendConfig.FilePath, err)
 	}
 
 	backend := &YamlBackend{
@@ -70,11 +62,5 @@ func (b *YamlBackend) GetSecretOutput(secretKey string) secret.Output {
 		return secret.Output{Value: &val, Error: nil}
 	}
 	es := secret.ErrKeyNotFound.Error()
-
-	log.Error().
-		Str("backend_type", b.Config.BackendType).
-		Str("file_path", b.Config.FilePath).
-		Str("secret_key", secretKey).
-		Msg(es)
 	return secret.Output{Value: nil, Error: &es}
 }
