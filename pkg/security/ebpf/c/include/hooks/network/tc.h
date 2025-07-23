@@ -100,9 +100,9 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     }
     resolve_pid(pkt);
 
-    u64 sched_cls_has_current_pid_tgid_helper = 0;
-    LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
-    if (sched_cls_has_current_pid_tgid_helper) {
+    u64 sched_cls_has_current_cgroup_id_helper = 0;
+    LOAD_CONSTANT("sched_cls_has_current_cgroup_id_helper", sched_cls_has_current_cgroup_id_helper);
+    if (sched_cls_has_current_cgroup_id_helper) {
         pkt->cgroup_id = bpf_get_current_cgroup_id();
     } else {
         pkt->cgroup_id = get_cgroup_id(pkt->pid);
