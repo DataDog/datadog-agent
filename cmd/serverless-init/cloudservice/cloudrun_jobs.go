@@ -86,7 +86,12 @@ func (c *CloudRunJobs) Init() error {
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.start", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.task.started", c.GetPrefix())
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *CloudRunJobs) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.task.ended", c.GetPrefix())
 }
 
 func isCloudRunJob() bool {

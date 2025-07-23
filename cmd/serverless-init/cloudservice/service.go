@@ -28,6 +28,9 @@ type CloudService interface {
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
+
+	// GetShutdownMetricName returns the metric name for shutdown events
+	GetShutdownMetricName() string
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -56,6 +59,11 @@ func (l *LocalService) Init() error {
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", l.GetPrefix())
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (l *LocalService) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.shutdown", l.GetPrefix())
 }
 
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer

@@ -150,6 +150,11 @@ func (c *CloudRun) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
 }
 
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *CloudRun) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.shutdown", c.GetPrefix())
+}
+
 func isCloudRunService() bool {
 	_, exists := os.LookupEnv(ServiceNameEnvVar)
 	return exists

@@ -144,6 +144,11 @@ func (c *ContainerApp) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
 }
 
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *ContainerApp) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.shutdown", c.GetPrefix())
+}
+
 func isContainerAppService() bool {
 	_, exists := os.LookupEnv(ContainerAppNameEnvVar)
 	return exists
