@@ -617,7 +617,7 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 	var rows []TunnelMetrics
 	for _, row := range data {
 		m := TunnelMetrics{}
-		// Based on the new structure, we expect 6 columns
+		// Based on the new structure, we expect 7 columns
 		if len(row) != 7 {
 			return nil, fmt.Errorf("expected 7 columns, got %d", len(row))
 		}
@@ -639,16 +639,16 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 			return nil, fmt.Errorf("expected string for VpnProfName")
 		}
 
-		// Handle float metrics from indices 4-5
+		// Handle float metrics from indices 5-6
 		if val, ok := row[5].(float64); ok {
 			m.VolumeRx = val
 		} else {
-			return nil, fmt.Errorf("expected float64 for VolumeRx at index 4")
+			return nil, fmt.Errorf("expected float64 for VolumeRx at index 5")
 		}
 		if val, ok := row[6].(float64); ok {
 			m.VolumeTx = val
 		} else {
-			return nil, fmt.Errorf("expected float64 for VolumeTx at index 5")
+			return nil, fmt.Errorf("expected float64 for VolumeTx at index 6")
 		}
 
 		rows = append(rows, m)
