@@ -1139,6 +1139,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 			out.FilterInstructions = string(in.String())
 		case "filter_hash":
 			out.FilterHash = string(in.String())
+		case "magic_values_found":
+			out.MagicValuesFound = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1197,6 +1199,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		const prefix string = ",\"filter_hash\":"
 		out.RawString(prefix)
 		out.String(string(in.FilterHash))
+	}
+	if in.MagicValuesFound != "" {
+		const prefix string = ",\"magic_values_found\":"
+		out.RawString(prefix)
+		out.String(string(in.MagicValuesFound))
 	}
 	out.RawByte('}')
 }

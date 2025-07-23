@@ -581,6 +581,8 @@ type SetSockOptEventSerializer struct {
 	FilterInstructions string `json:"filter,omitempty"`
 	//Filter hash
 	FilterHash string `json:"filter_hash,omitempty"`
+	// Filter static analysis
+	MagicValuesFound string `json:"magic_values_found,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -1363,6 +1365,9 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	default:
 		SetSockOptEventSerializer.OptName = fmt.Sprintf("%d", e.SetSockOpt.OptName)
 	}
+	// Setup here to wait the previous resolver to resolve the filter
+	SetSockOptEventSerializer.MagicValuesFound = e.SetSockOpt.MagicValuesFound
+
 	return &SetSockOptEventSerializer
 }
 

@@ -1782,6 +1782,10 @@
         "filter_hash": {
           "type": "string",
           "description": "Filter hash"
+        },
+        "magic_values_found": {
+          "type": "string",
+          "description": "Filter static analysis"
         }
       },
       "additionalProperties": false,
