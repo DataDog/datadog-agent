@@ -84,8 +84,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 // Pull gathers container data.
 func (c *collector) Pull(ctx context.Context) error {
-	log.Infof("[CRIO_OPTIMIZATION] ==> Starting CRI-O collection cycle")
-
 	containers, err := c.client.GetAllContainers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to pull container list: %v", err)
@@ -93,8 +91,8 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	seenContainers := make(map[workloadmeta.EntityID]struct{})
 	seenImages := make(map[workloadmeta.EntityID]struct{})
+	imageEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
-	var imageEvents []workloadmeta.CollectorEvent
 
 	collectImages := imageMetadataCollectionIsEnabled()
 
@@ -107,27 +105,20 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	// Handle image collection using the optimized approach
 	if collectImages {
-		log.Infof("[CRIO_OPTIMIZATION] Starting optimized image collection cycle for %d containers", len(containers))
-
 		// Use the new optimized method to get image events
 		imageEvents, err = c.generateImageEventsFromImageList(ctx)
 		if err != nil {
-			log.Warnf("[CRIO_OPTIMIZATION] Optimized approach failed: %v - falling back to per-container approach", err)
+			log.Warnf("Optimized approach failed: %v - falling back to per-container approach", err)
 			// Fall back to the old per-container approach if image list fails
 			imageEvents = make([]workloadmeta.CollectorEvent, 0, len(containers))
-			imageStatusCallsInFallback := 0
 			for _, container := range containers {
 				imageEvent, err := c.generateImageEventFromContainer(ctx, container)
 				if err != nil {
 					log.Warnf("Image event generation failed for container %+v: %v", container, err)
 					continue
 				}
-				imageStatusCallsInFallback++
 				imageEvents = append(imageEvents, *imageEvent)
 			}
-			log.Infof("[CRIO_OPTIMIZATION] Fallback approach completed: %d GetContainerImage calls made", imageStatusCallsInFallback)
-		} else {
-			log.Infof("[CRIO_OPTIMIZATION] Successfully used optimized approach")
 		}
 
 		// Build seenImages map from the events for cleanup
@@ -138,20 +129,13 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 
 		// Handle unset events for images that are no longer present
-		unsetCount := 0
 		for seenID := range c.seenImages {
 			if _, ok := seenImages[seenID]; !ok {
 				unsetEvent := generateUnsetImageEvent(seenID)
 				imageEvents = append(imageEvents, *unsetEvent)
-				unsetCount++
 			}
 		}
-
 		c.seenImages = seenImages
-
-		log.Infof("[CRIO_OPTIMIZATION] Notifying workloadmeta store: %d image events (%d new/updated, %d removed)",
-			len(imageEvents), len(imageEvents)-unsetCount, unsetCount)
-
 		c.store.Notify(imageEvents)
 	}
 
@@ -162,11 +146,9 @@ func (c *collector) Pull(ctx context.Context) error {
 			containerEvents = append(containerEvents, unsetEvent)
 		}
 	}
-
 	c.seenContainers = seenContainers
 	c.store.Notify(containerEvents)
 
-	log.Infof("[CRIO_OPTIMIZATION] <== Completed CRI-O collection cycle")
 	return nil
 }
 

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 //go:build crio
 
 package crio
@@ -64,7 +69,7 @@ func TestParseDigests(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := parseDigests(tt.imageRefs)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Empty(t, result)
@@ -231,15 +236,15 @@ func TestConvertImageToEvent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := &collector{}
-			
+
 			result := collector.convertImageToEvent(tt.image, tt.info, tt.namespace)
-			
+
 			assert.Equal(t, tt.expected.Type, result.Type)
 			assert.Equal(t, tt.expected.Source, result.Source)
-			
+
 			expectedImg := tt.expected.Entity.(*workloadmeta.ContainerImageMetadata)
 			actualImg := result.Entity.(*workloadmeta.ContainerImageMetadata)
-			
+
 			assert.Equal(t, expectedImg.EntityID, actualImg.EntityID)
 			assert.Equal(t, expectedImg.EntityMeta.Name, actualImg.EntityMeta.Name)
 			assert.Equal(t, expectedImg.EntityMeta.Namespace, actualImg.EntityMeta.Namespace)
@@ -250,7 +255,7 @@ func TestConvertImageToEvent(t *testing.T) {
 			assert.Equal(t, expectedImg.OS, actualImg.OS)
 			assert.Equal(t, expectedImg.Architecture, actualImg.Architecture)
 			assert.Equal(t, expectedImg.Variant, actualImg.Variant)
-			
+
 			// Check layers
 			require.Equal(t, len(expectedImg.Layers), len(actualImg.Layers))
 			for i, expectedLayer := range expectedImg.Layers {
@@ -644,7 +649,7 @@ func TestParseImageInfo(t *testing.T) {
 			assert.Equal(t, tt.expected.arch, result.arch)
 			assert.Equal(t, tt.expected.variant, result.variant)
 			assert.Equal(t, tt.expected.labels, result.labels)
-			
+
 			require.Equal(t, len(tt.expected.layers), len(result.layers))
 			for i, expectedLayer := range tt.expected.layers {
 				actualLayer := result.layers[i]

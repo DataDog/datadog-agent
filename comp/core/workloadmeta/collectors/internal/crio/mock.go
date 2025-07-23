@@ -33,11 +33,11 @@ func (store *mockWorkloadmetaStore) GetImage(id string) (*workloadmeta.Container
 	if store.existingImages == nil {
 		return nil, errors.New("image not found")
 	}
-	
+
 	if img, exists := store.existingImages[id]; exists {
 		return img, nil
 	}
-	
+
 	return nil, errors.New("image not found")
 }
 

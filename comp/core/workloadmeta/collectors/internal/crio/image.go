@@ -224,12 +224,7 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 		return nil, fmt.Errorf("failed to list images: %w", err)
 	}
 
-	log.Infof("[CRIO_OPTIMIZATION] Retrieved %d images from CRI-O ListImages call", len(images))
-
 	imageEvents := make([]workloadmeta.CollectorEvent, 0)
-	skippedCount := 0
-	newImageCount := 0
-	imageStatusCalls := 0
 
 	for _, img := range images {
 		// Extract the image ID - prefer digest over the raw ID
@@ -241,21 +236,18 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 		// Check if image already exists in workloadmeta store
 		// Try both computed ID and raw ID to handle ID format inconsistencies that can occur when:
 		// 1. ListImages() returns digest info but GetContainerImage() returns empty digests (dangling images)
-		// 2. Digest parsing fails differently between lookup and storage phases  
+		// 2. Digest parsing fails differently between lookup and storage phases
 		// 3. Images are stored with raw ID due to empty repo digests but lookup computes digest ID
 		// The fallback ensures we find existing images regardless of which ID format was used during storage
 		rawID := img.GetId()
 		var foundID string
-		var usedRawIDFallback bool
-		
+
 		if _, err := c.store.GetImage(imgID); err == nil {
 			foundID = imgID
-			usedRawIDFallback = false
 		} else if _, err := c.store.GetImage(rawID); err == nil {
 			foundID = rawID
-			usedRawIDFallback = true
 		}
-		
+
 		if foundID != "" {
 			// Create skipped image event to prevent it from being marked as removed
 			skippedImageEvent := workloadmeta.CollectorEvent{
@@ -269,21 +261,10 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 				},
 			}
 			imageEvents = append(imageEvents, skippedImageEvent)
-			skippedCount++
-			
-			if usedRawIDFallback {
-				log.Infof("[CRIO_OPTIMIZATION] Skipping existing image %s (found via raw ID fallback: %s, computed ID: %s)", img.GetRepoTags(), rawID, imgID)
-			} else {
-				log.Debugf("[CRIO_OPTIMIZATION] Skipping existing image %s (ID: %s)", img.GetRepoTags(), imgID)
-			}
+
 			continue
 		}
 
-		// Image doesn't exist, need to get full metadata using image status
-		newImageCount++
-		imageStatusCalls++
-		log.Infof("[CRIO_OPTIMIZATION] Making GetContainerImage call for new image %s (ID: %s, RawID: %s, RepoDigests: %s)", img.GetRepoTags(), imgID, img.GetId(), img.GetRepoDigests())
-		
 		imageSpec := &v1.ImageSpec{Image: img.GetId()}
 		imageResp, err := c.client.GetContainerImage(ctx, imageSpec, true)
 		if err != nil {
@@ -291,19 +272,12 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 			continue
 		}
 
-		// Log what we got back from GetContainerImage call
-		respImg := imageResp.GetImage()
-		log.Infof("[CRIO_OPTIMIZATION] GetContainerImage response - RepoTags: %s, RepoDigests: %s, ID: %s", respImg.GetRepoTags(), respImg.GetRepoDigests(), respImg.GetId())
-
 		// Get namespace from any container using this image - use empty string as default
 		namespace := ""
 
 		imageEvent := c.convertImageToEvent(imageResp.GetImage(), imageResp.GetInfo(), namespace)
 		imageEvents = append(imageEvents, *imageEvent)
 	}
-
-	log.Infof("[CRIO_OPTIMIZATION] Image collection summary: %d total images, %d skipped (optimization), %d new images processed, %d GetContainerImage calls made", 
-		len(images), skippedCount, newImageCount, imageStatusCalls)
 
 	return imageEvents, nil
 }
