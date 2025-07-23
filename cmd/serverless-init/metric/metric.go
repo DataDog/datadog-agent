@@ -7,7 +7,6 @@
 package metric
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
@@ -15,13 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// AddShutdownMetric adds the shutdown metric to the demultiplexer
-//
-//nolint:revive // TODO(SERV) Fix revive linter
-func AddShutdownMetric(metricPrefix string, origin string, tags []string, _ time.Time, demux aggregator.Demultiplexer) {
-	Add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), origin, tags, time.Now(), demux)
-}
 
 func Add(name string, origin string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	if demux == nil {

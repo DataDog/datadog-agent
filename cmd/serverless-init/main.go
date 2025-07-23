@@ -106,10 +106,9 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
-	prefix := cloudService.GetPrefix()
 	origin := cloudService.GetOrigin()
 
-	metric.AddShutdownMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.Add(cloudService.GetShutdownMetricName(), origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 
 	return err
