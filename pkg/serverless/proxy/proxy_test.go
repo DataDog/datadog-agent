@@ -69,7 +69,7 @@ func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.Ex
 }
 
 func TestProxyResponseValid(t *testing.T) {
-	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestProxyResponseValid is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	// fake the runtime API running on 5001
