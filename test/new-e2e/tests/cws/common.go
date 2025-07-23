@@ -135,7 +135,7 @@ func (a *agentSuite) Test03OpenSignal() {
 		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
 	}, 30*time.Second, 1*time.Second)
 
-	// Check if security-agent has started
+	// Check if system-probe has connected to the security agent event GRPC server
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		output, err := a.Env().RemoteHost.Execute("sudo cat /var/log/datadog/system-probe.log")
 		if !assert.NoError(c, err) {
