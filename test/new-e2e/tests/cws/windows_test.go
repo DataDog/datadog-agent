@@ -157,7 +157,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	// Check if security-agent has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
+		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/system-probe.log")
 		if !assert.NoError(c, err) {
 			return
 		}
