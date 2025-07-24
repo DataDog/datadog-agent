@@ -156,9 +156,11 @@ func run() (err error) {
 	}
 
 	for _, envVar := range args.sendEnvVars {
-		if val := os.Getenv(envVar); val != "" {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envVar, val))
+		val, isPresent := os.LookupEnv(envVar)
+		if !isPresent {
+			return fmt.Errorf("environment variable %s is not set", envVar)
 		}
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envVar, val))
 	}
 
 	cmd.Command = args.vmCommand
