@@ -45,6 +45,9 @@ def _run_calls_to_string(mock_calls):
     },
     clear=True,
 )
+@mock.patch(
+    'tasks.omnibus.ENV_PASSHTROUGH', set(),
+)
 class TestOmnibusCache(unittest.TestCase):
     def setUp(self):
         self.mock_ctx = MockContextRaising(run={})
@@ -313,6 +316,9 @@ class TestRpathEdit(unittest.TestCase):
         assert len(call_list) == 8
 
 
+@mock.patch(
+    'tasks.omnibus.ENV_PASSHTROUGH', set(),
+)
 class TestBuildRepackagedAgent(unittest.TestCase):
     def test_package_parsing(self):
         # Sample Packages file content
