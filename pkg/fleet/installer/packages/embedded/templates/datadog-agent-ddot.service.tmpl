@@ -4,13 +4,13 @@ Description=Datadog Distribution of OpenTelemetry Collector
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-ddot-exp.service
-ConditionPathExists={{.InstallDir}}/embedded/bin/otel-agent
+ConditionPathExists=/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent
 {{- else}}
 Description=Datadog Distribution of OpenTelemetry Collector Experiment
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-ddot.service
-ConditionPathExists={{.InstallDir}}/embedded/bin/otel-agent
+ConditionPathExists=/opt/datadog-packages/datadog-agent-ddot/experiment/embedded/bin/otel-agent
 {{- end}}
 
 [Service]
