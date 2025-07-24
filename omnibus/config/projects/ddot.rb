@@ -73,7 +73,7 @@ if do_build
   dependency 'datadog-otel-agent'
 elsif do_package
   dependency 'package-artifact'
-  dependency 'init-scripts-ddot.rb'
+  dependency 'init-scripts-ddot'
 end
 
 disable_version_manifest do_package
