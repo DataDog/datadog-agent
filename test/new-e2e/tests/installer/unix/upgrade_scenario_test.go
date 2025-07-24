@@ -764,7 +764,7 @@ func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, configs []
 	// Create extra args like `--config-order '[config-1, config-2]'`
 	if configOrder {
 		for i := range len(configs) - 1 {
-			extraArgs += fmt.Sprintf("%s,", configs[i].ID)
+			extraArgs += fmt.Sprintf("\"%s\",", configs[i].ID)
 		}
 		extraArgs = fmt.Sprintf("--config-order '[%s%s]'", extraArgs, configs[len(configs)-1].ID)
 	}
