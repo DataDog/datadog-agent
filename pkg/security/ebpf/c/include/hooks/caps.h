@@ -79,17 +79,13 @@ int hook_security_capable(ctx_t *ctx) {
     // Look up the capabilities usage entry for this process
     struct capabilities_usage_entry_t *entry = bpf_map_lookup_elem(&capabilities_usage, &key);
     if (!entry) {
-        struct capabilities_usage_entry_t new_entry = {
-            .usage = {
-                .evaluated = cap_as_mask,
-                .capable = 0,
-            },
-            .last_sent_ns = 0,
-            .dirty = 1, // Mark as dirty since we are creating a new entry
-        };
+        struct capabilities_usage_entry_t new_entry = {0};
+        new_entry.usage.evaluated = cap_as_mask;
+        new_entry.usage.capable = 0;
+        set_dirty(&new_entry, 1); // Mark as dirty since we are creating a new entry
         bpf_map_update_elem(&capabilities_usage, &key, &new_entry, BPF_ANY);
     } else {
-        entry->dirty |= (entry->usage.evaluated & cap_as_mask) == 0; // Mark as dirty if this capability was not previously evaluated
+        set_dirty(entry, (entry->usage.evaluated & cap_as_mask) == 0); // Mark as dirty if this capability was not previously evaluated
         entry->usage.evaluated |= cap_as_mask; // Mark the capability as checked
     }
 
@@ -154,7 +150,7 @@ int rethook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    entry->dirty |= (entry->usage.capable & cap_as_mask) == 0; // Mark as dirty if this capability was not previously capable
+    set_dirty(entry, (entry->usage.capable & cap_as_mask) == 0); // Mark as dirty if this capability was not previously capable
     entry->usage.capable |= cap_as_mask;
 
     return 0;
