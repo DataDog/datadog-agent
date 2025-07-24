@@ -363,3 +363,80 @@ func (m *mockProcessDevice) GetProcessUtilization(_ uint64) ([]nvml.ProcessUtili
 	}
 	return m.samples, nil
 }
+
+// TestCollectComputeProcesses_ApiFailure tests that memory.limit is still emitted when GetComputeRunningProcesses fails, but error is returned
+func TestCollectComputeProcesses_ApiFailure(t *testing.T) {
+	expectedError := &safenvml.NvmlAPIError{
+		APIName:       "GetComputeRunningProcesses",
+		NvmlErrorCode: nvml.ERROR_UNKNOWN,
+	}
+
+	mockDevice := &mockProcessDevice{
+		deviceInfo: &safenvml.DeviceInfo{
+			UUID:      testDeviceUUID,
+			Memory:    testDeviceMemory,
+			CoreCount: testDeviceCoreCount,
+		},
+		computeProcessesError: expectedError,
+	}
+
+	collector := &processCollector{device: mockDevice}
+	metrics, err := collector.collectComputeProcesses()
+
+	// Should return the original error (not handled gracefully)
+	assert.Error(t, err)
+	assert.Equal(t, expectedError, err)
+
+	// Should still emit exactly 1 metric: memory.limit
+	assert.Len(t, metrics, 1)
+
+	// Verify memory.limit metric
+	memLimit := metrics[0]
+	assert.Equal(t, "memory.limit", memLimit.Name)
+	assert.Equal(t, float64(testDeviceMemory), memLimit.Value)
+	assert.Empty(t, memLimit.Tags, "memory.limit should have empty tags when API fails")
+}
+
+// TestCollectProcessUtilization_ApiFailure tests that core.limit and gr_engine_active are still emitted when GetProcessUtilization fails
+func TestCollectProcessUtilization_ApiFailure(t *testing.T) {
+	mockDevice := &mockProcessDevice{
+		deviceInfo: &safenvml.DeviceInfo{
+			UUID:      testDeviceUUID,
+			Memory:    testDeviceMemory,
+			CoreCount: testDeviceCoreCount,
+		},
+		processUtilizationError: &safenvml.NvmlAPIError{
+			APIName:       "GetProcessUtilization",
+			NvmlErrorCode: nvml.ERROR_NOT_FOUND,
+		},
+	}
+
+	collector := &processCollector{device: mockDevice}
+	metrics, err := collector.collectProcessUtilization()
+
+	// Should return no error (handled gracefully)
+	assert.NoError(t, err)
+
+	// Should emit exactly 2 metrics: core.limit + gr_engine_active
+	assert.Len(t, metrics, 2)
+
+	// Find the metrics
+	var coreLimit, grEngine *Metric
+	for i, metric := range metrics {
+		if metric.Name == "core.limit" {
+			coreLimit = &metrics[i]
+		} else if metric.Name == "gr_engine_active" {
+			grEngine = &metrics[i]
+		}
+	}
+
+	// Verify core.limit metric
+	require.NotNil(t, coreLimit)
+	assert.Equal(t, float64(testDeviceCoreCount), coreLimit.Value)
+	assert.Empty(t, coreLimit.Tags, "core.limit should have empty tags when API fails")
+
+	// Verify gr_engine_active metric
+	require.NotNil(t, grEngine)
+	assert.Equal(t, float64(0), grEngine.Value, "gr_engine_active should be 0 when no processes")
+	assert.Empty(t, grEngine.Tags, "gr_engine_active should have empty tags when API fails")
+}
