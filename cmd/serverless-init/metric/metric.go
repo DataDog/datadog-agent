@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func Add(name string, origin string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
+func Add(name string, value float64, origin string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	if demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
@@ -23,7 +23,7 @@ func Add(name string, origin string, tags []string, timestamp time.Time, demux a
 	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
 	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
-		Value:      1.0,
+		Value:      value,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
 		SampleRate: 1,

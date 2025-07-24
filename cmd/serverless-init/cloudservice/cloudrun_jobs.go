@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 // CloudRunJobsOrigin origin tag value
@@ -32,7 +33,9 @@ const (
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
-type CloudRunJobs struct{}
+type CloudRunJobs struct {
+	startTime time.Time
+}
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
@@ -79,8 +82,9 @@ func (c *CloudRunJobs) GetPrefix() string {
 	return "gcp.run.job"
 }
 
-// Init is empty for CloudRunJobs
+// Init records the start time for CloudRunJobs
 func (c *CloudRunJobs) Init() error {
+	c.startTime = time.Now()
 	return nil
 }
 
@@ -92,6 +96,13 @@ func (c *CloudRunJobs) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *CloudRunJobs) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.ended", c.GetPrefix())
+}
+
+// GetTaskDuration returns the task duration metric name and value in milliseconds
+func (c *CloudRunJobs) GetTaskDuration() (string, float64) {
+	duration := float64(time.Since(c.startTime).Milliseconds())
+	metricName := fmt.Sprintf("%s.enhanced.task.duration", c.GetPrefix())
+	return metricName, duration
 }
 
 func isCloudRunJob() bool {
