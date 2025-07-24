@@ -10,6 +10,7 @@ import (
 	inventorysoftware "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/def"
 	inventorysoftwareimpl "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
@@ -19,5 +20,11 @@ func Module() fxutil.Module {
 			inventorysoftwareimpl.New,
 		),
 		fxutil.ProvideOptional[inventorysoftware.Component](),
+
+		// inventorysoftware is a component that nobody depends on it and FX only instantiates
+		// components when they're needed. Adding a dummy function that takes our Component as a parameter force
+		// the instantiation of inventorysoftware. This means that simply using 'inventorysoftware.Module()' will run our
+		// component (which is the expected behavior).
+		fx.Invoke(func(_ inventorysoftware.Component) {}),
 	)
 }

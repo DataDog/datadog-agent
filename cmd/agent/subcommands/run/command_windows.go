@@ -258,7 +258,6 @@ func getPlatformModules() fx.Option {
 		fx.Invoke(func(_ etwtracer.Component) {}),
 		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
-		fx.Invoke(func(_ inventorysoftware.Component) {}),
 		fx.Invoke(reRegisterCtrlHandler),
 	)
 }
