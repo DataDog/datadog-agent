@@ -737,3 +737,41 @@ func TestStreamHandlerIsInactive(t *testing.T) {
 	// Test case 3: Stream with events older than inactivity threshold should be considered inactive
 	require.True(t, stream.isInactive(3000000000, inactivityThreshold)) // 3 seconds later with 1 second threshold
 }
+
+// before
+// BenchmarkHandleEvents-8           604144              1901 ns/op            1146 B/op          2 allocs/op
+// after
+// BenchmarkHandleEvents-8           525607              2126 ns/op            1144 B/op          2 allocs/op
+
+func BenchmarkHandleEvents(b *testing.B) {
+	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(b), getStreamLimits(config.New()), newStreamTelemetry(testutil.GetTelemetryMock(b)))
+	require.NoError(b, err)
+
+	now := uint64(time.Now().UnixNano())
+	i := 0
+
+	for b.Loop() {
+		stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns:  now + uint64(i),
+				Stream_id: 1,
+			},
+		})
+		memType := gpuebpf.CudaMemAlloc
+		if i%2 == 1 {
+			memType = gpuebpf.CudaMemFree
+		}
+		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+			Header: gpuebpf.CudaEventHeader{
+				Ktime_ns:  now + uint64(i),
+				Stream_id: 1,
+			},
+			Type: uint32(memType),
+			Addr: uint64(i / 2),
+			Size: uint64(1024),
+		})
+
+		i++
+	}
+}
