@@ -116,13 +116,11 @@ func newBatchStrategyWithClock(
 	}
 
 	bs.mainBatch = bs.MakeBatch()
-	bs.mrfBatch = bs.MakeBatch()
 
 	return bs
 }
 
 func (s *batchStrategy) MakeBatch() *batch {
-
 	var encodedPayload bytes.Buffer
 	compressor := s.encoder.NewStreamCompressor(&encodedPayload)
 	wc := newWriterWithCounter(compressor)
@@ -204,6 +202,10 @@ func (s *batchStrategy) addMessage(b *batch, m *message.Message) (bool, error) {
 
 func (s *batchStrategy) chooseBatch(m *message.Message) *batch {
 	if m.IsMRFAllow {
+		if s.mrfBatch == nil {
+			s.mrfBatch = s.MakeBatch()
+		}
+
 		return s.mrfBatch
 	}
 
