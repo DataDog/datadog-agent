@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // AddColdStartMetric adds the coldstart metric to the demultiplexer
@@ -40,7 +41,7 @@ func add(name string, origin string, tags []string, timestamp time.Time, demux a
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       utilstrings.ToUnique(tags),
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
 		Source:     originToMetricSource(origin),

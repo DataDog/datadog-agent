@@ -12,12 +12,14 @@ import (
 	"errors"
 	"testing"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCompositeTagsConstructors(t *testing.T) {
-	tags1 := NewCompositeTags([]string{"tag1"}, []string{"tag2"})
+	tags1 := NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{"tag2"}))
 	tags2 := CompositeTagsFromSlice([]string{"tag1", "tag2"})
 	tags3 := CombineCompositeTagsAndSlice(CompositeTagsFromSlice([]string{"tag1"}), []string{"tag2"})
 
@@ -29,7 +31,7 @@ func TestCompositeTagsCombineCompositeTagsAndSlice(t *testing.T) {
 	// Make sure there is no reallocation later
 	tags := make([]string, 1, 10)
 	tags[0] = "tag1"
-	tags2 := NewCompositeTags(tags, []string{"tag2"})
+	tags2 := NewCompositeTags(utilstrings.ToUnique(tags), utilstrings.ToUnique([]string{"tag2"}))
 	tags3 := CombineCompositeTagsAndSlice(tags2, []string{"tag3"})
 	tags4 := CombineCompositeTagsAndSlice(tags2, []string{"tag4"})
 
@@ -38,7 +40,7 @@ func TestCompositeTagsCombineCompositeTagsAndSlice(t *testing.T) {
 }
 
 func TestCompositeTagsForEach(t *testing.T) {
-	compositeTags := NewCompositeTags([]string{"tag1"}, []string{"tag2"})
+	compositeTags := NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{"tag2"}))
 	var tags []string
 	compositeTags.ForEach(func(tag string) {
 		tags = append(tags, tag)
@@ -60,7 +62,7 @@ func TestCompositeTagsForEach(t *testing.T) {
 }
 
 func TestCompositeTagsFind(t *testing.T) {
-	compositeTags := NewCompositeTags([]string{"tag1"}, []string{"tag2"})
+	compositeTags := NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{"tag2"}))
 	r := require.New(t)
 	r.True(compositeTags.Find(func(tag string) bool { return tag == "tag1" }))
 	r.True(compositeTags.Find(func(tag string) bool { return tag == "tag2" }))
@@ -69,29 +71,27 @@ func TestCompositeTagsFind(t *testing.T) {
 
 func TestCompositeTagsLen(t *testing.T) {
 	r := require.New(t)
-	r.Equal(2, NewCompositeTags([]string{"tag1"}, []string{"tag2"}).Len())
-	r.Equal(1, NewCompositeTags([]string{"tag1"}, []string{}).Len())
-	r.Equal(1, NewCompositeTags([]string{}, []string{"tag1"}).Len())
+	r.Equal(2, NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{"tag2"})).Len())
+	r.Equal(1, NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{})).Len())
+	r.Equal(1, NewCompositeTags(utilstrings.ToUnique([]string{}), utilstrings.ToUnique([]string{"tag1"})).Len())
 }
 
 func TestCompositeTagsJoin(t *testing.T) {
-	tags := NewCompositeTags([]string{"tag1"}, []string{"tag2"})
+	tags := NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{"tag2"}))
 	require.Equal(t, "tag1, tag2", tags.Join(", "))
 
 	tags = CompositeTagsFromSlice([]string{"tag1", "tag2"})
 	require.Equal(t, "tag1, tag2", tags.Join(", "))
 
-	tags = NewCompositeTags(nil, []string{"tag1", "tag2"})
+	tags = NewCompositeTags(nil, utilstrings.ToUnique([]string{"tag1", "tag2"}))
 	require.Equal(t, "tag1, tag2", tags.Join(", "))
 }
 
 func TestCompositeTagsMarshalJSON(t *testing.T) {
 	r := require.New(t)
-	tags := NewCompositeTags([]string{"tag1"}, []string{"tag2"})
+	tags := NewCompositeTags(utilstrings.ToUnique([]string{"tag1"}), utilstrings.ToUnique([]string{"tag2"}))
 
 	bytes, err := json.Marshal(tags)
 	r.NoError(err)
-	var newTags *CompositeTags
-	r.NoError(json.Unmarshal(bytes, &newTags))
-	require.Equal(t, tags.Join(", "), newTags.Join(", "))
+	require.Equal(t, `["tag1","tag2"]`, string(bytes))
 }

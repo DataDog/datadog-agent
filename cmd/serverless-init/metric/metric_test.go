@@ -35,8 +35,8 @@ func TestAdd(t *testing.T) {
 	assert.Equal(t, metric.Name, "a.super.metric")
 	assert.Equal(t, 2, len(metric.Tags))
 	assert.Equal(t, float64(timestamp.UnixNano())/float64(time.Second), metric.Timestamp)
-	assert.Equal(t, metric.Tags[0], "taga:valuea")
-	assert.Equal(t, metric.Tags[1], "tagb:valueb")
+	assert.Equal(t, metric.Tags[0].Value(), "taga:valuea")
+	assert.Equal(t, metric.Tags[1].Value(), "tagb:valueb")
 }
 
 func TestAddColdStartMetric(t *testing.T) {
@@ -49,8 +49,8 @@ func TestAddColdStartMetric(t *testing.T) {
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "gcp.run.enhanced.cold_start")
 	assert.Equal(t, 2, len(metric.Tags))
-	assert.Equal(t, metric.Tags[0], "taga:valuea")
-	assert.Equal(t, metric.Tags[1], "tagb:valueb")
+	assert.Equal(t, metric.Tags[0].Value(), "taga:valuea")
+	assert.Equal(t, metric.Tags[1].Value(), "tagb:valueb")
 	assert.Equal(t, metric.Source, metrics.MetricSourceGoogleCloudRunEnhanced)
 }
 
@@ -64,8 +64,8 @@ func TestAddShutdownMetric(t *testing.T) {
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "gcp.run.enhanced.shutdown")
 	assert.Equal(t, 2, len(metric.Tags))
-	assert.Equal(t, metric.Tags[0], "taga:valuea")
-	assert.Equal(t, metric.Tags[1], "tagb:valueb")
+	assert.Equal(t, metric.Tags[0].Value(), "taga:valuea")
+	assert.Equal(t, metric.Tags[1].Value(), "tagb:valueb")
 	assert.Equal(t, metric.Source, metrics.MetricSourceGoogleCloudRunEnhanced)
 }
 

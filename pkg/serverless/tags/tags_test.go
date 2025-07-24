@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	
 	"github.com/stretchr/testify/assert"
 )
 
@@ -250,12 +252,12 @@ func TestAddTagValidWithColumnInValue(t *testing.T) {
 }
 
 func TestAddColdStartTagWithoutColdStart(t *testing.T) {
-	generatedTags := AddColdStartTag([]string{
+	generatedTags := AddColdStartTag(utilstrings.ToUnique([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, false, false)
+	}), false, false)
 
-	assert.Equal(t, generatedTags, []string{
+	assert.Equal(t, utilstrings.FromUnique(generatedTags), []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 		"cold_start:false",
@@ -263,12 +265,12 @@ func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 }
 
 func TestAddColdStartTagWithColdStart(t *testing.T) {
-	generatedTags := AddColdStartTag([]string{
+	generatedTags := AddColdStartTag(utilstrings.ToUnique([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, true, false)
+	}), true, false)
 
-	assert.Equal(t, generatedTags, []string{
+	assert.Equal(t, utilstrings.FromUnique(generatedTags), []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 		"cold_start:true",
@@ -276,12 +278,12 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 }
 
 func TestAddColdStartTagWithColdStartAndProactiveInit(t *testing.T) {
-	generatedTags := AddColdStartTag([]string{
+	generatedTags := AddColdStartTag(utilstrings.ToUnique([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, true, true)
+	}), true, true)
 
-	assert.Equal(t, generatedTags, []string{
+	assert.Equal(t, utilstrings.FromUnique(generatedTags), []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 		"cold_start:false",
@@ -290,11 +292,11 @@ func TestAddColdStartTagWithColdStartAndProactiveInit(t *testing.T) {
 }
 
 func TestAddInitTypeTagWithoutInitType(t *testing.T) {
-	generatedTags := AddInitTypeTag([]string{
+	generatedTags := AddInitTypeTag(utilstrings.ToUnique([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	})
-	assert.Equal(t, generatedTags, []string{
+	}))
+	assert.Equal(t, utilstrings.FromUnique(generatedTags), []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})
@@ -302,11 +304,11 @@ func TestAddInitTypeTagWithoutInitType(t *testing.T) {
 
 func TestAddInitTypeTagWithInitType(t *testing.T) {
 	t.Setenv(InitType, SnapStartValue)
-	generatedTags := AddInitTypeTag([]string{
+	generatedTags := AddInitTypeTag(utilstrings.ToUnique([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	})
-	assert.Equal(t, generatedTags, []string{
+	}))
+	assert.Equal(t, utilstrings.FromUnique(generatedTags), []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 		"init_type:snap-start",
