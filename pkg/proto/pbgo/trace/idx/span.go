@@ -427,6 +427,7 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 		index = strings.Add(s)
 	} else {
 		index, o, err = msgp.ReadUint32Bytes(bts)
+		strings.refs[index]++ // New reference to this string
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read streaming string, failed to read uint32")
 			return

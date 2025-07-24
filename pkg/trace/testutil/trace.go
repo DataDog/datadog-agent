@@ -211,6 +211,15 @@ func TraceChunkWithSpanAndPriority(span *pb.Span, priority int32) *pb.TraceChunk
 	}
 }
 
+// TraceChunkV1WithSpanAndPriority wraps a `span` and `priority` with pb.TraceChunk
+func TraceChunkV1WithSpanAndPriority(span *idx.InternalSpan, priority int32) *idx.InternalTraceChunk {
+	return &idx.InternalTraceChunk{
+		Strings:  span.Strings,
+		Spans:    []*idx.InternalSpan{span},
+		Priority: priority,
+	}
+}
+
 // TraceChunkWithSpansAndPriority wraps `spans` and `priority` with pb.TraceChunk
 func TraceChunkWithSpansAndPriority(spans []*pb.Span, priority int32) *pb.TraceChunk {
 	return &pb.TraceChunk{
@@ -223,6 +232,14 @@ func TraceChunkWithSpansAndPriority(spans []*pb.Span, priority int32) *pb.TraceC
 func TracerPayloadWithChunk(chunk *pb.TraceChunk) *pb.TracerPayload {
 	return &pb.TracerPayload{
 		Chunks: []*pb.TraceChunk{chunk},
+	}
+}
+
+// TracerPayloadWithChunk wraps `chunk` with pb.TraceChunk
+func TracerPayloadV1WithChunk(chunk *idx.InternalTraceChunk) *idx.InternalTracerPayload {
+	return &idx.InternalTracerPayload{
+		Strings: chunk.Strings,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
 	}
 }
 

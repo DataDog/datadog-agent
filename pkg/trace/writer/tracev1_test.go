@@ -66,6 +66,33 @@ func TestTraceWriterV1(t *testing.T) {
 	}
 }
 
+func TestTraceWriterV1RemovedChunkUnreferencedStringsRemoved(t *testing.T) {
+	compressor := zstd.NewComponent()
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 1_000},
+	}
+	ss := randomSampledSpansV1(20, 8)
+	// Attach an unreferenced string, this is possible because we don't track when a trace chunk is unsent from a tracer payload
+	ss.TracerPayload.Strings.Add("SECRET_STRING")
+	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, compressor)
+	tw.WriteChunksV1(ss)
+	tw.Stop()
+	assert.Equal(t, 1, srv.Accepted())
+	mapPayloads(t, srv.Payloads(), compressor, func(all *pb.AgentPayload) {
+		for _, tp := range all.IdxTracerPayloads {
+			assert.NotContains(t, tp.Strings, "SECRET_STRING")
+		}
+	})
+}
+
 // randomSampledSpans returns a set of spans sampled spans and events events.
 func randomSampledSpansV1(spans, events int) *SampledChunksV1 {
 	realisticIDs := true
@@ -78,14 +105,11 @@ func randomSampledSpansV1(spans, events int) *SampledChunksV1 {
 	}
 }
 
-// payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContainV1(t *testing.T, payloads []*payload, sampledSpans []*SampledChunksV1, compressor compression.Component) {
-	t.Helper()
-	var all pb.AgentPayload
+func mapPayloads(t *testing.T, payloads []*payload, compressor compression.Component, f func(*pb.AgentPayload)) {
+	all := &pb.AgentPayload{}
 	for _, p := range payloads {
-		assert := assert.New(t)
 		var slurp []byte
-
+		assert := assert.New(t)
 		reader, err := compressor.NewReader(p.body)
 		assert.NoError(err)
 		defer reader.Close()
@@ -100,21 +124,29 @@ func payloadsContainV1(t *testing.T, payloads []*payload, sampledSpans []*Sample
 		assert.Equal(payload.Env, testEnv)
 		all.IdxTracerPayloads = append(all.IdxTracerPayloads, payload.IdxTracerPayloads...)
 	}
-	for _, ss := range sampledSpans {
-		var found bool
-		for _, tracerPayload := range all.IdxTracerPayloads {
-			for _, trace := range tracerPayload.Chunks {
-				if bytes.Equal(ss.TracerPayload.Chunks[0].TraceID, trace.TraceID) {
-					found = true
-					break
+	f(all)
+}
+
+// payloadsContain checks that the given payloads contain the given set of sampled spans.
+func payloadsContainV1(t *testing.T, payloads []*payload, sampledSpans []*SampledChunksV1, compressor compression.Component) {
+	t.Helper()
+	mapPayloads(t, payloads, compressor, func(all *pb.AgentPayload) {
+		for _, ss := range sampledSpans {
+			var found bool
+			for _, tracerPayload := range all.IdxTracerPayloads {
+				for _, trace := range tracerPayload.Chunks {
+					if bytes.Equal(ss.TracerPayload.Chunks[0].TraceID, trace.TraceID) {
+						found = true
+						break
+					}
 				}
 			}
-		}
 
-		if !found {
-			t.Fatal("payloads didn't contain given traces")
+			if !found {
+				t.Fatal("payloads didn't contain given traces")
+			}
 		}
-	}
+	})
 }
 
 func TestTraceWriterV1FlushSync(t *testing.T) {

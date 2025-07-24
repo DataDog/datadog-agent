@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -55,6 +56,9 @@ func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollec
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
 	a.Concentrator = &mockConcentrator{}
 	a.TraceWriter = &mockTraceWriter{
+		apiKey: conf.Endpoints[0].APIKey,
+	}
+	a.TraceWriterV1 = &mockTraceWriter{
 		apiKey: conf.Endpoints[0].APIKey,
 	}
 	return a
@@ -537,6 +541,60 @@ func TestProcess(t *testing.T) {
 		span := payloads[0].TracerPayload.Chunks[0].Spans[0]
 		assert.Equal(t, "unnamed_operation", span.Name)
 		assert.Equal(t, "something_that_should_be_a_metric", span.Service)
+	})
+
+	t.Run("normalizingV1", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{
+			ServiceRef:  strings.Add("something &&<@# that should be a metric!"),
+			SpanID:      1,
+			ResourceRef: strings.Add("SELECT name FROM people WHERE age = 42 AND extra = 55"),
+			TypeRef:     strings.Add("sql"),
+			Start:       uint64(time.Now().Add(-time.Second).UnixNano()),
+			Duration:    uint64((500 * time.Millisecond).Nanoseconds()),
+		})
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(span, 2)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		resultSpan := payloads[0].TracerPayload.Chunks[0].Spans[0]
+		assert.Equal(t, "unnamed_operation", resultSpan.Name())
+		assert.Equal(t, "something_that_should_be_a_metric", resultSpan.Service())
+	})
+
+	t.Run("normalizingV1-NamesAreKept", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		p := testutil.GeneratePayloadV1(3, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: p,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		assert.Len(t, payloads, 1)
+		for _, chunk := range payloads[0].TracerPayload.Chunks {
+			for _, span := range chunk.Spans {
+				assert.NotEqual(t, "unnamed_operation", span.Name())
+				assert.NotEqual(t, "unnamed-service", span.Service())
+			}
+		}
 	})
 
 	t.Run("_dd.hostname", func(t *testing.T) {

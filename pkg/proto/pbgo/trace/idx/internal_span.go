@@ -153,13 +153,34 @@ func (tp *InternalTracerPayload) Msgsize() int {
 	return size
 }
 
+// ToProto converts an InternalTracerPayload to a proto TracerPayload
+// It builds a new string table with only the strings that are used in the tracer payload
+// This ensures that any chunks or spans that were removed from this payload will not have any strings in the string table
+// that are no longer referenced. (As tracking these using the ref count is too expensive / error prone)
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
+	usedStrings := make([]bool, tp.Strings.Len())
+	usedStrings[tp.containerIDRef] = true
+	usedStrings[tp.languageNameRef] = true
+	usedStrings[tp.languageVersionRef] = true
+	usedStrings[tp.tracerVersionRef] = true
+	usedStrings[tp.runtimeIDRef] = true
+	usedStrings[tp.envRef] = true
+	usedStrings[tp.hostnameRef] = true
+	usedStrings[tp.appVersionRef] = true
+	markAttributeMapStringsUsed(usedStrings, tp.Strings, tp.Attributes)
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
-		chunks[i] = chunk.ToProto()
+		chunks[i] = chunk.ToProto(usedStrings)
+	}
+	// We do not adjust the existing string table in case another goroutine is using it (e.g. the trace writer and span concentrator concurrently)
+	sanitizedStrings := make([]string, len(tp.Strings.strings))
+	for i, str := range tp.Strings.strings {
+		if usedStrings[i] {
+			sanitizedStrings[i] = str
+		}
 	}
 	return &TracerPayload{
-		Strings:            tp.Strings.strings,
+		Strings:            sanitizedStrings,
 		ContainerIDRef:     tp.containerIDRef,
 		LanguageNameRef:    tp.languageNameRef,
 		LanguageVersionRef: tp.languageVersionRef,
@@ -370,11 +391,14 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
-// ToProto converts an InternalTraceChunk to a proto TraceChunk
-func (c *InternalTraceChunk) ToProto() *TraceChunk {
+// ToProto converts an InternalTraceChunk to a proto TraceChunk and marks any strings referenced in this chunk in usedStrings
+func (c *InternalTraceChunk) ToProto(usedStrings []bool) *TraceChunk {
+	usedStrings[c.originRef] = true
+	usedStrings[c.decisionMakerRef] = true
+	markAttributeMapStringsUsed(usedStrings, c.Strings, c.Attributes)
 	spans := make([]*Span, len(c.Spans))
 	for i, span := range c.Spans {
-		spans[i] = span.span
+		spans[i] = span.ToProto(usedStrings)
 	}
 	return &TraceChunk{
 		Priority:         c.Priority,
@@ -410,6 +434,34 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	}
 }
 
+func (s *InternalSpan) ToProto(usedStrings []bool) *Span {
+	usedStrings[s.span.ServiceRef] = true
+	usedStrings[s.span.NameRef] = true
+	usedStrings[s.span.ResourceRef] = true
+	usedStrings[s.span.TypeRef] = true
+	usedStrings[s.span.EnvRef] = true
+	usedStrings[s.span.VersionRef] = true
+	usedStrings[s.span.ComponentRef] = true
+	markAttributeMapStringsUsed(usedStrings, s.Strings, s.span.Attributes)
+	for _, link := range s.span.Links {
+		markSpanLinkUsedStrings(usedStrings, s.Strings, link)
+	}
+	for _, event := range s.span.Events {
+		markSpanEventUsedStrings(usedStrings, s.Strings, event)
+	}
+	return s.span
+}
+
+func markSpanLinkUsedStrings(usedStrings []bool, strTable *StringTable, link *SpanLink) {
+	usedStrings[link.TracestateRef] = true
+	markAttributeMapStringsUsed(usedStrings, strTable, link.Attributes)
+}
+
+func markSpanEventUsedStrings(usedStrings []bool, strTable *StringTable, event *SpanEvent) {
+	usedStrings[event.NameRef] = true
+	markAttributeMapStringsUsed(usedStrings, strTable, event.Attributes)
+}
+
 // ShallowCopy returns a shallow copy of the span
 func (s *Span) ShallowCopy() *Span {
 	return &Span{
@@ -431,6 +483,29 @@ func (s *Span) ShallowCopy() *Span {
 		ComponentRef: s.ComponentRef,
 		Kind:         s.Kind,
 	}
+}
+
+// DebugString returns a human readable string representation of the span
+func (s *InternalSpan) DebugString() string {
+	str := "Span {"
+	str += fmt.Sprintf("Service: (%s, at %d, #refs %d), ", s.Service(), s.span.ServiceRef, s.Strings.refs[s.span.ServiceRef])
+	str += fmt.Sprintf("Name: (%s, at %d, #refs %d), ", s.Name(), s.span.NameRef, s.Strings.refs[s.span.NameRef])
+	str += fmt.Sprintf("Resource: (%s, at %d, #refs %d), ", s.Resource(), s.span.ResourceRef, s.Strings.refs[s.span.ResourceRef])
+	str += fmt.Sprintf("SpanID: %d, ", s.span.SpanID)
+	str += fmt.Sprintf("ParentID: %d, ", s.span.ParentID)
+	str += fmt.Sprintf("Start: %d, ", s.span.Start)
+	str += fmt.Sprintf("Duration: %d, ", s.span.Duration)
+	str += fmt.Sprintf("Error: %t, ", s.span.Error)
+	str += fmt.Sprintf("Attributes: %v, ", s.span.Attributes)
+	str += fmt.Sprintf("Type: (%s, at %d, #refs %d), ", s.Type(), s.span.TypeRef, s.Strings.refs[s.span.TypeRef])
+	str += fmt.Sprintf("Links: %v, ", s.Links())
+	str += fmt.Sprintf("Events: %v, ", s.Events())
+	str += fmt.Sprintf("Env: (%s, at %d, #refs %d), ", s.Env(), s.span.EnvRef, s.Strings.refs[s.span.EnvRef])
+	str += fmt.Sprintf("Version: (%s, at %d, #refs %d), ", s.Version(), s.span.VersionRef, s.Strings.refs[s.span.VersionRef])
+	str += fmt.Sprintf("Component: (%s, at %d, #refs %d), ", s.Component(), s.span.ComponentRef, s.Strings.refs[s.span.ComponentRef])
+	str += fmt.Sprintf("Kind: %s, ", s.SpanKind())
+	str += "}"
+	return str
 }
 
 // Events returns the spans events in the InternalSpanEvent format
@@ -582,6 +657,10 @@ func (s *InternalSpan) SetStart(start uint64) {
 
 func (s *InternalSpan) Error() bool {
 	return s.span.Error
+}
+
+func (s *InternalSpan) SetError(error bool) {
+	s.span.Error = error
 }
 
 func (s *InternalSpan) Attributes() map[uint32]*AnyValue {
@@ -886,5 +965,30 @@ func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*A
 		strTable.DecrementReference(keyIdx)
 		attributes[keyIdx].RemoveStringRefs(strTable)
 		delete(attributes, keyIdx)
+	}
+}
+
+func markAttributeMapStringsUsed(usedStrings []bool, strTable *StringTable, attributes map[uint32]*AnyValue) {
+	for keyIdx, attr := range attributes {
+		usedStrings[keyIdx] = true
+		markAttributeStringUsed(usedStrings, strTable, attr)
+	}
+}
+
+// markAttributeStringUsed marks the string referenced by the value as used
+// This is used to track which strings are used in the span and can be removed from the string table
+func markAttributeStringUsed(usedStrings []bool, strTable *StringTable, value *AnyValue) {
+	switch v := value.Value.(type) {
+	case *AnyValue_StringValueRef:
+		usedStrings[v.StringValueRef] = true
+	case *AnyValue_ArrayValue:
+		for _, value := range v.ArrayValue.Values {
+			markAttributeStringUsed(usedStrings, strTable, value)
+		}
+	case *AnyValue_KeyValueList:
+		for _, kv := range v.KeyValueList.KeyValues {
+			usedStrings[kv.Key] = true
+			markAttributeStringUsed(usedStrings, strTable, kv.Value)
+		}
 	}
 }

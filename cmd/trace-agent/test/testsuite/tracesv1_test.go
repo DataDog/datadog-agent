@@ -36,8 +36,8 @@ func TestTracesV1(t *testing.T) {
 		}
 		defer r.KillAgent()
 
-		p := testutil.GeneratePayloadV1(1, &testutil.TraceConfig{
-			MinSpans: 1,
+		p := testutil.GeneratePayloadV1(2, &testutil.TraceConfig{
+			MinSpans: 3,
 			Keep:     true,
 		}, &testutil.SpanConfig{NumSpanEvents: 1})
 
@@ -53,31 +53,32 @@ func TestTracesV1(t *testing.T) {
 		})
 	})
 
-	// 	t.Run("reject", func(t *testing.T) {
-	// 		if err := r.RunAgent(nil); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
+	t.Run("reject", func(t *testing.T) {
+		if err := r.RunAgent(nil); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
 
-	// 		p := testutil.GeneratePayload(5, &testutil.TraceConfig{
-	// 			MinSpans: 3,
-	// 			Keep:     true,
-	// 		}, nil)
-	// 		for i := 0; i < 2; i++ {
-	// 			// user reject two traces
-	// 			// unset any error so they aren't grabbed by error sampler
-	// 			for _, span := range p[i] {
-	// 				span.Metrics["_sampling_priority_v1"] = -1
-	// 				span.Error = 0
-	// 			}
-	// 		}
-	// 		if err := r.Post(p); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	// 			payloadsEqual(t, p[2:], v)
-	// 		})
-	// 	})
+		p := testutil.GeneratePayloadV1(3, &testutil.TraceConfig{
+			MinSpans: 2,
+			Keep:     true,
+		}, nil)
+		for i := 0; i < 2; i++ {
+			// user reject two traces
+			p.Chunks[i].Priority = -1
+			// unset any error so they aren't grabbed by error sampler
+			for _, span := range p.Chunks[i].Spans {
+				span.SetError(false)
+			}
+		}
+		if err := r.PostV1(p); err != nil {
+			t.Fatal(err)
+		}
+		p.Chunks = p.Chunks[2:] // We expect the first two chunks to be dropped
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			payloadsEqualV1(t, p, v)
+		})
+	})
 
 	// 	t.Run("ignore_resources", func(t *testing.T) {
 	// 		if err := r.RunAgent([]byte(`apm_config:
