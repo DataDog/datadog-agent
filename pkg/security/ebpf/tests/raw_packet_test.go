@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 const (
@@ -274,19 +275,47 @@ func TestRawPacketDropAction(t *testing.T) {
 				RuleID:    "ok",
 				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
 				Policy:    rawpacket.PolicyDrop,
-				Pid:       uint32(123),
+				Pid:       123,
 			},
 		}
 		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true)
 	})
 
-	t.Run("syn-port-std-ko", func(t *testing.T) {
+	t.Run("syn-port-std-pid-ko", func(t *testing.T) {
 		filters := []rawpacket.Filter{
 			{
 				RuleID:    "ko",
 				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
 				Policy:    rawpacket.PolicyDrop,
-				Pid:       uint32(567),
+				Pid:       999,
+			},
+		}
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
+	})
+
+	t.Run("syn-port-std-cgroup-ok", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ok",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+				Policy:    rawpacket.PolicyDrop,
+				CGroupPathKey: model.PathKey{
+					Inode: 456,
+				},
+			},
+		}
+		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", 255, 1, rawpacket.DefaultProgOpts(), true)
+	})
+
+	t.Run("syn-port-std-cgroup-ko", func(t *testing.T) {
+		filters := []rawpacket.Filter{
+			{
+				RuleID:    "ko",
+				BPFFilter: "tcp dst port 5555 and tcp[tcpflags] == tcp-syn",
+				Policy:    rawpacket.PolicyDrop,
+				CGroupPathKey: model.PathKey{
+					Inode: 999,
+				},
 			},
 		}
 		testRawPacketDropAction(t, filters, "test/raw_packet_drop_action", probes.TCActUnspec, 1, rawpacket.DefaultProgOpts(), true)
