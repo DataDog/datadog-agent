@@ -177,7 +177,9 @@ if (-not `$?) { exit `$LASTEXITCODE }
             Invoke-SSHCommand "& '$remoteTempFile'" "Running tests"
         } finally {
             # Clean up the remote temporary file
-            Invoke-SSHCommand "Remove-Item '$remoteTempFile' -Force -ErrorAction SilentlyContinue"
+            if (-Not $KeepRemoteFiles) {
+                Invoke-SSHCommand "Remove-Item '$remoteTempFile' -Force -ErrorAction SilentlyContinue"
+            }
         }
     } finally {
         # Clean up local temporary file
