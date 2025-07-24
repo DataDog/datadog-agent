@@ -588,8 +588,8 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
     Initialize the build environment with artifacts from a ref (default: main)
 
     Example:
-    dda inv msi.fetch_artifacts --ref main
-    dda inv msi.fetch_artifacts --ref 7.66.x
+    dda inv msi.fetch-artifacts --ref main
+    dda inv msi.fetch-artifacts --ref 7.66.x
     """
     if ref is None:
         ref = 'main'
@@ -598,19 +598,41 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         download_latest_artifacts_for_ref(project, ref, tmp_dir)
-        tmp_dir = Path(tmp_dir) / "omnibus/pkg"
-        # extract datadog-agent*-x86_64.zip (glob) to C:\opt\datadog-agent
+        tmp_dir_path = Path(tmp_dir)
+
+        print(f"Downloaded artifacts to {tmp_dir_path}")
+        
+        # Recursively search for the zip files
+        agent_zips = list(tmp_dir_path.glob("**/datadog-agent-*-x86_64.zip"))
+        installer_zips = list(tmp_dir_path.glob("**/datadog-installer-*-x86_64.zip"))
+        
+        print(f"Found {len(agent_zips)} agent zip files")
+        print(f"Found {len(installer_zips)} installer zip files")
+        
+        if not agent_zips and not installer_zips:
+            print("No zip files found. Directory contents:")
+            for path in tmp_dir_path.glob("**/*"):
+                if path.is_file():
+                    print(f"  {path}")
+            raise Exception("No zip files found in the downloaded artifacts")
+        
+        # Extract agent zips
         dest = Path(r'C:\opt\datadog-agent')
-        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-agent-*-x86_64.zip')):
+        dest.mkdir(parents=True, exist_ok=True)
+        for zip_file in agent_zips:
             print(f"Extracting {zip_file} to {dest}")
             with zipfile.ZipFile(zip_file, "r") as zip_ref:
                 zip_ref.extractall(dest)
-        # extract datadog-installer-*.zip (glob) to C:\opt\datadog-installer
+        
+        # Extract installer zips
         dest = Path(r'C:\opt\datadog-installer')
-        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-installer-*-x86_64.zip')):
+        dest.mkdir(parents=True, exist_ok=True)
+        for zip_file in installer_zips:
             print(f"Extracting {zip_file} to {dest}")
             with zipfile.ZipFile(zip_file, "r") as zip_ref:
                 zip_ref.extractall(dest)
+        
+        print("Extraction complete")
 
 
 def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:
