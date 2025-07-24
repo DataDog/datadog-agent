@@ -973,7 +973,6 @@ func testNodeJSSegfaultPrevention(t *testing.T, usmMonitor *Monitor, nodeJSPID u
 
 	// Create client and make HTTPS requests to trigger potential uretprobe usage
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
-	defer client.CloseIdleConnections()
 
 	// Make several requests that would normally trigger uretprobe attachment
 	for i := 0; i < 5; i++ {
@@ -988,6 +987,8 @@ func testNodeJSSegfaultPrevention(t *testing.T, usmMonitor *Monitor, nodeJSPID u
 		require.NoError(t, err)
 		require.Equal(t, initialPID, uint32(currentPID), "NodeJS process crashed (segfault) after request %d", i+1)
 	}
+
+	client.CloseIdleConnections()
 
 	// Final verification that process is still alive and stable
 	assert.Eventually(t, func() bool {
@@ -1015,13 +1016,13 @@ func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uin
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
-	defer client.CloseIdleConnections()
 
 	var requests []*nethttp.Request
 	for i := 0; i < expectedOccurrences; i++ {
 		requests = append(requests, requestFn())
 	}
 
+	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
