@@ -16,7 +16,7 @@ import (
 )
 
 var agentNames = map[string]struct{}{
-	"agent": {}, "trace-agent": {}, "process-agent": {},
+	"agent": {}, "trace-agent": {}, "trace-loader": {}, "process-agent": {},
 	"system-probe": {}, "security-agent": {},
 }
 
