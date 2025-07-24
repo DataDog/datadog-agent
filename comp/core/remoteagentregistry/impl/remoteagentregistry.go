@@ -234,10 +234,10 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		}
 
 		entry.client = client
-	} else {
-		entry.displayName = registration.DisplayName
-		entry.lastSeen = time.Now()
 	}
+
+	entry.displayName = registration.DisplayName
+	entry.lastSeen = time.Now()
 
 	ra.telemetryStore.remoteAgentUpdated.Inc(registration.DisplayName)
 
