@@ -3,7 +3,7 @@
 #             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
 #                                                                        #
 # The installation logic is handled by the installer at in the following #
-# file: pkg/fleet/installer/packages/datadog_agent_ddot_linux.go              #
+# file: pkg/fleet/installer/packages/datadog_agent_ddot_linux.go         #
 #                                                                        #
 ##########################################################################
 

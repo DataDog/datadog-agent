@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -89,6 +90,11 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	// Set DDOT config permissions
 	if err = ddotConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
+	}
+
+	// Copy example config to default path
+	if err = paths.CopyFile("/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml"); err != nil {
+		return fmt.Errorf("could not copy otel-config.yaml.example file: %s", err)
 	}
 
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
