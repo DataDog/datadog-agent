@@ -506,6 +506,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
 	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 }
+
 // Verify ddot service running
 func (s *packageAgentSuite) assertDdotUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(ddotUnit)
