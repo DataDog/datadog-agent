@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -261,16 +260,6 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFieldsUser(_ *model.Event, e *model.
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.FileEvent) string {
 	return e.Filesystem
-}
-
-// ResolveFileExtension resolves the extension of a file
-func (fh *EBPFLessFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
-	if f.Extension == "" {
-		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
-		}
-	}
-	return f.Extension
 }
 
 // ResolveFileMetadataSize resolves file metadata size

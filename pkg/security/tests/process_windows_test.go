@@ -13,15 +13,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestBasicTest(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_basic_rule",
-		Expression: `exec.file.name in ["at.exe","schtasks.exe"]`,
+		Expression: `exec.file.name in ["at.exe","schtasks.exe"] && exec.file.extension == ".exe"`,
 	}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
