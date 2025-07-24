@@ -11,6 +11,8 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -19,13 +21,20 @@ import (
 type ContainersTelemetry struct {
 	TelemetrySender SimpleTelemetrySender
 	MetadataStore   workloadmeta.Component
+	containerFilter *containers.Filter
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
-func NewContainersTelemetry(telemetrySender SimpleTelemetrySender, wmeta workloadmeta.Component) (*ContainersTelemetry, error) {
+func NewContainersTelemetry(telemetrySender SimpleTelemetrySender, wmeta workloadmeta.Component, cfg model.Config, prefix string) (*ContainersTelemetry, error) {
+	containerFilter, err := containers.NewContainerFilter(cfg, prefix)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ContainersTelemetry{
 		TelemetrySender: telemetrySender,
 		MetadataStore:   wmeta,
+		containerFilter: containerFilter,
 	}, nil
 }
 
@@ -43,7 +52,16 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 		// ignore DD agent containers
 		value := container.EnvVars["DOCKER_DD_AGENT"]
 		value = strings.ToLower(value)
-		if value == "yes" || value == "true" {
+
+		var podNamespace string
+		var podAnnotations map[string]string
+		if pod, err := c.MetadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			podNamespace = pod.Namespace
+			podAnnotations = pod.Annotations
+		}
+
+		if (value == "yes" || value == "true") ||
+			c.containerFilter.IsExcluded(podAnnotations, container.Name, container.Image.Name, podNamespace) {
 			log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
 			continue
 		}

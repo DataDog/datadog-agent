@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -213,6 +214,18 @@ func GetPauseContainerFilter() (*Filter, error) {
 	}
 
 	return NewFilter(GlobalFilter, nil, excludeList)
+}
+
+// NewContainerFilter returns a new include/exclude filter for containers
+func NewContainerFilter(cfg model.Config, prefix string) (*Filter, error) {
+	includeList := cfg.GetStringSlice(prefix + "container_include")
+	excludeList := cfg.GetStringSlice(prefix + "container_exclude")
+
+	if cfg.GetBool(prefix + "exclude_pause_container") {
+		excludeList = append(excludeList, GetPauseContainerExcludeList()...)
+	}
+
+	return NewFilter(GlobalFilter, includeList, excludeList)
 }
 
 // ResetSharedFilter is only to be used in unit tests: it resets the global
