@@ -20,7 +20,7 @@ func init() { registerModule(SoftwareInventory) }
 
 // SoftwareInventory Factory
 var SoftwareInventory = &module.Factory{
-	Name:             config.InventorySoftwareModule,
+	Name:             config.SoftwareInventory,
 	ConfigNamespaces: []string{"software_inventory"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the Windows Software inventory module")

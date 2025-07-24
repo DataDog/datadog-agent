@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventorysoftwareimpl
+package softwareinventoryimpl
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 )
 
 func TestStatusFundamentals(t *testing.T) {
-	is, _ := newInventorySoftware(t, true)
+	is, _ := newSoftwareInventory(t, true)
 	assert.Equal(t, "Software Inventory Metadata", is.Name())
 	assert.Equal(t, 4, is.Index())
 }
@@ -26,8 +26,8 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 		{DisplayName: "FooApp", ProductCode: "foo"},
 		{DisplayName: "BarApp", ProductCode: "bar"},
 	}
-	is, sp := newInventorySoftware(t, true)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
+	is, sp := newSoftwareInventory(t, true)
+	sp.On("GetCheck", sysconfig.SoftwareInventory).Return(mockData, nil)
 
 	// Status JSON should trigger a refresh of cached values
 	stats := make(map[string]interface{})
@@ -107,8 +107,8 @@ func TestStatusTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			is, sp := newInventorySoftware(t, true)
-			sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(tt.mockData, nil)
+			is, sp := newSoftwareInventory(t, true)
+			sp.On("GetCheck", sysconfig.SoftwareInventory).Return(tt.mockData, nil)
 
 			// Test Text template
 			var buf bytes.Buffer
@@ -132,8 +132,8 @@ func TestStatusTemplates(t *testing.T) {
 }
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
-	is, sp := newInventorySoftware(t, true)
-	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, nil)
+	is, sp := newSoftwareInventory(t, true)
+	sp.On("GetCheck", sysconfig.SoftwareInventory).Return([]software.Entry{}, nil)
 
 	// Test Text template
 	var buf bytes.Buffer

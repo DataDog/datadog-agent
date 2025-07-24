@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorysoftware defines the interface for the inventory software component.
+// Package softwareinventory defines the interface for the inventory software component.
 // This component collects and reports software inventory information from the host system.
 // It provides metadata about installed software applications, including their names,
 // versions, installation dates, and other relevant details for inventory tracking.
-package inventorysoftware
+package softwareinventory
 
 // team: windows-agent
 
@@ -16,9 +16,4 @@ package inventorysoftware
 // and providing it in a structured format for reporting and monitoring purposes.
 // The component supports both automatic periodic collection and manual refresh triggers.
 type Component interface {
-	// Refresh triggers a new payload to be sent while still respecting the minimal interval between two updates.
-	// This method allows manual triggering of software inventory collection, useful for immediate
-	// inventory updates or testing purposes. The component will respect any configured minimum
-	// intervals to prevent excessive data collection.
-	Refresh()
 }

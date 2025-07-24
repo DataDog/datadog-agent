@@ -5,7 +5,7 @@
 
 //go:build test
 
-package inventorysoftwareimpl
+package softwareinventoryimpl
 
 import (
 	"context"

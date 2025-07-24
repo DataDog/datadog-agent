@@ -42,7 +42,7 @@ const (
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
-	InventorySoftwareModule      types.ModuleName = "inventory_software"
+	SoftwareInventory            types.ModuleName = "software_inventory"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -177,7 +177,7 @@ func load() (*types.Config, error) {
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 		}
 		// Always enabled on Windows
-		c.EnabledModules[InventorySoftwareModule] = struct{}{}
+		c.EnabledModules[SoftwareInventory] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

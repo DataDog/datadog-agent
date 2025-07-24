@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorysoftwareimpl contains the implementation of the inventory software component.
+// Package softwareinventoryimpl contains the implementation of the inventory software component.
 // This package provides the concrete implementation of the inventory software component
 // that collects software inventory data from the Windows system through the System Probe.
-package inventorysoftwareimpl
+package softwareinventoryimpl
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"time"
 
-	inventorysoftware "github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/softwareinventory/def"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -66,10 +66,10 @@ func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.En
 	return sysprobeclient.GetCheck[[]software.Entry](w.client, module)
 }
 
-// inventorySoftware is the implementation of the Component interface.
+// softwareInventory is the implementation of the Component interface.
 // This struct holds the state and dependencies needed to collect and manage
 // software inventory data from the Windows system.
-type inventorySoftware struct {
+type softwareInventory struct {
 	util.InventoryPayload
 
 	// log provides logging capabilities for the component
@@ -103,7 +103,7 @@ type Requires struct {
 // makes available to the rest of the system.
 type Provides struct {
 	// Comp is the main component interface for software inventory
-	Comp inventorysoftware.Component
+	Comp softwareinventory.Component
 	// Provider is the metadata provider for software inventory data
 	Provider runnerimpl.Provider
 	// FlareProvider provides software inventory data for flare collection
@@ -130,7 +130,7 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 		return Provides{}, err
 	}
 
-	is := &inventorySoftware{
+	is := &softwareInventory{
 		log:            reqs.Log,
 		sysProbeClient: client,
 		hostname:       hname,
@@ -158,10 +158,10 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 // refreshCachedValues updates the cached software inventory data by collecting
 // fresh data from the System Probe. This method respects the enabled flag
 // and will skip collection if the feature is disabled in the configuration.
-func (is *inventorySoftware) refreshCachedValues() error {
+func (is *softwareInventory) refreshCachedValues() error {
 	is.log.Debugf("Collecting Software Inventory")
 
-	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.InventorySoftwareModule)
+	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventory)
 	if err != nil {
 		return is.log.Errorf("error getting software inventory: %v", err)
 	}
@@ -174,7 +174,7 @@ func (is *inventorySoftware) refreshCachedValues() error {
 // getPayload creates and returns a new software inventory payload.
 // This method triggers a refresh of the cached data and returns a properly
 // formatted payload for transmission to the backend.
-func (is *inventorySoftware) getPayload() marshaler.JSONMarshaler {
+func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 	if err := is.refreshCachedValues(); err != nil {
 		return nil
 	}
@@ -191,7 +191,7 @@ func (is *inventorySoftware) getPayload() marshaler.JSONMarshaler {
 // writePayloadAsJSON writes the software inventory payload as JSON to the HTTP response.
 // This method is used by the HTTP endpoint to serve software inventory data
 // in JSON format for external consumption.
-func (is *inventorySoftware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+func (is *softwareInventory) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	json, err := is.GetAsJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
