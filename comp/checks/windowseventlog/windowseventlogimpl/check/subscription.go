@@ -26,7 +26,6 @@ import (
 	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
-	"golang.org/x/sys/windows"
 )
 
 func (c *Check) getChannelPath() (string, error) {
@@ -97,11 +96,12 @@ func (c *Check) initSubscription() error {
 
 		if startMode == "now" {
 			// For "now" mode, create bookmark from most recent event
-			bookmark, err = c.createInitialBookmark(channelPath, query)
+			bookmark, err = evtbookmark.FromLatestEvent(c.evtapi, channelPath, query)
 			if err != nil {
-				log.Debugf("No recent events found, creating empty bookmark: %v", err)
+				// FromLatestEvent only returns error on API failure
+				return fmt.Errorf("failed to create initial bookmark: %w", err)
 			}
-			// createInitialBookmark returns a valid bookmark even for empty logs
+			// FromLatestEvent always returns a valid bookmark (empty if no events)
 			if bookmark != nil {
 				opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
 			}
@@ -177,87 +177,6 @@ func (c *Check) initSubscription() error {
 	}
 
 	return nil
-}
-
-// createInitialBookmark queries for the most recent event(s) and creates a bookmark from them
-func (c *Check) createInitialBookmark(channelPath, query string) (evtbookmark.Bookmark, error) {
-	// Determine if this is a multi-channel query
-	isMultiChannel := strings.HasPrefix(query, "<QueryList>")
-
-	// Set up query parameters
-	var path string
-	var flags uint
-
-	if isMultiChannel {
-		// For multi-channel queries, path is ignored and query contains the XML QueryList
-		path = ""
-		flags = evtapi.EvtQueryFilePath | evtapi.EvtQueryReverseDirection
-	} else {
-		// Single channel query
-		path = channelPath
-		flags = evtapi.EvtQueryChannelPath | evtapi.EvtQueryReverseDirection
-	}
-
-	// Query for the most recent event
-	resultSetHandle, err := c.evtapi.EvtQuery(0, path, query, flags)
-	if err != nil {
-		return nil, fmt.Errorf("EvtQuery failed: %w", err)
-	}
-	defer evtapi.EvtCloseResultSet(c.evtapi, resultSetHandle)
-
-	// Get the first event (most recent due to reverse direction)
-	eventHandles := make([]evtapi.EventRecordHandle, 1)
-	returnedHandles, err := c.evtapi.EvtNext(resultSetHandle, eventHandles, 1, 1000) // 1 second timeout
-	if err != nil {
-		// Check if it's just no events available
-		if err == windows.ERROR_NO_MORE_ITEMS {
-			// No events in the log, create empty bookmark (following tailer pattern)
-			bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
-			if err != nil {
-				return nil, fmt.Errorf("failed to create empty bookmark: %w", err)
-			}
-			log.Debugf("Created empty initial bookmark for channel '%s' (no events in log)", channelPath)
-			return bookmark, nil
-		}
-		return nil, fmt.Errorf("EvtNext failed: %w", err)
-	}
-
-	if len(returnedHandles) == 0 {
-		// No events available, create empty bookmark
-		bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create empty bookmark: %w", err)
-		}
-		log.Debugf("Created empty initial bookmark for channel '%s' (no events returned)", channelPath)
-		return bookmark, nil
-	}
-
-	// Create bookmark and update it with the event
-	bookmark, err := evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
-	if err != nil {
-		// Clean up event handle before returning
-		evtapi.EvtCloseRecord(c.evtapi, returnedHandles[0])
-		return nil, fmt.Errorf("failed to create bookmark: %w", err)
-	}
-
-	err = bookmark.Update(returnedHandles[0])
-	if err != nil {
-		bookmark.Close()
-		evtapi.EvtCloseRecord(c.evtapi, returnedHandles[0])
-		return nil, fmt.Errorf("failed to update bookmark: %w", err)
-	}
-
-	// Clean up event handle
-	evtapi.EvtCloseRecord(c.evtapi, returnedHandles[0])
-
-	// Log the bookmark creation for debugging
-	bookmarkXML, err := bookmark.Render()
-	if err == nil {
-		log.Infof("Created initial bookmark for channel '%s' with query '%s'. Bookmark length: %d",
-			channelPath, query, len(bookmarkXML))
-	}
-
-	return bookmark, nil
 }
 
 func (c *Check) startSubscription() error {

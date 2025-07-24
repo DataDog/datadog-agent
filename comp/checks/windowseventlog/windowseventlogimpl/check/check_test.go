@@ -270,14 +270,11 @@ start: now
 
 	// Should collect only the missed events (not starting from "latest" again)
 	s.assertCountEvents(check2, missedEvents)
+	s.assertNoEvents(check2)
 }
 
 // Test initial bookmark creation with empty event log
 func (s *GetEventsTestSuite) TestInitialBookmarkWithEmptyLog() {
-	// Ensure log is empty
-	err := s.ti.API().EvtClearLog(s.channelPath)
-	require.NoError(s.T(), err)
-
 	instanceConfig := []byte(fmt.Sprintf(`
 path: %s
 start: now

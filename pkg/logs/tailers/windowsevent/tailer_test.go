@@ -41,9 +41,6 @@ type ReadEventsSuite struct {
 
 func TestReadEventsSuite(t *testing.T) {
 	for _, tiName := range eventlog_test.GetEnabledAPITesters() {
-		// create a copy so the closure captures the right value
-		tiName := tiName
-
 		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
 			if tiName != "Windows" {
 				t.Skipf("skipping %s: test interface not implemented", tiName)
@@ -270,12 +267,11 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 	// if tailer started from bookmark correctly, there should only be s.numEvents
 }
 
+// TestInitialBookmarkSeeding verifies the fix for the amnesia bug:
+// When a tailer starts with no bookmark, it creates an initial bookmark
+// from the most recent event and saves it immediately, even if no events
+// are processed before shutdown.
 func TestInitialBookmarkSeeding(t *testing.T) {
-	// Test that verifies the fix for the amnesia bug:
-	// When a tailer starts with no bookmark, it creates an initial bookmark
-	// from the most recent event and saves it immediately, even if no events
-	// are processed before shutdown.
-
 	// Setup test environment
 	channelPath := "dd-test-channel-initial-bookmark"
 	eventSource := "dd-test-source-initial-bookmark"
@@ -402,10 +398,9 @@ collectLoop:
 	t.Logf("Initial bookmark seeding prevented amnesia bug - no events were lost!")
 }
 
+// TestInitialBookmarkSeedingNoEvents tests the edge case where the event log is empty.
+// The tailer should still create a valid (empty) bookmark.
 func TestInitialBookmarkSeedingNoEvents(t *testing.T) {
-	// Test the edge case where the event log is empty
-	// The tailer should still create a valid (empty) bookmark
-
 	// Setup test environment
 	channelPath := "dd-test-channel-no-events"
 	eventSource := "dd-test-source-no-events"
