@@ -298,6 +298,8 @@ func (a *APIServer) start(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
+	containerFilters, _ := utils.NewContainerFilter()
+
 	for {
 		select {
 		case now := <-ticker.C:
@@ -313,6 +315,11 @@ func (a *APIServer) start(ctx context.Context) {
 						if !slices.Contains(msg.tags, tag) {
 							msg.tags = append(msg.tags, tag)
 						}
+					}
+
+					containerName, imageName, podName := utils.GetContainerFilterTags(msg.tags)
+					if containerFilters != nil && containerFilters.IsExcluded(nil, containerName, imageName, podName) {
+						return false
 					}
 				}
 

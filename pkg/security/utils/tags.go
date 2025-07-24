@@ -34,3 +34,12 @@ func GetTagName(tag string) string {
 
 	return key
 }
+
+// GetContainerFilterTags returns the tags used for container filtering
+func GetContainerFilterTags(tags []string) (string, string, string) {
+	containerName := GetTagValue("container_name", tags)
+	imageName := GetTagValue("image_name", tags)
+	podName := GetTagValue("pod_name", tags)
+
+	return containerName, imageName, podName
+}
