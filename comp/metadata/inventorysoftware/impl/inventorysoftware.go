@@ -11,6 +11,7 @@ package inventorysoftwareimpl
 import (
 	"context"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"net/http"
 	"time"
 
@@ -22,42 +23,47 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 const flareFileName = "inventorysoftware.json"
 
-// SysProbeClient is an interface for the sysprobeclient used for dependency injection and testing.
+// sysProbeClient is an interface for system probe used for dependency injection and testing.
 // This interface abstracts the communication with the System Probe to retrieve software inventory data,
 // allowing for easier testing and dependency injection.
-type SysProbeClient interface {
+type sysProbeClient interface {
 	// GetCheck retrieves software inventory data from the specified System Probe module.
 	// This method communicates with the System Probe to collect software information
 	// from the Windows registry and other system sources.
 	GetCheck(module types.ModuleName) ([]software.Entry, error)
 }
 
-// sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement SysProbeClient.
+// sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement mockSysProbeClient.
 // This wrapper provides a clean interface to the System Probe client while maintaining
 // compatibility with the existing client implementation.
 type sysProbeClientWrapper struct {
-	client *sysprobeclient.CheckClient
+	// don't use this field directly, it's used for lazy initialization
+	__client *sysprobeclient.CheckClient
+	// clientFn is used to lazily initialize the client
+	clientFn func() *sysprobeclient.CheckClient
 }
 
-// GetCheck implements SysProbeClient.GetCheck by delegating to the wrapped client.
+// GetCheck implements mockSysProbeClient.GetCheck by delegating to the wrapped client.
 // This method uses the generic GetCheck function to retrieve software inventory data
 // from the System Probe with proper type safety.
 func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.Entry, error) {
-	return sysprobeclient.GetCheck[[]software.Entry](w.client, module)
+	if w.__client == nil {
+		w.__client = w.clientFn()
+	}
+	return sysprobeclient.GetCheck[[]software.Entry](w.__client, module)
 }
 
 // inventorySoftware is the implementation of the Component interface.
@@ -69,13 +75,11 @@ type inventorySoftware struct {
 	// log provides logging capabilities for the component
 	log log.Component
 	// sysProbeClient is used to communicate with the System Probe for data collection
-	sysProbeClient SysProbeClient
+	sysProbeClient sysProbeClient
 	// cachedInventory stores the most recently collected software inventory data
 	cachedInventory []software.Entry
 	// hostname identifies the system where the inventory was collected
 	hostname string
-	// enabled indicates whether software inventory collection is enabled in the configuration
-	enabled bool
 }
 
 // Requires defines the dependencies required by the inventory software component.
@@ -86,6 +90,8 @@ type Requires struct {
 	Log log.Component
 	// Config provides access to the agent configuration
 	Config config.Component
+	// SysprobeConfig provides access to the system probe configuration
+	SysprobeConfig sysprobeconfig.Component
 	// Serializer is used to serialize and send data to the backend
 	Serializer serializer.MetricSerializer
 	// Hostname provides the hostname of the current system
@@ -110,29 +116,34 @@ type Provides struct {
 
 // New creates a new inventory software component with the default sysprobeclient
 func New(reqs Requires) (Provides, error) {
-	return NewWithClient(reqs, nil)
+	return newWithClient(reqs, &sysProbeClientWrapper{
+		clientFn: func() *sysprobeclient.CheckClient {
+			return sysprobeclient.GetCheckClient(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket"))
+		},
+	})
 }
 
-// NewWithClient creates a new inventory software component with a custom sysprobeclient
-func NewWithClient(reqs Requires, client SysProbeClient) (Provides, error) {
-	if client == nil {
-		client = &sysProbeClientWrapper{
-			client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
-		}
+// newWithClient creates a new inventory software component with a custom sysprobeclient
+func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
+	hname, err := reqs.Hostname.Get(context.Background())
+	if err != nil {
+		return Provides{}, err
 	}
-	hname, _ := reqs.Hostname.Get(context.Background())
+
 	is := &inventorySoftware{
 		log:            reqs.Log,
 		sysProbeClient: client,
 		hostname:       hname,
-		enabled:        reqs.Config.GetBool("software_inventory.enabled"),
 	}
-	// Always provide the component because FX dependency injection expects
-	// status providers, metadata providers, etc. to be available, not wrapped
-	// in option.Option. The enabled flag only controls whether we call the System
-	// Probe software inventory endpoint to collect actual data.
+
 	// Note that there is a second way to disable this feature, through InventoryPayload.Enabled.
 	// 'enable_metadata_collection' and 'inventories_enabled' both need to be set to true.
+	if !reqs.Config.GetBool("software_inventory.enabled") {
+		return Provides{
+			Comp: is,
+		}, nil
+	}
+
 	is.log.Infof("Starting the inventory software component")
 	is.InventoryPayload = util.CreateInventoryPayload(reqs.Config, reqs.Log, reqs.Serializer, is.getPayload, flareFileName)
 	return Provides{
@@ -148,11 +159,7 @@ func NewWithClient(reqs Requires, client SysProbeClient) (Provides, error) {
 // fresh data from the System Probe. This method respects the enabled flag
 // and will skip collection if the feature is disabled in the configuration.
 func (is *inventorySoftware) refreshCachedValues() error {
-	if !is.enabled {
-		is.log.Debugf("Software inventory is disabled in agent configuration")
-		return nil
-	}
-	is.log.Infof("Collecting Software Inventory")
+	is.log.Debugf("Collecting Software Inventory")
 
 	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.InventorySoftwareModule)
 	if err != nil {

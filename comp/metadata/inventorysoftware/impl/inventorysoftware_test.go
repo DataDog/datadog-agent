@@ -8,7 +8,7 @@ package inventorysoftwareimpl
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorysoftware/mock"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -18,61 +18,39 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
-func getProvides(t *testing.T, confOverrides map[string]any) (Provides, *mock.SysProbeClient) {
-	sp := &mock.SysProbeClient{}
+func newInventorySoftware(t *testing.T, enabled bool) (*inventorySoftware, *mockSysProbeClient) {
+	sp := &mockSysProbeClient{}
 
 	// Create dependencies manually for the test
 	logComp := logmock.New(t)
-	hostnameComp := &mock.Hostname{}
+	hostnameComp := &mockHostname{}
 
-	// Get config using fxutil.Test
-	configComp := fxutil.Test[config.Component](t,
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: confOverrides}),
-	)
-
-	// Get serializer using fxutil.Test
-	serializerComp := fxutil.Test[serializer.MetricSerializer](t,
-		fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-	)
+	configComp := config.NewMock(t)
+	configComp.SetWithoutSource("software_inventory.enabled", enabled)
 
 	// Create the Requires struct manually
 	reqs := Requires{
 		Log:        logComp,
 		Config:     configComp,
-		Serializer: serializerComp,
+		Serializer: serializermock.NewMetricSerializer(t),
 		Hostname:   hostnameComp,
 	}
 
 	// Call the constructor directly with the mock client
-	provides, err := NewWithClient(reqs, sp)
-	assert.NoError(t, err)
-	return provides, sp
-}
+	provides, err := newWithClient(reqs, sp)
+	require.NoError(t, err)
 
-func newInventorySoftware(t *testing.T, confOverrides map[string]any) (*inventorySoftware, *mock.SysProbeClient) {
-	// Set default to enabled for tests
-	if confOverrides == nil {
-		confOverrides = map[string]any{}
-	}
-	if _, exists := confOverrides["software_inventory.enabled"]; !exists {
-		confOverrides["software_inventory.enabled"] = true
-	}
-	p, c := getProvides(t, confOverrides)
-	return p.Comp.(*inventorySoftware), c
+	return provides.Comp.(*inventorySoftware), sp
 }
 
 func TestRefreshCachedValues(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "FooApp", ProductCode: "foo"}, {DisplayName: "BarApp", ProductCode: "bar"}}
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
 	err := is.refreshCachedValues()
@@ -88,7 +66,7 @@ func TestRefreshCachedValues(t *testing.T) {
 }
 
 func TestRefreshCachedValuesWithError(t *testing.T) {
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, fmt.Errorf("error"))
 
 	// Assert that we attempted to refresh the cached values but
@@ -99,7 +77,7 @@ func TestRefreshCachedValuesWithError(t *testing.T) {
 }
 
 func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, nil)
 
 	err := is.refreshCachedValues()
@@ -107,9 +85,28 @@ func TestRefreshCachedValuesWithEmptyInventory(t *testing.T) {
 	assert.Empty(t, is.cachedInventory)
 }
 
+func TestFlareProviderOutputDisabled(t *testing.T) {
+	mockData := []software.Entry{{DisplayName: "TestApp"}}
+	is, sp := newInventorySoftware(t, false)
+	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
+
+	flareProvider := is.FlareProvider()
+	assert.NotNil(t, flareProvider)
+	assert.NotNil(t, flareProvider.FlareFiller)
+	assert.NotNil(t, flareProvider.FlareFiller.Callback)
+
+	// Create a mock FlareBuilder to test the callback
+	mockBuilder := helpers.NewFlareBuilderMock(t, false)
+	err := flareProvider.FlareFiller.Callback(mockBuilder)
+	assert.NoError(t, err)
+
+	// Verify that the file does not exists since the module is disabled.
+	mockBuilder.AssertNoFileExists(path.Join("metadata", "inventory", flareFileName))
+}
+
 func TestFlareProviderOutput(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp"}}
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
 	flareProvider := is.FlareProvider()
@@ -128,7 +125,7 @@ func TestFlareProviderOutput(t *testing.T) {
 
 func TestWritePayloadAsJSON(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp"}}
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
 	w := httptest.NewRecorder()
@@ -143,7 +140,7 @@ func TestWritePayloadAsJSON(t *testing.T) {
 
 func TestGetPayload(t *testing.T) {
 	mockData := []software.Entry{{DisplayName: "TestApp", ProductCode: "test"}}
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
 	payload := is.getPayload()
@@ -155,7 +152,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, "TestApp", p.Metadata.Software[0].DisplayName)
 
 	// Test error case
-	is, sp = newInventorySoftware(t, nil)
+	is, sp = newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, fmt.Errorf("error"))
 
 	payload = is.getPayload()
@@ -163,7 +160,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestComponentRefresh(t *testing.T) {
-	is, _ := newInventorySoftware(t, nil)
+	is, _ := newInventorySoftware(t, true)
 	// Refresh should not panic
 	assert.NotPanics(t, func() {
 		is.Refresh()

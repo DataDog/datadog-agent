@@ -5,8 +5,7 @@
 
 //go:build test
 
-// Package mock contains mock used to test the inventorysoftware component
-package mock
+package inventorysoftwareimpl
 
 import (
 	"context"
@@ -16,33 +15,33 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// SysProbeClient implements SysProbeClient for testing.
+// mockSysProbeClient implements mockSysProbeClient for testing.
 // This mock provides a testable implementation of the System Probe client
 // interface, allowing tests to control the behavior of software inventory
 // collection without requiring a real System Probe connection.
-type SysProbeClient struct {
+type mockSysProbeClient struct {
 	mock.Mock
 }
 
-// GetCheck implements the SysProbeClient interface for testing.
+// GetCheck implements the mockSysProbeClient interface for testing.
 // This method allows tests to specify expected calls and return values
 // for software inventory collection, enabling comprehensive test coverage
 // of the inventory software component.
-func (m *SysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
+func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	args := m.Called(module)
 	return args.Get(0).([]software.Entry), args.Error(1)
 }
 
-// Hostname implements hostnameinterface.Component for testing.
+// mockHostname implements hostnameinterface.Component for testing.
 // This mock provides a consistent hostname for testing purposes,
 // ensuring that tests have predictable hostname values without
 // depending on the actual system hostname.
-type Hostname struct{}
+type mockHostname struct{}
 
 // GetWithProvider returns test hostname data with provider information.
 // This method provides a complete hostname data structure for testing,
 // including both the hostname string and the provider information.
-func (m *Hostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
 	return hostnameinterface.Data{
 		Hostname: "test-hostname",
 		Provider: "test-provider",
@@ -52,13 +51,13 @@ func (m *Hostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, e
 // GetSafe returns a safe hostname string for testing.
 // This method provides a fallback hostname value that can be used
 // when the primary hostname retrieval fails or is not available.
-func (m *Hostname) GetSafe(_ context.Context) string {
+func (m *mockHostname) GetSafe(_ context.Context) string {
 	return "test-hostname"
 }
 
 // Get returns the test hostname with error handling.
 // This method provides the standard hostname retrieval interface
 // for testing, returning a consistent test hostname value.
-func (m *Hostname) Get(_ context.Context) (string, error) {
+func (m *mockHostname) Get(_ context.Context) (string, error) {
 	return "test-hostname", nil
 }

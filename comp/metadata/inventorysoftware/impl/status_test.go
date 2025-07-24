@@ -16,7 +16,7 @@ import (
 )
 
 func TestStatusFundamentals(t *testing.T) {
-	is, _ := newInventorySoftware(t, nil)
+	is, _ := newInventorySoftware(t, true)
 	assert.Equal(t, "Software Inventory Metadata", is.Name())
 	assert.Equal(t, 4, is.Index())
 }
@@ -26,7 +26,7 @@ func TestGetPayloadRefreshesCachedValues(t *testing.T) {
 		{DisplayName: "FooApp", ProductCode: "foo"},
 		{DisplayName: "BarApp", ProductCode: "bar"},
 	}
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(mockData, nil)
 
 	// Status JSON should trigger a refresh of cached values
@@ -107,7 +107,7 @@ func TestStatusTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			is, sp := newInventorySoftware(t, nil)
+			is, sp := newInventorySoftware(t, true)
 			sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return(tt.mockData, nil)
 
 			// Test Text template
@@ -132,7 +132,7 @@ func TestStatusTemplates(t *testing.T) {
 }
 
 func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
-	is, sp := newInventorySoftware(t, nil)
+	is, sp := newInventorySoftware(t, true)
 	sp.On("GetCheck", sysconfig.InventorySoftwareModule).Return([]software.Entry{}, nil)
 
 	// Test Text template
