@@ -92,7 +92,7 @@ func (p *FileHasher) HandleProcessExited(event *model.Event) {
 }
 
 // HashAndReport hash and report, returns true if the hash computation is supported for the given event
-func (p *FileHasher) HashAndReport(action *rules.Action, rule *rules.Rule, ev *model.Event) bool {
+func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) bool {
 	eventType := ev.GetEventType()
 
 	if !p.cfg.RuntimeSecurity.HashResolverEnabled {
