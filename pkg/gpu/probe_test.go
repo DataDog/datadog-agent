@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 type probeTestSuite struct {
@@ -235,13 +234,6 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 
 func (s *probeTestSuite) TestDetectsContainer() {
 	t := s.T()
-
-	kernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-
-	if kernelVersion >= kernel.VersionCode(6, 11, 0) {
-		t.Skip("skipping test for kernel version 6.11.0 and higher until we correct cgroupv2 device allow")
-	}
 
 	probe := s.getProbe()
 
