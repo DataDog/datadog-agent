@@ -12,7 +12,7 @@ import (
 	"time"
 
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
-	
+
 	"github.com/stretchr/testify/assert"
 )
 

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"unique"
 
-	"github.com/stretchr/testify/assert"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewHashingTagsAccumulator(t *testing.T) {

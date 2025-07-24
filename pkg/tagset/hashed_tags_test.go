@@ -8,8 +8,8 @@ package tagset
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHashedTagsSlice(t *testing.T) {

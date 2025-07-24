@@ -9,9 +9,9 @@ import (
 	"testing"
 	"unique"
 
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/stretchr/testify/assert"
 	"github.com/twmb/murmur3"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestPvtNewHashedTagsWithCapacity(t *testing.T) {
