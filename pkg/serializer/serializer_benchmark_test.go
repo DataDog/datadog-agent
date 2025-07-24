@@ -63,7 +63,7 @@ func benchmarkSplit(b *testing.B, numberOfEvents int) {
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: mockConfig}).Comp
 	log := logmock.New(b)
 	for n := 0; n < b.N; n++ {
-		results, _ = split.Payloads(events, true, split.JSONMarshalFct, compressor, log)
+		results, _ = split.Payloads(events, true, compressor, log)
 	}
 }
 

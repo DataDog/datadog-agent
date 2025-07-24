@@ -9,76 +9,150 @@ package object
 
 import (
 	"debug/dwarf"
+	"iter"
 )
 
 // DebugSections is a struct that contains the data for each debugging
 // data section.
 type DebugSections struct {
 	// The .debug_abbrev section.
-	Abbrev []byte `elf:"abbrev"`
+	abbrev *MMappedData `elf:"abbrev"`
 	// The .debug_addr section.
-	Addr []byte `elf:"addr"`
+	addr *MMappedData `elf:"addr"`
 	// The .debug_aranges section.
-	Aranges []byte `elf:"aranges"`
+	aranges *MMappedData `elf:"aranges"`
 	// The .debug_info section.
-	Info []byte `elf:"info"`
+	info *MMappedData `elf:"info"`
 	// The .debug_line section.
-	Line []byte `elf:"line"`
+	line *MMappedData `elf:"line"`
 	// The .debug_line_str section.
-	LineStr []byte `elf:"line_str"`
+	lineStr *MMappedData `elf:"line_str"`
 	// The .debug_str section.
-	Str []byte `elf:"str"`
+	str *MMappedData `elf:"str"`
 	// The .debug_str_offsets section.
-	StrOffsets []byte `elf:"str_offsets"`
+	strOffsets *MMappedData `elf:"str_offsets"`
 	// The .debug_types section.
-	Types []byte `elf:"types"`
+	types *MMappedData `elf:"types"`
 	// The .debug_loc section.
-	Loc []byte `elf:"loc"`
+	loc *MMappedData `elf:"loc"`
 	// The .debug_loclists section.
-	LocLists []byte `elf:"loclists"`
+	locLists *MMappedData `elf:"loclists"`
 	// The .debug_ranges section.
-	Ranges []byte `elf:"ranges"`
+	ranges *MMappedData `elf:"ranges"`
 	// The .debug_rnglists section.
-	RngLists []byte `elf:"rnglists"`
+	rngLists *MMappedData `elf:"rnglists"`
 
 	// NB: We're intentionally not loading the .debug_frame or .eh_frame
 	// sections.
 }
 
-var sectionGetters = map[string]func(*DebugSections) *[]byte{
-	"abbrev":      func(d *DebugSections) *[]byte { return &d.Abbrev },
-	"addr":        func(d *DebugSections) *[]byte { return &d.Addr },
-	"aranges":     func(d *DebugSections) *[]byte { return &d.Aranges },
-	"info":        func(d *DebugSections) *[]byte { return &d.Info },
-	"line":        func(d *DebugSections) *[]byte { return &d.Line },
-	"line_str":    func(d *DebugSections) *[]byte { return &d.LineStr },
-	"str":         func(d *DebugSections) *[]byte { return &d.Str },
-	"str_offsets": func(d *DebugSections) *[]byte { return &d.StrOffsets },
-	"types":       func(d *DebugSections) *[]byte { return &d.Types },
-	"loc":         func(d *DebugSections) *[]byte { return &d.Loc },
-	"loclists":    func(d *DebugSections) *[]byte { return &d.LocLists },
-	"ranges":      func(d *DebugSections) *[]byte { return &d.Ranges },
-	"rnglists":    func(d *DebugSections) *[]byte { return &d.RngLists },
+func getData(m *MMappedData) []byte {
+	if m == nil {
+		return nil
+	}
+	return m.Data
 }
 
-func (ds *DebugSections) getSection(name string) (*[]byte, bool) {
-	getter, ok := sectionGetters[name]
-	if !ok {
-		return nil, false
+// Abbrev returns the .debug_abbrev section.
+func (ds *DebugSections) Abbrev() []byte { return getData(ds.abbrev) }
+
+// Addr returns the .debug_addr section.
+func (ds *DebugSections) Addr() []byte { return getData(ds.addr) }
+
+// Aranges returns the .debug_aranges section.
+func (ds *DebugSections) Aranges() []byte { return getData(ds.aranges) }
+
+// Info returns the .debug_info section.
+func (ds *DebugSections) Info() []byte { return getData(ds.info) }
+
+// Line returns the .debug_line section.
+func (ds *DebugSections) Line() []byte { return getData(ds.line) }
+
+// LineStr returns the .debug_line_str section.
+func (ds *DebugSections) LineStr() []byte { return getData(ds.lineStr) }
+
+// Str returns the .debug_str section.
+func (ds *DebugSections) Str() []byte { return getData(ds.str) }
+
+// StrOffsets returns the .debug_str_offsets section.
+func (ds *DebugSections) StrOffsets() []byte { return getData(ds.strOffsets) }
+
+// Types returns the .debug_types section.
+func (ds *DebugSections) Types() []byte { return getData(ds.types) }
+
+// Loc returns the .debug_loc section.
+func (ds *DebugSections) Loc() []byte { return getData(ds.loc) }
+
+// LocLists returns the .debug_loclists section.
+func (ds *DebugSections) LocLists() []byte { return getData(ds.locLists) }
+
+// Ranges returns the .debug_ranges section.
+func (ds *DebugSections) Ranges() []byte { return getData(ds.ranges) }
+
+// RngLists returns the .debug_rnglists section.
+func (ds *DebugSections) RngLists() []byte { return getData(ds.rngLists) }
+
+var sections = []struct {
+	name   string
+	getter func(*DebugSections) **MMappedData
+}{
+	{"abbrev", func(d *DebugSections) **MMappedData { return &d.abbrev }},
+	{"addr", func(d *DebugSections) **MMappedData { return &d.addr }},
+	{"aranges", func(d *DebugSections) **MMappedData { return &d.aranges }},
+	{"info", func(d *DebugSections) **MMappedData { return &d.info }},
+	{"line", func(d *DebugSections) **MMappedData { return &d.line }},
+	{"line_str", func(d *DebugSections) **MMappedData { return &d.lineStr }},
+	{"str", func(d *DebugSections) **MMappedData { return &d.str }},
+	{"str_offsets", func(d *DebugSections) **MMappedData { return &d.strOffsets }},
+	{"types", func(d *DebugSections) **MMappedData { return &d.types }},
+	{"loc", func(d *DebugSections) **MMappedData { return &d.loc }},
+	{"loclists", func(d *DebugSections) **MMappedData { return &d.locLists }},
+	{"ranges", func(d *DebugSections) **MMappedData { return &d.ranges }},
+	{"rnglists", func(d *DebugSections) **MMappedData { return &d.rngLists }},
+}
+
+func (ds *DebugSections) getSection(name string) **MMappedData {
+	for _, s := range sections {
+		if s.name == name {
+			return s.getter(ds)
+		}
 	}
-	return getter(ds), true
+	return nil
+}
+
+func (ds *DebugSections) sections() iter.Seq2[string, *MMappedData] {
+	return func(yield func(string, *MMappedData) bool) {
+		for _, s := range sections {
+			if !yield(s.name, *s.getter(ds)) {
+				return
+			}
+		}
+	}
+}
+
+// Sections returns an iterator over all the debug sections with their names and
+// contents. Note that this is not the sections in the file, but rather all the
+// sections that DebugSections supports.
+func (ds *DebugSections) Sections() iter.Seq2[string, []byte] {
+	return func(yield func(string, []byte) bool) {
+		for name, mmap := range ds.sections() {
+			if !yield(name, getData(mmap)) {
+				return
+			}
+		}
+	}
 }
 
 func (ds *DebugSections) loadDwarfData() (*dwarf.Data, error) {
 	d, err := dwarf.New(
-		ds.Abbrev,
-		ds.Aranges,
+		ds.Abbrev(),
+		ds.Aranges(),
 		nil, // frame
-		ds.Info,
-		ds.Line,
+		ds.Info(),
+		ds.Line(),
 		nil, // pubnames
-		ds.Ranges,
-		ds.Str,
+		ds.Ranges(),
+		ds.Str(),
 	)
 	if err != nil {
 		return nil, err
@@ -87,10 +161,10 @@ func (ds *DebugSections) loadDwarfData() (*dwarf.Data, error) {
 		name     string
 		contents []byte
 	}{
-		{name: ".debug_addr", contents: ds.Addr},
-		{name: ".debug_line_str", contents: ds.LineStr},
-		{name: ".debug_str_offsets", contents: ds.StrOffsets},
-		{name: ".debug_rnglists", contents: ds.RngLists},
+		{name: ".debug_addr", contents: ds.Addr()},
+		{name: ".debug_line_str", contents: ds.LineStr()},
+		{name: ".debug_str_offsets", contents: ds.StrOffsets()},
+		{name: ".debug_rnglists", contents: ds.RngLists()},
 	} {
 		if len(s.contents) == 0 {
 			continue

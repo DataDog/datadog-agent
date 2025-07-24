@@ -48,12 +48,7 @@ type batcher struct {
 	stopOnce     sync.Once
 }
 
-func newBatcher(name string, sender sender, opts ...Option) *batcher {
-	cfg := defaultConfig()
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
+func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
@@ -66,7 +61,7 @@ func newBatcher(name string, sender sender, opts ...Option) *batcher {
 		sendResultCh: make(chan sendResult),
 		ctx:          ctx,
 		cancel:       cancel,
-		state:        newBatcherState(cfg.batcherConfig),
+		state:        newBatcherState(batcherConfig),
 		timer:        timer,
 		sender:       sender,
 	}
@@ -119,12 +114,12 @@ func (b *batcher) run() {
 			}
 		case result := <-b.sendResultCh:
 			if result.err != nil {
-				log.Debugf(
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: err=%v",
 					b.name, result.id, result.err,
 				)
 			} else {
-				log.Debugf(
+				log.Tracef(
 					"uploader %s: batch outcome id=%d: success",
 					b.name, result.id,
 				)

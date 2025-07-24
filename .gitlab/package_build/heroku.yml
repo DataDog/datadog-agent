@@ -9,25 +9,15 @@
   needs:
     [
       "go_mod_tidy_check",
-      "build_system-probe-x64",
       "go_deps",
-      "generate_minimized_btfs_x64",
     ]
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - !reference [.setup_deb_signing_key]
-    - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
-    - mkdir -p /tmp/system-probe
-    - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/clang-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/clang-bpf
-    - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/llc-bpf
-    - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
-    - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor heroku
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --flavor heroku
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.create_signature_and_lint_linux_packages]
     - !reference [.upload_sbom_artifacts]
