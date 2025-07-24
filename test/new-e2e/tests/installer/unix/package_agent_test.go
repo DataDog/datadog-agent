@@ -466,9 +466,8 @@ func (s *packageAgentSuite) installDebRPMAgent() {
 
 func (s *packageAgentSuite) TestInstallWithDDOT() {
 	// Install datadog-agent (base infrastructure)
-	s.RunInstallScript(envForceInstall("datadog-agent"))
-	defer s.Purge()
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
