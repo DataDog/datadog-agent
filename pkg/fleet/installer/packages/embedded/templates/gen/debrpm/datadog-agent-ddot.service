@@ -3,7 +3,7 @@ Description=Datadog Distribution of OpenTelemetry Collector
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent.service
 Conflicts=datadog-agent-exp.service datadog-agent-ddot-exp.service
-ConditionPathExists=/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent
+ConditionPathExists=/opt/datadog-agent/embedded/bin/otel-agent
 
 [Service]
 Type=simple
