@@ -384,7 +384,7 @@ func TestActivityDumps(t *testing.T) {
 		defer dockerInstance.stop()
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command(syscallTester, []string{"accept", "AF_INET", "0.0.0.0", "127.0.0.1", "989", "false", ";", "cap_sys_pacct"}, []string{})
+		cmd := dockerInstance.Command(syscallTester, []string{"chroot", "/tmp", ";", "cap_sys_pacct"}, []string{})
 		_, _ = cmd.CombinedOutput() // ignore error, as the cap_sys_pacct command is expected to fail
 
 		time.Sleep(1 * time.Second) // 1 second to let events be added to the dump
@@ -401,21 +401,21 @@ func TestActivityDumps(t *testing.T) {
 			}
 
 			const (
-				capNetBindServiceFound        = 1 << 0
-				capNetBindServiceCapableFound = 1 << 1
-				capSysPacctFound              = 1 << 2
-				capSysPacctNotCapableFound    = 1 << 3
-				allFound                      = capNetBindServiceFound | capNetBindServiceCapableFound | capSysPacctFound | capSysPacctNotCapableFound
+				capSysChrootFound          = 1 << 0
+				capSysChrootCapableFound   = 1 << 1
+				capSysPacctFound           = 1 << 2
+				capSysPacctNotCapableFound = 1 << 3
+				allFound                   = capSysChrootFound | capSysChrootCapableFound | capSysPacctFound | capSysPacctNotCapableFound
 			)
 
 			var result int
 			for _, node := range nodes {
 				for _, capabilityNode := range node.Capabilities {
 					switch capabilityNode.Capability {
-					case unix.CAP_NET_BIND_SERVICE:
-						result |= capNetBindServiceFound
+					case unix.CAP_SYS_CHROOT:
+						result |= capSysChrootFound
 						if capabilityNode.Capable {
-							result |= capNetBindServiceCapableFound
+							result |= capSysChrootCapableFound
 							if result == allFound {
 								break
 							}
@@ -432,8 +432,8 @@ func TestActivityDumps(t *testing.T) {
 				}
 			}
 
-			assert.True(t, (result&capNetBindServiceFound) != 0, "CAP_NET_BIND_SERVICE not found in activity dump")
-			assert.True(t, (result&capNetBindServiceCapableFound) != 0, "CAP_NET_BIND_SERVICE capable not found in activity dump")
+			assert.True(t, (result&capSysChrootFound) != 0, "CAP_SYS_CHROOT not found in activity dump")
+			assert.True(t, (result&capSysChrootCapableFound) != 0, "CAP_SYS_CHROOT capable not found in activity dump")
 			assert.True(t, (result&capSysPacctFound) != 0, "CAP_SYS_PACCT not found in activity dump")
 			assert.True(t, (result&capSysPacctNotCapableFound) != 0, "CAP_SYS_PACCT not capable not found in activity dump")
 

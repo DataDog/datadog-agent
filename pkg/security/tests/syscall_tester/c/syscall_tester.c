@@ -1345,6 +1345,22 @@ int test_link(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_chroot(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a directory to change root to\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *new_root = argv[1];
+
+    if (chroot(new_root)) {
+        perror("chroot");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int test_cap_sys_pacct(int argc, char **argv) {
     int err = acct(NULL);
     if (err) {
@@ -1454,6 +1470,8 @@ int main(int argc, char **argv) {
             exit_code = test_utimes(sub_argc, sub_argv);
         } else if (strcmp(cmd, "link") == 0) {
             exit_code = test_link(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chroot") == 0) {
+            exit_code = test_chroot(sub_argc, sub_argv);
         } else if (strcmp(cmd, "cap_sys_pacct") == 0) {
             exit_code = test_cap_sys_pacct(sub_argc, sub_argv);
         } else {

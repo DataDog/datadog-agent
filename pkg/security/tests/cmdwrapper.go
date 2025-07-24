@@ -106,21 +106,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
-	cmd := exec.Command(
-		d.executable,
-		"run",
-		"--cap-add=SYS_PTRACE",
-		"--security-opt",
-		"seccomp=unconfined",
-		"--rm",
-		"--cap-add=NET_ADMIN",
-		"--sysctl=net.ipv4.ip_unprivileged_port_start=1024", // required to force the kernel to check for CAP_NET_BIND_SERVICE
-		"-d",
-		"--name", d.containerName,
-		"-v", d.mountSrc+":"+d.mountDest,
-		d.image,
-		"sleep", "1200",
-	)
+	cmd := exec.Command(d.executable, "run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
