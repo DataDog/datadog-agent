@@ -461,18 +461,22 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(pkgconfigsetup.SystemProbe())
 
 	eventTypeStrings := map[string]model.EventType{}
+	allEventTypes := make([]model.EventType, 0, model.MaxKernelEventType)
 
 	var eventType model.EventType
 	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
 		eventType = model.EventType(i)
 		eventTypeStrings[eventType.String()] = eventType
+		allEventTypes = append(allEventTypes, eventType)
 	}
 
 	// parseEventTypeStringSlice converts a string list to a list of event types
 	parseEventTypeStringSlice := func(eventTypes []string) []model.EventType {
 		var output []model.EventType
 		for _, eventTypeStr := range eventTypes {
-			if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
+			if eventTypeStr == "*" {
+				return allEventTypes
+			} else if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
 				output = append(output, eventType)
 			}
 		}
