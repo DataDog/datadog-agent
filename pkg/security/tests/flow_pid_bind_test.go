@@ -1007,6 +1007,7 @@ func TestMultipleProtocols(t *testing.T) {
 		// Wait for both TCP and UDP listen/wait to be ready
 		<-tcplistenReady
 		<-udpwaitReady
+		time.Sleep(1 * time.Second)
 		if connTCP, err := net.Dial("tcp", "127.0.0.1:2236"); err != nil {
 			t.Errorf("failed to connect to TCP socket: %v", err)
 		} else {
