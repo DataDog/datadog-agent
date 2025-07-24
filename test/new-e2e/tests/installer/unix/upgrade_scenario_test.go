@@ -364,7 +364,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeNewAgents() {
 		},
 	}
 	timestamp = s.host.LastJournaldTimestamp()
-	s.mustStartConfigExperiment(datadogAgent, config)
+	s.mustStartConfigExperiment(datadogAgent, []installerConfig{config}, false)
 	// Assert the successful start of the experiment
 	s.host.WaitForUnitActive(s.T(), agentUnitXP)
 	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
@@ -427,7 +427,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	}
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.mustStartConfigExperiment(datadogAgent, config1)
+	s.mustStartConfigExperiment(datadogAgent, []installerConfig{config1}, false)
 	s.assertSuccessfulConfigStartExperiment(timestamp, "config-1")
 
 	// Host was left with a config experiment, we're now testing
@@ -462,7 +462,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "ENC[hi]"}`)}},
 	}
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err := s.startConfigExperiment(datadogAgent, config)
+	_, err := s.startConfigExperiment(datadogAgent, []installerConfig{config}, false)
 	s.T().Logf("Error: %s", s.Env().RemoteHost.MustExecute("cat /tmp/start_config_experiment.log"))
 	require.NoError(s.T(), err)
 
@@ -487,6 +487,91 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	)
 
 	s.mustStopConfigExperiment(datadogAgent)
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeMultipleConfigsWithoutConfigOrder() {
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(),
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	config1 := installerConfig{
+		ID:    "config-1",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "error"}`)}},
+	}
+	config2 := installerConfig{
+		ID:    "config-2",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "debug"}`)}},
+	}
+	config3 := installerConfig{
+		ID:    "config-3",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "info"}`)}},
+	}
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, []installerConfig{config1, config2, config3}, false)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "config-1")
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeMultipleConfigsWithConfigOrder() {
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(),
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	config1 := installerConfig{
+		ID:    "config-1",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "error"}`)}},
+	}
+	config2 := installerConfig{
+		ID:    "config-2",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "debug"}`)}},
+	}
+	config3 := installerConfig{
+		ID:    "config-3",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "info"}`)}},
+	}
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, []installerConfig{config1, config2, config3}, true)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "config-1")
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeOneConfigWithConfigOrder() {
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(s.T(),
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	config1 := installerConfig{
+		ID:    "config-1",
+		Files: []installerConfigFile{{Path: "/datadog.yaml", Contents: json.RawMessage(`{"log_level": "error"}`)}},
+	}
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, []installerConfig{config1}, true)
+	s.assertSuccessfulConfigStartExperiment(timestamp, "config-1")
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeWithProxy() {
@@ -670,17 +755,37 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	require.Equal(s.T(), "", installerStatus.Packages.States["datadog-agent"].Experiment)
 }
 
-func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, config installerConfig) (string, error) {
-	rawConfig, err := json.Marshal(config.Files)
-	require.NoError(s.T(), err)
+func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, configs []installerConfig, configOrder bool) (string, error) {
+	if len(configs) == 0 {
+		return "", fmt.Errorf("no configs provided")
+	}
+
+	extraArgs := ""
+	// Create extra args like `--config-order '[config-1, config-2]'`
+	if configOrder {
+		for i := range len(configs) - 1 {
+			extraArgs += fmt.Sprintf("%s,", configs[i].ID)
+		}
+		extraArgs = fmt.Sprintf("--config-order '[%s%s]'", extraArgs, configs[len(configs)-1].ID)
+	}
+
+	version := configs[0].ID
+
+	rawConfigs := []byte{}
+	for _, config := range configs {
+		rawConfig, err := json.Marshal(config.Files)
+		require.NoError(s.T(), err)
+		rawConfigs = append(rawConfigs, []byte(" ")...)
+		rawConfigs = append(rawConfigs, rawConfig...)
+	}
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
-	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' > /tmp/start_config_experiment.log 2>&1", pkg, config.ID, rawConfig)
+	cmd := fmt.Sprintf("sudo -E datadog-installer install-config-experiment %s %s '%s' %s > /tmp/start_config_experiment.log 2>&1", pkg, version, rawConfigs, extraArgs)
 	s.T().Logf("Running start command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, config installerConfig) string {
-	output, err := s.startConfigExperiment(pkg, config)
+func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, configs []installerConfig, configOrder bool) string {
+	output, err := s.startConfigExperiment(pkg, configs, configOrder)
 	require.NoError(s.T(), err, "Failed to start config experiment: %s\ndatadog-agent-installer journalctl:\n%s\ndatadog-agent-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/start_config_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-agent-installer --no-pager"),
@@ -869,7 +974,7 @@ func (s *upgradeScenarioSuite) executeAgentGoldenPath() {
 func (s *upgradeScenarioSuite) executeConfigGoldenPath(config installerConfig) {
 	timestamp := s.host.LastJournaldTimestamp()
 
-	s.mustStartConfigExperiment(datadogAgent, config)
+	s.mustStartConfigExperiment(datadogAgent, []installerConfig{config}, false)
 	s.assertSuccessfulConfigStartExperiment(timestamp, config.ID)
 
 	timestamp = s.host.LastJournaldTimestamp()

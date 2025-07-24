@@ -128,16 +128,3 @@ func TestConfigState(t *testing.T) {
 
 	assert.Equal(t, expected, res)
 }
-
-func TestInstallConfigExperimentCommand(t *testing.T) {
-	// Test that the command can be created without error
-	cmd := installConfigExperimentCommand()
-	assert.NotNil(t, cmd)
-	assert.Equal(t, "install-config-experiment", cmd.Use)
-
-	// Test that the config-order flag exists
-	configOrderFlag := cmd.Flags().Lookup("config-order")
-	assert.NotNil(t, configOrderFlag)
-	assert.Equal(t, "config-order", configOrderFlag.Name)
-	assert.Equal(t, "JSON array of config IDs in order of precedence", configOrderFlag.Usage)
-}
