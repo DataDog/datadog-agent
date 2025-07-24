@@ -201,6 +201,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
+    if (new_cookie) {
+        struct pid_cache_t new_pid_entry = {
+            .cookie = cookie,
+        };
+        bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
+    }
+
     resolver->type = EVENT_CGROUP_WRITE;
     resolver->discarder_event_type = 0;
     resolver->callback = DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY;
@@ -209,7 +216,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     resolver->flags = 0;
     resolver->cgroup_write_ctx.cgroup_write_pid = pid;
     resolver->cgroup_write_ctx.cgroup_flags = cgroup_flags;
-    resolver->cgroup_write_ctx.new_pid_cookie = new_cookie ? cookie : 0;
     resolver->original_key = resolver->key;
 
     cache_dentry_resolver_input(resolver);
@@ -223,14 +229,6 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
     if (!inputs)
         return 0;
-
-    // insert new pid entry if needed here because the trace__cgroup_write function is short on stack space.
-    if (inputs->cgroup_write_ctx.new_pid_cookie) {
-        struct pid_cache_t new_pid_entry = {
-            .cookie = inputs->cgroup_write_ctx.new_pid_cookie,
-        };
-        bpf_map_update_elem(&pid_cache, &inputs->cgroup_write_ctx.cgroup_write_pid, &new_pid_entry, BPF_ANY);
-    }
 
     struct cgroup_write_event_t event = {
         .file.path_key = inputs->original_key,
