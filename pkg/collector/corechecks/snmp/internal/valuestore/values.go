@@ -32,6 +32,12 @@ type ResultValueStore struct {
 	ColumnValues ColumnResultValuesType `json:"column_values"`
 }
 
+// ContainsScalarValue returns whether a scalar oid is present in ResultValueStore
+func (v *ResultValueStore) ContainsScalarValue(oid string) bool {
+	_, ok := v.ScalarValues[oid]
+	return ok
+}
+
 // GetScalarValue look for oid in ResultValueStore and returns the value and boolean
 // weather valid value has been found
 func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
@@ -40,6 +46,12 @@ func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
 		return ResultValue{}, fmt.Errorf("value for Scalar OID `%s` not found in results", oid)
 	}
 	return value, nil
+}
+
+// ContainsColumnValue returns whether a column oid is present in ResultValueStore
+func (v *ResultValueStore) ContainsColumnValue(oid string) bool {
+	_, ok := v.ColumnValues[oid]
+	return ok
 }
 
 // GetColumnValues look for oid in ResultValueStore and returns a map[<fullIndex>]ResultValue
