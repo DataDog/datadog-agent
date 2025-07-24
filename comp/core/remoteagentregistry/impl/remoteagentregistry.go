@@ -277,7 +277,7 @@ func (ra *remoteAgentRegistry) start() {
 					if ok {
 						delete(ra.agentMap, id)
 						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
-						ra.telemetryStore.remoteAgentDeregistered.Inc(details.displayName)
+						ra.telemetryStore.remoteAgentDeregistered.Inc(details.sanatizedDisplayName)
 					}
 				}
 
@@ -332,14 +332,14 @@ func (c *registryCollector) getRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 			defer func() {
 				c.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
-					details.displayName,
+					details.sanatizedDisplayName,
 					"telemetry",
 				)
 			}()
 			resp, err := details.client.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, grpc.WaitForReady(true))
 			if err != nil {
 				log.Warnf("Failed to query remote agent '%s' for telemetry data: %v", agentID, err)
-				c.telemetryStore.remoteAgentActionError.Inc(details.displayName, "telemetry")
+				c.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "telemetry")
 				return
 			}
 			if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
@@ -423,8 +423,9 @@ func (ra *remoteAgentRegistry) GetRegisteredAgents() []*remoteagentregistry.Regi
 	agents := make([]*remoteagentregistry.RegisteredAgent, 0, len(ra.agentMap))
 	for _, details := range ra.agentMap {
 		agents = append(agents, &remoteagentregistry.RegisteredAgent{
-			DisplayName:  details.displayName,
-			LastSeenUnix: details.lastSeen.Unix(),
+			DisplayName:          details.displayName,
+			SanatizedDisplayName: details.sanatizedDisplayName,
+			LastSeenUnix:         details.lastSeen.Unix(),
 		})
 	}
 
@@ -463,14 +464,12 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 	defer cancel()
 
 	for agentID, details := range ra.agentMap {
-		displayName := details.displayName
-
 		go func() {
 			start := time.Now()
 			defer func() {
 				ra.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
-					details.displayName,
+					details.sanatizedDisplayName,
 					"status",
 				)
 			}()
@@ -480,14 +479,14 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 			if err != nil {
 				data <- &remoteagentregistry.StatusData{
 					AgentID:       agentID,
-					DisplayName:   displayName,
+					DisplayName:   details.displayName,
 					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
 				}
-				ra.telemetryStore.remoteAgentActionError.Inc(displayName, "status")
+				ra.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "status")
 				return
 			}
 
-			data <- raproto.ProtobufToStatusData(agentID, displayName, resp)
+			data <- raproto.ProtobufToStatusData(agentID, details.displayName, resp)
 		}()
 	}
 
@@ -545,7 +544,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 			defer func() {
 				ra.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
-					details.displayName,
+					details.sanatizedDisplayName,
 					"flare",
 				)
 			}()
@@ -553,7 +552,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
 			resp, err := details.client.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, grpc.WaitForReady(true))
 			if err != nil {
-				ra.telemetryStore.remoteAgentActionError.Inc(details.displayName, "flare")
+				ra.telemetryStore.remoteAgentActionError.Inc(details.sanatizedDisplayName, "flare")
 				log.Warnf("Failed to query remote agent '%s' for flare data: %v", agentID, err)
 				data <- nil
 				return
@@ -625,10 +624,11 @@ func newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (p
 }
 
 type remoteAgentDetails struct {
-	lastSeen    time.Time
-	displayName string
-	apiEndpoint string
-	client      pb.RemoteAgentClient
+	lastSeen             time.Time
+	displayName          string
+	sanatizedDisplayName string
+	apiEndpoint          string
+	client               pb.RemoteAgentClient
 }
 
 func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (*remoteAgentDetails, error) {
@@ -638,9 +638,18 @@ func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (
 	}
 
 	return &remoteAgentDetails{
-		displayName: registration.DisplayName,
-		apiEndpoint: registration.APIEndpoint,
-		client:      client,
-		lastSeen:    time.Now(),
+		displayName:          registration.DisplayName,
+		sanatizedDisplayName: sanatizeString(registration.DisplayName),
+		apiEndpoint:          registration.APIEndpoint,
+		client:               client,
+		lastSeen:             time.Now(),
 	}, nil
+}
+
+func sanatizeString(s string) string {
+	result := []string{}
+	for _, s := range strings.Split(s, " ") {
+		result = append(result, strings.ToLower(s))
+	}
+	return strings.Join(result, "-")
 }
