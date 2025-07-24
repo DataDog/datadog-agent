@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -736,6 +737,74 @@ func TestStreamHandlerIsInactive(t *testing.T) {
 
 	// Test case 3: Stream with events older than inactivity threshold should be considered inactive
 	require.True(t, stream.isInactive(3000000000, inactivityThreshold)) // 3 seconds later with 1 second threshold
+}
+
+func TestGetPastDataConcurrency(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	eventsPerSync := 100
+	limits := streamLimits{
+		maxKernelLaunches: eventsPerSync * 1000,
+		maxAllocEvents:    eventsPerSync * 1000,
+	}
+
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
+	require.NoError(t, err)
+
+	// Create a goroutine that will send kernel launches and syncs
+	done := make(chan struct{})
+	sentSyncs := atomic.Uint64{}
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				// Send 100 events of each type and then synchronize
+				for i := 0; i < eventsPerSync; i++ {
+					stream.handleKernelLaunch(&gpuebpf.CudaKernelLaunch{
+						Header: gpuebpf.CudaEventHeader{
+							Ktime_ns: uint64(time.Now().UnixNano()),
+						},
+						Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+						Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+						Shared_mem_size: 100,
+					})
+					memType := gpuebpf.CudaMemAlloc
+					if i%2 == 1 {
+						memType = gpuebpf.CudaMemFree
+					}
+					stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+						Header: gpuebpf.CudaEventHeader{
+							Ktime_ns: uint64(time.Now().UnixNano()),
+						},
+						Type: uint32(memType),
+						Addr: uint64(i / 2),
+						Size: uint64(1024),
+					})
+				}
+				stream.markSynchronization(uint64(time.Now().UnixNano()))
+				sentSyncs.Add(1)
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		close(done)
+	})
+
+	// Ensure some data is sent
+	time.Sleep(200 * time.Millisecond)
+
+	beforeGetDataSyncs := sentSyncs.Load()
+	require.Greater(t, beforeGetDataSyncs, uint64(0))
+
+	data := stream.getPastData(true)
+	require.NotNil(t, data)
+
+	// As the data is being sent concurrently, we don't know the exact amount of data
+	// sent, but it must be greater or equal than the number of syncs sent before the data was requested
+	require.GreaterOrEqual(t, len(data.kernels), int(beforeGetDataSyncs))
+	require.GreaterOrEqual(t, len(data.allocations), int(beforeGetDataSyncs))
 }
 
 // before
