@@ -934,11 +934,12 @@ func getHTTPLikeProtocolStats(t *testing.T, monitor *Monitor, protocolType proto
 func (s *tlsSuite) TestNodeJSTLS() {
 	t := s.T()
 
-	ok, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	// Check if the current kernel has a bug that causes segfaults when uretprobes are used with seccomp filters.
+	// Some kernels have a bug where attaching uretprobes to processes that use seccomp filters can cause
+	// segmentation faults. We need to test both scenarios: when the bug exists (monitoring should be safely
+	// disabled) and when it doesn't exist (normal monitoring should work).
+	hasKernelBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
 	require.NoError(t, err)
-	if ok {
-		t.Skip("Kernel has uretprobe syscall seccomp bug, skipping NodeJS TLS test")
-	}
 
 	const (
 		expectedOccurrences = 10
@@ -957,16 +958,70 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg.EnableNodeJSMonitoring = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	if hasKernelBug {
+		testNodeJSSegfaultPrevention(t, usmMonitor, uint32(nodeJSPID), serverPort)
+	} else {
+		testNodeJSNormalMonitoring(t, usmMonitor, uint32(nodeJSPID), serverPort, expectedOccurrences)
+	}
+}
+
+func testNodeJSSegfaultPrevention(t *testing.T, usmMonitor *Monitor, nodeJSPID uint32, serverPort string) {
+	t.Log("Kernel bug detected - verifying NodeJS monitoring is safely disabled")
+
+	initialPID := nodeJSPID
+
+	// Create client and make HTTPS requests to trigger potential uretprobe usage
+	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	defer client.CloseIdleConnections()
+
+	// Make several requests that would normally trigger uretprobe attachment
+	for i := 0; i < 5; i++ {
+		requestFn()
+		t.Logf("Making HTTPS request %d to trigger potential uretprobe", i+1)
+
+		// Allow time for any potential segfault to occur
+		time.Sleep(200 * time.Millisecond)
+
+		// Verify process is still alive after each request
+		currentPID, err := nodejs.GetNodeJSDockerPID()
+		require.NoError(t, err)
+		require.Equal(t, initialPID, uint32(currentPID), "NodeJS process crashed (segfault) after request %d", i+1)
+	}
+
+	// Final verification that process is still alive and stable
+	assert.Eventually(t, func() bool {
+		finalPID, err := nodejs.GetNodeJSDockerPID()
+		if err != nil {
+			return false
+		}
+		return initialPID == uint32(finalPID)
+	}, 2*time.Second, 100*time.Millisecond, "NodeJS process should still be running (no segfault)")
+
+	// Verify that NodeJS TLS monitoring is disabled by checking that no HTTP stats are collected
+	// We allow up to 2 seconds for any potential stats to appear, but expect none
+	assert.Never(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
+		return len(stats) > 0
+	}, 2*time.Second, 100*time.Millisecond, "NodeJS TLS monitoring should be disabled when kernel bug exists")
+
+	t.Log("Successfully verified NodeJS monitoring is disabled and no segfault occurred")
+}
+
+func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uint32, serverPort string, expectedOccurrences int) {
+	t.Log("No kernel bug detected - testing normal NodeJS TLS monitoring")
+
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	defer client.CloseIdleConnections()
+
 	var requests []*nethttp.Request
 	for i := 0; i < expectedOccurrences; i++ {
 		requests = append(requests, requestFn())
 	}
 
-	client.CloseIdleConnections()
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
