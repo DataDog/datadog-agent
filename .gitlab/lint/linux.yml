@@ -46,7 +46,7 @@ lint_linux-x64:
   extends:
     - .linux_x64
   script:
-    - dda inv -- -e gitlab.test
+    - dda --interactive inv -- -e gitlab.test
 
 lint_linux-x64-2:
   extends:
@@ -54,13 +54,13 @@ lint_linux-x64-2:
   variables:
     FLAVORS: '--flavor base'
   script:
-    - dda inv -- -e gitlab.test
+    - dda --interactive inv -- -e gitlab.test
 
 myjob:
   extends:
     - .linux_x64
   script:
-    - dda inv -- -e gitlab.test
+    - dda --interactive inv -- -e gitlab.test
 
 # TODO: It's only on python -> compare binary output
 myjob2:
