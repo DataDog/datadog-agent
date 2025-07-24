@@ -290,10 +290,6 @@ try {
     Write-ColorOutput "Copying test executable to remote host..." "Yellow"
     Copy-FileViaSCP $localTestExe $remoteTestExe
 
-    # Make executable runnable (if needed)
-    Write-ColorOutput "Setting executable permissions..." "Yellow"
-    Invoke-SSHCommand "icacls '$remoteTestExe' /grant Everyone:F | Out-Null"
-
     # Run the tests on remote host
     Write-ColorOutput "Running tests on remote host..." "Yellow"
 
