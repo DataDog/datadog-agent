@@ -189,3 +189,34 @@ func FuzzGetStatus(f *testing.F) {
 		}
 	})
 }
+
+// FuzzParseKubernetesUntailored tests the kubernetes parser with completely arbitrary input data,
+// without attempting to construct valid Kubernetes log formats. This complements the
+// FuzzParseKubernetes test above which uses carefully crafted inputs.
+//
+// The purpose is to ensure the parser never panics regardless of input, testing its
+// robustness against malformed, corrupted, or completely random data that might be
+// encountered in real-world scenarios (e.g., corrupted log files, network transmission
+// errors, or malicious input).
+func FuzzParseKubernetesUntailored(f *testing.F) {
+	// Minimal seeds - let the fuzzer generate the chaos
+	f.Add([]byte("2018-09-20T11:54:11.753589172Z stdout F message"))
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("a b c"))
+	f.Add([]byte("\x00\x01\x02\x03"))
+	f.Add([]byte("\xFF\xFE\xFD\xFC"))
+
+	parser := New()
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		msg := message.NewMessage(data, nil, "", 0)
+
+		// The only invariant: parser must not panic and must return a valid result
+		result, _ := parser.Parse(msg)
+
+		if result == nil {
+			t.Fatal("Parse returned nil")
+		}
+	})
+}

@@ -46,3 +46,15 @@ func ParseYAML(data []byte) ([]*LogsConfig, error) {
 	}
 	return yamlConfigsWrapper.Logs, nil
 }
+
+// ParseJSONOrYAML parses the data trying Json first, then with a fallback to YAML.
+func ParseJSONOrYAML(data []byte) ([]*LogsConfig, error) {
+	if configs, err := ParseJSON(data); err == nil {
+		return configs, nil
+	}
+	configs, err := ParseYAML(data)
+	if err == nil {
+		return configs, nil
+	}
+	return nil, fmt.Errorf("could not parse logs config as JSON or YAML: %v", err)
+}

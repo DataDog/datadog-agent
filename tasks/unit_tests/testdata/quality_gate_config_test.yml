@@ -5,3 +5,7 @@ some_gate_high:
 some_gate_low:
   max_on_wire_size: 5 MiB
   max_on_disk_size: 5 MiB
+
+static_quality_gate_docker_agent_amd64:
+  max_on_disk_size: 787.26 MiB
+  max_on_wire_size: 271.51 MiB

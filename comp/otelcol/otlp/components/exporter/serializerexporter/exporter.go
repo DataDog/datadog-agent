@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
@@ -83,6 +84,7 @@ type Exporter struct {
 	hostmetadata    datadogconfig.HostMetadataConfig
 	reporter        *inframetadata.Reporter
 	gatewayUsage    otel.GatewayUsage
+	usageMetric     telemetry.Gauge
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -150,6 +152,7 @@ func NewExporter(
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
 	gatewayUsage otel.GatewayUsage,
+	usageMetric telemetry.Gauge,
 ) (*Exporter, error) {
 	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
 	if err != nil {
@@ -176,6 +179,7 @@ func NewExporter(
 		hostmetadata:    cfg.HostMetadata,
 		reporter:        reporter,
 		gatewayUsage:    gatewayUsage,
+		usageMetric:     usageMetric,
 	}, nil
 }
 
@@ -198,7 +202,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname)
+	consumer.addTelemetryMetric(hostname, e.params, e.usageMetric)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
 	consumer.addGatewayUsage(hostname, e.gatewayUsage)
 	if err := consumer.Send(e.s); err != nil {

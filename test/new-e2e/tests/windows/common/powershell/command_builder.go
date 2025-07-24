@@ -8,8 +8,9 @@ package powershell
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 type powerShellCommandBuilder struct {
@@ -193,6 +194,40 @@ func (ps *powerShellCommandBuilder) SetFIPSMode(enabled bool) *powerShellCommand
 	typeName := "DWORD"
 	cmd := fmt.Sprintf("New-Item -Path '%s' -Force; Set-ItemProperty -Path '%s' -Name '%s' -Value '%s' -Type '%s'", path, path, name, value, typeName)
 	ps.cmds = append(ps.cmds, cmd)
+	return ps
+}
+
+// WaitForMpPreference creates a command that waits for get-mppreference to succeed for 10 minutes
+func (ps *powerShellCommandBuilder) WaitForGetMpPreference() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `
+$attempt = 0
+$success = $false
+$timeout = New-TimeSpan -Seconds 600
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+while (-not $success -and $stopwatch.Elapsed -lt $timeout) {
+    try {
+        $result = Get-MpPreference
+        if ($result -ne $null) {
+            $success = $true
+            Write-Host "Get-MpPreference succeeded on attempt $($attempt + 1)"
+        }
+    }
+    catch {
+        Write-Host "Get-MpPreference failed on attempt $($attempt + 1): $($_.Exception.Message)"
+    }
+    
+    if (-not $success) {
+        $attempt++
+        Start-Sleep -Seconds 2
+    }
+}
+
+$stopwatch.Stop()
+
+if (-not $success -and $stopwatch.Elapsed -ge $timeout) {
+    Write-Error "Get-MpPreference failed after $($stopwatch.Elapsed.TotalSeconds) seconds and $attempt attempts: $($Error[0].Exception.Message)"
+}`)
 	return ps
 }
 

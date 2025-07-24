@@ -1,8 +1,13 @@
-import subprocess
+import os
+
+from tasks.agent_ci_api import run
 
 
-# This function cannot be defined in a file that imports invoke.tasks. Otherwise it fails when called with multiprocessing.
-def destroy_remote_stack(stack: str):
-    return subprocess.run(
-        ["pulumi", "destroy", "--remove", "--yes", "--stack", stack], capture_output=True, text=True
-    ), stack
+def destroy_remote_stack(ctx, stack: str):
+    return run(
+        ctx,
+        "stackcleaner/stack",
+        env="prod",
+        ty="stackcleaner_workflow_request",
+        attrs=f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={os.environ['CI_PIPELINE_ID']},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true",
+    )

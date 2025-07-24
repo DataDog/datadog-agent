@@ -16,6 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const (
@@ -59,7 +60,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
-	reqs.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { comp.restartTimer() })
+	reqs.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { comp.restartTimer() })
 
 	provides := Provides{Comp: comp}
 	return provides, nil
@@ -139,6 +140,14 @@ func (c *inventoryImpl) start(_ context.Context) error {
 func (c *inventoryImpl) stop(_ context.Context) error {
 	// Cancel any ongoing collect operations
 	c.collectCancel()
-	close(c.timerStopCh)
+
+	// Safely close the timer channel if it's not already closed
+	select {
+	case <-c.timerStopCh:
+		// Channel is already closed, do nothing
+	default:
+		close(c.timerStopCh)
+	}
+
 	return nil
 }

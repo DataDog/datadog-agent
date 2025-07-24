@@ -37,7 +37,6 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 	mockConfig.SetWithoutSource("kubelet_client_ca", "")
 	mockConfig.SetWithoutSource("kubelet_tls_verify", true)
 	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
-	mockConfig.SetWithoutSource("kubelet_wait_on_missing_container", 0)
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "")
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10250)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10255)

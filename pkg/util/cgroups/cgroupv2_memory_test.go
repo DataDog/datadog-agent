@@ -20,26 +20,26 @@ const (
 	sampleCgroupV2MemoryStat = `anon 3108864
 file 2297856
 kernel_stack 49152
-pagetables 0
+pagetables 22
 percpu 0
 sock 0
 shmem 2297856
 file_mapped 2297856
-file_dirty 0
-file_writeback 0
+file_dirty 12
+file_writeback 34
 anon_thp 0
 file_thp 0
 shmem_thp 0
 inactive_anon 5541888
-active_anon 0
-inactive_file 0
-active_file 0
-unevictable 0
+active_anon 56
+inactive_file 78
+active_file 90
+unevictable 11
 slab_reclaimable 0
 slab_unreclaimable 0
 slab 0
-workingset_refault_anon 0
-workingset_refault_file 0
+workingset_refault_anon 12
+workingset_refault_file 34
 workingset_activate_anon 0
 workingset_activate_file 0
 workingset_restore_anon 0
@@ -175,22 +175,28 @@ func TestCgroupV2MemoryStats(t *testing.T) {
 	assert.ElementsMatch(t, []error{}, tr.errors)
 	assert.Empty(t, cmp.Diff(MemoryStats{
 		UsageTotal:    pointer.Ptr(uint64(6193152)),
+		RSS:           pointer.Ptr(uint64(3108864)),
+		PageTables:    pointer.Ptr(uint64(22)),
+		Shmem:         pointer.Ptr(uint64(2297856)),
+		FileMapped:    pointer.Ptr(uint64(2297856)),
+		FileDirty:     pointer.Ptr(uint64(12)),
+		FileWriteback: pointer.Ptr(uint64(34)),
 		Cache:         pointer.Ptr(uint64(2297856)),
 		Swap:          pointer.Ptr(uint64(0)),
-		RSS:           pointer.Ptr(uint64(3108864)),
 		RSSHuge:       pointer.Ptr(uint64(0)),
-		MappedFile:    pointer.Ptr(uint64(2297856)),
 		Pgfault:       pointer.Ptr(uint64(2706)),
 		Pgmajfault:    pointer.Ptr(uint64(0)),
 		InactiveAnon:  pointer.Ptr(uint64(5541888)),
-		ActiveAnon:    pointer.Ptr(uint64(0)),
-		InactiveFile:  pointer.Ptr(uint64(0)),
-		ActiveFile:    pointer.Ptr(uint64(0)),
-		Unevictable:   pointer.Ptr(uint64(0)),
+		ActiveAnon:    pointer.Ptr(uint64(56)),
+		InactiveFile:  pointer.Ptr(uint64(78)),
+		ActiveFile:    pointer.Ptr(uint64(90)),
+		Unevictable:   pointer.Ptr(uint64(11)),
 		KernelMemory:  pointer.Ptr(uint64(49152)),
 		OOMEvents:     pointer.Ptr(uint64(3)),
 		OOMKiilEvents: pointer.Ptr(uint64(0)),
 		Peak:          pointer.Ptr(uint64(7000000)),
+		RefaultAnon:   pointer.Ptr(uint64(12)),
+		RefaultFile:   pointer.Ptr(uint64(34)),
 		PSISome: PSIStats{
 			Avg10:  pointer.Ptr(0.0),
 			Avg60:  pointer.Ptr(0.0),
@@ -226,14 +232,20 @@ func TestCgroupV2MemoryStatsKernel6_8(t *testing.T) {
 		Swap:          pointer.Ptr(uint64(0)),
 		RSS:           pointer.Ptr(uint64(15941632)),
 		RSSHuge:       pointer.Ptr(uint64(0)),
-		MappedFile:    pointer.Ptr(uint64(2301952)),
+		Shmem:         pointer.Ptr(uint64(0)),
+		FileMapped:    pointer.Ptr(uint64(2301952)),
+		FileDirty:     pointer.Ptr(uint64(0)),
+		FileWriteback: pointer.Ptr(uint64(0)),
 		Pgfault:       pointer.Ptr(uint64(8146)),
 		Pgmajfault:    pointer.Ptr(uint64(30)),
+		PageTables:    pointer.Ptr(uint64(348160)),
 		InactiveAnon:  pointer.Ptr(uint64(15888384)),
 		ActiveAnon:    pointer.Ptr(uint64(12288)),
 		InactiveFile:  pointer.Ptr(uint64(1626112)),
 		ActiveFile:    pointer.Ptr(uint64(1855488)),
 		Unevictable:   pointer.Ptr(uint64(0)),
+		RefaultAnon:   pointer.Ptr(uint64(0)),
+		RefaultFile:   pointer.Ptr(uint64(850)),
 		KernelMemory:  pointer.Ptr(uint64(929792)),
 		OOMEvents:     pointer.Ptr(uint64(3)),
 		OOMKiilEvents: pointer.Ptr(uint64(0)),

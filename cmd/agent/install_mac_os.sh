@@ -62,7 +62,7 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   fi
 fi
 
-arch=$(/usr/bin/arch)
+arch=$(/usr/bin/uname -m)
 
 # Cleanup tmp files used for installation
 rm -f /tmp/install-ddagent/system-wide

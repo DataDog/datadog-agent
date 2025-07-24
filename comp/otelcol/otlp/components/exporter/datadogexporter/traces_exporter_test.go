@@ -1,6 +1,8 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+//go:build test
+
 package datadogexporter
 
 import (
@@ -10,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -17,6 +22,7 @@ import (
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -104,7 +110,16 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage())
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	store := serializerexporter.TelemetryStore{
+		DDOTTraces: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		),
+	}
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exporter, err := f.CreateTraces(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -120,6 +135,12 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		t.Fatal("Timed out")
 	}
 	require.NoError(t, exporter.Shutdown(ctx))
+
+	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_traces")
+	require.NoError(t, err)
+	require.Len(t, usageMetric, 1)
+	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
+	assert.Equal(t, 1.0, usageMetric[0].Value())
 }
 
 func TestNewTracesExporter(t *testing.T) {
@@ -146,7 +167,16 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage())
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	store := serializerexporter.TelemetryStore{
+		DDOTTraces: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		),
+	}
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
 	exp, err := f.CreateTraces(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
@@ -159,6 +189,7 @@ func simpleTraces() ptrace.Traces {
 func genTraces(traceID pcommon.TraceID, attrs map[string]any) ptrace.Traces {
 	traces := ptrace.NewTraces()
 	rspans := traces.ResourceSpans().AppendEmpty()
+	rspans.Resource().Attributes().PutStr("datadog.host.name", "test-host")
 	span := rspans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.SetTraceID(traceID)
 	span.SetSpanID([8]byte{0, 0, 0, 0, 1, 2, 3, 4})

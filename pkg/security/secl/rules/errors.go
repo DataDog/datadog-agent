@@ -117,6 +117,10 @@ func (e ErrRuleLoad) Error() string {
 	return fmt.Sprintf("rule `%s` error: %s", e.Rule.Def.ID, e.Err)
 }
 
+func (e ErrRuleLoad) Unwrap() error {
+	return e.Err
+}
+
 // RuleLoadErrType defines an rule error type
 type RuleLoadErrType string
 
@@ -161,6 +165,10 @@ func (e *ErrRuleSyntax) Error() string {
 	return fmt.Sprintf("syntax error `%v`", e.Err)
 }
 
+func (e *ErrRuleSyntax) Unwrap() error {
+	return e.Err
+}
+
 // ErrActionFilter is on filter definition error
 type ErrActionFilter struct {
 	Expression string
@@ -171,6 +179,10 @@ func (e ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
 }
 
+func (e ErrActionFilter) Unwrap() error {
+	return e.Err
+}
+
 // ErrScopeField is return on scope field definition error
 type ErrScopeField struct {
 	Expression string
@@ -179,6 +191,10 @@ type ErrScopeField struct {
 
 func (e ErrScopeField) Error() string {
 	return fmt.Sprintf("scope_field `%s` error: %s", e.Expression, e.Err)
+}
+
+func (e ErrScopeField) Unwrap() error {
+	return e.Err
 }
 
 // ErrFieldNotAvailable is returned when a field is not available

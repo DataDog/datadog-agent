@@ -622,9 +622,12 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
         print("No stacks to delete")
         return
 
+    def trigger_destroy(stack):
+        return destroy_remote_stack(ctx, stack)
+
     print("About to delete the following stacks:", to_delete_stacks)
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        res = pool.map(destroy_remote_stack, to_delete_stacks)
+        res = pool.map(trigger_destroy, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
         for r, stack in res:

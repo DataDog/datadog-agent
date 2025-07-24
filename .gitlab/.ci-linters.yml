@@ -30,7 +30,8 @@ needs-rules:
     - lint_linux-arm64
     - lint_linux-x64
     - lint_macos_gitlab_amd64
-    - new-e2e-eks-cleanup-on-failure
+    - new-e2e-cleanup-on-failure
+    - lint_macos_gitlab_arm64
     - protobuf_test
     - publish_winget_7_x64
     - revert_latest_7
@@ -39,6 +40,7 @@ needs-rules:
     - tests_ebpf_arm64
     - tests_ebpf_x64
     - tests_macos_gitlab_amd64
+    - tests_macos_gitlab_arm64
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release

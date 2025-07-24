@@ -173,12 +173,8 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
     final_state = "success"
     gate_states = []
 
-    nightly_run = False
+    nightly_run = os.environ.get("BUCKET_BRANCH") == "nightly"
     branch = os.environ["CI_COMMIT_BRANCH"]
-
-    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
-    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
-        nightly_run = True
 
     for gate in gate_list:
         gate_inputs = config[gate]
@@ -196,6 +192,7 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
             gate_states.append({"name": gate, "state": False, "error_type": "AssertionError", "message": str(e)})
         except InfraError as e:
             print(f"Gate {gate} flaked ! (InfraError)\n Restarting the job...")
+            traceback.print_exception(e)
             ctx.run("datadog-ci tag --level job --tags static_quality_gates:\"restart\"")
             raise Exit(code=42) from e
         except Exception:
