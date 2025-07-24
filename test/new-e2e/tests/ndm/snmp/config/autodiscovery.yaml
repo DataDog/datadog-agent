@@ -1,0 +1,16 @@
+log_level: debug
+
+
+network_devices:
+  autodiscovery:
+    configs:
+      - network: 192.168.100.0/30
+        community_string: cisco-nexus
+        port: 1161
+        ignored_ip_addresses:
+          - 192.168.100.1
+      - network: 192.168.101.0/30
+        community_string: cisco-nexus
+        port: 1161
+        ignored_ip_addresses:
+          - 192.168.101.1

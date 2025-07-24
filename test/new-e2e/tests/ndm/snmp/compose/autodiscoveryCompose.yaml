@@ -1,0 +1,35 @@
+version: "3.9"
+services:
+  snmp:
+    image: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/datadog/docker-library:snmp"
+    ports:
+      - "1161:1161/udp"
+    command: --args-from-file=/usr/snmpsim/data/args_list.txt --variation-modules-dir=/usr/local/snmpsim/variation
+    volumes:
+      - /tmp/data/:/usr/snmpsim/data/
+    container_name: dd-snmp
+    networks:
+      net1:
+        ipv4_address: 192.168.100.2
+      net2:
+        ipv4_address: 192.168.101.2
+  agent:
+    volumes:
+      - /tmp/config/datadog.yaml:/etc/datadog-agent/datadog.yaml
+    networks:
+      net1:
+        ipv4_address: 192.168.100.3
+      net2:
+        ipv4_address: 192.168.101.3
+
+networks:
+  net1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+  net2:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.101.0/24
