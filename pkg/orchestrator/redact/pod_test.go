@@ -738,8 +738,36 @@ fi;
 				Args: []string{"--verbose"},
 			},
 			expected: v1.Container{
-				Command: []string{"/bin/bash", "-c", "if", "[", "$CLOUDPROVIDER\" == \"", "google\" ]; then\n  export SPARK_HISTORY_OPTS=\"", "$SPARK_HISTORY_OPTS", "\\", "-Dspark.hadoop.fs.s3a.endpoint=s3-fips.amazonaws.com\";\n\n\n  export SPARK_DAEMON_JAVA_OPTS=\"", "$SPARK_DAEMON_JAVA_OPTS", "\\", "-Djava.security.properties=/usr/local/etc/fips/java.security", "\\", "-Djavax.net.ssl.trustStorePassword=********", "\\", "-Dorg.bouncycastle.fips.approved_only=true\";\nfi;\nif [ \"", "$CLOUDPROVIDER\" == \"", "azure\" ]; then\n  source /etc/datadog/azureSASEnv;\n\n  export SPARK_HISTORY_OPTS=\"", "$SPARK_HISTORY_OPTS", "\\", "-Dspark.hadoop.fs.azure.local.sas.key.mode=true;", "fi;", "/opt/spark/bin/spark-class", "org.apache.spark.deploy.history.HistoryServer;", "--verbose"},
-				Args:    []string{},
+				Command: []string{"/bin/bash", "-c", "if", "[", "$CLOUDPROVIDER\" == \"", "google\" ]; then\n  export SPARK_HISTORY_OPTS=\"", "$SPARK_HISTORY_OPTS", "\\", "-Dspark.hadoop.fs.s3a.endpoint=s3-fips.amazonaws.com\";\n\n\n  export SPARK_DAEMON_JAVA_OPTS=\"", "$SPARK_DAEMON_JAVA_OPTS", "\\", "-Djava.security.properties=/usr/local/etc/fips/java.security", "\\", "-Djavax.net.ssl.trustStorePassword=********", "\\", "-Dorg.bouncycastle.fips.approved_only=true\";\nfi;\nif [ \"", "$CLOUDPROVIDER\" == \"", "azure\" ]; then\n  source /etc/datadog/azureSASEnv;\n\n  export SPARK_HISTORY_OPTS=\"", "$SPARK_HISTORY_OPTS", "\\", "-Dspark.hadoop.fs.azure.local.sas.key.mode=true;", "fi;", "/opt/spark/bin/spark-class", "org.apache.spark.deploy.history.HistoryServer;"},
+				Args:    []string{"--verbose"},
+			},
+		},
+		"large script with sensitive args": {
+			input: v1.Container{
+				Command: []string{"/bin/bash", "-c", `
+if [ "$CLOUDPROVIDER" == "google" ]; then
+  export SPARK_HISTORY_OPTS="$SPARK_HISTORY_OPTS \
+  -Dspark.hadoop.fs.s3a.endpoint=s3-fips.amazonaws.com";
+
+
+  export SPARK_DAEMON_JAVA_OPTS="$SPARK_DAEMON_JAVA_OPTS \
+    -Djava.security.properties=/usr/local/etc/fips/java.security \
+    -Djavax.net.ssl.trustStorePassword=123 \
+    -Dorg.bouncycastle.fips.approved_only=true";
+fi;
+if [ "$CLOUDPROVIDER" == "azure" ]; then
+  source /etc/datadog/azureSASEnv;
+
+  export SPARK_HISTORY_OPTS="$SPARK_HISTORY_OPTS \
+    -Dspark.hadoop.fs.azure.local.sas.key.mode=true;
+fi;
+/opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer; --password
+	`},
+				Args: []string{"123456", "--access_token", "123456"},
+			},
+			expected: v1.Container{
+				Command: []string{"/bin/bash", "-c", "if", "[", "$CLOUDPROVIDER\" == \"", "google\" ]; then\n  export SPARK_HISTORY_OPTS=\"", "$SPARK_HISTORY_OPTS", "\\", "-Dspark.hadoop.fs.s3a.endpoint=s3-fips.amazonaws.com\";\n\n\n  export SPARK_DAEMON_JAVA_OPTS=\"", "$SPARK_DAEMON_JAVA_OPTS", "\\", "-Djava.security.properties=/usr/local/etc/fips/java.security", "\\", "-Djavax.net.ssl.trustStorePassword=********", "\\", "-Dorg.bouncycastle.fips.approved_only=true\";\nfi;\nif [ \"", "$CLOUDPROVIDER\" == \"", "azure\" ]; then\n  source /etc/datadog/azureSASEnv;\n\n  export SPARK_HISTORY_OPTS=\"", "$SPARK_HISTORY_OPTS", "\\", "-Dspark.hadoop.fs.azure.local.sas.key.mode=true;", "fi;", "/opt/spark/bin/spark-class", "org.apache.spark.deploy.history.HistoryServer;", "--password"},
+				Args:    []string{"********", "--access_token", "********"},
 			},
 		},
 	}
