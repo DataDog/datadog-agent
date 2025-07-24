@@ -468,6 +468,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	// Install datadog-agent (base infrastructure)
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
@@ -485,10 +486,7 @@ func (s *packageAgentSuite) TestInstallWithDDOT() {
 	s.host.Run(fmt.Sprintf(`printf "%s" | sudo tee /etc/datadog-agent/environment > /dev/null`, envContent))
 
 	// Install ddot
-	pipelineID := os.Getenv("E2E_PIPELINE_ID")
-	ddotOCIURL := fmt.Sprintf("oci://installtesting.datad0g.com/ddot-package:pipeline-%s", pipelineID)
-
-	s.host.Run(fmt.Sprintf("sudo datadog-installer install %q", ddotOCIURL))
+	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	s.host.Run("sudo cp /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml")
