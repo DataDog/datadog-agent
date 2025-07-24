@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
@@ -45,8 +44,6 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
-	flake.Mark(t)
-
 	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(envecs.Provisioner(
 		envecs.WithECSOptions(
 			tifecs.WithFargateCapacityProvider(),
