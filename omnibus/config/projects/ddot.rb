@@ -73,6 +73,7 @@ if do_build
   dependency 'datadog-otel-agent'
 elsif do_package
   dependency 'package-artifact'
+  dependency 'init-scripts-ddot.rb'
 end
 
 disable_version_manifest do_package
@@ -149,4 +150,19 @@ package :xz do
   skip_packager do_package
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# all flavors use the same package scripts
+if linux_target?
+  if do_build && !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/ddot-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/ddot-rpm"
+  end
+  if do_package
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/ddot-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/ddot-rpm"
+    end
+  end
 end

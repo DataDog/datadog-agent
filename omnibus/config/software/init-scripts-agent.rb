@@ -17,10 +17,6 @@ build do
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.ddot.conf.erb",
-          dest: "/etc/init/datadog-agent-ddot.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_debian.process.conf.erb",
           dest: "/etc/init/datadog-agent-process.conf",
           mode: 0644,
@@ -41,10 +37,6 @@ build do
           dest: "/etc/init.d/datadog-agent",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.ddot.erb",
-          dest: "/etc/init.d/datadog-agent-ddot",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "sysvinit_debian.process.erb",
           dest: "/etc/init.d/datadog-agent-process",
           mode: 0755,
@@ -59,7 +51,6 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
 
       project.extra_package_file '/etc/init.d/datadog-agent'
-      project.extra_package_file '/etc/init.d/datadog-agent-ddot'
       project.extra_package_file '/etc/init.d/datadog-agent-process'
       project.extra_package_file '/etc/init.d/datadog-agent-trace'
       project.extra_package_file '/etc/init.d/datadog-agent-security'
@@ -68,10 +59,6 @@ build do
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
           dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.ddot.conf.erb",
-          dest: "/etc/init/datadog-agent-ddot.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
       erb source: "upstart_redhat.process.conf.erb",
@@ -92,7 +79,6 @@ build do
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     end
     project.extra_package_file '/etc/init/datadog-agent.conf'
-    project.extra_package_file '/etc/init/datadog-agent-ddot.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'
     project.extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
     project.extra_package_file '/etc/init/datadog-agent-trace.conf'
