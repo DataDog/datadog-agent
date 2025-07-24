@@ -130,7 +130,7 @@ func (c *processCollector) Collect() ([]Metric, error) {
 	for _, apiCall := range c.supportedAPICalls {
 		collectedMetrics, err := apiCall.callFunc(c)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to call %s: %w", apiCall.name, err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("%s returned an error: %w", apiCall.name, err))
 			continue
 		}
 
@@ -143,16 +143,11 @@ func (c *processCollector) Collect() ([]Metric, error) {
 // Helper methods for metric collection
 // memory.usage and memory.limit metrics gets higher priority from process collector than from ebpf collector
 func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
-	procs, err := c.device.GetComputeRunningProcesses()
-	if err != nil {
-		return nil, err
-	}
-
-	devInfo := c.device.GetDeviceInfo()
 	var processMetrics []Metric
 	var allPidTags []string
 
-	// Collect per-process memory.usage metrics and aggregate PID tags
+	procs, err := c.device.GetComputeRunningProcesses()
+	// we don't check for error here, as the loop simply will be skipped.
 	for _, proc := range procs {
 		pidTag := []string{fmt.Sprintf("pid:%d", proc.Pid)}
 		// Only emit memory.usage per process
@@ -163,54 +158,59 @@ func (c *processCollector) collectComputeProcesses() ([]Metric, error) {
 		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", proc.Pid))
 	}
 
-	// Emit memory.limit once per device with all PID tags
+	devInfo := c.device.GetDeviceInfo()
 	processMetrics = append(processMetrics,
 		Metric{Name: "memory.limit", Value: float64(devInfo.Memory), Type: metrics.GaugeType, Priority: 10, Tags: allPidTags},
 	)
 
-	return processMetrics, nil
+	return processMetrics, err // Return the original error if there was one
 }
 
 func (c *processCollector) collectProcessUtilization() ([]Metric, error) {
-	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
-	if err != nil {
-		return nil, err
-	}
-
 	var utilizationMetrics []Metric
 	var allPidTags []string
 	var totalSmUtil float64
 
 	coreCount := c.device.GetDeviceInfo().CoreCount
-	// Collect per-process utilization metrics and aggregate PID tags
-	for _, sample := range processSamples {
-		pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
 
-		// Calculate core usage from utilization percentage: Usage = (SmUtil / 100) * CoreCount
-		// SmUtil is a percentage (0-100), so we convert it to actual core usage
-		coreUsage := (float64(sample.SmUtil) / 100.0) * float64(coreCount)
-
-		utilizationMetrics = append(utilizationMetrics,
-			Metric{Name: "core.usage", Value: coreUsage, Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
-			Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
-		)
-
-		// Collect PID tags for aggregated metrics and aggregate SmUtil for gr_engine_active
-		allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
-		totalSmUtil += float64(sample.SmUtil)
-
-		//update the last timestamp if the current sample's timestamp is greater
-		if sample.TimeStamp > c.lastTimestamp {
-			c.lastTimestamp = sample.TimeStamp
+	processSamples, err := c.device.GetProcessUtilization(c.lastTimestamp)
+	if err != nil {
+		// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
+		var nvmlErr *ddnvml.NvmlAPIError
+		if !errors.As(err, &nvmlErr) || !errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND) {
+			return nil, err // Only return error for non-NOT_FOUND errors
 		}
-	}
+		// For NOT_FOUND, continue with empty processSamples to emit capacity metrics
+	} else {
+		// Process samples only if no error
+		for _, sample := range processSamples {
+			pidTag := []string{fmt.Sprintf("pid:%d", sample.Pid)}
 
-	// Emit aggregated metrics once per device with all PID tags
-	// Cap totalSmUtil at 100% since total utilization cannot exceed 100%
-	if totalSmUtil > 100 {
-		totalSmUtil = 100
+			// Calculate core usage from utilization percentage: Usage = (SmUtil / 100) * CoreCount
+			// SmUtil is a percentage (0-100), so we convert it to actual core usage
+			coreUsage := (float64(sample.SmUtil) / 100.0) * float64(coreCount)
+
+			utilizationMetrics = append(utilizationMetrics,
+				Metric{Name: "core.usage", Value: coreUsage, Type: metrics.GaugeType, Tags: pidTag},
+				Metric{Name: "dram_active", Value: float64(sample.MemUtil), Type: metrics.GaugeType, Tags: pidTag},
+				Metric{Name: "encoder_utilization", Value: float64(sample.EncUtil), Type: metrics.GaugeType, Tags: pidTag},
+				Metric{Name: "decoder_utilization", Value: float64(sample.DecUtil), Type: metrics.GaugeType, Tags: pidTag},
+			)
+
+			// Collect PID tags for aggregated metrics and aggregate SmUtil for gr_engine_active
+			allPidTags = append(allPidTags, fmt.Sprintf("pid:%d", sample.Pid))
+			totalSmUtil += float64(sample.SmUtil)
+
+			// Cap totalSmUtil at 100% since total utilization cannot exceed 100%
+			if totalSmUtil > 100 {
+				totalSmUtil = 100
+			}
+
+			//update the last timestamp if the current sample's timestamp is greater
+			if sample.TimeStamp > c.lastTimestamp {
+				c.lastTimestamp = sample.TimeStamp
+			}
+		}
 	}
 
 	utilizationMetrics = append(utilizationMetrics,
