@@ -19,8 +19,12 @@
   # Create custom temporary folder to isolate jobs from each other
   # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
   - |
-    # Remove the trailing slash
-    export OLDTMPDIR="${TMPDIR%/}"
+    if [ -z "$TMPDIR" ]; then
+      echo "TMPDIR must be set" >& 2
+      exit 1
+    fi
+    # Remove the trailing slashes etc.
+    export OLDTMPDIR="$(readlink -m "$TMPDIR")"
     sudo rm -rf "$OLDTMPDIR/gitlabci"
     NEWTMPDIR="$OLDTMPDIR/gitlabci/$CI_JOB_ID"
     mkdir -p "$NEWTMPDIR"
