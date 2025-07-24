@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/netip"
 	"path"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -979,18 +980,10 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 // ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
 func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
 	raw := parseFilter(e)
-	contains := func(slice []int, e int) bool {
-		for _, a := range slice {
-			if a == e {
-				return true
-			}
-		}
-		return false
-	}
 	var kValues []int
 	for _, inst := range raw {
 		// Check if we load or branch on a magic value
-		if !contains(kValues, int(inst.K)) {
+		if !slices.Contains(kValues, int(inst.K)) {
 			kValues = append(kValues, int(inst.K))
 		}
 
