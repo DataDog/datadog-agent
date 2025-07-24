@@ -612,6 +612,73 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 	return metrics, nil
 }
 
+// parseTunnelMetrics parses the raw AaData response into TunnelMetrics structs
+func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
+	var rows []TunnelMetrics
+	for _, row := range data {
+		m := TunnelMetrics{}
+		// Based on the new structure, we expect 7 columns
+		if len(row) != 7 {
+			return nil, fmt.Errorf("expected 7 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, fmt.Errorf("expected string for DrillKey")
+		}
+		if m.Appliance, ok = row[1].(string); !ok {
+			return nil, fmt.Errorf("expected string for Appliance")
+		}
+		if m.LocalIP, ok = row[2].(string); !ok {
+			return nil, fmt.Errorf("expected string for LocalIP")
+		}
+		if m.RemoteIP, ok = row[3].(string); !ok {
+			return nil, fmt.Errorf("expected string for RemoteIP")
+		}
+		if m.VpnProfName, ok = row[4].(string); !ok {
+			return nil, fmt.Errorf("expected string for VpnProfName")
+		}
+
+		// Handle float metrics from indices 5-6
+		if val, ok := row[5].(float64); ok {
+			m.VolumeRx = val
+		} else {
+			return nil, fmt.Errorf("expected float64 for VolumeRx at index 5")
+		}
+		if val, ok := row[6].(float64); ok {
+			m.VolumeTx = val
+		} else {
+			return nil, fmt.Errorf("expected float64 for VolumeTx at index 6")
+		}
+
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
+// GetTunnelMetrics retrieves tunnel metrics from the Versa Analytics API
+func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
+	if tenant == "" {
+		return nil, fmt.Errorf("tenant cannot be empty")
+	}
+
+	analyticsURL := client.buildAnalyticsPath(tenant, "SYSTEM", "tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)", "tableData", []string{
+		"volume-tx",
+		"volume-rx",
+	})
+
+	resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tunnel metrics: %v", err)
+	}
+	aaData := resp.AaData
+	metrics, err := parseTunnelMetrics(aaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tunnel metrics: %v", err)
+	}
+	return metrics, nil
+}
+
 // buildAnalyticsPath constructs a Versa Analytics query path in a cleaner way so multiple metrics can be added.
 //
 // Parameters:
