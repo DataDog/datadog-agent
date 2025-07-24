@@ -29,7 +29,6 @@ const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
 )
 
-// HasGPUs checks if a container has GPUs assigned to it
 func HasGPUs(container *workloadmeta.Container) bool {
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:

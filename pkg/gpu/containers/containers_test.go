@@ -18,6 +18,7 @@ import (
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestMatchContainerDevices(t *testing.T) {
@@ -126,15 +127,15 @@ func TestMatchContainerDevices(t *testing.T) {
 	})
 
 	t.Run("DockerContainerWithVisibleDevices", func(t *testing.T) {
+		useFakeProcfsWithNvidiaVisibleDevices(t, 1, "1")
+
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
 				ID:   "test-container-docker",
 			},
 			Runtime: workloadmeta.ContainerRuntimeDocker,
-			EnvVars: map[string]string{
-				"NVIDIA_VISIBLE_DEVICES": "1",
-			},
+			PID:     1,
 		}
 
 		filteredDevices, err := MatchContainerDevices(container, devices)
@@ -144,15 +145,15 @@ func TestMatchContainerDevices(t *testing.T) {
 	})
 
 	t.Run("DockerContainerWithInvalidVisibleDevices", func(t *testing.T) {
+		useFakeProcfsWithNvidiaVisibleDevices(t, 1, "invalid")
+
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
 				ID:   "test-container-docker-invalid",
 			},
 			Runtime: workloadmeta.ContainerRuntimeDocker,
-			EnvVars: map[string]string{
-				"NVIDIA_VISIBLE_DEVICES": "invalid",
-			},
+			PID:     1,
 		}
 
 		filteredDevices, err := MatchContainerDevices(container, devices)
@@ -161,15 +162,15 @@ func TestMatchContainerDevices(t *testing.T) {
 	})
 
 	t.Run("DockerContainerWithAllVisibleDevices", func(t *testing.T) {
+		useFakeProcfsWithNvidiaVisibleDevices(t, 1, "all")
+
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
 				ID:   "test-container-docker-all",
 			},
 			Runtime: workloadmeta.ContainerRuntimeDocker,
-			EnvVars: map[string]string{
-				"NVIDIA_VISIBLE_DEVICES": "all",
-			},
+			PID:     1,
 		}
 
 		filteredDevices, err := MatchContainerDevices(container, devices)
@@ -179,6 +180,19 @@ func TestMatchContainerDevices(t *testing.T) {
 			assert.Equal(t, device, filteredDevices[i])
 		}
 	})
+}
+
+func useFakeProcfsWithNvidiaVisibleDevices(t *testing.T, pid int, visibleDevices string) {
+	procfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid: uint32(pid),
+			Env: map[string]string{
+				"NVIDIA_VISIBLE_DEVICES": visibleDevices,
+			},
+		},
+	})
+
+	kernel.WithFakeProcFS(t, procfs)
 }
 
 func TestFindDeviceForResourceName(t *testing.T) {
