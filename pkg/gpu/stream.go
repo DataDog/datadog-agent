@@ -36,7 +36,7 @@ type StreamHandler struct {
 	kernelLaunches   []enrichedKernelLaunch
 	memAllocEvents   *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
 	kernelSpans      []*kernelSpan
-	allocations      []*memoryAllocation
+	allocations      []*memorySpan
 	ended            bool // A marker to indicate that the stream has ended, and this handler should be flushed
 	sysCtx           *systemContext
 	limits           streamLimits
@@ -63,10 +63,10 @@ type streamMetadata struct {
 	smVersion uint32
 }
 
-// streamData contains kernel spans and allocations for a stream
-type streamData struct {
-	spans       []*kernelSpan
-	allocations []*memoryAllocation
+// streamSpans contains kernel spans and allocations for a stream
+type streamSpans struct {
+	kernels     []*kernelSpan
+	allocations []*memorySpan
 }
 
 type memAllocType int
@@ -88,8 +88,8 @@ const (
 	memAllocTypeCount
 )
 
-// memoryAllocation represents a memory allocation event
-type memoryAllocation struct {
+// memorySpan represents a memory allocation event
+type memorySpan struct {
 	// Start is the kernel-time timestamp of the allocation event
 	startKtime uint64
 
@@ -218,7 +218,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	data := memoryAllocation{
+	data := memorySpan{
 		startKtime: alloc.Header.Ktime_ns,
 		endKtime:   event.Header.Ktime_ns,
 		size:       alloc.Size,
@@ -303,14 +303,14 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	return &span
 }
 
-func getAssociatedAllocations(span *kernelSpan) []*memoryAllocation {
+func getAssociatedAllocations(span *kernelSpan) []*memorySpan {
 	if span == nil {
 		return nil
 	}
 
-	allocations := make([]*memoryAllocation, 0, len(span.avgMemoryUsage))
+	allocations := make([]*memorySpan, 0, len(span.avgMemoryUsage))
 	for allocType, size := range span.avgMemoryUsage {
-		allocations = append(allocations, &memoryAllocation{
+		allocations = append(allocations, &memorySpan{
 			startKtime: span.startKtime,
 			endKtime:   span.endKtime,
 			size:       size,
@@ -324,13 +324,13 @@ func getAssociatedAllocations(span *kernelSpan) []*memoryAllocation {
 
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
 // If flush is true, the data will be cleared from the handler
-func (sh *StreamHandler) getPastData(flush bool) *streamData {
+func (sh *StreamHandler) getPastData(flush bool) *streamSpans {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
 		return nil
 	}
 
-	data := &streamData{
-		spans:       sh.kernelSpans,
+	data := &streamSpans{
+		kernels:     sh.kernelSpans,
 		allocations: sh.allocations,
 	}
 
@@ -344,20 +344,20 @@ func (sh *StreamHandler) getPastData(flush bool) *streamData {
 
 // getCurrentData returns the current state of the stream (kernels that are still running, and allocations that haven't been freed)
 // as this data needs to be treated differently from past/finished data.
-func (sh *StreamHandler) getCurrentData(now uint64) *streamData {
+func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	if len(sh.kernelLaunches) == 0 && sh.memAllocEvents.Len() == 0 {
 		return nil
 	}
 
-	data := &streamData{}
+	data := &streamSpans{}
 	span := sh.getCurrentKernelSpan(now)
 	if span != nil {
-		data.spans = append(data.spans, span)
+		data.kernels = append(data.kernels, span)
 		data.allocations = append(data.allocations, getAssociatedAllocations(span)...)
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data.allocations = append(data.allocations, &memoryAllocation{
+		data.allocations = append(data.allocations, &memorySpan{
 			startKtime: alloc.Header.Ktime_ns,
 			endKtime:   0,
 			size:       alloc.Size,
@@ -382,7 +382,7 @@ func (sh *StreamHandler) markEnd() error {
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for alloc := range sh.memAllocEvents.ValuesIter() {
-		data := memoryAllocation{
+		data := memorySpan{
 			startKtime: alloc.Header.Ktime_ns,
 			endKtime:   uint64(nowTs),
 			size:       alloc.Size,

@@ -153,7 +153,7 @@ func TestGetStatsWithOnlyPastStreamData(t *testing.T) {
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.allocations = []*memoryAllocation{
+	stream.allocations = []*memorySpan{
 		{
 			startKtime: uint64(startKtime),
 			endKtime:   uint64(endKtime),
@@ -218,7 +218,7 @@ func TestGetStatsWithPastAndCurrentData(t *testing.T) {
 	allocSize := uint64(10)
 	stream = addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 	stream.ended = false
-	stream.allocations = []*memoryAllocation{
+	stream.allocations = []*memorySpan{
 		{
 			startKtime: uint64(startKtime),
 			endKtime:   uint64(endKtime),
@@ -368,7 +368,7 @@ func TestGetStatsNormalization(t *testing.T) {
 		// Add memory allocations
 		globalStream := addGlobalStream(t, streamHandlers, pid, testutil.DefaultGpuUUID, "")
 		globalStream.ended = false
-		globalStream.allocations = []*memoryAllocation{
+		globalStream.allocations = []*memorySpan{
 			{
 				startKtime: uint64(startKtime),
 				endKtime:   uint64(endKtime),

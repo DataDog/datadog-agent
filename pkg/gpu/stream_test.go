@@ -57,9 +57,9 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	currTime := uint64(100)
 	currData := stream.getCurrentData(currTime)
 	require.NotNil(t, currData)
-	require.Len(t, currData.spans, 1)
+	require.Len(t, currData.kernels, 1)
 
-	span := currData.spans[0]
+	span := currData.kernels[0]
 	require.Equal(t, kernStartTime, span.startKtime)
 	require.Equal(t, currTime, span.endKtime)
 	require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -73,8 +73,8 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	pastData := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
-	require.Len(t, pastData.spans, 1)
-	span = pastData.spans[0]
+	require.Len(t, pastData.kernels, 1)
+	span = pastData.kernels[0]
 	require.Equal(t, kernStartTime, span.startKtime)
 	require.Equal(t, syncTime, span.endKtime)
 	require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -424,9 +424,9 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			currTime := uint64(100)
 			currData := stream.getCurrentData(currTime)
 			require.NotNil(t, currData)
-			require.Len(t, currData.spans, 1)
+			require.Len(t, currData.kernels, 1)
 
-			span := currData.spans[0]
+			span := currData.kernels[0]
 			require.Equal(t, kernStartTime, span.startKtime)
 			require.Equal(t, currTime, span.endKtime)
 			require.Equal(t, uint64(numLaunches), span.numKernels)
@@ -450,8 +450,8 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			pastData := stream.getPastData(true)
 			require.NotNil(t, pastData)
 
-			require.Len(t, pastData.spans, 1)
-			span = pastData.spans[0]
+			require.Len(t, pastData.kernels, 1)
+			span = pastData.kernels[0]
 			require.Equal(t, kernStartTime, span.startKtime)
 			require.Equal(t, syncTime, span.endKtime)
 			require.Equal(t, uint64(numLaunches), span.numKernels)
