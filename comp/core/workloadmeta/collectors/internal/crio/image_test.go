@@ -398,7 +398,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					},
 				}, nil
 			},
-			mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
 				return &v1.ImageStatusResponse{
 					Image: &v1.Image{
 						Id:          "rawid123",
@@ -426,7 +426,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					},
 				}, nil
 			},
-			mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
 				return &v1.ImageStatusResponse{
 					Image: &v1.Image{
 						Id:          "rawid123",
@@ -454,7 +454,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 					},
 				}, nil
 			},
-			mockGetContainerImage: func(_ context.Context, imageSpec *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
+			mockGetContainerImage: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
 				return &v1.ImageStatusResponse{
 					Image: &v1.Image{
 						Id:          "7f7fbb837cb1da28",

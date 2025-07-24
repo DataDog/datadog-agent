@@ -91,7 +91,6 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	seenContainers := make(map[workloadmeta.EntityID]struct{})
 	seenImages := make(map[workloadmeta.EntityID]struct{})
-	imageEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
 	containerEvents := make([]workloadmeta.CollectorEvent, 0, len(containers))
 
 	collectImages := imageMetadataCollectionIsEnabled()
@@ -106,7 +105,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// Handle image collection using the optimized approach
 	if collectImages {
 		// Use the new optimized method to get image events
-		imageEvents, err = c.generateImageEventsFromImageList(ctx)
+		imageEvents, err := c.generateImageEventsFromImageList(ctx)
 		if err != nil {
 			log.Warnf("Optimized approach failed: %v - falling back to per-container approach", err)
 			// Fall back to the old per-container approach if image list fails
