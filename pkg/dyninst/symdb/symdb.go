@@ -88,9 +88,6 @@ func (f Function) empty() bool {
 
 // SerializationOptions defines options for serializing symbols.
 type SerializationOptions struct {
-	// OnlyMainModule indicates that only the main module should be serialized.
-	OnlyMainModule bool
-
 	PackageSerializationOptions
 }
 
@@ -108,19 +105,19 @@ type PackageSerializationOptions struct {
 // included in the output. The "main" package is always present, and is placed
 // first in the output.
 func (s Symbols) Serialize(w StringWriter, opt SerializationOptions) {
+	w.WriteString("Main module: ")
+	w.WriteString(s.MainModule)
+	w.WriteString("\n")
 	// Serialize the "main" package before all the others.
 	mainPkgIdx := 0
 	for i, pkg := range s.Packages {
-		if pkg.Name == "main" {
+		if pkg.Name == mainPackageName {
 			mainPkgIdx = i
 			pkg.Serialize(w, opt.PackageSerializationOptions)
 		}
 	}
 	for i, pkg := range s.Packages {
 		if i == mainPkgIdx {
-			continue
-		}
-		if opt.OnlyMainModule && !strings.HasPrefix(pkg.Name, s.MainModule) {
 			continue
 		}
 		pkg.Serialize(w, opt.PackageSerializationOptions)
@@ -264,6 +261,8 @@ type Variable struct {
 // LineRange represents a range of source lines, inclusive of both ends.
 type LineRange [2]int
 
+const mainPackageName = "main"
+
 // SymDBBuilder walks the DWARF data for a binary, extracting symbols in the
 // SymDB format.
 // nolint:revive  // ignore stutter rule
@@ -280,6 +279,9 @@ type SymDBBuilder struct {
 	// The module path of the Go module containing the main function. Empty if
 	// unknown.
 	mainModule string
+	// Filter files starting with these path prefixes when exploring the DWARF.
+	// Used to skip 3rd party code in certain cases.
+	filesFilter []string
 
 	// The compile unit currently being processed by explore* functions.
 	currentCompileUnit        *dwarf.Entry
@@ -502,8 +504,10 @@ func (s subprogBlock) resolvePCRanges(*dwarf.Data) ([]dwarfutil.PCRange, error) 
 func NewSymDBBuilder(binaryPath string) (*SymDBBuilder, error) {
 	obj, err := object.OpenElfFile(binaryPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
+	// Parse the binary's build info to figure out the URL of the main module.
+	// Note that we'll get an empty URL for binaries built with Bazel.
 	binfo, err := buildinfo.ReadFile(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read build info: %w", err)
@@ -561,14 +565,71 @@ func (b *SymDBBuilder) Close() {
 	}
 }
 
+// ExtractScope defines which symbols to extract from the binary.
+type ExtractScope int
+
+const (
+	// ExtractScopeAllSymbols extracts all symbols from the binary.
+	ExtractScopeAllSymbols ExtractScope = iota
+	// ExtractScopeMainModuleOnly extracts only symbols from the main module,
+	// i.e. the Go module containing the main() function.
+	ExtractScopeMainModuleOnly
+	// ExtractScopeModulesFromSameOrg extracts symbols from the main module and
+	// other modules from the same GitHub organization or GitLab namespace. For
+	// example, if the main module is "github.com/DataDog/datadog-agent", this
+	// will extract symbols from all "github.com/DataDog/*" modules.
+	ExtractScopeModulesFromSameOrg
+)
+
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
 // SymDB.
-func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
+func (b *SymDBBuilder) ExtractSymbols(opt ExtractScope) (Symbols, error) {
 	res := Symbols{
 		MainModule: b.mainModule,
 		Packages:   nil,
 	}
 	entryReader := b.dwarfData.Reader()
+	// Figure out the package path prefix that corresponds to "1st party code"
+	// (as opposed to 3rd party dependencies), in case we're asked to filter for
+	// 1st party modules. We are only able to make this distinction if the
+	// binary was built with Go modules, recent versions of the compiler, and
+	// not with Bazel. We recognize modules hosted on GitHub and GitLab and
+	// consider anything in their organization as 1st party code.
+	//
+	// Binaries built by Bazel don't have module information, which means they
+	// don't have information on the main module. In that case, we can still
+	// identify most of the 3rd party code by the decl_file attribute of the
+	// subprograms -- third party functions are tagged as coming from
+	// "external/..." files and standard library functions as coming from "GOROOT/...".
+	var firstPartyPkgPrefix string
+	if b.mainModule != "" {
+		parts := strings.Split(b.mainModule, "/")
+		if len(parts) >= 3 && (parts[0] == "github.com" || parts[0] == "gitlab.com") {
+			firstPartyPkgPrefix = parts[0] + "/" + parts[1] + "/"
+		}
+	} else if opt == ExtractScopeMainModuleOnly || opt == ExtractScopeModulesFromSameOrg {
+		b.filesFilter = []string{"external/", "GOROOT/"}
+	}
+
+	pkgPassesFilter := func(pkgPath string) bool {
+		// We don't know what the main module is, so we can't filter out
+		// anything.
+		if b.mainModule == "" {
+			return true
+		}
+		// The "main" package is always included.
+		if pkgPath == mainPackageName {
+			return true
+		}
+		switch opt {
+		case ExtractScopeMainModuleOnly:
+			return strings.HasPrefix(pkgPath, b.mainModule)
+		case ExtractScopeModulesFromSameOrg:
+			return strings.HasPrefix(pkgPath, firstPartyPkgPrefix)
+		default:
+			panic(fmt.Sprintf("unsupported extract scope: %d", opt))
+		}
+	}
 
 	// Recognize compile units, which are the top-level entries in the DWARF
 	// data corresponding to Go packages.
@@ -582,11 +643,25 @@ func (b *SymDBBuilder) ExtractSymbols() (Symbols, error) {
 			continue
 		}
 
+		if opt != ExtractScopeAllSymbols {
+			pkgName, ok := entry.Val(dwarf.AttrName).(string)
+			if !ok {
+				return Symbols{}, errors.New("compile unit without name")
+			}
+			if !pkgPassesFilter(pkgName) {
+				entryReader.SkipChildren()
+				continue
+			}
+		}
+
 		pkg, err := b.exploreCompileUnit(entry, entryReader)
 		if err != nil {
 			return Symbols{}, err
 		}
-		if pkg.Name != "" {
+		// Skip zero-value packages, and also packages that have no symbols in
+		// them. The latter happens for 3rd party packages when we're asking for
+		// 1st party code only.
+		if pkg.Name != "" && (len(pkg.Types) > 0 || len(pkg.Functions) > 0) {
 			res.Packages = append(res.Packages, pkg)
 		}
 	}
@@ -757,6 +832,25 @@ func (b *SymDBBuilder) exploreSubprogram(
 		return earlyExit()
 	}
 
+	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
+	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
+		// TODO: log if this ever happens. I haven't seen it.
+		return earlyExit()
+	}
+	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
+		return Function{}, fmt.Errorf(
+			"subprogram at 0x%x has invalid file index %d, expected in range [0, %d)",
+			subprogEntry.Offset, fileIdx, len(b.filesInCurrentCompileUnit),
+		)
+	}
+	fileName := b.filesInCurrentCompileUnit[fileIdx]
+	// If configured with a filter, check if the file should be ignored.
+	for _, filter := range b.filesFilter {
+		if strings.HasPrefix(fileName, filter) {
+			return earlyExit()
+		}
+	}
+
 	inline, ok := subprogEntry.Val(dwarf.AttrInline).(int64)
 	if ok && inline == dwarf2.DW_INL_inlined {
 		// This function is inlined; its variables don't have location lists here;
@@ -772,19 +866,6 @@ func (b *SymDBBuilder) exploreSubprogram(
 	if !ok {
 		return Function{}, fmt.Errorf("subprogram without name at 0x%x (%s)", subprogEntry.Offset, subprogEntry.Tag)
 	}
-
-	fileIdx, ok := subprogEntry.Val(dwarf.AttrDeclFile).(int64)
-	if !ok || fileIdx == 0 { // fileIdx == 0 means unknown file, as per DWARF spec
-		// TODO: log if this ever happens. I haven't seen it.
-		return earlyExit()
-	}
-	if fileIdx < 0 || int(fileIdx) >= len(b.filesInCurrentCompileUnit) {
-		return Function{}, fmt.Errorf(
-			"subprogram %s has invalid file index %d, expected in range [0, %d)",
-			funcQualifiedName, fileIdx, len(b.filesInCurrentCompileUnit),
-		)
-	}
-	fileName := b.filesInCurrentCompileUnit[fileIdx]
 
 	// There are some funky auto-generated functions that we can't deal with
 	// because we can't parse their names (e.g.

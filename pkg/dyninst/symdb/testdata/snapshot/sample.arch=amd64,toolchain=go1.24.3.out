@@ -1,3 +1,4 @@
+Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 Package: main
 	Function: testByteArray (main.testByteArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [14:14]
 		Arg: x: [2]uint8 (declared at line 14, available: )
