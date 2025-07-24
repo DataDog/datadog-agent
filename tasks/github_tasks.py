@@ -636,7 +636,7 @@ def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REP
     blocks.extend(format_teams(name, check, all_teams))
 
     # Add admins
-    if len(admins) > 0:
+    if admins.totalCount > 0:
         admins = [f" - <{admin.html_url}|{admin.login}>\n" for admin in admins]
         block = f"Admins:\n{''.join(admins)}"
         blocks.append(markdown_block(block))
