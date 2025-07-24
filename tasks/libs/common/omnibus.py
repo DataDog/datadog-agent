@@ -16,190 +16,53 @@ from tasks.release import _get_release_json_value
 CACHE_VERSION = 2
 
 
+ENV_PASSHTROUGH = {
+    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+    'DEPLOY_AGENT',
+    # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
+    'BUCKET_BRANCH',
+    'PACKAGE_ARCH',
+    'INSTALL_DIR',
+    'DD_CC',
+    'DD_CXX',
+    'DD_CMAKE_TOOLCHAIN',
+    'PKG_CONFIG_LIBDIR',
+    'PYTHONUTF8',
+    'OMNIBUS_FORCE_PACKAGES',
+    'OMNIBUS_PACKAGE_ARTIFACT_DIR',
+    'S3_OMNIBUS_CACHE_BUCKET',  # For cached Omnibus source artifacts
+    'OMNIBUS_GIT_CACHE_DIR',  # Used by Omnibus to find the local git cache
+    'PATH',
+    'HOME',
+    'GOPATH',
+    # rvm / Ruby stuff to make sure Omnibus itself runs correctly
+    'GEM_HOME',
+    'GEM_PATH',
+    'MY_RUBY_HOME',
+    'rvm_path',
+    'rvm_bin_path',
+    'rvm_prefix',
+    'rvm_version',
+}
+
+OS_SPECIFIC_ENV_PASSTHROUGH = {
+    "win32": set(),
+    "linux": set(),
+    "darwin": set(),
+}
+
+
 def _get_omnibus_commits(field):
     return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
 
 
-def _get_environment_for_cache() -> dict:
+def _get_environment_for_cache(env: dict[str, str]) -> dict:
     """
     Compute a hash from the environment after excluding irrelevant/insecure
     environment variables to ensure we don't omit a variable
     """
-
-    def env_filter(item):
-        key = item[0]
-        excluded_prefixes = [
-            'AGENT_',
-            'API_KEY_',
-            'APP_KEY_',
-            'ATLASSIAN_',
-            'AWS_',
-            'BAZEL_',
-            'BETA_',
-            'BUILDENV_',
-            'CI_',
-            'CHOCOLATEY_',
-            'CLUSTER_AGENT_',
-            'CODESIGNING_CERT_',
-            'CONDUCTOR_',
-            'DATADOG_AGENT_',
-            'DD_',
-            'DDCI_',
-            'DDR_',
-            'DEB_',
-            'DESTINATION_',
-            'DOCKER_',
-            'DYNAMIC_',
-            'E2E_',
-            'EMISSARY_',
-            'EXECUTOR_',
-            'FF_',
-            'GITHUB_',
-            'GITLAB_',
-            'GIT_',
-            'INSTALLER_',
-            'JIRA_',
-            'K8S_',
-            'KEYCHAIN_',
-            'KITCHEN_',
-            'KERNEL_MATRIX_TESTING_',
-            'KUBERNETES_',
-            'MACOS_',
-            'OMNIBUS_',
-            'POD_',
-            'PROCESSOR_',
-            'PYENV_',
-            'RC_',
-            'RELEASE_VERSION',
-            'RPM_',
-            'RUN_',
-            'RUNNER_',
-            'S3_',
-            'STATS_',
-            'SMP_',
-            'SSH_',
-            'TAGGER_',
-            'TARGET_',
-            'TEST_INFRA_',
-            'USE_',
-            'VAULT_',
-            'VALIDATE_',
-            'XPC_',
-            'WINDOWS_',
-        ]
-        excluded_suffixes = [
-            '_SHA256',
-            '_VERSION',
-        ]
-        excluded_values = [
-            "APPLE_ACCOUNT",
-            "APPS",
-            "ARTIFACT_DOWNLOAD_ATTEMPTS",
-            "AVAILABILITY_ZONE",
-            "BENCHMARKS_CI_IMAGE",
-            "BUILD_HOOK",
-            "BUNDLE_MIRROR__RUBYGEMS__ORG",
-            "BUCKET_BRANCH",
-            "CHANGELOG_COMMIT_SHA",
-            "CLANG_LLVM_VER",
-            "CHANNEL",
-            "CHART",
-            "CI",
-            "CLICOLOR",
-            "CLUSTERS",
-            "CODECOV",
-            "CODECOV_TOKEN",
-            "COMPARE_TO_BRANCH",
-            "COMPUTERNAME",
-            "CONDA_PROMPT_MODIFIER",
-            "CONSUL_HTTP_ADDR",
-            "DATACENTERS",
-            "DDCI",
-            "DDR",
-            "DEPLOY_AGENT",
-            "DOGSTATSD_BINARIES_DIR",
-            "ENVIRONMENTS",
-            "EXPERIMENTS_EVALUATION_ADDRESS",
-            "FILTER",
-            "FORCE_DEPLOYMENT",
-            "GCE_METADATA_HOST",
-            "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
-            "GET_SOURCES_ATTEMPTS",
-            "GO_TEST_SKIP_FLAKE",
-            "GONOSUMDB",
-            "GOPROXY",
-            "HELM_HOOKS_CI_IMAGE",
-            "HELM_HOOKS_PERIODICAL_REBUILD_CONDUCTOR_ENV",
-            "HOME",
-            "HOSTNAME",
-            "HOST_IP",
-            "INFOPATH",
-            "INSTALL_SCRIPT_API_KEY_ORG2",
-            "INSTANCE_TYPE",
-            "INTEGRATION_WHEELS_CACHE_BUCKET",
-            "IRBRC",
-            "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
-            "LANG",
-            "LESSCLOSE",
-            "LESSOPEN",
-            "LC_CTYPE",
-            "LS_COLORS",
-            "MACOS_S3_BUCKET",
-            "MANPATH",
-            "MESSAGE",
-            "NEW_CLUSTER",
-            "NEW_CLUSTER_PR_SLACK_WORKFLOW_WEBHOOK",
-            "NOTIFICATIONS_SLACK_CHANNEL",
-            "NOTIFIER_IMAGE",
-            "OLDPWD",
-            "PCP_DIR",
-            "PACKAGE_ARCH",
-            "PIP_EXTRA_INDEX_URL",
-            "PIP_INDEX_URL",
-            "PIPELINE_KEY_ALIAS",
-            "PROCESS_S3_BUCKET",
-            "PWD",
-            "PROMPT",
-            "RESTORE_CACHE_ATTEMPTS",
-            "RUSTC_SHA256",
-            "SIGN",
-            "SHELL",
-            "SHLVL",
-            "SLACK_AGENT",
-            "STATIC_BINARIES_DIR",
-            "STATSD_URL",
-            "SYSTEM_PROBE_BINARIES_DIR",
-            "TEAM_ID",
-            "TIMEOUT",
-            "TMPDIR",
-            "TRACE_AGENT_URL",
-            "USER",
-            "USERDOMAIN",
-            "USERNAME",
-            "USERPROFILE",
-            "VCPKG_BLOB_SAS_URL",
-            "VERSION",
-            "VIRTUAL_ENV",
-            "VM_ASSETS",
-            "WIN_S3_BUCKET",
-            "WINGET_PAT",
-            "WORKFLOW",
-            "_",
-            "_OLD_VIRTUAL_PS1",
-            "__CF_USER_TEXT_ENCODING",
-            "build_before",
-        ]
-        for p in excluded_prefixes:
-            if key.startswith(p):
-                return False
-        for s in excluded_suffixes:
-            if key.endswith(s):
-                return False
-        if key in excluded_values:
-            return False
-        return True
-
-    return dict(filter(env_filter, sorted(os.environ.items())))
+    excluded_variables = set()
+    return {k: v for k, v in env.items() if k not in excluded_variables}
 
 
 def _hash_paths(hasher, paths: list[str]):
@@ -239,7 +102,7 @@ def get_dd_api_key(ctx):
     return ctx.run(cmd, hide=True).stdout.strip()
 
 
-def omnibus_compute_cache_key(ctx):
+def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
     print('Computing cache key')
     h = hashlib.sha1()
     _hash_paths(
@@ -262,8 +125,8 @@ def omnibus_compute_cache_key(ctx):
         value = os.getenv(val_key, _get_omnibus_commits(val_key))
         print(f'{val_key}: {value}')
         h.update(str.encode(value))
-    environment = _get_environment_for_cache()
-    for k, v in environment.items():
+    environment = _get_environment_for_cache(env)
+    for k, v in sorted(environment.items()):
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
         print(f'Current hash value: {h.hexdigest()}')
