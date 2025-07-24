@@ -338,63 +338,6 @@ func (_c *SecurityModuleClientWrapper_GenerateEncoding_Call) RunAndReturn(run fu
 	return _c
 }
 
-// GetActivityDumpStream provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetActivityDumpStream")
-	}
-
-	var r0 api.SecurityModule_GetActivityDumpStreamClient
-	var r1 error
-	if rf, ok := ret.Get(0).(func() (api.SecurityModule_GetActivityDumpStreamClient, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() api.SecurityModule_GetActivityDumpStreamClient); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(api.SecurityModule_GetActivityDumpStreamClient)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// SecurityModuleClientWrapper_GetActivityDumpStream_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetActivityDumpStream'
-type SecurityModuleClientWrapper_GetActivityDumpStream_Call struct {
-	*mock.Call
-}
-
-// GetActivityDumpStream is a helper method to define mock.On call
-func (_e *SecurityModuleClientWrapper_Expecter) GetActivityDumpStream() *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
-	return &SecurityModuleClientWrapper_GetActivityDumpStream_Call{Call: _e.mock.On("GetActivityDumpStream")}
-}
-
-func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) Run(run func()) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) Return(_a0 api.SecurityModule_GetActivityDumpStreamClient, _a1 error) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *SecurityModuleClientWrapper_GetActivityDumpStream_Call) RunAndReturn(run func() (api.SecurityModule_GetActivityDumpStreamClient, error)) *SecurityModuleClientWrapper_GetActivityDumpStream_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetConfig provides a mock function with no fields
 func (_m *SecurityModuleClientWrapper) GetConfig() (*api.SecurityConfigMessage, error) {
 	ret := _m.Called()
@@ -448,63 +391,6 @@ func (_c *SecurityModuleClientWrapper_GetConfig_Call) Return(_a0 *api.SecurityCo
 }
 
 func (_c *SecurityModuleClientWrapper_GetConfig_Call) RunAndReturn(run func() (*api.SecurityConfigMessage, error)) *SecurityModuleClientWrapper_GetConfig_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetEvents provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetEvents() (api.SecurityModule_GetEventsClient, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetEvents")
-	}
-
-	var r0 api.SecurityModule_GetEventsClient
-	var r1 error
-	if rf, ok := ret.Get(0).(func() (api.SecurityModule_GetEventsClient, error)); ok {
-		return rf()
-	}
-	if rf, ok := ret.Get(0).(func() api.SecurityModule_GetEventsClient); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(api.SecurityModule_GetEventsClient)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// SecurityModuleClientWrapper_GetEvents_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEvents'
-type SecurityModuleClientWrapper_GetEvents_Call struct {
-	*mock.Call
-}
-
-// GetEvents is a helper method to define mock.On call
-func (_e *SecurityModuleClientWrapper_Expecter) GetEvents() *SecurityModuleClientWrapper_GetEvents_Call {
-	return &SecurityModuleClientWrapper_GetEvents_Call{Call: _e.mock.On("GetEvents")}
-}
-
-func (_c *SecurityModuleClientWrapper_GetEvents_Call) Run(run func()) *SecurityModuleClientWrapper_GetEvents_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run()
-	})
-	return _c
-}
-
-func (_c *SecurityModuleClientWrapper_GetEvents_Call) Return(_a0 api.SecurityModule_GetEventsClient, _a1 error) *SecurityModuleClientWrapper_GetEvents_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *SecurityModuleClientWrapper_GetEvents_Call) RunAndReturn(run func() (api.SecurityModule_GetEventsClient, error)) *SecurityModuleClientWrapper_GetEvents_Call {
 	_c.Call.Return(run)
 	return _c
 }
