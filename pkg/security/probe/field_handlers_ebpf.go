@@ -987,14 +987,14 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *
 		}
 		return false
 	}
-	var K_values []int
+	var kValues []int
 	for _, inst := range raw {
 		// Check if we load or branch on a magic value
-		if !contains(K_values, int(inst.K)) {
-			K_values = append(K_values, int(inst.K))
+		if !contains(kValues, int(inst.K)) {
+			kValues = append(kValues, int(inst.K))
 		}
 
 	}
-	e.UsedImmediates = K_values
+	e.UsedImmediates = kValues
 	return e.UsedImmediates
 }
