@@ -15,6 +15,7 @@ import (
 const CloudRunJobsOrigin = "cloudrun"
 
 const (
+	// CloudRunJobNameEnvVar is the name of the Cloud Run Job being executed
 	CloudRunJobNameEnvVar     = "CLOUD_RUN_JOB"
 	cloudRunExecutionEnvVar   = "CLOUD_RUN_EXECUTION"
 	cloudRunTaskIndexEnvVar   = "CLOUD_RUN_TASK_INDEX"
