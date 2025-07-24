@@ -7758,11 +7758,6 @@
           "property_doc_link": "setsockopt-level-doc"
         },
         {
-          "name": "setsockopt.magic_values_found",
-          "definition": "Magic values found in the filter that can be related to a malware",
-          "property_doc_link": "setsockopt-magic_values_found-doc"
-        },
-        {
           "name": "setsockopt.optname",
           "definition": "Socket option name",
           "property_doc_link": "setsockopt-optname-doc"
@@ -7786,6 +7781,11 @@
           "name": "setsockopt.socket_type",
           "definition": "Socket type",
           "property_doc_link": "setsockopt-socket_type-doc"
+        },
+        {
+          "name": "setsockopt.used_immediates",
+          "definition": "List of immediate values used in the filter",
+          "property_doc_link": "setsockopt-used_immediates-doc"
         }
       ]
     },
@@ -13870,18 +13870,6 @@
       "examples": []
     },
     {
-      "name": "setsockopt.magic_values_found",
-      "link": "setsockopt-magic_values_found-doc",
-      "type": "string",
-      "definition": "Magic values found in the filter that can be related to a malware",
-      "prefixes": [
-        "setsockopt"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "setsockopt.optname",
       "link": "setsockopt-optname-doc",
       "type": "int",
@@ -13922,6 +13910,18 @@
       "link": "setsockopt-socket_type-doc",
       "type": "int",
       "definition": "Socket type",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.used_immediates",
+      "link": "setsockopt-used_immediates-doc",
+      "type": "int",
+      "definition": "List of immediate values used in the filter",
       "prefixes": [
         "setsockopt"
       ],

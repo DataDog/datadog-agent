@@ -1835,12 +1835,12 @@ A setsockopt was executed
 | [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
 | [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
-| [`setsockopt.magic_values_found`](#setsockopt-magic_values_found-doc) | Magic values found in the filter that can be related to a malware |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
 | [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
+| [`setsockopt.used_immediates`](#setsockopt-used_immediates-doc) | List of immediate values used in the filter |
 
 ### Event `setuid`
 
@@ -4007,13 +4007,6 @@ Definition: Socket level
 
 
 
-### `setsockopt.magic_values_found` {#setsockopt-magic_values_found-doc}
-Type: string
-
-Definition: Magic values found in the filter that can be related to a malware
-
-
-
 ### `setsockopt.optname` {#setsockopt-optname-doc}
 Type: int
 
@@ -4039,6 +4032,13 @@ Definition: Socket protocol
 Type: int
 
 Definition: Socket type
+
+
+
+### `setsockopt.used_immediates` {#setsockopt-used_immediates-doc}
+Type: int
+
+Definition: List of immediate values used in the filter
 
 
 
