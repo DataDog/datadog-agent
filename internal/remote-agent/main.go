@@ -181,10 +181,12 @@ func buildAndSpawnGrpcServer(listenAddr string, server pbcore.RemoteAgentServer)
 		return "", fmt.Errorf("unable to generate authentication token: %v", err)
 	}
 
-	serverOpts := []grpc.ServerOption{
+	// Use the convenience function that chains metrics and auth interceptors
+	serverOpts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken)),
+		nil, // No stream interceptor needed for this server
 		grpc.Creds(credentials.NewServerTLSFromCert(tlsKeyPair)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
-	}
+	)
 
 	grpcServer := grpc.NewServer(serverOpts...)
 	pbcore.RegisterRemoteAgentServer(grpcServer, server)

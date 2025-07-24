@@ -80,13 +80,14 @@ func (s *server) BuildServer() http.Handler {
 
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
-	opts := []googleGrpc.ServerOption{
+	// Use the convenience function that combines metrics and auth interceptors
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(authInterceptor),
+		grpc_auth.StreamServerInterceptor(authInterceptor),
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
-	}
+	)
 
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2

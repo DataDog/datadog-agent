@@ -111,12 +111,14 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	})
 
 	maxMessageSize := cfg.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
-	opts := []grpc.ServerOption{
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+
+	// Use the convenience function that chains metrics and auth interceptors
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpc_auth.UnaryServerInterceptor(authInterceptor),
+		grpc_auth.StreamServerInterceptor(authInterceptor),
 		grpc.MaxSendMsgSize(maxMessageSize),
 		grpc.MaxRecvMsgSize(maxMessageSize),
-	}
+	)
 
 	grpcSrv := grpc.NewServer(opts...)
 	// event size should be small enough to fit within the grpc max message size
