@@ -10,15 +10,21 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestConfigsForPod(t *testing.T) {
@@ -26,7 +32,8 @@ func TestConfigsForPod(t *testing.T) {
 		name        string
 		check       *types.PrometheusCheck
 		version     int
-		pod         *kubelet.Pod
+		pod         *workloadmeta.KubernetesPod
+		containers  []*workloadmeta.Container
 		want        []integration.Config
 		expectError bool
 	}{
@@ -34,24 +41,32 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "nominal case v1",
 			check:   types.DefaultPrometheusCheck,
 			version: 1,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -60,8 +75,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"http://%%host%%:%%port%%/metrics","namespace":"","metrics":["*"]}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr-id",
-					ADIdentifiers: []string{"foo-ctr-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -69,24 +84,32 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "nominal case v2",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -95,8 +118,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr-id",
-					ADIdentifiers: []string{"foo-ctr-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -112,24 +135,32 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 1,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -138,8 +169,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"foo/bar"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr-id",
-					ADIdentifiers: []string{"foo-ctr-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -155,24 +186,32 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -181,8 +220,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":["*"]}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr-id",
-					ADIdentifiers: []string{"foo-ctr-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -190,50 +229,32 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "excluded",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "false"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
-					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
 				},
 			},
-			want: nil,
-		},
-		{
-			name:    "no match",
-			check:   types.DefaultPrometheusCheck,
-			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
-					Annotations: map[string]string{"foo": "bar"},
-				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
 					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: nil,
@@ -242,32 +263,46 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "multi containers, match all",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
-						},
+					{
+						ID:   "cont-id-2",
+						Name: "cont-name-2",
 					},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-2",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-2",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -276,16 +311,16 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr1-id",
-					ADIdentifiers: []string{"foo-ctr1-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 				{
 					Name:          "openmetrics",
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr2-id",
-					ADIdentifiers: []string{"foo-ctr2-id"},
+					Source:        "prometheus_pods:containerd://cont-id-2",
+					ADIdentifiers: []string{"containerd://cont-id-2"},
 				},
 			},
 		},
@@ -293,36 +328,50 @@ func TestConfigsForPod(t *testing.T) {
 			name: "multi containers, match one container",
 			check: &types.PrometheusCheck{
 				AD: &types.ADConfig{
-					KubeContainerNames: []string{"foo-ctr1"},
+					KubeContainerNames: []string{"cont-name-1"},
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
-						},
+					{
+						ID:   "cont-id-2",
+						Name: "cont-name-2",
 					},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-2",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-2",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -331,8 +380,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr1-id",
-					ADIdentifiers: []string{"foo-ctr1-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -340,53 +389,57 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "multi containers, match based on port",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name: "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "pod-name",
 					Annotations: map[string]string{
 						"prometheus.io/scrape": "true",
 						"prometheus.io/port":   "8080",
 					},
 				},
-				Spec: kubelet.Spec{
-					Containers: []kubelet.ContainerSpec{
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
+					},
+					{
+						ID:   "cont-id-2",
+						Name: "cont-name-2",
+					},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					Ports: []workloadmeta.ContainerPort{
 						{
-							Name: "foo-ctr1",
-							Ports: []kubelet.ContainerPortSpec{
-								{
-									ContainerPort: 8080,
-								},
-							},
-						},
-						{
-							Name: "foo-ctr2",
-							Ports: []kubelet.ContainerPortSpec{
-								{
-									ContainerPort: 8081,
-								},
-							},
+							Port: 8080,
 						},
 					},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
-						},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-2",
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-2",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					Ports: []workloadmeta.ContainerPort{
 						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
+							Port: 8081,
 						},
 					},
 				},
@@ -397,8 +450,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:8080/metrics"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr1-id",
-					ADIdentifiers: []string{"foo-ctr1-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -406,98 +459,103 @@ func TestConfigsForPod(t *testing.T) {
 			name:    "multi containers, none match the port in the annotation",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name: "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "pod-name",
 					Annotations: map[string]string{
 						"prometheus.io/scrape": "true",
 						"prometheus.io/port":   "9999",
 					},
 				},
-				Spec: kubelet.Spec{
-					Containers: []kubelet.ContainerSpec{
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
+					},
+					{
+						ID:   "cont-id-2",
+						Name: "cont-name-2",
+					},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					Ports: []workloadmeta.ContainerPort{
 						{
-							Name: "foo-ctr1",
-							Ports: []kubelet.ContainerPortSpec{
-								{
-									ContainerPort: 8080, // Doesn't match
-								},
-							},
-						},
-						{
-							Name: "foo-ctr2",
-							Ports: []kubelet.ContainerPortSpec{
-								{
-									ContainerPort: 8081, // Doesn't match
-								},
-							},
+							Port: 8080, // Doesn't match port in annotation
 						},
 					},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
-						},
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-2",
 					},
-					AllContainers: []kubelet.ContainerStatus{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-2",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					Ports: []workloadmeta.ContainerPort{
 						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
+							Port: 8081, // Doesn't match port in annotation
 						},
 					},
 				},
 			},
-			want:        nil,
-			expectError: true, // No containers match the port in the annotation
+			expectError: true, // No container matches port in annotation
 		},
 		{
 			name:    "invalid port in annotation",
 			check:   types.DefaultPrometheusCheck,
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name: "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "pod-name",
 					Annotations: map[string]string{
 						"prometheus.io/scrape": "true",
 						"prometheus.io/port":   "invalid",
 					},
 				},
-				Spec: kubelet.Spec{
-					Containers: []kubelet.ContainerSpec{
-						{
-							Name: "foo-ctr1",
-							Ports: []kubelet.ContainerPortSpec{
-								{
-									ContainerPort: 8080, // Doesn't match
-								},
-							},
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
+					Ports: []workloadmeta.ContainerPort{
 						{
-							Name: "foo-ctr1",
-							ID:   "foo-ctr1-id",
-						},
-						{
-							Name: "foo-ctr2",
-							ID:   "foo-ctr2-id",
+							Port: 8080,
 						},
 					},
 				},
 			},
-			want:        nil,
 			expectError: true, // Invalid port in annotation
 		},
 		{
@@ -508,24 +566,32 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: nil,
@@ -534,28 +600,36 @@ func TestConfigsForPod(t *testing.T) {
 			name: "container name regex",
 			check: &types.PrometheusCheck{
 				AD: &types.ADConfig{
-					KubeContainerNames: []string{"bar", "*o-c*"},
+					KubeContainerNames: []string{"some-other-name", "*cont-name-*"}, // should match cont-name-1
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -564,8 +638,8 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"namespace":"","metrics":[".*"],"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr-id",
-					ADIdentifiers: []string{"foo-ctr-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
@@ -581,24 +655,32 @@ func TestConfigsForPod(t *testing.T) {
 				},
 			},
 			version: 2,
-			pod: &kubelet.Pod{
-				Metadata: kubelet.PodMetadata{
-					Name:        "foo-pod",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "pod-name",
 					Annotations: map[string]string{"prometheus.io/scrape": "true"},
 				},
-				Status: kubelet.Status{
-					Containers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cont-id-1",
+						Name: "cont-name-1",
 					},
-					AllContainers: []kubelet.ContainerStatus{
-						{
-							Name: "foo-ctr",
-							ID:   "foo-ctr-id",
-						},
+				},
+			},
+			containers: []*workloadmeta.Container{
+				{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainer,
+						ID:   "cont-id-1",
 					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "cont-name-1",
+					},
+					Runtime: workloadmeta.ContainerRuntimeContainerd,
 				},
 			},
 			want: []integration.Config{
@@ -607,26 +689,43 @@ func TestConfigsForPod(t *testing.T) {
 					InitConfig:    integration.Data("{}"),
 					Instances:     []integration.Data{integration.Data(`{"prometheus_url":"foo/bar","namespace":"","metrics":[{"foo":"bar"}]}`)},
 					Provider:      names.PrometheusPods,
-					Source:        "prometheus_pods:foo-ctr-id",
-					ADIdentifiers: []string{"foo-ctr-id"},
+					Source:        "prometheus_pods:containerd://cont-id-1",
+					ADIdentifiers: []string{"containerd://cont-id-1"},
 				},
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			cfg := mock.New(t)
-			cfg.SetWithoutSource("prometheus_scrape.version", tt.version)
-			tt.check.Init(tt.version)
+			cfg.SetWithoutSource("prometheus_scrape.version", test.version)
+			test.check.Init(test.version)
 
-			configs, err := ConfigsForPod(tt.check, tt.pod)
-			if tt.expectError {
+			wmeta := newMockWorkloadMeta(t)
+			wmeta.Set(test.pod)
+			for _, container := range test.containers {
+				wmeta.Set(container)
+			}
+
+			configs, err := ConfigsForPod(test.check, test.pod, wmeta)
+			if test.expectError {
 				assert.Error(t, err)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tt.want, configs)
+			assert.ElementsMatch(t, test.want, configs)
 		})
 	}
+}
+
+func newMockWorkloadMeta(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](
+		t,
+		fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			config.MockModule(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		),
+	)
 }
