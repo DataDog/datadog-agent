@@ -174,11 +174,12 @@ func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	}
 	// We do not adjust the existing string table in case another goroutine is using it (e.g. the trace writer and span concentrator concurrently)
 	sanitizedStrings := make([]string, len(tp.Strings.strings))
-	for i, str := range tp.Strings.strings {
-		if usedStrings[i] {
-			sanitizedStrings[i] = str
+	for i, used := range usedStrings {
+		if used {
+			sanitizedStrings[i] = tp.Strings.strings[i]
 		}
 	}
+
 	return &TracerPayload{
 		Strings:            sanitizedStrings,
 		ContainerIDRef:     tp.containerIDRef,
