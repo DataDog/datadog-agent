@@ -51,7 +51,7 @@ type sysProbeClient interface {
 // compatibility with the existing client implementation.
 type sysProbeClientWrapper struct {
 	// don't use this field directly, it's used for lazy initialization
-	__client *sysprobeclient.CheckClient
+	client *sysprobeclient.CheckClient
 	// clientFn is used to lazily initialize the client
 	clientFn func() *sysprobeclient.CheckClient
 }
@@ -60,10 +60,10 @@ type sysProbeClientWrapper struct {
 // This method uses the generic GetCheck function to retrieve software inventory data
 // from the System Probe with proper type safety.
 func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.Entry, error) {
-	if w.__client == nil {
-		w.__client = w.clientFn()
+	if w.client == nil {
+		w.client = w.clientFn()
 	}
-	return sysprobeclient.GetCheck[[]software.Entry](w.__client, module)
+	return sysprobeclient.GetCheck[[]software.Entry](w.client, module)
 }
 
 // inventorySoftware is the implementation of the Component interface.
