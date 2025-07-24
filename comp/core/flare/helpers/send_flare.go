@@ -275,13 +275,10 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
 			// Always close the response body if it exists
-			if r != nil {
-				r.Body.Close()
-			}
-
 			statusCode := 0
 			if r != nil {
 				statusCode = r.StatusCode
+				r.Body.Close()
 			}
 			lastErr = err
 
