@@ -12,10 +12,10 @@ type Warnings struct {
 }
 
 // NewWarnings creates a new Warnings instance
-func (w *Warnings) NewWarnings(errors []error) *Warnings {
+func NewWarnings(errors []error) *Warnings {
 	return &Warnings{
-		TraceMallocEnabledWithPy2: w.TraceMallocEnabledWithPy2,
-		Errors:                    append(w.Errors, errors...),
+		TraceMallocEnabledWithPy2: false,
+		Errors:                    errors,
 	}
 }
 
