@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -47,7 +46,7 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			mockProbe := probemocks.NewProbe(t)
 			mockWLM := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(wmdef.NewParams()),
 			))
 
 			mockConstantClock := constantMockClock(time.Now())
