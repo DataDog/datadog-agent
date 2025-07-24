@@ -334,8 +334,8 @@
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
-/comp/metadata/inventorysoftware @DataDog/windows-agent
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/softwareinventory @DataDog/windows-agent
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
