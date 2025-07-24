@@ -102,7 +102,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 }
 
-func TestProcessCheckFirstRun(t *testing.T) {
+func TestProcessCheckFirstRunWithProbe(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
 	now := time.Now().Unix()
@@ -124,7 +124,7 @@ func TestProcessCheckFirstRun(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestProcessCheckSecondRun(t *testing.T) {
+func TestProcessCheckSecondRunWithProbe(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
 	now := time.Now().Unix()

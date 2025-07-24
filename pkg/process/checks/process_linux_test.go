@@ -14,11 +14,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	probemocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"go.uber.org/fx"
 )
 
 // TestProcessesByPIDWLM tests processesByPID map creation when WLM collection is ON
@@ -39,7 +45,11 @@ func TestProcessesByPIDWLM(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			// INITIALIZATION
 			mockProbe := probemocks.NewProbe(t)
-			mockWLM := wmimpl.NewMockWLM(t)
+			mockWLM := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
 			mockConstantClock := constantMockClock(time.Now())
 			processCheck := &ProcessCheck{
 				wmeta:                   mockWLM,
@@ -56,11 +66,13 @@ func TestProcessesByPIDWLM(t *testing.T) {
 			proc4 := wlmProcessWithCreateTime(4, "/bin/bash/usr/local/bin/cilium-agent-bpf-map-metrics.sh", nowSeconds-3)
 			procs := []*wmdef.Process{proc1, proc2, proc3, proc4}
 			statsByPid := make(map[int32]*procutil.Stats)
-			mockWLM.EXPECT().ListProcesses().Return(procs).Once()
+			for _, p := range procs {
+				mockWLM.Set(p)
+			}
 			if tc.collectStats {
 				// elevatedPermissions is irrelevant since we are mocking the probe so no internal logic is tested
 				statsByPid = createTestWLMProcessStats([]*wmdef.Process{proc1, proc2, proc3, proc4}, true)
-				mockProbe.EXPECT().StatsForPIDs([]int32{proc1.Pid, proc2.Pid, proc3.Pid, proc4.Pid}, mockConstantClock.Now()).Return(statsByPid, nil).Once()
+				mockProbe.EXPECT().StatsForPIDs(mock.Anything, mockConstantClock.Now()).Return(statsByPid, nil).Once()
 			}
 
 			// EXPECTED

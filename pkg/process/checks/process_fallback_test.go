@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	wmimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	probemocks "github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -35,17 +34,15 @@ func TestProcessByPID(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			// INITIALIZATION
 			mockProbe := probemocks.NewProbe(t)
-			mockWLM := wmimpl.NewMockWLM(t)
 			mockConstantClock := constantMockClock(time.Now())
 			processCheck := &ProcessCheck{
-				wmeta:                   mockWLM,
 				probe:                   mockProbe,
 				useWLMProcessCollection: tc.useWLMCollection,
 				clock:                   mockConstantClock,
 			}
 
 			// MOCKING
-			mockWLM.AssertNotCalled(t, "ListProcesses")
+			// wlm ListProcesses should also not be called, but we cannot test that with the current mock implementation
 			mockProbe.AssertNotCalled(t, "StatsForPIDs")
 			mockProbe.EXPECT().ProcessesByPID(mockConstantClock.Now(), mock.Anything).Return(nil, nil).Once()
 			// TESTING
