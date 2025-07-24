@@ -24,6 +24,11 @@ import (
 // content for tailers capable of processing both unstructured and structured content.
 const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
 
+type failoverConfig struct {
+	isFailoverActive  bool
+	failoverAllowlist map[string]struct{}
+}
+
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
@@ -36,11 +41,8 @@ type Processor struct {
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
-
-	// Cached failover configuration
-	failoverMu        sync.RWMutex
-	failoverActive    bool
-	failoverAllowlist map[string]struct{}
+	configChan                chan failoverConfig
+	failoverConfig            failoverConfig
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -59,6 +61,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
 		encoder:                   encoder,
+		configChan:                make(chan failoverConfig, 1),
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
@@ -87,33 +90,28 @@ func (p *Processor) onLogsFailoverSettingChanged(setting string, _, _ any, _ uin
 	}
 }
 
-// updateFailoverConfig updates the cached failover configuration
+// updateFailoverConfig sends the updated config to the processor to update
 func (p *Processor) updateFailoverConfig() {
 	if p.config == nil {
 		return
 	}
 
-	p.failoverMu.Lock()
-	defer p.failoverMu.Unlock()
+	var conf failoverConfig
 
-	p.failoverActive = p.config.GetBool("multi_region_failover.failover_logs")
+	conf.isFailoverActive = p.config.GetBool("multi_region_failover.failover_logs")
 
 	var allowlist map[string]struct{}
-	if p.failoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
+	if conf.isFailoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
 		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {
 			allowlist[allowed] = struct{}{}
 		}
-	}
-	p.failoverAllowlist = allowlist
-}
 
-// getCachedFailoverConfig returns the cached failover configuration
-func (p *Processor) getCachedFailoverConfig() (bool, map[string]struct{}) {
-	p.failoverMu.RLock()
-	defer p.failoverMu.RUnlock()
-	return p.failoverActive, p.failoverAllowlist
+		conf.failoverAllowlist = allowlist
+	}
+
+	p.configChan <- conf
 }
 
 // Start starts the Processor.
@@ -153,12 +151,16 @@ func (p *Processor) run() {
 		p.done <- struct{}{}
 	}()
 
-	for msg := range p.inputChan {
-		// process the message
-		p.processMessage(msg)
-		p.mu.Lock() // block here if we're trying to flush synchronously
-		//nolint:staticcheck
-		p.mu.Unlock()
+	for {
+		select {
+		case msg := <-p.inputChan:
+			p.processMessage(msg)
+			p.mu.Lock() // block here if we're trying to flush synchronously
+			//nolint:staticcheck
+			p.mu.Unlock()
+		case conf := <-p.configChan:
+			p.failoverConfig = conf
+		}
 	}
 }
 
@@ -184,18 +186,16 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
 
-		// Use cached failover config if available, otherwise fallback to direct config read
-		var failoverActiveForMRF bool
-		var allowlistForMRF map[string]struct{}
-		if p.config != nil {
-			failoverActiveForMRF, allowlistForMRF = p.getCachedFailoverConfig()
-		}
+		allowlist := p.failoverConfig.failoverAllowlist
+		failoverSettingsSet := len(allowlist) > 0
+		failoverActiveForMRF := p.failoverConfig.isFailoverActive && failoverSettingsSet
 
-		failoverActive := failoverActiveForMRF && len(allowlistForMRF) > 0
-		_, sourceIsFailover := allowlistForMRF[msg.Origin.Service()]
+		if failoverActiveForMRF {
+			_, sourceIsFailover := allowlist[msg.Origin.Service()]
 
-		if failoverActive && sourceIsFailover {
-			msg.IsMRFAllow = true
+			if sourceIsFailover {
+				msg.IsMRFAllow = true
+			}
 		}
 
 		// encode the message to its final format, it is done in-place
