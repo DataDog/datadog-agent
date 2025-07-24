@@ -136,6 +136,7 @@ func TestAcceptEvent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer unix.Close(client)
 
 		ch := make(chan iouring.Result, 1)
 
