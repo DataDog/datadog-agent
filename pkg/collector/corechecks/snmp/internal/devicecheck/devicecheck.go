@@ -124,7 +124,7 @@ func (pc *profileCache) RemoveMissingOIDs(values *valuestore.ResultValueStore) {
 		}
 	}
 	for _, oid := range pc.columnOIDs {
-		if values.ContainsColumnValue(oid) {
+		if values.ContainsColumnValues(oid) {
 			columnOIDs = append(columnOIDs, oid)
 		}
 	}
@@ -386,8 +386,6 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 
 	tags = append(tags, profile.StaticTags...)
 
-	fmt.Println(d.profileCache.scalarOIDs)
-	fmt.Println(d.profileCache.columnOIDs)
 	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs, d.config.OidBatchSize,
 		d.config.BulkMaxRepetitions)
 	if log.ShouldLog(log.DebugLvl) {

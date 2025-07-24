@@ -48,8 +48,8 @@ func (v *ResultValueStore) GetScalarValue(oid string) (ResultValue, error) {
 	return value, nil
 }
 
-// ContainsColumnValue returns whether a column oid is present in ResultValueStore
-func (v *ResultValueStore) ContainsColumnValue(oid string) bool {
+// ContainsColumnValues returns whether a column oid is present in ResultValueStore
+func (v *ResultValueStore) ContainsColumnValues(oid string) bool {
 	_, ok := v.ColumnValues[oid]
 	return ok
 }
