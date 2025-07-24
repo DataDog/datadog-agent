@@ -211,20 +211,44 @@ func IsServiceAccount(sid *windows.SID) (bool, error) {
 		user = domain + `\` + user
 	}
 
-	r, err := NetIsServiceAccount(user)
+	// Use NetQueryServiceAccount instead of NetIsServiceAccount because it gives us more information.
+	// NetIsServiceAccount just returns true if NetQueryServiceAccount returns MsaInfoInstalled.
+	msaInfo, err := NetQueryServiceAccount(user)
 	if err != nil {
 		if errors.Is(err, windows.STATUS_OPEN_FAILED) {
 			// Do not wrap the error message in the error string, it is too verbose and is unrelated to the actual issue
 			// See NetIsServiceAccount docs for more details on the double hop problem.
-			err = fmt.Errorf("error 0x%X. Please ensure the netlogon service is running, the domain controller is available, and the current process has network credentials that will be accepted by the domain controller", windows.STATUS_OPEN_FAILED)
+			return false, fmt.Errorf("error 0x%X. Please ensure the netlogon service is running, the domain controller is available, and the current process has network credentials that are accepted by the domain controller", int(windows.STATUS_OPEN_FAILED))
+		} else if errors.Is(err, windows.STATUS_INVALID_ACCOUNT_NAME) {
+			// This error can be returned by domain clients when querying a different (e.g. trusted/parent) or non-existing domain
+			// when the account does not exist or is not a gMSA account.
+			// For example, hostname\account or otherdomain\account.
+			// We see this behavior in dev envs as well as our QA env -- dcchild-u (unstable domain) querying for ddog\ddogagent.
+			// Domain controllers have a different behavior, they try to lookup the domain and then return windows.STATUS_NO_SUCH_DOMAIN.
+			// At this point we know the account does exist, so we won't treat this as an error and instead
+			// will assume the account is a regular domain account.
+			return false, nil
 		}
-		// TODO(WINA-1662): In our QA env (dcchild-u) when querying ddog\ddogagent (not a gMSA account) this returns windows.STATUS_INVALID_ACCOUNT_NAME
-		// In other test envs, and on `dcforest`, the functions succeeds and returns false, what is different?
 
 		// Do not add punctuation after %w, the error message already contains it.
 		return false, fmt.Errorf("failed to check if account '%s' is a service account: %w Please ensure the netlogon service is running and the domain controller is available", user, err)
 	}
-	return r, nil
+	switch msaInfo {
+	case MsaInfoNotExist:
+		return false, fmt.Errorf("account '%s' does not exist", user)
+	case MsaInfoNotService:
+		// expected result for regular domain accounts
+		return false, nil
+	case MsaInfoCannotInstall:
+		return false, fmt.Errorf("account '%s' is a gMSA account but cannot be installed. Please ensure the account's KerberosEncryptionType is supported and the host is a member of PrincipalsAllowedToRetrieveManagedPassword", user)
+	case MsaInfoCanInstall:
+		return false, fmt.Errorf("unexpected status MsaInfoCanInstall for account '%s'. Please ensure the account is a gMSA account and not a sMSA account", user)
+	case MsaInfoInstalled:
+		// expected result for gMSA accounts
+		return true, nil
+	default:
+		return false, fmt.Errorf("unknown service account status: %d", msaInfo)
+	}
 }
 
 // IsLocalAccount returns true if the account is a local account.
@@ -246,23 +270,26 @@ func IsLocalAccount(sid *windows.SID) (bool, error) {
 		return false, fmt.Errorf("failed to get domain SID for account %s: %w", sid.String(), err)
 	}
 
-	// Get local computer name
-	computerName, err := GetComputerName()
-	if err != nil {
-		return false, fmt.Errorf("failed to get local computer name: %w", err)
-	}
-
 	// Get the SID for the local host
-	hostSid, _, err := lookupSID(computerName)
+	hostSid, err := getComputerSid()
 	if err != nil {
-		return false, err
-	}
-	if hostSid == nil {
-		return false, fmt.Errorf("could not get host SID")
+		return false, fmt.Errorf("failed to get host SID: %w", err)
 	}
 
 	// if the domain SID is different from the host SID, it's a domain account
 	return userDomainSid.Equals(hostSid), nil
+}
+
+func getComputerSid() (*windows.SID, error) {
+	computerName, err := GetComputerName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get local computer name: %w", err)
+	}
+	sid, _, err := lookupSID(computerName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup SID for computer name %s: %w", computerName, err)
+	}
+	return sid, nil
 }
 
 // AgentUserPasswordPresent returns true if the Agent user password is present in LSA.

@@ -15,8 +15,12 @@ import (
 )
 
 var (
-	logonclidll             = windows.NewLazySystemDLL("logoncli.dll")
-	procNetIsServiceAccount = logonclidll.NewProc("NetIsServiceAccount")
+	logonclidll                = windows.NewLazySystemDLL("logoncli.dll")
+	procNetIsServiceAccount    = logonclidll.NewProc("NetIsServiceAccount")
+	procNetQueryServiceAccount = logonclidll.NewProc("NetQueryServiceAccount")
+
+	netapi32dll          = windows.NewLazySystemDLL("netapi32.dll")
+	procNetApiBufferFree = netapi32dll.NewProc("NetApiBufferFree")
 
 	advapi32dll                    = windows.NewLazySystemDLL("ADVAPI32.dll")
 	procGetWindowsAccountDomainSid = advapi32dll.NewProc("GetWindowsAccountDomainSid")
@@ -28,6 +32,22 @@ var (
 const (
 	STATUS_OBJECT_NAME_NOT_FOUND = windows.NTStatus(0xC0000034)
 )
+
+// MSA_INFO_STATE
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ne-lmaccess-msa_info_state
+const (
+	MsaInfoNotExist      = 1
+	MsaInfoNotService    = 2
+	MsaInfoCannotInstall = 3
+	MsaInfoCanInstall    = 4
+	MsaInfoInstalled     = 5
+)
+
+// MSA_INFO_STATE enum
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ne-lmaccess-msa_info_state
+type MSA_INFO_STATE int
 
 //revive:enable:var-naming
 
@@ -113,4 +133,44 @@ func GetComputerName() (string, error) {
 		return "", err
 	}
 	return windows.UTF16ToString(computerName[:]), nil
+}
+
+// NetQueryServiceAccount returns the service account type of the account.
+//
+// See NetIsServiceAccount for more important usage details.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/nf-lmaccess-netqueryserviceaccount
+func NetQueryServiceAccount(username string) (MSA_INFO_STATE, error) {
+	u, err := windows.UTF16PtrFromString(username)
+	if err != nil {
+		return 0, err
+	}
+	var info *uint32
+	r1, _, _ := procNetQueryServiceAccount.Call(
+		0,                          // server, 0 for local machine
+		uintptr(unsafe.Pointer(u)), // username
+		0,                          // MSA_INFO_0
+		uintptr(unsafe.Pointer(&info)),
+	)
+	if r1 != 0 {
+		return 0, windows.NTStatus(r1)
+	}
+	defer procNetApiBufferFree.Call(uintptr(unsafe.Pointer(info))) //nolint:errcheck
+	return MSA_INFO_STATE(*info), nil
+}
+
+func (m MSA_INFO_STATE) String() string {
+	switch m {
+	case MsaInfoNotExist:
+		return "MsaInfoNotExist"
+	case MsaInfoNotService:
+		return "MsaInfoNotService"
+	case MsaInfoCannotInstall:
+		return "MsaInfoCannotInstall"
+	case MsaInfoCanInstall:
+		return "MsaInfoCanInstall"
+	case MsaInfoInstalled:
+		return "MsaInfoInstalled"
+	}
+	return "unknown"
 }

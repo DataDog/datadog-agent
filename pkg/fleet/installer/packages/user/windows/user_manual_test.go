@@ -6,7 +6,7 @@
 // Add build tag to exclude these tests from the regular unit tests.
 // These tests are intended for manual verification on real hosts and
 // won't succeed in the CI where the Agent is not installed.
-//go:build manualtest
+//go:build windows && manualtest
 
 package windowsuser
 
@@ -57,7 +57,23 @@ func TestAgentUser(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Println("is local account:", isLocalAccount)
 
+	computerSid, err := getComputerSid()
+	assert.NoError(t, err)
+	fmt.Println("computer sid:", computerSid)
+
+	accountDomainSid, err := GetWindowsAccountDomainSid(sid)
+	assert.NoError(t, err)
+	fmt.Println("windows account domain sid:", accountDomainSid)
+
 	isServiceAccount, err := IsServiceAccount(sid)
 	assert.NoError(t, err)
 	fmt.Println("is service account:", isServiceAccount)
+
+	msaInfo, err := NetQueryServiceAccount(user)
+	assert.NoError(t, err)
+	fmt.Println("msa info:", msaInfo)
+
+	netIsServiceAccount, err := NetIsServiceAccount(user)
+	assert.NoError(t, err)
+	fmt.Println("NetIsServiceAccount:", netIsServiceAccount)
 }
