@@ -13,8 +13,8 @@ import (
 	"testing"
 	"unique"
 
-	"github.com/stretchr/testify/assert"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTagsOrderAndDupsDontMatter(t *testing.T) {
