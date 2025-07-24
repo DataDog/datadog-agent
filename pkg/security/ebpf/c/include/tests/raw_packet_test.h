@@ -31,6 +31,7 @@ SEC("test/raw_packet_drop_action")
 int raw_packet_drop_action(struct __sk_buff *skb) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     evt->process.pid = 123;
+    evt->container.cgroup_context.cgroup_file.ino = 456;
 
     // assert_not_null(evt, "unable to get raw packet event")
     assert_not_null(evt, "unable to get raw packet event")
