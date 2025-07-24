@@ -680,7 +680,7 @@ func (b *SymDBBuilder) exploreCompileUnit(entry *dwarf.Entry, reader *dwarf.Read
 	}
 	b.filesInCurrentCompileUnit = files
 
-	// We recognize subprograms and types.
+	// Go through the children, looking for subprograms.
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
 		if err != nil {
 			return Package{}, err
