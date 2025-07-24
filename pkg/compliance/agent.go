@@ -206,7 +206,7 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta)
+	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta, pkgconfigsetup.Datadog(), "compliance_config.")
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err

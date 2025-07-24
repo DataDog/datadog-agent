@@ -364,6 +364,11 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
+		return
+	}
+
 	selector := workload.Selector
 	selector.Tag = "*"
 

@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -67,6 +68,7 @@ type pendingMsg struct {
 	extTagsCb       func() []string
 	sendAfter       time.Time
 	retry           int
+	skip            bool
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -141,6 +143,7 @@ type APIServer struct {
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
 	envAsTags          []string
+	containerFilter    *containers.Filter
 
 	// os release data
 	kernelVersion string
@@ -231,7 +234,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 			return true
 		}
 
-		if msg.retry >= maxRetry {
+		if msg.skip || msg.retry >= maxRetry {
 			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
 			return true
 		}
@@ -299,6 +302,12 @@ func (a *APIServer) start(ctx context.Context) {
 
 				// not fully resolved, retry
 				if !msg.isResolved() && msg.retry < maxRetry {
+					return false
+				}
+
+				containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
+				if a.containerFilter != nil && a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+					msg.skip = true
 					return false
 				}
 
@@ -623,6 +632,10 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
+	containerFilter, err := utils.NewContainerFilter()
+	if err != nil {
+		return nil, err
+	}
 
 	as := &APIServer{
 		msgs:            make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
@@ -639,6 +652,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
 		envAsTags:       getEnvAsTags(cfg),
+		containerFilter: containerFilter,
 	}
 
 	as.collectOSReleaseData()
