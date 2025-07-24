@@ -985,12 +985,12 @@ func TestMultipleProtocols(t *testing.T) {
 
 		if err := m.Lookup(&tcpKey, &tcpVal); err != nil {
 			dumpMap(t, m)
-			t.Errorf("TCP entry not found: %v", err)
+			t.Errorf("TCP entry not found for key: %+v, error: %v", tcpKey, err)
 		}
 
 		if err := m.Lookup(&udpKey, &udpVal); err != nil {
 			dumpMap(t, m)
-			t.Errorf("UDP entry not found: %v", err)
+			t.Errorf("UDP entry not found for key: %+v, error: %v", udpKey, err)
 		}
 
 		assert.NotEqual(t, tcpVal.Pid, udpVal.Pid, "TCP and UDP should be from different PIDs")
