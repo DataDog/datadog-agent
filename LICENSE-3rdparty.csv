@@ -2600,6 +2600,8 @@ core,go.uber.org/zap/internal/pool,MIT,"Copyright (c) 2016-2017 Uber Technologie
 core,go.uber.org/zap/internal/stacktrace,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go.yaml.in/yaml/v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
+core,go.yaml.in/yaml/v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright (c) 2006-2011 Kirill Simonov | Copyright (c) 2011-2019 Canonical Ltd | Copyright 2011-2016 Canonical Ltd | copyright staring in 2011 when the project was ported over:
 core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/mem,Apache-2.0,Copyright 2020 The Go4 AUTHORS
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
@@ -2683,6 +2685,10 @@ core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Author
 core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/counter,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/counter,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/telemetry/internal/telemetry,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/term,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/cases,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/encoding,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -3948,5 +3954,5 @@ core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The K
 core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
-core,sigs.k8s.io/yaml/goyaml.v2,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/yaml/goyaml.v2,MIT,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml/goyaml.v3,MIT,Copyright 2017 The Kubernetes Authors.
