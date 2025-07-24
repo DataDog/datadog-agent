@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestIsZero(t *testing.T) {
@@ -23,7 +24,7 @@ func TestIsZero(t *testing.T) {
 func TestGenerateReproductible(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags := tagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
+	tags := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"bar", "foo", "key:value", "key:value2"}))
 
 	generator := NewKeyGenerator()
 
@@ -45,8 +46,8 @@ func TestGenerateReproductible(t *testing.T) {
 func TestGenerateReproductible2(t *testing.T) {
 	name := "metric.name"
 	hostname := "hostname"
-	tags1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"bar", "foo", "key:value", "key:value2"})
-	tags2 := tagset.NewHashingTagsAccumulatorWithTags([]string{})
+	tags1 := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"bar", "foo", "key:value", "key:value2"}))
+	tags2 := tagset.NewHashingTagsAccumulatorWithTags(nil)
 
 	generator := NewKeyGenerator()
 
@@ -76,9 +77,9 @@ func TestMetricTagOverlap(t *testing.T) {
 
 	empty := tagset.NewHashingTagsAccumulator()
 	h1, _, _ := g.GenerateWithTags2("metric1", "hostname",
-		tagset.NewHashingTagsAccumulatorWithTags([]string{"metric1", "t1", "t2"}), empty)
+		tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"metric1", "t1", "t2"})), empty)
 	h2, _, _ := g.GenerateWithTags2("metric2", "hostname",
-		tagset.NewHashingTagsAccumulatorWithTags([]string{"metric2", "t1", "t2"}), empty)
+		tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique([]string{"metric2", "t1", "t2"})), empty)
 
 	assert.NotEqual(t, h1, h2)
 }
@@ -124,7 +125,7 @@ func BenchmarkKeyGeneration(b *testing.B) {
 	host := "myhost"
 	for i := 1; i < 4096; i *= 2 {
 		tags, _ := genTags(i, 1)
-		tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(tags)
+		tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(tags))
 		b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 			generator := NewKeyGenerator()
 			tags := tagsBuf.Dup()
@@ -145,8 +146,8 @@ func BenchmarkKeyGeneration2(b *testing.B) {
 	for i := 1; i < 4096; i *= 2 {
 		tags, _ := genTags(i, 1)
 		if variant == "2" {
-			l := tagset.NewHashingTagsAccumulatorWithTags(tags[:i/2])
-			r := tagset.NewHashingTagsAccumulatorWithTags(tags[i/2:])
+			l := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(tags[:i/2]))
+			r := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(tags[i/2:]))
 			b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 				generator := NewKeyGenerator()
 				l := l.Dup()
@@ -157,7 +158,7 @@ func BenchmarkKeyGeneration2(b *testing.B) {
 				}
 			})
 		} else {
-			tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(tags)
+			tagsBuf := tagset.NewHashingTagsAccumulatorWithTags(utilstrings.ToUnique(tags))
 			b.Run(fmt.Sprintf("%d-tags", i), func(b *testing.B) {
 				generator := NewKeyGenerator()
 				tags := tagsBuf.Dup()

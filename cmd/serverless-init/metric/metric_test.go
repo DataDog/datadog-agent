@@ -41,6 +41,10 @@ func TestAdd(t *testing.T) {
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "a.super.metric")
+	assert.Equal(t, 2, len(metric.Tags))
+	assert.Equal(t, float64(timestamp.UnixNano())/float64(time.Second), metric.Timestamp)
+	assert.Equal(t, metric.Tags[0].Value(), "taga:valuea")
+	assert.Equal(t, metric.Tags[1].Value(), "tagb:valueb")
 }
 
 func TestAddStartMetric(t *testing.T) {
@@ -53,8 +57,11 @@ func TestAddStartMetric(t *testing.T) {
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
-	assert.Equal(t, metric.Name, "datadog.serverless_agent.enhanced.cold_start")
-	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
+	assert.Equal(t, metric.Name, "gcp.run.enhanced.cold_start")
+	assert.Equal(t, 2, len(metric.Tags))
+	assert.Equal(t, metric.Tags[0].Value(), "taga:valuea")
+	assert.Equal(t, metric.Tags[1].Value(), "tagb:valueb")
+	assert.Equal(t, metric.Source, metrics.MetricSourceGoogleCloudRunEnhanced)
 }
 
 func TestAddShutdownMetric(t *testing.T) {
@@ -67,8 +74,11 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
-	assert.Equal(t, metric.Name, "datadog.serverless_agent.enhanced.shutdown")
-	assert.Equal(t, metric.Source, metrics.MetricSourceServerless)
+	assert.Equal(t, metric.Name, "gcp.run.enhanced.shutdown")
+	assert.Equal(t, 2, len(metric.Tags))
+	assert.Equal(t, metric.Tags[0].Value(), "taga:valuea")
+	assert.Equal(t, metric.Tags[1].Value(), "tagb:valueb")
+	assert.Equal(t, metric.Source, metrics.MetricSourceGoogleCloudRunEnhanced)
 }
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func Add(name string, value float64, source metrics.MetricSource, agent serverlessMetrics.ServerlessMetricAgent) {
@@ -24,7 +25,7 @@ func Add(name string, value float64, source metrics.MetricSource, agent serverle
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.DistributionType,
-		Tags:       agent.GetExtraTags(),
+		Tags:       utilstrings.ToUnique(agent.GetExtraTags()),
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
 		Source:     source,
