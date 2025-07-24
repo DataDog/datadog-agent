@@ -24,6 +24,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/docker/docker/libnetwork/resolvconf"
+	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
@@ -205,6 +206,27 @@ func TestRawPacketAction(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
 		})
 
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("test_rule_raw_packet_drop")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.policy == 'drop')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.filter == 'port 53')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(60), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		// wait for the action to be performed
 		time.Sleep(3 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
