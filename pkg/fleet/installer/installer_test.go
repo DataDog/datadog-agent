@@ -162,7 +162,7 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 	return nil
 }
 
-func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
+func (i *testPackageManager) ConfigFS(_ fixtures.Fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.userConfigsDir, "datadog-agent"))
 }
 
