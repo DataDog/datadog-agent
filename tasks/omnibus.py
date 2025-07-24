@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import tempfile
+import warnings
 from collections.abc import Iterator
 from typing import NamedTuple
 
@@ -19,6 +20,8 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     send_cache_mutation_event,
     should_retry_bundle_install,
+    ENV_PASSHTROUGH,
+    OS_SPECIFIC_ENV_PASSTHROUGH,
 )
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
@@ -51,7 +54,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
-            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
+            ctx.run(cmd.format(**args), env=env, replace_env=True, err_stream=sys.stdout)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -70,7 +73,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
                 try:
-                    ctx.run(cmd, env=env, err_stream=sys.stdout)
+                    ctx.run(cmd, env=env, replace_env=True, err_stream=sys.stdout)
                     return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
@@ -92,6 +95,7 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
+
     env = load_dependencies(ctx)
 
     # If the host has a GOMODCACHE set, try to reuse it
@@ -153,24 +157,26 @@ def get_omnibus_env(
     kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
-    env_to_forward = [
-        # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-        'DEPLOY_AGENT',
-        # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
-        'BUCKET_BRANCH',
-        'PACKAGE_ARCH',
-        'INSTALL_DIR',
-        'DD_CC',
-        'DD_CXX',
-        'DD_CMAKE_TOOLCHAIN',
-        'OMNIBUS_FORCE_PACKAGES',
-        'OMNIBUS_PACKAGE_ARTIFACT_DIR',
-    ]
-    for key in env_to_forward:
-        if key in os.environ:
-            env[key] = os.environ[key]
+
+    env_to_forward = _passthrough_env_for_os(os.environ, sys.platform)
+    env.update(env_to_forward)
 
     return env
+
+
+def _passthrough_env_for_os(starting_env: dict[str, str], platform: str) -> dict[str, str]:
+    expected_env = ENV_PASSHTROUGH | OS_SPECIFIC_ENV_PASSTHROUGH[platform]
+    print(list(os.environ.keys()))
+
+    missing_env = expected_env - set(starting_env)
+    if missing_env:
+        warnings.warn(f'Missing expected environment variables for Omnibus build: {missing_env}')
+    passthrough_env = {k: v for k, v in starting_env.items() if k in expected_env}
+
+    print('Variables that were blocked:')
+    print('\n'.join(f'- {var}' for var in sorted(set(starting_env) - set(passthrough_env))))
+
+    return passthrough_env
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -282,7 +288,7 @@ def build(
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
             if use_remote_cache:
-                cache_key = omnibus_compute_cache_key(ctx)
+                cache_key = omnibus_compute_cache_key(ctx, env)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
