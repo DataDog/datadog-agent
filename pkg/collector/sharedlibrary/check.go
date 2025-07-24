@@ -89,7 +89,7 @@ func (c *SharedLibraryCheck) GetSenderStats() (stats.SenderStats, error) {
 }
 
 func (c *SharedLibraryCheck) ID() checkid.ID {
-	// c.id is not the same as c.libName (it has an id after the name so the sender found by SubmitMetricRtLoader is different and metrics are submitted)
+	// c.id is not the same as c.libName (it has an id after the name so the sender found by SubmitMetricRtLoader is a different one and metrics aren't submitted)
 	return checkid.ID(c.libName)
 }
 
