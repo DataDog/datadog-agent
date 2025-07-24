@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iointerface "github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -125,7 +126,7 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		//       triggered by FA, so maybe this is OK.
 		//
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { i.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { i.Refresh() })
 	}
 
 	return provides{
