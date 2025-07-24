@@ -20,7 +20,7 @@ var (
 	procNetQueryServiceAccount = logonclidll.NewProc("NetQueryServiceAccount")
 
 	netapi32dll          = windows.NewLazySystemDLL("netapi32.dll")
-	procNetApiBufferFree = netapi32dll.NewProc("NetApiBufferFree")
+	procNetAPIBufferFree = netapi32dll.NewProc("NetApiBufferFree")
 
 	advapi32dll                    = windows.NewLazySystemDLL("ADVAPI32.dll")
 	procGetWindowsAccountDomainSid = advapi32dll.NewProc("GetWindowsAccountDomainSid")
@@ -155,7 +155,7 @@ func NetQueryServiceAccount(username string) (MSA_INFO_STATE, error) {
 	if r1 != 0 {
 		return 0, windows.NTStatus(r1)
 	}
-	defer procNetApiBufferFree.Call(uintptr(unsafe.Pointer(info))) //nolint:errcheck
+	defer procNetAPIBufferFree.Call(uintptr(unsafe.Pointer(info))) //nolint:errcheck
 	return MSA_INFO_STATE(*info), nil
 }
 
