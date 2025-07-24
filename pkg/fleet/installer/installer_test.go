@@ -163,7 +163,7 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 }
 
 func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
-	return os.DirFS(filepath.Join(i.userConfigsDir, f.Package))
+	return os.DirFS(filepath.Join(i.userConfigsDir, "datadog-agent"))
 }
 
 func TestInstallStable(t *testing.T) {
