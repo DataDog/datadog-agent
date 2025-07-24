@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -931,12 +932,18 @@ func getHTTPLikeProtocolStats(t *testing.T, monitor *Monitor, protocolType proto
 }
 
 func (s *tlsSuite) TestNodeJSTLS() {
+	t := s.T()
+
+	ok, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	require.NoError(t, err)
+	if ok {
+		t.Skip("Kernel has uretprobe syscall seccomp bug, skipping NodeJS TLS test")
+	}
+
 	const (
 		expectedOccurrences = 10
 		serverPort          = "4444"
 	)
-
-	t := s.T()
 
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
