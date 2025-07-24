@@ -91,62 +91,62 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 }
 
 type telemetryStore struct {
-	// remoteAgentRegistry tracks how many remote agents are registered.
-	remoteAgentRegistry telemetry.Counter
-	// remoteAgentRegistryError tracks how many remote agents failed to register.
-	remoteAgentRegistryError telemetry.Counter
-	// remoteAgentRegistryUpdate tracks how many remote agents are updated.
-	remoteAgentRegistryUpdate telemetry.Counter
-	// remoteAgentRegistryUpdateError tracks how many remote agents failed to update.
-	remoteAgentRegistryUpdateError telemetry.Counter
-	// remoteAgentRegistryDeregister tracks how many remote agents are deregistered.
-	remoteAgentRegistryDeregister telemetry.Counter
-	// remoteAgentRegistryActionError tracks the number of errors encountered while performing actions on the remote agent registry.
-	remoteAgentRegistryActionError telemetry.Counter
-	// remoteAgentRegistryActionDuration tracks the duration of actions performed on the remote agent registry.
-	remoteAgentRegistryActionDuration telemetry.Histogram
-	// remoteAgentRegistryActionTimeout tracks the number of times an action on the remote agent registry timed out.
-	remoteAgentRegistryActionTimeout telemetry.Counter
+	// remoteAgentRegistered tracks how many remote agents are registered.
+	remoteAgentRegistered telemetry.Counter
+	// remoteAgentRegisteredError tracks how many remote agents failed to register.
+	remoteAgentRegisteredError telemetry.Counter
+	// remoteAgentUpdated tracks how many remote agents are updated.
+	remoteAgentUpdated telemetry.Counter
+	// remoteAgentUpdatedError tracks how many remote agents failed to update.
+	remoteAgentUpdatedError telemetry.Counter
+	// remoteAgentDeregistered tracks how many remote agents are deregistered.
+	remoteAgentDeregistered telemetry.Counter
+	// remoteAgentActionError tracks the number of errors encountered while performing actions on the remote agent registry.
+	remoteAgentActionError telemetry.Counter
+	// remoteAgentActionDuration tracks the duration of actions performed on the remote agent registry.
+	remoteAgentActionDuration telemetry.Histogram
+	// remoteAgentActionTimeout tracks the number of times an action on the remote agent registry timed out.
+	remoteAgentActionTimeout telemetry.Counter
 }
 
 func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 	return &telemetryStore{
-		remoteAgentRegistry: telemetryComp.NewCounterWithOpts(
+		remoteAgentRegistered: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
-			"registered_agents",
+			"registered",
 			[]string{"name"},
 			"Number of remote agents registered in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryError: telemetryComp.NewCounterWithOpts(
+		remoteAgentRegisteredError: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
-			"registered_agents_error",
+			"registered_error",
 			[]string{"name", "error"},
 			"Number of remote agents that failed to register in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryUpdate: telemetryComp.NewCounterWithOpts(
+		remoteAgentUpdated: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
-			"registered_agents_update",
+			"updated",
 			[]string{"name"},
 			"Number of remote agents updated in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryUpdateError: telemetryComp.NewCounterWithOpts(
+		remoteAgentUpdatedError: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
-			"registered_agents_update_error",
+			"updated_error",
 			[]string{"name", "error"},
 			"Number of remote agents that failed to update in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryDeregister: telemetryComp.NewCounterWithOpts(
+		remoteAgentDeregistered: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
-			"deregistered_agents",
+			"deregistered",
 			[]string{"name"},
 			"Number of remote agents deregistered in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryActionDuration: telemetryComp.NewHistogramWithOpts(
+		remoteAgentActionDuration: telemetryComp.NewHistogramWithOpts(
 			"remote_agent_registry",
 			"action_duration_seconds",
 			[]string{"name", "action"},
@@ -155,14 +155,14 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 			prometheus.DefBuckets,
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryActionError: telemetryComp.NewCounterWithOpts(
+		remoteAgentActionError: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
 			"action_error",
 			[]string{"name", "action"},
 			"Number of errors encountered while performing actions on the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
-		remoteAgentRegistryActionTimeout: telemetryComp.NewCounterWithOpts(
+		remoteAgentActionTimeout: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
 			"action_timeout",
 			[]string{"action"},
@@ -210,14 +210,14 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		// connecting when we try to query the remote agent for status or flare data.
 		details, err := newRemoteAgentDetails(registration)
 		if err != nil {
-			ra.telemetryStore.remoteAgentRegistryError.Inc(registration.DisplayName, err.Error())
+			ra.telemetryStore.remoteAgentRegisteredError.Inc(registration.DisplayName, err.Error())
 			return 0, err
 		}
 
 		log.Infof("Remote agent '%s' registered.", agentID)
 
 		ra.agentMap[agentID] = details
-		ra.telemetryStore.remoteAgentRegistry.Inc(registration.DisplayName)
+		ra.telemetryStore.remoteAgentRegistered.Inc(registration.DisplayName)
 
 		return recommendedRefreshInterval, nil
 	}
@@ -229,7 +229,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 
 		client, err := newRemoteAgentClient(registration)
 		if err != nil {
-			ra.telemetryStore.remoteAgentRegistryUpdateError.Inc(registration.DisplayName, err.Error())
+			ra.telemetryStore.remoteAgentUpdatedError.Inc(registration.DisplayName, err.Error())
 			return 0, err
 		}
 
@@ -239,7 +239,7 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		entry.lastSeen = time.Now()
 	}
 
-	ra.telemetryStore.remoteAgentRegistryUpdate.Inc(registration.DisplayName)
+	ra.telemetryStore.remoteAgentUpdated.Inc(registration.DisplayName)
 
 	return recommendedRefreshInterval, nil
 }
@@ -279,7 +279,7 @@ func (ra *remoteAgentRegistry) start() {
 					if ok {
 						delete(ra.agentMap, id)
 						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
-						ra.telemetryStore.remoteAgentRegistryDeregister.Inc(details.displayName)
+						ra.telemetryStore.remoteAgentDeregistered.Inc(details.displayName)
 					}
 				}
 
@@ -332,7 +332,7 @@ func (c *registryCollector) getRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 		go func() {
 			start := time.Now()
 			defer func() {
-				c.telemetryStore.remoteAgentRegistryActionDuration.Observe(
+				c.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
 					details.displayName,
 					"telemetry",
@@ -341,7 +341,7 @@ func (c *registryCollector) getRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 			resp, err := details.client.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, grpc.WaitForReady(true))
 			if err != nil {
 				log.Warnf("Failed to query remote agent '%s' for telemetry data: %v", agentID, err)
-				c.telemetryStore.remoteAgentRegistryActionError.Inc(details.displayName, "telemetry")
+				c.telemetryStore.remoteAgentActionError.Inc(details.displayName, "telemetry")
 				return
 			}
 			if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
@@ -362,7 +362,7 @@ collect:
 		case <-data:
 			responsesRemaining--
 		case <-timeout:
-			c.telemetryStore.remoteAgentRegistryActionTimeout.Inc("telemetry")
+			c.telemetryStore.remoteAgentActionTimeout.Inc("telemetry")
 			break collect
 		default:
 			if responsesRemaining == 0 {
@@ -470,7 +470,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 		go func() {
 			start := time.Now()
 			defer func() {
-				ra.telemetryStore.remoteAgentRegistryActionDuration.Observe(
+				ra.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
 					details.displayName,
 					"status",
@@ -485,7 +485,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregist
 					DisplayName:   displayName,
 					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
 				}
-				ra.telemetryStore.remoteAgentRegistryActionError.Inc(displayName, "status")
+				ra.telemetryStore.remoteAgentActionError.Inc(displayName, "status")
 				return
 			}
 
@@ -505,7 +505,7 @@ collect:
 			statusMap[statusData.AgentID] = statusData
 			responsesRemaining--
 		case <-timeout:
-			ra.telemetryStore.remoteAgentRegistryActionTimeout.Inc("status")
+			ra.telemetryStore.remoteAgentActionTimeout.Inc("status")
 			break collect
 		default:
 			if responsesRemaining == 0 {
@@ -545,7 +545,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 		go func() {
 			start := time.Now()
 			defer func() {
-				ra.telemetryStore.remoteAgentRegistryActionDuration.Observe(
+				ra.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
 					details.displayName,
 					"flare",
@@ -555,7 +555,7 @@ func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) erro
 			// We push any errors into "failure reason" which ends up getting shown in the status details.
 			resp, err := details.client.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, grpc.WaitForReady(true))
 			if err != nil {
-				ra.telemetryStore.remoteAgentRegistryActionError.Inc(details.displayName, "flare")
+				ra.telemetryStore.remoteAgentActionError.Inc(details.displayName, "flare")
 				log.Warnf("Failed to query remote agent '%s' for flare data: %v", agentID, err)
 				data <- nil
 				return
@@ -577,7 +577,7 @@ collect:
 			flareMap[flareData.AgentID] = flareData
 			responsesRemaining--
 		case <-timeout:
-			ra.telemetryStore.remoteAgentRegistryActionTimeout.Inc("flare")
+			ra.telemetryStore.remoteAgentActionTimeout.Inc("flare")
 			break collect
 		default:
 			if responsesRemaining == 0 {
