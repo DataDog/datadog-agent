@@ -56,7 +56,7 @@ require (
 	go.opentelemetry.io/collector/config/configmiddleware v0.129.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.129.0 // indirect
 	go.opentelemetry.io/contrib/otelconf v0.16.0 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
+	sigs.k8s.io/yaml v1.5.0 // indirect
 )
 
 require (
@@ -312,6 +312,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.3 // indirect
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
