@@ -17,17 +17,20 @@
       dda inv -- -e macos.remove-inactive-versions -l go -t "$(cat .go-version)" || true
     fi
   # Create custom temporary folder to isolate jobs from each other
+  # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
   - |
     # Remove the trailing slash
     export OLDTMPDIR="${TMPDIR%/}"
-    echo "Old temporary folder: $OLDTMPDIR"
     sudo rm -rf "$OLDTMPDIR/gitlabci"
-    export TMPDIR="$OLDTMPDIR/gitlabci/$CI_JOB_ID/"
-    mkdir -p "$TMPDIR"
-    sudo chmod 777 "$TMPDIR"
-    sudo chown "$USER":staff "$TMPDIR"
-    stat "$TMPDIR"
-    echo "Temporary folder created at $TMPDIR"
+    NEWTMPDIR="$OLDTMPDIR/gitlabci/$CI_JOB_ID"
+
+    mkdir -p "$NEWTMPDIR"
+    sudo chmod 777 "$NEWTMPDIR"
+    sudo chown "$USER":staff "$NEWTMPDIR"
+    sudo unlink /tmp/gitlabci || true
+    sudo ln -s "$NEWTMPDIR" /tmp/gitlabci
+    export TMPDIR="/tmp/gitlabci/"
+    echo "Temporary folder created at $NEWTMPDIR"
 
 .select_python_env_commands:
   # Select the virtualenv using the current Python version. Create it if it doesn't exist.
