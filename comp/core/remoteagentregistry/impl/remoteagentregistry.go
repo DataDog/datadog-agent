@@ -92,15 +92,13 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 
 type telemetryStore struct {
 	// remoteAgentRegistered tracks how many remote agents are registered.
-	remoteAgentRegistered telemetry.Counter
+	remoteAgentRegistered telemetry.Gauge
 	// remoteAgentRegisteredError tracks how many remote agents failed to register.
 	remoteAgentRegisteredError telemetry.Counter
 	// remoteAgentUpdated tracks how many remote agents are updated.
 	remoteAgentUpdated telemetry.Counter
 	// remoteAgentUpdatedError tracks how many remote agents failed to update.
 	remoteAgentUpdatedError telemetry.Counter
-	// remoteAgentDeregistered tracks how many remote agents are deregistered.
-	remoteAgentDeregistered telemetry.Counter
 	// remoteAgentActionError tracks the number of errors encountered while performing actions on the remote agent registry.
 	remoteAgentActionError telemetry.Counter
 	// remoteAgentActionDuration tracks the duration of actions performed on the remote agent registry.
@@ -111,7 +109,7 @@ type telemetryStore struct {
 
 func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 	return &telemetryStore{
-		remoteAgentRegistered: telemetryComp.NewCounterWithOpts(
+		remoteAgentRegistered: telemetryComp.NewGaugeWithOpts(
 			"remote_agent_registry",
 			"registered",
 			[]string{"name"},
@@ -121,7 +119,7 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 		remoteAgentRegisteredError: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
 			"registered_error",
-			[]string{"name", "error"},
+			[]string{"name"},
 			"Number of remote agents that failed to register in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
@@ -135,15 +133,8 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 		remoteAgentUpdatedError: telemetryComp.NewCounterWithOpts(
 			"remote_agent_registry",
 			"updated_error",
-			[]string{"name", "error"},
-			"Number of remote agents that failed to update in the remote agent registry.",
-			telemetry.Options{NoDoubleUnderscoreSep: true},
-		),
-		remoteAgentDeregistered: telemetryComp.NewCounterWithOpts(
-			"remote_agent_registry",
-			"deregistered",
 			[]string{"name"},
-			"Number of remote agents deregistered in the remote agent registry.",
+			"Number of remote agents that failed to update in the remote agent registry.",
 			telemetry.Options{NoDoubleUnderscoreSep: true},
 		),
 		remoteAgentActionDuration: telemetryComp.NewHistogramWithOpts(
@@ -210,13 +201,13 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		// connecting when we try to query the remote agent for status or flare data.
 		details, err := newRemoteAgentDetails(registration)
 		if err != nil {
-			ra.telemetryStore.remoteAgentRegisteredError.Inc(registration.DisplayName, err.Error())
+			ra.telemetryStore.remoteAgentRegisteredError.Inc(details.sanatizedDisplayName)
 			return 0, err
 		}
 
 		log.Infof("Remote agent '%s' registered.", agentID)
 		ra.agentMap[agentID] = details
-		ra.telemetryStore.remoteAgentRegistered.Inc(registration.DisplayName)
+		ra.telemetryStore.remoteAgentRegistered.Inc(details.sanatizedDisplayName)
 
 		return recommendedRefreshInterval, nil
 	}
@@ -228,16 +219,17 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 
 		client, err := newRemoteAgentClient(registration)
 		if err != nil {
-			ra.telemetryStore.remoteAgentUpdatedError.Inc(registration.DisplayName, err.Error())
+			ra.telemetryStore.remoteAgentUpdatedError.Inc(sanatizeString(registration.DisplayName))
 			return 0, err
 		}
 		entry.client = client
 	}
 
 	entry.displayName = registration.DisplayName
+	entry.sanatizedDisplayName = sanatizeString(registration.DisplayName)
 	entry.lastSeen = time.Now()
 
-	ra.telemetryStore.remoteAgentUpdated.Inc(registration.DisplayName)
+	ra.telemetryStore.remoteAgentUpdated.Inc(entry.sanatizedDisplayName)
 
 	return recommendedRefreshInterval, nil
 }
@@ -277,7 +269,7 @@ func (ra *remoteAgentRegistry) start() {
 					if ok {
 						delete(ra.agentMap, id)
 						log.Infof("Remote agent '%s' deregistered after being idle for %s.", id, remoteAgentIdleTimeout)
-						ra.telemetryStore.remoteAgentDeregistered.Inc(details.sanatizedDisplayName)
+						ra.telemetryStore.remoteAgentRegistered.Dec(details.sanatizedDisplayName)
 					}
 				}
 
