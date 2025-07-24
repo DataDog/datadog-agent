@@ -70,13 +70,14 @@ func (c *safeConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-func (c *safeConfig) sendNotification(key string, oldValue, newValue interface{}, sequenceID uint64) {
+func (c *safeConfig) sendNotification(key string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
 	if len(c.notificationReceivers) == 0 {
 		return
 	}
 
 	notification := model.ConfigChangeNotification{
 		Key:           key,
+		Source:        source,
 		PreviousValue: oldValue,
 		NewValue:      newValue,
 		SequenceID:    sequenceID,
@@ -119,7 +120,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
-	c.sendNotification(key, oldValue, latestValue, c.sequenceID)
+	c.sendNotification(key, source, oldValue, latestValue, c.sequenceID)
 }
 
 // SetWithoutSource sets the given value using source Unknown
@@ -145,7 +146,7 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
 	if previousValue != nil && !reflect.DeepEqual(previousValue, newValue) {
 		c.sequenceID++
-		c.sendNotification(key, previousValue, newValue, c.sequenceID)
+		c.sendNotification(key, source, previousValue, newValue, c.sequenceID)
 	}
 }
 
@@ -874,7 +875,7 @@ func (c *safeConfig) processNotifications() {
 	for notification := range c.notificationChannel {
 		// notifying all receivers about the updated setting
 		for _, receiver := range notification.Receivers {
-			receiver(notification.Key, notification.PreviousValue, notification.NewValue, notification.SequenceID)
+			receiver(notification.Key, notification.Source, notification.PreviousValue, notification.NewValue, notification.SequenceID)
 		}
 	}
 }

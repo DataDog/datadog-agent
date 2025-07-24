@@ -202,6 +202,23 @@ func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetr
 	}
 }
 
+// SendTunnelMetrics sends tunnel metrics retrieved from Versa Analytics
+func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceNameToIDMap map[string]string) {
+	for _, tunnelMetric := range tunnelMetrics {
+		var tags = []string{
+			"appliance:" + tunnelMetric.Appliance,
+			"local_ip:" + tunnelMetric.LocalIP,
+			"remote_ip:" + tunnelMetric.RemoteIP,
+			"vpn_prof_name:" + tunnelMetric.VpnProfName,
+		}
+		if deviceIP, ok := deviceNameToIDMap[tunnelMetric.Appliance]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+		s.Gauge(versaMetricPrefix+"tunnel.volume_tx", tunnelMetric.VolumeTx, "", tags)
+		s.Gauge(versaMetricPrefix+"tunnel.volume_rx", tunnelMetric.VolumeRx, "", tags)
+	}
+}
+
 // SendInterfaceMetrics sends interface metrics
 func (s *Sender) SendInterfaceMetrics(interfaceMetricsByDevice map[string][]client.InterfaceMetrics) {
 	for deviceIP, interfaceMetrics := range interfaceMetricsByDevice {

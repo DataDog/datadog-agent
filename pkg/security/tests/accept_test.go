@@ -51,14 +51,14 @@ func TestAcceptEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const MIX = 4000
+	const MIN = 4000
 	const MAX = 5000
 
 	t.Run("accept-af-inet-any-tcp-success-no-sockaddrin", func(t *testing.T) {
 		if ebpfLessEnabled {
 			t.Skip("Not available for ebpfLess")
 		}
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "false")
@@ -75,7 +75,7 @@ func TestAcceptEvent(t *testing.T) {
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin", func(t *testing.T) {
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "true")
@@ -92,7 +92,7 @@ func TestAcceptEvent(t *testing.T) {
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin-io-uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 		if err != nil {
@@ -136,6 +136,7 @@ func TestAcceptEvent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer unix.Close(client)
 
 		ch := make(chan iouring.Result, 1)
 
@@ -183,7 +184,7 @@ func TestAcceptEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "false")
@@ -203,7 +204,7 @@ func TestAcceptEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "true")
