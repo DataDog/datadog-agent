@@ -215,7 +215,6 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		}
 
 		log.Infof("Remote agent '%s' registered.", agentID)
-
 		ra.agentMap[agentID] = details
 		ra.telemetryStore.remoteAgentRegistered.Inc(registration.DisplayName)
 
@@ -232,7 +231,6 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 			ra.telemetryStore.remoteAgentUpdatedError.Inc(registration.DisplayName, err.Error())
 			return 0, err
 		}
-
 		entry.client = client
 	}
 
