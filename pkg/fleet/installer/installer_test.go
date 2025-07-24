@@ -550,7 +550,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		result, err := mergeConfigs([][]byte{[]byte(config1), []byte(config2)}, []string{"config-id-1"})
+		result, err := mergeConfigs("config-id-1", [][]byte{[]byte(config1), []byte(config2)}, []string{"config-id-1"})
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
 		assert.Contains(t, result, "/datadog.yaml")
@@ -579,7 +579,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		result, err := mergeConfigs([][]byte{[]byte(config1), []byte(config2)}, []string{})
+		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config1), []byte(config2)}, []string{})
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.NotContains(t, result, "/datadog.yaml")
@@ -595,7 +595,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		result, err := mergeConfigs([][]byte{[]byte(config)}, []string{})
+		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Contains(t, result, "/datadog.yaml")
@@ -611,7 +611,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		result, err := mergeConfigs([][]byte{[]byte(config)}, []string{"config-id-1"})
+		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Contains(t, result, "/datadog.yaml")
@@ -627,7 +627,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		_, err := mergeConfigs([][]byte{[]byte(config)}, []string{})
+		_, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "config file {/etc/passwd add {\"test\": \"data\"}} is not allowed")
 	})
@@ -635,7 +635,7 @@ func TestMergeConfigs(t *testing.T) {
 	t.Run("invalid-json", func(t *testing.T) {
 		config := `invalid json`
 
-		_, err := mergeConfigs([][]byte{[]byte(config)}, []string{})
+		_, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config)}, []string{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "could not unmarshal config files")
 	})
@@ -656,7 +656,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		result, err := mergeConfigs([][]byte{[]byte(config1), []byte(config2)}, []string{"config-id-1"})
+		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config1), []byte(config2)}, []string{})
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Contains(t, result, "/datadog.yaml")
@@ -684,7 +684,7 @@ func TestMergeConfigs(t *testing.T) {
 			}
 		]`
 
-		result, err := mergeConfigs([][]byte{[]byte(config1), []byte(config2)}, []string{"config-id-1"})
+		result, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(config1), []byte(config2)}, []string{})
 		assert.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Contains(t, result, "/datadog.yaml")
@@ -707,7 +707,7 @@ func TestMergeConfigs(t *testing.T) {
 			configOrderInterface = append(configOrderInterface, config)
 		}
 
-		result, err := mergeConfigs([][]byte{[]byte(config)}, configOrder)
+		result, err := mergeConfigs("another-config", [][]byte{[]byte(config)}, configOrder)
 		assert.NoError(t, err)
 		assert.Len(t, result, 2)
 		assert.Contains(t, result, "/datadog.yaml")
@@ -746,7 +746,7 @@ func TestWriteConfigWithMergedConfigs(t *testing.T) {
 		]`
 
 		// Merge configs first
-		mergedConfigs, err := mergeConfigs([][]byte{[]byte(configJSON)}, []string{})
+		mergedConfigs, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(configJSON)}, []string{})
 		assert.NoError(t, err)
 		assert.Contains(t, mergedConfigs, "/datadog.yaml")
 		assert.Contains(t, mergedConfigs, "/security-agent.yaml")
@@ -793,7 +793,7 @@ func TestWriteConfigWithMergedConfigs(t *testing.T) {
 		]`
 
 		// Merge configs first
-		mergedConfigs, err := mergeConfigs([][]byte{[]byte(configJSON)}, []string{})
+		mergedConfigs, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(configJSON)}, []string{})
 		assert.NoError(t, err)
 		assert.NotContains(t, mergedConfigs, "/datadog.yaml")
 
@@ -834,7 +834,7 @@ func TestInstallConfigExperimentWithRemoveAction(t *testing.T) {
 			}
 		]`
 
-	mergedConfigs, err := mergeConfigs([][]byte{[]byte(configJSON)}, []string{})
+	mergedConfigs, err := mergeConfigs("abc-def-ghi", [][]byte{[]byte(configJSON)}, []string{})
 	assert.NoError(t, err)
 	assert.NotContains(t, mergedConfigs, "/datadog.yaml")
 	assert.Contains(t, mergedConfigs, "/security-agent.yaml")

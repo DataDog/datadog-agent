@@ -512,7 +512,7 @@ func (i *installerImpl) InstallConfigExperiment(
 	defer os.RemoveAll(tmpDir)
 
 	// Merge config files
-	mergedConfigs, err := mergeConfigs(rawConfigs, configOrder)
+	mergedConfigs, err := mergeConfigs(version, rawConfigs, configOrder)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrConfigMergeFailed,
@@ -974,7 +974,7 @@ func ensureRepositoriesExist() error {
 // The input is a slice of bytes, which is the JSON-encoded contents of the
 // remote-config config files. The JSON is expected to be an array of objects,
 // each with a `path` and `contents` field.
-func mergeConfigs(rawConfigs [][]byte, configOrder []string) (map[string]configFile, error) {
+func mergeConfigs(version string, rawConfigs [][]byte, configOrder []string) (map[string]configFile, error) {
 	mergedFiles := make(map[string]configFile)
 	for _, rawConfig := range rawConfigs {
 		var configFiles []configFile
@@ -1023,7 +1023,7 @@ func mergeConfigs(rawConfigs [][]byte, configOrder []string) (map[string]configF
 
 	// Add fleet_layers configuration
 	datadogConfig["fleet_layers"] = configOrder
-	datadogConfig["config_id"] = configOrder[len(configOrder)-1]
+	datadogConfig["config_id"] = version
 
 	// Marshal back to JSON
 	updatedContents, err := json.Marshal(datadogConfig)
