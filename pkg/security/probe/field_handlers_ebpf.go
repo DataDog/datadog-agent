@@ -920,6 +920,29 @@ func (fh *EBPFFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.Acc
 
 	return e.Hostnames
 }
+func parseFilter(e *model.SetSockOptEvent) []bpf.RawInstruction {
+	raw := []bpf.RawInstruction{}
+	filterSize := 8
+	sizeToRead := int(e.SizeToRead)
+	actualNumberOfFilters := sizeToRead / filterSize
+	rawFilter := e.RawFilter
+	for i := 0; i < actualNumberOfFilters; i++ {
+		offset := i * filterSize
+
+		Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
+		Jt := rawFilter[offset+2]
+		Jf := rawFilter[offset+3]
+		K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
+
+		raw = append(raw, bpf.RawInstruction{
+			Op: Code,
+			Jt: Jt,
+			Jf: Jf,
+			K:  K,
+		})
+	}
+	return raw
+}
 
 // ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
 func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
@@ -936,28 +959,8 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *mode
 // ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
 func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
 	if len(e.FilterInstructions) == 0 {
-		raw := []bpf.RawInstruction{}
-		filterSize := 8
-		sizeToRead := int(e.SizeToRead)
-		actualNumberOfFilters := sizeToRead / filterSize
-		rawFilter := e.RawFilter
-		for i := 0; i < actualNumberOfFilters; i++ {
-			offset := i * filterSize
+		raw := parseFilter(e)
 
-			Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
-			Jt := rawFilter[offset+2]
-			Jf := rawFilter[offset+3]
-			K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
-
-			raw = append(raw, bpf.RawInstruction{
-				Op: Code,
-				Jt: Jt,
-				Jf: Jf,
-				K:  K,
-			})
-		}
-
-		e.MagicValuesFound = strings.Trim(strings.Replace(fmt.Sprint(CustomParseBPFFilter(raw)), " ", ",", -1), "[]")
 		instructions, allDecoded := bpf.Disassemble(raw)
 		if !allDecoded {
 			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
@@ -973,7 +976,9 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event,
 	return e.FilterInstructions
 }
 
-func CustomParseBPFFilter(raw []bpf.RawInstruction) []int {
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
+	raw := parseFilter(e)
 	contains := func(slice []int, e int) bool {
 		for _, a := range slice {
 			if a == e {
@@ -982,19 +987,14 @@ func CustomParseBPFFilter(raw []bpf.RawInstruction) []int {
 		}
 		return false
 	}
-	// For test only
-	magic_values := []uint32{11, 17, 24, 30, 48, 55}
-	// magic_values := []uint32{21139, 29269, 960051513}
-	var magic_values_found []int
+	var K_values []int
 	for _, inst := range raw {
 		// Check if we load or branch on a magic value
-		for _, magic := range magic_values {
-			if inst.K == magic {
-				if !contains(magic_values_found, int(inst.K)) {
-					magic_values_found = append(magic_values_found, int(inst.K))
-				}
-			}
+		if !contains(K_values, int(inst.K)) {
+			K_values = append(K_values, int(inst.K))
 		}
+
 	}
-	return magic_values_found
+	e.UsedImmediates = K_values
+	return e.UsedImmediates
 }
