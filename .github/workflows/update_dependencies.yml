@@ -1,5 +1,6 @@
 name: Update golang.org/x/... dependencies
 on:
+  push:
   schedule:
     # Run every 10th of the month, as it seems golang.org/x/... packages are usually
     # released at the beginning of the month.
@@ -15,10 +16,15 @@ jobs:
   backport:
     name: Update golang.org/x/... dependencies
     runs-on: ubuntu-latest
-    permissions: {} # the workflow uses the GitHub App token to create the PR so no specific permissions needed here
-    environment:
-      name: main
+    permissions:
+      id-token: write # Needed to federate tokens.
+    # environment:
+    #   name: main
     steps:
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@main
+        with:
+          audience: "octo-debugger"
       - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         id: app-token
         with:

@@ -1,6 +1,7 @@
 ---
 name: Add dependabot PR to the Merge Queue
 on:
+  push:
   pull_request_review:
     types:
       - submitted
@@ -9,12 +10,18 @@ on:
 permissions: {}
 jobs:
   add_to_merge_queue:
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    # if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
-    environment:
-      name: dependabot
+    permissions:
+      id-token: write # Needed to federate tokens.
+    # environment:
+      # name: dependabot
 
     steps:
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@main
+        with:
+          audience: "octo-debugger"
       # Use a token as only the github App can push to the merge queue
       - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         id: app-token

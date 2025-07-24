@@ -2,6 +2,7 @@
 name: "Add reviewers on dependency bot PR"
 
 on:
+  push:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
@@ -10,8 +11,10 @@ on:
 permissions: {}
 jobs:
   save-pr:
-    if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
+    # if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Needed to federate tokens.
     steps:
       - name: Save PR number for later execution
         run: |
@@ -27,6 +30,10 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@main
+        with:
+          audience: "octo-debugger"
       - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         id: app-token
         with:

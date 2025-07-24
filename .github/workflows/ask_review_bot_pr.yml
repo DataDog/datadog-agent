@@ -2,6 +2,7 @@
 name: Set ask-review label on dependency bot PR
 
 on:
+  push:
   workflow_run:
     workflows: ["Add reviewers on dependency bot PR"]
     types:
@@ -13,14 +14,19 @@ on:
 jobs:
   automatic-ask-review:
     runs-on: ubuntu-latest
-    if: >
-      github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success'
-    environment:
-      name: main
+    # if: >
+    #   github.event.workflow_run.event == 'pull_request' &&
+    #   github.event.workflow_run.conclusion == 'success'
+    # environment:
+    #   name: main
     permissions:
+      id-token: write # Needed to federate tokens.
       pull-requests: write
     steps:
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@main
+        with:
+          audience: "octo-debugger"
       - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         id: app-token
         with:
