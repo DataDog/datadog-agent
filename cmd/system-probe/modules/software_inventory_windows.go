@@ -36,13 +36,13 @@ type softwareInventoryModule struct {
 func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in software inventory")
-		inventory, warn, err := software.GetSoftwareInventory()
+		inventory, warnings, err := software.GetSoftwareInventory()
 		if err != nil {
 			log.Errorf("Error getting software inventory: %v", err)
 			w.WriteHeader(500)
 			return
 		}
-		for _, warning := range warn {
+		for _, warning := range warnings {
 			_ = log.Warnf("warning: %s", warning)
 		}
 		utils.WriteAsJSON(w, inventory, utils.CompactOutput)
