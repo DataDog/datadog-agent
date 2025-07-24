@@ -128,7 +128,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			span.span.Attributes = kvl
 		case 10:
 			var typ uint32
-			typ, o, err = msgp.ReadUint32Bytes(o)
+			typ, o, err = UnmarshalStreamingString(o, span.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span type")
 				return
@@ -774,7 +774,7 @@ func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) 
 	}
 	if span.span.TypeRef != 0 {
 		o = msgp.AppendUint32(o, 10) // type
-		o = msgp.AppendUint32(o, span.span.TypeRef)
+		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.TypeRef), span.span.TypeRef, o)
 	}
 	if len(span.span.Links) > 0 {
 		o = msgp.AppendUint32(o, 11) // span links

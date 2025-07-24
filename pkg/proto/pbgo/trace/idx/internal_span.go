@@ -31,6 +31,21 @@ func NewStringTable() *StringTable {
 	}
 }
 
+// StringTableFromArray creates a new string table from an array of already de-duplicated strings
+func StringTableFromArray(strings []string) *StringTable {
+	st := &StringTable{
+		strings: make([]string, len(strings)),
+		refs:    make([]uint32, len(strings)),
+		lookup:  make(map[string]uint32, len(strings)),
+	}
+	for i, str := range strings {
+		st.strings[i+1] = str
+		st.refs[i+1] = 1
+		st.lookup[str] = uint32(i + 1)
+	}
+	return st
+}
+
 func (s *StringTable) Msgsize() int {
 	size := 0
 	size += msgp.ArrayHeaderSize
@@ -275,6 +290,19 @@ type InternalTraceChunk struct {
 	DroppedTrace     bool
 	TraceID          []byte
 	decisionMakerRef uint32
+}
+
+func NewInternalTraceChunk(strings *StringTable, priority int32, origin string, attributes map[uint32]*AnyValue, spans []*InternalSpan, droppedTrace bool, traceID []byte, decisionMaker string) *InternalTraceChunk {
+	return &InternalTraceChunk{
+		Strings:          strings,
+		Priority:         priority,
+		originRef:        strings.Add(origin),
+		Attributes:       attributes,
+		Spans:            spans,
+		DroppedTrace:     droppedTrace,
+		TraceID:          traceID,
+		decisionMakerRef: strings.Add(decisionMaker),
+	}
 }
 
 // TODO: add a test to verify we have all fields
@@ -570,6 +598,14 @@ func (s *InternalSpan) SetDuration(duration uint64) {
 
 func (s *InternalSpan) Kind() SpanKind {
 	return s.span.Kind
+}
+
+func (s *InternalSpan) Component() string {
+	return s.Strings.Get(s.span.ComponentRef)
+}
+
+func (s *InternalSpan) Version() string {
+	return s.Strings.Get(s.span.VersionRef)
 }
 
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found

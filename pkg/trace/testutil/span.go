@@ -190,6 +190,29 @@ var types = []string{
 	"memcached",
 }
 
+var envs = []string{
+	"production",
+	"staging",
+	"development",
+	"test",
+}
+
+var versions = []string{
+	"1.2.0",
+	"1.0.0",
+	"0.2.2-alpha",
+	"3.4.4",
+	"2.0.0",
+	"7.12.0",
+}
+
+var components = []string{
+	"gocql/gocql",
+	"valyala/fasthttp",
+	"hashicorp/vault",
+	"database/sql",
+}
+
 type sliceRandomizer interface {
 	Len() int
 	Get(int) interface{}

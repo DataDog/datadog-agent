@@ -49,6 +49,39 @@ func TestMarshalSpan(t *testing.T) {
 	})
 }
 
+func TestMarshalUnmarshalSpan(t *testing.T) {
+	t.Run("valid span", func(t *testing.T) {
+		strings := NewStringTable()
+		span := &InternalSpan{
+			Strings: strings,
+			span: &Span{
+				ServiceRef:   strings.Add("my-service"),
+				NameRef:      strings.Add("span-name"),
+				ResourceRef:  strings.Add("GET /res"),
+				TypeRef:      strings.Add("someType"),
+				EnvRef:       strings.Add("someEnv"),
+				VersionRef:   strings.Add("someVersion"),
+				ComponentRef: strings.Add("someComponent"),
+				Kind:         SpanKind_SPAN_KIND_SERVER,
+				ParentID:     444,
+				Start:        123,
+				Duration:     432,
+				Error:        true,
+				SpanID:       12345678,
+				Attributes: map[uint32]*AnyValue{
+					strings.Add("foo"): {Value: &AnyValue_StringValueRef{StringValueRef: strings.Add("bar")}},
+				},
+			},
+		}
+		bts, err := span.MarshalMsg(nil, NewSerializedStrings(uint32(strings.Len())))
+		assert.NoError(t, err)
+		resultSpan := &InternalSpan{Strings: NewStringTable()}
+		_, err = resultSpan.UnmarshalMsg(bts)
+		assert.NoError(t, err)
+		resultSpan.assertEqual(t, span)
+	})
+}
+
 // FuzzUnmarshalTracerPayload is a fuzz test for UnmarshalTracerPayload
 // It generates arbitrary inputs to ensure we do not panic on decoding
 func FuzzUnmarshalTracerPayload(f *testing.F) {
@@ -338,9 +371,9 @@ func FuzzSpanMarshalUnmarshal(f *testing.F) {
 }
 
 func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
-	assert.Equal(t, expected.Strings.Get(expected.span.ServiceRef), span.Strings.Get(span.span.ServiceRef))
-	assert.Equal(t, expected.Strings.Get(expected.span.NameRef), span.Strings.Get(span.span.NameRef))
-	assert.Equal(t, expected.Strings.Get(expected.span.ResourceRef), span.Strings.Get(span.span.ResourceRef))
+	assert.Equal(t, expected.Service(), span.Service())
+	assert.Equal(t, expected.Name(), span.Name())
+	assert.Equal(t, expected.Resource(), span.Resource())
 	assert.Equal(t, expected.span.SpanID, span.span.SpanID)
 	assert.Equal(t, expected.span.ParentID, span.span.ParentID)
 	assert.Equal(t, expected.span.Start, span.span.Start)
@@ -359,8 +392,9 @@ func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
 	for i, event := range expected.Events() {
 		span.Events()[i].assertEqual(t, event)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.span.EnvRef), span.Strings.Get(span.span.EnvRef))
-	assert.Equal(t, expected.Strings.Get(expected.span.VersionRef), span.Strings.Get(span.span.VersionRef))
-	assert.Equal(t, expected.Strings.Get(expected.span.ComponentRef), span.Strings.Get(span.span.ComponentRef))
+	assert.Equal(t, expected.Env(), span.Env())
+	assert.Equal(t, expected.Version(), span.Version())
+	assert.Equal(t, expected.Component(), span.Component())
+	assert.Equal(t, expected.Type(), span.Type())
 	assert.Equal(t, expected.span.Kind, span.span.Kind)
 }

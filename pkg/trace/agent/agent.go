@@ -58,22 +58,28 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 )
 
-// TraceWriter provides a way to write trace chunks
-type TraceWriter interface {
-	// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
+type Writer interface {
+	// Stop stops the Writer and attempts to flush whatever is left in the senders buffers.
 	Stop()
-
-	// WriteChunks to be written
-	WriteChunks(pkg *writer.SampledChunks)
-
-	// WriteChunksV1 to be written
-	WriteChunksV1(pkg *writer.SampledChunksV1)
 
 	// FlushSync blocks and sends pending payloads when syncMode is true
 	FlushSync() error
 
-	// UpdateAPIKey signals the TraceWriter to update the API Keys stored in its senders config.
+	// UpdateAPIKey signals the Writer to update the API Keys stored in its senders config.
 	UpdateAPIKey(oldKey, newKey string)
+}
+
+// TraceWriter provides a way to write trace chunks
+type TraceWriter interface {
+	Writer
+	// WriteChunks to be written
+	WriteChunks(pkg *writer.SampledChunks)
+}
+
+// TraceWriterV1 provides a way to write v1 trace chunks
+type TraceWriterV1 interface {
+	Writer
+	WriteChunksV1(pkg *writer.SampledChunksV1)
 }
 
 // Concentrator accepts stats input, 'concentrating' them together into buckets before flushing them
@@ -104,6 +110,7 @@ type Agent struct {
 	SamplerMetrics        *sampler.Metrics
 	EventProcessor        *event.Processor
 	TraceWriter           TraceWriter
+	TraceWriterV1         TraceWriterV1
 	StatsWriter           *writer.DatadogStatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
@@ -199,6 +206,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
+	agnt.TraceWriterV1 = writer.NewTraceWriterV1(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
 	return agnt
 }
 
@@ -231,6 +239,10 @@ func (a *Agent) Run() {
 	a.processWg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go a.work()
+	}
+	a.processWg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go a.workV1()
 	}
 
 	a.loop()
@@ -278,6 +290,7 @@ func (a *Agent) work() {
 }
 
 func (a *Agent) workV1() {
+	defer a.processWg.Done()
 	for {
 		p, ok := <-a.InV1
 		if !ok {
@@ -643,14 +656,14 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArrayV1(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriter.WriteChunksV1(sampledChunks)
+			a.TraceWriterV1.WriteChunksV1(sampledChunks)
 			sampledChunks = new(writer.SampledChunksV1)
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriter.WriteChunksV1(sampledChunks)
+		a.TraceWriterV1.WriteChunksV1(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.AddV1(statsInput)
