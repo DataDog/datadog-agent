@@ -165,7 +165,7 @@ if (-not `$?) { exit `$LASTEXITCODE }
 "@
 
         # Write the script to local temp file
-        Set-Content -Path $localTempFile -Value $scriptContent -Encoding UTF8
+        Set-Content -Path $localTempFile -Value $scriptContent -Encoding UTF-16
 
         # First, ensure the remote directory exists (using simple SSH command)
         Invoke-SSHCommand "if (-not (Test-Path '$RemoteWorkDir')) { New-Item -ItemType Directory -Path '$RemoteWorkDir' -Force | Out-Null }"
