@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -443,6 +444,25 @@ c: 1234
 
 	dvalue = ntmConf.Get("c.d")
 	assert.Equal(t, dvalue, true)
+}
+
+func TestCompareTimeDuration(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("provider.interval", 5*time.Second)
+		cfg.SetDefault("lookup_timeout", 30*time.Millisecond)
+	})
+	assert.Equal(t, 5*time.Second, viperConf.GetDuration("provider.interval"))
+	assert.Equal(t, 5*time.Second, ntmConf.GetDuration("provider.interval"))
+
+	assert.Equal(t, 30*time.Millisecond, viperConf.GetDuration("lookup_timeout"))
+	assert.Equal(t, 30*time.Millisecond, ntmConf.GetDuration("lookup_timeout"))
+
+	// refuse to convert time.Duration to int64
+	assert.Equal(t, int64(0), viperConf.GetInt64("lookup_timeout"))
+	assert.Equal(t, int64(0), ntmConf.GetInt64("lookup_timeout"))
+
+	assert.Equal(t, 30*time.Millisecond, viperConf.Get("lookup_timeout"))
+	assert.Equal(t, 30*time.Millisecond, ntmConf.Get("lookup_timeout"))
 }
 
 func TestReadConfigReset(t *testing.T) {
