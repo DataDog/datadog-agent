@@ -3,8 +3,7 @@
 
 __attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, struct capabilities_usage_key_t *key, struct capabilities_usage_entry_t *entry) {
     u64 now = bpf_ktime_get_ns();
-    int should_send = entry->dirty && (!entry->last_sent_ns ||
-        (now - entry->last_sent_ns) >= get_capabilities_monitoring_period());
+    int should_send = is_dirty(entry) && period_reached_or_new_entry(entry, now);
     if (!should_send) {
         return;
     }
@@ -19,8 +18,8 @@ __attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, str
         return;
     }
 
-    entry->last_sent_ns = now;
-    entry->dirty = 0;
+    reset_dirty(entry);
+    set_last_sent_ns(entry, now);
 
     struct capabilities_event_t event = {
         .caps_usage = entry->usage,
