@@ -25,10 +25,9 @@ SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 COPY ["Datadog Agent", "C:/Program Files/Datadog/Datadog Agent"]
 
 COPY install.ps1 install-fips.ps1 entrypoint-ps1 ./
-RUN . ./install.ps1; Remove-Item ./install.ps1 -Force
 
 COPY bouncycastle-fips /fips-build
-RUN if ($env:WITH_FIPS -eq 'true') { . ./install-fips.ps1 } else { Remove-Item /fips-build -Recurse -Force }; Remove-Item ./install-fips.ps1 -Force
+RUN . ./install.ps1; Remove-Item ./install.ps1 -Force; if ($env:WITH_FIPS -eq 'true') { . ./install-fips.ps1 } else { Remove-Item /fips-build -Recurse -Force }; Remove-Item ./install-fips.ps1 -Force;
 ENV JAVA_TOOL_OPTIONS="${WITH_FIPS:+--module-path=\'c:\\program files\\datadog\\bouncycastle fips\' -Djava.security.properties==\'c:\\program files\\datadog\\bouncycastle fips\\java.security\' -Dpolicy.url.2=\'file:c:\\program files\\datadog\\bouncycastle fips\\bc-fips.policy\'}"
 
 EXPOSE 8125/udp 8126/tcp
