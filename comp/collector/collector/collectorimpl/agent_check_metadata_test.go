@@ -49,8 +49,7 @@ func TestExternalHostTags(t *testing.T) {
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
 		})))
 
-	agentChecks := c.getAgentChecks()
-	pl := c.GetPayload(context.Background(), agentChecks)
+	pl := c.GetPayload(context.Background(), c.getAgentCheckResults())
 	hpl := pl.ExternalhostTags
 	assert.Len(t, hpl, 2)
 	for _, elem := range hpl {

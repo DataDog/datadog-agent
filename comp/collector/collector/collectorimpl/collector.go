@@ -79,6 +79,10 @@ type collectorImpl struct {
 
 	cancelCheckTimeout time.Duration
 
+	// metrics runner fields
+	metricsRunnerStop chan struct{}
+	metricsRunnerWg   sync.WaitGroup
+
 	m         sync.RWMutex
 	createdAt time.Time
 }
@@ -86,11 +90,10 @@ type collectorImpl struct {
 type provides struct {
 	fx.Out
 
-	Comp                  collector.Component
-	StatusProvider        status.InformationProvider
-	MetadataProvider      metadata.Provider
-	CheckMetadataProvider metadata.Provider
-	APIGetPyStatus        api.AgentEndpointProvider
+	Comp             collector.Component
+	StatusProvider   status.InformationProvider
+	MetadataProvider metadata.Provider
+	APIGetPyStatus   api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -112,11 +115,10 @@ func newProvides(deps dependencies) provides {
 	}
 
 	return provides{
-		Comp:                  c,
-		StatusProvider:        status.NewInformationProvider(collectorStatus.Provider{}),
-		MetadataProvider:      agentCheckMetadata,
-		CheckMetadataProvider: metadata.NewProvider(c.collectCheckMetadata),
-		APIGetPyStatus:        api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
+		Comp:             c,
+		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
+		MetadataProvider: agentCheckMetadata,
+		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
 	}
 }
 
@@ -176,6 +178,10 @@ func (c *collectorImpl) start(_ context.Context) error {
 
 	c.scheduler = sched
 	c.runner = run
+
+	// Start the metrics runner
+	c.startMetricsRunner()
+
 	c.state.Store(started)
 
 	c.log.Debug("Collector up and running!")
@@ -187,6 +193,9 @@ func (c *collectorImpl) start(_ context.Context) error {
 func (c *collectorImpl) stop(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
+
+	// Stop metrics runner first
+	c.stopMetricsRunner()
 
 	if c.scheduler != nil {
 		_ = c.scheduler.Stop()
