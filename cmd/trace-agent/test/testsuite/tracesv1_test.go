@@ -6,6 +6,7 @@
 package testsuite
 
 import (
+	"bytes"
 	_ "embed"
 	"slices"
 	"strings"
@@ -83,7 +84,8 @@ func TestTracesV1(t *testing.T) {
 	})
 
 	t.Run("ignore_resources", func(t *testing.T) {
-		if err := r.RunAgent([]byte(`apm_config: ignore_resources: ["GET /healthcheck/11"]`)); err != nil {
+		if err := r.RunAgent([]byte(`apm_config:
+  ignore_resources: ["GET /healthcheck/11"]`)); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
@@ -226,7 +228,37 @@ func tracesEqualV1(from *idx.InternalTraceChunk, toStrings []string, to *idx.Tra
 	if want, got := len(from.Spans), len(to.Spans); want != got {
 		return false
 	}
-	// TODO check other fields
+	if from.Priority != to.Priority {
+		return false
+	}
+	if from.Origin() != toStrings[to.OriginRef] {
+		return false
+	}
+	if from.DecisionMaker() != toStrings[to.DecisionMakerRef] {
+		return false
+	}
+	if from.DroppedTrace != to.DroppedTrace {
+		return false
+	}
+	if !bytes.Equal(from.TraceID, to.TraceID) {
+		return false
+	}
+	toAttrs := make(map[string]string)
+	for key, attr := range to.Attributes {
+		tempToStrings := idx.StringTableFromArray(toStrings)
+		toAttrs[toStrings[key]] = attr.AsString(tempToStrings)
+	}
+	for kFrom, vFrom := range from.Attributes {
+		if toVal, ok := toAttrs[from.Strings.Get(kFrom)]; ok {
+			if toVal != vFrom.AsString(from.Strings) {
+				return false
+			}
+			// value matched, continue to next attribute
+			continue
+		}
+		// value not found, return false
+		return false
+	}
 	var found int
 	for _, s1 := range from.Spans {
 		for _, s2 := range to.Spans {

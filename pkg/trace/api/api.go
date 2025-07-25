@@ -851,16 +851,6 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 	return h.Get(header.ProcessTags)
 }
 
-// In v1.0, process tags are stored in the payload attributes
-func getProcessTagsV1(h http.Header, p *idx.InternalTracerPayload) string {
-	if p.Attributes != nil {
-		if ptags, ok := p.GetAttributeAsString(tagProcessTags); ok {
-			return ptags
-		}
-	}
-	return h.Get(header.ProcessTags)
-}
-
 func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
 	if len(p.Chunks) == 0 {
 		return nil, false
