@@ -16,11 +16,11 @@ import (
 // NewMutatorWithFilter handles the dependency injection for the mutator. If a targets list is defined, it will return
 // a target mutator, otherwise it will return a namespace mutator.
 func NewMutatorWithFilter(c *Config, wmeta workloadmeta.Component) (mutatecommon.MutatorWithFilter, error) {
-	if len(c.Instrumentation.Targets) > 0 {
-		log.Debug("Using target mutator")
-		return NewTargetMutator(c, wmeta)
-	}
 
-	log.Debug("Using namespace mutator")
-	return NewNamespaceMutator(c, wmeta)
+	if c.Instrumentation.Enabled != true {
+		log.Debug("Using namespace mutator")
+		return NewNamespaceMutator(c, wmeta)
+	}
+	log.Debug("Using target mutator")
+	return NewTargetMutator(c, wmeta)
 }
