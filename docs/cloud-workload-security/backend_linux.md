@@ -248,6 +248,27 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
         },
+        "CapabilitiesEvent": {
+            "properties": {
+                "caps_attempted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process attempted to use since it started running"
+                },
+                "caps_used": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process successfully used since it started running"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "CapabilitiesEventSerializer serializes a capabilities usage event"
+        },
         "ConnectEvent": {
             "properties": {
                 "addr": {
@@ -2206,6 +2227,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "cgroup_write": {
             "$ref": "#/$defs/CGroupWriteEvent"
+        },
+        "capabilities": {
+            "$ref": "#/$defs/CapabilitiesEvent"
         }
     },
     "additionalProperties": false,
@@ -2254,6 +2278,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
 | `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
+| `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 
 ## `AWSIMDSEvent`
 
@@ -2640,6 +2665,40 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [File](#file) |
+
+## `CapabilitiesEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "caps_attempted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process attempted to use since it started running"
+        },
+        "caps_used": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process successfully used since it started running"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "CapabilitiesEventSerializer serializes a capabilities usage event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `caps_attempted` | Capabilities that the process attempted to use since it started running |
+| `caps_used` | Capabilities that the process successfully used since it started running |
+
 
 ## `ConnectEvent`
 

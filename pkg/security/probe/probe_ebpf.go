@@ -1645,6 +1645,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode capabilities usage event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+		if event.CapabilitiesUsage.Attempted == 0 && event.CapabilitiesUsage.Used == 0 {
+			seclog.Debugf("capabilities usage event with no attempted or used capabilities, skipping")
+			return
+		}
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
