@@ -9,13 +9,12 @@ package metric
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func Add(name string, value float64, origin string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
+func Add(name string, value float64, source metrics.MetricSource, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	if demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
@@ -28,20 +27,6 @@ func Add(name string, value float64, origin string, tags []string, timestamp tim
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
-		Source:     originToMetricSource(origin),
+		Source:     source,
 	})
-}
-
-func originToMetricSource(origin string) metrics.MetricSource {
-	switch origin {
-	case cloudservice.CloudRunOrigin:
-		return metrics.MetricSourceGoogleCloudRunEnhanced
-	case cloudservice.AppServiceOrigin:
-		return metrics.MetricSourceAzureAppServiceEnhanced
-	case cloudservice.ContainerAppOrigin:
-		return metrics.MetricSourceAzureContainerAppEnhanced
-	default:
-		return metrics.MetricSourceServerless
-	}
-
 }

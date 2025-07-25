@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"log"
 	"os"
 	"strings"
@@ -107,6 +108,11 @@ func (c *ContainerApp) GetOrigin() string {
 // metrics with.
 func (c *ContainerApp) GetPrefix() string {
 	return "azure.containerapp"
+}
+
+// GetSource returns the metrics source
+func (c *ContainerApp) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceAzureContainerAppEnhanced
 }
 
 // NewContainerApp returns a new ContainerApp instance

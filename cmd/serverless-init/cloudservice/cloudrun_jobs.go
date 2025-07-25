@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // CloudRunJobsOrigin origin tag value
@@ -81,6 +84,11 @@ func (c *CloudRunJobs) GetOrigin() string {
 // GetPrefix returns the prefix that we're prefixing all metrics with.
 func (c *CloudRunJobs) GetPrefix() string {
 	return "gcp.run.job"
+}
+
+// GetSource returns the metrics source
+func (c *CloudRunJobs) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceGoogleCloudRunEnhanced
 }
 
 // Init records the start time for CloudRunJobs

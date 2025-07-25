@@ -106,14 +106,13 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
-	origin := cloudService.GetOrigin()
 
-	metric.Add(cloudService.GetShutdownMetricName(), 1.0, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	// Add task duration metric for Cloud Run Jobs
 	if crj, ok := cloudService.(*cloudservice.CloudRunJobs); ok {
 		metricName, duration := crj.GetTaskDuration()
-		metric.Add(metricName, duration, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+		metric.Add(metricName, duration, cloudService.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	}
 
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
@@ -160,7 +159,7 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 
 	metricAgent := setupMetricAgent(tags, tagger)
 
-	metric.Add(cloudService.GetStartMetricName(), 1.0, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.Add(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 

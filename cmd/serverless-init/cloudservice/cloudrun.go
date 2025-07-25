@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"io"
 	"net/http"
 	"os"
@@ -138,6 +139,11 @@ func (c *CloudRun) GetOrigin() string {
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
 	return "gcp.run"
+}
+
+// GetSource returns the metrics source
+func (c *CloudRun) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceGoogleCloudRunEnhanced
 }
 
 // Init is empty for CloudRun

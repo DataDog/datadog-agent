@@ -5,7 +5,9 @@
 
 package cloudservice
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
@@ -22,6 +24,9 @@ type CloudService interface {
 	// gcp.run.{metric_name}. In this example, `gcp.run` is the
 	// prefix.
 	GetPrefix() string
+
+	// GetSource returns the metrics source
+	GetSource() metrics.MetricSource
 
 	// Init bootstraps the CloudService.
 	Init() error
@@ -49,6 +54,11 @@ func (l *LocalService) GetOrigin() string {
 // GetPrefix is a default implementation that returns a local prefix
 func (l *LocalService) GetPrefix() string {
 	return "datadog.serverless_agent"
+}
+
+// GetSource is a default implementation that returns a metrics source
+func (l *LocalService) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceServerless
 }
 
 // Init is not necessary for LocalService

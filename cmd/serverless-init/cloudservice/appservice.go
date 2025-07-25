@@ -8,6 +8,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"maps"
 	"os"
 
@@ -58,6 +59,11 @@ func (a *AppService) GetOrigin() string {
 // metrics with.
 func (a *AppService) GetPrefix() string {
 	return "azure.appservice"
+}
+
+// GetSource returns the metrics source
+func (a *AppService) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceAzureAppServiceEnhanced
 }
 
 // Init is empty for AppService
