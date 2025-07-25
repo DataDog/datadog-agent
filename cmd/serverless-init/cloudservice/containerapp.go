@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"log"
 	"os"
 	"strings"
@@ -144,6 +145,9 @@ func (c *ContainerApp) Init() error {
 
 	return nil
 }
+
+// Shutdown is empty for ContainerApp
+func (c *ContainerApp) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *ContainerApp) GetStartMetricName() string {

@@ -108,12 +108,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	err := modeConf.Runner(logConfig)
 
 	metric.Add(cloudService.GetShutdownMetricName(), 1.0, cloudService.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-
-	// Add task duration metric for Cloud Run Jobs
-	if crj, ok := cloudService.(*cloudservice.CloudRunJobs); ok {
-		metricName, duration := crj.GetTaskDuration()
-		metric.Add(metricName, duration, cloudService.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
-	}
+	cloudService.Shutdown(*metricAgent)
 
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 // CloudRunJobsOrigin origin tag value
@@ -97,6 +98,13 @@ func (c *CloudRunJobs) Init() error {
 	return nil
 }
 
+// Shutdown submits the task duration metric for CloudRunJobs
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
+	metricName := fmt.Sprintf("%s.enhanced.task.duration", c.GetPrefix())
+	duration := float64(time.Since(c.startTime).Milliseconds())
+	metric.Add(metricName, duration, c.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+}
+
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.started", c.GetPrefix())
@@ -105,13 +113,6 @@ func (c *CloudRunJobs) GetStartMetricName() string {
 // GetShutdownMetricName returns the metric name for container shutdown events
 func (c *CloudRunJobs) GetShutdownMetricName() string {
 	return fmt.Sprintf("%s.enhanced.task.ended", c.GetPrefix())
-}
-
-// GetTaskDuration returns the task duration metric name and value in milliseconds
-func (c *CloudRunJobs) GetTaskDuration() (string, float64) {
-	duration := float64(time.Since(c.startTime).Milliseconds())
-	metricName := fmt.Sprintf("%s.enhanced.task.duration", c.GetPrefix())
-	return metricName, duration
 }
 
 func isCloudRunJob() bool {

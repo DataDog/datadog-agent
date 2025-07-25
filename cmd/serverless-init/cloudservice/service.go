@@ -8,6 +8,8 @@ package cloudservice
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+)
 
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
@@ -30,6 +32,9 @@ type CloudService interface {
 
 	// Init bootstraps the CloudService.
 	Init() error
+
+	// Shutdown cleans up the CloudService
+	Shutdown(agent serverlessMetrics.ServerlessMetricAgent)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
@@ -65,6 +70,9 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 func (l *LocalService) Init() error {
 	return nil
 }
+
+// Shutdown is not necessary for LocalService
+func (l *LocalService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
