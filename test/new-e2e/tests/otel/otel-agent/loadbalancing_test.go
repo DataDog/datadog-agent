@@ -34,7 +34,6 @@ datadog:
 `
 	t.Parallel()
 	e2e.Run(t, &loadBalancingTestSuite{},
-		e2e.WithSkipDeleteOnFailure(), // DEBUG: Skip delete on failure to keep the cluster alive for investigation
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithAgentOptions(
