@@ -249,6 +249,11 @@ func SetAnalyzedSpan(s *pb.Span) {
 	setMetric(s, KeyAnalyzedSpans, 1)
 }
 
+// SetAnalyzedSpan marks a span analyzed
+func SetAnalyzedSpanV1(s *idx.InternalSpan) {
+	s.SetFloat64Attribute(KeyAnalyzedSpans, 1)
+}
+
 // IsAnalyzedSpan checks if a span is analyzed
 func IsAnalyzedSpan(s *pb.Span) bool {
 	v, _ := getMetric(s, KeyAnalyzedSpans)

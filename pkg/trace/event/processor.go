@@ -121,6 +121,7 @@ func (p *Processor) ProcessV1(pt *traceutil.ProcessedTraceV1) (numEvents, numExt
 		sampler.SetClientRateV1(span, clientSampleRate)
 		sampler.SetPreSampleRateV1(span, preSampleRate)
 		sampler.SetEventExtractionRateV1(span, extractionRate)
+		sampler.SetAnalyzedSpanV1(span)
 		span.SetFloat64Attribute(sampler.KeyAnalyzedSpans, 1)
 		if pt.TraceChunk.DroppedTrace {
 			events = append(events, span)

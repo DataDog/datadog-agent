@@ -723,7 +723,25 @@ func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{Spans: spans, Tags: make(map[string]string)}
 }
 
+func spansToChunkV1(spans ...*idx.InternalSpan) *idx.InternalTraceChunk {
+	return idx.NewInternalTraceChunk(
+		spans[0].Strings,
+		int32(sampler.PriorityAutoDrop),
+		"",
+		nil,
+		spans,
+		false,
+		[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		"",
+	)
+}
+
 func dropped(c *pb.TraceChunk) *pb.TraceChunk {
+	c.DroppedTrace = true
+	return c
+}
+
+func droppedV1(c *idx.InternalTraceChunk) *idx.InternalTraceChunk {
 	c.DroppedTrace = true
 	return c
 }
@@ -900,6 +918,215 @@ func TestConcentratorInput(t *testing.T) {
 				assert.Equal(t, tc.expectedSampled, payloads[0].TracerPayload)
 			}
 		})
+	}
+}
+
+func TestConcentratorInputV1(t *testing.T) {
+	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
+		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")})
+	}
+	tts := []struct {
+		name            string
+		in              *api.PayloadV1
+		expected        stats.InputV1
+		expectedSampled *idx.InternalTracerPayload
+		withFargate     bool
+		features        string
+	}{
+		{
+			name: "tracer payload tags in payload",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetHostname("banana")
+				payload.TracerPayload.SetAppVersion("camembert")
+				payload.TracerPayload.SetEnv("apple")
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:           rootSpan(strings),
+							TracerHostname: "banana",
+							AppVersion:     "camembert",
+							TracerEnv:      "apple",
+							TraceChunk:     spansToChunkV1(rootSpan(strings)),
+						},
+					},
+				}
+			}(),
+		},
+		{
+			name: "no tracer tags",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+						},
+					},
+				}
+			}(),
+		},
+		{
+			name: "containerID with fargate orchestrator",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetContainerID("aaah")
+				return payload
+			}(),
+			withFargate: true,
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+						},
+					},
+					ContainerID: "aaah",
+				}
+			}(),
+		},
+		{
+			name: "client computed stats",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					ClientComputedStats: true,
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetContainerID("feature_disabled")
+				return payload
+			}(),
+			expected: stats.InputV1{},
+		},
+	}
+
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.Features[tc.features] = struct{}{}
+			cfg.Endpoints[0].APIKey = "test"
+			if tc.withFargate {
+				cfg.FargateOrchestrator = config.OrchestratorECS
+			}
+			cfg.RareSamplerEnabled = true
+			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
+			agent.ProcessV1(tc.in)
+			mco := agent.Concentrator.(*mockConcentrator)
+
+			if len(tc.expected.Traces) == 0 {
+				assert.Len(t, mco.statsV1, 0)
+				return
+			}
+			require.Len(t, mco.statsV1, 1)
+			assertStatsInputsV1Equal(t, tc.expected, mco.statsV1[0])
+			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
+				payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+				assert.NotEmpty(t, payloads, "no payloads were written")
+				for i, expectedSampledChunk := range tc.expectedSampled.Chunks {
+					assertInternalTraceChunkEqual(t, expectedSampledChunk, payloads[0].TracerPayload.Chunks[i])
+				}
+			}
+		})
+	}
+}
+
+func assertStatsInputsV1Equal(t *testing.T, expected stats.InputV1, actual stats.InputV1) {
+	assert.Equal(t, expected.ContainerID, actual.ContainerID)
+	assert.Equal(t, expected.ContainerTags, actual.ContainerTags)
+	assert.Equal(t, expected.ProcessTags, actual.ProcessTags)
+	assert.Equal(t, len(expected.Traces), len(actual.Traces))
+	for i, expectedTrace := range expected.Traces {
+		actualTrace := actual.Traces[i]
+		assert.Equal(t, expectedTrace.TracerHostname, actualTrace.TracerHostname)
+		assert.Equal(t, expectedTrace.AppVersion, actualTrace.AppVersion)
+		assert.Equal(t, expectedTrace.TracerEnv, actualTrace.TracerEnv)
+		assert.Equal(t, expectedTrace.ClientDroppedP0sWeight, actualTrace.ClientDroppedP0sWeight)
+		assert.Equal(t, expectedTrace.GitCommitSha, actualTrace.GitCommitSha)
+		assert.Equal(t, expectedTrace.ImageTag, actualTrace.ImageTag)
+		assertInternalSpanEqual(t, expectedTrace.Root, actualTrace.Root)
+		assertInternalTraceChunkEqual(t, expectedTrace.TraceChunk, actualTrace.TraceChunk)
+	}
+}
+
+func assertInternalTraceChunkEqual(t *testing.T, expected *idx.InternalTraceChunk, actual *idx.InternalTraceChunk) {
+	assert.Equal(t, expected.Priority, actual.Priority)
+	assert.Equal(t, expected.Origin(), actual.Origin())
+	assert.Equal(t, expected.DecisionMaker(), actual.DecisionMaker())
+	assert.Equal(t, expected.TraceID, actual.TraceID)
+	assert.Equal(t, expected.DroppedTrace, actual.DroppedTrace)
+	assertAttributesEqual(t, expected.Strings, expected.Attributes, actual.Strings, actual.Attributes)
+	require.Equal(t, len(expected.Spans), len(actual.Spans))
+	for i, span := range expected.Spans {
+		assertInternalSpanEqual(t, span, actual.Spans[i])
+	}
+}
+
+func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *idx.InternalSpan) {
+	fmt.Printf("expected: %s\n", expected.DebugString())
+	fmt.Printf("actual: %s\n", actual.DebugString())
+	assert.Equal(t, expected.SpanID(), actual.SpanID())
+	assert.Equal(t, expected.ParentID(), actual.ParentID())
+	assert.Equal(t, expected.Name(), actual.Name())
+	assert.Equal(t, expected.Resource(), actual.Resource())
+	assert.Equal(t, expected.Type(), actual.Type())
+	assert.Equal(t, expected.Env(), actual.Env())
+	assert.Equal(t, expected.Version(), actual.Version())
+	assert.Equal(t, expected.Component(), actual.Component())
+	assert.Equal(t, expected.Duration(), actual.Duration())
+	assert.Equal(t, expected.Error(), actual.Error())
+	assert.Equal(t, expected.Kind(), actual.Kind())
+	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()))
+	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
+	// TODO: add links and events - for concentrator tests these aren't used yet
+	//assert.Equal(t, expected.Links(), actual.Links())
+	//assert.Equal(t, expected.Events(), actual.Events())
+}
+
+func assertAttributesEqual(t *testing.T, expetedStrings *idx.StringTable, expected map[uint32]*idx.AnyValue, actualStrings *idx.StringTable, actual map[uint32]*idx.AnyValue) {
+	assert.Equal(t, len(expected), len(actual))
+	expectedAttributes := make(map[string]string)
+	for key, value := range expected {
+		expectedAttributes[expetedStrings.Get(key)] = value.AsString(expetedStrings)
+	}
+	for actualKeyIdx, actualValue := range actual {
+		key := actualStrings.Get(actualKeyIdx)
+		value := actualValue.AsString(actualStrings)
+		expectedValue, ok := expectedAttributes[key]
+		assert.True(t, ok, "key %s not found in expected attributes", key)
+		assert.Equal(t, expectedValue, value)
 	}
 }
 
