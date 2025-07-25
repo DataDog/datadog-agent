@@ -237,6 +237,27 @@
       "type": "object",
       "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
     },
+    "CapabilitiesEvent": {
+      "properties": {
+        "caps_attempted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process attempted to use since it started running"
+        },
+        "caps_used": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process successfully used since it started running"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CapabilitiesEventSerializer serializes a capabilities usage event"
+    },
     "ConnectEvent": {
       "properties": {
         "addr": {
@@ -2195,6 +2216,9 @@
     },
     "cgroup_write": {
       "$ref": "#/$defs/CGroupWriteEvent"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/CapabilitiesEvent"
     }
   },
   "additionalProperties": false,

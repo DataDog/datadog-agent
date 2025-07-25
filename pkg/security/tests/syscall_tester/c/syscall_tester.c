@@ -1658,6 +1658,17 @@ int test_acct(int argc, char **argv) {
     return err;
 }
 
+int test_pause(int argc, char **argv) {
+    if (argc != 1) {
+        fprintf(stderr, "Usage: %s\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    pause();
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1767,6 +1778,8 @@ int main(int argc, char **argv) {
             exit_code = test_chroot(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
             exit_code = test_acct(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "pause") == 0) {
+            exit_code = test_pause(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;

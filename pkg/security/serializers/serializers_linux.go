@@ -738,6 +738,7 @@ type EventSerializer struct {
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
+	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -749,6 +750,22 @@ func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer
 		})
 	}
 	return &ses
+}
+
+// CapabilitiesEventSerializer serializes a capabilities usage event
+// easyjson:json
+type CapabilitiesEventSerializer struct {
+	// Capabilities that the process attempted to use since it started running
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// Capabilities that the process successfully used since it started running
+	CapsUsed []string `json:"caps_used,omitempty"`
+}
+
+func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
+	return &CapabilitiesEventSerializer{
+		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+	}
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -1690,6 +1707,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	case model.CgroupWriteEventType:
 		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
+	case model.CapabilitiesEventType:
+		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
 	}
 
 	return s

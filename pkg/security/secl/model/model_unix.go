@@ -108,16 +108,16 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec              ExecEvent          `field:"exec" event:"exec"`           // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
-	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`       // [7.27] [Process] A process changed its effective uid
-	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`       // [7.27] [Process] A process changed its effective gid
-	Capset            CapsetEvent        `field:"capset" event:"capset"`       // [7.27] [Process] A process changed its capacity set
-	Signal            SignalEvent        `field:"signal" event:"signal"`       // [7.35] [Process] A signal was sent
-	Exit              ExitEvent          `field:"exit" event:"exit"`           // [7.38] [Process] A process was terminated
-	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"` // [7.68] [Process] A setrlimit command was executed
+	Exec              ExecEvent          `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
+	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
+	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
+	Capset            CapsetEvent        `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
+	Signal            SignalEvent        `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
+	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
+	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
+	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
 	Syscalls          SyscallsEvent      `field:"-"`
 	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
-	CapabilitiesUsage CapabilitiesEvent  `field:"-"`
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -338,8 +338,8 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
-	CapsAttempted uint64 `field:"-"`
-	CapsUsed      uint64 `field:"-"`
+	CapsAttempted uint64 `field:"caps_attempted"` // SECLDoc[caps_attempted] Definition:`Bitmask of the capabilities that the process attempted to use` Constants:`Kernel Capability constants`
+	CapsUsed      uint64 `field:"caps_used"`      // SECLDoc[caps_used] Definition:`Bitmask of the capabilities that the process successfully used` Constants:`Kernel Capability constants`
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
@@ -1026,6 +1026,6 @@ type SetSockOptEvent struct {
 
 // CapabilitiesEvent is used to report capabilities usage
 type CapabilitiesEvent struct {
-	Attempted uint64
-	Used      uint64
+	Attempted uint64 `field:"attempted,handler:ResolveCapabilitiesAttempted"` // SECLDoc[attempted] Definition:`Bitmask of the capabilities that the process attempted to use since it started running` Constants:`Kernel Capability constants`
+	Used      uint64 `field:"used,handler:ResolveCapabilitiesUsed"`           // SECLDoc[used] Definition:`Bitmask of the capabilities that the process successfully used since it started running` Constants:`Kernel Capability constants`
 }
