@@ -92,6 +92,14 @@ func TestBuildProfile(t *testing.T) {
 	mergeMetadata(mergedMetadata, profile1.Metadata)
 	mergedMetadata["ip_addresses"] = LegacyMetadataConfig["ip_addresses"]
 
+	vpnTunnelsMergedMetadata := make(profiledefinition.MetadataConfig)
+	for k, v := range mergedMetadata {
+		vpnTunnelsMergedMetadata[k] = v
+	}
+	mergeMetadata(vpnTunnelsMergedMetadata, VPNTunnelMetadataConfig)
+	mergeMetadata(vpnTunnelsMergedMetadata, RouteMetadataConfig)
+	mergeMetadata(vpnTunnelsMergedMetadata, TunnelMetadataConfig)
+
 	mockProfiles := profile.StaticProvider(profile.ProfileConfigMap{
 		"profile1": profile.ProfileConfig{
 			Definition: profile1,
@@ -123,7 +131,8 @@ func TestBuildProfile(t *testing.T) {
 				},
 				Metadata: LegacyMetadataConfig,
 			},
-		}, {
+		},
+		{
 			name: "static",
 			config: &CheckConfig{
 				IPAddress:       "1.2.3.4",
@@ -140,7 +149,8 @@ func TestBuildProfile(t *testing.T) {
 				StaticTags: []string{"snmp_profile:profile1"},
 				Metadata:   mergedMetadata,
 			},
-		}, {
+		},
+		{
 			name: "dynamic",
 			config: &CheckConfig{
 				IPAddress:       "1.2.3.4",
@@ -158,7 +168,8 @@ func TestBuildProfile(t *testing.T) {
 				StaticTags: []string{"snmp_profile:profile1"},
 				Metadata:   mergedMetadata,
 			},
-		}, {
+		},
+		{
 			name: "static with requested metrics",
 			config: &CheckConfig{
 				IPAddress:             "1.2.3.4",
@@ -185,7 +196,8 @@ func TestBuildProfile(t *testing.T) {
 				Metadata:   mergedMetadata,
 				StaticTags: []string{"snmp_profile:profile1"},
 			},
-		}, {
+		},
+		{
 			name: "static unknown",
 			config: &CheckConfig{
 				IPAddress:       "1.2.3.4",
@@ -193,7 +205,8 @@ func TestBuildProfile(t *testing.T) {
 				ProfileName:     "f5",
 			},
 			expectedError: "unknown profile \"f5\"",
-		}, {
+		},
+		{
 			name: "dynamic unknown",
 			config: &CheckConfig{
 				IPAddress:       "1.2.3.4",
@@ -203,6 +216,25 @@ func TestBuildProfile(t *testing.T) {
 			sysObjectID: "3.3.3.3",
 			expectedError: "failed to get profile for sysObjectID \"3.3.3.3\": no profiles found for sysObjectID \"3." +
 				"3.3.3\"",
+		},
+		{
+			name: "VPN tunnels metadata and metrics",
+			config: &CheckConfig{
+				IPAddress:       "1.2.3.4",
+				ProfileProvider: mockProfiles,
+				ProfileName:     "profile1",
+				CollectVPN:      true,
+			},
+			expected: profiledefinition.ProfileDefinition{
+				Name:    "profile1",
+				Version: 12,
+				Metrics: append(metrics, VPNTunnelMetrics...),
+				MetricTags: []profiledefinition.MetricTagConfig{
+					{Tag: "location", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.6.0", Name: "sysLocation"}},
+				},
+				StaticTags: []string{"snmp_profile:profile1"},
+				Metadata:   vpnTunnelsMergedMetadata,
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
