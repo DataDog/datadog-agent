@@ -44,7 +44,3 @@ tests_macos_gitlab_amd64:
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   tags: ["macos:ventura-arm64", "specific:true"]
-  #TODO(regis): remove below `rules` section once enough `macos:ventura-arm64` runners are provisioned
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.tests_macos_gitlab, rules]
