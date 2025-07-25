@@ -15,10 +15,11 @@ import (
 	"net"
 	"net/netip"
 	"path"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/net/bpf"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -124,16 +124,6 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		}
 	}
 	return f.Filesystem
-}
-
-// ResolveFileExtension resolves the extension of a file
-func (fh *EBPFFieldHandlers) ResolveFileExtension(ev *model.Event, f *model.FileEvent) string {
-	if f.Extension == "" {
-		if baseName := fh.ResolveFileBasename(ev, f); baseName != "" {
-			f.Extension = filepath.Ext(baseName)
-		}
-	}
-	return f.Extension
 }
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
