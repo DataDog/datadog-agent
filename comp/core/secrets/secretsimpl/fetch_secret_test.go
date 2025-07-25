@@ -25,10 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-var (
-	binExtension = ""
-)
-
 func build(outTarget, pkg string) {
 	output, err := exec.Command("go", "build", "-o", outTarget, pkg).CombinedOutput()
 	if err != nil {
@@ -69,7 +65,7 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 	}
 	if _, err := os.Stat(targetBin); err == nil {
 		t.Logf("using prebuilt secret backend binary '%s'", targetBin)
-		_ = os.Chmod(targetBin, 0500)
+		setCorrectRight(targetBin)
 		return targetBin, func() {}
 	}
 
@@ -88,7 +84,7 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 
 	t.Logf("compiling secret backend binary '%s'", targetBin)
 	build(targetBin, "./test/src/test_command")
-	_ = os.Chmod(targetBin, 0500)
+	setCorrectRight(targetBin)
 
 	return targetBin, cleanup
 }
@@ -96,6 +92,9 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 func TestExecCommandError(t *testing.T) {
 	inputPayload := "{\"version\": \"1.0\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+
+	// Windows-only fix for running on CI
+	testCheckRightsStub()
 
 	backendCommandBin, cleanup := getBackendCommandBinary(t)
 	defer cleanup()
