@@ -296,7 +296,10 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	for _, p := range mgr.Probes {
+	// GetProbes returns a copy of the probes. We use this because mgr.Probes is mutable
+	// and so may change from underneath us.
+	probes := mgr.GetProbes()
+	for _, p := range probes {
 		if p == nil || !p.IsRunning() {
 			continue
 		}
