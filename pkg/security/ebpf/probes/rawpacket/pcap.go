@@ -96,8 +96,8 @@ func (opts *ProgOpts) WithProgPrefix(prefix string) *ProgOpts {
 	return opts
 }
 
-// WithGetCurrentCgroupId sets if the program should use the get_current_cgroup_id function
-func (opts *ProgOpts) WithGetCurrentCgroupId(hasGetCurrentCgroupId bool) *ProgOpts {
+// WithGetCurrentCgroupID sets if the program should use the get_current_cgroup_id function
+func (opts *ProgOpts) WithGetCurrentCgroupID(hasGetCurrentCgroupId bool) *ProgOpts {
 	opts.hasGetCurrentCgroupId = hasGetCurrentCgroupId
 	return opts
 }

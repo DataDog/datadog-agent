@@ -709,7 +709,7 @@ func (p *EBPFProbe) applyRawPacketActionFilters() error {
 
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
-	opts.WithGetCurrentCgroupId(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
+	opts.WithGetCurrentCgroupID(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
@@ -2487,7 +2487,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
-			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIdForSchedCLS()),
+			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
 	)
 

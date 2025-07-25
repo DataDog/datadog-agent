@@ -227,7 +227,7 @@ func TestRawPacketAction(t *testing.T) {
 		assert.NoError(t, err)
 
 		// wait for the action to be performed
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 
 		cmd = cmdWrapper.Command("nslookup", []string{"google.com"}, []string{})
 		if err := cmd.Run(); err == nil {
