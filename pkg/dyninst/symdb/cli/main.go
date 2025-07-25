@@ -11,7 +11,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -41,18 +41,25 @@ The symbols from the specified binary will be extracted and printed to stdout
 		os.Exit(1)
 	}
 
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	log.SetupLogger(log.Default(), logLevel)
+
 	// Start the pprof server.
 	go func() {
 		_ = http.ListenAndServe(fmt.Sprintf("localhost:%d", *pprofPort), nil)
 	}()
 
 	if err := run(*binaryPath); err != nil {
-		log.Fatalf("Error: %v", err)
+		log.Errorf("Error: %v", err)
+		os.Exit(1)
 	}
 }
 
 func run(binaryPath string) error {
-	log.Printf("Analyzing binary: %s", binaryPath)
+	log.Infof("Analyzing binary: %s", binaryPath)
 	start := time.Now()
 	symBuilder, err := symdb.NewSymDBBuilder(binaryPath)
 	if err != nil {
@@ -60,16 +67,16 @@ func run(binaryPath string) error {
 	}
 	opt := symdb.ExtractScopeAllSymbols
 	if *onlyFirstParty {
-		log.Println("Extracting only 1st party symbols")
+		log.Infof("Extracting only 1st party symbols")
 		opt = symdb.ExtractScopeModulesFromSameOrg
 	}
 	symbols, err := symBuilder.ExtractSymbols(opt)
 	if err != nil {
 		return err
 	}
-	log.Printf("Symbol extraction completed in %s.", time.Since(start))
+	log.Infof("Symbol extraction completed in %s.", time.Since(start))
 	stats := statsFromSymbols(symbols)
-	log.Printf("Symbol statistics for %s: %+v", binaryPath, stats)
+	log.Infof("Symbol statistics for %s: %+v", binaryPath, stats)
 
 	return nil
 }
@@ -88,17 +95,11 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 		numFunctions:   0,
 		numSourceFiles: 0,
 	}
-	sourceFiles := make(map[string]struct{})
 	for _, pkg := range s.Packages {
-		stats.numTypes += len(pkg.Types)
-		stats.numFunctions += len(pkg.Functions)
-		for _, f := range pkg.Functions {
-			_, ok := sourceFiles[f.File]
-			if !ok {
-				sourceFiles[f.File] = struct{}{}
-				stats.numSourceFiles++
-			}
-		}
+		s := pkg.Stats()
+		stats.numTypes += s.NumTypes
+		stats.numFunctions += s.NumFunctions
+		stats.numSourceFiles += s.NumSourceFiles
 	}
 
 	if !*silent {
@@ -108,7 +109,7 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 			},
 		})
 	} else {
-		log.Println("--silent specified; symbols not serialized.")
+		log.Infof("--silent specified; symbols not serialized.")
 	}
 
 	return stats
