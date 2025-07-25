@@ -18,16 +18,16 @@ import (
 const (
 	// DefaultInitialDelay is the default delay before the first check (20 minutes)
 	DefaultInitialDelay = 20 * time.Minute
-	// DefaultRecurringInterval is the default interval for recurring checks (12 hours)
-	DefaultRecurringInterval = 12 * time.Minute
+	// DefaultRecurringInterval is the default interval for recurring checks (6 hours)
+	DefaultRecurringInterval = 6 * time.Hour
 )
 
 // Telemetry metrics
 var (
 	tlmDriftDetected = telemetry.NewCounter("hostname", "drift_detected",
-		[]string{"state", "provider", "cloud_provider"}, "Hostname drift detection status")
+		[]string{"state", "provider"}, "Hostname drift detection status")
 	tlmDriftResolutionTime = telemetry.NewHistogram("hostname", "drift_resolution_time_ms",
-		[]string{"state", "provider", "cloud_provider"}, "Hostname drift resolution time in milliseconds", []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 60})
+		[]string{"state", "provider"}, "Hostname drift resolution time in milliseconds", []float64{.5, 1, 2.5, 5, 10, 60})
 )
 
 var (
@@ -123,7 +123,7 @@ func checkHostnameDrift(ctx context.Context, cacheHostnameKey string) {
 	drift := determineDriftState(hostnameData, newData)
 
 	// Emit resolution time metric
-	tlmDriftResolutionTime.Observe(float64(resolutionTime), drift.state, providerName, "")
+	tlmDriftResolutionTime.Observe(float64(resolutionTime), drift.state, providerName)
 
 	if drift.hasDrift {
 		tlmDriftDetected.Inc(drift.state, providerName)
