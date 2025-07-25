@@ -9,11 +9,10 @@ package sbom
 import (
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
-
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 )
 
 const (
@@ -23,7 +22,7 @@ const (
 
 // Report defines the report interface
 type Report interface {
-	ToCycloneDX() (*cyclonedxgo.BOM, error)
+	ToCycloneDX() *cyclonedx_v1_4.Bom
 	ID() string
 }
 
