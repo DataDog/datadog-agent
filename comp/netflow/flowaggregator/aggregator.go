@@ -52,6 +52,7 @@ type FlowAggregator struct {
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
+	dropFlowsBeforeAggregator    bool             // config option to drop flows before aggregation for performance testing
 	dropFlowsBeforeEPForwarder   bool             // config option to drop flows before sending to EP forwarder for performance testing
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
@@ -100,6 +101,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
+		dropFlowsBeforeAggregator:    config.DropFlowsBeforeAggregator,
 		dropFlowsBeforeEPForwarder:   config.DropFlowsBeforeEPForwarder,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
@@ -126,15 +128,27 @@ func (agg *FlowAggregator) GetFlowInChan() chan *common.Flow {
 }
 
 func (agg *FlowAggregator) run() {
+	var droppedFlowCount uint64
 	for {
 		select {
 		case <-agg.stopChan:
+			if agg.dropFlowsBeforeAggregator && droppedFlowCount > 0 {
+				agg.logger.Infof("Dropped %d flows before aggregator as configured for performance testing", droppedFlowCount)
+			}
 			agg.logger.Info("Stopping aggregator")
 			agg.runDone <- struct{}{}
 			return
 		case flow := <-agg.flowIn:
 			agg.ReceivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			if !agg.dropFlowsBeforeAggregator {
+				agg.flowAcc.add(flow)
+			} else {
+				droppedFlowCount++
+				// Log every 1000000 dropped flows for visibility
+				if droppedFlowCount%1000000 == 0 {
+					agg.logger.Infof("Dropped %d flows before aggregator (performance testing mode)", droppedFlowCount)
+				}
+			}
 		}
 	}
 }

@@ -37,6 +37,7 @@ type NetflowConfig struct {
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
 
+	DropFlowsBeforeAggregator  bool `mapstructure:"drop_flows_before_aggregator"`
 	DropFlowsBeforeEPForwarder bool `mapstructure:"drop_flows_before_ep_forwarder"`
 	SkipHashCollisionDetection bool `mapstructure:"skip_hash_collision_detection"`
 	AggregationHashUseSyncPool bool `mapstructure:"aggregation_hash_use_sync_pool"`
