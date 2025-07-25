@@ -66,10 +66,12 @@ func (ts *transactionalStore) getAll(bucketName string) ([]pathData, error) {
 	blobs := []pathData{}
 
 	for path, data := range ts.getMemBucket(bucketName) {
+		seenBlobs[path] = struct{}{}
 		if len(data) == 0 {
+			// if the path is seen but the data is empty in the in-memory state, it means we've "deleted" it
+			// so we should not include in the result, and also not try to read it from the db.
 			continue
 		}
-		seenBlobs[path] = struct{}{}
 		blobs = append(blobs, pathData{path, data})
 	}
 
