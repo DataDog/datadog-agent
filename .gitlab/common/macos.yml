@@ -31,7 +31,7 @@
     sudo chown "$USER":staff "$NEWTMPDIR"
     sudo unlink /tmp/gitlabci 2> /dev/null || true
     sudo ln -s "$NEWTMPDIR" /tmp/gitlabci
-    export TMPDIR="/tmp/gitlabci/"
+    export TMPDIR="/tmp/gitlabci"
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
 
 .select_python_env_commands:
