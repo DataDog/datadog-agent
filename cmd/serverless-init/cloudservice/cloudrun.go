@@ -7,6 +7,8 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"io"
 	"net/http"
 	"os"
@@ -140,14 +142,27 @@ func (c *CloudRun) GetPrefix() string {
 	return "gcp.run"
 }
 
+// GetSource returns the metrics source
+func (c *CloudRun) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceGoogleCloudRunEnhanced
+}
+
 // Init is empty for CloudRun
 func (c *CloudRun) Init() error {
 	return nil
 }
 
+// Shutdown is empty for CloudRun
+func (c *CloudRun) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *CloudRun) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *CloudRun) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.shutdown", c.GetPrefix())
 }
 
 func isCloudRunService() bool {

@@ -8,6 +8,11 @@ package cloudservice
 import (
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 // CloudRunJobsOrigin origin tag value
@@ -32,7 +37,9 @@ const (
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
-type CloudRunJobs struct{}
+type CloudRunJobs struct {
+	startTime time.Time
+}
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
@@ -79,14 +86,32 @@ func (c *CloudRunJobs) GetPrefix() string {
 	return "gcp.run.job"
 }
 
-// Init is empty for CloudRunJobs
+// GetSource returns the metrics source
+func (c *CloudRunJobs) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceGoogleCloudRunEnhanced
+}
+
+// Init records the start time for CloudRunJobs
 func (c *CloudRunJobs) Init() error {
+	c.startTime = time.Now().UTC()
 	return nil
+}
+
+// Shutdown submits the task duration metric for CloudRunJobs
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
+	metricName := fmt.Sprintf("%s.enhanced.task.duration", c.GetPrefix())
+	duration := float64(time.Now().UTC().Sub(c.startTime).Milliseconds())
+	metric.Add(metricName, duration, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.start", c.GetPrefix())
+	return fmt.Sprintf("%s.enhanced.task.started", c.GetPrefix())
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *CloudRunJobs) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.task.ended", c.GetPrefix())
 }
 
 func isCloudRunJob() bool {

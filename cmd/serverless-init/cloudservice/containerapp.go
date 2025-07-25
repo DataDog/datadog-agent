@@ -7,6 +7,8 @@ package cloudservice
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"log"
 	"os"
 	"strings"
@@ -109,6 +111,11 @@ func (c *ContainerApp) GetPrefix() string {
 	return "azure.containerapp"
 }
 
+// GetSource returns the metrics source
+func (c *ContainerApp) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceAzureContainerAppEnhanced
+}
+
 // NewContainerApp returns a new ContainerApp instance
 func NewContainerApp() *ContainerApp {
 	return &ContainerApp{
@@ -139,9 +146,17 @@ func (c *ContainerApp) Init() error {
 	return nil
 }
 
+// Shutdown is empty for ContainerApp
+func (c *ContainerApp) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *ContainerApp) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", c.GetPrefix())
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (c *ContainerApp) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.shutdown", c.GetPrefix())
 }
 
 func isContainerAppService() bool {

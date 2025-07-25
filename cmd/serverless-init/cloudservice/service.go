@@ -5,7 +5,11 @@
 
 package cloudservice
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+)
 
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
@@ -23,11 +27,20 @@ type CloudService interface {
 	// prefix.
 	GetPrefix() string
 
+	// GetSource returns the metrics source
+	GetSource() metrics.MetricSource
+
 	// Init bootstraps the CloudService.
 	Init() error
 
+	// Shutdown cleans up the CloudService
+	Shutdown(agent serverlessMetrics.ServerlessMetricAgent)
+
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
+
+	// GetShutdownMetricName returns the metric name for shutdown events
+	GetShutdownMetricName() string
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -48,14 +61,27 @@ func (l *LocalService) GetPrefix() string {
 	return "datadog.serverless_agent"
 }
 
+// GetSource is a default implementation that returns a metrics source
+func (l *LocalService) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceServerless
+}
+
 // Init is not necessary for LocalService
 func (l *LocalService) Init() error {
 	return nil
 }
 
+// Shutdown is not necessary for LocalService
+func (l *LocalService) Shutdown(serverlessMetrics.ServerlessMetricAgent) {}
+
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
 	return fmt.Sprintf("%s.enhanced.cold_start", l.GetPrefix())
+}
+
+// GetShutdownMetricName returns the metric name for container shutdown events
+func (l *LocalService) GetShutdownMetricName() string {
+	return fmt.Sprintf("%s.enhanced.shutdown", l.GetPrefix())
 }
 
 // GetCloudServiceType TODO: Refactor to avoid leaking individual service implementation details into the interface layer
