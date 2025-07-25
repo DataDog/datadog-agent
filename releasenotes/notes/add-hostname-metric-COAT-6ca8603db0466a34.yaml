@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    Add a new metric counter to the Agent telemetry for hostname.drift_detected.
-    This will help to observe if there is any issue with the hostname resolution during the Agent lifetime.
+    Add a metric counter to the Agent telemetry for hostname.drift_detected.
+    This helps track whether hostname resolution issues occur during the Agent's lifetime.
