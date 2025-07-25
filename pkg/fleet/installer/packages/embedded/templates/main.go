@@ -70,6 +70,7 @@ type systemdTemplateData struct {
 	InstallDir       string
 	EtcDir           string
 	FleetPoliciesDir string
+	PIDDir           string
 	Stable           bool
 }
 
@@ -85,7 +86,7 @@ func mustReadSystemdUnit(name string, data systemdTemplateData) []byte {
 	return buf.Bytes()
 }
 
-func systemdUnits(stableData, expData systemdTemplateData, includeInstaller bool) map[string][]byte {
+func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTemplateData, includeInstaller bool) map[string][]byte {
 	units := map[string][]byte{
 		"datadog-agent.service":               mustReadSystemdUnit("datadog-agent.service", stableData),
 		"datadog-agent-exp.service":           mustReadSystemdUnit("datadog-agent.service", expData),
@@ -99,8 +100,8 @@ func systemdUnits(stableData, expData systemdTemplateData, includeInstaller bool
 		"datadog-agent-security-exp.service":  mustReadSystemdUnit("datadog-agent-security.service", expData),
 		"datadog-agent-sysprobe.service":      mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData),
 		"datadog-agent-sysprobe-exp.service":  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData),
-		"datadog-agent-ddot.service":          mustReadSystemdUnit("datadog-agent-ddot.service", stableData),
-		"datadog-agent-ddot-exp.service":      mustReadSystemdUnit("datadog-agent-ddot.service", expData),
+		"datadog-agent-ddot.service":          mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData),
+		"datadog-agent-ddot-exp.service":      mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData),
 	}
 	if includeInstaller {
 		units["datadog-installer.service"] = mustReadSystemdUnit("datadog-installer.service", stableData)
@@ -114,12 +115,14 @@ var (
 		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
+		PIDDir:           "/opt/datadog-packages/datadog-agent/stable",
 		Stable:           true,
 	}
 	expDataOCI = systemdTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
 	}
 
@@ -127,14 +130,32 @@ var (
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
+		PIDDir:           "/opt/datadog-agent",
 		Stable:           true,
 	}
 	expDataDebRpm = systemdTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent",
 		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		PIDDir:           "/opt/datadog-agent",
 		Stable:           false,
 	}
-	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, false)
+
+	ddotStableDataOCI = systemdTemplateData{
+		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/stable",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
+		PIDDir:           "/opt/datadog-packages/datadog-agent/stable",
+		Stable:           true,
+	}
+	ddotExpDataOCI = systemdTemplateData{
+		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/experiment",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
+		Stable:           false,
+	}
+
+	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, ddotStableDataOCI, ddotExpDataOCI, true)
+	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, stableDataDebRpm, expDataDebRpm, false)
 )

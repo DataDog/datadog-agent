@@ -71,6 +71,7 @@ iot_agent_suse*                      @DataDog/agent-build
 dogstatsd_suse*                      @DataDog/agent-build
 agent_oci*                           @DataDog/agent-build
 installer_oci*                       @DataDog/agent-build
+ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
 ddot_rpm*                            @DataDog/agent-build
 ddot_suse_rpm*                       @DataDog/agent-build
@@ -116,6 +117,7 @@ internal_kubernetes_deploy*            @Datadog/agent-delivery
 # Deploy packages
 deploy_agent*                          @DataDog/agent-delivery
 deploy_installer*                      @DataDog/agent-delivery
+deploy_ddot_oci*                       @DataDog/agent-delivery
 deploy_packages*                       @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-agent
