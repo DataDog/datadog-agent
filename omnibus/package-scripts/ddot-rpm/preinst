@@ -1,0 +1,25 @@
+#!/bin/sh
+##########################################################################
+#             DO NOT EDIT THIS SCRIPT DIRECTLY.                          #
+#                                                                        #
+# The installation logic is handled by the installer in the following    #
+# file: pkg/fleet/installer/packages/datadog_agent_ddot_linux.go         #
+#                                                                        #
+##########################################################################
+
+INSTALL_DIR=/opt/datadog-agent
+
+set -e
+
+# Uninstall the agent if it was installed by the installer
+if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent-ddot; then
+    datadog-installer remove datadog-agent-ddot || printf "[ WARNING ]\tFailed to remove datadog-agent-ddot installed by the installer\n"
+fi
+
+# Run the upgrade prerm if supported in the previous version. See pkg/fleet/installer/packages/datadog_agent_ddot_linux.go
+if [ "$*" = "2" ] && [ -f "${INSTALL_DIR}/embedded/bin/installer" ] && ${INSTALL_DIR}/embedded/bin/installer is-prerm-supported; then
+    ${INSTALL_DIR}/embedded/bin/installer prerm --upgrade datadog-agent-ddot rpm || true
+    exit 0
+fi
+
+exit 0
