@@ -381,6 +381,18 @@ int hook_exit_itimers(ctx_t *ctx) {
     return 0;
 }
 
+int __attribute__((always_inline)) fill_exec_context() {
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
+
+    // call it here before the memory get replaced
+    fill_span_context(&syscall->exec.span_context);
+
+    return 0;
+}
+
 HOOK_ENTRY("prepare_binprm")
 int hook_prepare_binprm(ctx_t *ctx) {
     return fill_exec_context();
@@ -663,6 +675,13 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
+    }
+
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tgid = tgid_tid >> 32;
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
+    if (pid_entry) {
+        flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
     }
 
     if (syscall->exec.args_envs_ctx.envs_offset != 0) {
