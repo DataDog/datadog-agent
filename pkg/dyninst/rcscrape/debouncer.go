@@ -38,9 +38,10 @@ func makeDebouncer(idlePeriod time.Duration) debouncer {
 
 type debouncerProcess struct {
 	procmon.ProcessUpdate
-	runtimeID   string
-	lastUpdated time.Time
-	files       []remoteConfigFile
+	runtimeID    string
+	lastUpdated  time.Time
+	files        []remoteConfigFile
+	symdbEnabled bool
 }
 
 func (c *debouncer) track(
@@ -53,6 +54,34 @@ func (c *debouncer) track(
 
 func (c *debouncer) untrack(processID actuator.ProcessID) {
 	delete(c.processes, processID)
+}
+
+func (c *debouncer) addSymdbEnabled(
+	now time.Time,
+	processID actuator.ProcessID,
+	runtimeID string,
+	symdbEnabled bool,
+) {
+	p, ok := c.processes[processID]
+	if !ok {
+		// Update corresponds to an untracked process.
+		return
+	}
+	p.lastUpdated = now
+	if p.runtimeID != "" && p.runtimeID != runtimeID {
+		log.Warnf(
+			"rcscrape: process %v: runtime ID mismatch: %s != %s",
+			p.ProcessID, p.runtimeID, runtimeID,
+		)
+	}
+	p.runtimeID = runtimeID
+	p.symdbEnabled = symdbEnabled
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"rcscrape: process %v: symdb enabled: %t",
+			p.ProcessID, symdbEnabled,
+		)
+	}
 }
 
 func (c *debouncer) addInFlight(
