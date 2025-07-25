@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -24,10 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+const (
+	mockStartMetricName    = "gcp.run.enhanced.cold_start"
+	mockShutdownMetricName = "gcp.run.enhanced.shutdown"
+	mockMetricSource       = metrics.MetricSourceServerless
+)
+
 func TestAdd(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	Add("a.super.metric", 1.0, "", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	Add("a.super.metric", 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -42,8 +47,7 @@ func TestAdd(t *testing.T) {
 func TestAddStartMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	cloudRun := &cloudservice.CloudRun{}
-	Add(cloudRun.GetStartMetricName(), 1.0, cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	Add(mockStartMetricName, 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -58,8 +62,7 @@ func TestAddStartMetric(t *testing.T) {
 func TestAddShutdownMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	timestamp := time.Now()
-	cloudRun := &cloudservice.CloudRun{}
-	Add(cloudRun.GetShutdownMetricName(), 1.0, cloudservice.CloudRunOrigin, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	Add(mockShutdownMetricName, 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -76,7 +79,7 @@ func TestNilDemuxDoesNotPanic(t *testing.T) {
 	timestamp := time.Now()
 	// Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
 	// This previously led to a panic and segmentation fault
-	Add("metric", 1.0, "", []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
+	Add("metric", 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 0, len(generatedMetrics))
