@@ -19,11 +19,11 @@ import (
 )
 
 // ConfigsForPod returns the openmetrics configurations for a given pod if it matches the AD configuration
-func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Config {
+func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) ([]integration.Config, error) {
 	var configs []integration.Config
 	namespacedName := fmt.Sprintf("%s/%s", pod.Metadata.Namespace, pod.Metadata.Name)
 	if pc.IsExcluded(pod.Metadata.Annotations, namespacedName) {
-		return configs
+		return nil, nil
 	}
 
 	instances, found := buildInstances(pc, pod.Metadata.Annotations, namespacedName)
@@ -35,16 +35,15 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 		if hasPortAnnotation {
 			portNumber, err := strconv.Atoi(portAnnotationString)
 			if err != nil {
-				log.Debugf("Port in annotation '%s' is not an integer", portAnnotationString)
 				// Don't return configs with an invalid port
-				return configs
+				return nil, fmt.Errorf("port in annotation %q is not an integer", portAnnotationString)
 			}
 
 			containerWithPortInAnnotation = findContainerWithPort(pod.Spec.Containers, portNumber)
 
-			// If port annotation exists but no container matches, return empty
+			// If port annotation exists but no container matches
 			if containerWithPortInAnnotation == "" {
-				return configs
+				return nil, fmt.Errorf("no container matches port in annotation: %d", portNumber)
 			}
 		}
 
@@ -67,12 +66,12 @@ func ConfigsForPod(pc *types.PrometheusCheck, pod *kubelet.Pod) []integration.Co
 				ADIdentifiers: []string{containerStatus.ID},
 			})
 		}
-		return configs
+		return configs, nil
 	}
 
 	// TODO: Support AD matching based on label selectors
 
-	return configs
+	return configs, nil
 }
 
 // findContainerWithPort returns the name of the container that exposes the given port, or empty string if none found

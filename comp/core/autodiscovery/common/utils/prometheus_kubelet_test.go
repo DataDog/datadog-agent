@@ -10,6 +10,8 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -21,12 +23,12 @@ import (
 
 func TestConfigsForPod(t *testing.T) {
 	tests := []struct {
-		name    string
-		check   *types.PrometheusCheck
-		version int
-		pod     *kubelet.Pod
-		want    []integration.Config
-		matched bool
+		name        string
+		check       *types.PrometheusCheck
+		version     int
+		pod         *kubelet.Pod
+		want        []integration.Config
+		expectError bool
 	}{
 		{
 			name:    "nominal case v1",
@@ -455,9 +457,8 @@ func TestConfigsForPod(t *testing.T) {
 					},
 				},
 			},
-			// No containers match the port in the annotation so don't generate
-			// configs for them
-			want: nil,
+			want:        nil,
+			expectError: true, // No containers match the port in the annotation
 		},
 		{
 			name:    "invalid port in annotation",
@@ -496,9 +497,8 @@ func TestConfigsForPod(t *testing.T) {
 					},
 				},
 			},
-			// Don't generate any configs with an invalid port, the check will
-			// fail
-			want: nil,
+			want:        nil,
+			expectError: true, // Invalid port in annotation
 		},
 		{
 			name: "container name mismatch",
@@ -618,7 +618,15 @@ func TestConfigsForPod(t *testing.T) {
 			cfg := mock.New(t)
 			cfg.SetWithoutSource("prometheus_scrape.version", tt.version)
 			tt.check.Init(tt.version)
-			assert.ElementsMatch(t, tt.want, ConfigsForPod(tt.check, tt.pod))
+
+			configs, err := ConfigsForPod(tt.check, tt.pod)
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, configs)
 		})
 	}
 }
