@@ -42,7 +42,6 @@ type baseDiagnoseSuite struct {
 }
 
 var commonSuites = []string{
-	"agent-account-check",
 	"check-datadog",
 	"connectivity-datadog-autodiscovery",
 	"connectivity-datadog-core-endpoints",

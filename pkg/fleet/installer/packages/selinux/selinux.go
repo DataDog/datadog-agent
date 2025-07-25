@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	gopsutilhost "github.com/shirou/gopsutil/v4/host"
 )
@@ -93,7 +94,7 @@ func isSELinuxSupported() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error getting platform information: %w", err)
 	}
-	return (family == "rhel" && version[0:1] == "7") && isInstalled("semodule"), nil
+	return (family == "rhel" && strings.HasPrefix(version, "7") && isInstalled("semodule")), nil
 }
 
 func isInstalled(program string) bool {
