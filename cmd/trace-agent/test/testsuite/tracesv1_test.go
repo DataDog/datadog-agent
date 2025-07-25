@@ -7,6 +7,7 @@ package testsuite
 
 import (
 	_ "embed"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,33 +158,35 @@ func TestTracesV1(t *testing.T) {
 	// 		})
 	// 	})
 
-	// 	t.Run("normalize, obfuscate", func(t *testing.T) {
-	// 		if err := r.RunAgent(nil); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		defer r.KillAgent()
+	t.Run("normalize, obfuscate", func(t *testing.T) {
+		if err := r.RunAgent(nil); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
 
-	// 		p := testutil.GeneratePayload(1, &testutil.TraceConfig{
-	// 			MinSpans: 4,
-	// 			Keep:     true,
-	// 		}, nil)
-	// 		for _, span := range p[0] {
-	// 			span.Service = strings.Repeat("a", 200) // Too long
-	// 			span.Name = strings.Repeat("b", 200)    // Too long
-	// 		}
-	// 		p[0][0].Type = "sql"
-	// 		p[0][0].Resource = "SELECT secret FROM users WHERE id = 123"
-	// 		if err := r.Post(p); err != nil {
-	// 			t.Fatal(err)
-	// 		}
-	// 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-	// 			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
-	// 			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
-	// 				assert.Len(t, s.Service, 100)
-	// 				assert.Len(t, s.Name, 100)
-	// 			}
-	// 		})
-	// 	})
+		p := testutil.GeneratePayloadV1(1, &testutil.TraceConfig{
+			MinSpans: 4,
+			Keep:     true,
+		}, nil)
+		for _, span := range p.Chunks[0].Spans {
+			span.SetService(strings.Repeat("a", 200)) // Too long
+			span.SetName(strings.Repeat("b", 200))    // Too long
+		}
+		p.Chunks[0].Spans[0].SetType("sql")
+		p.Chunks[0].Spans[0].SetResource("SELECT secret FROM users WHERE id = 123")
+		if err := r.PostV1(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			payloadStrings := v.IdxTracerPayloads[0].Strings
+			assert.NotContains(t, payloadStrings, "SELECT secret FROM users WHERE id = 123")
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", payloadStrings[v.IdxTracerPayloads[0].Chunks[0].Spans[0].ResourceRef])
+			for _, s := range v.IdxTracerPayloads[0].Chunks[0].Spans {
+				assert.Len(t, payloadStrings[s.ServiceRef], 100)
+				assert.Len(t, payloadStrings[s.NameRef], 100)
+			}
+		})
+	})
 
 	// 	t.Run("normalize, obfuscate, sqllexer", func(t *testing.T) {
 	// 		if err := r.RunAgent([]byte("apm_config:\r\n  features:[\"sqllexer\"]\r\n")); err != nil {
