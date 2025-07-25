@@ -101,7 +101,7 @@ func (c *CloudRunJobs) Init() error {
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent) {
 	metricName := fmt.Sprintf("%s.enhanced.task.duration", c.GetPrefix())
 	duration := float64(time.Now().UTC().Sub(c.startTime).Milliseconds())
-	metric.Add(metricName, duration, c.GetSource(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.Add(metricName, duration, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start events

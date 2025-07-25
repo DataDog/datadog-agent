@@ -9,22 +9,22 @@ package metric
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func Add(name string, value float64, source metrics.MetricSource, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
-	if demux == nil {
+func Add(name string, value float64, source metrics.MetricSource, agent serverlessMetrics.ServerlessMetricAgent) {
+	if agent.Demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
 	}
-	metricTimestamp := float64(timestamp.UnixNano()) / float64(time.Second)
-	demux.AggregateSample(metrics.MetricSample{
+	metricTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+	agent.Demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      value,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       agent.GetExtraTags(),
 		SampleRate: 1,
 		Timestamp:  metricTimestamp,
 		Source:     source,

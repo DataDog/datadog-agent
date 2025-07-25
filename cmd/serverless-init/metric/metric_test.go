@@ -20,6 +20,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,23 +32,28 @@ const (
 
 func TestAdd(t *testing.T) {
 	demux := createDemultiplexer(t)
-	timestamp := time.Now()
-	Add("a.super.metric", 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+		Demux: demux,
+	}
+	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
+	Add("a.super.metric", 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
 	metric := generatedMetrics[0]
 	assert.Equal(t, metric.Name, "a.super.metric")
 	assert.Equal(t, 2, len(metric.Tags))
-	assert.Equal(t, float64(timestamp.UnixNano())/float64(time.Second), metric.Timestamp)
 	assert.Equal(t, metric.Tags[0], "taga:valuea")
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
 }
 
 func TestAddStartMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	timestamp := time.Now()
-	Add(mockStartMetricName, 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+		Demux: demux,
+	}
+	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
+	Add(mockStartMetricName, 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -61,8 +67,11 @@ func TestAddStartMetric(t *testing.T) {
 
 func TestAddShutdownMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	timestamp := time.Now()
-	Add(mockShutdownMetricName, 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
+	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+		Demux: demux,
+	}
+	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
+	Add(mockShutdownMetricName, 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -76,10 +85,12 @@ func TestAddShutdownMetric(t *testing.T) {
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {
 	demux := createDemultiplexer(t)
-	timestamp := time.Now()
-	// Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
+	mockAgent := serverlessMetrics.ServerlessMetricAgent{
+		Demux: nil, // Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
+	}
+	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
 	// This previously led to a panic and segmentation fault
-	Add("metric", 1.0, mockMetricSource, []string{"taga:valuea", "tagb:valueb"}, timestamp, nil)
+	Add("metric", 1.0, mockMetricSource, mockAgent)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 0, len(generatedMetrics))
