@@ -329,10 +329,10 @@ func (fw fmtWrapper) Format(f fmt.State, _ rune) {
 	buf := []byte{}
 	for i, h := range fw {
 		if i > 0 {
-			_ = f.Write([]byte(", "))
+			_, _ = f.Write([]byte(", "))
 		}
 		buf = buf[:0]
 		buf = strconv.AppendQuoteToASCII(buf, h.Value())
-		_ = f.Write(buf)
+		_, _ = f.Write(buf)
 	}
 }
