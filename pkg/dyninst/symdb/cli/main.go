@@ -15,7 +15,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
@@ -25,14 +24,16 @@ import (
 var (
 	pprofPort      = flag.Int("pprof-port", 8081, "Port for pprof server.")
 	binaryPath     = flag.String("binary-path", "", "Path to the binary to analyze.")
-	mainModuleOnly = flag.Bool("main-module-only", false, "If set, only symbols from the module containing the \"main\" function are printed.")
 	silent         = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
+	onlyFirstParty = flag.Bool("only-1stparty", false,
+		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
+			"to the same GitHub org as the main one).")
 )
 
 func main() {
 	flag.Parse()
 	if *binaryPath == "" {
-		fmt.Print(`Usage: symdbcli --binary-path <path-to-binary> [--main-module-only] [--silent]
+		fmt.Print(`Usage: symdbcli --binary-path <path-to-binary> [--only-1stparty] [--silent]
 
 The symbols from the specified binary will be extracted and printed to stdout
 (unless --silent is specified).
@@ -57,7 +58,12 @@ func run(binaryPath string) error {
 	if err != nil {
 		return err
 	}
-	symbols, err := symBuilder.ExtractSymbols()
+	opt := symdb.ExtractScopeAllSymbols
+	if *onlyFirstParty {
+		log.Println("Extracting only 1st party symbols")
+		opt = symdb.ExtractScopeModulesFromSameOrg
+	}
+	symbols, err := symBuilder.ExtractSymbols(opt)
 	if err != nil {
 		return err
 	}
@@ -84,9 +90,6 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 	}
 	sourceFiles := make(map[string]struct{})
 	for _, pkg := range s.Packages {
-		if *mainModuleOnly && !strings.HasPrefix(pkg.Name, s.MainModule) {
-			continue
-		}
 		stats.numTypes += len(pkg.Types)
 		stats.numFunctions += len(pkg.Functions)
 		for _, f := range pkg.Functions {
@@ -100,7 +103,6 @@ func statsFromSymbols(s symdb.Symbols) symbolStats {
 
 	if !*silent {
 		s.Serialize(symdbutil.MakePanickingWriter(os.Stdout), symdb.SerializationOptions{
-			OnlyMainModule: *mainModuleOnly,
 			PackageSerializationOptions: symdb.PackageSerializationOptions{
 				StripLocalFilePrefix: false,
 			},
