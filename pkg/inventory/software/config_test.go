@@ -22,7 +22,7 @@ func TestSoftwareInventoryModuleConfig(t *testing.T) {
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		t.Setenv("DD_SOFTWARE_INVENTORY_ENABLED", "true")
+		t.Setenv("SOFTWARE_INVENTORY_ENABLED", "true")
 		cfg := configmock.New(t)
 		assert.True(t, cfg.GetBool("software_inventory.enabled"))
 	})
@@ -33,7 +33,7 @@ func TestSoftwareInventoryModuleConfig(t *testing.T) {
 	})
 
 	t.Run("explicitly disabled", func(t *testing.T) {
-		t.Setenv("DD_SOFTWARE_INVENTORY_ENABLED", "false")
+		t.Setenv("SOFTWARE_INVENTORY_ENABLED", "false")
 		cfg := configmock.New(t)
 		assert.False(t, cfg.GetBool("software_inventory.enabled"))
 	})
