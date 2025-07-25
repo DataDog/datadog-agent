@@ -276,7 +276,7 @@ func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.Context
 			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
 			continue
 		}
-		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%v': %s", context.Name, context.Host, fmtWrapper(context.Tags()), err)
+		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%v': %s", context.Name, context.Host, context.Tags(), err)
 	}
 }
 
