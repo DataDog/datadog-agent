@@ -297,6 +297,10 @@ func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
+func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool) {
+	return getAttributeAsString(key, tp.Strings, tp.Attributes)
+}
+
 // Cut cuts off a new tracer payload from the `p` with [0, i-1] chunks
 // and keeps [i, n-1] chunks in the original payload `p`.
 func (tp *InternalTracerPayload) Cut(i int) *InternalTracerPayload {
@@ -813,12 +817,20 @@ func (sl *InternalSpanLink) Tracestate() string {
 	return sl.Strings.Get(sl.link.TracestateRef)
 }
 
+func (sl *InternalSpanLink) Attributes() map[uint32]*AnyValue {
+	return sl.link.Attributes
+}
+
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups
 type InternalSpanEvent struct {
 	// Strings is a pointer to the strings slice (Shared across a tracer payload)
 	Strings *StringTable
 	event   *SpanEvent
+}
+
+func (se *InternalSpanEvent) Name() string {
+	return se.Strings.Get(se.event.NameRef)
 }
 
 func (se *InternalSpanEvent) Attributes() map[uint32]*AnyValue {

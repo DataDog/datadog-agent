@@ -603,7 +603,6 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) {
-	// todo wg
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -676,7 +675,6 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	if len(ctags) > 0 {
 		tp.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 	}
-	// TODO: Add process tags
 
 	payload := &PayloadV1{
 		Source:                 ts,
@@ -686,19 +684,17 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 		ContainerTags:          ctags,
 	}
-
-	// TODO: add to the waitgroup to prevent sending on closed channel
 	r.outV1 <- payload
 }
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	r.wg.Add(1)
+	defer r.wg.Done()
 	if v == V10 {
 		r.handleTracesV1(w, req)
 		return
 	}
-	r.wg.Add(1)
-	defer r.wg.Done()
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
@@ -849,6 +845,16 @@ func getProcessTags(h http.Header, p *pb.TracerPayload) string {
 	}
 	if span, ok := getFirstSpan(p); ok {
 		if ptags, ok := span.Meta[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	return h.Get(header.ProcessTags)
+}
+
+// In v1.0, process tags are stored in the payload attributes
+func getProcessTagsV1(h http.Header, p *idx.InternalTracerPayload) string {
+	if p.Attributes != nil {
+		if ptags, ok := p.GetAttributeAsString(tagProcessTags); ok {
 			return ptags
 		}
 	}

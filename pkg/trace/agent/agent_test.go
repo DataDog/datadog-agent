@@ -1095,8 +1095,6 @@ func assertInternalTraceChunkEqual(t *testing.T, expected *idx.InternalTraceChun
 }
 
 func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *idx.InternalSpan) {
-	fmt.Printf("expected: %s\n", expected.DebugString())
-	fmt.Printf("actual: %s\n", actual.DebugString())
 	assert.Equal(t, expected.SpanID(), actual.SpanID())
 	assert.Equal(t, expected.ParentID(), actual.ParentID())
 	assert.Equal(t, expected.Name(), actual.Name())
@@ -1110,9 +1108,19 @@ func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *i
 	assert.Equal(t, expected.Kind(), actual.Kind())
 	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()))
 	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
-	// TODO: add links and events - for concentrator tests these aren't used yet
-	//assert.Equal(t, expected.Links(), actual.Links())
-	//assert.Equal(t, expected.Events(), actual.Events())
+	require.Equal(t, len(expected.Events()), len(actual.Events()))
+	for i, expectedEvent := range expected.Events() {
+		assert.Equal(t, expectedEvent.Name(), actual.Events()[i].Name())
+		assertAttributesEqual(t, expected.Strings, expectedEvent.Attributes(), actual.Strings, actual.Events()[i].Attributes())
+	}
+	require.Equal(t, len(expected.Links()), len(actual.Links()))
+	for i, expectedLink := range expected.Links() {
+		assert.Equal(t, expectedLink.SpanID(), actual.Links()[i].SpanID())
+		assert.Equal(t, expectedLink.TraceID(), actual.Links()[i].TraceID())
+		assert.Equal(t, expectedLink.Flags(), actual.Links()[i].Flags())
+		assertAttributesEqual(t, expected.Strings, expectedLink.Attributes(), actual.Strings, actual.Links()[i].Attributes())
+		assert.Equal(t, expectedLink.Tracestate(), actual.Links()[i].Tracestate())
+	}
 }
 
 func assertAttributesEqual(t *testing.T, expetedStrings *idx.StringTable, expected map[uint32]*idx.AnyValue, actualStrings *idx.StringTable, actual map[uint32]*idx.AnyValue) {
