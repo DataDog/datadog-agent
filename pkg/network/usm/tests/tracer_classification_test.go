@@ -79,8 +79,6 @@ func getConnections(t require.TestingT, tr *tracer.Tracer) (*network.Connections
 type testContext struct {
 	// The address of the server to listen on.
 	serverAddress string
-	// The port to listen on.
-	serverPort string
 	// The address for the client to communicate with.
 	targetAddress string
 	// A dynamic map that allows extending the context easily between phases of the test.
@@ -149,7 +147,6 @@ func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost,
 		{
 			name: "tcp client with sending HTTP request",
 			context: testContext{
-				serverPort:    httpPort,
 				serverAddress: serverAddress,
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
@@ -220,7 +217,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 		{
 			name: "tcp client without sending data",
 			context: testContext{
-				serverPort:    "10001",
 				serverAddress: net.JoinHostPort(serverHost, "10001"),
 				targetAddress: net.JoinHostPort(targetHost, "10001"),
 				extras:        map[string]interface{}{},
@@ -245,7 +241,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 		{
 			name: "tcp client with sending random data",
 			context: testContext{
-				serverPort:    "10002",
 				serverAddress: net.JoinHostPort(serverHost, "10002"),
 				targetAddress: net.JoinHostPort(targetHost, "10002"),
 				extras:        map[string]interface{}{},
@@ -279,7 +274,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 			// with the first protocol we've found.
 			name: "mixed protocols",
 			context: testContext{
-				serverPort:    "10003",
 				serverAddress: net.JoinHostPort(serverHost, "10003"),
 				targetAddress: net.JoinHostPort(targetHost, "10003"),
 				extras:        map[string]interface{}{},
