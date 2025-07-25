@@ -319,6 +319,11 @@ func isRetryableExitCode(err error) bool {
 	var exitError exitCodeError
 	if errors.As(err, &exitError) {
 		if exitError.ExitCode() == int(windows.ERROR_INSTALL_ALREADY_RUNNING) {
+			// another MSI is already running, we have to wait for it to finish.
+			return true
+		} else if exitError.ExitCode() == int(windows.ERROR_INSTALL_SERVICE_FAILURE) {
+			// could not connect to msiserver service.
+			// it should auto start when the MSI is run, but maybe it failed or was too slow to start.
 			return true
 		}
 	}

@@ -66,6 +66,11 @@ func TestIsRetryableExitCode(t *testing.T) {
 			isRetryable: true,
 		},
 		{
+			name:        "retryable exit code 1601",
+			err:         &mockExitError{code: int(windows.ERROR_INSTALL_SERVICE_FAILURE)},
+			isRetryable: true,
+		},
+		{
 			name:        "non-retryable exit code 1603",
 			err:         &mockExitError{code: 1603},
 			isRetryable: false,
@@ -103,6 +108,11 @@ func TestIsRetryableExitCode(t *testing.T) {
 			{
 				name:        "retryable exit code 1618 (ERROR_INSTALL_ALREADY_RUNNING)",
 				exitCode:    int(windows.ERROR_INSTALL_ALREADY_RUNNING), // 1618
+				isRetryable: true,
+			},
+			{
+				name:        "retryable exit code 1601 (ERROR_INSTALL_SERVICE_FAILURE)",
+				exitCode:    int(windows.ERROR_INSTALL_SERVICE_FAILURE), // 1601
 				isRetryable: true,
 			},
 			{
