@@ -16,6 +16,9 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -506,6 +509,10 @@ func fmtProcesses(
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			ProcessContext:         serviceExtractor.GetServiceContext(fp.Pid),
+			// TODO: service discovery response does not distinguish between tcp and udp, so everything is TCP for now
+			PortInfo:         formatPorts(fp.Service.Ports),      // only populated if service discovery is enabled + linux
+			Language:         formatLanguage(fp.Language),        // only populated if language detection is enabled + linux
+			ServiceDiscovery: formatServiceDiscovery(fp.Service), // only populated if service discovery is enabled + linux
 		}
 
 		if tags, ok := pidToGPUTags[fp.Pid]; ok {
@@ -523,6 +530,119 @@ func fmtProcesses(
 	scrubber.IncrementCacheAge()
 
 	return procsByCtr
+}
+
+// formatPorts converts a list of uin16 ports to a int32 PortInfo
+// TODO: because the service discovery response does not distinguish between tcp and udp currently, we currently send everything as TCP
+func formatPorts(ports []uint16) *model.PortInfo {
+	newPorts := make([]int32, len(ports))
+	for i, port := range ports {
+		newPorts[i] = int32(port)
+	}
+	return &model.PortInfo{
+		Tcp: newPorts,
+	}
+}
+
+var languageMap = map[languagemodels.LanguageName]model.Language{
+	languagemodels.Unknown: model.Language_LANGUAGE_UNKNOWN,
+	languagemodels.Go:      model.Language_LANGUAGE_GO,
+	languagemodels.Node:    model.Language_LANGUAGE_NODE,
+	languagemodels.Dotnet:  model.Language_LANGUAGE_DOTNET,
+	languagemodels.Python:  model.Language_LANGUAGE_PYTHON,
+	languagemodels.Java:    model.Language_LANGUAGE_JAVA,
+	languagemodels.Ruby:    model.Language_LANGUAGE_RUBY,
+	languagemodels.PHP:     model.Language_LANGUAGE_PHP,
+	languagemodels.CPP:     model.Language_LANGUAGE_CPP,
+}
+
+func formatLanguage(language *languagemodels.Language) model.Language {
+	if language == nil {
+		return model.Language_LANGUAGE_UNKNOWN
+	}
+	if lang, ok := languageMap[language.Name]; ok {
+		return lang
+	}
+	return model.Language_LANGUAGE_UNKNOWN
+}
+
+var serviceNameSourceMap = map[string]model.ServiceNameSource{
+	"":                      model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN,
+	string(usm.CommandLine): model.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE,
+	string(usm.Laravel):     model.ServiceNameSource_SERVICE_NAME_SOURCE_LARAVEL,
+	string(usm.Python):      model.ServiceNameSource_SERVICE_NAME_SOURCE_PYTHON,
+	string(usm.Nodejs):      model.ServiceNameSource_SERVICE_NAME_SOURCE_NODEJS,
+	string(usm.Gunicorn):    model.ServiceNameSource_SERVICE_NAME_SOURCE_GUNICORN,
+	string(usm.Rails):       model.ServiceNameSource_SERVICE_NAME_SOURCE_RAILS,
+	string(usm.Spring):      model.ServiceNameSource_SERVICE_NAME_SOURCE_SPRING,
+	string(usm.JBoss):       model.ServiceNameSource_SERVICE_NAME_SOURCE_JBOSS,
+	string(usm.Tomcat):      model.ServiceNameSource_SERVICE_NAME_SOURCE_TOMCAT,
+	string(usm.WebLogic):    model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBLOGIC,
+	string(usm.WebSphere):   model.ServiceNameSource_SERVICE_NAME_SOURCE_WEBSPHERE,
+}
+
+func getServiceNameSource(source string) model.ServiceNameSource {
+	if modelSource, ok := serviceNameSourceMap[source]; ok {
+		return modelSource
+	}
+	return model.ServiceNameSource_SERVICE_NAME_SOURCE_UNKNOWN
+}
+
+var apmInstrumentationMap = map[string]model.ApmInstrumentation{
+	"":                   model.ApmInstrumentation_APM_INSTRUMENTATION_UNKNOWN,
+	string(apm.None):     model.ApmInstrumentation_APM_INSTRUMENTATION_NONE,
+	string(apm.Provided): model.ApmInstrumentation_APM_INSTRUMENTATION_PROVIDED,
+	string(apm.Injected): model.ApmInstrumentation_APM_INSTRUMENTATION_INJECTED,
+}
+
+func getApmInstrumentation(instrumentation string) model.ApmInstrumentation {
+	if modelInstrumentation, ok := apmInstrumentationMap[instrumentation]; ok {
+		return modelInstrumentation
+	}
+	return model.ApmInstrumentation_APM_INSTRUMENTATION_UNKNOWN
+}
+
+func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
+	if service == nil {
+		return nil
+	}
+	var serviceNames []*model.ServiceName
+	source := getServiceNameSource(service.GeneratedNameSource)
+
+	// Add generated name
+	serviceNames = append(serviceNames, &model.ServiceName{
+		Name:   service.GeneratedName,
+		Source: source,
+	})
+
+	// add dd service name
+	serviceNames = append(serviceNames, &model.ServiceName{
+		Name:   service.DDService,
+		Source: model.ServiceNameSource_SERVICE_NAME_SOURCE_DD_SERVICE,
+	})
+
+	// add additional generated names
+	for _, name := range service.AdditionalGeneratedNames {
+		serviceNames = append(serviceNames, &model.ServiceName{
+			Name:   name,
+			Source: source,
+		})
+	}
+
+	// add additional names
+	tracerMetadata := make([]*model.TracerMetadata, len(service.TracerMetadata))
+	for i, tm := range service.TracerMetadata {
+		tracerMetadata[i] = &model.TracerMetadata{
+			RuntimeId:   tm.RuntimeID,
+			ServiceName: tm.ServiceName,
+		}
+	}
+
+	return &model.ServiceDiscovery{
+		ServiceNames:       serviceNames,
+		TracerMetadata:     tracerMetadata,
+		ApmInstrumentation: getApmInstrumentation(service.APMInstrumentation),
+	}
 }
 
 func formatCommand(fp *procutil.Process) *model.Command {
